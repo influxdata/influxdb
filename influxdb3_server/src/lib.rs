@@ -236,10 +236,12 @@ mod tests {
     use influxdb3_id::{DbId, TableId};
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
+    use influxdb3_write::{
+        last_cache::LastCacheProvider, write_buffer::persisted_files::PersistedFiles,
+    };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -787,9 +789,10 @@ mod tests {
             .unwrap(),
         );
 
-        let dummy_telem_store = TelemetryStore::new_without_background_runners(Arc::clone(
-            &write_buffer_impl.persisted_files(),
-        ));
+        let parquet_metrics_provider: Arc<PersistedFiles> =
+            Arc::clone(&write_buffer_impl.persisted_files());
+        let dummy_telem_store =
+            TelemetryStore::new_without_background_runners(parquet_metrics_provider);
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),

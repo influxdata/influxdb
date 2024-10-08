@@ -604,8 +604,11 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
-        persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+        last_cache::LastCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+        persister::Persister,
+        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
+        WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -651,7 +654,7 @@ mod tests {
         let host_id = Arc::from("dummy-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
-        let write_buffer = Arc::new(
+        let write_buffer_impl = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&catalog),
@@ -670,10 +673,9 @@ mod tests {
             .unwrap(),
         );
 
-        let dummy_telem_store = TelemetryStore::new_without_background_runners(Arc::clone(
-            &write_buffer.persisted_files(),
-        ));
-        let write_buffer: Arc<dyn WriteBuffer> = write_buffer;
+        let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
+        let dummy_telem_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let df_config = Arc::new(Default::default());
         let query_executor = QueryExecutorImpl::new(

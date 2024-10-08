@@ -18,10 +18,9 @@ sysinfo.workspace = true
 num.workspace = true
 thiserror.workspace = true
 
-# Local Deps
-influxdb3_write = { path = "../influxdb3_write" }
-
 [dev-dependencies]
 test-log.workspace = true
 proptest.workspace = true
+mockito.workspace = true
+mockall.workspace = true
 

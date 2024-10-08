@@ -74,6 +74,7 @@ indexmap = { version = "2.2.6" }
 libc = { version = "0.2" }
 mime = "0.3.17"
 mockito = { version = "1.4.0", default-features = false }
+mockall = { version = "0.13.0" }
 num_cpus = "1.16.0"
 object_store = "0.10.2"
 parking_lot = "0.12.1"

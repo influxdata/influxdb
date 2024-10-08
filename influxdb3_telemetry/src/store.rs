@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use num::Float;
 use observability_deps::tracing::{debug, warn};
 
@@ -9,6 +8,7 @@ use crate::{
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
     sender::{send_telemetry_in_background, TelemetryPayload},
+    ParquetMetrics,
 };
 
 /// This store is responsible for holding all the stats which will be sent in the background
@@ -26,7 +26,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
-    persisted_files: Arc<PersistedFiles>,
+    persisted_files: Arc<dyn ParquetMetrics>,
 }
 
 const SAMPLER_INTERVAL_SECS: u64 = 60;
@@ -39,7 +39,7 @@ impl TelemetryStore {
         influx_version: Arc<str>,
         storage_type: Arc<str>,
         cores: usize,
-        persisted_files: Arc<PersistedFiles>,
+        persisted_files: Arc<dyn ParquetMetrics>,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -66,7 +66,7 @@ impl TelemetryStore {
         store
     }
 
-    pub fn new_without_background_runners(persisted_files: Arc<PersistedFiles>) -> Arc<Self> {
+    pub fn new_without_background_runners(persisted_files: Arc<dyn ParquetMetrics>) -> Arc<Self> {
         let instance_id = Arc::from("dummy-instance-id");
         let os = Arc::from("Linux");
         let influx_version = Arc::from("influxdb3-0.1.0");
@@ -284,20 +284,26 @@ mod tests {
 
     use super::*;
 
+    #[derive(Debug)]
+    struct DummyParquetMetrics;
+
+    impl ParquetMetrics for DummyParquetMetrics {
+        fn get_metrics(&self) -> (u64, f64, u64) {
+            (200, 500.25, 100)
+        }
+    }
+
     #[test_log::test(tokio::test)]
     async fn test_telemetry_store_cpu_mem() {
-        let persisted_snapshots = Vec::new();
         // create store
-        let persisted_files = Arc::from(PersistedFiles::new_from_persisted_snapshots(
-            persisted_snapshots,
-        ));
+        let parqet_file_metrics = Arc::new(DummyParquetMetrics);
         let store: Arc<TelemetryStore> = TelemetryStore::new(
             Arc::from("some-instance-id"),
             Arc::from("Linux"),
             Arc::from("OSS-v3.0"),
             Arc::from("Memory"),
             10,
-            persisted_files,
+            parqet_file_metrics,
         )
         .await;
         // check snapshot
@@ -327,9 +333,9 @@ mod tests {
         assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min);
         assert_eq!(128, snapshot.memory_used_mb_max);
         assert_eq!(122, snapshot.memory_used_mb_avg);
-        assert_eq!(0, snapshot.parquet_file_count);
-        assert_eq!(0.0, snapshot.parquet_file_size_mb);
-        assert_eq!(0, snapshot.parquet_row_count);
+        assert_eq!(200, snapshot.parquet_file_count);
+        assert_eq!(500.25, snapshot.parquet_file_size_mb);
+        assert_eq!(100, snapshot.parquet_row_count);
 
         // add some writes
         store.add_write_metrics(100, 100);
