@@ -1,13 +1,24 @@
 #syntax=docker/dockerfile:1.2
-ARG RUST_VERSION=1.75
+ARG RUST_VERSION=$RUST_VERSION
 FROM rust:${RUST_VERSION}-slim-bookworm as build
 
 # cache mounts below may already exist and owned by root
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler \
+    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler openssh-client \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
+RUN if [ $PRIVATE_KEY ]; then exit 1; fi
+RUN if [ $PUBLIC_KEY]; then exit 1; fi
+RUN if [ $KNOWN_HOSTS ]; then exit 1; fi
+RUN mkdir -p /root/.ssh && \
+    chmod 0700 /root/.ssh && \
+    echo -e "$PRIVATE_KEY" > /root/.ssh/id_ed25519 && \
+    echo -e "$PUBLIC_KEY" > /root/.ssh/id_ed25519.pub && \
+    echo -e "$KNOWN_HOSTS" > /root/.ssh/known_hosts && \
+    chmod 600 /root/.ssh/id_ed25519 && \
+    chmod 600 /root/.ssh/id_ed25519.pub && \
+    chmod 600 /root/.ssh/known_hosts
 
 # Build influxdb3
 COPY . /influxdb3
@@ -34,6 +45,7 @@ RUN \
     objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
     cp "/influxdb3/target/$PROFILE/$PACKAGE" /root/$PACKAGE && \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
+RUN rm -rf /root/.ssh/
 
 
 FROM debian:bookworm-slim
