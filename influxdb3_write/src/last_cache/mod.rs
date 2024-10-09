@@ -1621,8 +1621,8 @@ mod tests {
         let (obj_store, parquet_cache) =
             test_cached_obj_store_and_oracle(obj_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
         WriteBufferImpl::new(
             persister,
@@ -3205,8 +3205,8 @@ mod tests {
         database.tables.insert(table_def.table_id, table_def);
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let mut catalog = Catalog::new(host_id, instance_id);
         let db_id = database.id;
         catalog.insert_database(database);

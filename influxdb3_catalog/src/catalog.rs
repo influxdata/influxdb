@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn catalog_serialization() {
-        let host_id = Arc::from("dummy-host-id");
+        let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let cloned_instance_id = Arc::clone(&instance_id);
         let catalog = Catalog::new(host_id, cloned_instance_id);
@@ -1085,7 +1085,7 @@ mod tests {
 
     #[test]
     fn serialize_series_keys() {
-        let host_id = Arc::from("dummy-host-id");
+        let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn serialize_last_cache() {
-        let host_id = Arc::from("dummy-host-id");
+        let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Catalog::new(host_id, instance_id);
         let mut database = DatabaseSchema {
@@ -1193,8 +1193,8 @@ mod tests {
 
     #[test]
     fn catalog_instance_and_host_ids() {
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let cloned_host_id = Arc::clone(&host_id);
         let cloned_instance_id = Arc::clone(&instance_id);
         let catalog = Catalog::new(cloned_host_id, cloned_instance_id);

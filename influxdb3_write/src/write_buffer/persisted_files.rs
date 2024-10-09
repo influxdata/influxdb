@@ -259,7 +259,7 @@ mod tests {
         let wal1 = WalFileSequenceNumber::new(wal_id);
         let cat1 = SequenceNumber::new(catalog_id);
         let mut new_snapshot =
-            PersistedSnapshot::new("dummy-host-id".to_owned(), snap1, wal1, cat1);
+            PersistedSnapshot::new("sample-host-id".to_owned(), snap1, wal1, cat1);
         parquet_files.into_iter().for_each(|file| {
             // TODO: Check why `add_parquet_file` method does not check if file is
             //       already present. This is checked when trying to add a new PersistedSnapshot

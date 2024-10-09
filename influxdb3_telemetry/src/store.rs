@@ -67,7 +67,7 @@ impl TelemetryStore {
     }
 
     pub fn new_without_background_runners(persisted_files: Arc<dyn ParquetMetrics>) -> Arc<Self> {
-        let instance_id = Arc::from("dummy-instance-id");
+        let instance_id = Arc::from("sample-instance-id");
         let os = Arc::from("Linux");
         let influx_version = Arc::from("influxdb3-0.1.0");
         let storage_type = Arc::from("Memory");
@@ -285,9 +285,9 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
-    struct DummyParquetMetrics;
+    struct SampleParquetMetrics;
 
-    impl ParquetMetrics for DummyParquetMetrics {
+    impl ParquetMetrics for SampleParquetMetrics {
         fn get_metrics(&self) -> (u64, f64, u64) {
             (200, 500.25, 100)
         }
@@ -296,7 +296,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_telemetry_store_cpu_mem() {
         // create store
-        let parqet_file_metrics = Arc::new(DummyParquetMetrics);
+        let parqet_file_metrics = Arc::new(SampleParquetMetrics);
         let store: Arc<TelemetryStore> = TelemetryStore::new(
             Arc::from("some-instance-id"),
             Arc::from("Linux"),
@@ -315,7 +315,7 @@ mod tests {
         let expected_mem_in_mb = 117;
         store.add_cpu_and_memory(89.0, mem_used_bytes);
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 1");
+        info!(snapshot = ?snapshot, "sample snapshot 1");
         assert_eq!(89.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(89.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(89.0, snapshot.cpu_utilization_percent_avg);
@@ -326,7 +326,7 @@ mod tests {
         // add cpu/mem snapshot 2
         store.add_cpu_and_memory(100.0, 134567890);
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 2");
+        info!(snapshot = ?snapshot, "sample snapshot 2");
         assert_eq!(89.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(100.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(94.5, snapshot.cpu_utilization_percent_avg);
@@ -400,7 +400,7 @@ mod tests {
         store.reset_metrics();
         // check snapshot 3
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 3");
+        info!(snapshot = ?snapshot, "sample snapshot 3");
         assert_eq!(0.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(0.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(0.0, snapshot.cpu_utilization_percent_avg);

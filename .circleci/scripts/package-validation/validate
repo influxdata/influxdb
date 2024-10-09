@@ -8,7 +8,7 @@ usage() {
 usage: validate [type] [path]
 
 Program:
-    This application performs sanity checks on the provided InfluxDB
+    This application performs quick checks on the provided InfluxDB
     package. InfluxDB should *not* be installed on the system before
     running this application. This validates new installations and
     performs specific checks relevant only to InfluxDB.

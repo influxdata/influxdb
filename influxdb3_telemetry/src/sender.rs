@@ -126,7 +126,7 @@ mod tests {
         let mut mock_server = Server::new_async().await;
         let mut sender = TelemetrySender::new(client, mock_server.url());
         let mock = mock_server.mock("POST", "/api/v3").create_async().await;
-        let telem_payload = create_dummy_payload();
+        let telem_payload = create_sample_payload();
 
         let result = sender.try_sending(&telem_payload).await;
 
@@ -141,12 +141,12 @@ mod tests {
         assert_eq!("https://foo.com/foo", new_url.as_str());
     }
 
-    fn create_dummy_payload() -> TelemetryPayload {
+    fn create_sample_payload() -> TelemetryPayload {
         TelemetryPayload {
-            os: Arc::from("dummy-str"),
-            version: Arc::from("dummy-str"),
-            storage_type: Arc::from("dummy-str"),
-            instance_id: Arc::from("dummy-str"),
+            os: Arc::from("sample-str"),
+            version: Arc::from("sample-str"),
+            storage_type: Arc::from("sample-str"),
+            instance_id: Arc::from("sample-str"),
             cores: 10,
             product_type: "OSS",
             cpu_utilization_percent_min: 100.0,

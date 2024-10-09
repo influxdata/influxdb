@@ -430,8 +430,8 @@ mod tests {
 
     #[tokio::test]
     async fn persist_catalog() {
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
@@ -446,8 +446,8 @@ mod tests {
 
     #[tokio::test]
     async fn persist_and_load_newest_catalog() {
-        let host_id: Arc<str> = Arc::from("dummy-host-id");
-        let instance_id: Arc<str> = Arc::from("dummy-instance-id");
+        let host_id: Arc<str> = Arc::from("sample-host-id");
+        let instance_id: Arc<str> = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
