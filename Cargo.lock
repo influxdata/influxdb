@@ -2737,6 +2737,7 @@ name = "influxdb3_pro_compactor"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "arrow-array",
  "arrow-schema",
  "arrow_util",
  "async-trait",
@@ -2744,11 +2745,14 @@ dependencies = [
  "chrono",
  "data_types",
  "datafusion",
+ "datafusion_util",
  "executor",
+ "futures",
  "futures-util",
  "hashbrown 0.14.5",
  "influxdb3_catalog",
  "influxdb3_id",
+ "influxdb3_pro_buffer",
  "influxdb3_pro_data_layout",
  "influxdb3_pro_index",
  "influxdb3_wal",

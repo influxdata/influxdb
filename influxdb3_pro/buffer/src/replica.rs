@@ -353,7 +353,7 @@ impl ReplicatedBuffer {
 
         // filter out any files that have been compacted
         if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
-            files.retain(|f| f.id >= last_parquet_file_id);
+            files.retain(|f| f.id > last_parquet_file_id);
         }
 
         files
@@ -1069,11 +1069,10 @@ mod tests {
             .get_instrument::<Metric<U64Gauge>>(REPLICA_TTBR_METRIC)
             .expect("get the metric");
         for host in primary_ids {
-            let ttbr_ms = metric
+            let _ttbr_ms = metric
                 .get_observer(&Attributes::from(&[("host", host)]))
                 .expect("failed to get observer")
                 .fetch();
-            println!("TTBR for {host}: {ttbr_ms} ms");
         }
     }
 

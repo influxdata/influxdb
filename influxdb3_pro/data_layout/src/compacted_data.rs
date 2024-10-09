@@ -182,21 +182,24 @@ impl CompactedData {
         table_name: &str,
         min_time_secs: i64,
     ) -> Vec<Generation> {
-        self.data
-            .read()
-            .databases
-            .get(db_name)
-            .and_then(|db| {
-                db.tables.get(table_name).map(|compaction_detail| {
-                    compaction_detail
-                        .compacted_generations
-                        .iter()
-                        .filter(|g| g.start_time_secs >= min_time_secs)
-                        .cloned()
-                        .collect()
-                })
-            })
-            .unwrap_or_default()
+        if let Some(detail) = self.get_last_compaction_detail(db_name, table_name) {
+            let mut gens: Vec<_> = detail
+                .compacted_generations
+                .iter()
+                .filter(|g| g.start_time_secs >= min_time_secs)
+                .cloned()
+                .collect();
+            gens.extend(
+                detail
+                    .leftover_gen1_files
+                    .iter()
+                    .filter(|g| g.file.min_time >= min_time_secs)
+                    .map(|f| f.generation()),
+            );
+            gens
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn add_gen1_file_to_map(&self, file: Arc<ParquetFile>) -> Gen1File {
@@ -328,6 +331,10 @@ impl CompactedData {
             for gen in &compaction_detail.compacted_generations {
                 let detail = data.generation_details.get(&gen.id).unwrap();
                 files.extend(detail.files.clone());
+            }
+
+            for gen1_file in &compaction_detail.leftover_gen1_files {
+                files.push(Arc::clone(&gen1_file.file));
             }
 
             (files, compaction_detail.snapshot_markers.clone())

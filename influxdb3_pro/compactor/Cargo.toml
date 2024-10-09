@@ -40,11 +40,15 @@ thiserror.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+arrow-array.workspace = true
+datafusion_util.workspace = true
+futures.workspace = true
 insta.workspace = true
 metric.workspace = true
 test_helpers.workspace = true
 pretty_assertions.workspace = true
 influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_pro_buffer = { path = "../buffer" }
 serde_json.workspace = true
 
 [lints]

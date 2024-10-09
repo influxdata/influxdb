@@ -132,16 +132,6 @@ impl ChunkContainer for ReadMode {
                 filters,
             );
 
-            let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
-                database_name,
-                table_name,
-                table_schema.clone(),
-                filters,
-                &host_markers,
-                buffer_chunks.len() as i64,
-            );
-            buffer_chunks.extend(gen1_persisted_chunks);
-
             buffer_chunks.extend(
                 parquet_files
                     .into_iter()
@@ -156,6 +146,16 @@ impl ChunkContainer for ReadMode {
                     })
                     .collect::<Vec<_>>(),
             );
+
+            let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
+                database_name,
+                table_name,
+                table_schema.clone(),
+                filters,
+                &host_markers,
+                buffer_chunks.len() as i64,
+            );
+            buffer_chunks.extend(gen1_persisted_chunks);
         } else {
             let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
                 database_name,

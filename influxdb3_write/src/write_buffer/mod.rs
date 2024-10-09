@@ -312,7 +312,7 @@ impl WriteBufferImpl {
 
         // filter out any files that have been compacted
         if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
-            files.retain(|f| f.id >= last_parquet_file_id);
+            files.retain(|f| f.id > last_parquet_file_id);
         }
 
         files

@@ -622,15 +622,26 @@ impl SeriesWriter {
             .await
             .map_err(CompactorError::FlushArrowWriter)?;
 
-        let size_bytes = writer.bytes_written() as u64;
         let metadata = writer
             .close()
             .await
             .map_err(CompactorError::CloseArrowWriter)?;
+
+        // we need the size of the file written into object storage and that doesn't seem to
+        // be available from the writer. The bytes_written method on the writer returns a number
+        // smaller than the actual file size. So we'll get the metadata from object storage to
+        // see what we wrote.
+        let size_bytes = self
+            .object_store
+            .head(self.output_paths.last().unwrap())
+            .await
+            .map_err(CompactorError::FailedGet)?
+            .size;
+
         self.file_metadata.push(ParquetFile {
             id: self.current_file_id,
             path: self.output_paths.last().unwrap().to_string(),
-            size_bytes,
+            size_bytes: size_bytes as u64,
             // i64 to u64 cast
             row_count: metadata.num_rows as u64,
             chunk_time: self.min_time,

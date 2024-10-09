@@ -252,6 +252,30 @@ impl ChunkContainer for ReadWriteMode {
                 None
             };
 
+        // add the gen1 persisted chunks from the replicas
+        if let Some(replicas) = &self.replicas {
+            let gen1_persisted_chunks = if let Some(host_markers) = &host_markers {
+                replicas.get_persisted_chunks(
+                    database_name,
+                    table_name,
+                    table_schema.clone(),
+                    filters,
+                    host_markers,
+                    chunks.len() as i64,
+                )
+            } else {
+                replicas.get_persisted_chunks(
+                    database_name,
+                    table_name,
+                    table_schema.clone(),
+                    filters,
+                    &[],
+                    chunks.len() as i64,
+                )
+            };
+            chunks.extend(gen1_persisted_chunks);
+        }
+
         // now add in the gen1 chunks from primary
         let next_non_compacted_parquet_file_id = host_markers.as_ref().and_then(|markers| {
             markers.iter().find_map(|marker| {
@@ -272,20 +296,6 @@ impl ChunkContainer for ReadWriteMode {
             chunks.len() as i64,
         );
         chunks.extend(gen1_persisted_chunks);
-
-        // finally, add the gen1 persisted chunks from the replicas
-        if let Some(replicas) = &self.replicas {
-            let host_markers = host_markers.unwrap_or_else(Vec::new);
-            let gen1_persisted_chunks = replicas.get_persisted_chunks(
-                database_name,
-                table_name,
-                table_schema.clone(),
-                filters,
-                &host_markers,
-                chunks.len() as i64,
-            );
-            chunks.extend(gen1_persisted_chunks);
-        }
 
         Ok(chunks)
     }
