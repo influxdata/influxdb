@@ -30,10 +30,11 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use socket2::{Domain, Type};
 use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
-use tokio::net::TcpListener;
+use tokio::net::TcpListener as TokioTcpListener;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
@@ -460,6 +461,10 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
     )?;
 
+    let sock_addr: std::net::SocketAddr = *config.http_bind_address;
+
+    let listener = setup_tokio_tcp_listener(sock_addr)?;
+
     let query_executor = Arc::new(QueryExecutorImpl::new(
         write_buffer.catalog(),
         Arc::clone(&write_buffer),
@@ -470,10 +475,6 @@ pub async fn command(config: Config) -> Result<()> {
         config.query_log_size,
         Arc::clone(&telemetry_store),
     ));
-
-    let listener = TcpListener::bind(*config.http_bind_address)
-        .await
-        .map_err(Error::BindAddress)?;
 
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
@@ -551,4 +552,28 @@ fn parse_datafusion_config(
     }
 
     Ok(out)
+}
+
+#[cfg(windows)]
+fn setup_tokio_tcp_listener(sock_addr: std::net::SocketAddr) -> Result<TokioTcpListener> {
+    let socket = socket2::Socket::new(Domain::IPV4, Type::STREAM, None).expect("create socket");
+    socket.bind(&sock_addr.into()).expect("bind socket");
+    socket.listen(1).expect("listening on socket");
+
+    let listener: std::net::TcpListener = socket.into();
+    let listener = TokioTcpListener::from_std(listener);
+    listener.map_err(Error::BindAddress)
+}
+
+#[cfg(not(windows))]
+fn setup_tokio_tcp_listener(sock_addr: std::net::SocketAddr) -> Result<TokioTcpListener> {
+    let socket = socket2::Socket::new(Domain::IPV4, Type::STREAM, None).expect("create socket");
+    socket.bind(&sock_addr.into()).expect("bind socket");
+    socket.set_reuse_address(true).expect("setup reuse addr");
+    socket.set_reuse_port(true).expect("setup reuse port");
+    socket.listen(1).expect("listening on socket");
+
+    let listener: std::net::TcpListener = socket.into();
+    let listener = TokioTcpListener::from_std(listener);
+    listener.map_err(Error::BindAddress)
 }
