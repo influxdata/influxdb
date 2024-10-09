@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"math/rand"
 	"os"
@@ -488,6 +489,7 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 		defer s.Close()
 
 		// Create a file instead of a directory for a database.
+		require.NoError(t, os.MkdirAll(s.Path(), 0777))
 		f, err := os.Create(filepath.Join(s.Path(), "db0"))
 		if err != nil {
 			t.Fatal(err)
@@ -653,6 +655,139 @@ func TestShards_CreateIterator(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) { test(t, index) })
+	}
+}
+
+func requireFloatIteratorPoints(t *testing.T, fitr query.FloatIterator, expPts []*query.FloatPoint) {
+	for idx, expPt := range expPts {
+		pt, err := fitr.Next()
+		require.NoError(t, err, "Got error on index=%d", idx)
+		require.Equal(t, expPt, pt, "Mismatch on index=%d", idx)
+	}
+	pt, err := fitr.Next()
+	require.NoError(t, err)
+	require.Nil(t, pt)
+}
+
+func walFiles(t *testing.T, s *Store) []string {
+	// Make sure the WAL directory is really there so we don't get false empties because
+	// the path calcuation is wrong or a cleanup routine blew away the whole WAL directory.
+	require.DirExists(t, s.walPath)
+	var dirs, files []string
+	err := filepath.Walk(s.walPath, func(path string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			dirs = append(dirs, path)
+		} else {
+			files = append(files, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, dirs, "expected shard WAL directories, none found")
+	return files
+}
+
+func TestStore_FlushWALOnClose(t *testing.T) {
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run("TestStore_FlushWALOnClose_"+index, func(t *testing.T) {
+			s := MustOpenStore(t, index, WithWALFlushOnShutdown(true))
+			defer s.Close()
+
+			// Create shard #0 with data.
+			s.MustCreateShardWithData("db0", "rp0", 0,
+				`cpu,host=serverA value=1  0`,
+				`cpu,host=serverA value=2 10`,
+				`cpu,host=serverB value=3 20`,
+			)
+
+			// Create shard #1 with data.
+			s.MustCreateShardWithData("db0", "rp0", 1,
+				`cpu,host=serverA value=1 30`,
+				`mem,host=serverA value=2 40`, // skip: wrong source
+				`cpu,host=serverC value=3 60`,
+			)
+			expPts := []*query.FloatPoint{
+				&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1},
+				&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2},
+				&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1},
+				&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3},
+				&query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3},
+			}
+
+			require.NotEmpty(t, walFiles(t, s))
+
+			checkPoints := func(exp []*query.FloatPoint) {
+				// Retrieve shard group.
+				shards := s.ShardGroup([]uint64{0, 1})
+				// Create iterator.
+				m := &influxql.Measurement{Name: "cpu"}
+				itr, err := shards.CreateIterator(context.Background(), m, query.IteratorOptions{
+					Expr:       influxql.MustParseExpr(`value`),
+					Dimensions: []string{"host"},
+					Ascending:  true,
+					StartTime:  influxql.MinTime,
+					EndTime:    influxql.MaxTime,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, itr)
+				defer itr.Close()
+				fitr, ok := itr.(query.FloatIterator)
+				require.True(t, ok)
+				requireFloatIteratorPoints(t, fitr, exp)
+			}
+			checkPoints(expPts)
+
+			require.NoError(t, s.Close())
+			s.Store = nil
+			require.Empty(t, walFiles(t, s))
+
+			require.NoError(t, s.Reopen(t))
+			checkPoints(expPts)
+			require.Empty(t, walFiles(t, s)) // we haven't written any points, no WAL yet.
+			s.MustWriteToShardString(1, `cpu,host=serverC value=5 90`)
+			expPts = append(expPts, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(90, 0).UnixNano(), Value: 5})
+			checkPoints(expPts)
+			require.NotEmpty(t, walFiles(t, s)) // we create a WAL file with the write
+
+			// One shard has a WAL, one does not
+			require.NoError(t, s.Close())
+			s.Store = nil
+			require.Empty(t, walFiles(t, s))
+
+			// Open again
+			require.NoError(t, s.Reopen(t))
+			checkPoints(expPts)
+			require.Empty(t, walFiles(t, s))
+
+			// Close with no writes, no WAL files
+			require.NoError(t, s.Close())
+			s.Store = nil
+			require.Empty(t, walFiles(t, s))
+
+			// Open again, but this time don't flush WAL on shutdown
+			require.NoError(t, s.Reopen(t, WithWALFlushOnShutdown(false)))
+			checkPoints(expPts)
+			require.Empty(t, walFiles(t, s))
+
+			// Write new point, creating WAL on one shard
+			s.MustWriteToShardString(1, `cpu,host=serverC value=6 100`)
+			expPts = append(expPts, &query.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(100, 0).UnixNano(), Value: 6})
+			checkPoints(expPts)
+			require.NotEmpty(t, walFiles(t, s)) // we create a WAL file with the write
+
+			// Close and check that the shard is not flushed
+			require.NoError(t, s.Close())
+			s.Store = nil
+			require.NotEmpty(t, walFiles(t, s))
+
+			// Let's make sure we /really/ didn't flush the WAL by deleting the WAL and then making sure that last point we wrote has gone missing.
+			require.NoError(t, os.RemoveAll(s.walPath))
+			require.NoError(t, s.Reopen(t))
+			expPts = expPts[:len(expPts)-1]
+			checkPoints(expPts)
+			require.Empty(t, walFiles(t, s)) // also sanity checks that WAL directories have been recreated
+		})
 	}
 }
 
@@ -2473,30 +2608,55 @@ func BenchmarkStore_TagValues(b *testing.B) {
 // Store is a test wrapper for tsdb.Store.
 type Store struct {
 	*tsdb.Store
-	index string
+	path    string
+	index   string
+	walPath string
+	opts    []StoreOption
+}
+
+type StoreOption func(s *Store) error
+
+func WithWALFlushOnShutdown(flush bool) StoreOption {
+	return func(s *Store) error {
+		s.EngineOptions.Config.WALFlushOnShutdown = flush
+		return nil
+	}
 }
 
 // NewStore returns a new instance of Store with a temporary path.
-func NewStore(tb testing.TB, index string) *Store {
+func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
 
-	path := tb.TempDir()
+	rootPath := tb.TempDir()
+	path := filepath.Join(rootPath, "data")
+	walPath := filepath.Join(rootPath, "wal")
 
-	s := &Store{Store: tsdb.NewStore(path), index: index}
+	s := &Store{
+		Store:   tsdb.NewStore(path),
+		path:    path,
+		index:   index,
+		walPath: walPath,
+		opts:    opts,
+	}
 	s.EngineOptions.IndexVersion = index
-	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	s.EngineOptions.Config.WALDir = walPath
 	s.EngineOptions.Config.TraceLoggingEnabled = true
 	s.WithLogger(zaptest.NewLogger(tb))
+
+	for _, o := range s.opts {
+		err := o(s)
+		require.NoError(tb, err)
+	}
 
 	return s
 }
 
 // MustOpenStore returns a new, open Store using the specified index,
 // at a temporary path.
-func MustOpenStore(tb testing.TB, index string) *Store {
+func MustOpenStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
 
-	s := NewStore(tb, index)
+	s := NewStore(tb, index, opts...)
 
 	if err := s.Open(context.Background()); err != nil {
 		panic(err)
@@ -2505,25 +2665,38 @@ func MustOpenStore(tb testing.TB, index string) *Store {
 }
 
 // Reopen closes and reopens the store as a new store.
-func (s *Store) Reopen(tb testing.TB) error {
+func (s *Store) Reopen(tb testing.TB, newOpts ...StoreOption) error {
 	tb.Helper()
 
-	if err := s.Store.Close(); err != nil {
-		return err
+	if s.Store != nil {
+		if err := s.Store.Close(); err != nil {
+			return err
+		}
 	}
 
-	s.Store = tsdb.NewStore(s.Path())
+	s.Store = tsdb.NewStore(s.path)
 	s.EngineOptions.IndexVersion = s.index
-	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.EngineOptions.Config.WALDir = s.walPath
 	s.EngineOptions.Config.TraceLoggingEnabled = true
 	s.WithLogger(zaptest.NewLogger(tb))
+	if len(newOpts) > 0 {
+		s.opts = newOpts
+	}
+
+	for _, o := range s.opts {
+		err := o(s)
+		require.NoError(tb, err)
+	}
 
 	return s.Store.Open(context.Background())
 }
 
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
-	return s.Store.Close()
+	if s.Store != nil {
+		return s.Store.Close()
+	}
+	return nil
 }
 
 // MustCreateShardWithData creates a shard and writes line protocol data to it.

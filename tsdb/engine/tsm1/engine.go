@@ -774,7 +774,17 @@ func (e *Engine) Open(ctx context.Context) error {
 }
 
 // Close closes the engine. Subsequent calls to Close are a nop.
-func (e *Engine) Close() error {
+// If flush is true, then the WAL is flushed and cleared before the
+// engine is closed.
+func (e *Engine) Close(flush bool) error {
+	// Flushing the WAL involves writing a snapshot, which has to be done before
+	// compactions are disabled.
+	var flushErr error
+	if e.WALEnabled && flush {
+		// Even if the snapshot fails, we still have to proceed and close the engine.
+		flushErr = e.FlushWAL()
+	}
+
 	e.SetCompactionsEnabled(false)
 
 	// Lock now and close everything else down.
@@ -782,17 +792,13 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
 
-	var err error = nil
-	err = e.fieldset.Close()
-	if err2 := e.FileStore.Close(); err2 != nil && err == nil {
-		err = err2
-	}
+	setCloseErr := e.fieldset.Close()
+	storeCloseErr := e.FileStore.Close()
+	var walCloseErr error
 	if e.WALEnabled {
-		if err2 := e.WAL.Close(); err2 != nil && err == nil {
-			err = err2
-		}
+		walCloseErr = e.WAL.Close()
 	}
-	return err
+	return errors.Join(flushErr, setCloseErr, storeCloseErr, walCloseErr)
 }
 
 // WithLogger sets the logger for the engine.
@@ -1835,7 +1841,11 @@ func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) err
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
-func (e *Engine) WriteSnapshot() (err error) {
+func (e *Engine) WriteSnapshot() error {
+	return e.doWriteSnapshot(false)
+}
+
+func (e *Engine) doWriteSnapshot(flush bool) (err error) {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 
@@ -1858,8 +1868,14 @@ func (e *Engine) WriteSnapshot() (err error) {
 		defer e.mu.Unlock()
 
 		if e.WALEnabled {
-			if err = e.WAL.CloseSegment(); err != nil {
-				return
+			if !flush {
+				if err = e.WAL.CloseSegment(); err != nil {
+					return
+				}
+			} else {
+				if err = e.WAL.CloseAllSegments(); err != nil {
+					return
+				}
 			}
 
 			segments, err = e.WAL.ClosedSegments()
@@ -1897,17 +1913,30 @@ func (e *Engine) WriteSnapshot() (err error) {
 	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
 }
 
+// FlushWAL flushes the WAL and empties the WAL directory.
+func (e *Engine) FlushWAL() error {
+	return e.writeSnapshotWithRetries(true)
+}
+
+// writeSnapshotWithRetries calls WriteSnapshot and will retry with a backoff if WriteSnapshot
+// fails with ErrSnapshotInProgress. If flush is true then no new WAL segments are opened so
+// that the WAL has no segment files on success.
+func (e *Engine) writeSnapshotWithRetries(flush bool) error {
+	err := e.doWriteSnapshot(flush)
+	for i := 0; i < 3 && err == ErrSnapshotInProgress; i += 1 {
+		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+		time.Sleep(backoff)
+		err = e.doWriteSnapshot(flush)
+	}
+	return err
+}
+
 // CreateSnapshot will create a temp directory that holds
 // temporary hardlinks to the underlying shard files.
 // skipCacheOk controls whether it is permissible to fail writing out
 // in-memory cache data when a previous snapshot is in progress.
 func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
-	err := e.WriteSnapshot()
-	for i := 0; i < 3 && err == ErrSnapshotInProgress; i += 1 {
-		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
-		time.Sleep(backoff)
-		err = e.WriteSnapshot()
-	}
+	err := e.writeSnapshotWithRetries(false)
 	if err == ErrSnapshotInProgress && skipCacheOk {
 		e.logger.Warn("Snapshotter busy: proceeding without cache contents")
 	} else if err != nil {
