@@ -641,13 +641,17 @@ mod tests {
             SequenceNumber::new(0),
         );
 
+        for _ in 0..=9875 {
+            let _id = ParquetFileId::new();
+        }
+
         info_file.add_parquet_file(
             DbId::from(0),
             TableId::from(0),
             crate::ParquetFile {
                 // Use a number that will be bigger than what's created in the
                 // PersistedSnapshot automatically
-                id: ParquetFileId::from(9876),
+                id: ParquetFileId::new(),
                 path: "test".into(),
                 size_bytes: 5,
                 row_count: 5,

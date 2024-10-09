@@ -14,7 +14,7 @@ use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
-    PersistedSnapshot, Precision, WriteBuffer, WriteLineError, NEXT_FILE_ID,
+    PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
@@ -38,7 +38,6 @@ use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
 use parquet_file::storage::ParquetExecInput;
 use schema::Schema;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -152,13 +151,10 @@ impl WriteBufferImpl {
             .map(|s| s.next_table_id.set_next_id())
             .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
-        NEXT_FILE_ID.store(
-            persisted_snapshots
-                .first()
-                .map(|s| s.next_file_id.as_u64())
-                .unwrap_or(0),
-            Ordering::SeqCst,
-        );
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_file_id.set_next_id())
+            .unwrap_or(());
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -560,7 +556,7 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
     use influxdb3_catalog::catalog::SequenceNumber;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
@@ -1147,8 +1143,8 @@ mod tests {
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
 
         // create a snapshot file that will be loaded on initialization of the write buffer:
-        // Set NEXT_FILE_ID to a non zero number for the snapshot
-        NEXT_FILE_ID.store(500, Ordering::SeqCst);
+        // Set ParquetFileId to a non zero number for the snapshot
+        ParquetFileId::from(500).set_next_id();
         let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
         let prev_snapshot = PersistedSnapshot::new(
             "test_host".to_string(),
@@ -1157,9 +1153,9 @@ mod tests {
             SequenceNumber::new(0),
         );
         let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
-        // set NEXT_FILE_ID to be 0 so that we can make sure when it's loaded from the
+        // set ParquetFileId to be 0 so that we can make sure when it's loaded from the
         // snapshot that it becomes the expected number
-        NEXT_FILE_ID.store(0, Ordering::SeqCst);
+        ParquetFileId::from(0).set_next_id();
 
         // put the snapshot file in object store:
         object_store
@@ -1183,8 +1179,8 @@ mod tests {
         )
         .await;
 
-        // Assert that loading the snapshots sets NEXT_FILE_ID to the correct id number
-        assert_eq!(NEXT_FILE_ID.load(Ordering::SeqCst), 500);
+        // Assert that loading the snapshots sets ParquetFileId to the correct id number
+        assert_eq!(ParquetFileId::new().as_u64(), 500);
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
@@ -1251,6 +1247,81 @@ mod tests {
             SequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
+    }
+
+    #[tokio::test]
+    async fn next_id_is_correct_number() {
+        // set up a local file system object store:
+        let object_store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+
+        let prev_snapshot_seq = SnapshotSequenceNumber::new(42);
+        let mut prev_snapshot = PersistedSnapshot::new(
+            "test_host".to_string(),
+            prev_snapshot_seq,
+            WalFileSequenceNumber::new(0),
+            SequenceNumber::new(0),
+        );
+
+        assert_eq!(prev_snapshot.next_file_id.as_u64(), 0);
+        assert_eq!(prev_snapshot.next_table_id.as_u32(), 0);
+        assert_eq!(prev_snapshot.next_db_id.as_u32(), 0);
+
+        for _ in 0..=5 {
+            prev_snapshot.add_parquet_file(
+                DbId::from(0),
+                TableId::from(0),
+                ParquetFile {
+                    id: ParquetFileId::new(),
+                    path: "file/path2".into(),
+                    size_bytes: 20,
+                    row_count: 1,
+                    chunk_time: 1,
+                    min_time: 0,
+                    max_time: 1,
+                },
+            );
+        }
+
+        assert_eq!(prev_snapshot.databases.len(), 1);
+        let files = prev_snapshot.databases[&DbId::from(0)].tables[&TableId::from(0)].clone();
+
+        // Assert that all of the files are smaller than the next_file_id field
+        // and that their index corresponds to the order they were added in
+        assert_eq!(prev_snapshot.next_file_id.as_u64(), 6);
+        assert_eq!(files.len(), 6);
+        for (i, file) in files.iter().enumerate() {
+            assert_ne!(file.id, ParquetFileId::from(6));
+            assert!(file.id.as_u64() < 6);
+            assert_eq!(file.id.as_u64(), i as u64);
+        }
+
+        let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
+
+        // put the snapshot file in object store:
+        object_store
+            .put(
+                &SnapshotInfoFilePath::new("test_host", prev_snapshot_seq),
+                PutPayload::from_bytes(Bytes::from(snapshot_json)),
+            )
+            .await
+            .unwrap();
+
+        // setup the write buffer:
+        let (_wbuf, _ctx) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&object_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(5),
+                snapshot_size: 1,
+            },
+        )
+        .await;
+
+        // Test that the next_file_id has been set properly
+        assert_eq!(ParquetFileId::next_id().as_u64(), 6);
     }
 
     /// This is the reproducer for [#25277][see]
