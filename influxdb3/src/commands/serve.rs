@@ -15,7 +15,8 @@ use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::{Compactor, CompactorConfig};
+use influxdb3_pro_compactor::Compactor;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
@@ -85,7 +86,7 @@ pub enum Error {
     Job(#[source] executor::JobError),
 
     #[error("Failed to load compactor: {0}")]
-    Compactor(#[source] influxdb3_pro_data_layout::compacted_data::Error),
+    Compactor(#[from] influxdb3_pro_data_layout::compacted_data::Error),
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
@@ -433,7 +434,7 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let compactor_config = config.pro_config.compactor_id.map(|compactor_id| {
+    let compaction_hosts_and_data = if let Some(compactor_id) = config.pro_config.compactor_id {
         let mut compaction_hosts = config
             .pro_config
             .replicas
@@ -452,8 +453,17 @@ pub async fn command(config: Config) -> Result<()> {
             config.pro_config.compaction_row_limit,
         );
 
-        CompactorConfig::new(compactor_id.into(), compaction_hosts, compaction_config)
-    });
+        let compacted_data = CompactedData::load_compacted_data(
+            &compactor_id,
+            compaction_config,
+            Arc::clone(&object_store),
+        )
+        .await?;
+
+        Some((compaction_hosts, compacted_data))
+    } else {
+        None
+    };
 
     let time_provider = Arc::new(SystemProvider::new());
 
@@ -481,6 +491,9 @@ pub async fn command(config: Config) -> Result<()> {
         trace_header_parser,
         Arc::clone(&telemetry_store),
     )?;
+    let compacted_data = compaction_hosts_and_data
+        .as_ref()
+        .map(|(_, data)| Arc::clone(data));
 
     let write_buffer: Arc<dyn WriteBuffer> = match config.pro_config.mode {
         BufferMode::Read => {
@@ -495,6 +508,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::clone(&metrics),
                     replica_config,
                     parquet_cache,
+                    compacted_data,
                 )
                 .await
                 .map_err(Error::WriteBufferInit)?,
@@ -502,6 +516,7 @@ pub async fn command(config: Config) -> Result<()> {
         }
         BufferMode::ReadWrite => Arc::new(
             WriteBufferPro::read_write(ReadWriteArgs {
+                host_id: persister.host_identifier_prefix().into(),
                 persister: Arc::clone(&persister),
                 catalog: Arc::new(catalog),
                 last_cache: Arc::new(last_cache),
@@ -511,6 +526,7 @@ pub async fn command(config: Config) -> Result<()> {
                 metric_registry: Arc::clone(&metrics),
                 replication_config: replica_config,
                 parquet_cache,
+                compacted_data,
             })
             .await
             .map_err(Error::WriteBufferInit)?,
@@ -548,11 +564,14 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let mut futures = Vec::new();
-    if let Some(config) = compactor_config {
+
+    if config.pro_config.run_compactions && compaction_hosts_and_data.is_some() {
+        let (compaction_hosts, compacted_data) =
+            compaction_hosts_and_data.expect("compacted data must have been initialized");
         let compactor = Compactor::new(
-            config,
+            compaction_hosts,
+            compacted_data,
             Arc::clone(&write_buffer.catalog()),
-            Arc::clone(&object_store),
             persister.object_store_url().clone(),
             Arc::clone(&exec),
             write_buffer.watch_persisted_snapshots(),

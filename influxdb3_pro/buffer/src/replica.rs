@@ -3,10 +3,11 @@ use std::{borrow::Cow, sync::Arc, time::Duration};
 use anyhow::Context;
 use chrono::Utc;
 use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId, TransitionPartitionId};
-use datafusion::{catalog::Session, execution::object_store::ObjectStoreUrl, logical_expr::Expr};
+use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
     object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails,
     WalContents, WalFileSequenceNumber,
@@ -21,7 +22,7 @@ use influxdb3_write::{
         parquet_chunk_from_file, persisted_files::PersistedFiles, queryable_buffer::BufferState,
         N_SNAPSHOTS_TO_LOAD_ON_START,
     },
-    ParquetFile, PersistedSnapshot,
+    ParquetFile, ParquetFileId, PersistedSnapshot,
 };
 use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
@@ -64,6 +65,8 @@ impl ReplicationConfig {
 #[derive(Debug)]
 pub(crate) struct Replicas {
     catalog: Arc<Catalog>,
+    object_store: Arc<dyn ObjectStore>,
+    object_store_url: ObjectStoreUrl,
     last_cache: Arc<LastCacheProvider>,
     replicas: Vec<Arc<ReplicatedBuffer>>,
 }
@@ -124,9 +127,19 @@ impl Replicas {
             .collect::<Result<Vec<Arc<ReplicatedBuffer>>>>()?;
         Ok(Self {
             catalog,
+            object_store,
+            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             last_cache,
             replicas,
         })
+    }
+
+    pub(crate) fn object_store_url(&self) -> ObjectStoreUrl {
+        self.object_store_url.clone()
+    }
+
+    pub(crate) fn object_store(&self) -> Arc<dyn ObjectStore> {
+        Arc::clone(&self.object_store)
     }
 
     pub(crate) fn catalog(&self) -> Arc<Catalog> {
@@ -145,25 +158,70 @@ impl Replicas {
         files
     }
 
-    pub(crate) fn get_table_chunks(
+    #[cfg(test)]
+    fn get_all_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        table_schema: Schema,
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let mut chunks = self
+            .get_buffer_chunks(database_name, table_name, &[])
+            .unwrap();
+        chunks.extend(self.get_persisted_chunks(
+            database_name,
+            table_name,
+            table_schema,
+            &[],
+            &[],
+            0,
+        ));
+        chunks
+    }
+
+    pub(crate) fn get_buffer_chunks(
         &self,
         database_name: &str,
         table_name: &str,
         filters: &[Expr],
-        projection: Option<&Vec<usize>>,
-        ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks = vec![];
         for replica in &self.replicas {
-            chunks.append(&mut replica.get_table_chunks(
-                database_name,
-                table_name,
-                filters,
-                projection,
-                ctx,
-            )?);
+            chunks.append(&mut replica.get_buffer_chunks(database_name, table_name, filters)?);
         }
         Ok(chunks)
+    }
+
+    pub(crate) fn get_persisted_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        table_schema: Schema,
+        _filters: &[Expr],
+        host_markers: &[HostSnapshotMarker],
+        mut chunk_order_offset: i64, // offset the chunk order by this amount
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let mut chunks = vec![];
+        for replica in &self.replicas {
+            let last_parquet_file_id = host_markers.iter().find_map(|marker| {
+                if marker.host_id == replica.host_identifier_prefix {
+                    Some(marker.next_file_id)
+                } else {
+                    None
+                }
+            });
+
+            chunks.append(&mut replica.get_persisted_chunks(
+                database_name,
+                table_name,
+                table_schema.clone(),
+                _filters,
+                last_parquet_file_id,
+                chunk_order_offset,
+            ));
+            chunk_order_offset += chunks.len() as i64;
+        }
+        chunks
     }
 }
 
@@ -261,13 +319,11 @@ impl ReplicatedBuffer {
         self.persisted_files.get_files(db_name, tbl_name)
     }
 
-    pub(crate) fn get_table_chunks(
+    pub(crate) fn get_buffer_chunks(
         &self,
         database_name: &str,
         table_name: &str,
         filters: &[Expr],
-        _projection: Option<&Vec<usize>>,
-        _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         // Get DB/table schema from the catalog:
         let db_schema = self
@@ -281,25 +337,41 @@ impl ReplicatedBuffer {
         let schema = table_schema.schema().clone();
 
         // Get chunks from the in-memory buffer:
-        let mut chunks =
-            self.get_buffer_table_chunks(database_name, table_name, filters, schema.clone())?;
+        self.get_buffer_table_chunks(database_name, table_name, filters, schema.clone())
+    }
 
-        // Get parquet chunks:
-        let parquet_files = self.persisted_files.get_files(database_name, table_name);
-        let mut chunk_order = 1;
-        for parquet_file in parquet_files {
-            let parquet_chunk = parquet_chunk_from_file(
-                &parquet_file,
-                &schema,
-                self.object_store_url.clone(),
-                Arc::clone(&self.object_store),
-                chunk_order,
-            );
-            chunk_order += 1;
-            chunks.push(Arc::new(parquet_chunk));
+    pub(crate) fn get_persisted_chunks(
+        &self,
+        database_name: &str,
+        table_name: &str,
+        table_schema: Schema,
+        _filters: &[Expr],
+        last_compacted_parquet_file_id: Option<ParquetFileId>, // only return chunks with a file id > than this
+        mut chunk_order_offset: i64, // offset the chunk order by this amount
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let mut files = self.persisted_files.get_files(database_name, table_name);
+
+        // filter out any files that have been compacted
+        if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
+            files.retain(|f| f.id > last_parquet_file_id);
         }
 
-        Ok(chunks)
+        files
+            .into_iter()
+            .map(|parquet_file| {
+                chunk_order_offset += 1;
+
+                let parquet_chunk = parquet_chunk_from_file(
+                    &parquet_file,
+                    &table_schema,
+                    self.object_store_url.clone(),
+                    Arc::clone(&self.object_store),
+                    chunk_order_offset,
+                );
+
+                Arc::new(parquet_chunk) as Arc<dyn QueryChunk>
+            })
+            .collect()
     }
 
     /// Get chunks from the in-memory buffer for a given database and table, along with the
@@ -683,9 +755,15 @@ mod tests {
 
         // Check that the replica replayed the primary and contains its data:
         {
-            let chunks = replica
-                .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
-                .unwrap();
+            let mut chunks = replica.get_buffer_chunks(db_name, tbl_name, &[]).unwrap();
+            chunks.extend(replica.get_persisted_chunks(
+                db_name,
+                tbl_name,
+                chunks[0].schema().clone(),
+                &[],
+                None,
+                0,
+            ));
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
@@ -754,9 +832,15 @@ mod tests {
 
         // Check the replica again for the new writes:
         {
-            let chunks = replica
-                .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
-                .unwrap();
+            let mut chunks = replica.get_buffer_chunks(db_name, tbl_name, &[]).unwrap();
+            chunks.extend(replica.get_persisted_chunks(
+                db_name,
+                tbl_name,
+                chunks[0].schema().clone(),
+                &[],
+                None,
+                0,
+            ));
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
@@ -865,9 +949,7 @@ mod tests {
         // sleep for replicas to replicate:
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let chunks = replicas
-            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-            .unwrap();
+        let chunks = replicas.get_buffer_chunks("foo", "bar", &[]).unwrap();
         // there are only two chunks because all data falls in a single gen time block for each
         // respective buffer:
         assert_eq!(2, chunks.len());
@@ -987,11 +1069,10 @@ mod tests {
             .get_instrument::<Metric<U64Gauge>>(REPLICA_TTBR_METRIC)
             .expect("get the metric");
         for host in primary_ids {
-            let ttbr_ms = metric
+            let _ttbr_ms = metric
                 .get_observer(&Attributes::from(&[("host", host)]))
                 .expect("failed to get observer")
                 .fetch();
-            println!("TTBR for {host}: {ttbr_ms} ms");
         }
     }
 
@@ -1063,6 +1144,14 @@ mod tests {
         verify_snapshot_count(1, Arc::clone(&obj_store), "skinner").await;
         verify_snapshot_count(1, Arc::clone(&obj_store), "chalmers").await;
 
+        let table_schema = primaries["skinner"]
+            .catalog()
+            .db_schema("foo")
+            .unwrap()
+            .get_table_schema("bar")
+            .unwrap()
+            .clone();
+
         // Spin up a set of replicated buffers with a cached object store. This is scoped so that
         // everything set up in the block is dropped before the block below that tests without a
         // cache:
@@ -1112,9 +1201,7 @@ mod tests {
 
             // fetch chunks/record batches from the `Replicas`, as if performing a query, i.e., so
             // that datafusion will request to the object store for the persisted files:
-            let chunks = replicas
-                .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-                .unwrap();
+            let chunks = replicas.get_all_chunks("foo", "bar", table_schema.clone());
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
@@ -1182,9 +1269,7 @@ mod tests {
             }
 
             // do the "query":
-            let chunks = replicas
-                .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-                .unwrap();
+            let chunks = replicas.get_all_chunks("foo", "bar", table_schema.clone());
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [

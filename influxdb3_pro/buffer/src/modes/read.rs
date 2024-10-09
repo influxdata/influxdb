@@ -6,7 +6,9 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
+use influxdb3_write::write_buffer::parquet_chunk_from_file;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
@@ -25,9 +27,11 @@ pub struct ReadMode {
     replicas: Replicas,
     /// Unified snapshot channel for all replicas
     persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
+    compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl ReadMode {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
@@ -36,6 +40,7 @@ impl ReadMode {
         replication_interval: Duration,
         hosts: Vec<String>,
         parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+        compacted_data: Option<Arc<CompactedData>>,
     ) -> Result<Self, anyhow::Error> {
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
             tokio::sync::watch::channel(None);
@@ -54,6 +59,7 @@ impl ReadMode {
             })
             .await
             .context("failed to initialize replicas")?,
+            compacted_data,
         })
     }
 }
@@ -103,12 +109,67 @@ impl ChunkContainer for ReadMode {
         database_name: &str,
         table_name: &str,
         filters: &[Expr],
-        projection: Option<&Vec<usize>>,
-        ctx: &dyn Session,
+        _projection: Option<&Vec<usize>>,
+        _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        self.replicas
-            .get_table_chunks(database_name, table_name, filters, projection, ctx)
-            .map_err(|e| DataFusionError::Execution(e.to_string()))
+        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
+            DataFusionError::Execution(format!("Database {} not found", database_name))
+        })?;
+
+        let table_schema = db_schema
+            .get_table_schema(table_name)
+            .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
+
+        let mut buffer_chunks = self
+            .replicas
+            .get_buffer_chunks(database_name, table_name, filters)
+            .map_err(|e| DataFusionError::Execution(e.to_string()))?;
+
+        if let Some(compacted_data) = &self.compacted_data {
+            let (parquet_files, host_markers) = compacted_data.get_parquet_files_and_host_markers(
+                database_name,
+                table_name,
+                filters,
+            );
+
+            buffer_chunks.extend(
+                parquet_files
+                    .into_iter()
+                    .map(|file| {
+                        Arc::new(parquet_chunk_from_file(
+                            &file,
+                            table_schema,
+                            self.replicas.object_store_url(),
+                            self.replicas.object_store(),
+                            buffer_chunks.len() as i64,
+                        )) as Arc<dyn QueryChunk>
+                    })
+                    .collect::<Vec<_>>(),
+            );
+
+            let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
+                database_name,
+                table_name,
+                table_schema.clone(),
+                filters,
+                &host_markers,
+                buffer_chunks.len() as i64,
+            );
+            buffer_chunks.extend(gen1_persisted_chunks);
+        } else {
+            let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
+                database_name,
+                table_name,
+                table_schema.clone(),
+                filters,
+                &[],
+                buffer_chunks.len() as i64,
+            );
+
+            buffer_chunks.extend(gen1_persisted_chunks);
+        }
+
+        Ok(buffer_chunks)
     }
 }
 

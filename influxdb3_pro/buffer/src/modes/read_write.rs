@@ -3,9 +3,13 @@ use std::{sync::Arc, time::Duration};
 use crate::replica::{CreateReplicasArgs, Replicas, ReplicationConfig};
 use async_trait::async_trait;
 use data_types::NamespaceName;
+use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
+use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
+use influxdb3_write::write_buffer::parquet_chunk_from_file;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
@@ -17,18 +21,24 @@ use influxdb3_write::{
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
+use object_store::ObjectStore;
 use tokio::sync::watch::Receiver;
 
 #[derive(Debug)]
 pub struct ReadWriteMode {
     primary: WriteBufferImpl,
+    host_id: Arc<str>,
+    object_store: Arc<dyn ObjectStore>,
+    object_store_url: ObjectStoreUrl,
     replicas: Option<Replicas>,
     /// Unified snapshot channels for primary and all replicas
     persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
+    compacted_data: Option<Arc<CompactedData>>,
 }
 
 #[derive(Debug)]
 pub struct ReadWriteArgs {
+    pub host_id: Arc<str>,
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
@@ -38,11 +48,13 @@ pub struct ReadWriteArgs {
     pub metric_registry: Arc<Registry>,
     pub replication_config: Option<ReplicationConfig>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl ReadWriteMode {
     pub(crate) async fn new(
         ReadWriteArgs {
+            host_id,
             persister,
             catalog,
             last_cache,
@@ -52,6 +64,7 @@ impl ReadWriteMode {
             metric_registry,
             replication_config,
             parquet_cache,
+            compacted_data,
         }: ReadWriteArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
@@ -93,7 +106,7 @@ impl ReadWriteMode {
                 Replicas::new(CreateReplicasArgs {
                     catalog,
                     last_cache,
-                    object_store,
+                    object_store: Arc::clone(&object_store),
                     metric_registry,
                     replication_interval,
                     hosts,
@@ -106,9 +119,13 @@ impl ReadWriteMode {
             None
         };
         Ok(Self {
+            host_id,
             primary,
             replicas,
             persisted_snapshot_notify_rx,
+            compacted_data,
+            object_store,
+            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
         })
     }
 }
@@ -175,19 +192,111 @@ impl ChunkContainer for ReadWriteMode {
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // Chunks are fetched from both primary and replicas
-        // TODO: need to set the ChunkOrder on the chunks produced by the primary and replicas
-        // such that the primary is prioritized over the replicas, and that for the replicas,
-        // those with higher precedence are prioritized over those with lower precedence.
-        let mut chunks =
-            self.primary
-                .get_table_chunks(database_name, table_name, filters, projection, ctx)?;
+        let db_schema = self
+            .primary
+            .catalog()
+            .db_schema(database_name)
+            .ok_or_else(|| {
+                DataFusionError::Execution(format!(
+                    "Database {} not found in catalog",
+                    database_name
+                ))
+            })?;
+
+        let table_schema = db_schema
+            .get_table_schema(table_name)
+            .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
+
+        // first add in all the buffer chunks from primary and replicas. These chunks have the
+        // highest precedence set in chunk order
+        let mut chunks = self.primary.get_buffer_chunks(
+            Arc::clone(&db_schema),
+            table_name,
+            filters,
+            projection,
+            ctx,
+        )?;
+
         if let Some(replicas) = &self.replicas {
-            chunks.append(
-                &mut replicas
-                    .get_table_chunks(database_name, table_name, filters, projection, ctx)
+            chunks.extend(
+                replicas
+                    .get_buffer_chunks(database_name, table_name, filters)
                     .map_err(|e| DataFusionError::Execution(e.to_string()))?,
             );
         }
+
+        // now add in the compacted chunks so that they have the lowest chunk order precedence and
+        // pull out the host markers to get gen1 chunks from primary and replicas
+        let host_markers =
+            if let Some(compacted_data) = &self.compacted_data {
+                let (parquet_files, host_markers) = compacted_data
+                    .get_parquet_files_and_host_markers(database_name, table_name, filters);
+
+                chunks.extend(
+                    parquet_files
+                        .into_iter()
+                        .map(|file| {
+                            Arc::new(parquet_chunk_from_file(
+                                &file,
+                                table_schema,
+                                self.object_store_url.clone(),
+                                Arc::clone(&self.object_store),
+                                chunks.len() as i64,
+                            )) as Arc<dyn QueryChunk>
+                        })
+                        .collect::<Vec<_>>(),
+                );
+
+                Some(host_markers)
+            } else {
+                None
+            };
+
+        // add the gen1 persisted chunks from the replicas
+        if let Some(replicas) = &self.replicas {
+            let gen1_persisted_chunks = if let Some(host_markers) = &host_markers {
+                replicas.get_persisted_chunks(
+                    database_name,
+                    table_name,
+                    table_schema.clone(),
+                    filters,
+                    host_markers,
+                    chunks.len() as i64,
+                )
+            } else {
+                replicas.get_persisted_chunks(
+                    database_name,
+                    table_name,
+                    table_schema.clone(),
+                    filters,
+                    &[],
+                    chunks.len() as i64,
+                )
+            };
+            chunks.extend(gen1_persisted_chunks);
+        }
+
+        // now add in the gen1 chunks from primary
+        let next_non_compacted_parquet_file_id = host_markers.as_ref().and_then(|markers| {
+            markers.iter().find_map(|marker| {
+                if marker.host_id != self.host_id.as_ref() {
+                    Some(marker.next_file_id)
+                } else {
+                    None
+                }
+            })
+        });
+
+        let gen1_persisted_chunks = self.primary.get_persisted_chunks(
+            database_name,
+            table_name,
+            table_schema.clone(),
+            filters,
+            next_non_compacted_parquet_file_id,
+            chunks.len() as i64,
+        );
+        chunks.extend(gen1_persisted_chunks);
+
         Ok(chunks)
     }
 }
