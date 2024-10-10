@@ -132,8 +132,8 @@ jobs:
       - run:
           name: Build and run inclusivity checker
           command: |
-            go install github.com/get-woke/woke@v0.19.0
-            woke --exit-1-on-failure .
+            go install github.com/jdstrand/language-checker@latest
+            language-checker --exit-1-on-failure .
   cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
