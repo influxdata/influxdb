@@ -977,10 +977,11 @@ impl TableSchema {
     }
 
     pub fn id_to_name_unchecked(&self, id: ColumnId) -> Arc<str> {
-        self.column_map
-            .get_by_left(&id)
-            .expect("Column exists in mapping")
-            .clone()
+        Arc::clone(
+            self.column_map
+                .get_by_left(&id)
+                .expect("Column exists in mapping"),
+        )
     }
 }
 
