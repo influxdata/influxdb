@@ -1825,7 +1825,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 	t.Cleanup(func() { idx.Close() })
 
 	e := tsm1.NewEngine(1, idx, dir, walPath, sfile.SeriesFile, opt).(*tsm1.Engine)
-	t.Cleanup(func() { e.Close() })
+	t.Cleanup(func() { e.Close(false) })
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -2644,7 +2644,7 @@ func (e *Engine) close(cleanup bool) error {
 			os.RemoveAll(e.root)
 		}
 	}()
-	return e.Engine.Close()
+	return e.Engine.Close(false)
 }
 
 // Reopen closes and reopens the engine.

@@ -95,6 +95,10 @@ type Config struct {
 	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
 	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
+	// WALFlushOnShutdown determines if the WAL should be flushed when influxd is shutdown.
+	// This is useful in upgrade and downgrade scenarios to prevent WAL format compatibility issues.
+	WALFlushOnShutdown bool `toml:"wal-flush-on-shutdown"`
+
 	// Enables unicode validation on series keys on write.
 	ValidateKeys bool `toml:"validate-keys"`
 

@@ -514,6 +514,11 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Desc:    "The max amount of time a write will wait when the WAL already has `storage-wal-max-concurrent-writes` active writes. Set to 0 to disable the timeout.",
 		},
 		{
+			DestP: &o.StorageConfig.Data.WALFlushOnShutdown,
+			Flag:  "storage-wal-flush-on-shutdown",
+			Desc:  "Flushes and clears the WAL on shutdown",
+		},
+		{
 			DestP: &o.StorageConfig.Data.ValidateKeys,
 			Flag:  "storage-validate-keys",
 			Desc:  "Validates incoming writes to ensure keys only have valid unicode characters.",
