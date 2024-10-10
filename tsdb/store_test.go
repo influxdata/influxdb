@@ -2627,6 +2627,8 @@ func WithWALFlushOnShutdown(flush bool) StoreOption {
 func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
 
+	// The WAL directory must not be rooted under the data path. Otherwise reopening
+	// the store will generate series indices for the WAL directories.
 	rootPath := tb.TempDir()
 	path := filepath.Join(rootPath, "data")
 	walPath := filepath.Join(rootPath, "wal")

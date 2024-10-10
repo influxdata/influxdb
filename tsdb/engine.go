@@ -41,7 +41,6 @@ type Engine interface {
 
 	LoadMetadataIndex(shardID uint64, index Index) error
 
-	FlushWAL() error
 	CreateSnapshot(skipCacheOk bool) (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Export(w io.Writer, basePath string, start time.Time, end time.Time) error

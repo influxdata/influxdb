@@ -782,7 +782,7 @@ func (e *Engine) Close(flush bool) error {
 	var flushErr error
 	if e.WALEnabled && flush {
 		// Even if the snapshot fails, we still have to proceed and close the engine.
-		flushErr = e.FlushWAL()
+		flushErr = e.flushWAL()
 	}
 
 	e.SetCompactionsEnabled(false)
@@ -1913,8 +1913,8 @@ func (e *Engine) doWriteSnapshot(flush bool) (err error) {
 	return e.writeSnapshotAndCommit(log, closedFiles, snapshot)
 }
 
-// FlushWAL flushes the WAL and empties the WAL directory.
-func (e *Engine) FlushWAL() error {
+// flushWAL flushes the WAL and empties the WAL directory.
+func (e *Engine) flushWAL() error {
 	return e.writeSnapshotWithRetries(true)
 }
 
