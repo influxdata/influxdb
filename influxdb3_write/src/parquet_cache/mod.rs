@@ -338,10 +338,10 @@ impl Cache {
     /// This is a no-op if the `used` amount on the cache is not >= its `capacity`
     fn prune(&self) -> Option<usize> {
         let used = self.used.load(Ordering::SeqCst);
-        if used < self.capacity {
+        let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
+        if used < self.capacity || n_to_prune == 0 {
             return None;
         }
-        let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
         // use a BinaryHeap to determine the cut-off time, at which, entries that were
         // last hit before that time will be pruned:
         let mut prune_heap = BinaryHeap::with_capacity(n_to_prune);
