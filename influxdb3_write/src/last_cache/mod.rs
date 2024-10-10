@@ -138,7 +138,7 @@ impl LastCacheProvider {
                                 db_name: db_schema.name.to_string(),
                                 table_id: table_def.table_id,
                                 table_name: table_def.table_name.to_string(),
-                                schema: table_def.schema.clone(),
+                                schema: table_def.influx_schema().clone(),
                                 cache_name: Some(cache_name.to_owned()),
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),

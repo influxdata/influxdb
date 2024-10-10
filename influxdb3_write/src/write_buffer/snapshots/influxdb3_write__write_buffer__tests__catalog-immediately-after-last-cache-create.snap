@@ -11,11 +11,13 @@ expression: catalog_json
         {
           "cols": {
             "f1": {
+              "column_id": 0,
               "influx_type": "field",
               "nullable": true,
               "type": "bool"
             },
             "t1": {
+              "column_id": 1,
               "influx_type": "tag",
               "nullable": true,
               "type": {
@@ -26,6 +28,7 @@ expression: catalog_json
               }
             },
             "time": {
+              "column_id": 2,
               "influx_type": "time",
               "nullable": false,
               "type": {
@@ -36,6 +39,20 @@ expression: catalog_json
               }
             }
           },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "f1"
+            },
+            {
+              "column_id": 1,
+              "name": "t1"
+            },
+            {
+              "column_id": 2,
+              "name": "time"
+            }
+          ],
           "last_caches": [
             {
               "keys": [
@@ -49,6 +66,7 @@ expression: catalog_json
               "vals": null
             }
           ],
+          "next_column_id": 3,
           "table_id": 0,
           "table_name": "table"
         }

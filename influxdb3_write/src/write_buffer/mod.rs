@@ -334,7 +334,7 @@ impl WriteBufferImpl {
         for parquet_file in parquet_files {
             let parquet_chunk = parquet_chunk_from_file(
                 &parquet_file,
-                &table_schema,
+                table_schema.schema(),
                 self.persister.object_store_url().clone(),
                 self.persister.object_store(),
                 chunk_order,
@@ -485,7 +485,7 @@ impl LastCacheManager for WriteBufferImpl {
                 .table_id_to_name(table_id)
                 .expect("table exists")
                 .to_string(),
-            schema,
+            schema: schema.schema().clone(),
             cache_name,
             count,
             ttl,

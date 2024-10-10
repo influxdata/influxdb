@@ -1,8 +1,9 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
+use arrow::datatypes::SchemaRef;
 use bimap::BiHashMap;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -591,7 +592,9 @@ impl DatabaseSchema {
     }
 
     pub fn get_table_schema(&self, table_id: TableId) -> Option<&Schema> {
-        self.tables.get(&table_id).map(|table| &table.schema)
+        self.tables
+            .get(&table_id)
+            .map(|table| table.influx_schema())
     }
 
     pub fn get_table(&self, table_id: TableId) -> Option<&TableDefinition> {
@@ -630,7 +633,7 @@ impl DatabaseSchema {
 pub struct TableDefinition {
     pub table_id: TableId,
     pub table_name: Arc<str>,
-    pub schema: Schema,
+    pub schema: TableSchema,
     pub last_caches: BTreeMap<String, LastCacheDefinition>,
 }
 
@@ -662,7 +665,7 @@ impl TableDefinition {
         for (name, column_type) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
         }
-        let schema = schema_builder.build().unwrap();
+        let schema = TableSchema::new(schema_builder.build().unwrap());
 
         Ok(Self {
             table_id,
@@ -696,6 +699,7 @@ impl TableDefinition {
         // validate the series key is the same
         let existing_key = self
             .schema
+            .schema()
             .series_key()
             .map(|k| k.iter().map(|v| v.to_string()).collect());
 
@@ -710,7 +714,11 @@ impl TableDefinition {
             Vec::with_capacity(table_definition.field_definitions.len());
 
         for field_def in &table_definition.field_definitions {
-            if let Some(existing_type) = self.schema.field_type_by_name(field_def.name.as_ref()) {
+            if let Some(existing_type) = self
+                .schema
+                .schema()
+                .field_type_by_name(field_def.name.as_ref())
+            {
                 if existing_type != field_def.data_type.into() {
                     return Err(Error::FieldTypeMismatch {
                         table_name: self.table_name.to_string(),
@@ -796,7 +804,7 @@ impl TableDefinition {
 
     /// Check if the column exists in the [`TableDefinition`]s schema
     pub fn column_exists(&self, column: &str) -> bool {
-        self.schema.find_index_of(column).is_some()
+        self.influx_schema().find_index_of(column).is_some()
     }
 
     /// Add the columns to this [`TableDefinition`]
@@ -806,7 +814,7 @@ impl TableDefinition {
         // Use BTree to insert existing and new columns, and use that to generate the
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
-        for (col_type, field) in self.schema.iter() {
+        for (col_type, field) in self.influx_schema().iter() {
             cols.insert(field.name(), col_type);
         }
         for (name, column_type) in columns.iter() {
@@ -817,6 +825,7 @@ impl TableDefinition {
         if cols.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
             return Err(Error::TooManyColumns);
         }
+
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
         // tests, so I am omitting this for now:
@@ -826,13 +835,19 @@ impl TableDefinition {
         }
         let schema = schema_builder.build().unwrap();
 
-        self.schema = schema;
+        // Now that we have all the columns we know will be added and haven't
+        // triggered the limit add the ColumnId <-> Name mapping to the schema
+        for (name, _) in columns.iter() {
+            self.schema.add_column(name);
+        }
+
+        self.schema.schema = schema;
 
         Ok(())
     }
 
     pub fn index_columns(&self) -> Vec<&str> {
-        self.schema
+        self.influx_schema()
             .iter()
             .filter_map(|(col_type, field)| match col_type {
                 InfluxColumnType::Tag => Some(field.name().as_str()),
@@ -841,20 +856,24 @@ impl TableDefinition {
             .collect()
     }
 
-    pub fn schema(&self) -> &Schema {
+    pub fn schema(&self) -> &TableSchema {
         &self.schema
     }
 
+    pub fn influx_schema(&self) -> &Schema {
+        &self.schema.schema
+    }
+
     pub fn num_columns(&self) -> usize {
-        self.schema.len()
+        self.influx_schema().len()
     }
 
     pub fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
-        self.schema.field_type_by_name(name)
+        self.influx_schema().field_type_by_name(name)
     }
 
     pub fn is_v3(&self) -> bool {
-        self.schema.series_key().is_some()
+        self.influx_schema().series_key().is_some()
     }
 
     /// Add a new last cache to this table definition
@@ -870,6 +889,98 @@ impl TableDefinition {
 
     pub fn last_caches(&self) -> impl Iterator<Item = (&String, &LastCacheDefinition)> {
         self.last_caches.iter()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TableSchema {
+    schema: Schema,
+    column_map: BiHashMap<ColumnId, Arc<str>>,
+    next_column_id: ColumnId,
+}
+
+impl TableSchema {
+    /// Creates a new `TableSchema` from scratch and assigns an id based off the
+    /// index. Any changes to the schema after this point will use the
+    /// next_column_id. For example if we have a column foo and drop it and then
+    /// add a new column foo, then it will use a new id, not reuse the old one.
+    fn new(schema: Schema) -> Self {
+        let column_map: BiHashMap<ColumnId, Arc<str>> = schema
+            .as_arrow()
+            .fields()
+            .iter()
+            .enumerate()
+            .map(|(idx, field)| (ColumnId::from(idx as u16), field.name().as_str().into()))
+            .collect();
+        Self {
+            schema,
+            next_column_id: ColumnId::from(column_map.len() as u16),
+            column_map,
+        }
+    }
+
+    pub(crate) fn new_with_mapping(
+        schema: Schema,
+        column_map: BiHashMap<ColumnId, Arc<str>>,
+        next_column_id: ColumnId,
+    ) -> Self {
+        Self {
+            schema,
+            column_map,
+            next_column_id,
+        }
+    }
+
+    pub fn as_arrow(&self) -> SchemaRef {
+        self.schema.as_arrow()
+    }
+
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    pub(crate) fn column_map(&self) -> &BiHashMap<ColumnId, Arc<str>> {
+        &self.column_map
+    }
+
+    pub(crate) fn next_column_id(&self) -> ColumnId {
+        self.next_column_id
+    }
+
+    fn add_column(&mut self, column_name: &str) {
+        let id = self.next_column_id;
+        self.next_column_id = id.next_id();
+        self.column_map.insert(id, column_name.into());
+    }
+
+    pub fn series_key(&self) -> Option<Vec<&str>> {
+        self.schema.series_key()
+    }
+
+    pub fn iter(&self) -> schema::SchemaIter<'_> {
+        self.schema.iter()
+    }
+
+    pub fn name_to_id(&self, name: Arc<str>) -> Option<ColumnId> {
+        self.column_map.get_by_right(&name).copied()
+    }
+
+    pub fn id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
+        self.column_map.get_by_left(&id).cloned()
+    }
+
+    pub fn name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
+        *self
+            .column_map
+            .get_by_right(&name)
+            .expect("Column exists in mapping")
+    }
+
+    pub fn id_to_name_unchecked(&self, id: ColumnId) -> Arc<str> {
+        self.column_map
+            .get_by_left(&id)
+            .expect("Column exists in mapping")
+            .clone()
     }
 }
 
@@ -1002,12 +1113,16 @@ mod tests {
                             {
                                 "table_id": 0,
                                 "table_name": "tbl1",
-                                "cols": {}
+                                "cols": {},
+                                "column_map": [],
+                                "next_column_id": 0
                             },
                             {
                                 "table_id": 0,
                                 "table_name": "tbl1",
-                                "cols": {}
+                                "cols": {},
+                                "column_map": [],
+                                "next_column_id": 0
                             }
                         ]
                     }
@@ -1029,16 +1144,25 @@ mod tests {
                                 "table_name": "tbl1",
                                 "cols": {
                                     "col1": {
+                                        "column_id": 0,
                                         "type": "i64",
                                         "influx_type": "field",
                                         "nullable": true
                                     },
                                     "col1": {
+                                        "column_id": 0,
                                         "type": "u64",
                                         "influx_type": "field",
                                         "nullable": true
                                     }
-                                }
+                                },
+                                "column_map": [
+                                    {
+                                        "column_id": 0,
+                                        "name": "col1"
+                                    }
+                                ],
+                                "next_column_id": 1
                             }
                         ]
                     }
@@ -1050,7 +1174,7 @@ mod tests {
     }
 
     #[test]
-    fn add_columns_updates_schema() {
+    fn add_columns_updates_schema_and_column_map() {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test".into(),
@@ -1072,15 +1196,21 @@ mod tests {
         );
 
         let table = database.tables.get_mut(&TableId::from(0)).unwrap();
+        assert_eq!(table.schema.column_map().len(), 1);
+        assert_eq!(table.schema.id_to_name_unchecked(0.into()), "test".into());
+
         table
             .add_columns(vec![("test2".to_string(), InfluxColumnType::Tag)])
             .unwrap();
-        let schema = table.schema();
+        let schema = table.influx_schema();
         assert_eq!(
             schema.field(0).0,
             InfluxColumnType::Field(InfluxFieldType::String)
         );
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
+
+        assert_eq!(table.schema.column_map().len(), 2);
+        assert_eq!(table.schema.name_to_id_unchecked("test2".into()), 1.into());
     }
 
     #[test]
