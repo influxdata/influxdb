@@ -108,7 +108,7 @@ impl QueryableBuffer {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
-                    &schema.schema(),
+                    schema.schema(),
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
