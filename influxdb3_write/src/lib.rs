@@ -18,6 +18,7 @@ use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
 use influxdb3_id::DbId;
+use influxdb3_id::ParquetFileId;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
@@ -26,8 +27,6 @@ use last_cache::LastCacheProvider;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -199,7 +198,7 @@ impl PersistedSnapshot {
     ) -> Self {
         Self {
             host_id,
-            next_file_id: ParquetFileId::current(),
+            next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
             next_table_id: TableId::next_id(),
             snapshot_sequence_number,
@@ -219,9 +218,8 @@ impl PersistedSnapshot {
         table_id: TableId,
         parquet_file: ParquetFile,
     ) {
-        if self.next_file_id < parquet_file.id {
-            self.next_file_id = ParquetFileId::from(parquet_file.id.as_u64() + 1);
-        }
+        // Update the next_file_id field, as we likely have a new file
+        self.next_file_id = ParquetFileId::next_id();
         self.parquet_size_bytes += parquet_file.size_bytes;
         self.row_count += parquet_file.row_count;
         self.min_time = self.min_time.min(parquet_file.min_time);
@@ -240,39 +238,6 @@ impl PersistedSnapshot {
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
     pub tables: hashbrown::HashMap<TableId, Vec<ParquetFile>>,
-}
-
-/// The next file id to be used when persisting `ParquetFile`s
-pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
-/// A newtype wrapper for ids used with `ParquetFile`
-pub struct ParquetFileId(u64);
-
-impl ParquetFileId {
-    pub fn new() -> Self {
-        Self(NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst))
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-
-    pub fn current() -> Self {
-        ParquetFileId(NEXT_FILE_ID.load(Ordering::SeqCst))
-    }
-}
-
-impl From<u64> for ParquetFileId {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl Default for ParquetFileId {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// The summary data for a persisted parquet file in a snapshot.
