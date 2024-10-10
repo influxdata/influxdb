@@ -109,13 +109,13 @@ impl QueryableBuffer {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
-                    &schema,
+                    &schema.schema(),
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
                 Arc::new(BufferChunk {
                     batches,
-                    schema: schema.clone(),
+                    schema: schema.schema().clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
                         data_types::TableId::new(0),
@@ -420,7 +420,7 @@ impl BufferState {
             let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
                 let table_schema = db_schema.get_table(table_id).expect("table should exist");
                 let sort_key = table_schema
-                    .schema
+                    .influx_schema()
                     .primary_key()
                     .iter()
                     .map(|c| c.to_string())

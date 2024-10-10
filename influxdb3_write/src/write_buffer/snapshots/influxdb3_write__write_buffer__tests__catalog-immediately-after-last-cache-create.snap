@@ -39,6 +39,20 @@ expression: catalog_json
               }
             }
           },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "f1"
+            },
+            {
+              "column_id": 1,
+              "name": "t1"
+            },
+            {
+              "column_id": 2,
+              "name": "time"
+            }
+          ],
           "last_caches": [
             {
               "keys": [
@@ -52,6 +66,7 @@ expression: catalog_json
               "vals": null
             }
           ],
+          "next_column_id": 3,
           "table_id": 0,
           "table_name": "table"
         }

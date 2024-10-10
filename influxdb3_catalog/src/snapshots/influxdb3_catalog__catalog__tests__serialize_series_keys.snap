@@ -67,7 +67,30 @@ expression: catalog
               "influx_type": "time",
               "nullable": false
             }
-          }
+          },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "field"
+            },
+            {
+              "column_id": 1,
+              "name": "tag_1"
+            },
+            {
+              "column_id": 2,
+              "name": "tag_2"
+            },
+            {
+              "column_id": 3,
+              "name": "tag_3"
+            },
+            {
+              "column_id": 4,
+              "name": "time"
+            }
+          ],
+          "next_column_id": 5
         }
       ]
     }

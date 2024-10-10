@@ -143,7 +143,7 @@ impl LastCacheProvider {
                                     )
                                     .expect("table exists"),
                                 table_name: table_def.table_name.to_string(),
-                                schema: table_def.schema.clone(),
+                                schema: table_def.influx_schema().clone(),
                                 cache_name: Some(cache_name.to_owned()),
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),

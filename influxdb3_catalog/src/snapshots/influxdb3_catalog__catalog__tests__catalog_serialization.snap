@@ -86,7 +86,46 @@ expression: catalog
               "influx_type": "field",
               "nullable": true
             }
-          }
+          },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "bool_field"
+            },
+            {
+              "column_id": 1,
+              "name": "f64_field"
+            },
+            {
+              "column_id": 2,
+              "name": "i64_field"
+            },
+            {
+              "column_id": 3,
+              "name": "string_field"
+            },
+            {
+              "column_id": 4,
+              "name": "tag_1"
+            },
+            {
+              "column_id": 5,
+              "name": "tag_2"
+            },
+            {
+              "column_id": 6,
+              "name": "tag_3"
+            },
+            {
+              "column_id": 7,
+              "name": "time"
+            },
+            {
+              "column_id": 8,
+              "name": "u64_field"
+            }
+          ],
+          "next_column_id": 9
         },
         {
           "table_id": 2,
@@ -166,7 +205,46 @@ expression: catalog
               "influx_type": "field",
               "nullable": true
             }
-          }
+          },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "bool_field"
+            },
+            {
+              "column_id": 1,
+              "name": "f64_field"
+            },
+            {
+              "column_id": 2,
+              "name": "i64_field"
+            },
+            {
+              "column_id": 3,
+              "name": "string_field"
+            },
+            {
+              "column_id": 4,
+              "name": "tag_1"
+            },
+            {
+              "column_id": 5,
+              "name": "tag_2"
+            },
+            {
+              "column_id": 6,
+              "name": "tag_3"
+            },
+            {
+              "column_id": 7,
+              "name": "time"
+            },
+            {
+              "column_id": 8,
+              "name": "u64_field"
+            }
+          ],
+          "next_column_id": 9
         }
       ]
     }
