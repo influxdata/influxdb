@@ -512,7 +512,11 @@ func (s *Store) Close() error {
 
 	// Close all the shards in parallel.
 	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
-		return sh.Close()
+		if s.EngineOptions.Config.WALFlushOnShutdown {
+			return sh.FlushAndClose()
+		} else {
+			return sh.Close()
+		}
 	}); err != nil {
 		return err
 	}

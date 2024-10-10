@@ -29,7 +29,7 @@ var (
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
 	Open(ctx context.Context) error
-	Close() error
+	Close(flush bool) error
 	SetEnabled(enabled bool)
 	SetCompactionsEnabled(enabled bool)
 	ScheduleFullCompaction() error
