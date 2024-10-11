@@ -64,7 +64,6 @@ impl ReplicationConfig {
 
 #[derive(Debug)]
 pub(crate) struct Replicas {
-    catalog: Arc<Catalog>,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     last_cache: Arc<LastCacheProvider>,
@@ -72,7 +71,6 @@ pub(crate) struct Replicas {
 }
 
 pub(crate) struct CreateReplicasArgs {
-    pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
     pub object_store: Arc<dyn ObjectStore>,
     pub metric_registry: Arc<Registry>,
@@ -85,7 +83,6 @@ pub(crate) struct CreateReplicasArgs {
 impl Replicas {
     pub(crate) async fn new(
         CreateReplicasArgs {
-            catalog,
             last_cache,
             object_store,
             metric_registry,
@@ -98,7 +95,6 @@ impl Replicas {
         let mut handles = vec![];
         for (i, host_identifier_prefix) in hosts.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
-            let catalog = Arc::clone(&catalog);
             let last_cache = Arc::clone(&last_cache);
             let metric_registry = Arc::clone(&metric_registry);
             let persisted_snapshot_notify_tx = persisted_snapshot_notify_tx.clone();
@@ -109,7 +105,6 @@ impl Replicas {
                     replica_order: i as i64,
                     object_store,
                     host_identifier_prefix,
-                    catalog,
                     last_cache,
                     replication_interval,
                     metric_registry,
@@ -126,7 +121,6 @@ impl Replicas {
             .into_iter()
             .collect::<Result<Vec<Arc<ReplicatedBuffer>>>>()?;
         Ok(Self {
-            catalog,
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             last_cache,
@@ -142,8 +136,11 @@ impl Replicas {
         Arc::clone(&self.object_store)
     }
 
+    // TODO: this just takes the first replicas catalog for now. It should instead use a central
+    // shared catalog, but that wont be available until [#120] is done.
+    // [#120]: https://github.com/influxdata/influxdb_pro/issues/120
     pub(crate) fn catalog(&self) -> Arc<Catalog> {
-        Arc::clone(&self.catalog)
+        Arc::clone(&self.replicas[0].catalog)
     }
 
     pub(crate) fn last_cache(&self) -> Arc<LastCacheProvider> {
@@ -252,7 +249,6 @@ pub(crate) struct CreateReplicatedBufferArgs {
     replica_order: i64,
     object_store: Arc<dyn ObjectStore>,
     host_identifier_prefix: String,
-    catalog: Arc<Catalog>,
     last_cache: Arc<LastCacheProvider>,
     replication_interval: Duration,
     metric_registry: Arc<Registry>,
@@ -266,7 +262,6 @@ impl ReplicatedBuffer {
             replica_order,
             object_store,
             host_identifier_prefix,
-            catalog,
             last_cache,
             replication_interval,
             metric_registry,
@@ -274,18 +269,24 @@ impl ReplicatedBuffer {
             parquet_cache,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
-        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
-        let persisted_files = {
-            // Create a temporary persister to load snapshot files
+        let (catalog, persisted_files) = {
+            // Create a temporary persister to load snapshot files and catalog
             let persister = Persister::new(Arc::clone(&object_store), &host_identifier_prefix);
             let persisted_snapshots = persister
                 .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
                 .await
                 .context("failed to load snapshots for replicated host")?;
-            Arc::new(PersistedFiles::new_from_persisted_snapshots(
+            let catalog = persister.load_catalog()
+                .await
+                .with_context(|| format!("unable to load a catalog for host '{host_identifier_prefix}' from object store"))?
+                .map(|persisted| Arc::new(Catalog::from_inner(persisted.catalog)))
+                .with_context(|| format!("there was no catalog for host '{host_identifier_prefix}'"))?;
+            let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
                 persisted_snapshots,
-            ))
+            ));
+            (catalog, persisted_files)
         };
+        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let host: Cow<'static, str> = Cow::from(host_identifier_prefix.clone());
         let attributes = Attributes::from([("host", host)]);
         let replica_ttbr = metric_registry
@@ -660,7 +661,6 @@ mod tests {
         arrow::array::RecordBatch, assert_batches_sorted_eq, execution::context::SessionContext,
     };
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -743,7 +743,6 @@ mod tests {
             replica_order: 0,
             object_store: Arc::clone(&obj_store),
             host_identifier_prefix: primary_id.to_string(),
-            catalog: primary.catalog(),
             last_cache: primary.last_cache_provider(),
             replication_interval: Duration::from_millis(10),
             metric_registry: Arc::new(Registry::new()),
@@ -894,7 +893,6 @@ mod tests {
 
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(CreateReplicasArgs {
-            catalog: Arc::new(Catalog::new("replica-1".into(), "test-id-1".into())),
             last_cache: Arc::new(LastCacheProvider::new()),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
@@ -1010,7 +1008,6 @@ mod tests {
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
-            catalog: Arc::new(Catalog::new("replica-1".into(), "test-id-1".into())),
             last_cache: Arc::new(LastCacheProvider::new()),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
@@ -1171,7 +1168,6 @@ mod tests {
             let replicas = Replicas::new(CreateReplicasArgs {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
-                catalog: primaries["skinner"].catalog(),
                 last_cache: Arc::new(LastCacheProvider::new()),
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
@@ -1240,7 +1236,6 @@ mod tests {
                 tokio::sync::watch::channel(None);
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
-                catalog: primaries["skinner"].catalog(),
                 last_cache: Arc::new(LastCacheProvider::new()),
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),

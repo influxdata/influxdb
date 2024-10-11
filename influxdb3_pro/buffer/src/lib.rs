@@ -36,7 +36,6 @@ pub struct NoMode;
 
 impl WriteBufferPro<NoMode> {
     pub async fn read(
-        catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
         metric_registry: Arc<Registry>,
@@ -45,7 +44,6 @@ impl WriteBufferPro<NoMode> {
         compacted_data: Option<Arc<CompactedData>>,
     ) -> Result<WriteBufferPro<ReadMode>, anyhow::Error> {
         let mode = ReadMode::new(
-            catalog,
             last_cache,
             object_store,
             metric_registry,

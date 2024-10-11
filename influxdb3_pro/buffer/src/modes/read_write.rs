@@ -104,7 +104,6 @@ impl ReadWriteMode {
         {
             Some(
                 Replicas::new(CreateReplicasArgs {
-                    catalog,
                     last_cache,
                     object_store: Arc::clone(&object_store),
                     metric_registry,
