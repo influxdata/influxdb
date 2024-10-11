@@ -502,7 +502,6 @@ pub async fn command(config: Config) -> Result<()> {
                 .map_err(Error::WriteBufferInit)?;
             Arc::new(
                 WriteBufferPro::read(
-                    Arc::new(catalog),
                     Arc::new(last_cache),
                     Arc::clone(&object_store),
                     Arc::clone(&metrics),

@@ -33,7 +33,6 @@ pub struct ReadMode {
 impl ReadMode {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
-        catalog: Arc<Catalog>,
         last_cache: Arc<LastCacheProvider>,
         object_store: Arc<dyn ObjectStore>,
         metric_registry: Arc<Registry>,
@@ -48,7 +47,6 @@ impl ReadMode {
         Ok(Self {
             persisted_snapshot_notify_rx,
             replicas: Replicas::new(CreateReplicasArgs {
-                catalog,
                 last_cache,
                 object_store,
                 metric_registry,
