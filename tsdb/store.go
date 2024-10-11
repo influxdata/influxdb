@@ -51,14 +51,14 @@ const (
 // a database.
 const SeriesFileDirectory = "_series"
 
-// res holds the result from opening each shard in a goroutine
-type res struct {
+// databaseState keeps track of the state of a database.
+type databaseState struct{ indexTypes map[string]int }
+
+// struct to hold the result of opening each reader in a goroutine
+type shardResponse struct {
 	s   *Shard
 	err error
 }
-
-// databaseState keeps track of the state of a database.
-type databaseState struct{ indexTypes map[string]int }
 
 // addIndexType records that the database has a shard with the given index type.
 func (d *databaseState) addIndexType(indexType string) {
@@ -377,7 +377,6 @@ func (s *Store) loadShards() error {
 
 	shardLoaderWg := new(sync.WaitGroup)
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
-	resC := make(chan *res)
 
 	// Determine how many shards we need to open by checking the store path.
 	dbDirs, err := os.ReadDir(s.path)
@@ -385,6 +384,8 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
+	// We use `rawShardCount` as a buffer size for channel creation below
+	rawShardCount := 0
 	walkShardsAndProcess := func(fn func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
 		for _, db := range dbDirs {
 			rpDirs, err := s.getRetentionPolicyDirs(db, log)
@@ -415,6 +416,7 @@ func (s *Store) loadShards() error {
 				}
 
 				for _, sh := range shardDirs {
+					rawShardCount++
 					// Series file should not be in a retention policy but skip just in case.
 					if sh.Name() == SeriesFileDirectory {
 						log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
@@ -441,6 +443,7 @@ func (s *Store) loadShards() error {
 		}
 	}
 
+	shardResC := make(chan *shardResponse, rawShardCount)
 	err = walkShardsAndProcess(func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		shardLoaderWg.Add(1)
 
@@ -458,7 +461,7 @@ func (s *Store) loadShards() error {
 			shardID, err := strconv.ParseUint(sh, 10, 64)
 			if err != nil {
 				log.Info("invalid shard ID found at path", zap.String("path", path))
-				resC <- &res{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
+				shardResC <- &shardResponse{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
 				if s.startupProgressMetrics != nil {
 					s.startupProgressMetrics.CompletedShard()
 				}
@@ -467,7 +470,7 @@ func (s *Store) loadShards() error {
 
 			if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
 				log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
-				resC <- &res{}
+				shardResC <- &shardResponse{}
 				if s.startupProgressMetrics != nil {
 					s.startupProgressMetrics.CompletedShard()
 				}
@@ -497,14 +500,14 @@ func (s *Store) loadShards() error {
 			err = s.OpenShard(shard, false)
 			if err != nil {
 				log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-				resC <- &res{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
+				shardResC <- &shardResponse{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
 				if s.startupProgressMetrics != nil {
 					s.startupProgressMetrics.CompletedShard()
 				}
 				return
 			}
 
-			resC <- &res{s: shard}
+			shardResC <- &shardResponse{s: shard}
 			log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
 			if s.startupProgressMetrics != nil {
 				s.startupProgressMetrics.CompletedShard()
@@ -514,14 +517,14 @@ func (s *Store) loadShards() error {
 		return nil
 	})
 
-	if err := s.enableShards(shardLoaderWg, resC); err != nil {
+	if err := s.enableShards(shardLoaderWg, shardResC); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s *Store) enableShards(wg *sync.WaitGroup, resC chan *res) error {
+func (s *Store) enableShards(wg *sync.WaitGroup, resC chan *shardResponse) error {
 	go func() {
 		wg.Wait()
 		close(resC)
@@ -1216,12 +1219,8 @@ func byIndexType(name string) ShardPredicate {
 // concurrent use. If any of the functions return an error, the first error is
 // returned.
 func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
-	// struct to hold the result of opening each reader in a goroutine
-	type res struct {
-		err error
-	}
 
-	resC := make(chan res)
+	resC := make(chan shardResponse)
 	var n int
 
 	for _, sh := range shards {
@@ -1229,11 +1228,11 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 
 		go func(sh *Shard) {
 			if err := fn(sh); err != nil {
-				resC <- res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
+				resC <- shardResponse{err: fmt.Errorf("shard %d: %s", sh.id, err)}
 				return
 			}
 
-			resC <- res{}
+			resC <- shardResponse{}
 		}(sh)
 	}
 

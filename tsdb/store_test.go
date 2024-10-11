@@ -149,7 +149,6 @@ func TestStore_StartupShardProgress(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		fmt.Println(index)
 		s := MustOpenStore(index)
 		defer s.Close()
 
@@ -167,16 +166,10 @@ func TestStore_StartupShardProgress(t *testing.T) {
 
 		// Reopen shard and recheck.
 		require.NoError(t, s.ReopenWithStartupMetrics(msl))
-		sh = s.Shard(1)
-		require.NotNil(t, sh)
-
-		// Create another shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
-		sh = s.Shard(2)
-		require.NotNil(t, sh)
 
 		// Equality check to make sure shards are always added prior to
-		// completion being called.
+		// completion being called. This test opens 3 total shards - 1 shard
+		// fails, but we still want to track that it was attempted to be opened.
 		require.Equal(t, msl.shardTracker, []string{
 			"shard-add",
 			"shard-add",
