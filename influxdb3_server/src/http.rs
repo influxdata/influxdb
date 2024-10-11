@@ -692,18 +692,15 @@ where
             ttl,
         } = self.read_body_json(req).await?;
 
-        let db_id = self
+        let (db_id, db_schema) = self
             .write_buffer
             .catalog()
-            .db_name_to_id(db.as_str().into())
+            .db_schema_and_id(db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = self
-            .write_buffer
-            .catalog()
-            .db_schema(&db_id)
-            .expect("db should exist")
-            .table_name_to_id(table.as_str().into())
+        let table_id = db_schema
+            .table_name_to_id(table.as_str())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+
         match self
             .write_buffer
             .create_last_cache(
@@ -742,17 +739,13 @@ where
             self.read_body_json(req).await?
         };
 
-        let db_id = self
+        let (db_id, db_schema) = self
             .write_buffer
             .catalog()
-            .db_name_to_id(db.into())
+            .db_schema_and_id(db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = self
-            .write_buffer
-            .catalog()
-            .db_schema(&db_id)
-            .expect("db should exist")
-            .table_name_to_id(table.into())
+        let table_id = db_schema
+            .table_name_to_id(table)
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         self.write_buffer
             .delete_last_cache(db_id, table_id, &name)

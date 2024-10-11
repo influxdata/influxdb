@@ -294,31 +294,17 @@ impl WriteBufferImpl {
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_id = self
-            .catalog
-            .db_name_to_id(database_name.into())
-            .ok_or_else(|| DataFusionError::Execution(format!("db {} not found", database_name)))?;
+        let db_schema = self.catalog.db_schema(database_name).ok_or_else(|| {
+            DataFusionError::Execution(format!("database {} not found", database_name))
+        })?;
 
-        let db_schema = self
-            .catalog
-            .db_schema(&db_id)
-            .expect("Already checked db exists");
-
-        let table_id = db_schema
-            .table_name_to_id(table_name.into())
-            .ok_or_else(|| {
+        let (table_id, table_schema) =
+            db_schema.table_schema_and_id(table_name).ok_or_else(|| {
                 DataFusionError::Execution(format!(
                     "table {} not found in db {}",
                     table_name, database_name
                 ))
             })?;
-
-        let table_schema = db_schema
-            .tables
-            .get(&table_id)
-            .expect("Already checked id exists")
-            .schema
-            .clone();
 
         let mut chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
@@ -327,6 +313,7 @@ impl WriteBufferImpl {
             projection,
             ctx,
         )?;
+
         let parquet_files = self.persisted_files.get_files(db_schema.id, table_id);
 
         let mut chunk_order = chunks.len() as i64;
@@ -334,7 +321,7 @@ impl WriteBufferImpl {
         for parquet_file in parquet_files {
             let parquet_chunk = parquet_chunk_from_file(
                 &parquet_file,
-                table_schema.schema(),
+                &table_schema,
                 self.persister.object_store_url().clone(),
                 self.persister.object_store(),
                 chunk_order,
@@ -470,12 +457,12 @@ impl LastCacheManager for WriteBufferImpl {
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
-        let db_schema = catalog.db_schema(&db_id).ok_or(Error::DbDoesNotExist)?;
+        let db_schema = catalog
+            .db_schema_by_id(db_id)
+            .ok_or(Error::DbDoesNotExist)?;
         let schema = db_schema
-            .get_table(table_id)
-            .ok_or(Error::TableDoesNotExist)?
-            .schema()
-            .clone();
+            .table_schema_by_id(table_id)
+            .ok_or(Error::TableDoesNotExist)?;
 
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
             db_id,
@@ -485,7 +472,7 @@ impl LastCacheManager for WriteBufferImpl {
                 .table_id_to_name(table_id)
                 .expect("table exists")
                 .to_string(),
-            schema: schema.schema().clone(),
+            schema,
             cache_name,
             count,
             ttl,
@@ -514,7 +501,7 @@ impl LastCacheManager for WriteBufferImpl {
         cache_name: &str,
     ) -> crate::Result<(), self::Error> {
         let catalog = self.catalog();
-        let db_schema = catalog.db_schema(&db_id).expect("db should exist");
+        let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
         self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
         catalog.delete_last_cache(db_id, tbl_id, cache_name);
 
@@ -582,7 +569,7 @@ mod tests {
                 Precision::Nanosecond,
             );
 
-        let db = catalog.db_schema(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(DbId::from(0)).unwrap();
 
         assert_eq!(db.tables.len(), 2);
         // cpu table

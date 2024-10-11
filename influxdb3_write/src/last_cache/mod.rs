@@ -196,17 +196,14 @@ impl LastCacheProvider {
                 table
                     .iter()
                     .flat_map(|(table_id, table_map)| {
-                        table_map.iter().map(|(lc_name, lc)| {
-                            lc.to_definition(
-                                *table_id,
-                                self.catalog
-                                    .db_schema(&db)
-                                    .expect("db exists")
-                                    .table_id_to_name(*table_id)
-                                    .expect("table exists")
-                                    .to_string(),
-                                lc_name,
-                            )
+                        let table_name = self
+                            .catalog
+                            .db_schema_by_id(db)
+                            .expect("db exists")
+                            .table_id_to_name(*table_id)
+                            .expect("table exists");
+                        table_map.iter().map(move |(lc_name, lc)| {
+                            lc.to_definition(*table_id, table_name.as_ref(), lc_name)
                         })
                     })
                     .collect()

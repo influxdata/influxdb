@@ -140,11 +140,7 @@ impl Catalog {
     }
 
     pub fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
-        let db = self
-            .db_name_to_id(db_name.into())
-            .and_then(|db_id| self.inner.read().databases.get(&db_id).map(Arc::clone));
-
-        let db = match db {
+        let db = match self.db_schema(db_name) {
             Some(db) => db,
             None => {
                 let mut inner = self.inner.write();
@@ -168,16 +164,36 @@ impl Catalog {
         Ok(db)
     }
 
-    pub fn db_name_to_id(&self, db_name: Arc<str>) -> Option<DbId> {
-        self.inner.read().db_map.get_by_right(&db_name).copied()
+    pub fn db_name_to_id(&self, db_name: impl Into<Arc<str>>) -> Option<DbId> {
+        self.inner
+            .read()
+            .db_map
+            .get_by_right(&db_name.into())
+            .copied()
     }
 
     pub fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
         self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
     }
 
-    pub fn db_schema(&self, id: &DbId) -> Option<Arc<DatabaseSchema>> {
-        self.inner.read().databases.get(id).cloned()
+    pub fn db_schema(&self, db_name: impl Into<Arc<str>>) -> Option<Arc<DatabaseSchema>> {
+        self.db_schema_and_id(db_name).map(|(_, schema)| schema)
+    }
+
+    pub fn db_schema_by_id(&self, db_id: DbId) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().databases.get(&db_id).cloned()
+    }
+
+    pub fn db_schema_and_id(
+        &self,
+        db_name: impl Into<Arc<str>>,
+    ) -> Option<(DbId, Arc<DatabaseSchema>)> {
+        let inner = self.inner.read();
+        let db_id = inner.db_map.get_by_right(&db_name.into())?;
+        inner
+            .databases
+            .get(db_id)
+            .map(|db| (*db_id, Arc::clone(db)))
     }
 
     pub fn sequence_number(&self) -> SequenceNumber {
@@ -591,13 +607,38 @@ impl DatabaseSchema {
         Ok(new_db)
     }
 
-    pub fn get_table_schema(&self, table_id: TableId) -> Option<&Schema> {
+    pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
+        self.table_schema_and_id(table_name)
+            .map(|(_, schema)| schema.clone())
+    }
+
+    pub fn table_schema_by_id(&self, table_id: TableId) -> Option<Schema> {
         self.tables
             .get(&table_id)
             .map(|table| table.influx_schema())
+            .cloned()
     }
 
-    pub fn get_table(&self, table_id: TableId) -> Option<&TableDefinition> {
+    pub fn table_schema_and_id(
+        &self,
+        table_name: impl Into<Arc<str>>,
+    ) -> Option<(TableId, Schema)> {
+        self.table_map
+            .get_by_right(&table_name.into())
+            .and_then(|table_id| {
+                self.tables
+                    .get(table_id)
+                    .map(|table_def| (*table_id, table_def.influx_schema().clone()))
+            })
+    }
+
+    pub fn table_definition(&self, table_name: impl Into<Arc<str>>) -> Option<&TableDefinition> {
+        self.table_map
+            .get_by_right(&table_name.into())
+            .and_then(|table_id| self.tables.get(table_id))
+    }
+
+    pub fn table_definition_by_id(&self, table_id: TableId) -> Option<&TableDefinition> {
         self.tables.get(&table_id)
     }
 
@@ -620,8 +661,8 @@ impl DatabaseSchema {
         self.tables.values()
     }
 
-    pub fn table_name_to_id(&self, table_name: Arc<str>) -> Option<TableId> {
-        self.table_map.get_by_right(&table_name).copied()
+    pub fn table_name_to_id(&self, table_name: impl Into<Arc<str>>) -> Option<TableId> {
+        self.table_map.get_by_right(&table_name.into()).copied()
     }
 
     pub fn table_id_to_name(&self, table_id: TableId) -> Option<Arc<str>> {
