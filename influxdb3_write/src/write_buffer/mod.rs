@@ -1,6 +1,7 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
+mod pro;
 pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
@@ -13,7 +14,7 @@ use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile, ParquetFileId,
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer, WriteLineError, NEXT_FILE_ID,
 };
 use async_trait::async_trait;
@@ -22,7 +23,7 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
 use influxdb3_wal::{
@@ -282,55 +283,6 @@ impl WriteBufferImpl {
             field_count: result.field_count,
             index_count: result.index_count,
         })
-    }
-
-    pub fn get_buffer_chunks(
-        &self,
-        db_schema: Arc<DatabaseSchema>,
-        table_name: &str,
-        filters: &[Expr],
-        projection: Option<&Vec<usize>>,
-        ctx: &dyn Session,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let chunks = self
-            .buffer
-            .get_table_chunks(db_schema, table_name, filters, projection, ctx)?;
-
-        Ok(chunks)
-    }
-
-    pub fn get_persisted_chunks(
-        &self,
-        database_name: &str,
-        table_name: &str,
-        table_schema: Schema,
-        _filters: &[Expr],
-        last_compacted_parquet_file_id: Option<ParquetFileId>,
-        mut chunk_order_offset: i64, // offset the chunk order by this amount
-    ) -> Vec<Arc<dyn QueryChunk>> {
-        let mut files = self.persisted_files.get_files(database_name, table_name);
-
-        // filter out any files that have been compacted
-        if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
-            files.retain(|f| f.id > last_parquet_file_id);
-        }
-
-        files
-            .into_iter()
-            .map(|parquet_file| {
-                chunk_order_offset += 1;
-
-                let parquet_chunk = parquet_chunk_from_file(
-                    &parquet_file,
-                    &table_schema,
-                    self.persister.object_store_url().clone(),
-                    self.persister.object_store(),
-                    chunk_order_offset,
-                );
-
-                Arc::new(parquet_chunk) as Arc<dyn QueryChunk>
-            })
-            .collect()
     }
 
     fn get_table_chunks(
