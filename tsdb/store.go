@@ -1220,7 +1220,7 @@ func byIndexType(name string) ShardPredicate {
 // returned.
 func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 
-	resC := make(chan shardResponse)
+	resC := make(chan shardResponse, len(shards))
 	var n int
 
 	for _, sh := range shards {
