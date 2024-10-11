@@ -11,6 +11,7 @@ use crate::{
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
 use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
+use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
@@ -67,8 +68,6 @@ impl Eq for CompactedData {}
 #[derive(Debug, Eq, PartialEq)]
 struct InnerCompactedData {
     databases: HashMap<Arc<str>, CompactedDatabase>,
-    generation_details: HashMap<GenerationId, Arc<GenerationDetail>>,
-    gen1_files: HashMap<GenerationId, Gen1File>,
     last_compaction_summary: Option<CompactionSummary>,
     last_compaction_sequence_number: CompactionSequenceNumber,
 }
@@ -85,8 +84,6 @@ impl CompactedData {
             compaction_config,
             data: RwLock::new(InnerCompactedData {
                 databases: HashMap::new(),
-                generation_details: HashMap::new(),
-                gen1_files: HashMap::new(),
                 last_compaction_summary: None,
                 last_compaction_sequence_number: CompactionSequenceNumber::new(0),
             }),
@@ -118,8 +115,6 @@ impl CompactedData {
 
         let mut data = InnerCompactedData {
             databases: HashMap::new(),
-            generation_details: HashMap::new(),
-            gen1_files: HashMap::new(),
             last_compaction_summary: Some(compaction_summary.clone()),
             last_compaction_sequence_number: compaction_summary.compaction_sequence_number,
         };
@@ -137,6 +132,15 @@ impl CompactedData {
                 return Err(Error::CompactionDetailReadError(path.0.to_string()));
             };
 
+            let db = data
+                .databases
+                .entry(Arc::clone(&compaction_detail.db_name))
+                .or_default();
+            let table = db
+                .tables
+                .entry(Arc::clone(&compaction_detail.table_name))
+                .or_default();
+
             // load all the generation details
             for gen in &compaction_detail.compacted_generations {
                 let gen_path = GenerationDetailPath::new(compactor_id, gen.id);
@@ -146,26 +150,13 @@ impl CompactedData {
                     return Err(Error::GenerationDetailReadError(gen_path.0.to_string()));
                 };
 
-                data.generation_details
-                    .insert(generation_detail.id, Arc::new(generation_detail));
+                table
+                    .compacted_generations
+                    .insert(gen.id, generation_detail.files);
             }
 
-            // inject the gen1 files into the data
-            for gen1_file in &compaction_detail.leftover_gen1_files {
-                data.gen1_files.insert(gen1_file.id, gen1_file.clone());
-            }
-
-            // and now add the compaction detail to the data
-            data.databases
-                .entry(Arc::clone(&compaction_detail.db_name))
-                .or_insert_with(|| CompactedDatabase {
-                    tables: HashMap::new(),
-                })
-                .tables
-                .insert(
-                    Arc::clone(&compaction_detail.table_name),
-                    Arc::new(compaction_detail),
-                );
+            // and now add the compaction detail to the table
+            table.compaction_detail = Some(Arc::new(compaction_detail));
         }
 
         Ok(Arc::new(Self {
@@ -202,13 +193,31 @@ impl CompactedData {
         }
     }
 
-    pub fn add_gen1_file_to_map(&self, file: Arc<ParquetFile>) -> Gen1File {
-        let gen1_file = Gen1File::new(file);
-
+    pub fn add_compacting_gen1_files(
+        &self,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+        gen1_files: Vec<ParquetFile>,
+    ) -> Vec<Generation> {
         let mut data = self.data.write();
-        data.gen1_files.insert(gen1_file.id, gen1_file.clone());
 
-        gen1_file
+        let db = data.databases.entry(db_name).or_default();
+        let table = db.tables.entry(table_name).or_default();
+
+        table.add_compacting_gen1_files(gen1_files)
+    }
+
+    pub fn remove_compacting_gen1_files(
+        &self,
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+        gen_ids: &[GenerationId],
+    ) -> Vec<Gen1File> {
+        let mut data = self.data.write();
+
+        let db = data.databases.entry(db_name).or_default();
+        let table = db.tables.entry(table_name).or_default();
+        table.remove_compacting_gen1_files(gen_ids)
     }
 
     pub fn update_compaction_detail_with_generation(
@@ -217,56 +226,38 @@ impl CompactedData {
         compaction_detail: CompactionDetail,
         generation_detail: GenerationDetail,
     ) {
-        let mut data = self.data.write();
-
-        // ensure that the generation is removed from the maps
-        for id in compacted_ids {
-            data.gen1_files.remove(id);
-            data.generation_details.remove(id);
-        }
-
-        // update the compaction detail
-        let db = data
-            .databases
-            .entry(Arc::clone(&compaction_detail.db_name))
-            .or_insert_with(|| CompactedDatabase {
-                tables: HashMap::new(),
-            });
-
-        db.tables.insert(
-            Arc::clone(&compaction_detail.table_name),
-            Arc::new(compaction_detail),
-        );
-
-        data.generation_details
-            .insert(generation_detail.id, Arc::new(generation_detail));
-    }
-
-    pub fn update_compaction_detail(&self, compaction_detail: CompactionDetail) {
+        println!("update_compaction_detail_with_generation");
         let mut data = self.data.write();
 
         let db = data
             .databases
             .entry(Arc::clone(&compaction_detail.db_name))
-            .or_insert_with(|| CompactedDatabase {
-                tables: HashMap::new(),
-            });
+            .or_default();
+        let compacted_table = db
+            .tables
+            .entry(Arc::clone(&compaction_detail.table_name))
+            .or_default();
 
-        db.tables.insert(
-            Arc::clone(&compaction_detail.table_name),
-            Arc::new(compaction_detail),
+        compacted_table.update_detail_with_generation(
+            compacted_ids,
+            compaction_detail,
+            generation_detail,
         );
     }
 
-    pub fn get_generation_detail(
-        &self,
-        generation_id: GenerationId,
-    ) -> Option<Arc<GenerationDetail>> {
-        self.data
-            .read()
-            .generation_details
-            .get(&generation_id)
-            .cloned()
+    // used when the new compaction detail only has new leftover gen1 files
+    pub fn update_compaction_detail_without_generation(&self, compaction_detail: CompactionDetail) {
+        println!("update_compaction_detail_without_generation");
+        let mut data = self.data.write();
+
+        let db = data
+            .databases
+            .entry(Arc::clone(&compaction_detail.db_name))
+            .or_default();
+
+        let table_name = Arc::clone(&compaction_detail.table_name);
+        db.tables.entry(table_name).or_default().compaction_detail =
+            Some(Arc::new(compaction_detail));
     }
 
     pub fn next_compaction_sequence_number(&self) -> CompactionSequenceNumber {
@@ -281,11 +272,11 @@ impl CompactedData {
         db_name: &str,
         table_name: &str,
     ) -> Option<Arc<CompactionDetail>> {
-        self.data
-            .read()
-            .databases
-            .get(db_name)
-            .and_then(|db| db.tables.get(table_name).map(Arc::clone))
+        self.data.read().databases.get(db_name).and_then(|db| {
+            db.tables
+                .get(table_name)
+                .and_then(|t| t.compaction_detail.clone())
+        })
     }
 
     pub fn get_last_summary(&self) -> Option<CompactionSummary> {
@@ -297,54 +288,133 @@ impl CompactedData {
         data.last_compaction_summary = Some(summary);
     }
 
-    pub fn files_for_generation(&self, generation_id: GenerationId) -> Vec<Arc<ParquetFile>> {
+    pub fn paths_for_files_in_generations(
+        &self,
+        db_name: &str,
+        table_name: &str,
+        generation_ids: &[GenerationId],
+    ) -> Vec<ObjPath> {
         let data = self.data.read();
-        data.generation_details
-            .get(&generation_id)
-            .map(|detail| detail.files.clone())
-            .unwrap_or_else(|| {
-                data.gen1_files
-                    .get(&generation_id)
-                    .map(|f| vec![Arc::clone(&f.file)])
-                    .unwrap_or_default()
+        data.databases
+            .get(db_name)
+            .and_then(|db| {
+                db.tables.get(table_name).map(|compacted_table| {
+                    compacted_table.paths_for_files_in_generations(generation_ids)
+                })
             })
+            .unwrap_or_default()
     }
 
     /// Looks up the compaction detail and returns all the parquet files and host markers for the given table.
-    /// TODO: use filters and index to return only those files that match the filters.
     pub fn get_parquet_files_and_host_markers(
         &self,
         db_name: &str,
         table_name: &str,
-        _filters: &[Expr],
+        filters: &[Expr],
     ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
         let data = self.data.read();
-        let compaction_detail = data
-            .databases
+        data.databases
             .get(db_name)
             .and_then(|db| db.tables.get(table_name))
-            .cloned();
-
-        if let Some(compaction_detail) = compaction_detail {
-            let mut files = Vec::new();
-
-            for gen in &compaction_detail.compacted_generations {
-                let detail = data.generation_details.get(&gen.id).unwrap();
-                files.extend(detail.files.clone());
-            }
-
-            for gen1_file in &compaction_detail.leftover_gen1_files {
-                files.push(Arc::clone(&gen1_file.file));
-            }
-
-            (files, compaction_detail.snapshot_markers.clone())
-        } else {
-            (Vec::new(), Vec::new())
-        }
+            .map(|t| t.parquet_files_and_host_markers(filters))
+            .unwrap_or_default()
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct CompactedDatabase {
-    tables: HashMap<Arc<str>, Arc<CompactionDetail>>,
+#[derive(Debug, Default, Eq, PartialEq)]
+struct CompactedDatabase {
+    tables: HashMap<Arc<str>, CompactedTable>,
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
+struct CompactedTable {
+    compaction_detail: Option<Arc<CompactionDetail>>,
+    compacted_generations: HashMap<GenerationId, Vec<Arc<ParquetFile>>>,
+    // gen1 files that are either part of a compaction that is running or will be leftover
+    // after a compaction is done. This is a temporary holder for the compaction process
+    compacting_gen1_files: HashMap<GenerationId, Arc<ParquetFile>>,
+}
+
+impl CompactedTable {
+    fn paths_for_files_in_generations(&self, generation_ids: &[GenerationId]) -> Vec<ObjPath> {
+        let mut paths = Vec::new();
+        for id in generation_ids {
+            if let Some(files) = self.compacted_generations.get(id) {
+                for file in files {
+                    paths.push(ObjPath::from(file.path.as_ref()));
+                }
+            } else if let Some(file) = self.compacting_gen1_files.get(id) {
+                paths.push(ObjPath::from(file.path.as_ref()));
+            }
+        }
+
+        if let Some(detail) = &self.compaction_detail {
+            for gen1_file in &detail.leftover_gen1_files {
+                paths.push(ObjPath::from(gen1_file.file.path.as_ref()));
+            }
+        }
+
+        paths
+    }
+
+    fn update_detail_with_generation(
+        &mut self,
+        compacted_ids: &[GenerationId],
+        compaction_detail: CompactionDetail,
+        generation_detail: GenerationDetail,
+    ) {
+        self.compaction_detail = Some(Arc::new(compaction_detail));
+
+        for id in compacted_ids {
+            self.compacted_generations.remove(id);
+        }
+
+        self.compacted_generations
+            .insert(generation_detail.id, generation_detail.files);
+    }
+
+    /// TODO: use filters and index to return only those files that match the filters.
+    fn parquet_files_and_host_markers(
+        &self,
+        _filters: &[Expr],
+    ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
+        let mut files = Vec::new();
+        let mut markers = None;
+
+        if let Some(detail) = &self.compaction_detail {
+            for gen1_file in &detail.leftover_gen1_files {
+                files.push(Arc::clone(&gen1_file.file));
+            }
+
+            markers = Some(detail.snapshot_markers.clone());
+        }
+
+        for gen_files in self.compacted_generations.values() {
+            for f in gen_files {
+                files.push(Arc::clone(f));
+            }
+        }
+
+        (files, markers.unwrap_or_default())
+    }
+
+    fn add_compacting_gen1_files(&mut self, gen1_files: Vec<ParquetFile>) -> Vec<Generation> {
+        let mut gens = Vec::new();
+        for f in gen1_files {
+            let g = Gen1File::new(Arc::new(f));
+            gens.push(g.generation());
+            self.compacting_gen1_files.insert(g.id, g.file);
+        }
+        gens
+    }
+
+    fn remove_compacting_gen1_files(&mut self, gen_ids: &[GenerationId]) -> Vec<Gen1File> {
+        let mut removed = Vec::new();
+        for id in gen_ids {
+            if let Some(file) = self.compacting_gen1_files.remove(id) {
+                removed.push(Gen1File { id: *id, file });
+            }
+        }
+        removed
+    }
 }

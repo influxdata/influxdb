@@ -10,12 +10,11 @@ use influxdb3_pro_data_layout::persist::{
     persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
 };
 use influxdb3_pro_data_layout::{
-    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary, Gen1File,
+    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary,
     GenerationDetail, GenerationId, HostSnapshotMarker,
 };
 use influxdb3_write::ParquetFileId;
 use iox_query::exec::Executor;
-use object_store::path::Path as ObjPath;
 use observability_deps::tracing::{debug, error};
 use std::sync::Arc;
 
@@ -158,20 +157,13 @@ async fn run_plan_and_write_detail(
                 .map(|c| c.to_string())
                 .collect();
 
-            // get the paths of all the files getting compacted and the max time of the generation
-            let mut paths = vec![];
-            let mut max_time = 0;
-            for gen_id in &plan.input_ids {
-                let gen_paths: Vec<_> = compacted_data
-                    .files_for_generation(*gen_id)
-                    .iter()
-                    .map(|f| {
-                        max_time = max_time.max(f.max_time);
-                        ObjPath::from(f.path.as_ref())
-                    })
-                    .collect();
-                paths.extend(gen_paths);
-            }
+            // get the paths of all the files getting compacted
+            let paths = compacted_data.paths_for_files_in_generations(
+                plan.db_name.as_ref(),
+                plan.table_name.as_ref(),
+                &plan.input_ids,
+            );
+            debug!("Compacting files: {:?}", paths);
 
             // run the compaction
             let args = CompactFilesArgs {
@@ -189,12 +181,22 @@ async fn run_plan_and_write_detail(
 
             let compactor_output = compact_files(args).await.expect("compaction failed");
 
+            debug!("Compaction output: {:?}", compactor_output);
+
+            // get the max time of the files in the output generation
+            let max_time_ns = compactor_output
+                .file_metadata
+                .iter()
+                .map(|f| f.max_time)
+                .min()
+                .unwrap_or(0);
+
             // write the generation detail to object store
             let generaton_detail = GenerationDetail {
                 id: plan.output_generation.id,
                 level: plan.output_generation.level,
                 start_time_s: plan.output_generation.start_time_secs,
-                max_time_ns: max_time,
+                max_time_ns,
                 files: compactor_output
                     .file_metadata
                     .into_iter()
@@ -211,16 +213,23 @@ async fn run_plan_and_write_detail(
             )
             .await?;
 
-            let leftover_gen1_files: Vec<_> = plan
-                .leftover_ids
-                .iter()
-                .flat_map(|id| {
-                    compacted_data
-                        .files_for_generation(*id)
-                        .into_iter()
-                        .map(|file| Gen1File { id: *id, file })
-                })
-                .collect();
+            println!("Generation detail written: {:?}", generaton_detail);
+
+            let _gen1_files = compacted_data.remove_compacting_gen1_files(
+                Arc::clone(&plan.db_name),
+                Arc::clone(&plan.table_name),
+                &plan.input_ids,
+            );
+
+            let leftover_gen1_files = if plan.leftover_ids.is_empty() {
+                vec![]
+            } else {
+                compacted_data.remove_compacting_gen1_files(
+                    Arc::clone(&plan.db_name),
+                    Arc::clone(&plan.table_name),
+                    &plan.leftover_ids,
+                )
+            };
 
             let compaction_detail =
                 match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
@@ -250,6 +259,8 @@ async fn run_plan_and_write_detail(
             )
             .await?;
 
+            debug!("Compaction detail written: {:?}", compaction_detail);
+
             compacted_data.update_compaction_detail_with_generation(
                 &plan.input_ids,
                 compaction_detail,
@@ -259,16 +270,11 @@ async fn run_plan_and_write_detail(
             path
         }
         CompactionPlan::LeftoverOnly(plan) => {
-            let leftover_gen1_files: Vec<_> = plan
-                .leftover_gen1_ids
-                .iter()
-                .flat_map(|id| {
-                    compacted_data
-                        .files_for_generation(*id)
-                        .into_iter()
-                        .map(|file| Gen1File { id: *id, file })
-                })
-                .collect();
+            let leftover_gen1_files: Vec<_> = compacted_data.remove_compacting_gen1_files(
+                Arc::clone(&plan.db_name),
+                Arc::clone(&plan.table_name),
+                &plan.leftover_gen1_ids,
+            );
 
             let compaction_detail =
                 match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
@@ -296,7 +302,7 @@ async fn run_plan_and_write_detail(
             )
             .await?;
 
-            compacted_data.update_compaction_detail(compaction_detail);
+            compacted_data.update_compaction_detail_without_generation(compaction_detail);
 
             path
         }
@@ -326,6 +332,7 @@ mod tests {
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::write_buffer::queryable_buffer::QueryableBuffer;
     use object_store::memory::InMemory;
+    use object_store::path::Path as ObjPath;
     use object_store::ObjectStore;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
@@ -537,11 +544,7 @@ mod tests {
             .await
             .await;
 
-        let parquet_files: Vec<_> = persisted_files
-            .get_files("test_db", "test_table")
-            .iter()
-            .map(|f| Arc::new(f.clone()))
-            .collect();
+        let parquet_files: Vec<_> = persisted_files.get_files("test_db", "test_table");
 
         let compactor_id: Arc<str> = "test-compactor".into();
         let compacted_data = Arc::new(CompactedData::new(
@@ -551,13 +554,10 @@ mod tests {
         ));
 
         // create gen1 genrations for the files and add them to the compacted data map
-        let input_ids = parquet_files
-            .iter()
-            .map(|f| {
-                let gen1_file = compacted_data.add_gen1_file_to_map(Arc::clone(f));
-
-                gen1_file.id
-            })
+        let input_ids = compacted_data
+            .add_compacting_gen1_files("test_db".into(), "test_table".into(), parquet_files)
+            .into_iter()
+            .map(|g| g.id)
             .collect();
 
         let output_id = GenerationId::new();
@@ -628,12 +628,10 @@ mod tests {
 
         // read the parquet file and ensure that it has our three rows
         let file_path = compacted_data
-            .files_for_generation(output_id)
+            .paths_for_files_in_generations("test_db", "test_table", &[output_id])
             .first()
             .unwrap()
-            .path
             .clone();
-        let file_path = ObjPath::from(file_path);
 
         let parquet_file = compacted_data
             .object_store
@@ -686,26 +684,26 @@ mod tests {
         );
         assert_eq!(
             compacted_data
-                .files_for_generation(output_id)
+                .paths_for_files_in_generations("test_db", "test_table", &[output_id])
                 .first()
                 .unwrap()
-                .path,
+                .to_string(),
             file_path.to_string()
         );
 
-        let generation_detail = compacted_data.get_generation_detail(output_id).unwrap();
         let persisted_generation_detail = get_generation_detail(
             &GenerationDetailPath::new(compactor_id.as_ref(), output_id),
             Arc::clone(&compacted_data.object_store),
         )
         .await
         .unwrap();
-        assert_eq!(generation_detail.as_ref(), &persisted_generation_detail);
+        assert_eq!(persisted_generation_detail.start_time_s, 0);
+        assert_eq!(persisted_generation_detail.max_time_ns, 2);
 
-        assert_eq!(generation_detail.start_time_s, 0);
-        assert_eq!(generation_detail.max_time_ns, 2);
-        let files = compacted_data.files_for_generation(output_id);
-        assert_eq!(generation_detail.files, files);
+        let parquet_files = compacted_data
+            .get_parquet_files_and_host_markers("test_db", "test_table", &[])
+            .0;
+        assert_eq!(persisted_generation_detail.files, parquet_files);
 
         // make sure the loader correctly picks everything up from object storage
         let loaded_compacted_data = CompactedData::load_compacted_data(
