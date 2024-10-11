@@ -7,7 +7,6 @@ use influxdb3_catalog::catalog::{
     influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
 };
 
-use influxdb3_id::DbId;
 use influxdb3_id::TableId;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDataType, FieldDefinition,
@@ -31,6 +30,7 @@ pub(crate) struct WithCatalog {
 /// line protocol.
 pub(crate) struct LinesParsed<'raw, PL> {
     catalog: WithCatalog,
+    db_schema: Arc<DatabaseSchema>,
     lines: Vec<(PL, &'raw str)>,
     catalog_batch: Option<CatalogBatch>,
     errors: Vec<WriteLineError>,
@@ -121,9 +121,18 @@ impl WriteValidator<WithCatalog> {
             Some(catalog_batch)
         };
 
+        // if the schema has changed then the Cow will be owned so
+        // Arc it and pass that forward, otherwise just reuse the
+        // existing one
+        let db_schema = match schema {
+            Cow::Borrowed(_) => Arc::clone(&self.state.db_schema),
+            Cow::Owned(s) => Arc::new(s),
+        };
+
         Ok(WriteValidator {
             state: LinesParsed {
                 catalog: self.state,
+                db_schema,
                 lines,
                 catalog_batch,
                 errors,
@@ -197,9 +206,18 @@ impl WriteValidator<WithCatalog> {
             Some(catalog_batch)
         };
 
+        // if the schema has changed then the Cow will be owned so
+        // Arc it and pass that forward, otherwise just reuse the
+        // existing one
+        let db_schema = match schema {
+            Cow::Borrowed(_) => Arc::clone(&self.state.db_schema),
+            Cow::Owned(s) => Arc::new(s),
+        };
+
         Ok(WriteValidator {
             state: LinesParsed {
                 catalog: self.state,
+                db_schema,
                 lines,
                 errors,
                 catalog_batch,
@@ -225,10 +243,7 @@ fn validate_v3_line<'a>(
 ) -> Result<(v3::ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = db_schema
-        .table_name_to_id(table_name.into())
-        .and_then(|table_id| db_schema.get_table(table_id))
-    {
+    if let Some(table_def) = db_schema.table_definition(table_name) {
         let table_id = table_def.table_id;
         if !table_def.is_v3() {
             return Err(WriteLineError {
@@ -408,10 +423,7 @@ fn validate_v1_line<'a>(
 ) -> Result<(ParsedLine<'a>, Option<CatalogOp>), WriteLineError> {
     let mut catalog_op = None;
     let table_name = line.series.measurement.as_str();
-    if let Some(table_def) = db_schema
-        .table_name_to_id(table_name.into())
-        .and_then(|table_id| db_schema.get_table(table_id))
-    {
+    if let Some(table_def) = db_schema.table_definition(table_name) {
         if table_def.is_v3() {
             return Err(WriteLineError {
                 original_line: line.to_string(),
@@ -588,8 +600,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
                 .unwrap_or(0);
 
             convert_v3_parsed_line(
-                &self.state.catalog.catalog,
-                self.state.catalog.db_schema.id,
+                Arc::clone(&self.state.db_schema),
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -616,8 +627,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, v3::ParsedLine<'lp>>> {
 }
 
 fn convert_v3_parsed_line(
-    catalog: &Catalog,
-    db_id: DbId,
+    db_schema: Arc<DatabaseSchema>,
     line: v3::ParsedLine<'_>,
     table_chunk_map: &mut HashMap<TableId, TableChunks>,
     ingest_time: Time,
@@ -658,11 +668,9 @@ fn convert_v3_parsed_line(
 
     // Add the row into the correct chunk in the table
     let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
-    let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_id = catalog
-        .db_schema(&db_id)
-        .expect("db should exist by this point")
-        .table_name_to_id(Arc::clone(&table_name))
+    let table_name = line.series.measurement.as_str();
+    let table_id = db_schema
+        .table_name_to_id(table_name)
         .expect("table should exist by this point");
     let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(
@@ -697,8 +705,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
             tag_count += line.series.tag_set.as_ref().map(|t| t.len()).unwrap_or(0);
 
             convert_v1_parsed_line(
-                &self.state.catalog.catalog,
-                self.state.catalog.db_schema.id,
+                Arc::clone(&self.state.db_schema),
                 line,
                 &mut table_chunks,
                 ingest_time,
@@ -725,8 +732,7 @@ impl<'lp> WriteValidator<LinesParsed<'lp, ParsedLine<'lp>>> {
 }
 
 fn convert_v1_parsed_line(
-    catalog: &Catalog,
-    db_id: DbId,
+    db_schema: Arc<DatabaseSchema>,
     line: ParsedLine<'_>,
     table_chunk_map: &mut HashMap<TableId, TableChunks>,
     ingest_time: Time,
@@ -778,10 +784,8 @@ fn convert_v1_parsed_line(
     });
 
     let table_name: Arc<str> = line.series.measurement.to_string().into();
-    let table_id = catalog
-        .db_schema(&db_id)
-        .expect("the database should exist by this point")
-        .table_name_to_id(Arc::clone(&table_name))
+    let table_id = db_schema
+        .table_name_to_id(table_name)
         .expect("table should exist by this point");
     let table_chunks = table_chunk_map.entry(table_id).or_default();
     table_chunks.push_row(

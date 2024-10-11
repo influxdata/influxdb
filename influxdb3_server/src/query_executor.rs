@@ -304,12 +304,11 @@ impl QueryDatabase for QueryExecutorImpl {
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
-        let db_id = self.catalog.db_name_to_id(name.into()).ok_or_else(|| {
+        let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
             DataFusionError::External(Box::new(Error::DatabaseNotFound {
                 db_name: name.into(),
             }))
         })?;
-        let db_schema = self.catalog.db_schema(&db_id).expect("database exists");
         Ok(Some(Arc::new(Database::new(
             db_schema,
             Arc::clone(&self.write_buffer),
@@ -376,16 +375,17 @@ impl Database {
     }
 
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
-        let table_name = table_name.into();
-        let table_id = self.db_schema.table_name_to_id(Arc::clone(&table_name))?;
-        self.db_schema.get_table_schema(table_id).map(|schema| {
-            Arc::new(QueryTable {
-                db_schema: Arc::clone(&self.db_schema),
-                table_name,
-                schema: schema.clone(),
-                write_buffer: Arc::clone(&self.write_buffer),
+        let table_name: Arc<str> = table_name.into();
+        self.db_schema
+            .table_schema(Arc::clone(&table_name))
+            .map(|schema| {
+                Arc::new(QueryTable {
+                    db_schema: Arc::clone(&self.db_schema),
+                    table_name,
+                    schema: schema.clone(),
+                    write_buffer: Arc::clone(&self.write_buffer),
+                })
             })
-        })
     }
 }
 
@@ -512,7 +512,7 @@ impl SchemaProvider for Database {
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        self.db_schema.table_name_to_id(name.into()).is_some()
+        self.db_schema.table_name_to_id(name).is_some()
     }
 }
 

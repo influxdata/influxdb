@@ -80,16 +80,11 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let table_id = db_schema
-            .table_name_to_id(table_name.into())
+        let (table_id, table_schema) = db_schema
+            .table_schema_and_id(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
-        let table = db_schema
-            .tables
-            .get(&table_id)
-            .expect("Checked table already exists");
 
-        let schema = table.schema.clone();
-        let arrow_schema = schema.as_arrow();
+        let arrow_schema = table_schema.as_arrow();
 
         let buffer = self.buffer.read();
 
@@ -108,13 +103,13 @@ impl QueryableBuffer {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
-                    schema.schema(),
+                    &table_schema,
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
                 Arc::new(BufferChunk {
                     batches,
-                    schema: schema.schema().clone(),
+                    schema: table_schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
                         data_types::TableId::new(0),
@@ -153,7 +148,7 @@ impl QueryableBuffer {
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
-                let db_schema = catalog.db_schema(database_id).expect("db exists");
+                let db_schema = catalog.db_schema_by_id(*database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
                     let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
 
@@ -374,18 +369,18 @@ impl BufferState {
 
                     let db_schema = self
                         .catalog
-                        .db_schema(&catalog_batch.database_id)
+                        .db_schema_by_id(catalog_batch.database_id)
                         .expect("database should exist");
 
                     for op in catalog_batch.ops {
                         match op {
                             CatalogOp::CreateLastCache(definition) => {
                                 let table_schema = db_schema
-                                    .get_table_schema(definition.table_id)
+                                    .table_schema_by_id(definition.table_id)
                                     .expect("table should exist");
                                 last_cache_provider.create_cache_from_definition(
                                     db_schema.id,
-                                    table_schema,
+                                    &table_schema,
                                     &definition,
                                 );
                             }
@@ -410,13 +405,15 @@ impl BufferState {
     fn add_write_batch(&mut self, write_batch: WriteBatch) {
         let db_schema = self
             .catalog
-            .db_schema(&write_batch.database_id)
+            .db_schema_by_id(write_batch.database_id)
             .expect("database should exist");
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
         for (table_id, table_chunks) in write_batch.table_chunks {
             let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
-                let table_schema = db_schema.get_table(table_id).expect("table should exist");
+                let table_schema = db_schema
+                    .table_definition_by_id(table_id)
+                    .expect("table should exist");
                 let sort_key = table_schema
                     .influx_schema()
                     .primary_key()

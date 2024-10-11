@@ -95,9 +95,9 @@ impl IoxSystemTable for ParquetFilesTable {
             self.db_id,
             self.buffer
                 .catalog()
-                .db_schema(&self.db_id)
+                .db_schema_by_id(self.db_id)
                 .expect("db exists")
-                .table_name_to_id(table_name.as_str().into())
+                .table_name_to_id(table_name.as_str())
                 .expect("table exists"),
         );
 
