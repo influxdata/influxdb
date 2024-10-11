@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap/zaptest"
+	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -713,6 +714,11 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	test := func(index string) {
 		s := NewStore(t, index)
 		defer s.Close()
+
+		// Ensure the directory exists before creating the file.
+		if err := os.MkdirAll(s.Path(), 0777); err != nil {
+			t.Fatal(err)
+		}
 
 		// Create a file instead of a directory for a database.
 		if _, err := os.Create(filepath.Join(s.Path(), "db0")); err != nil {
@@ -2806,6 +2812,12 @@ func (s *Store) Reopen(tb testing.TB, newOpts ...StoreOption) error {
 
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(s.path)
 	if s.Store != nil {
 		return s.Store.Close()
 	}
