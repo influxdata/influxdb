@@ -1,3 +1,5 @@
+pub mod memory;
+
 use hashbrown::HashMap;
 use influxdb3_write::ParquetFileId;
 use serde::{Deserialize, Serialize};
