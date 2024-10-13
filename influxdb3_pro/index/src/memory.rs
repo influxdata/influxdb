@@ -5,27 +5,17 @@ use datafusion::common::ScalarValue;
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
 use influxdb3_write::ParquetFileId;
-use parking_lot::RwLock;
 use schema::TIME_COLUMN_NAME;
 use std::collections::HashSet;
-use std::sync::Arc;
+use xxhash_rust::xxh64::xxh64;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FileIndex {
-    interner: Arc<Interner>,
     index: HashMap<(u64, u64), Vec<ParquetFileMeta>>,
     indexed_column_names: HashSet<String>,
 }
 
 impl FileIndex {
-    pub fn new(interner: Arc<Interner>) -> Self {
-        Self {
-            interner,
-            index: HashMap::new(),
-            indexed_column_names: HashSet::new(),
-        }
-    }
-
     pub fn append(
         &mut self,
         column_name: &str,
@@ -34,7 +24,8 @@ impl FileIndex {
         gen_max_time_ns: i64,
         parquet_file_ids: &[ParquetFileId],
     ) {
-        let (column, value) = self.interner.intern(column_name, value);
+        let column = xxh64(column_name.as_bytes(), 0);
+        let value = xxh64(value.as_bytes(), 0);
         let parquet_file_metas = self.index.entry((column, value)).or_default();
         for id in parquet_file_ids {
             parquet_file_metas.push(ParquetFileMeta {
@@ -108,59 +99,13 @@ impl FileIndex {
         min_time: i64,
         max_time: i64,
     ) -> Option<Vec<ParquetFileId>> {
-        self.interner
-            .get(column, value)
-            .and_then(|(column, value)| {
-                self.index.get(&(column, value)).map(|v| {
-                    v.iter()
-                        .filter(|p| p.contains_time_range(min_time, max_time))
-                        .map(|p| p.id)
-                        .collect()
-                })
-            })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Interner {
-    i: RwLock<HashMap<String, u64>>,
-}
-
-impl Interner {
-    pub fn intern(&self, col: &str, val: &str) -> (u64, u64) {
-        let mut i = self.i.write();
-
-        let col = match i.get(col) {
-            Some(v) => *v,
-            None => {
-                let v = i.len() as u64;
-                i.insert(col.to_string(), v);
-                v
-            }
-        };
-
-        let val = match i.get(val) {
-            Some(v) => *v,
-            None => {
-                let v = i.len() as u64;
-                i.insert(val.to_string(), v);
-                v
-            }
-        };
-
-        (col, val)
-    }
-
-    pub fn get(&self, col: &str, val: &str) -> Option<(u64, u64)> {
-        let i = self.i.read();
-
-        if let Some(c) = i.get(col) {
-            if let Some(v) = i.get(val) {
-                return Some((*c, *v));
-            }
-        }
-
-        None
+        let (column, value) = (xxh64(column.as_bytes(), 0), xxh64(value.as_bytes(), 0));
+        self.index.get(&(column, value)).map(|v| {
+            v.iter()
+                .filter(|p| p.contains_time_range(min_time, max_time))
+                .map(|p| p.id)
+                .collect()
+        })
     }
 }
 
@@ -294,8 +239,7 @@ mod tests {
 
     #[test]
     fn test_file_index() {
-        let interner = Arc::new(Interner::default());
-        let mut file_index = FileIndex::new(interner);
+        let mut file_index = FileIndex::default();
         let one = ParquetFileMeta {
             id: ParquetFileId::from(1),
             min_time: 0,
@@ -338,6 +282,7 @@ mod tests {
         let ids = file_index.ids_for_filter(&[expr]);
         assert_eq!(ids, Some(vec![one.id, two.id, three.id]));
 
+        // test that the ids are returned in order even if not inserted that way
         let expr = col("region").eq(lit("us-west"));
         let ids = file_index.ids_for_filter(&[expr]);
         assert_eq!(ids, Some(vec![one.id, two.id, three.id, five.id]));

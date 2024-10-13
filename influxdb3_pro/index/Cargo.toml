@@ -10,8 +10,8 @@ license.workspace = true
 datafusion.workspace = true
 hashbrown.workspace = true
 object_store.workspace = true
-parking_lot.workspace = true
 serde.workspace = true
+xxhash-rust.workspace = true
 
 # Core dependencies
 schema.workspace = true

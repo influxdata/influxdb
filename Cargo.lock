@@ -2805,9 +2805,9 @@ dependencies = [
  "hashbrown 0.14.5",
  "influxdb3_write",
  "object_store",
- "parking_lot",
  "schema",
  "serde",
+ "xxhash-rust",
 ]
 
 [[package]]
