@@ -226,7 +226,6 @@ impl CompactedData {
         compaction_detail: CompactionDetail,
         generation_detail: GenerationDetail,
     ) {
-        println!("update_compaction_detail_with_generation");
         let mut data = self.data.write();
 
         let db = data
@@ -247,7 +246,6 @@ impl CompactedData {
 
     // used when the new compaction detail only has new leftover gen1 files
     pub fn update_compaction_detail_without_generation(&self, compaction_detail: CompactionDetail) {
-        println!("update_compaction_detail_without_generation");
         let mut data = self.data.write();
 
         let db = data
