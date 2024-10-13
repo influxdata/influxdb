@@ -10,6 +10,7 @@ use crate::{
 };
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
+use influxdb3_pro_index::memory::FileIndex;
 use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
@@ -150,9 +151,7 @@ impl CompactedData {
                     return Err(Error::GenerationDetailReadError(gen_path.0.to_string()));
                 };
 
-                table
-                    .compacted_generations
-                    .insert(gen.id, generation_detail.files);
+                table.add_generation_detail(generation_detail);
             }
 
             // and now add the compaction detail to the table
@@ -331,6 +330,7 @@ struct CompactedTable {
     // gen1 files that are either part of a compaction that is running or will be leftover
     // after a compaction is done. This is a temporary holder for the compaction process
     compacting_gen1_files: HashMap<GenerationId, Arc<ParquetFile>>,
+    file_index: FileIndex,
 }
 
 impl CompactedTable {
@@ -355,6 +355,25 @@ impl CompactedTable {
         paths
     }
 
+    fn add_generation_detail(&mut self, generation_detail: GenerationDetail) {
+        self.file_index.add_files(&generation_detail.files);
+
+        for (col, valfiles) in generation_detail.file_index.index {
+            for (val, file_ids) in valfiles {
+                self.file_index.append(
+                    &col,
+                    &val,
+                    generation_detail.start_time_s * 1_000_000_000,
+                    generation_detail.max_time_ns,
+                    &file_ids,
+                );
+            }
+        }
+
+        self.compacted_generations
+            .insert(generation_detail.id, generation_detail.files);
+    }
+
     fn update_detail_with_generation(
         &mut self,
         compacted_ids: &[GenerationId],
@@ -364,19 +383,19 @@ impl CompactedTable {
         self.compaction_detail = Some(Arc::new(compaction_detail));
 
         for id in compacted_ids {
-            self.compacted_generations.remove(id);
+            self.compacted_generations
+                .remove(id)
+                .map(|gen| self.file_index.remove_files(&gen));
         }
 
-        self.compacted_generations
-            .insert(generation_detail.id, generation_detail.files);
+        self.add_generation_detail(generation_detail);
     }
 
-    /// TODO: use filters and index to return only those files that match the filters.
     fn parquet_files_and_host_markers(
         &self,
-        _filters: &[Expr],
+        filters: &[Expr],
     ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
-        let mut files = Vec::new();
+        let mut files = self.file_index.parquet_files_for_filter(filters);
         let mut markers = None;
 
         if let Some(detail) = &self.compaction_detail {
@@ -385,12 +404,6 @@ impl CompactedTable {
             }
 
             markers = Some(detail.snapshot_markers.clone());
-        }
-
-        for gen_files in self.compacted_generations.values() {
-            for f in gen_files {
-                files.push(Arc::clone(f));
-            }
         }
 
         (files, markers.unwrap_or_default())

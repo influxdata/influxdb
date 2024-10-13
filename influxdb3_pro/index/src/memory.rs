@@ -4,15 +4,17 @@
 use datafusion::common::ScalarValue;
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
-use influxdb3_write::ParquetFileId;
+use influxdb3_write::{ParquetFile, ParquetFileId};
 use schema::TIME_COLUMN_NAME;
 use std::collections::HashSet;
+use std::sync::Arc;
 use xxhash_rust::xxh64::xxh64;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct FileIndex {
     index: HashMap<(u64, u64), Vec<ParquetFileMeta>>,
     indexed_column_names: HashSet<String>,
+    parquet_files: HashMap<ParquetFileId, Arc<ParquetFile>>,
 }
 
 impl FileIndex {
@@ -38,6 +40,35 @@ impl FileIndex {
 
         if !self.indexed_column_names.contains(column_name) {
             self.indexed_column_names.insert(column_name.to_string());
+        }
+    }
+
+    pub fn add_files(&mut self, files: &[Arc<ParquetFile>]) {
+        for file in files {
+            self.parquet_files.insert(file.id, Arc::clone(file));
+        }
+    }
+
+    // here we just remove the files from the parquet file map. Their ids will still
+    // show up in the index, but will get filtered out when we look up the files for a filter
+    pub fn remove_files(&mut self, files: &[Arc<ParquetFile>]) {
+        for file in files {
+            self.parquet_files.remove(&file.id);
+        }
+    }
+
+    /// Given the filter expression, return the list of parquet file that match the index,
+    /// if the expression contains a column that is indexed. Also filter by time range if the
+    /// expression contains a time range. If no indexed column appears in the expression, return
+    /// all parquet files.
+    pub fn parquet_files_for_filter(&self, filter: &[Expr]) -> Vec<Arc<ParquetFile>> {
+        let ids = self.ids_for_filter(filter);
+        match ids {
+            Some(ids) => ids
+                .iter()
+                .filter_map(|id| self.parquet_files.get(id).cloned())
+                .collect(),
+            None => self.parquet_files.values().cloned().collect(),
         }
     }
 
