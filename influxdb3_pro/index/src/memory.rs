@@ -221,6 +221,7 @@ fn intersection(vec1: &[ParquetFileId], vec2: &[ParquetFileId]) -> Vec<ParquetFi
     let mut result = Vec::new();
     let (mut i, mut j) = (0, 0);
 
+    #[allow(clippy::comparison_chain)]
     while i < vec1.len() && j < vec2.len() {
         if vec1[i] < vec2[j] {
             i += 1;
@@ -240,6 +241,7 @@ fn union(vec1: &[ParquetFileId], vec2: &[ParquetFileId]) -> Vec<ParquetFileId> {
     let mut result = Vec::new();
     let (mut i, mut j) = (0, 0);
 
+    #[allow(clippy::comparison_chain)]
     while i < vec1.len() && j < vec2.len() {
         if vec1[i] < vec2[j] {
             result.push(vec1[i]);

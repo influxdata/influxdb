@@ -383,9 +383,9 @@ impl CompactedTable {
         self.compaction_detail = Some(Arc::new(compaction_detail));
 
         for id in compacted_ids {
-            self.compacted_generations
-                .remove(id)
-                .map(|gen| self.file_index.remove_files(&gen));
+            if let Some(gen) = self.compacted_generations.remove(id) {
+                self.file_index.remove_files(&gen);
+            }
         }
 
         self.add_generation_detail(generation_detail);
