@@ -179,7 +179,7 @@ impl PartialOrd for Generation {
 
 impl Ord for Generation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.start_time_secs.cmp(&other.start_time_secs)
+        other.start_time_secs.cmp(&self.start_time_secs)
     }
 }
 
@@ -591,5 +591,35 @@ mod tests {
             gen_time_string(config.generation_start_time(GenerationLevel::new(5), start_hour)),
             "2024-09-08/00-00"
         );
+    }
+
+    #[test]
+    fn generations_should_sort_newest_to_oldest() {
+        let g1 = Generation {
+            id: GenerationId::from(30),
+            level: GenerationLevel::one(),
+            start_time_secs: 100,
+            max_time: 0,
+        };
+        let g2 = Generation {
+            id: GenerationId::from(26),
+            level: GenerationLevel::two(),
+            start_time_secs: 50,
+            max_time: 0,
+        };
+        let g3 = Generation {
+            id: GenerationId::from(11),
+            level: GenerationLevel::new(3),
+            start_time_secs: 0,
+            max_time: 0,
+        };
+
+        let mut gens = vec![g1, g2, g3];
+        gens.sort();
+        assert_eq!(gens, vec![g1, g2, g3]);
+
+        let mut gens = vec![g3, g2, g1];
+        gens.sort();
+        assert_eq!(gens, vec![g1, g2, g3]);
     }
 }

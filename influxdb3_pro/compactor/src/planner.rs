@@ -1,6 +1,6 @@
 //! Planner contains logic for organizing compaction within a table and creating compaction plans.
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{
     CompactionConfig, Generation, GenerationId, GenerationLevel, HostSnapshotMarker,
@@ -258,7 +258,13 @@ fn create_gen1_plan(
 
     // build a plan to compact the newest generation group with at least 2
     for (gen_time, gens) in new_block_times_to_gens.into_iter().rev() {
-        if gens.len() >= 2 {
+        // we only want to compact if we have at least 2 gen1 files of different times (i.e. we can create a longer block for gen2)
+        let mut gen_times = HashSet::new();
+        for gen in &gens {
+            gen_times.insert(gen.start_time_secs);
+        }
+
+        if gens.len() >= 2 && gen_times.len() >= 2 {
             let mut input_ids = gens.iter().map(|g| g.id).collect::<Vec<_>>();
             input_ids.sort();
             let mut leftover_ids = generations
@@ -406,10 +412,24 @@ mod tests {
                 compact_ids: vec![3, 4, 5],
                 leftover_ids: vec![1, 2],
             },
+            TestCase {
+                description: "four gen 1, older gen2",
+                input: vec![
+                    (5, 1, "2024-10-13/15-10"),
+                    (4, 1, "2024-10-13/15-10"),
+                    (3, 1, "2024-10-13/15-00"),
+                    (2, 1, "2024-10-13/15-00"),
+                    (1, 2, "2024-10-13/14-40"),
+                ],
+                output_level: 2,
+                output_time: "2024-10-13/15-00",
+                compact_ids: vec![2, 3, 4, 5],
+                leftover_ids: vec![],
+            },
         ];
 
         for tc in test_cases {
-            let gens: Vec<_> = tc
+            let mut gens: Vec<_> = tc
                 .input
                 .iter()
                 .map(|(id, level, time)| Generation {
@@ -419,6 +439,7 @@ mod tests {
                     max_time: 0,
                 })
                 .collect();
+            gens.sort();
             let plan = create_gen1_plan(&compaction_config, "db".into(), "table".into(), &gens);
             match plan {
                 CompactionPlan::Compaction(NextCompactionPlan {
@@ -465,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn gen1_leftover_plas() {
+    fn gen1_leftover_plans() {
         let compaction_config = CompactionConfig::default();
 
         struct TestCase<'a> {
@@ -486,6 +507,11 @@ mod tests {
             TestCase {
                 description: "two gen1 leftovers in different gen2 blocks",
                 input: vec![(23, 1, "2024-09-05/12-00"), (24, 1, "2024-09-05/12-40")],
+                leftover_ids: vec![23, 24],
+            },
+            TestCase {
+                description: "two gen1 at the same time (i.e. from two different hosts)",
+                input: vec![(23, 1, "2024-09-05/12-00"), (24, 1, "2024-09-05/12-00")],
                 leftover_ids: vec![23, 24],
             },
         ];

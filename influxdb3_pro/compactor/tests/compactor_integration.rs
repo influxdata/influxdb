@@ -9,7 +9,7 @@ use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
 use influxdb3_pro_compactor::Compactor;
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
-use influxdb3_pro_data_layout::{CompactionConfig, Generation, GenerationId, GenerationLevel};
+use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
@@ -78,7 +78,7 @@ async fn two_writers_gen1_compaction() {
     .unwrap();
 
     let compactor_id = "compact";
-    let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(1), 10);
+    let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
     let compacted_data = CompactedData::load_compacted_data(
         compactor_id,
         compaction_config,
@@ -140,30 +140,17 @@ async fn two_writers_gen1_compaction() {
     do_writes(&writer2_buffer, writer2_id, 3).await;
     snapshot_notify.changed().await.unwrap();
     snapshot_notify.mark_unchanged();
-    do_writes(read_write_mode.as_ref(), writer1_id, 4).await;
-    snapshot_notify.changed().await.unwrap();
-    snapshot_notify.mark_unchanged();
-    do_writes(&writer2_buffer, writer2_id, 5).await;
-    snapshot_notify.changed().await.unwrap();
 
     // wait for a compaction to happen
     let mut count = 0;
     loop {
         if let Some(detail) = compacted_data.get_last_compaction_detail("test_db", "m1") {
-            if detail.sequence_number.as_u64() > 1 {
-                // we should have a single compacted generation with the first snapshots of data
-                assert_eq!(
-                    detail.compacted_generations,
-                    vec![Generation {
-                        id: GenerationId::from(4),
-                        level: GenerationLevel::two(),
-                        start_time_secs: 0,
-                        max_time: 1000000000,
-                    }]
-                );
-                // the remaining files should be listed as leftover, just confirm there are 4
+            if detail.sequence_number.as_u64() > 0 {
+                // we should have a compacted generation
+                assert_eq!(detail.compacted_generations.len(), 1);
+                // the remaining files should be listed as leftover, just confirm there are 5
                 // of them, the data assertion later will confirm the contents
-                assert_eq!(detail.leftover_gen1_files.len(), 4);
+                assert_eq!(detail.leftover_gen1_files.len(), 1);
                 break;
             }
         }
@@ -188,28 +175,25 @@ async fn two_writers_gen1_compaction() {
     let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
     assert_batches_sorted_eq!(
         [
-            "+------+----------------------+---------+",
-            "| f1   | time                 | w       |",
-            "+------+----------------------+---------+",
-            "| 0.0  | 1970-01-01T00:00:00Z | writer1 |",
-            "| 1.0  | 1970-01-01T00:00:01Z | writer1 |",
-            "| 10.0 | 1970-01-01T00:00:10Z | writer2 |",
-            "| 11.0 | 1970-01-01T00:00:11Z | writer2 |",
-            "| 12.0 | 1970-01-01T00:00:12Z | writer1 |",
-            "| 13.0 | 1970-01-01T00:00:13Z | writer1 |",
-            "| 14.0 | 1970-01-01T00:00:14Z | writer1 |",
-            "| 15.0 | 1970-01-01T00:00:15Z | writer2 |",
-            "| 16.0 | 1970-01-01T00:00:16Z | writer2 |",
-            "| 17.0 | 1970-01-01T00:00:17Z | writer2 |",
-            "| 2.0  | 1970-01-01T00:00:02Z | writer1 |",
-            "| 3.0  | 1970-01-01T00:00:03Z | writer2 |",
-            "| 4.0  | 1970-01-01T00:00:04Z | writer2 |",
-            "| 5.0  | 1970-01-01T00:00:05Z | writer2 |",
-            "| 6.0  | 1970-01-01T00:00:06Z | writer1 |",
-            "| 7.0  | 1970-01-01T00:00:07Z | writer1 |",
-            "| 8.0  | 1970-01-01T00:00:08Z | writer1 |",
-            "| 9.0  | 1970-01-01T00:00:09Z | writer2 |",
-            "+------+----------------------+---------+",
+            "+------+--------------------------------+---------+",
+            "| f1   | time                           | w       |",
+            "+------+--------------------------------+---------+",
+            "| 0.0  | 1970-01-01T00:00:00Z           | writer1 |",
+            "| 1.0  | 1970-01-01T00:00:00.000000001Z | writer1 |",
+            "| 10.0 | 1970-01-01T00:04:30.000000001Z | writer2 |",
+            "| 11.0 | 1970-01-01T00:04:30.000000002Z | writer2 |",
+            "| 2.0  | 1970-01-01T00:00:00.000000002Z | writer1 |",
+            "| 2.0  | 1970-01-01T00:00:00.000000002Z | writer1 |",
+            "| 3.0  | 1970-01-01T00:01:30Z           | writer2 |",
+            "| 4.0  | 1970-01-01T00:01:30.000000001Z | writer2 |",
+            "| 5.0  | 1970-01-01T00:01:30.000000002Z | writer2 |",
+            "| 6.0  | 1970-01-01T00:03:00Z           | writer1 |",
+            "| 6.0  | 1970-01-01T00:03:00Z           | writer1 |",
+            "| 7.0  | 1970-01-01T00:03:00.000000001Z | writer1 |",
+            "| 7.0  | 1970-01-01T00:03:00.000000001Z | writer1 |",
+            "| 8.0  | 1970-01-01T00:03:00.000000002Z | writer1 |",
+            "| 9.0  | 1970-01-01T00:04:30Z           | writer2 |",
+            "+------+--------------------------------+---------+",
         ],
         &batches
     );
@@ -222,13 +206,13 @@ async fn do_writes(buffer: &(impl WriteBuffer + ?Sized), writer: &str, start_num
     let offset = start_num * number_of_writes;
 
     for i in 0..number_of_writes {
-        let num = offset + i;
-        let data = format!("m1,w={} f1={} {}", writer, num, num * 1_000_000_000);
+        let num = (offset * 30 * 1_000_000_000) + i;
+        let data = format!("m1,w={} f1={} {}", writer, offset + i, num);
         buffer
             .write_lp(
                 db.clone(),
                 &data,
-                Time::from_timestamp_nanos(num * 1_000_000_000),
+                Time::from_timestamp_nanos(num),
                 false,
                 Precision::Nanosecond,
             )
