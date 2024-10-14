@@ -195,7 +195,7 @@ impl SnapshotTracker {
                     Arc::clone(&table),
                     &generations,
                 );
-                debug!("plan: {:?}", plan);
+                debug!(plan = ?plan, "Plan");
                 table_plans.push(plan);
             }
         }

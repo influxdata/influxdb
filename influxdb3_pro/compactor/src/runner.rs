@@ -181,14 +181,14 @@ async fn run_plan_and_write_detail(
 
             let compactor_output = compact_files(args).await.expect("compaction failed");
 
-            debug!("Compaction output: {:?}", compactor_output);
+            debug!(compactor_output = ?compactor_output, "Compaction output");
 
             // get the max time of the files in the output generation
             let max_time_ns = compactor_output
                 .file_metadata
                 .iter()
                 .map(|f| f.max_time)
-                .min()
+                .max()
                 .unwrap_or(0);
 
             // write the generation detail to object store
@@ -259,7 +259,7 @@ async fn run_plan_and_write_detail(
             )
             .await?;
 
-            debug!("Compaction detail written: {:?}", compaction_detail);
+            debug!(compaction_detail = ?compaction_detail, "Compaction detail written");
 
             compacted_data.update_compaction_detail_with_generation(
                 &plan.input_ids,
