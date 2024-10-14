@@ -18,7 +18,7 @@ iox_query_params.workspace = true
 iox_query_influxql.workspace = true
 iox_system_tables.workspace = true
 iox_time.workspace = true
-licensing.workspace = true
+# licensing.workspace = true
 metric.workspace = true
 metric_exporters.workspace = true
 observability_deps.workspace = true
@@ -73,8 +73,8 @@ tonic.workspace = true
 tower.workspace = true
 unicode-segmentation.workspace = true
 
-[features]
-licensing = []
+# [features]
+# licensing = []
 
 [dev-dependencies]
 # Core Crates

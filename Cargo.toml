@@ -149,12 +149,13 @@ trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "1d50
 tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "1d5011bde4c343890bb58aa77415b20cb900a4a8" }
 trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "1d5011bde4c343890bb58aa77415b20cb900a4a8", default-features = true, features = ["clap"] }
 
+# TODO: Enable licening - currently due to pro builds failing to complete in docker (circleci) it has been disabled
 # Core_internal.git crates we depend on
 # Internally core_internal depends on core and the revision (`rev`) for core crate here should
 # match core_internal deps, https://github.com/influxdata/influxdb3_core_internal/blob/main/Cargo.toml
 # NB: Because optional is not allowed here, this is always included in the build even though it
 #     can be feature gated
-licensing = { git = "ssh://git@github.com/influxdata/influxdb3_core_internal.git", rev = "625821b2021d5d890d03c0c26e12d9c91adb0d43", default-features = false }
+# licensing = { git = "ssh://git@github.com/influxdata/influxdb3_core_internal.git", rev = "625821b2021d5d890d03c0c26e12d9c91adb0d43", default-features = false }
 # If git fails for you, you can checkout the relevant code and use the local path
 #licensing = { path = "/Users/andrewlamb/Software/influxdb3_core_internal/licensing",  default-features = false }
 
