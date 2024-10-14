@@ -6,7 +6,7 @@ use influxdb3_pro_data_layout::{
     CompactionConfig, Generation, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
 use influxdb3_write::{ParquetFile, PersistedSnapshot};
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, warn};
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -180,10 +180,12 @@ impl SnapshotTracker {
                 );
 
                 // add the gen1 files to the compacted data structure
-                for f in gen1_files {
-                    let gen1 = compacted_data.add_gen1_file_to_map(Arc::new(f));
-                    generations.push(gen1.generation());
-                }
+                let mut gen1 = compacted_data.add_compacting_gen1_files(
+                    Arc::clone(&db),
+                    Arc::clone(&table),
+                    gen1_files,
+                );
+                generations.append(&mut gen1);
 
                 generations.sort();
 
@@ -193,6 +195,7 @@ impl SnapshotTracker {
                     Arc::clone(&table),
                     &generations,
                 );
+                debug!(plan = ?plan, "Plan");
                 table_plans.push(plan);
             }
         }

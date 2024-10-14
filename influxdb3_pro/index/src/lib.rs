@@ -1,3 +1,5 @@
+pub mod memory;
+
 use hashbrown::HashMap;
 use influxdb3_write::ParquetFileId;
 use serde::{Deserialize, Serialize};
@@ -13,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// doesn't have to scan and read parquet files only to toss them out of what's queryable.
 pub struct FileIndex {
     /// A map of column name to column value to parquet file ids that contain that column value
-    index: HashMap<String, HashMap<String, Vec<ParquetFileId>>>,
+    pub index: HashMap<String, HashMap<String, Vec<ParquetFileId>>>,
 }
 
 impl FileIndex {

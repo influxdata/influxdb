@@ -2798,10 +2798,13 @@ dependencies = [
 name = "influxdb3_pro_index"
 version = "0.1.0"
 dependencies = [
+ "datafusion",
  "hashbrown 0.14.5",
  "influxdb3_write",
  "object_store",
+ "schema",
  "serde",
+ "xxhash-rust",
 ]
 
 [[package]]

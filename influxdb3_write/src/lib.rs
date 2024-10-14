@@ -241,7 +241,7 @@ pub struct DatabaseTables {
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
+#[derive(Debug, Hash, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
 /// A newtype wrapper for ids used with `ParquetFile`
 pub struct ParquetFileId(u64);
 
