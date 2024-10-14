@@ -164,20 +164,8 @@ impl SnapshotTracker {
                 compaction_plans.entry(Arc::clone(&db)).or_default();
 
             for (table, gen1_files) in tables {
-                // find the min time of the oldest gen1 file
-                let min_time = gen1_files
-                    .iter()
-                    .map(|f| f.chunk_time)
-                    .min()
-                    .expect("gen1 files should have a min time");
-                let min_time_secs = min_time / 1_000_000_000;
-
                 // if this table has been compacted before, get its generations
-                let mut generations = compacted_data.get_generations_newer_than(
-                    db.as_ref(),
-                    table.as_ref(),
-                    min_time_secs,
-                );
+                let mut generations = compacted_data.get_generations(db.as_ref(), table.as_ref());
 
                 // add the gen1 files to the compacted data structure
                 let mut gen1 = compacted_data.add_compacting_gen1_files(
@@ -213,6 +201,43 @@ pub(crate) struct SnapshotAdvancePlan {
     pub(crate) host_snapshot_markers: HashMap<String, HostSnapshotCounter>,
     /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
     pub(crate) compaction_plans: HashMap<Arc<str>, Vec<CompactionPlan>>,
+}
+
+/// This is a group of compaction plans, generally at the same level that can be run that will
+/// be used to output a new summary when complete
+#[derive(Debug)]
+pub(crate) struct CompactionPlanGroup {
+    /// The compaction plans that must be run to advance the compaction summary
+    pub(crate) compaction_plans: Vec<NextCompactionPlan>,
+}
+
+impl CompactionPlanGroup {
+    pub(crate) fn plans_for_level(
+        compacted_data: &CompactedData,
+        output_level: GenerationLevel,
+    ) -> Option<Self> {
+        let mut compaction_plans = Vec::new();
+        for db in compacted_data.databases() {
+            for table in compacted_data.tables(db.as_ref()) {
+                let generations = compacted_data.get_generations(db.as_ref(), table.as_ref());
+                if let Some(plan) = create_next_plan(
+                    &compacted_data.compaction_config,
+                    Arc::clone(&db),
+                    Arc::clone(&table),
+                    &generations,
+                    output_level,
+                ) {
+                    compaction_plans.push(plan);
+                }
+            }
+        }
+
+        if compaction_plans.is_empty() {
+            None
+        } else {
+            Some(Self { compaction_plans })
+        }
+    }
 }
 
 /// Creates a plan to do a gen1 compaction on the newest gen1 files. If no gen1 compaction is
@@ -302,6 +327,72 @@ fn create_gen1_plan(
         table_name,
         leftover_gen1_ids,
     })
+}
+
+/// Given a list of generations, returns the next compaction plan of the passed in generation to
+/// run. If there are no compactions to run at that level, it will return None.
+pub(crate) fn create_next_plan(
+    compaction_config: &CompactionConfig,
+    db_name: Arc<str>,
+    table_name: Arc<str>,
+    generations: &[Generation],
+    output_level: GenerationLevel,
+) -> Option<NextCompactionPlan> {
+    // first, group the generations together into what their start time would be at the
+    // chosen output level. Only inlude generations that are less than the output level.
+    let mut new_block_times_to_gens = BTreeMap::new();
+    for gen in generations {
+        // only include generations that are less than the desired output level
+        if gen.level < output_level {
+            let start_time =
+                compaction_config.generation_start_time(output_level, gen.start_time_secs);
+            let gens = new_block_times_to_gens
+                .entry(start_time)
+                .or_insert_with(Vec::new);
+            gens.push(gen);
+        }
+    }
+
+    // Loop through newest to oldest group.
+    // For the output level, we want N generations of the previous level to compact into. The
+    // generations don't have to strictly be of that previous level (they can be any number
+    // below), but we want to make sure we have enough blocks of time to equal the output generation.
+    // For example, if we have gen2 of 20m duration, and gen3 is 3x gen2. We will want to make sure
+    // we have data for start times of 00:00, 00:20, and 00:40 to compact into a gen3 of 60m duration.
+    // The data for those start times can come from gen1 or gen2.
+    let target_count = compaction_config.number_of_previous_generations_to_compact(output_level);
+    for (gen_time, gens) in new_block_times_to_gens.into_iter().rev() {
+        let mut prev_times = HashSet::new();
+        for g in &gens {
+            prev_times.insert(
+                compaction_config.previous_generation_start_time(g.start_time_secs, output_level),
+            );
+        }
+        if prev_times.len() >= target_count as usize {
+            let output_duration = compaction_config
+                .generation_duration(output_level)
+                .expect("output level should have a duration");
+            let output_generation =
+                Generation::new_with_start(output_level, gen_time, output_duration);
+            let input_ids = gens.iter().map(|g| g.id).collect::<Vec<_>>();
+            let leftover_ids = generations
+                .iter()
+                .filter(|g| g.level.is_one() && !input_ids.contains(&g.id))
+                .map(|g| g.id)
+                .collect::<Vec<_>>();
+            let compaction_plan = NextCompactionPlan {
+                db_name,
+                table_name,
+                output_generation,
+                input_ids,
+                leftover_ids,
+            };
+
+            return Some(compaction_plan);
+        }
+    }
+
+    None
 }
 
 #[derive(Debug)]
@@ -547,6 +638,174 @@ mod tests {
                     tc.description
                 ),
             }
+        }
+    }
+
+    #[test]
+    fn next_plan_cases() {
+        struct TestCase<'a> {
+            // description of what the test case is for
+            description: &'a str,
+            // input is a list of (generation_id, level, gen_time)
+            input: Vec<(u64, u8, &'a str)>,
+            // the output level we're testing for
+            output_level: u8,
+            // the expected output gen_time of the compaction
+            output_time: &'a str,
+            // the expected ids from the input that will be used for the compaction
+            compact_ids: Vec<u64>,
+        }
+
+        let compaction_config = CompactionConfig::default();
+        let test_cases = vec![
+            TestCase {
+                description: "level 2 to 3 compaction",
+                input: vec![
+                    (3, 2, "2024-10-14/12-00"),
+                    (6, 2, "2024-10-14/12-20"),
+                    (9, 2, "2024-10-14/12-40"),
+                    (12, 3, "2024-10-14/11-00"),
+                    (15, 3, "2024-10-14/10-00"),
+                ],
+                output_level: 3,
+                output_time: "2024-10-14/12-00",
+                compact_ids: vec![3, 6, 9],
+            },
+            TestCase {
+                description: "level 2 to 3 with some gen1 blocks coming along for the ride",
+                input: vec![
+                    (3, 2, "2024-10-14/12-00"),
+                    (6, 2, "2024-10-14/12-20"),
+                    (9, 2, "2024-10-14/12-40"),
+                    (12, 3, "2024-10-14/11-00"),
+                    (15, 3, "2024-10-14/10-00"),
+                    (7, 1, "2024-10-14/12-10"),
+                    (11, 1, "2024-10-14/12-40"),
+                ],
+                output_level: 3,
+                output_time: "2024-10-14/12-00",
+                compact_ids: vec![3, 6, 7, 9, 11],
+            },
+        ];
+
+        for tc in test_cases {
+            let mut gens: Vec<_> = tc
+                .input
+                .iter()
+                .map(|(id, level, time)| Generation {
+                    id: GenerationId::from(*id),
+                    level: GenerationLevel::new(*level),
+                    start_time_secs: gen_time_string_to_start_time_secs(time).unwrap(),
+                    max_time: 0,
+                })
+                .collect();
+            gens.sort();
+            let plan = create_next_plan(
+                &compaction_config,
+                "db".into(),
+                "table".into(),
+                &gens,
+                GenerationLevel::new(tc.output_level),
+            );
+            match plan {
+                Some(NextCompactionPlan {
+                    output_generation,
+                    input_ids,
+                    ..
+                }) => {
+                    assert_eq!(
+                        output_generation.level,
+                        GenerationLevel::new(tc.output_level),
+                        "{}: expected level {} but got {}",
+                        tc.description,
+                        tc.output_level,
+                        output_generation.level,
+                    );
+                    assert_eq!(
+                        output_generation.start_time_secs,
+                        gen_time_string_to_start_time_secs(tc.output_time).unwrap(),
+                        "{}: expected gen time {} but got {}",
+                        tc.description,
+                        tc.output_time,
+                        gen_time_string(output_generation.start_time_secs)
+                    );
+                    let mut ids_to_compact =
+                        input_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
+                    ids_to_compact.sort();
+                    assert_eq!(
+                        tc.compact_ids, ids_to_compact,
+                        "{}: expected ids {:?} but got {:?}",
+                        tc.description, tc.compact_ids, ids_to_compact
+                    );
+                }
+                _ => panic!(
+                    "expected a compaction plan for test case '{}'",
+                    tc.description
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn next_plan_no_cases() {
+        struct TestCase<'a> {
+            // description of what the test case is for
+            description: &'a str,
+            // input is a list of (generation_id, level, gen_time)
+            input: Vec<(u64, u8, &'a str)>,
+            // the output level we're testing for
+            output_level: u8,
+        }
+
+        let compaction_config = CompactionConfig::default();
+        let test_cases = vec![
+            TestCase {
+                description: "level 2 to 3 compaction, but not enough gen2 blocks",
+                input: vec![
+                    (3, 2, "2024-10-14/12-00"),
+                    (6, 2, "2024-10-14/12-20"),
+                    (11, 3, "2024-10-14/11-00"),
+                ],
+                output_level: 3,
+            },
+            TestCase {
+                description: "level 2 to 3 compaction, but gen2 blocks in different gen3 times",
+                input: vec![
+                    (3, 2, "2024-10-14/12-00"),
+                    (6, 2, "2024-10-14/12-20"),
+                    (9, 2, "2024-10-14/13-20"),
+                    (12, 2, "2024-10-14/13-40"),
+                    (15, 2, "2024-10-14/14-00"),
+                ],
+                output_level: 3,
+            },
+        ];
+
+        for tc in test_cases {
+            let mut gens: Vec<_> = tc
+                .input
+                .iter()
+                .map(|(id, level, time)| Generation {
+                    id: GenerationId::from(*id),
+                    level: GenerationLevel::new(*level),
+                    start_time_secs: gen_time_string_to_start_time_secs(time).unwrap(),
+                    max_time: 0,
+                })
+                .collect();
+            gens.sort();
+            let plan = create_next_plan(
+                &compaction_config,
+                "db".into(),
+                "table".into(),
+                &gens,
+                GenerationLevel::new(tc.output_level),
+            );
+
+            assert!(
+                plan.is_none(),
+                "expected no compaction plan for test case '{}'",
+                tc.description
+            );
         }
     }
 }

@@ -166,26 +166,23 @@ impl CompactedData {
         }))
     }
 
-    pub fn get_generations_newer_than(
-        &self,
-        db_name: &str,
-        table_name: &str,
-        min_time_secs: i64,
-    ) -> Vec<Generation> {
+    pub fn databases(&self) -> Vec<Arc<str>> {
+        self.data.read().databases.keys().cloned().collect()
+    }
+
+    pub fn tables(&self, database_name: &str) -> Vec<Arc<str>> {
+        self.data
+            .read()
+            .databases
+            .get(database_name)
+            .map_or_else(Vec::new, |db| db.tables.keys().cloned().collect())
+    }
+
+    pub fn get_generations(&self, db_name: &str, table_name: &str) -> Vec<Generation> {
         if let Some(detail) = self.get_last_compaction_detail(db_name, table_name) {
-            let mut gens: Vec<_> = detail
-                .compacted_generations
-                .iter()
-                .filter(|g| g.start_time_secs >= min_time_secs)
-                .cloned()
-                .collect();
-            gens.extend(
-                detail
-                    .leftover_gen1_files
-                    .iter()
-                    .filter(|g| g.file.min_time >= min_time_secs)
-                    .map(|f| f.generation()),
-            );
+            let mut gens: Vec<_> = detail.compacted_generations.clone();
+            gens.extend(detail.leftover_gen1_files.iter().map(|f| f.generation()));
+            gens.sort();
             gens
         } else {
             Vec::new()
@@ -343,12 +340,12 @@ impl CompactedTable {
                 }
             } else if let Some(file) = self.compacting_gen1_files.get(id) {
                 paths.push(ObjPath::from(file.path.as_ref()));
-            }
-        }
-
-        if let Some(detail) = &self.compaction_detail {
-            for gen1_file in &detail.leftover_gen1_files {
-                paths.push(ObjPath::from(gen1_file.file.path.as_ref()));
+            } else if let Some(detail) = &self.compaction_detail {
+                for gen1_file in &detail.leftover_gen1_files {
+                    if gen1_file.id == *id {
+                        paths.push(ObjPath::from(gen1_file.file.path.as_ref()));
+                    }
+                }
             }
         }
 

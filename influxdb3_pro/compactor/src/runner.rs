@@ -1,6 +1,6 @@
 //! Logic for running many compaction tasks in parallel.
 
-use crate::planner::{CompactionPlan, SnapshotAdvancePlan};
+use crate::planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
@@ -24,6 +24,8 @@ pub(crate) enum CompactRunnerError {
     CompactedDataPersistenceError(
         #[from] influxdb3_pro_data_layout::persist::CompactedDataPersistenceError,
     ),
+    #[error("called to compact group before ever running gen1 to gen2 compaction")]
+    NoLastSummaryError,
 }
 
 pub(crate) type Result<T, E = CompactRunnerError> = std::result::Result<T, E>;
@@ -37,7 +39,7 @@ pub(crate) async fn run_snapshot_plan(
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
-    debug!("Running snapshot advance plan: {:?}", snapshot_advance_plan);
+    debug!(snapshot_advance_plan = ?snapshot_advance_plan, "Running snapshot plan");
     let compaction_sequence_number = compacted_data.next_compaction_sequence_number();
 
     let mut new_compaction_detail_paths =
@@ -122,6 +124,101 @@ pub(crate) async fn run_snapshot_plan(
         last_file_id: ParquetFileId::current(),
         last_generation_id: GenerationId::current(),
         snapshot_markers: new_snapshot_markers,
+        compaction_details: new_compaction_detail_paths,
+    };
+
+    persist_compaction_summary(
+        compacted_data.compactor_id.as_ref(),
+        &compaction_summary,
+        Arc::clone(&compacted_data.object_store),
+    )
+    .await?;
+
+    compacted_data.set_last_summary(compaction_summary.clone());
+
+    Ok(compaction_summary)
+}
+
+pub(crate) async fn run_compaction_plan_group(
+    compaction_plan_group: CompactionPlanGroup,
+    compacted_data: Arc<CompactedData>,
+    catalog: Arc<Catalog>,
+    object_store_url: ObjectStoreUrl,
+    exec: Arc<Executor>,
+) -> Result<CompactionSummary> {
+    debug!(compaction_plan_group = ?compaction_plan_group, "Running compaction plan group");
+
+    let compaction_sequence_number = compacted_data.next_compaction_sequence_number();
+    let mut new_compaction_detail_paths =
+        Vec::with_capacity(compaction_plan_group.compaction_plans.len());
+    let last_summary = match compacted_data.get_last_summary() {
+        Some(last_summary) => last_summary,
+        None => {
+            error!("No last compaction summary found with compactor_id: {}, but compaction with group asked for", compacted_data.compactor_id);
+            return Err(CompactRunnerError::NoLastSummaryError);
+        }
+    };
+
+    // Carry forward any compaction details that for tables that are not included in this set of
+    // compaction plans.
+    let mut was_compacted: HashSet<(&str, &str)> = HashSet::new();
+    for plan in &compaction_plan_group.compaction_plans {
+        was_compacted.insert((plan.db_name.as_ref(), plan.table_name.as_ref()));
+    }
+
+    for detail_path in last_summary.compaction_details.into_iter() {
+        let db_name = detail_path.db_name();
+        let table_name = detail_path.table_name();
+
+        if !was_compacted.contains(&(db_name.as_ref(), table_name.as_ref())) {
+            new_compaction_detail_paths.push(detail_path);
+        }
+    }
+    drop(was_compacted);
+
+    // run the individual plans
+    for plan in compaction_plan_group.compaction_plans {
+        let db_name = plan.db_name.as_ref();
+        let table_name = plan.table_name.as_ref();
+
+        let db_schema = match catalog.db_schema(db_name) {
+            Some(db_schema) => db_schema,
+            None => {
+                error!(
+                    "Database schema not found for db_name: {} while running compaction cycle",
+                    db_name
+                );
+                continue;
+            }
+        };
+
+        let table_definition = match db_schema.get_table(table_name) {
+            Some(table_definition) => table_definition,
+            None => {
+                error!("Table definition not found for table_name: {} in db: {} while running compaction cycle", table_name, db_schema.name);
+                continue;
+            }
+        };
+
+        let compaction_detail_path = run_plan_and_write_detail(
+            CompactionPlan::Compaction(plan),
+            Arc::clone(&compacted_data),
+            last_summary.snapshot_markers.clone(),
+            table_definition,
+            compaction_sequence_number,
+            object_store_url.clone(),
+            Arc::clone(&exec),
+        )
+        .await?;
+
+        new_compaction_detail_paths.push(compaction_detail_path);
+    }
+
+    let compaction_summary = CompactionSummary {
+        compaction_sequence_number,
+        last_file_id: ParquetFileId::current(),
+        last_generation_id: GenerationId::current(),
+        snapshot_markers: last_summary.snapshot_markers,
         compaction_details: new_compaction_detail_paths,
     };
 

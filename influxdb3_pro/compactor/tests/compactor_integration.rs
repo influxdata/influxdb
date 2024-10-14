@@ -145,12 +145,11 @@ async fn two_writers_gen1_compaction() {
     let mut count = 0;
     loop {
         if let Some(detail) = compacted_data.get_last_compaction_detail("test_db", "m1") {
-            if detail.sequence_number.as_u64() > 0 {
+            if detail.sequence_number.as_u64() > 1 {
                 // we should have a compacted generation
                 assert_eq!(detail.compacted_generations.len(), 1);
-                // the remaining files should be listed as leftover, just confirm there are 5
-                // of them, the data assertion later will confirm the contents
-                assert_eq!(detail.leftover_gen1_files.len(), 1);
+                // nothing should be leftover as it should all now exist in gen3
+                assert_eq!(detail.leftover_gen1_files.len(), 0);
                 break;
             }
         }
