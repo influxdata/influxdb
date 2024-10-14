@@ -5,20 +5,33 @@ FROM rust:${RUST_VERSION}-slim-bookworm as build
 # cache mounts below may already exist and owned by root
 USER root
 
+ARG PRIVATE_KEY
+ARG CORE_INTERNAL_PRIVATE_KEY
+ARG PUBLIC_KEY
+ARG KNOWN_HOSTS
+
 RUN apt update \
     && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler openssh-client \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 RUN if [ $PRIVATE_KEY ]; then exit 1; fi
+RUN if [ $CORE_INTERNAL_PRIVATE_KEY ]; then exit 1; fi
 RUN if [ $PUBLIC_KEY]; then exit 1; fi
 RUN if [ $KNOWN_HOSTS ]; then exit 1; fi
+
 RUN mkdir -p /root/.ssh && \
     chmod 0700 /root/.ssh && \
-    echo -e "$PRIVATE_KEY" > /root/.ssh/id_ed25519 && \
-    echo -e "$PUBLIC_KEY" > /root/.ssh/id_ed25519.pub && \
-    echo -e "$KNOWN_HOSTS" > /root/.ssh/known_hosts && \
+    echo "$PRIVATE_KEY" > /root/.ssh/id_ed25519 && \
+    echo "$CORE_INTERNAL_PRIVATE_KEY" > /root/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0 && \
+    echo "$PUBLIC_KEY" > /root/.ssh/id_ed25519.pub && \
+    echo "$KNOWN_HOSTS" > /root/.ssh/known_hosts && \
     chmod 600 /root/.ssh/id_ed25519 && \
+    chmod 600 /root/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0 && \
     chmod 600 /root/.ssh/id_ed25519.pub && \
     chmod 600 /root/.ssh/known_hosts
+
+RUN MD5_SUM_INTERNAL=$(md5sum /root/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0) && echo "$MD5_SUM_INTERNAL"
+RUN echo 'Host *\n  IdentitiesOnly no\n  IdentityFile /root/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0' > /root/.ssh/config
+RUN echo
 
 # Build influxdb3
 COPY . /influxdb3
