@@ -384,8 +384,6 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
-	// We use `rawShardCount` as a buffer size for channel creation below
-	rawShardCount := 0
 	walkShardsAndProcess := func(fn func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
 		for _, db := range dbDirs {
 			rpDirs, err := s.getRetentionPolicyDirs(db, log)
@@ -416,7 +414,6 @@ func (s *Store) loadShards() error {
 				}
 
 				for _, sh := range shardDirs {
-					rawShardCount++
 					// Series file should not be in a retention policy but skip just in case.
 					if sh.Name() == SeriesFileDirectory {
 						log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
@@ -433,8 +430,13 @@ func (s *Store) loadShards() error {
 		return nil
 	}
 
+	// We use `rawShardCount` as a buffer size for channel creation below.
+	// If there is no startupProgressMetrics count then this will be 0 creating a
+	// zero buffer channel.
+	rawShardCount := 0
 	if s.startupProgressMetrics != nil {
 		err := walkShardsAndProcess(func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+			rawShardCount++
 			s.startupProgressMetrics.AddShard()
 			return nil
 		})
