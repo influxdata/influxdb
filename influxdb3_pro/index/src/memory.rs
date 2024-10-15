@@ -97,10 +97,21 @@ impl FileIndex {
         if let Expr::BinaryExpr(b) = expr {
             if let Expr::Column(c) = b.left.as_ref() {
                 if self.indexed_column_names.contains(&c.name) {
-                    if let Expr::Literal(ScalarValue::Utf8(Some(val))) = b.right.as_ref() {
-                        if b.op == datafusion::logical_expr::Operator::Eq {
-                            return self.ids_for_column_value(&c.name, val, min_time, max_time);
+                    match b.right.as_ref() {
+                        Expr::Literal(ScalarValue::Utf8(Some(val))) => {
+                            if b.op == datafusion::logical_expr::Operator::Eq {
+                                return self.ids_for_column_value(&c.name, val, min_time, max_time);
+                            }
                         }
+                        Expr::Literal(ScalarValue::Dictionary(_, val)) => {
+                            if let ScalarValue::Utf8(Some(val)) = val.as_ref() {
+                                if b.op == datafusion::logical_expr::Operator::Eq {
+                                    return self
+                                        .ids_for_column_value(&c.name, val, min_time, max_time);
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             } else {
@@ -268,6 +279,7 @@ fn union(vec1: &[ParquetFileId], vec2: &[ParquetFileId]) -> Vec<ParquetFileId> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::datatypes::DataType;
     use datafusion::prelude::*;
 
     #[test]
@@ -300,6 +312,14 @@ mod tests {
         file_index.append("region", "us-west", 301, 600, &[three.id]);
 
         let expr = col("host").eq(lit("A"));
+        let ids = file_index.ids_for_filter(&[expr]);
+        assert_eq!(ids, Some(vec![one.id, three.id]));
+
+        // build an expression matching host with a dictionary not a string literal
+        let expr = col("host").eq(lit(ScalarValue::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(ScalarValue::from("A")),
+        )));
         let ids = file_index.ids_for_filter(&[expr]);
         assert_eq!(ids, Some(vec![one.id, three.id]));
 
