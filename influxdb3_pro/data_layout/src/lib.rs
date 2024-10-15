@@ -168,6 +168,19 @@ impl Generation {
             max_time: 0,
         }
     }
+
+    pub fn new_with_start(
+        level: GenerationLevel,
+        start_time_secs: i64,
+        duration: time::Duration,
+    ) -> Self {
+        Self {
+            id: GenerationId::new(),
+            level,
+            start_time_secs,
+            max_time: (start_time_secs + duration.as_secs() as i64) * 1_000_000_000,
+        }
+    }
 }
 
 // sort for generation where newer generations are greater than older generations
@@ -179,7 +192,7 @@ impl PartialOrd for Generation {
 
 impl Ord for Generation {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.start_time_secs.cmp(&other.start_time_secs)
+        other.start_time_secs.cmp(&self.start_time_secs)
     }
 }
 
@@ -234,6 +247,24 @@ impl CompactionConfig {
         }
     }
 
+    /// For a given generation level, return the number of the previous levels it takes to compact
+    /// to this generation. Levels 1 or fully compacted generations will return 0.
+    pub fn number_of_previous_generations_to_compact(&self, level: GenerationLevel) -> u8 {
+        if level.is_under_two() {
+            return 0;
+        } else if level.is_two() {
+            return 2; // gen2 is the first compacted generation, requiring two gen1 blocks
+        }
+
+        let previous_duration = self.generation_duration(GenerationLevel::new(level.0 - 1));
+        let current_duration = self.generation_duration(level);
+
+        match (previous_duration, current_duration) {
+            (Some(prev), Some(curr)) => (curr.as_secs() / prev.as_secs()) as u8,
+            _ => 0,
+        }
+    }
+
     /// Returns the duration of the level based on the config
     pub fn generation_duration(&self, level: GenerationLevel) -> Option<time::Duration> {
         if level.is_under_two() {
@@ -241,6 +272,31 @@ impl CompactionConfig {
         }
 
         self.generation_durations.get(level.0 as usize - 2).copied()
+    }
+
+    /// Returns the start time of the previous generation for the given chunk time
+    pub fn previous_generation_start_time(
+        &self,
+        start_time_secs: i64,
+        level: GenerationLevel,
+    ) -> i64 {
+        let prev_level = GenerationLevel::new(level.0 - 1);
+        self.generation_start_time(prev_level, start_time_secs)
+    }
+
+    /// Returns the start time of the next generation the passed in generation would be compacted
+    /// into, or returns None if the gen has no next generation.
+    pub fn next_generation_start_time(&self, gen: &Generation) -> Option<i64> {
+        let next_level = GenerationLevel::new(gen.level.0 + 1);
+        self.generation_duration(next_level)
+            .map(|_d| self.generation_start_time(next_level, gen.start_time_secs))
+    }
+
+    /// Returns the compaction levels greater than 2 based on the configuration
+    pub fn compaction_levels(&self) -> Vec<GenerationLevel> {
+        (3..=self.generation_durations.len() as u8 + 1)
+            .map(GenerationLevel::new)
+            .collect()
     }
 }
 
@@ -269,6 +325,10 @@ impl GenerationLevel {
 
     pub fn two() -> Self {
         Self(2)
+    }
+
+    pub fn is_one(&self) -> bool {
+        self.0 == 1
     }
 
     pub fn is_two(&self) -> bool {
@@ -590,6 +650,84 @@ mod tests {
         assert_eq!(
             gen_time_string(config.generation_start_time(GenerationLevel::new(5), start_hour)),
             "2024-09-08/00-00"
+        );
+    }
+
+    #[test]
+    fn generations_should_sort_newest_to_oldest() {
+        let g1 = Generation {
+            id: GenerationId::from(30),
+            level: GenerationLevel::one(),
+            start_time_secs: 100,
+            max_time: 0,
+        };
+        let g2 = Generation {
+            id: GenerationId::from(26),
+            level: GenerationLevel::two(),
+            start_time_secs: 50,
+            max_time: 0,
+        };
+        let g3 = Generation {
+            id: GenerationId::from(11),
+            level: GenerationLevel::new(3),
+            start_time_secs: 0,
+            max_time: 0,
+        };
+
+        let mut gens = vec![g1, g2, g3];
+        gens.sort();
+        assert_eq!(gens, vec![g1, g2, g3]);
+
+        let mut gens = vec![g3, g2, g1];
+        gens.sort();
+        assert_eq!(gens, vec![g1, g2, g3]);
+    }
+
+    #[test]
+    fn compaction_levels() {
+        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60), 1_000_000);
+        let levels = config.compaction_levels();
+        assert_eq!(
+            levels,
+            vec![
+                GenerationLevel::new(3),
+                GenerationLevel::new(4),
+                GenerationLevel::new(5),
+                GenerationLevel::new(6)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_number_of_previous_generations_to_compact() {
+        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60), 1_000_000);
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(1)),
+            0
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(2)),
+            2
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(3)),
+            2
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(4)),
+            3
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(5)),
+            4
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(6)),
+            5
+        );
+        assert_eq!(
+            config.number_of_previous_generations_to_compact(GenerationLevel::new(7)),
+            0
         );
     }
 }

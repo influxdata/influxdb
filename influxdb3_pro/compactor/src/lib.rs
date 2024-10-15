@@ -1,4 +1,4 @@
-use crate::planner::SnapshotTracker;
+use crate::planner::{CompactionPlanGroup, SnapshotTracker};
 use arrow::array::as_largestring_array;
 use arrow::array::AsArray;
 use arrow::array::RecordBatch;
@@ -24,7 +24,7 @@ use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
-use influxdb3_pro_data_layout::{CompactedFilePath, Generation};
+use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::ParquetFileId;
@@ -142,6 +142,7 @@ impl Compactor {
             self.snapshot_tracker.hosts()
         );
         let mut persisted_snapshot_notify_rx = self.persisted_snapshot_notify_rx.clone();
+        let generation_levels = self.compacted_data.compaction_config.compaction_levels();
 
         loop {
             if let Err(e) = persisted_snapshot_notify_rx.changed().await {
@@ -177,6 +178,29 @@ impl Compactor {
                     Arc::clone(&self.executor),
                 )
                 .await;
+
+                for level in &generation_levels {
+                    // TODO: wire up later generation compactions
+                    if *level > GenerationLevel::new(4) {
+                        break;
+                    }
+
+                    if let Some(plan_group) =
+                        CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
+                    {
+                        let _compaction_summary = runner::run_compaction_plan_group(
+                            plan_group,
+                            Arc::clone(&self.compacted_data),
+                            Arc::clone(&self.catalog),
+                            self.object_store_url.clone(),
+                            Arc::clone(&self.executor),
+                        )
+                        .await;
+
+                        // only one run set of compactions, then go back to waiting for a snapshot
+                        break;
+                    }
+                }
             }
         }
     }
