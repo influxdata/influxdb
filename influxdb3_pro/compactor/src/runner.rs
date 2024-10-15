@@ -15,7 +15,7 @@ use influxdb3_pro_data_layout::{
 };
 use influxdb3_write::ParquetFileId;
 use iox_query::exec::Executor;
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::{debug, error, trace};
 use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
@@ -260,7 +260,7 @@ async fn run_plan_and_write_detail(
                 plan.table_name.as_ref(),
                 &plan.input_ids,
             );
-            debug!("Compacting files: {:?}", paths);
+            trace!(paths = ?paths, "Paths to compact");
 
             // run the compaction
             let args = CompactFilesArgs {
@@ -278,7 +278,7 @@ async fn run_plan_and_write_detail(
 
             let compactor_output = compact_files(args).await.expect("compaction failed");
 
-            debug!(compactor_output = ?compactor_output, "Compaction output");
+            trace!(compactor_output = ?compactor_output, "Compaction output");
 
             // get the max time of the files in the output generation
             let max_time_ns = compactor_output
@@ -310,7 +310,7 @@ async fn run_plan_and_write_detail(
             )
             .await?;
 
-            println!("Generation detail written: {:?}", generaton_detail);
+            trace!(generaton_detail = ?generaton_detail, "Generation detail written");
 
             let _gen1_files = compacted_data.remove_compacting_gen1_files(
                 Arc::clone(&plan.db_name),
