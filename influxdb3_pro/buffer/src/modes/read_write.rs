@@ -278,7 +278,7 @@ impl ChunkContainer for ReadWriteMode {
         // now add in the gen1 chunks from primary
         let next_non_compacted_parquet_file_id = host_markers.as_ref().and_then(|markers| {
             markers.iter().find_map(|marker| {
-                if marker.host_id != self.host_id.as_ref() {
+                if marker.host_id == self.host_id.as_ref() {
                     Some(marker.next_file_id)
                 } else {
                     None
