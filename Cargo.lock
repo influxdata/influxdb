@@ -2625,6 +2625,7 @@ dependencies = [
 name = "influxdb3_catalog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow",
  "influxdb-line-protocol",
  "influxdb3_id",

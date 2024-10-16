@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
-#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DbId(u32);
 
 static NEXT_DB_ID: AtomicU32 = AtomicU32::new(0);
