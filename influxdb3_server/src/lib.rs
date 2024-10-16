@@ -229,6 +229,7 @@ pub async fn wait_for_signal() {
 mod tests {
     use crate::auth::DefaultAuthorizer;
     use crate::builder::ServerBuilder;
+    use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
@@ -247,7 +248,6 @@ mod tests {
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::num::NonZeroUsize;
     use std::sync::Arc;
@@ -779,7 +779,7 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&catalog),
-                Arc::new(LastCacheProvider::new(catalog)),
+                Arc::new(LastCacheProvider::new_from_db_schema_provider(catalog as _).unwrap()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
@@ -801,16 +801,16 @@ mod tests {
             Arc::clone(&sample_telem_store),
         )
         .unwrap();
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&exec),
-            Arc::clone(&metrics),
-            Arc::new(HashMap::new()),
-            10,
-            10,
-            Arc::clone(&sample_telem_store),
-        );
+        let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
+            db_schema_provider: write_buffer.db_schema_provider(),
+            write_buffer: Arc::clone(&write_buffer),
+            exec: Arc::clone(&exec),
+            metrics: Arc::clone(&metrics),
+            datafusion_config: Default::default(),
+            concurrent_query_limit: 10,
+            query_log_size: 10,
+            telemetry_store: Arc::clone(&sample_telem_store),
+        });
 
         // bind to port 0 will assign a random available port:
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);

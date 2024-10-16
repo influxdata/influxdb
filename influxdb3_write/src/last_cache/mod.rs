@@ -23,7 +23,7 @@ use datafusion::{
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_id::DbId;
 use influxdb3_id::TableId;
 use influxdb3_wal::{
@@ -66,7 +66,7 @@ type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<String, LastCache>
 
 /// Provides all last-N-value caches for the entire database
 pub struct LastCacheProvider {
-    catalog: Arc<Catalog>,
+    db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     cache_map: CacheMap,
 }
 
@@ -116,19 +116,15 @@ pub struct CreateCacheArguments {
 }
 
 impl LastCacheProvider {
-    /// Create a new [`LastCacheProvider`]
-    pub fn new(catalog: Arc<Catalog>) -> Self {
-        Self {
-            catalog,
+    /// Initialize a [`LastCacheProvider`] from a [`DatabaseSchemaProvider`]
+    pub fn new_from_db_schema_provider(
+        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+    ) -> Result<Self, Error> {
+        let provider = LastCacheProvider {
+            db_schema_provider: Arc::clone(&db_schema_provider),
             cache_map: Default::default(),
-        }
-    }
-
-    /// Initialize a [`LastCacheProvider`] from a [`Catalog`]
-    pub fn new_from_catalog(catalog: Arc<Catalog>) -> Result<Self, Error> {
-        let provider = LastCacheProvider::new(Arc::clone(&catalog));
-        let inner_catalog = catalog.inner().read();
-        for db_schema in inner_catalog.databases() {
+        };
+        for db_schema in db_schema_provider.list_db_schema() {
             for table_def in db_schema.tables() {
                 for (cache_name, cache_def) in table_def.last_caches() {
                     assert!(
@@ -197,7 +193,7 @@ impl LastCacheProvider {
                     .iter()
                     .flat_map(|(table_id, table_map)| {
                         let table_name = self
-                            .catalog
+                            .db_schema_provider
                             .db_schema_by_id(db)
                             .expect("db exists")
                             .table_id_to_name(*table_id)
@@ -1624,7 +1620,7 @@ mod tests {
         WriteBufferImpl::new(
             persister,
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new(catalog)),
+            Arc::new(LastCacheProvider::new_from_db_schema_provider(catalog as _).unwrap()),
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
@@ -3209,7 +3205,7 @@ mod tests {
         catalog.insert_database(database);
         let catalog = Arc::new(catalog);
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
-        let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+        let provider = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
             .expect("create last cache provider from catalog");
         // There should be a total of 3 caches:
         assert_eq!(3, provider.size());

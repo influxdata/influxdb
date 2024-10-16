@@ -99,7 +99,7 @@ impl TableFunctionImpl for LastCacheFunction {
         };
         let table_id = self
             .provider
-            .catalog
+            .db_schema_provider
             .db_schema_by_id(self.db_id)
             .expect("db exists")
             .table_name_to_id(table_name.as_str())
