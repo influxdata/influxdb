@@ -11,6 +11,7 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
+use influxdb3_catalog::pro::SynthesizedCatalog;
 use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
@@ -22,8 +23,10 @@ use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
 use influxdb3_server::{
-    auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
-    CommonServerState,
+    auth::AllOrNothingAuthorizer,
+    builder::ServerBuilder,
+    query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
+    serve, CommonServerState,
 };
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -434,6 +437,8 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
+    let db_schema_provider = Arc::new(SynthesizedCatalog::new());
+
     let compaction_hosts_and_data = if let Some(compactor_id) = config.pro_config.compactor_id {
         let mut compaction_hosts = config
             .pro_config
@@ -457,6 +462,7 @@ pub async fn command(config: Config) -> Result<()> {
             &compactor_id,
             compaction_config,
             Arc::clone(&object_store),
+            Arc::clone(&db_schema_provider),
         )
         .await?;
 
@@ -472,7 +478,7 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(Error::InitializePersistedCatalog)?;
 
-    let last_cache = LastCacheProvider::new_from_catalog(&catalog.clone_inner())
+    let last_cache = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
         .map_err(Error::InitializeLastCache)?;
 
     let replica_config = config.pro_config.replicas.map(|replicas| {
@@ -482,20 +488,11 @@ pub async fn command(config: Config) -> Result<()> {
         )
     });
 
-    let telemetry_store =
-        setup_telemetry_store(&config.object_store_config, catalog.instance_id(), num_cpus).await;
-
-    let common_state = CommonServerState::new(
-        Arc::clone(&metrics),
-        trace_exporter,
-        trace_header_parser,
-        Arc::clone(&telemetry_store),
-    )?;
     let compacted_data = compaction_hosts_and_data
         .as_ref()
         .map(|(_, data)| Arc::clone(data));
 
-    let write_buffer: Arc<dyn WriteBuffer> = match config.pro_config.mode {
+    let write_buffer_impl: Arc<dyn WriteBuffer> = match config.pro_config.mode {
         BufferMode::Read => {
             let replica_config = replica_config
                 .context("must supply a replicas list when starting in read-only mode")
@@ -531,16 +528,34 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::WriteBufferInit)?,
         ),
     };
-    let query_executor = Arc::new(QueryExecutorImpl::new(
-        write_buffer.catalog(),
-        Arc::clone(&write_buffer),
-        Arc::clone(&exec),
+
+    let telemetry_store = setup_telemetry_store(
+        &config.object_store_config,
+        catalog.instance_id(),
+        num_cpus,
+        Arc::clone(&write_buffer_impl.persisted_files()),
+    )
+    .await;
+
+    let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+
+    let common_state = CommonServerState::new(
         Arc::clone(&metrics),
-        Arc::new(config.datafusion_config),
-        10,
-        config.query_log_size,
+        trace_exporter,
+        trace_header_parser,
         Arc::clone(&telemetry_store),
-    ));
+    )?;
+
+    let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
+        db_schema_provider: write_buffer.db_schema_provider(),
+        write_buffer: Arc::clone(&write_buffer),
+        exec: Arc::clone(&exec),
+        metrics: Arc::clone(&metrics),
+        datafusion_config: Arc::new(config.datafusion_config),
+        concurrent_query_limit: 10,
+        query_log_size: config.query_log_size,
+        telemetry_store: Arc::clone(&telemetry_store),
+    }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
@@ -609,6 +624,7 @@ async fn setup_telemetry_store(
     object_store_config: &ObjectStoreConfig,
     instance_id: Arc<str>,
     num_cpus: usize,
+    persisted_files: Arc<PersistedFiles>,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -626,6 +642,7 @@ async fn setup_telemetry_store(
         Arc::from(influx_version),
         Arc::from(storage_type),
         num_cpus,
+        persisted_files,
     )
     .await
 }

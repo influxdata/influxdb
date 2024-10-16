@@ -229,22 +229,25 @@ pub async fn wait_for_signal() {
 mod tests {
     use crate::auth::DefaultAuthorizer;
     use crate::builder::ServerBuilder;
+    use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::WriteBuffer;
+    use influxdb3_write::{
+        last_cache::LastCacheProvider, write_buffer::persisted_files::PersistedFiles,
+    };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::num::NonZeroUsize;
     use std::sync::Arc;
@@ -628,7 +631,9 @@ mod tests {
         let start_time = 0;
         let (url, shutdown, wbuf) = setup_server(start_time).await;
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
 
         // Write to generate a db/table in the catalog:
         let resp = write_lp(
@@ -643,7 +648,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Create the last cache:
-        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
             .await
             .expect("create last cache");
 
@@ -748,14 +753,6 @@ mod tests {
     async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
-        let dummy_telem_store = TelemetryStore::new_without_background_runners();
-        let common_state = crate::CommonServerState::new(
-            Arc::clone(&metrics),
-            None,
-            trace_header_parser,
-            dummy_telem_store,
-        )
-        .unwrap();
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
         let (object_store, parquet_cache) =
@@ -775,15 +772,14 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let dummy_host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
-        let telemetry_store = TelemetryStore::new_without_background_runners();
-
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
+        let sample_host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
+        let write_buffer_impl = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new(dummy_host_id, instance_id)),
-                Arc::new(LastCacheProvider::new()),
+                Arc::clone(&catalog),
+                Arc::new(LastCacheProvider::new_from_db_schema_provider(catalog as _).unwrap()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
@@ -792,16 +788,29 @@ mod tests {
             .await
             .unwrap(),
         );
-        let query_executor = crate::query_executor::QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            Arc::clone(&exec),
+
+        let parquet_metrics_provider: Arc<PersistedFiles> =
+            Arc::clone(&write_buffer_impl.persisted_files());
+        let sample_telem_store =
+            TelemetryStore::new_without_background_runners(parquet_metrics_provider);
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+        let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
-            Arc::new(HashMap::new()),
-            10,
-            10,
-            telemetry_store,
-        );
+            None,
+            trace_header_parser,
+            Arc::clone(&sample_telem_store),
+        )
+        .unwrap();
+        let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
+            db_schema_provider: write_buffer.db_schema_provider(),
+            write_buffer: Arc::clone(&write_buffer),
+            exec: Arc::clone(&exec),
+            metrics: Arc::clone(&metrics),
+            datafusion_config: Default::default(),
+            concurrent_query_limit: 10,
+            query_log_size: 10,
+            telemetry_store: Arc::clone(&sample_telem_store),
+        });
 
         // bind to port 0 will assign a random available port:
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);

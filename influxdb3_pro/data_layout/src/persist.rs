@@ -6,6 +6,7 @@ use crate::{
 };
 use bytes::Bytes;
 use futures_util::stream::StreamExt;
+use influxdb3_id::{DbId, TableId};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error, warn};
@@ -27,14 +28,18 @@ pub type Result<T, E = CompactedDataPersistenceError> = std::result::Result<T, E
 pub async fn persist_compaction_detail(
     compactor_id: &str,
     db_name: Arc<str>,
+    db_id: DbId,
     table_name: Arc<str>,
+    table_id: TableId,
     compaction_detail: &CompactionDetail,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<CompactionDetailPath> {
     let path = CompactionDetailPath::new(
         compactor_id,
         db_name.as_ref(),
+        db_id,
         table_name.as_ref(),
+        table_id,
         compaction_detail.sequence_number,
     );
     let data = serde_json::to_vec(compaction_detail)?;

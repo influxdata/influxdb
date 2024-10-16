@@ -8,21 +8,22 @@ use datafusion::{
     logical_expr::{col, BinaryExpr, Expr, Operator},
     scalar::ScalarValue,
 };
+use influxdb3_id::DbId;
 use influxdb3_write::{ParquetFile, WriteBuffer};
 use iox_system_tables::IoxSystemTable;
 
 use super::{PARQUET_FILES_TABLE_NAME, SYSTEM_SCHEMA_NAME};
 
 pub(super) struct ParquetFilesTable {
-    db_name: Arc<str>,
+    db_id: DbId,
     schema: SchemaRef,
     buffer: Arc<dyn WriteBuffer>,
 }
 
 impl ParquetFilesTable {
-    pub(super) fn new(db_name: Arc<str>, buffer: Arc<dyn WriteBuffer>) -> Self {
+    pub(super) fn new(db_id: DbId, buffer: Arc<dyn WriteBuffer>) -> Self {
         Self {
-            db_name,
+            db_id,
             schema: parquet_files_schema(),
             buffer,
         }
@@ -90,9 +91,15 @@ impl IoxSystemTable for ParquetFilesTable {
             })
             .ok_or_else(table_name_predicate_error)?;
 
-        let parquet_files: Vec<ParquetFile> = self
-            .buffer
-            .parquet_files(&self.db_name, table_name.as_str());
+        let parquet_files: Vec<ParquetFile> = self.buffer.parquet_files(
+            self.db_id,
+            self.buffer
+                .db_schema_provider()
+                .db_schema_by_id(self.db_id)
+                .expect("db exists")
+                .table_name_to_id(table_name.as_str())
+                .expect("table exists"),
+        );
 
         from_parquet_files(&table_name, schema, parquet_files)
     }

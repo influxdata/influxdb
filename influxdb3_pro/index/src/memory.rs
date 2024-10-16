@@ -4,7 +4,8 @@
 use datafusion::common::ScalarValue;
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
-use influxdb3_write::{ParquetFile, ParquetFileId};
+use influxdb3_id::ParquetFileId;
+use influxdb3_write::ParquetFile;
 use schema::TIME_COLUMN_NAME;
 use std::collections::HashSet;
 use std::sync::Arc;

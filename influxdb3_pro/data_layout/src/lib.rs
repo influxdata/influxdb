@@ -6,9 +6,10 @@ pub mod compacted_data;
 pub mod persist;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
+use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_wal::SnapshotSequenceNumber;
-use influxdb3_write::{ParquetFile, ParquetFileId};
+use influxdb3_write::ParquetFile;
 use object_store::path::Path as ObjPath;
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialOrd;
@@ -70,8 +71,12 @@ pub struct HostSnapshotMarker {
 pub struct CompactionDetail {
     /// The database name for this compaction detail.
     pub db_name: Arc<str>,
+    /// The database ID for this compaction detail.
+    pub db_id: DbId,
     /// The table name for this compaction detail.
     pub table_name: Arc<str>,
+    /// The table ID for this compaction.
+    pub table_id: TableId,
     /// The sequence number of the compaction that produced this detail.
     pub sequence_number: CompactionSequenceNumber,
     /// The snapshot markers for this run. Since the compaction details get created as each
@@ -121,7 +126,9 @@ impl CompactionDetail {
 
         Self {
             db_name: Arc::clone(&self.db_name),
+            db_id: self.db_id,
             table_name: Arc::clone(&self.table_name),
+            table_id: self.table_id,
             sequence_number,
             snapshot_markers: new_snapshot_markers,
             compacted_generations: filtered_compacted_generations,
@@ -141,7 +148,9 @@ impl CompactionDetail {
 
         Self {
             db_name: Arc::clone(&self.db_name),
+            db_id: self.db_id,
             table_name: Arc::clone(&self.table_name),
+            table_id: self.table_id,
             sequence_number,
             snapshot_markers: new_snapshot_markers,
             compacted_generations: self.compacted_generations.clone(),
@@ -475,13 +484,13 @@ impl CompactionDetailPath {
     pub fn new(
         compactor_id: &str,
         db_name: &str,
+        db_id: DbId,
         table_name: &str,
+        table_id: TableId,
         compaction_sequence_number: CompactionSequenceNumber,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "{compactor_id}/cd/{}/{}/{:020}.json",
-            db_name,
-            table_name,
+            "{compactor_id}/cd/{db_name}-{db_id}/{table_name}-{table_id}/{:020}.json",
             object_store_number_order(compaction_sequence_number.0),
         ));
         Self(path)
@@ -490,21 +499,37 @@ impl CompactionDetailPath {
     pub fn db_name(&self) -> String {
         self.0
             .parts()
-            .collect::<Vec<_>>()
-            .get(2)
-            .unwrap()
-            .as_ref()
-            .to_string()
+            .nth(2)
+            .and_then(|part| part.as_ref().split('-').next().map(|s| s.to_string()))
+            .expect("valid compaction detail path when extracting db name")
+    }
+
+    pub fn db_id(&self) -> DbId {
+        self.0
+            .parts()
+            .nth(2)
+            .and_then(|part| part.as_ref().split('-').nth(1).map(|s| s.parse::<u32>()))
+            .expect("valid compaction detail path when extracting db id")
+            .expect("valid u32 when extracting db id from compaction path")
+            .into()
     }
 
     pub fn table_name(&self) -> String {
         self.0
             .parts()
-            .collect::<Vec<_>>()
-            .get(3)
-            .unwrap()
-            .as_ref()
-            .to_string()
+            .nth(3)
+            .and_then(|part| part.as_ref().split('-').next().map(|s| s.to_string()))
+            .expect("valid compaction detail path when extracting table name")
+    }
+
+    pub fn table_id(&self) -> TableId {
+        self.0
+            .parts()
+            .nth(3)
+            .and_then(|part| part.as_ref().split('-').nth(1).map(|s| s.parse::<u32>()))
+            .expect("valid compaction detail path when extracting table id")
+            .expect("valid u32 when extracting table id from compaction path")
+            .into()
     }
 }
 

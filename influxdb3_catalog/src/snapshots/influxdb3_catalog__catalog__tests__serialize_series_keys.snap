@@ -3,13 +3,14 @@ source: influxdb3_catalog/src/catalog.rs
 expression: catalog
 ---
 {
-  "databases": {
-    "test_db": {
+  "databases": [
+    {
       "id": 0,
       "name": "test_db",
-      "tables": {
-        "test_table_1": {
-          "name": "test_table_1",
+      "tables": [
+        {
+          "table_id": 1,
+          "table_name": "test_table_1",
           "key": [
             "tag_1",
             "tag_2",
@@ -17,11 +18,13 @@ expression: catalog
           ],
           "cols": {
             "field": {
+              "column_id": 0,
               "type": "str",
               "influx_type": "field",
               "nullable": true
             },
             "tag_1": {
+              "column_id": 1,
               "type": {
                 "dict": [
                   "i32",
@@ -32,6 +35,7 @@ expression: catalog
               "nullable": false
             },
             "tag_2": {
+              "column_id": 2,
               "type": {
                 "dict": [
                   "i32",
@@ -42,6 +46,7 @@ expression: catalog
               "nullable": false
             },
             "tag_3": {
+              "column_id": 3,
               "type": {
                 "dict": [
                   "i32",
@@ -52,6 +57,7 @@ expression: catalog
               "nullable": false
             },
             "time": {
+              "column_id": 4,
               "type": {
                 "time": [
                   "ns",
@@ -61,12 +67,36 @@ expression: catalog
               "influx_type": "time",
               "nullable": false
             }
-          }
+          },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "field"
+            },
+            {
+              "column_id": 1,
+              "name": "tag_1"
+            },
+            {
+              "column_id": 2,
+              "name": "tag_2"
+            },
+            {
+              "column_id": 3,
+              "name": "tag_3"
+            },
+            {
+              "column_id": 4,
+              "name": "time"
+            }
+          ],
+          "next_column_id": 5
         }
-      }
+      ]
     }
-  },
+  ],
   "sequence": 0,
-  "host_id": "dummy-host-id",
-  "instance_id": "instance-id"
+  "host_id": "sample-host-id",
+  "instance_id": "instance-id",
+  "db_map": []
 }

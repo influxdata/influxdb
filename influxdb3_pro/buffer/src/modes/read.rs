@@ -5,7 +5,8 @@ use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
@@ -86,12 +87,12 @@ impl Bufferer for ReadMode {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 
-    fn catalog(&self) -> Arc<Catalog> {
-        self.replicas.catalog()
+    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
+        todo!("need to use the synthesized catalog");
     }
 
-    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        let mut files = self.replicas.parquet_files(db_name, table_name);
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        let mut files = self.replicas.parquet_files(db_id, table_id);
         files.sort_unstable_by(|a, b| a.chunk_time.cmp(&b.chunk_time));
         files
     }
@@ -110,12 +111,15 @@ impl ChunkContainer for ReadMode {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
-            DataFusionError::Execution(format!("Database {} not found", database_name))
-        })?;
+        let (db_id, db_schema) = self
+            .db_schema_provider()
+            .db_schema_and_id(database_name)
+            .ok_or_else(|| {
+                DataFusionError::Execution(format!("Database {} not found", database_name))
+            })?;
 
-        let table_schema = db_schema
-            .get_table_schema(table_name)
+        let (table_id, table_schema) = db_schema
+            .table_schema_and_id(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
 
         let mut buffer_chunks = self
@@ -124,11 +128,8 @@ impl ChunkContainer for ReadMode {
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
         if let Some(compacted_data) = &self.compacted_data {
-            let (parquet_files, host_markers) = compacted_data.get_parquet_files_and_host_markers(
-                database_name,
-                table_name,
-                filters,
-            );
+            let (parquet_files, host_markers) =
+                compacted_data.get_parquet_files_and_host_markers(db_id, table_id, filters);
 
             buffer_chunks.extend(
                 parquet_files
@@ -136,7 +137,7 @@ impl ChunkContainer for ReadMode {
                     .map(|file| {
                         Arc::new(parquet_chunk_from_file(
                             &file,
-                            table_schema,
+                            &table_schema,
                             self.replicas.object_store_url(),
                             self.replicas.object_store(),
                             buffer_chunks.len() as i64,
@@ -180,8 +181,8 @@ impl LastCacheManager for ReadMode {
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
-        _db_name: &str,
-        _tbl_name: &str,
+        _db_id: DbId,
+        _tbl_id: TableId,
         _cache_name: Option<&str>,
         _count: Option<usize>,
         _ttl: Option<Duration>,
@@ -193,8 +194,8 @@ impl LastCacheManager for ReadMode {
 
     async fn delete_last_cache(
         &self,
-        _db_name: &str,
-        _tbl_name: &str,
+        _db_id: DbId,
+        _tbl_id: TableId,
         _cache_name: &str,
     ) -> WriteBufferResult<()> {
         Err(WriteBufferError::NoWriteInReadOnly)

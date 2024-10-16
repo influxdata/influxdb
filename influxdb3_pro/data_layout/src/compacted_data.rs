@@ -10,8 +10,10 @@ use crate::{
 };
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
+use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_id::{DbId, TableId, NEXT_FILE_ID};
 use influxdb3_pro_index::memory::FileIndex;
-use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
+use influxdb3_write::ParquetFile;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
@@ -40,6 +42,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct CompactedData {
     pub compactor_id: Arc<str>,
+    pub db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     pub object_store: Arc<dyn ObjectStore>,
     pub compaction_config: CompactionConfig,
     data: RwLock<InnerCompactedData>,
@@ -68,7 +71,7 @@ impl Eq for CompactedData {}
 
 #[derive(Debug, Eq, PartialEq)]
 struct InnerCompactedData {
-    databases: HashMap<Arc<str>, CompactedDatabase>,
+    databases: HashMap<DbId, CompactedDatabase>,
     last_compaction_summary: Option<CompactionSummary>,
     last_compaction_sequence_number: CompactionSequenceNumber,
 }
@@ -78,9 +81,11 @@ impl CompactedData {
         compactor_id: Arc<str>,
         compaction_config: CompactionConfig,
         object_store: Arc<dyn ObjectStore>,
+        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     ) -> Self {
         Self {
             compactor_id,
+            db_schema_provider,
             object_store,
             compaction_config,
             data: RwLock::new(InnerCompactedData {
@@ -95,6 +100,7 @@ impl CompactedData {
         compactor_id: &str,
         compaction_config: CompactionConfig,
         object_store: Arc<dyn ObjectStore>,
+        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     ) -> Result<Arc<Self>> {
         let compaction_summary =
             load_compaction_summary(compactor_id, Arc::clone(&object_store)).await?;
@@ -104,6 +110,7 @@ impl CompactedData {
                 Arc::from(compactor_id),
                 compaction_config,
                 object_store,
+                db_schema_provider,
             )));
         };
 
@@ -133,14 +140,8 @@ impl CompactedData {
                 return Err(Error::CompactionDetailReadError(path.0.to_string()));
             };
 
-            let db = data
-                .databases
-                .entry(Arc::clone(&compaction_detail.db_name))
-                .or_default();
-            let table = db
-                .tables
-                .entry(Arc::clone(&compaction_detail.table_name))
-                .or_default();
+            let db = data.databases.entry(compaction_detail.db_id).or_default();
+            let table = db.tables.entry(compaction_detail.table_id).or_default();
 
             // load all the generation details
             for gen in &compaction_detail.compacted_generations {
@@ -163,23 +164,24 @@ impl CompactedData {
             object_store,
             compaction_config,
             data: RwLock::new(data),
+            db_schema_provider,
         }))
     }
 
-    pub fn databases(&self) -> Vec<Arc<str>> {
-        self.data.read().databases.keys().cloned().collect()
+    pub fn databases(&self) -> Vec<DbId> {
+        self.data.read().databases.keys().copied().collect()
     }
 
-    pub fn tables(&self, database_name: &str) -> Vec<Arc<str>> {
+    pub fn tables(&self, db_id: DbId) -> Vec<TableId> {
         self.data
             .read()
             .databases
-            .get(database_name)
-            .map_or_else(Vec::new, |db| db.tables.keys().cloned().collect())
+            .get(&db_id)
+            .map_or_else(Vec::new, |db| db.tables.keys().copied().collect())
     }
 
-    pub fn get_generations(&self, db_name: &str, table_name: &str) -> Vec<Generation> {
-        if let Some(detail) = self.get_last_compaction_detail(db_name, table_name) {
+    pub fn get_generations(&self, db_id: DbId, table_id: TableId) -> Vec<Generation> {
+        if let Some(detail) = self.get_last_compaction_detail(db_id, table_id) {
             let mut gens: Vec<_> = detail.compacted_generations.clone();
             gens.extend(detail.leftover_gen1_files.iter().map(|f| f.generation()));
             gens.sort();
@@ -191,28 +193,28 @@ impl CompactedData {
 
     pub fn add_compacting_gen1_files(
         &self,
-        db_name: Arc<str>,
-        table_name: Arc<str>,
+        db_id: DbId,
+        table_id: TableId,
         gen1_files: Vec<ParquetFile>,
     ) -> Vec<Generation> {
         let mut data = self.data.write();
 
-        let db = data.databases.entry(db_name).or_default();
-        let table = db.tables.entry(table_name).or_default();
+        let db = data.databases.entry(db_id).or_default();
+        let table = db.tables.entry(table_id).or_default();
 
         table.add_compacting_gen1_files(gen1_files)
     }
 
     pub fn remove_compacting_gen1_files(
         &self,
-        db_name: Arc<str>,
-        table_name: Arc<str>,
+        db_id: DbId,
+        table_id: TableId,
         gen_ids: &[GenerationId],
     ) -> Vec<Gen1File> {
         let mut data = self.data.write();
 
-        let db = data.databases.entry(db_name).or_default();
-        let table = db.tables.entry(table_name).or_default();
+        let db = data.databases.entry(db_id).or_default();
+        let table = db.tables.entry(table_id).or_default();
         table.remove_compacting_gen1_files(gen_ids)
     }
 
@@ -224,14 +226,8 @@ impl CompactedData {
     ) {
         let mut data = self.data.write();
 
-        let db = data
-            .databases
-            .entry(Arc::clone(&compaction_detail.db_name))
-            .or_default();
-        let compacted_table = db
-            .tables
-            .entry(Arc::clone(&compaction_detail.table_name))
-            .or_default();
+        let db = data.databases.entry(compaction_detail.db_id).or_default();
+        let compacted_table = db.tables.entry(compaction_detail.table_id).or_default();
 
         compacted_table.update_detail_with_generation(
             compacted_ids,
@@ -244,13 +240,10 @@ impl CompactedData {
     pub fn update_compaction_detail_without_generation(&self, compaction_detail: CompactionDetail) {
         let mut data = self.data.write();
 
-        let db = data
-            .databases
-            .entry(Arc::clone(&compaction_detail.db_name))
-            .or_default();
+        let db = data.databases.entry(compaction_detail.db_id).or_default();
 
-        let table_name = Arc::clone(&compaction_detail.table_name);
-        db.tables.entry(table_name).or_default().compaction_detail =
+        let table_id = compaction_detail.table_id;
+        db.tables.entry(table_id).or_default().compaction_detail =
             Some(Arc::new(compaction_detail));
     }
 
@@ -263,12 +256,12 @@ impl CompactedData {
 
     pub fn get_last_compaction_detail(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_id: DbId,
+        table_id: TableId,
     ) -> Option<Arc<CompactionDetail>> {
-        self.data.read().databases.get(db_name).and_then(|db| {
+        self.data.read().databases.get(&db_id).and_then(|db| {
             db.tables
-                .get(table_name)
+                .get(&table_id)
                 .and_then(|t| t.compaction_detail.clone())
         })
     }
@@ -284,15 +277,15 @@ impl CompactedData {
 
     pub fn paths_for_files_in_generations(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         generation_ids: &[GenerationId],
     ) -> Vec<ObjPath> {
         let data = self.data.read();
         data.databases
-            .get(db_name)
+            .get(&db_id)
             .and_then(|db| {
-                db.tables.get(table_name).map(|compacted_table| {
+                db.tables.get(&table_id).map(|compacted_table| {
                     compacted_table.paths_for_files_in_generations(generation_ids)
                 })
             })
@@ -302,14 +295,14 @@ impl CompactedData {
     /// Looks up the compaction detail and returns all the parquet files and host markers for the given table.
     pub fn get_parquet_files_and_host_markers(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         filters: &[Expr],
     ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
         let data = self.data.read();
         data.databases
-            .get(db_name)
-            .and_then(|db| db.tables.get(table_name))
+            .get(&db_id)
+            .and_then(|db| db.tables.get(&table_id))
             .map(|t| t.parquet_files_and_host_markers(filters))
             .unwrap_or_default()
     }
@@ -317,7 +310,7 @@ impl CompactedData {
 
 #[derive(Debug, Default, Eq, PartialEq)]
 struct CompactedDatabase {
-    tables: HashMap<Arc<str>, CompactedTable>,
+    tables: HashMap<TableId, CompactedTable>,
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]

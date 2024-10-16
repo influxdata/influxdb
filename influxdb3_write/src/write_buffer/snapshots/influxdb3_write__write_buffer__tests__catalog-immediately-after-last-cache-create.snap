@@ -3,19 +3,21 @@ source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
 ---
 {
-  "databases": {
-    "db": {
+  "databases": [
+    {
       "id": 0,
       "name": "db",
-      "tables": {
-        "table": {
+      "tables": [
+        {
           "cols": {
             "f1": {
+              "column_id": 0,
               "influx_type": "field",
               "nullable": true,
               "type": "bool"
             },
             "t1": {
+              "column_id": 1,
               "influx_type": "tag",
               "nullable": true,
               "type": {
@@ -26,6 +28,7 @@ expression: catalog_json
               }
             },
             "time": {
+              "column_id": 2,
               "influx_type": "time",
               "nullable": false,
               "type": {
@@ -36,6 +39,20 @@ expression: catalog_json
               }
             }
           },
+          "column_map": [
+            {
+              "column_id": 0,
+              "name": "f1"
+            },
+            {
+              "column_id": 1,
+              "name": "t1"
+            },
+            {
+              "column_id": 2,
+              "name": "time"
+            }
+          ],
           "last_caches": [
             {
               "keys": [
@@ -44,15 +61,24 @@ expression: catalog_json
               "n": 1,
               "name": "cache",
               "table": "table",
+              "table_id": 0,
               "ttl": 14400,
               "vals": null
             }
           ],
-          "name": "table"
+          "next_column_id": 3,
+          "table_id": 0,
+          "table_name": "table"
         }
-      }
+      ]
     }
-  },
+  ],
+  "db_map": [
+    {
+      "db_id": 0,
+      "name": "db"
+    }
+  ],
   "host_id": "test_host",
   "instance_id": "[uuid]",
   "sequence": 2

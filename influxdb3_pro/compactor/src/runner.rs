@@ -4,7 +4,9 @@ use crate::planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
-use influxdb3_catalog::catalog::{Catalog, TableDefinition};
+use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
+use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::persist::{
     persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
@@ -13,7 +15,6 @@ use influxdb3_pro_data_layout::{
     CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary,
     GenerationDetail, GenerationId, HostSnapshotMarker,
 };
-use influxdb3_write::ParquetFileId;
 use iox_query::exec::Executor;
 use observability_deps::tracing::{debug, error, trace};
 use std::sync::Arc;
@@ -35,7 +36,7 @@ pub(crate) type Result<T, E = CompactRunnerError> = std::result::Result<T, E>;
 pub(crate) async fn run_snapshot_plan(
     snapshot_advance_plan: SnapshotAdvancePlan,
     compacted_data: Arc<CompactedData>,
-    catalog: Arc<Catalog>,
+    catalog: Arc<dyn DatabaseSchemaProvider>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
@@ -54,18 +55,18 @@ pub(crate) async fn run_snapshot_plan(
     // were not compacted in this cycle. Also carry forward any host snapshot markers that
     // didn't have a snapshot in this cycle.
     if let Some(last_summary) = compacted_data.get_last_summary() {
-        let mut was_compacted: HashSet<(&str, &str)> = HashSet::new();
+        let mut was_compacted: HashSet<(DbId, TableId)> = HashSet::new();
         for plans in snapshot_advance_plan.compaction_plans.values() {
             for plan in plans {
-                was_compacted.insert((plan.db_name(), plan.table_name()));
+                was_compacted.insert((plan.db_id(), plan.table_id()));
             }
         }
 
         for detail_path in last_summary.compaction_details.into_iter() {
-            let db_name = detail_path.db_name();
-            let table_name = detail_path.table_name();
+            let db_id = detail_path.db_id();
+            let table_id = detail_path.table_id();
 
-            if !was_compacted.contains(&(db_name.as_ref(), table_name.as_ref())) {
+            if !was_compacted.contains(&(db_id, table_id)) {
                 new_compaction_detail_paths.push(detail_path);
             }
         }
@@ -80,26 +81,26 @@ pub(crate) async fn run_snapshot_plan(
         }
     }
 
-    for (db_name, table_plans) in snapshot_advance_plan.compaction_plans {
-        let Some(db_schema) = catalog.db_schema(db_name.as_ref()) else {
+    for (db_id, table_plans) in snapshot_advance_plan.compaction_plans {
+        let Some(db_schema) = catalog.db_schema_by_id(db_id) else {
             // this is a bug, but we can't panic here because it would cause the compactor to stop.
             // we'll just skip this table and log an error.
             error!(
                 "Database schema not found for db_name: {} while running compaction cycle",
-                db_name
+                db_id
             );
             continue;
         };
 
         for plan in table_plans {
-            let table_name = plan.table_name();
+            let table_id = plan.table_id();
 
-            let Some(table_definition) = db_schema.get_table(table_name) else {
+            let Some(table_definition) = db_schema.table_definition_by_id(table_id) else {
                 // this is a bug, but we can't panic here because it would cause the compactor to stop.
                 // we'll just skip this table and log an error.
                 error!(
                     "Table definition not found for table_name: {} in db: {} while running compaction cycle",
-                    table_name, db_schema.name
+                    table_id, db_schema.name
                 );
                 continue;
             };
@@ -108,6 +109,7 @@ pub(crate) async fn run_snapshot_plan(
                 plan,
                 Arc::clone(&compacted_data),
                 new_snapshot_markers.clone(),
+                Arc::clone(&db_schema),
                 table_definition,
                 compaction_sequence_number,
                 object_store_url.clone(),
@@ -121,7 +123,7 @@ pub(crate) async fn run_snapshot_plan(
 
     let compaction_summary = CompactionSummary {
         compaction_sequence_number,
-        last_file_id: ParquetFileId::current(),
+        last_file_id: ParquetFileId::next_id(),
         last_generation_id: GenerationId::current(),
         snapshot_markers: new_snapshot_markers,
         compaction_details: new_compaction_detail_paths,
@@ -142,7 +144,7 @@ pub(crate) async fn run_snapshot_plan(
 pub(crate) async fn run_compaction_plan_group(
     compaction_plan_group: CompactionPlanGroup,
     compacted_data: Arc<CompactedData>,
-    catalog: Arc<Catalog>,
+    db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
@@ -161,16 +163,16 @@ pub(crate) async fn run_compaction_plan_group(
 
     // Carry forward any compaction details that for tables that are not included in this set of
     // compaction plans.
-    let mut was_compacted: HashSet<(&str, &str)> = HashSet::new();
+    let mut was_compacted: HashSet<(DbId, TableId)> = HashSet::new();
     for plan in &compaction_plan_group.compaction_plans {
-        was_compacted.insert((plan.db_name.as_ref(), plan.table_name.as_ref()));
+        was_compacted.insert((plan.db_id, plan.table_id));
     }
 
     for detail_path in last_summary.compaction_details.into_iter() {
-        let db_name = detail_path.db_name();
-        let table_name = detail_path.table_name();
+        let db_id = detail_path.db_id();
+        let table_id = detail_path.table_id();
 
-        if !was_compacted.contains(&(db_name.as_ref(), table_name.as_ref())) {
+        if !was_compacted.contains(&(db_id, table_id)) {
             new_compaction_detail_paths.push(detail_path);
         }
     }
@@ -178,24 +180,26 @@ pub(crate) async fn run_compaction_plan_group(
 
     // run the individual plans
     for plan in compaction_plan_group.compaction_plans {
-        let db_name = plan.db_name.as_ref();
-        let table_name = plan.table_name.as_ref();
+        let db_id = plan.db_id;
+        // NOTE(trevor): could get the table id from the db schema?
+        let table_id = plan.table_id;
 
-        let db_schema = match catalog.db_schema(db_name) {
+        let db_schema = match db_schema_provider.db_schema_by_id(db_id) {
             Some(db_schema) => db_schema,
             None => {
                 error!(
-                    "Database schema not found for db_name: {} while running compaction cycle",
-                    db_name
+                    // NOTE(trevor): database id may not be informative to operator here, may
+                    // consider using the name...
+                    %db_id, "Database schema not found while running compaction cycle"
                 );
                 continue;
             }
         };
 
-        let table_definition = match db_schema.get_table(table_name) {
+        let table_definition = match db_schema.table_definition_by_id(table_id) {
             Some(table_definition) => table_definition,
             None => {
-                error!("Table definition not found for table_name: {} in db: {} while running compaction cycle", table_name, db_schema.name);
+                error!(%table_id, db_name = %db_schema.name, "Table definition not found while running compaction cycle");
                 continue;
             }
         };
@@ -204,6 +208,7 @@ pub(crate) async fn run_compaction_plan_group(
             CompactionPlan::Compaction(plan),
             Arc::clone(&compacted_data),
             last_summary.snapshot_markers.clone(),
+            Arc::clone(&db_schema),
             table_definition,
             compaction_sequence_number,
             object_store_url.clone(),
@@ -216,7 +221,7 @@ pub(crate) async fn run_compaction_plan_group(
 
     let compaction_summary = CompactionSummary {
         compaction_sequence_number,
-        last_file_id: ParquetFileId::current(),
+        last_file_id: ParquetFileId::next_id(),
         last_generation_id: GenerationId::current(),
         snapshot_markers: last_summary.snapshot_markers,
         compaction_details: new_compaction_detail_paths,
@@ -239,6 +244,7 @@ async fn run_plan_and_write_detail(
     plan: CompactionPlan,
     compacted_data: Arc<CompactedData>,
     snapshot_markers: Vec<HostSnapshotMarker>,
+    database_schema: Arc<DatabaseSchema>,
     table_definition: &TableDefinition,
     compaction_sequence_number: CompactionSequenceNumber,
     object_store_url: ObjectStoreUrl,
@@ -256,8 +262,8 @@ async fn run_plan_and_write_detail(
 
             // get the paths of all the files getting compacted
             let paths = compacted_data.paths_for_files_in_generations(
-                plan.db_name.as_ref(),
-                plan.table_name.as_ref(),
+                plan.db_id,
+                plan.table_id,
                 &plan.input_ids,
             );
             trace!(paths = ?paths, "Paths to compact");
@@ -265,8 +271,8 @@ async fn run_plan_and_write_detail(
             // run the compaction
             let args = CompactFilesArgs {
                 compactor_id: Arc::clone(&compacted_data.compactor_id),
-                table_name: Arc::clone(&plan.table_name),
-                table_schema: table_definition.schema.clone(),
+                table_name: Arc::clone(&table_definition.table_name),
+                table_schema: table_definition.schema.schema().clone(),
                 paths,
                 limit: compacted_data.compaction_config.per_file_row_limit,
                 generation: plan.output_generation,
@@ -313,8 +319,8 @@ async fn run_plan_and_write_detail(
             trace!(generaton_detail = ?generaton_detail, "Generation detail written");
 
             let _gen1_files = compacted_data.remove_compacting_gen1_files(
-                Arc::clone(&plan.db_name),
-                Arc::clone(&plan.table_name),
+                plan.db_id,
+                plan.table_id,
                 &plan.input_ids,
             );
 
@@ -322,14 +328,14 @@ async fn run_plan_and_write_detail(
                 vec![]
             } else {
                 compacted_data.remove_compacting_gen1_files(
-                    Arc::clone(&plan.db_name),
-                    Arc::clone(&plan.table_name),
+                    plan.db_id,
+                    plan.table_id,
                     &plan.leftover_ids,
                 )
             };
 
             let compaction_detail =
-                match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
+                match compacted_data.get_last_compaction_detail(plan.db_id, plan.table_id) {
                     Some(detail) => detail.new_from_compaction(
                         compaction_sequence_number,
                         &plan.input_ids,
@@ -338,8 +344,10 @@ async fn run_plan_and_write_detail(
                         leftover_gen1_files,
                     ),
                     None => CompactionDetail {
-                        db_name: Arc::clone(&plan.db_name),
-                        table_name: Arc::clone(&plan.table_name),
+                        db_name: Arc::clone(&database_schema.name),
+                        db_id: plan.db_id,
+                        table_name: Arc::clone(&table_definition.table_name),
+                        table_id: plan.table_id,
                         sequence_number: compaction_sequence_number,
                         snapshot_markers,
                         compacted_generations: vec![plan.output_generation],
@@ -349,8 +357,10 @@ async fn run_plan_and_write_detail(
 
             let path = persist_compaction_detail(
                 compacted_data.compactor_id.as_ref(),
-                plan.db_name,
-                plan.table_name,
+                Arc::clone(&database_schema.name),
+                plan.db_id,
+                Arc::clone(&table_definition.table_name),
+                plan.table_id,
                 &compaction_detail,
                 Arc::clone(&compacted_data.object_store),
             )
@@ -368,21 +378,23 @@ async fn run_plan_and_write_detail(
         }
         CompactionPlan::LeftoverOnly(plan) => {
             let leftover_gen1_files: Vec<_> = compacted_data.remove_compacting_gen1_files(
-                Arc::clone(&plan.db_name),
-                Arc::clone(&plan.table_name),
+                plan.db_id,
+                plan.table_id,
                 &plan.leftover_gen1_ids,
             );
 
             let compaction_detail =
-                match compacted_data.get_last_compaction_detail(&plan.db_name, &plan.table_name) {
+                match compacted_data.get_last_compaction_detail(plan.db_id, plan.table_id) {
                     Some(detail) => detail.new_from_leftovers(
                         compaction_sequence_number,
                         snapshot_markers,
                         leftover_gen1_files,
                     ),
                     None => CompactionDetail {
-                        db_name: Arc::clone(&plan.db_name),
-                        table_name: Arc::clone(&plan.table_name),
+                        db_name: Arc::clone(&database_schema.name),
+                        db_id: plan.db_id,
+                        table_name: Arc::clone(&table_definition.table_name),
+                        table_id: plan.table_id,
                         sequence_number: compaction_sequence_number,
                         snapshot_markers,
                         compacted_generations: vec![],
@@ -392,8 +404,10 @@ async fn run_plan_and_write_detail(
 
             let path = persist_compaction_detail(
                 compacted_data.compactor_id.as_ref(),
-                plan.db_name,
-                plan.table_name,
+                Arc::clone(&database_schema.name),
+                plan.db_id,
+                Arc::clone(&table_definition.table_name),
+                plan.table_id,
                 &compaction_detail,
                 Arc::clone(&compacted_data.object_store),
             )
@@ -414,6 +428,7 @@ mod tests {
     use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
+    use influxdb3_catalog::pro::SynthesizedCatalog;
     use influxdb3_id::DbId;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{
@@ -467,10 +482,13 @@ mod tests {
                     ops: vec![
                         CatalogOp::CreateDatabase(DatabaseDefinition {
                             database_name: "test_db".into(),
+                            database_id,
                         }),
                         CatalogOp::CreateTable(TableDefinition {
                             database_name: "test_db".into(),
+                            database_id,
                             table_name: "test_table".into(),
+                            table_id,
                             field_definitions: vec![
                                 FieldDefinition {
                                     name: "tag1".into(),
@@ -648,6 +666,7 @@ mod tests {
             Arc::clone(&compactor_id),
             CompactionConfig::default(),
             Arc::clone(&obj_store) as _,
+            todo!(),
         ));
 
         // create gen1 genrations for the files and add them to the compacted data map
@@ -661,8 +680,8 @@ mod tests {
         let output_level = GenerationLevel::two();
 
         let compaction_plan = CompactionPlan::Compaction(NextCompactionPlan {
-            db_name: "test_db".into(),
-            table_name: "test_table".into(),
+            db_id: "test_db".into(),
+            table_id: "test_table".into(),
             output_generation: Generation {
                 id: output_id,
                 level: output_level,
@@ -807,6 +826,7 @@ mod tests {
             compactor_id.as_ref(),
             compacted_data.compaction_config.clone(),
             Arc::clone(&obj_store) as _,
+            Arc::new(SynthesizedCatalog::new()) as _,
         )
         .await
         .unwrap();

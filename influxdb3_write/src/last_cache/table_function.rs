@@ -10,12 +10,14 @@ use datafusion::{
     physical_plan::{memory::MemoryExec, ExecutionPlan},
     scalar::ScalarValue,
 };
+use influxdb3_id::DbId;
+use influxdb3_id::TableId;
 
 use super::LastCacheProvider;
 
 struct LastCacheFunctionProvider {
-    db_name: String,
-    table_name: String,
+    db_id: DbId,
+    table_id: TableId,
     cache_name: String,
     schema: SchemaRef,
     provider: Arc<LastCacheProvider>,
@@ -51,8 +53,8 @@ impl TableProvider for LastCacheFunctionProvider {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let read = self.provider.cache_map.read();
         let batches = if let Some(cache) = read
-            .get(&self.db_name)
-            .and_then(|db| db.get(&self.table_name))
+            .get(&self.db_id)
+            .and_then(|db| db.get(&self.table_id))
             .and_then(|tbl| tbl.get(&self.cache_name))
         {
             let predicates = cache.convert_filter_exprs(filters);
@@ -72,16 +74,13 @@ impl TableProvider for LastCacheFunctionProvider {
 }
 
 pub struct LastCacheFunction {
-    db_name: String,
+    db_id: DbId,
     provider: Arc<LastCacheProvider>,
 }
 
 impl LastCacheFunction {
-    pub fn new(db_name: impl Into<String>, provider: Arc<LastCacheProvider>) -> Self {
-        Self {
-            db_name: db_name.into(),
-            provider,
-        }
+    pub fn new(db_id: DbId, provider: Arc<LastCacheProvider>) -> Self {
+        Self { db_id, provider }
     }
 }
 
@@ -98,15 +97,22 @@ impl TableFunctionImpl for LastCacheFunction {
             }
             None => None,
         };
+        let table_id = self
+            .provider
+            .db_schema_provider
+            .db_schema_by_id(self.db_id)
+            .expect("db exists")
+            .table_name_to_id(table_name.as_str())
+            .expect("table exists");
 
         match self.provider.get_cache_name_and_schema(
-            &self.db_name,
-            table_name,
+            self.db_id,
+            table_id,
             cache_name.map(|x| x.as_str()),
         ) {
             Some((cache_name, schema)) => Ok(Arc::new(LastCacheFunctionProvider {
-                db_name: self.db_name.clone(),
-                table_name: table_name.clone(),
+                db_id: self.db_id,
+                table_id,
                 cache_name,
                 schema,
                 provider: Arc::clone(&self.provider),

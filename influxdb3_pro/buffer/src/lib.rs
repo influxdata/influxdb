@@ -3,7 +3,8 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
@@ -92,12 +93,12 @@ impl<Mode: Bufferer> Bufferer for WriteBufferPro<Mode> {
             .await
     }
 
-    fn catalog(&self) -> Arc<Catalog> {
-        self.mode.catalog()
+    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
+        self.mode.db_schema_provider()
     }
 
-    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
-        self.mode.parquet_files(db_name, table_name)
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.mode.parquet_files(db_id, table_id)
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
@@ -128,8 +129,8 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferPro<Mode> {
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
@@ -138,8 +139,8 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferPro<Mode> {
     ) -> WriteBufferResult<Option<LastCacheDefinition>> {
         self.mode
             .create_last_cache(
-                db_name,
-                tbl_name,
+                db_id,
+                tbl_id,
                 cache_name,
                 count,
                 ttl,
@@ -151,13 +152,11 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferPro<Mode> {
 
     async fn delete_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: &str,
     ) -> WriteBufferResult<()> {
-        self.mode
-            .delete_last_cache(db_name, tbl_name, cache_name)
-            .await
+        self.mode.delete_last_cache(db_id, tbl_id, cache_name).await
     }
 }
 
