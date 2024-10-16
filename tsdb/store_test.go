@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap/zaptest"
+	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -19,7 +21,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/internal"
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/pkg/slices"
@@ -36,7 +37,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -87,7 +88,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 		}
 
 		// Reopen other shard and check it still exists.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Error(err)
 		} else if sh := s.Shard(3); sh == nil {
 			t.Errorf("shard 3 does not exist")
@@ -112,7 +113,7 @@ func TestStore_CreateShard(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -130,7 +131,7 @@ func TestStore_CreateShard(t *testing.T) {
 		}
 
 		// Reopen shard and recheck.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard(1)")
@@ -144,12 +145,102 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 }
 
+// Ensure the store can create a new shard.
+func TestStore_StartupShardProgress(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		require.NoError(t, s.Reopen(t, WithStartupMetrics(msl)))
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called. This test opens 3 total shards - 1 shard
+		// fails, but we still want to track that it was attempted to be opened.
+		require.Equal(t, msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+		})
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+// Introduces a test to ensure that shard loading still accounts for bad shards. We still want these to show up
+// during the initial shard loading even though its in a error state.
+func TestStore_BadShardLoading(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard("db0", "rp0", 3, true))
+		sh = s.Shard(3)
+		require.NotNil(t, sh)
+
+		s.SetShardOpenErrorForTest(sh.ID(), errors.New("a shard opening error occurred"))
+		err2 := s.OpenShard(s.Shard(sh.ID()), false)
+		require.Error(t, err2, "no error opening bad shard")
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		require.NoError(t, s.Reopen(t, WithStartupMetrics(msl)))
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called. This test opens 3 total shards - 1 shard
+		// fails, but we still want to track that it was attempted to be opened.
+		require.Equal(t, msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+			"shard-complete",
+		})
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
 func TestStore_BadShard(t *testing.T) {
 	const errStr = "a shard open error"
 	indexes := tsdb.RegisteredIndexes()
 	for _, idx := range indexes {
 		func() {
-			s := MustOpenStore(idx)
+			s := MustOpenStore(t, idx)
 			defer require.NoErrorf(t, s.Close(), "closing store with index type: %s", idx)
 
 			sh := tsdb.NewTempShard(idx)
@@ -175,7 +266,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 	t.Parallel()
 
 	test := func(index1 string, index2 string) {
-		s := MustOpenStore(index1)
+		s := MustOpenStore(t, index1)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -187,7 +278,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 
 		s.EngineOptions.IndexVersion = index2
 		s.index = index2
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -199,7 +290,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		}
 
 		// Reopen shard and recheck.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard(1)")
@@ -231,7 +322,7 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 	t.Parallel()
 
 	test := func(index1 string, index2 string) {
-		s := MustOpenStore(index1)
+		s := MustOpenStore(t, index1)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -242,7 +333,7 @@ func TestStore_DropMeasurementMixedShards(t *testing.T) {
 
 		s.EngineOptions.IndexVersion = index2
 		s.index = index2
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -276,7 +367,7 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -340,7 +431,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 	t.Parallel()
 
 	test := func(index1 string, index2 string) {
-		s := MustOpenStore(index1)
+		s := MustOpenStore(t, index1)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -351,7 +442,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 
 		s.EngineOptions.IndexVersion = index2
 		s.index = index2
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -413,7 +504,7 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		if err := s.DeleteSeries("db0", nil, nil); err != nil {
@@ -431,7 +522,7 @@ func TestStore_DeleteSeries_MultipleSources(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -461,7 +552,7 @@ func TestStore_DeleteShard(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) error {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -493,7 +584,7 @@ func TestStore_DeleteShard(t *testing.T) {
 		s.MustWriteToShardString(3, "cpu,serverb=b v=1")
 
 		// Reopen the store and check all shards still exist
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			return err
 		}
 		for i := uint64(1); i <= 3; i++ {
@@ -550,7 +641,7 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -578,7 +669,7 @@ func TestStore_Open(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore(index)
+		s := NewStore(t, index)
 		defer s.Close()
 
 		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
@@ -621,8 +712,13 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore(index)
+		s := NewStore(t, index)
 		defer s.Close()
+
+		// Ensure the directory exists before creating the file.
+		if err := os.MkdirAll(s.Path(), 0777); err != nil {
+			t.Fatal(err)
+		}
 
 		// Create a file instead of a directory for a database.
 		if _, err := os.Create(filepath.Join(s.Path(), "db0")); err != nil {
@@ -647,7 +743,7 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore(index)
+		s := NewStore(t, index)
 		defer s.Close()
 
 		// Create an RP file instead of a directory.
@@ -677,7 +773,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := NewStore(index)
+		s := NewStore(t, index)
 		defer s.Close()
 
 		// Create a non-numeric shard file.
@@ -707,7 +803,7 @@ func TestShards_CreateIterator(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -792,7 +888,7 @@ func TestStore_NewReadersBlocked(t *testing.T) {
 
 	test := func(index string) {
 		t.Helper()
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardInUse := func(shardID uint64) bool {
@@ -865,7 +961,7 @@ func TestStore_NewReadersBlocked(t *testing.T) {
 // Ensure the store can backup a shard and another store can restore it.
 func TestStore_BackupRestoreShard(t *testing.T) {
 	test := func(index string) {
-		s0, s1 := MustOpenStore(index), MustOpenStore(index)
+		s0, s1 := MustOpenStore(t, index), MustOpenStore(t, index)
 		defer s0.Close()
 		defer s1.Close()
 
@@ -876,7 +972,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 			`cpu value=3 20`,
 		)
 
-		if err := s0.Reopen(); err != nil {
+		if err := s0.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -946,7 +1042,7 @@ func TestStore_Shard_SeriesN(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) error {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard with data.
@@ -982,7 +1078,7 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard with data.
@@ -1083,7 +1179,7 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore(index)
+		store := NewStore(t, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -1148,7 +1244,7 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore(index)
+		store := NewStore(t, index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -1230,7 +1326,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore(index)
+		store := NewStore(t, index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -1250,7 +1346,7 @@ func TestStore_MetaQuery_Timeout(t *testing.T) {
 	}
 
 	test := func(index string) {
-		store := NewStore(index)
+		store := NewStore(t, index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -1442,7 +1538,7 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 	}
 
 	test := func(index string) error {
-		store := NewStore(index)
+		store := NewStore(t, index)
 		store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 		if err := store.Open(); err != nil {
 			panic(err)
@@ -1467,7 +1563,7 @@ func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
 		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
-	store := NewStore("inmem")
+	store := NewStore(t, "inmem")
 	store.EngineOptions.Config.MaxSeriesPerDatabase = 100000
 	if err := store.Open(); err != nil {
 		panic(err)
@@ -1581,7 +1677,7 @@ func TestStore_Sketches(t *testing.T) {
 	}
 
 	test := func(index string) error {
-		store := MustOpenStore(index)
+		store := MustOpenStore(t, index)
 		defer store.Close()
 
 		// Generate point data to write to the shards.
@@ -1610,7 +1706,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Reopen the store.
-		if err := store.Reopen(); err != nil {
+		if err := store.Reopen(t); err != nil {
 			return err
 		}
 
@@ -1643,7 +1739,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Reopen the store.
-		if err := store.Reopen(); err != nil {
+		if err := store.Reopen(t); err != nil {
 			return err
 		}
 
@@ -1779,7 +1875,7 @@ func TestStore_TagValues(t *testing.T) {
 	}
 
 	setup := func(index string) (*Store, []uint64) { // returns shard ids
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 
 		fmtStr := `cpu1%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
 	cpu1%[1]d,host=nofoo value=1 %[4]d
@@ -1830,7 +1926,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) error {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -1919,7 +2015,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) error {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -2017,7 +2113,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 	t.Parallel()
 
 	test := func(index string) error {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -2148,7 +2244,7 @@ func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
 
 func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -2233,7 +2329,7 @@ func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 
 func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -2324,7 +2420,7 @@ func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 
 func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -2428,7 +2524,7 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		store := NewStore(index)
+		store := NewStore(b, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -2459,7 +2555,7 @@ func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
 	var store *Store
 	setup := func(index string) error {
-		store := MustOpenStore(index)
+		store := MustOpenStore(b, index)
 
 		// Generate test series (measurements + unique tag sets).
 		series := genTestSeries(mCnt, tkCnt, tvCnt)
@@ -2530,7 +2626,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 	}
 
 	setup := func(shards, measurements, tagValues int, index string, useRandom bool) (*Store, []uint64) { // returns shard ids
-		s := NewStore(index)
+		s := NewStore(b, index)
 		if err := s.Open(); err != nil {
 			panic(err)
 		}
@@ -2632,23 +2728,46 @@ func BenchmarkStore_TagValues(b *testing.B) {
 // Store is a test wrapper for tsdb.Store.
 type Store struct {
 	*tsdb.Store
-	index string
+	path    string
+	index   string
+	walPath string
+	opts    []StoreOption
+}
+
+type StoreOption func(s *Store) error
+
+func WithStartupMetrics(sm *mockStartupLogger) StoreOption {
+	return func(s *Store) error {
+		s.WithStartupMetrics(sm)
+		return nil
+	}
 }
 
 // NewStore returns a new instance of Store with a temporary path.
-func NewStore(index string) *Store {
-	path, err := os.MkdirTemp("", "influxdb-tsdb-")
-	if err != nil {
-		panic(err)
+func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
+	tb.Helper()
+
+	// The WAL directory must not be rooted under the data path. Otherwise reopening
+	// the store will generate series indices for the WAL directories.
+	rootPath := tb.TempDir()
+	path := filepath.Join(rootPath, "data")
+	walPath := filepath.Join(rootPath, "wal")
+
+	s := &Store{
+		Store:   tsdb.NewStore(path),
+		path:    path,
+		index:   index,
+		walPath: walPath,
+		opts:    opts,
 	}
-
-	s := &Store{Store: tsdb.NewStore(path), index: index}
 	s.EngineOptions.IndexVersion = index
-	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	s.EngineOptions.Config.WALDir = walPath
 	s.EngineOptions.Config.TraceLoggingEnabled = true
+	s.WithLogger(zaptest.NewLogger(tb))
 
-	if testing.Verbose() {
-		s.WithLogger(logger.New(os.Stdout))
+	for _, o := range s.opts {
+		err := o(s)
+		require.NoError(tb, err)
 	}
 
 	return s
@@ -2656,8 +2775,8 @@ func NewStore(index string) *Store {
 
 // MustOpenStore returns a new, open Store using the specified index,
 // at a temporary path.
-func MustOpenStore(index string) *Store {
-	s := NewStore(index)
+func MustOpenStore(tb testing.TB, index string, opts ...StoreOption) *Store {
+	s := NewStore(tb, index, opts...)
 
 	if err := s.Open(); err != nil {
 		panic(err)
@@ -2665,27 +2784,44 @@ func MustOpenStore(index string) *Store {
 	return s
 }
 
-// Reopen closes and reopens the store as a new store.
-func (s *Store) Reopen() error {
-	if err := s.Store.Close(); err != nil {
-		return err
+func (s *Store) Reopen(tb testing.TB, newOpts ...StoreOption) error {
+	tb.Helper()
+
+	if s.Store != nil {
+		if err := s.Store.Close(); err != nil {
+			return err
+		}
 	}
 
-	s.Store = tsdb.NewStore(s.Path())
+	s.Store = tsdb.NewStore(s.path)
 	s.EngineOptions.IndexVersion = s.index
-	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
+	s.EngineOptions.Config.WALDir = s.walPath
 	s.EngineOptions.Config.TraceLoggingEnabled = true
-
-	if testing.Verbose() {
-		s.WithLogger(logger.New(os.Stdout))
+	s.WithLogger(zaptest.NewLogger(tb))
+	if len(newOpts) > 0 {
+		s.opts = newOpts
 	}
+
+	for _, o := range s.opts {
+		err := o(s)
+		require.NoError(tb, err)
+	}
+
 	return s.Store.Open()
 }
 
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
-	defer os.RemoveAll(s.Path())
-	return s.Store.Close()
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(s.path)
+	if s.Store != nil {
+		return s.Store.Close()
+	}
+	return nil
 }
 
 // MustCreateShardWithData creates a shard and writes line protocol data to it.
@@ -2753,4 +2889,21 @@ func dirExists(path string) bool {
 		return true
 	}
 	return !os.IsNotExist(err)
+}
+
+type mockStartupLogger struct {
+	shardTracker []string
+	mu           sync.Mutex
+}
+
+func (m *mockStartupLogger) AddShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
+	m.mu.Unlock()
+}
+
+func (m *mockStartupLogger) CompletedShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
+	m.mu.Unlock()
 }
