@@ -17,6 +17,7 @@ use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
+use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_id::DbId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_id::TableId;
@@ -74,8 +75,8 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
-    /// Returns the catalog
-    fn catalog(&self) -> Arc<catalog::Catalog>;
+    /// Returns the database schema provider
+    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider>;
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;

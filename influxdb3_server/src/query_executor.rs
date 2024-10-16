@@ -18,7 +18,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
@@ -49,7 +50,7 @@ use tracker::{
 
 #[derive(Debug)]
 pub struct QueryExecutorImpl {
-    catalog: Arc<Catalog>,
+    db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
     write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
@@ -58,17 +59,31 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
 }
 
+/// Arguments for [`QueryExecutorImpl::new`]
+#[derive(Debug)]
+pub struct CreateQueryExecutorArgs {
+    pub db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+    pub write_buffer: Arc<dyn WriteBuffer>,
+    pub exec: Arc<Executor>,
+    pub metrics: Arc<Registry>,
+    pub datafusion_config: Arc<HashMap<String, String>>,
+    pub concurrent_query_limit: usize,
+    pub query_log_size: usize,
+    pub telemetry_store: Arc<TelemetryStore>,
+}
+
 impl QueryExecutorImpl {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        catalog: Arc<Catalog>,
-        write_buffer: Arc<dyn WriteBuffer>,
-        exec: Arc<Executor>,
-        metrics: Arc<Registry>,
-        datafusion_config: Arc<HashMap<String, String>>,
-        concurrent_query_limit: usize,
-        query_log_size: usize,
-        telemetry_store: Arc<TelemetryStore>,
+        CreateQueryExecutorArgs {
+            db_schema_provider,
+            write_buffer,
+            exec,
+            metrics,
+            datafusion_config,
+            concurrent_query_limit,
+            query_log_size,
+            telemetry_store,
+        }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
             &metrics,
@@ -81,7 +96,7 @@ impl QueryExecutorImpl {
             Arc::new(iox_time::SystemProvider::new()),
         ));
         Self {
-            catalog,
+            db_schema_provider,
             write_buffer,
             exec,
             datafusion_config,
@@ -166,7 +181,7 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
-        let mut databases = self.catalog.list_databases();
+        let mut databases = self.db_schema_provider.db_names();
         // sort them to ensure consistent order:
         databases.sort_unstable();
         let databases = StringArray::from(databases);
@@ -185,7 +200,7 @@ impl QueryExecutor for QueryExecutorImpl {
         let mut databases = if let Some(db) = database {
             vec![db.to_owned()]
         } else {
-            self.catalog.list_databases()
+            self.db_schema_provider.db_names()
         };
         // sort them to ensure consistent order:
         databases.sort_unstable();
@@ -304,7 +319,7 @@ impl QueryDatabase for QueryExecutorImpl {
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
 
-        let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
+        let db_schema = self.db_schema_provider.db_schema(name).ok_or_else(|| {
             DataFusionError::External(Box::new(Error::DatabaseNotFound {
                 db_name: name.into(),
             }))
@@ -620,6 +635,8 @@ mod tests {
         query_executor::QueryExecutorImpl, system_tables::table_name_predicate_error, QueryExecutor,
     };
 
+    use super::CreateQueryExecutorArgs;
+
     fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
 
@@ -650,7 +667,7 @@ mod tests {
         let (object_store, parquet_cache) =
             test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let executor = make_exec(Arc::clone(&object_store));
+        let exec = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
@@ -658,9 +675,9 @@ mod tests {
             WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&catalog),
-                Arc::new(LastCacheProvider::new(catalog)),
+                Arc::new(LastCacheProvider::new_from_db_schema_provider(catalog as _).unwrap()),
                 Arc::<MockProvider>::clone(&time_provider),
-                Arc::clone(&executor),
+                Arc::clone(&exec),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
@@ -674,20 +691,20 @@ mod tests {
         );
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
-        let sample_telem_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
-        let df_config = Arc::new(Default::default());
-        let query_executor = QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            executor,
+        let datafusion_config = Arc::new(Default::default());
+        let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
+            db_schema_provider: write_buffer.db_schema_provider(),
+            write_buffer: Arc::clone(&write_buffer),
+            exec,
             metrics,
-            df_config,
-            10,
-            10,
-            sample_telem_store,
-        );
+            datafusion_config,
+            concurrent_query_limit: 10,
+            query_log_size: 10,
+            telemetry_store,
+        });
 
         (write_buffer, query_executor, time_provider)
     }

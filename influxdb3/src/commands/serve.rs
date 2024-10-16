@@ -12,8 +12,10 @@ use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
 use influxdb3_server::{
-    auth::AllOrNothingAuthorizer, builder::ServerBuilder, query_executor::QueryExecutorImpl, serve,
-    CommonServerState,
+    auth::AllOrNothingAuthorizer,
+    builder::ServerBuilder,
+    query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
+    serve, CommonServerState,
 };
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -425,7 +427,7 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::InitializePersistedCatalog)?,
     );
 
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+    let last_cache = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
@@ -460,16 +462,16 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
     )?;
 
-    let query_executor = Arc::new(QueryExecutorImpl::new(
-        write_buffer.catalog(),
-        Arc::clone(&write_buffer),
-        Arc::clone(&exec),
-        Arc::clone(&metrics),
-        Arc::new(config.datafusion_config),
-        10,
-        config.query_log_size,
-        Arc::clone(&telemetry_store),
-    ));
+    let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
+        db_schema_provider: write_buffer.db_schema_provider(),
+        write_buffer: Arc::clone(&write_buffer),
+        exec: Arc::clone(&exec),
+        metrics: Arc::clone(&metrics),
+        datafusion_config: Arc::new(config.datafusion_config),
+        concurrent_query_limit: 10,
+        query_log_size: config.query_log_size,
+        telemetry_store: Arc::clone(&telemetry_store),
+    }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
