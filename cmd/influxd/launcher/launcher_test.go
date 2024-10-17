@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	nethttp "net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Default context.
@@ -163,4 +167,22 @@ func TestLauncher_PingHeaders(t *testing.T) {
 
 	assert.Equal(t, []string{"OSS"}, resp.Header.Values("X-Influxdb-Build"))
 	assert.Equal(t, []string{"dev"}, resp.Header.Values("X-Influxdb-Version"))
+}
+
+func TestLauncher_PIDFile(t *testing.T) {
+	pidDir := t.TempDir()
+	pidFilename := filepath.Join(pidDir, "influxd.pid")
+
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.PIDFile = pidFilename
+	})
+	defer func() {
+		l.ShutdownOrFail(t, ctx)
+		require.NoFileExists(t, pidFilename)
+	}()
+
+	require.FileExists(t, pidFilename)
+	pidBytes, err := os.ReadFile(pidFilename)
+	require.NoError(t, err)
+	require.Equal(t, strconv.Itoa(os.Getpid()), string(pidBytes))
 }

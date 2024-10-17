@@ -144,6 +144,8 @@ type InfluxdOpts struct {
 	TracingType       string
 	ReportingDisabled bool
 
+	PIDFile string
+
 	AssetsPath string
 	BoltPath   string
 	SqLitePath string
@@ -212,6 +214,8 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		LogLevel:          zapcore.InfoLevel,
 		FluxLogEnabled:    false,
 		ReportingDisabled: false,
+
+		PIDFile: "",
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
@@ -324,6 +328,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "reporting-disabled",
 			Default: o.ReportingDisabled,
 			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
+		},
+		{
+			DestP:   &o.PIDFile,
+			Flag:    "pid-file",
+			Default: o.PIDFile,
+			Desc:    "write process ID to a file",
 		},
 		{
 			DestP:   &o.SessionLength,
