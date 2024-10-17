@@ -87,11 +87,16 @@ func (i *Importer) Import() error {
 	}()
 
 	// Open the file
-	f, err := os.Open(i.config.Path)
-	if err != nil {
-		return err
+	var f *os.File
+	if i.config.Path == "-" {
+		f = os.Stdin
+	} else {
+		var err error
+		if f, err = os.Open(i.config.Path); err != nil {
+			return err
+		}
+		defer f.Close()
 	}
-	defer f.Close()
 
 	var r io.Reader
 
