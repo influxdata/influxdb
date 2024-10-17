@@ -101,7 +101,7 @@ func main() {
   -pps
 			How many points per second the import will allow.  By default it is zero and will not throttle importing.
   -path
-			Path to file to import
+			Path to file to import ('-' for stdin)
   -compressed
 			Set to true if the import file is compressed
 
