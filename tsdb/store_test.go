@@ -282,7 +282,7 @@ func TestStore_BadShardClear(t *testing.T) {
 			require.ErrorIs(t, err2, tsdb.ErrPreviousShardFail{})
 			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
 
-			require.Equal(t, 1, len(s.Store.GetBadShardList()))
+			require.Len(t, s.Store.GetBadShardList(), 1)
 
 			badShards := s.ClearBadShardList()
 			require.Len(t, badShards, 1)
