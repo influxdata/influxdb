@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -670,6 +671,32 @@ func (s *Store) Shard(id uint64) *Shard {
 		return nil
 	}
 	return sh
+}
+
+// ClearBadShardList will remove all shards from the badShards cache
+// this will allow for lazy loading of bad shards if/when they are no
+// longer in a "bad" state. This method will return any shards that
+// were removed from the cache.
+func (s *Store) ClearBadShardList() map[uint64]error {
+	badShards := s.GetBadShardList()
+	clear(s.badShards.shardErrors)
+
+	return badShards
+}
+
+// GetBadShardList is exposed as a method for test purposes
+func (s *Store) GetBadShardList() map[uint64]error {
+	s.badShards.mu.Lock()
+	defer s.badShards.mu.Unlock()
+
+	if s.badShards.shardErrors == nil {
+		s.Logger.Warn("badShards was nil")
+		s.badShards.shardErrors = make(map[uint64]error)
+	}
+
+	shardList := maps.Clone(s.badShards.shardErrors)
+
+	return shardList
 }
 
 type ErrPreviousShardFail struct {
