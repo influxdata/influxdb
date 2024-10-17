@@ -9,6 +9,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -246,6 +247,10 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.log.Info("Running with feature flag overrides", zap.Any("overrides", opts.FeatureFlags))
 			m.flagger = f
 		}
+	}
+
+	if err := m.writePIDFile(opts.PIDFile); err != nil {
+		return fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err)
 	}
 
 	m.reg = prom.NewRegistry(m.log.With(zap.String("service", "prom_registry")))
@@ -968,6 +973,40 @@ func (m *Launcher) initTracing(opts *InfluxdOpts) {
 		})
 		opentracing.SetGlobalTracer(tracer)
 	}
+}
+
+// writePIDFile will write the process ID to pidFile and register a cleanup function to delete it during
+// shutdown. If pidFile is empty, then no PID file is written and no cleanup function is registered.
+func (m *Launcher) writePIDFile(pidFile string) error {
+	if pidFile == "" {
+		return nil
+	}
+
+	// Create directory to PIDfile if needed.
+	if err := os.MkdirAll(filepath.Dir(pidFile), 0777); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+
+	// Write PID to file
+	pidStr := strconv.Itoa(os.Getpid())
+	if writeErr := os.WriteFile(pidFile, []byte(pidStr), 0666); writeErr != nil {
+		// Let's make sure we don't leave a PID file behind on error.
+		removeErr := os.Remove(pidFile)
+		return fmt.Errorf("write file: %w; remove file: %w", writeErr, removeErr)
+	}
+
+	// Add a cleanup function.
+	m.closers = append(m.closers, labeledCloser{
+		label: "pidfile",
+		closer: func(context.Context) error {
+			if err := os.Remove(pidFile); err != nil {
+				return fmt.Errorf("removing PID file %q: %w", pidFile, err)
+			}
+			return nil
+		},
+	})
+
+	return nil
 }
 
 // openMetaStores opens the embedded DBs used to store metadata about influxd resources, migrating them to
