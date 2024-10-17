@@ -61,7 +61,7 @@ async fn two_writers_gen1_compaction() {
     let writer1_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer1_id));
     let writer1_catalog = Arc::new(writer1_persister.load_or_create_catalog().await.unwrap());
     let last_cache =
-        Arc::new(LastCacheProvider::new_from_catalog(&writer1_catalog.clone_inner()).unwrap());
+        Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&writer1_catalog)).unwrap());
 
     let writer2_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer2_id));
     let writer2_catalog = writer2_persister.load_or_create_catalog().await.unwrap();
@@ -83,6 +83,7 @@ async fn two_writers_gen1_compaction() {
         compactor_id,
         compaction_config,
         Arc::clone(&object_store),
+        Arc::clone(&writer1_catalog),
     )
     .await
     .unwrap();
@@ -144,7 +145,9 @@ async fn two_writers_gen1_compaction() {
     // wait for a compaction to happen
     let mut count = 0;
     loop {
-        if let Some(detail) = compacted_data.get_last_compaction_detail("test_db", "m1") {
+        let (db_id, db_schema) = writer1_catalog.db_schema_and_id("test_db").unwrap();
+        let table_id = db_schema.table_name_to_id("m1").unwrap();
+        if let Some(detail) = compacted_data.get_last_compaction_detail(db_id, table_id) {
             if detail.sequence_number.as_u64() > 1 {
                 // we should have a compacted generation
                 assert_eq!(detail.compacted_generations.len(), 1);

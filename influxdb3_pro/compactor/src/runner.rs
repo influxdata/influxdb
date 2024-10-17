@@ -4,8 +4,7 @@ use crate::planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
-use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
-use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::persist::{
@@ -36,7 +35,7 @@ pub(crate) type Result<T, E = CompactRunnerError> = std::result::Result<T, E>;
 pub(crate) async fn run_snapshot_plan(
     snapshot_advance_plan: SnapshotAdvancePlan,
     compacted_data: Arc<CompactedData>,
-    catalog: Arc<dyn DatabaseSchemaProvider>,
+    catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
@@ -144,7 +143,7 @@ pub(crate) async fn run_snapshot_plan(
 pub(crate) async fn run_compaction_plan_group(
     compaction_plan_group: CompactionPlanGroup,
     compacted_data: Arc<CompactedData>,
-    db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+    catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionSummary> {
@@ -184,7 +183,7 @@ pub(crate) async fn run_compaction_plan_group(
         // NOTE(trevor): could get the table id from the db schema?
         let table_id = plan.table_id;
 
-        let db_schema = match db_schema_provider.db_schema_by_id(db_id) {
+        let db_schema = match catalog.db_schema_by_id(db_id) {
             Some(db_schema) => db_schema,
             None => {
                 error!(
@@ -428,7 +427,7 @@ mod tests {
     use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
-    use influxdb3_catalog::pro::SynthesizedCatalog;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::DbId;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{
@@ -465,11 +464,12 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&catalog),
             Arc::clone(&persister),
-            Arc::new(LastCacheProvider::new()),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap()),
             Arc::clone(&persisted_files),
             None,
         );
         let database_id = DbId::new();
+        let table_id = TableId::new();
         let write1 = WalContents {
             min_timestamp_ns: 1,
             max_timestamp_ns: 1,
@@ -511,7 +511,7 @@ mod tests {
                     database_id,
                     database_name: "test_db".into(),
                     table_chunks: vec![(
-                        "test_table".into(),
+                        table_id,
                         TableChunks {
                             min_time: 1,
                             max_time: 1,
@@ -558,7 +558,7 @@ mod tests {
                 database_id,
                 database_name: "test_db".into(),
                 table_chunks: vec![(
-                    "test_table".into(),
+                    table_id,
                     TableChunks {
                         min_time: 2,
                         max_time: 2,
@@ -612,7 +612,7 @@ mod tests {
                 database_id,
                 database_name: "test_db".into(),
                 table_chunks: vec![(
-                    "test_table".into(),
+                    table_id,
                     TableChunks {
                         min_time: 3,
                         max_time: 3,
@@ -659,19 +659,19 @@ mod tests {
             .await
             .await;
 
-        let parquet_files: Vec<_> = persisted_files.get_files("test_db", "test_table");
+        let parquet_files: Vec<_> = persisted_files.get_files(database_id, table_id);
 
         let compactor_id: Arc<str> = "test-compactor".into();
         let compacted_data = Arc::new(CompactedData::new(
             Arc::clone(&compactor_id),
             CompactionConfig::default(),
             Arc::clone(&obj_store) as _,
-            todo!(),
+            Arc::clone(&catalog) as _,
         ));
 
         // create gen1 genrations for the files and add them to the compacted data map
         let input_ids = compacted_data
-            .add_compacting_gen1_files("test_db".into(), "test_table".into(), parquet_files)
+            .add_compacting_gen1_files(database_id, table_id, parquet_files)
             .into_iter()
             .map(|g| g.id)
             .collect();
@@ -680,8 +680,8 @@ mod tests {
         let output_level = GenerationLevel::two();
 
         let compaction_plan = CompactionPlan::Compaction(NextCompactionPlan {
-            db_id: "test_db".into(),
-            table_id: "test_table".into(),
+            db_id: database_id,
+            table_id,
             output_generation: Generation {
                 id: output_id,
                 level: output_level,
@@ -698,14 +698,14 @@ mod tests {
                     marker: Some(HostSnapshotMarker {
                         host_id: "test-host".to_string(),
                         snapshot_sequence_number: SnapshotSequenceNumber::new(2),
-                        next_file_id: ParquetFileId::current(),
+                        next_file_id: ParquetFileId::next_id(),
                     }),
                     snapshot_count: 2,
                 },
             )]
             .into_iter()
             .collect(),
-            compaction_plans: vec![("test_db".into(), vec![compaction_plan])]
+            compaction_plans: vec![(database_id, vec![compaction_plan])]
                 .into_iter()
                 .collect(),
         };
@@ -713,7 +713,7 @@ mod tests {
         let output = run_snapshot_plan(
             snapshot_advance_plan,
             Arc::clone(&compacted_data),
-            catalog,
+            Arc::clone(&catalog),
             persister.object_store_url().clone(),
             exec,
         )
@@ -738,13 +738,13 @@ mod tests {
 
         // make sure it was added to the map
         let compacted_table = compacted_data
-            .get_last_compaction_detail("test_db", "test_table")
+            .get_last_compaction_detail(database_id, table_id)
             .unwrap();
         assert_eq!(compacted_table.as_ref(), &compaction_detail);
 
         // read the parquet file and ensure that it has our three rows
         let file_path = compacted_data
-            .paths_for_files_in_generations("test_db", "test_table", &[output_id])
+            .paths_for_files_in_generations(database_id, table_id, &[output_id])
             .first()
             .unwrap()
             .clone();
@@ -793,14 +793,14 @@ mod tests {
         assert_eq!(compacted_data.get_last_summary().unwrap(), summary);
         assert_eq!(
             compacted_data
-                .get_last_compaction_detail("test_db", "test_table")
+                .get_last_compaction_detail(database_id, table_id)
                 .unwrap()
                 .as_ref(),
             &compaction_detail
         );
         assert_eq!(
             compacted_data
-                .paths_for_files_in_generations("test_db", "test_table", &[output_id])
+                .paths_for_files_in_generations(database_id, table_id, &[output_id])
                 .first()
                 .unwrap()
                 .to_string(),
@@ -817,7 +817,7 @@ mod tests {
         assert_eq!(persisted_generation_detail.max_time_ns, 2);
 
         let parquet_files = compacted_data
-            .get_parquet_files_and_host_markers("test_db", "test_table", &[])
+            .get_parquet_files_and_host_markers(database_id, table_id, &[])
             .0;
         assert_eq!(persisted_generation_detail.files, parquet_files);
 
@@ -826,7 +826,7 @@ mod tests {
             compactor_id.as_ref(),
             compacted_data.compaction_config.clone(),
             Arc::clone(&obj_store) as _,
-            Arc::new(SynthesizedCatalog::new()) as _,
+            Arc::clone(&catalog),
         )
         .await
         .unwrap();

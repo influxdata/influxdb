@@ -10,7 +10,7 @@ use crate::{
 };
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
-use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{DbId, TableId, NEXT_FILE_ID};
 use influxdb3_pro_index::memory::FileIndex;
 use influxdb3_write::ParquetFile;
@@ -42,7 +42,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct CompactedData {
     pub compactor_id: Arc<str>,
-    pub db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+    pub catalog: Arc<Catalog>,
     pub object_store: Arc<dyn ObjectStore>,
     pub compaction_config: CompactionConfig,
     data: RwLock<InnerCompactedData>,
@@ -81,11 +81,11 @@ impl CompactedData {
         compactor_id: Arc<str>,
         compaction_config: CompactionConfig,
         object_store: Arc<dyn ObjectStore>,
-        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+        catalog: Arc<Catalog>,
     ) -> Self {
         Self {
             compactor_id,
-            db_schema_provider,
+            catalog,
             object_store,
             compaction_config,
             data: RwLock::new(InnerCompactedData {
@@ -100,7 +100,7 @@ impl CompactedData {
         compactor_id: &str,
         compaction_config: CompactionConfig,
         object_store: Arc<dyn ObjectStore>,
-        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+        catalog: Arc<Catalog>,
     ) -> Result<Arc<Self>> {
         let compaction_summary =
             load_compaction_summary(compactor_id, Arc::clone(&object_store)).await?;
@@ -110,7 +110,7 @@ impl CompactedData {
                 Arc::from(compactor_id),
                 compaction_config,
                 object_store,
-                db_schema_provider,
+                catalog,
             )));
         };
 
@@ -164,7 +164,7 @@ impl CompactedData {
             object_store,
             compaction_config,
             data: RwLock::new(data),
-            db_schema_provider,
+            catalog,
         }))
     }
 

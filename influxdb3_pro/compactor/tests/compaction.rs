@@ -43,11 +43,14 @@ async fn five_files_multiple_series_same_schema() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -75,7 +78,7 @@ async fn five_files_multiple_series_same_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -113,8 +116,11 @@ async fn five_files_multiple_series_same_schema() {
     let path4 = test_writer.write("test/batch/4", batch4).await;
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -257,11 +263,14 @@ async fn two_files_two_series_and_same_schema() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -289,7 +298,7 @@ async fn two_files_two_series_and_same_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -315,8 +324,11 @@ async fn two_files_two_series_and_same_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -402,11 +414,14 @@ async fn two_files_same_series_and_schema() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -434,7 +449,7 @@ async fn two_files_same_series_and_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -460,8 +475,11 @@ async fn two_files_same_series_and_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -528,11 +546,14 @@ async fn two_files_similar_series_and_compatible_schema() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -570,7 +591,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("other_test_table")
+            .table_schema("other_test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -580,7 +601,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -607,8 +628,11 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -700,11 +724,14 @@ async fn deduplication_of_data() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -732,7 +759,7 @@ async fn deduplication_of_data() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -758,8 +785,11 @@ async fn deduplication_of_data() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -820,11 +850,14 @@ async fn compactor_casting() {
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         host_id,
     ));
+    let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
-            Arc::new(Catalog::new(host_id.into(), "test-instance".into())),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(
+                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            ),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -860,7 +893,7 @@ async fn compactor_casting() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .get_table_schema("test_table")
+            .table_schema("test_table")
             .unwrap()
             .as_arrow(),
     );
@@ -897,8 +930,11 @@ async fn compactor_casting() {
 
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
-    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let db_schema = write_buffer
+        .catalog()
+        .db_schema("test_db")
+        .unwrap();
+    let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),

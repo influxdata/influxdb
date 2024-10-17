@@ -5,7 +5,7 @@ use influxdb3_catalog::catalog::DatabaseSchema;
 use iox_query::QueryChunk;
 use schema::Schema;
 
-use crate::{Bufferer, ParquetFileId};
+use crate::ParquetFileId;
 
 use super::{parquet_chunk_from_file, WriteBufferImpl};
 
@@ -34,8 +34,7 @@ impl WriteBufferImpl {
         last_compacted_parquet_file_id: Option<ParquetFileId>,
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
-        let Some((db_id, db_schema)) = self.db_schema_provider().db_schema_and_id(database_name)
-        else {
+        let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
             return vec![];
         };
         let Some(table_id) = db_schema.table_name_to_id(table_name) else {

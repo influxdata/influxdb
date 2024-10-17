@@ -52,7 +52,7 @@ async fn two_primaries_one_replica() {
         .unwrap();
 
     // wait some time for replication etc. to take place:
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(Duration::from_millis(1_000)).await;
 
     // query the replica:
     let resp = replica

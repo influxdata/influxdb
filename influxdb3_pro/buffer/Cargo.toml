@@ -39,6 +39,7 @@ tokio.workspace = true
 datafusion_util.workspace = true
 metric.workspace = true
 parquet_file.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true

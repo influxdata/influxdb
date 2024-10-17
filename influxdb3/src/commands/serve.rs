@@ -11,7 +11,6 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
-use influxdb3_catalog::pro::SynthesizedCatalog;
 use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
@@ -32,7 +31,7 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
-    persister::Persister, WriteBuffer,
+    persister::Persister, write_buffer::persisted_files::PersistedFiles, WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -437,7 +436,12 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let db_schema_provider = Arc::new(SynthesizedCatalog::new());
+    let catalog = Arc::new(
+        persister
+            .load_or_create_catalog()
+            .await
+            .map_err(Error::InitializePersistedCatalog)?,
+    );
 
     let compaction_hosts_and_data = if let Some(compactor_id) = config.pro_config.compactor_id {
         let mut compaction_hosts = config
@@ -462,7 +466,7 @@ pub async fn command(config: Config) -> Result<()> {
             &compactor_id,
             compaction_config,
             Arc::clone(&object_store),
-            Arc::clone(&db_schema_provider),
+            Arc::clone(&catalog),
         )
         .await?;
 
@@ -473,12 +477,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
 
-    let catalog = persister
-        .load_or_create_catalog()
-        .await
-        .map_err(Error::InitializePersistedCatalog)?;
-
-    let last_cache = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
         .map_err(Error::InitializeLastCache)?;
 
     let replica_config = config.pro_config.replicas.map(|replicas| {
@@ -492,52 +491,59 @@ pub async fn command(config: Config) -> Result<()> {
         .as_ref()
         .map(|(_, data)| Arc::clone(data));
 
-    let write_buffer_impl: Arc<dyn WriteBuffer> = match config.pro_config.mode {
-        BufferMode::Read => {
-            let replica_config = replica_config
-                .context("must supply a replicas list when starting in read-only mode")
-                .map_err(Error::WriteBufferInit)?;
-            Arc::new(
-                WriteBufferPro::read(
-                    Arc::new(last_cache),
-                    Arc::clone(&object_store),
-                    Arc::clone(&metrics),
-                    replica_config,
-                    parquet_cache,
-                    compacted_data,
+    let (write_buffer, persisted_files): (Arc<dyn WriteBuffer>, Option<Arc<PersistedFiles>>) =
+        match config.pro_config.mode {
+            BufferMode::Read => {
+                let replica_config = replica_config
+                    .context("must supply a replicas list when starting in read-only mode")
+                    .map_err(Error::WriteBufferInit)?;
+                (
+                    Arc::new(
+                        WriteBufferPro::read(
+                            Arc::new(last_cache),
+                            Arc::clone(&object_store),
+                            Arc::clone(&metrics),
+                            replica_config,
+                            parquet_cache,
+                            compacted_data,
+                            Arc::clone(&catalog),
+                        )
+                        .await
+                        .map_err(Error::WriteBufferInit)?,
+                    ),
+                    None,
                 )
-                .await
-                .map_err(Error::WriteBufferInit)?,
-            )
-        }
-        BufferMode::ReadWrite => Arc::new(
-            WriteBufferPro::read_write(ReadWriteArgs {
-                host_id: persister.host_identifier_prefix().into(),
-                persister: Arc::clone(&persister),
-                catalog: Arc::new(catalog),
-                last_cache: Arc::new(last_cache),
-                time_provider: Arc::<SystemProvider>::clone(&time_provider),
-                executor: Arc::clone(&exec),
-                wal_config,
-                metric_registry: Arc::clone(&metrics),
-                replication_config: replica_config,
-                parquet_cache,
-                compacted_data,
-            })
-            .await
-            .map_err(Error::WriteBufferInit)?,
-        ),
-    };
+            }
+            BufferMode::ReadWrite => {
+                let buf = Arc::new(
+                    WriteBufferPro::read_write(ReadWriteArgs {
+                        host_id: persister.host_identifier_prefix().into(),
+                        persister: Arc::clone(&persister),
+                        catalog: Arc::clone(&catalog),
+                        last_cache: Arc::new(last_cache),
+                        time_provider: Arc::<SystemProvider>::clone(&time_provider),
+                        executor: Arc::clone(&exec),
+                        wal_config,
+                        metric_registry: Arc::clone(&metrics),
+                        replication_config: replica_config,
+                        parquet_cache,
+                        compacted_data,
+                    })
+                    .await
+                    .map_err(Error::WriteBufferInit)?,
+                );
+                let persisted_files = buf.persisted_files();
+                (buf, Some(persisted_files))
+            }
+        };
 
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
         catalog.instance_id(),
         num_cpus,
-        Arc::clone(&write_buffer_impl.persisted_files()),
+        persisted_files,
     )
     .await;
-
-    let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
 
     let common_state = CommonServerState::new(
         Arc::clone(&metrics),
@@ -547,7 +553,7 @@ pub async fn command(config: Config) -> Result<()> {
     )?;
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-        db_schema_provider: write_buffer.db_schema_provider(),
+        catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
         exec: Arc::clone(&exec),
         metrics: Arc::clone(&metrics),
@@ -624,7 +630,7 @@ async fn setup_telemetry_store(
     object_store_config: &ObjectStoreConfig,
     instance_id: Arc<str>,
     num_cpus: usize,
-    persisted_files: Arc<PersistedFiles>,
+    persisted_files: Option<Arc<PersistedFiles>>,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -642,7 +648,7 @@ async fn setup_telemetry_store(
         Arc::from(influx_version),
         Arc::from(storage_type),
         num_cpus,
-        persisted_files,
+        persisted_files.map(|p| p as _),
     )
     .await
 }

@@ -22,8 +22,8 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
-use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_id::ParquetFileId;
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
@@ -108,7 +108,7 @@ pub struct CompactorOutput {
 #[derive(Debug)]
 pub struct Compactor {
     compacted_data: Arc<CompactedData>,
-    db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+    catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
     /// New snapshots for gen1 files will come through this channel
@@ -120,7 +120,7 @@ impl Compactor {
     pub async fn new(
         compaction_hosts: Vec<String>,
         compacted_data: Arc<CompactedData>,
-        db_schema_provider: Arc<dyn DatabaseSchemaProvider>,
+        catalog: Arc<Catalog>,
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
@@ -129,7 +129,7 @@ impl Compactor {
 
         Ok(Self {
             compacted_data,
-            db_schema_provider,
+            catalog,
             object_store_url,
             executor,
             persisted_snapshot_notify_rx,
@@ -174,7 +174,7 @@ impl Compactor {
                 let _compaction_summary = runner::run_snapshot_plan(
                     snapshot_plan,
                     Arc::clone(&self.compacted_data),
-                    Arc::clone(&self.db_schema_provider),
+                    Arc::clone(&self.catalog),
                     self.object_store_url.clone(),
                     Arc::clone(&self.executor),
                 )
@@ -192,7 +192,7 @@ impl Compactor {
                         let _compaction_summary = runner::run_compaction_plan_group(
                             plan_group,
                             Arc::clone(&self.compacted_data),
-                            Arc::clone(&self.db_schema_provider),
+                            Arc::clone(&self.catalog),
                             self.object_store_url.clone(),
                             Arc::clone(&self.executor),
                         )

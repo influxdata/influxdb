@@ -528,7 +528,7 @@ mod tests {
                 })
                 .collect();
             gens.sort();
-            let plan = create_gen1_plan(&compaction_config, "db".into(), "table".into(), &gens);
+            let plan = create_gen1_plan(&compaction_config, DbId::new(), TableId::new(), &gens);
             match plan {
                 CompactionPlan::Compaction(NextCompactionPlan {
                     output_generation,
@@ -615,7 +615,7 @@ mod tests {
                     max_time: 0,
                 })
                 .collect();
-            let plan = create_gen1_plan(&compaction_config, "db".into(), "table".into(), &gens);
+            let plan = create_gen1_plan(&compaction_config, DbId::new(), TableId::new(), &gens);
             match plan {
                 CompactionPlan::LeftoverOnly(LeftoverPlan {
                     leftover_gen1_ids, ..
@@ -699,8 +699,8 @@ mod tests {
             gens.sort();
             let plan = create_next_plan(
                 &compaction_config,
-                "db".into(),
-                "table".into(),
+                DbId::new(),
+                TableId::new(),
                 &gens,
                 GenerationLevel::new(tc.output_level),
             );
@@ -792,8 +792,8 @@ mod tests {
             gens.sort();
             let plan = create_next_plan(
                 &compaction_config,
-                "db".into(),
-                "table".into(),
+                DbId::new(),
+                TableId::new(),
                 &gens,
                 GenerationLevel::new(tc.output_level),
             );

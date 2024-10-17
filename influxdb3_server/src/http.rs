@@ -695,7 +695,7 @@ where
 
         let (db_id, db_schema) = self
             .write_buffer
-            .db_schema_provider()
+            .catalog()
             .db_schema_and_id(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
         let table_id = db_schema
@@ -742,7 +742,7 @@ where
 
         let (db_id, db_schema) = self
             .write_buffer
-            .db_schema_provider()
+            .catalog()
             .db_schema_and_id(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
         let table_id = db_schema

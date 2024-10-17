@@ -14,10 +14,7 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
-use influxdb3_catalog::{
-    catalog::{Catalog, DatabaseSchema},
-    DatabaseSchemaProvider,
-};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
@@ -25,7 +22,7 @@ use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
@@ -362,6 +359,7 @@ impl BufferState {
     }
 
     pub fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
+        debug!(catalog = ?self.catalog, "buffering ops");
         for op in ops {
             match op {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),
@@ -403,6 +401,7 @@ impl BufferState {
                 }
             }
         }
+        debug!(catalog = ?self.catalog, "buffering ops (done)");
     }
 
     fn add_write_batch(&mut self, write_batch: WriteBatch) {

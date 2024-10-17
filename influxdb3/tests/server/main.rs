@@ -129,10 +129,12 @@ impl TestServer {
             .args(["--wal-flush-interval", "10ms"])
             .args(config.as_args());
 
-        // If TEST_LOG env var is not defined, discard stdout/stderr
-        if std::env::var("TEST_LOG").is_err() {
-            command = command.stdout(Stdio::null()).stderr(Stdio::null());
-        }
+        // If TEST_LOG env var is not defined, discard stdout/stderr, otherwise, pass it to the
+        // inner binary in the "RUST_LOG" env var:
+        command = match std::env::var("TEST_LOG") {
+            Ok(val) => command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val }),
+            Err(_) => command.stdout(Stdio::null()).stderr(Stdio::null()),
+        };
 
         let server_process = command.spawn().expect("spawn the influxdb3 server process");
 

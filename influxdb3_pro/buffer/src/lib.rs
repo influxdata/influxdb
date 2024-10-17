@@ -3,20 +3,22 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
-    last_cache::LastCacheProvider, parquet_cache::ParquetCacheOracle,
-    write_buffer::Result as WriteBufferResult, BufferedWriteRequest, Bufferer, ChunkContainer,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    last_cache::LastCacheProvider,
+    parquet_cache::ParquetCacheOracle,
+    write_buffer::{persisted_files::PersistedFiles, Result as WriteBufferResult},
+    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
+    PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
 use metric::Registry;
 use modes::{
-    read::ReadMode,
+    read::{CreateReadModeArgs, ReadMode},
     read_write::{ReadWriteArgs, ReadWriteMode},
 };
 use object_store::ObjectStore;
@@ -43,16 +45,18 @@ impl WriteBufferPro<NoMode> {
         ReplicationConfig { interval, hosts }: ReplicationConfig,
         parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
         compacted_data: Option<Arc<CompactedData>>,
+        catalog: Arc<Catalog>,
     ) -> Result<WriteBufferPro<ReadMode>, anyhow::Error> {
-        let mode = ReadMode::new(
+        let mode = ReadMode::new(CreateReadModeArgs {
             last_cache,
             object_store,
+            catalog,
             metric_registry,
-            interval,
+            replication_interval: interval,
             hosts,
             parquet_cache,
             compacted_data,
-        )
+        })
         .await?;
         Ok(WriteBufferPro { mode })
     }
@@ -62,6 +66,12 @@ impl WriteBufferPro<NoMode> {
     ) -> Result<WriteBufferPro<ReadWriteMode>, anyhow::Error> {
         let mode = ReadWriteMode::new(args).await?;
         Ok(WriteBufferPro { mode })
+    }
+}
+
+impl WriteBufferPro<ReadWriteMode> {
+    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+        self.mode.persisted_files()
     }
 }
 
@@ -93,8 +103,8 @@ impl<Mode: Bufferer> Bufferer for WriteBufferPro<Mode> {
             .await
     }
 
-    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
-        self.mode.db_schema_provider()
+    fn catalog(&self) -> Arc<Catalog> {
+        self.mode.catalog()
     }
 
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {

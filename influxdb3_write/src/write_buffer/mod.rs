@@ -23,7 +23,7 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
-use influxdb3_catalog::{catalog::Catalog, DatabaseSchemaProvider};
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
@@ -408,7 +408,7 @@ impl Bufferer for WriteBufferImpl {
             .await
     }
 
-    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
+    fn catalog(&self) -> Arc<Catalog> {
         self.catalog()
     }
 
@@ -588,8 +588,7 @@ mod tests {
             test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
@@ -663,8 +662,7 @@ mod tests {
 
         // now load a new buffer from object storage
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
@@ -722,8 +720,7 @@ mod tests {
 
         // load a new write buffer to ensure its durable
         let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
@@ -761,8 +758,7 @@ mod tests {
 
         // and do another replay and verification
         let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
@@ -819,8 +815,7 @@ mod tests {
 
         // do another reload and verify it's gone
         let catalog = Arc::new(wbuf.persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
@@ -976,8 +971,7 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
             catalog,
@@ -1985,8 +1979,7 @@ mod tests {
         };
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,

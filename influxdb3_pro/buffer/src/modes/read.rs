@@ -5,7 +5,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
@@ -31,16 +31,31 @@ pub struct ReadMode {
     compacted_data: Option<Arc<CompactedData>>,
 }
 
+#[derive(Debug)]
+pub struct CreateReadModeArgs {
+    pub last_cache: Arc<LastCacheProvider>,
+    pub object_store: Arc<dyn ObjectStore>,
+    pub catalog: Arc<Catalog>,
+    pub metric_registry: Arc<Registry>,
+    pub replication_interval: Duration,
+    pub hosts: Vec<String>,
+    pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub compacted_data: Option<Arc<CompactedData>>,
+}
+
 impl ReadMode {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
-        last_cache: Arc<LastCacheProvider>,
-        object_store: Arc<dyn ObjectStore>,
-        metric_registry: Arc<Registry>,
-        replication_interval: Duration,
-        hosts: Vec<String>,
-        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
-        compacted_data: Option<Arc<CompactedData>>,
+        CreateReadModeArgs {
+            last_cache,
+            object_store,
+            catalog,
+            metric_registry,
+            replication_interval,
+            hosts,
+            parquet_cache,
+            compacted_data,
+        }: CreateReadModeArgs,
     ) -> Result<Self, anyhow::Error> {
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
             tokio::sync::watch::channel(None);
@@ -55,6 +70,7 @@ impl ReadMode {
                 hosts,
                 persisted_snapshot_notify_tx,
                 parquet_cache,
+                catalog,
             })
             .await
             .context("failed to initialize replicas")?,
@@ -87,8 +103,8 @@ impl Bufferer for ReadMode {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 
-    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
-        todo!("need to use the synthesized catalog");
+    fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.replicas.catalog())
     }
 
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
@@ -111,12 +127,12 @@ impl ChunkContainer for ReadMode {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let (db_id, db_schema) = self
-            .db_schema_provider()
-            .db_schema_and_id(database_name)
-            .ok_or_else(|| {
-                DataFusionError::Execution(format!("Database {} not found", database_name))
-            })?;
+        let (db_id, db_schema) =
+            self.catalog()
+                .db_schema_and_id(database_name)
+                .ok_or_else(|| {
+                    DataFusionError::Execution(format!("Database {} not found", database_name))
+                })?;
 
         let (table_id, table_schema) = db_schema
             .table_schema_and_id(table_name)

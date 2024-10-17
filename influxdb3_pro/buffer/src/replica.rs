@@ -6,8 +6,7 @@ use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId as IoxTableId, Trans
 use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::DatabaseSchemaProvider;
+use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog};
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
@@ -24,7 +23,7 @@ use influxdb3_write::{
         parquet_chunk_from_file, persisted_files::PersistedFiles, queryable_buffer::BufferState,
         N_SNAPSHOTS_TO_LOAD_ON_START,
     },
-    ParquetFile, PersistedSnapshot,
+    DatabaseTables, ParquetFile, PersistedSnapshot,
 };
 use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
@@ -32,7 +31,7 @@ use iox_query::{
 };
 use metric::{Attributes, Registry, U64Gauge};
 use object_store::{path::Path, ObjectStore};
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
 use schema::Schema;
 use tokio::sync::Mutex;
@@ -80,6 +79,7 @@ pub(crate) struct CreateReplicasArgs {
     pub hosts: Vec<String>,
     pub persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub catalog: Arc<Catalog>,
 }
 
 impl Replicas {
@@ -92,17 +92,19 @@ impl Replicas {
             hosts,
             persisted_snapshot_notify_tx,
             parquet_cache,
+            catalog,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
-        let mut handles = vec![];
+        let mut replicas = vec![];
         for (i, host_identifier_prefix) in hosts.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
             let metric_registry = Arc::clone(&metric_registry);
             let persisted_snapshot_notify_tx = persisted_snapshot_notify_tx.clone();
             let parquet_cache = parquet_cache.clone();
-            let handle = tokio::spawn(async move {
-                info!(%host_identifier_prefix, "creating replicated buffer for host");
+            let catalog = Arc::clone(&catalog);
+            info!(%host_identifier_prefix, "creating replicated buffer for host");
+            replicas.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
                     replica_order: i as i64,
                     object_store,
@@ -112,16 +114,11 @@ impl Replicas {
                     metric_registry,
                     persisted_snapshot_notify_tx,
                     parquet_cache,
+                    catalog,
                 })
-                .await
-            });
-            handles.push(handle);
+                .await?,
+            )
         }
-        let replicas = futures::future::try_join_all(handles)
-            .await
-            .context("failed to initialize replicated buffers in parallel")?
-            .into_iter()
-            .collect::<Result<Vec<Arc<ReplicatedBuffer>>>>()?;
         Ok(Self {
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
@@ -138,12 +135,8 @@ impl Replicas {
         Arc::clone(&self.object_store)
     }
 
-    // TODO: this just takes the first replicas catalog for now. It should instead use a central
-    // shared catalog, but that wont be available until [#120] is done.
-    // [#120]: https://github.com/influxdata/influxdb_pro/issues/120
-    #[cfg(test)]
     pub(crate) fn catalog(&self) -> Arc<Catalog> {
-        Arc::clone(&self.replicas[0].catalog)
+        self.replicas[0].catalog()
     }
 
     pub(crate) fn last_cache(&self) -> Arc<LastCacheProvider> {
@@ -235,11 +228,65 @@ pub(crate) struct ReplicatedBuffer {
     buffer: Arc<RwLock<BufferState>>,
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
-    catalog: Arc<Catalog>,
+    catalog: Arc<ReplicaCatalog>,
     metrics: ReplicatedBufferMetrics,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
+
+#[derive(Debug)]
+struct ReplicaCatalog {
+    catalog: Arc<Catalog>,
+    id_map: Arc<parking_lot::Mutex<CatalogIdMap>>,
+}
+
+impl ReplicaCatalog {
+    fn new(catalog: Arc<Catalog>, id_map: Arc<parking_lot::Mutex<CatalogIdMap>>) -> Self {
+        Self { catalog, id_map }
+    }
+
+    fn map_wal_contents(&self, wal_contents: WalContents) -> WalContents {
+        self.id_map
+            .lock()
+            .map_wal_contents(&self.catalog, wal_contents)
+    }
+
+    fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> PersistedSnapshot {
+        let mut id_map = self.id_map.lock();
+        PersistedSnapshot {
+            databases: snapshot
+                .databases
+                .into_iter()
+                .map(|(db_id, db_tables)| {
+                    let local_db_id = id_map.map_db_or_new(&self.catalog, "", db_id);
+                    (
+                        local_db_id,
+                        DatabaseTables {
+                            tables: db_tables
+                                .tables
+                                .into_iter()
+                                .map(|(table_id, files)| {
+                                    (
+                                        id_map.map_table_or_new(
+                                            &self.catalog,
+                                            local_db_id,
+                                            "",
+                                            table_id,
+                                        ),
+                                        files,
+                                    )
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+            ..snapshot
+        }
+    }
+}
+
+impl ReplicaCatalog {}
 
 pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr";
 
@@ -257,6 +304,7 @@ pub(crate) struct CreateReplicatedBufferArgs {
     metric_registry: Arc<Registry>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    catalog: Arc<Catalog>,
 }
 
 impl ReplicatedBuffer {
@@ -270,9 +318,10 @@ impl ReplicatedBuffer {
             metric_registry,
             persisted_snapshot_notify_tx,
             parquet_cache,
+            catalog,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
-        let (catalog, persisted_files) = {
+        let (persisted_catalog, persisted_files) = {
             // Create a temporary persister to load snapshot files and catalog
             let persister = Persister::new(Arc::clone(&object_store), &host_identifier_prefix);
             let persisted_snapshots = persister
@@ -289,7 +338,6 @@ impl ReplicatedBuffer {
             ));
             (catalog, persisted_files)
         };
-        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let host: Cow<'static, str> = Cow::from(host_identifier_prefix.clone());
         let attributes = Attributes::from([("host", host)]);
         let replica_ttbr = metric_registry
@@ -298,6 +346,14 @@ impl ReplicatedBuffer {
                 "time to be readable for the data in each replicated host buffer",
             )
             .recorder(attributes);
+        let id_map = catalog
+            .merge(persisted_catalog)
+            .context("unable to merge replica catalog with primary")?;
+        let replica_catalog = ReplicaCatalog::new(
+            Arc::clone(&catalog),
+            Arc::new(parking_lot::Mutex::new(id_map)),
+        );
+        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let replicated_buffer = Self {
             replica_order,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
@@ -307,16 +363,20 @@ impl ReplicatedBuffer {
             buffer,
             persisted_files,
             last_cache,
-            catalog,
             metrics: ReplicatedBufferMetrics { replica_ttbr },
             persisted_snapshot_notify_tx,
             parquet_cache,
+            catalog: Arc::new(replica_catalog),
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
         background_replication_interval(Arc::clone(&replicated_buffer), replication_interval);
 
         Ok(replicated_buffer)
+    }
+
+    fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.catalog.catalog)
     }
 
     pub(crate) fn parquet_files(&self, db_id: DbId, tbl_id: TableId) -> Vec<ParquetFile> {
@@ -341,13 +401,15 @@ impl ReplicatedBuffer {
         last_compacted_parquet_file_id: Option<ParquetFileId>, // only return chunks with a file id > than this
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
-        let Some((db_id, db_schema)) = self.catalog.db_schema_and_id(database_name) else {
+        debug!(%database_name, %table_name, "getting persisted chunks for replicated buffer");
+        let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
             return vec![];
         };
         let Some(table_id) = db_schema.table_name_to_id(table_name) else {
             return vec![];
         };
         let mut files = self.persisted_files.get_files(db_id, table_id);
+        debug!(%db_id, %table_id, n_files = files.len(), "got persisted files for database/table");
 
         // filter out any files that have been compacted
         if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
@@ -383,7 +445,7 @@ impl ReplicatedBuffer {
         table_name: &str,
         filters: &[Expr],
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        let Some((db_id, db_schema)) = self.catalog.db_schema_and_id(database_name) else {
+        let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
             return Ok(vec![]);
         };
         let Some((table_id, table_schema)) = db_schema.table_schema_and_id(table_name) else {
@@ -491,6 +553,10 @@ impl ReplicatedBuffer {
         let wal_contents = verify_file_type_and_deserialize(file_bytes)
             .context("failed to verify and deserialize wal file contents")?;
 
+        debug!(host = %self.host_identifier_prefix, ?wal_contents, catalog = ?self.catalog, "replay wal file (pre-map)");
+        let wal_contents = self.catalog.map_wal_contents(wal_contents);
+        debug!(host = %self.host_identifier_prefix, ?wal_contents, "replay wal file (post-map)");
+
         match wal_contents.snapshot {
             None => self.buffer_wal_contents(wal_contents),
             Some(snapshot_details) => {
@@ -507,8 +573,8 @@ impl ReplicatedBuffer {
     }
 
     fn buffer_wal_contents(&self, wal_contents: WalContents) {
-        let mut buffer = self.buffer.write();
         self.last_cache.write_wal_contents_to_cache(&wal_contents);
+        let mut buffer = self.buffer.write();
         buffer.buffer_ops(wal_contents.ops, &self.last_cache);
     }
 
@@ -517,6 +583,7 @@ impl ReplicatedBuffer {
         wal_contents: WalContents,
         snapshot_details: SnapshotDetails,
     ) {
+        self.last_cache.write_wal_contents_to_cache(&wal_contents);
         // Update the Buffer by invoking the snapshot, to separate data in the buffer that will
         // get cleared by the snapshot, before fetching the snapshot from object store:
         {
@@ -541,6 +608,7 @@ impl ReplicatedBuffer {
         let persisted_files = Arc::clone(&self.persisted_files);
         let persisted_snapshot_notify_tx = self.persisted_snapshot_notify_tx.clone();
         let parquet_cache = self.parquet_cache.clone();
+        let replica_catalog = Arc::clone(&self.catalog);
 
         tokio::spawn(async move {
             // Update the persisted files:
@@ -553,6 +621,14 @@ impl ReplicatedBuffer {
                             .expect("unable to collect get result from object storage into bytes");
                         let snapshot = serde_json::from_slice::<PersistedSnapshot>(&snapshot_bytes)
                             .expect("unable to deserialize snapshot bytes");
+                        // Map the IDs in the snapshot:
+                        debug!(?snapshot, "map snapshot contents for replicated buffer");
+                        let snapshot = replica_catalog.map_snapshot_contents(snapshot);
+                        debug!(
+                            mapped_snapshot = ?snapshot,
+                            "map snapshot contents for replicated buffer (done)"
+                        );
+
                         // Now that the snapshot has been loaded, clear the buffer of the data that
                         // was separated out previously and update the persisted files. If there is
                         // a parquet cache, then load parquet files from the snapshot into the cache
@@ -663,13 +739,13 @@ mod tests {
         arrow::array::RecordBatch, assert_batches_sorted_eq, execution::context::SessionContext,
     };
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_catalog::DatabaseSchemaProvider;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
-        persister::Persister, write_buffer::WriteBufferImpl, Bufferer, ChunkContainer,
-        LastCacheManager, ParquetFile, Precision, WriteBuffer,
+        persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
+        ParquetFile, Precision, WriteBuffer,
     };
     use iox_query::{
         exec::{DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext},
@@ -685,7 +761,7 @@ mod tests {
         REPLICA_TTBR_METRIC,
     };
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn replay_and_replicate_other_wal() {
         // Spin up a primary write buffer to do some writes and generate files in an object store:
         let primary_id = "espresso";
@@ -751,9 +827,17 @@ mod tests {
             metric_registry: Arc::new(Registry::new()),
             persisted_snapshot_notify_tx,
             parquet_cache: None,
+            catalog: Arc::new(Catalog::new(
+                "replica-host".into(),
+                "replica-instance".into(),
+            )),
         })
         .await
         .unwrap();
+
+        // verify that it came through on the channel
+        assert!(persisted_snapshot_notify_rx.changed().await.is_ok());
+        assert!(persisted_snapshot_notify_rx.borrow_and_update().is_some());
 
         // Check that the replica replayed the primary and contains its data:
         {
@@ -897,10 +981,7 @@ mod tests {
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(CreateReplicasArgs {
             last_cache: Arc::new(
-                LastCacheProvider::new_from_db_schema_provider(
-                    primaries["spock"].db_schema_provider(),
-                )
-                .unwrap(),
+                LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
             ),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
@@ -908,6 +989,7 @@ mod tests {
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
             persisted_snapshot_notify_tx,
             parquet_cache: None,
+            catalog: primaries["spock"].catalog(),
         })
         .await
         .unwrap();
@@ -1017,10 +1099,7 @@ mod tests {
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
             last_cache: Arc::new(
-                LastCacheProvider::new_from_db_schema_provider(
-                    primaries["newton"].db_schema_provider(),
-                )
-                .unwrap(),
+                LastCacheProvider::new_from_catalog(primaries["newton"].catalog()).unwrap(),
             ),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
@@ -1028,6 +1107,7 @@ mod tests {
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
             persisted_snapshot_notify_tx,
             parquet_cache: None,
+            catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
         })
         .await
         .unwrap();
@@ -1155,7 +1235,7 @@ mod tests {
         verify_snapshot_count(1, Arc::clone(&obj_store), "chalmers").await;
 
         let table_schema = primaries["skinner"]
-            .db_schema_provider()
+            .catalog()
             .db_schema("foo")
             .unwrap()
             .table_schema("bar")
@@ -1182,10 +1262,7 @@ mod tests {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
                 last_cache: Arc::new(
-                    LastCacheProvider::new_from_db_schema_provider(
-                        primaries["skinner"].db_schema_provider(),
-                    )
-                    .unwrap(),
+                    LastCacheProvider::new_from_catalog(primaries["skinner"].catalog()).unwrap(),
                 ),
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
@@ -1193,6 +1270,7 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 persisted_snapshot_notify_tx,
                 parquet_cache: Some(parquet_cache),
+                catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
             })
             .await
             .unwrap();
@@ -1200,7 +1278,7 @@ mod tests {
             // once the `Replicas` has some persisted files, then it will also have those files in
             // the cache, since the buffer isn't cleared until the cache requests are registered/
             // fulfilled:
-            let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar").await;
+            let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar", 2).await;
             // should be 2 parquet files, 1 from each primary:
             assert_eq!(2, persisted_files.len());
             // use the RequestCountedObjectStore to check for read requests to the inner object
@@ -1255,10 +1333,7 @@ mod tests {
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
                 last_cache: Arc::new(
-                    LastCacheProvider::new_from_db_schema_provider(
-                        primaries["skinner"].db_schema_provider(),
-                    )
-                    .unwrap(),
+                    LastCacheProvider::new_from_catalog(primaries["skinner"].catalog()).unwrap(),
                 ),
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
@@ -1266,13 +1341,14 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 persisted_snapshot_notify_tx,
                 parquet_cache: None,
+                catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
             })
             .await
             .unwrap();
 
             // still need to wait for files to be persisted, despite there being no cache, otherwise
             // the queries below could just be served by the buffer:
-            let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar").await;
+            let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar", 2).await;
             // should be 2 parquet files, 1 from each primary:
             assert_eq!(2, persisted_files.len());
             // check for requests made to the inner object store for each persisted file, before
@@ -1361,8 +1437,7 @@ mod tests {
     ) -> WriteBufferImpl {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
         WriteBufferImpl::new(
             Arc::clone(&persister),
@@ -1429,12 +1504,13 @@ mod tests {
         replicas: &Replicas,
         db: &str,
         tbl: &str,
+        expected_file_count: usize,
     ) -> Vec<ParquetFile> {
         let (db_id, db_schema) = replicas.catalog().db_schema_and_id(db).unwrap();
         let table_id = db_schema.table_name_to_id(tbl).unwrap();
         for _ in 0..10 {
             let persisted_files = replicas.parquet_files(db_id, table_id);
-            if !persisted_files.is_empty() {
+            if persisted_files.len() >= expected_file_count {
                 return persisted_files;
             }
             tokio::time::sleep(Duration::from_millis(500)).await;

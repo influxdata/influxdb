@@ -16,8 +16,8 @@ use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
-use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_id::DbId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_id::TableId;
@@ -76,7 +76,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Returns the database schema provider
-    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider>;
+    fn catalog(&self) -> Arc<Catalog>;
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;

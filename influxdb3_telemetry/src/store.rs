@@ -26,7 +26,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
-    persisted_files: Arc<dyn ParquetMetrics>,
+    persisted_files: Option<Arc<dyn ParquetMetrics>>,
 }
 
 const SAMPLER_INTERVAL_SECS: u64 = 60;
@@ -39,7 +39,7 @@ impl TelemetryStore {
         influx_version: Arc<str>,
         storage_type: Arc<str>,
         cores: usize,
-        persisted_files: Arc<dyn ParquetMetrics>,
+        persisted_files: Option<Arc<dyn ParquetMetrics>>,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -75,7 +75,7 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
-            persisted_files,
+            persisted_files: Some(persisted_files),
         })
     }
 
@@ -115,11 +115,13 @@ impl TelemetryStore {
 
     pub(crate) fn snapshot(&self) -> TelemetryPayload {
         let inner_store = self.inner.lock();
-        let (file_count, size_mb, row_count) = self.persisted_files.get_metrics();
         let mut payload = inner_store.snapshot();
-        payload.parquet_file_count = file_count;
-        payload.parquet_file_size_mb = size_mb;
-        payload.parquet_row_count = row_count;
+        if let Some(persisted_files) = &self.persisted_files {
+            let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+            payload.parquet_file_count = file_count;
+            payload.parquet_file_size_mb = size_mb;
+            payload.parquet_row_count = row_count;
+        }
         payload
     }
 }
@@ -303,7 +305,7 @@ mod tests {
             Arc::from("OSS-v3.0"),
             Arc::from("Memory"),
             10,
-            parqet_file_metrics,
+            Some(parqet_file_metrics),
         )
         .await;
         // check snapshot

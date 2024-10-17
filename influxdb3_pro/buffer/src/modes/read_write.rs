@@ -6,12 +6,12 @@ use data_types::NamespaceName;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::DatabaseSchemaProvider;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
+use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
@@ -113,6 +113,7 @@ impl ReadWriteMode {
                     hosts,
                     persisted_snapshot_notify_tx,
                     parquet_cache,
+                    catalog,
                 })
                 .await?,
             )
@@ -128,6 +129,10 @@ impl ReadWriteMode {
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
         })
+    }
+
+    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+        self.primary.persisted_files()
     }
 }
 
@@ -161,8 +166,8 @@ impl Bufferer for ReadWriteMode {
             .await
     }
 
-    fn db_schema_provider(&self) -> Arc<dyn DatabaseSchemaProvider> {
-        todo!("need to use the synthesized catalog");
+    fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.primary.catalog())
     }
 
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
@@ -193,15 +198,15 @@ impl ChunkContainer for ReadWriteMode {
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // Chunks are fetched from both primary and replicas
-        let (db_id, db_schema) = self
-            .db_schema_provider()
-            .db_schema_and_id(database_name)
-            .ok_or_else(|| {
-                DataFusionError::Execution(format!(
-                    "Database {} not found in catalog",
-                    database_name
-                ))
-            })?;
+        let (db_id, db_schema) =
+            self.catalog()
+                .db_schema_and_id(database_name)
+                .ok_or_else(|| {
+                    DataFusionError::Execution(format!(
+                        "Database {} not found in catalog",
+                        database_name
+                    ))
+                })?;
 
         let (table_id, table_schema) = db_schema
             .table_schema_and_id(table_name)

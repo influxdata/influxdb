@@ -2742,6 +2742,7 @@ dependencies = [
  "parquet_file",
  "schema",
  "serde_json",
+ "test-log",
  "thiserror",
  "tokio",
 ]
