@@ -262,6 +262,15 @@ pub struct Config {
         action
     )]
     pub disable_parquet_mem_cache: bool,
+
+    /// telemetry server endpoint
+    #[clap(
+        long = "telemetry-endpoint",
+        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
+        default_value = "localhost",
+        action
+    )]
+    pub telemetry_endpoint: String,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -450,6 +459,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         Arc::clone(&write_buffer_impl.persisted_files()),
+        config.telemetry_endpoint,
     )
     .await;
 
@@ -502,6 +512,7 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Arc<PersistedFiles>,
+    telemetry_endpoint: String,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -520,6 +531,7 @@ async fn setup_telemetry_store(
         Arc::from(storage_type),
         num_cpus,
         persisted_files,
+        telemetry_endpoint,
     )
     .await
 }

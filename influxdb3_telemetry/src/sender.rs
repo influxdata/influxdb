@@ -14,13 +14,13 @@ pub(crate) struct TelemetrySender {
 
 impl TelemetrySender {
     pub fn new(client: reqwest::Client, base_url: impl IntoUrl) -> Self {
-        let base_url = base_url
+        let base_url: Url = base_url
             .into_url()
             .expect("Cannot parse telemetry sender url");
         Self {
             client,
             full_url: base_url
-                .join("/api/v3")
+                .join("./v3")
                 .expect("Cannot set the telemetry request path"),
         }
     }
@@ -34,7 +34,7 @@ impl TelemetrySender {
             .send()
             .await
             .map_err(TelemetryError::CannotSendToTelemetryServer)?;
-        debug!("Successfully sent telemetry data to server");
+        debug!(endpoint = ?self.full_url.as_str(), "Successfully sent telemetry data to server to");
         Ok(())
     }
 }
@@ -82,14 +82,12 @@ pub(crate) struct TelemetryPayload {
 /// This function runs in the background and if any call fails
 /// there is no retrying mechanism and it is ok to lose a few samples
 pub(crate) async fn send_telemetry_in_background(
+    full_url: String,
     store: Arc<TelemetryStore>,
     duration_secs: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut telem_sender = TelemetrySender::new(
-            reqwest::Client::new(),
-            "https://telemetry.influxdata.foo.com",
-        );
+        let mut telem_sender = TelemetrySender::new(reqwest::Client::new(), full_url);
         let mut interval = tokio::time::interval(duration_secs);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -125,7 +123,7 @@ mod tests {
         let client = reqwest::Client::new();
         let mut mock_server = Server::new_async().await;
         let mut sender = TelemetrySender::new(client, mock_server.url());
-        let mock = mock_server.mock("POST", "/api/v3").create_async().await;
+        let mock = mock_server.mock("POST", "/v3").create_async().await;
         let telem_payload = create_sample_payload();
 
         let result = sender.try_sending(&telem_payload).await;
@@ -136,9 +134,9 @@ mod tests {
 
     #[test]
     fn test_url_join() {
-        let url = Url::parse("https://foo.com/").unwrap();
-        let new_url = url.join("/foo").unwrap();
-        assert_eq!("https://foo.com/foo", new_url.as_str());
+        let url = Url::parse("https://foo.com/boo/1.html").unwrap();
+        let new_url = url.join("./foo").unwrap();
+        assert_eq!("https://foo.com/boo/foo", new_url.as_str());
     }
 
     fn create_sample_payload() -> TelemetryPayload {
