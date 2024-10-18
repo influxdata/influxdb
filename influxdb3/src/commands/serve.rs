@@ -434,19 +434,7 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let compaction_hosts_and_data = if let Some(compactor_id) = config.pro_config.compactor_id {
-        let mut compaction_hosts = config
-            .pro_config
-            .replicas
-            .as_ref()
-            .map(|replicas| replicas.to_vec())
-            .unwrap_or_default();
-
-        // if we're in ReadWrite mode, add this host to the list
-        if let BufferMode::ReadWrite = config.pro_config.mode {
-            compaction_hosts.push(config.host_identifier_prefix.clone());
-        }
-
+    let compacted_data = if let Some(compactor_id) = config.pro_config.compactor_id {
         let compaction_config = CompactionConfig::new(
             &config.pro_config.compaction_multipliers.0,
             config.pro_config.compaction_gen2_duration.into(),
@@ -460,7 +448,7 @@ pub async fn command(config: Config) -> Result<()> {
         )
         .await?;
 
-        Some((compaction_hosts, compacted_data))
+        Some(compacted_data)
     } else {
         None
     };
@@ -491,9 +479,6 @@ pub async fn command(config: Config) -> Result<()> {
         trace_header_parser,
         Arc::clone(&telemetry_store),
     )?;
-    let compacted_data = compaction_hosts_and_data
-        .as_ref()
-        .map(|(_, data)| Arc::clone(data));
 
     let write_buffer: Arc<dyn WriteBuffer> = match config.pro_config.mode {
         BufferMode::Read => {
@@ -507,7 +492,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::clone(&metrics),
                     replica_config,
                     parquet_cache,
-                    compacted_data,
+                    compacted_data.clone(),
                 )
                 .await
                 .map_err(Error::WriteBufferInit)?,
@@ -525,7 +510,7 @@ pub async fn command(config: Config) -> Result<()> {
                 metric_registry: Arc::clone(&metrics),
                 replication_config: replica_config,
                 parquet_cache,
-                compacted_data,
+                compacted_data: compacted_data.clone(),
             })
             .await
             .map_err(Error::WriteBufferInit)?,
@@ -564,16 +549,12 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut futures = Vec::new();
 
-    if config.pro_config.run_compactions && compaction_hosts_and_data.is_some() {
-        let (compaction_hosts, compacted_data) =
-            compaction_hosts_and_data.expect("compacted data must have been initialized");
+    if config.pro_config.run_compactions && compacted_data.is_some() {
         let compactor = Compactor::new(
-            compaction_hosts,
-            compacted_data,
+            compacted_data.expect("compacted data must be present if compactions are enabled"),
             Arc::clone(&write_buffer.catalog()),
             persister.object_store_url().clone(),
             Arc::clone(&exec),
-            write_buffer.watch_persisted_snapshots(),
         )
         .await
         .map_err(Error::Compactor)?;

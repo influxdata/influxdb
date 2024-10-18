@@ -6,12 +6,13 @@ use crate::persist::{
 };
 use crate::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
-    Generation, GenerationDetail, GenerationDetailPath, GenerationId, HostSnapshotMarker,
+    Generation, GenerationDetail, GenerationDetailPath, GenerationId, GenerationLevel,
+    HostSnapshotMarker,
 };
 use datafusion::logical_expr::Expr;
 use hashbrown::HashMap;
 use influxdb3_pro_index::memory::FileIndex;
-use influxdb3_write::{ParquetFile, NEXT_FILE_ID};
+use influxdb3_write::{ParquetFile, PersistedSnapshot, NEXT_FILE_ID};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
@@ -43,6 +44,7 @@ pub struct CompactedData {
     pub object_store: Arc<dyn ObjectStore>,
     pub compaction_config: CompactionConfig,
     data: RwLock<InnerCompactedData>,
+    snapshot_added_tx: tokio::sync::broadcast::Sender<()>,
 }
 
 impl Debug for CompactedData {
@@ -68,6 +70,8 @@ impl Eq for CompactedData {}
 
 #[derive(Debug, Eq, PartialEq)]
 struct InnerCompactedData {
+    // snapshots from different hosts that have yet to be compacted
+    snapshots: Vec<Arc<HostSnapshotMarker>>,
     databases: HashMap<Arc<str>, CompactedDatabase>,
     last_compaction_summary: Option<CompactionSummary>,
     last_compaction_sequence_number: CompactionSequenceNumber,
@@ -79,16 +83,78 @@ impl CompactedData {
         compaction_config: CompactionConfig,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
+        let (snapshot_added_tx, _) = tokio::sync::broadcast::channel(1);
         Self {
             compactor_id,
             object_store,
             compaction_config,
+            snapshot_added_tx,
             data: RwLock::new(InnerCompactedData {
+                snapshots: Vec::new(),
                 databases: HashMap::new(),
                 last_compaction_summary: None,
                 last_compaction_sequence_number: CompactionSequenceNumber::new(0),
             }),
         }
+    }
+
+    pub fn add_snapshot(&self, snapshot: PersistedSnapshot) {
+        let mut data = self.data.write();
+
+        // save the basic snapshot info for the host
+        let marker = Arc::new(HostSnapshotMarker {
+            host_id: snapshot.host_id.clone(),
+            next_file_id: snapshot.next_file_id,
+            snapshot_sequence_number: snapshot.snapshot_sequence_number,
+        });
+        data.snapshots.push(marker);
+
+        // add the parquet files to the compacted table as gen1 files that are in "compacting" state
+        for (db_name, dbtables) in snapshot.databases {
+            let db = data.databases.entry(db_name).or_default();
+            for (table_name, parquet_files) in dbtables.tables {
+                let table = db.tables.entry(table_name).or_default();
+                table.add_compacting_gen1_files(parquet_files);
+            }
+        }
+
+        // notify any watchers (mostly the compactor loop)
+        self.snapshot_added_tx.send(()).unwrap();
+    }
+
+    pub fn last_snapshot_host(&self) -> Option<String> {
+        self.data.read().snapshots.last().map(|s| s.host_id.clone())
+    }
+
+    pub fn snapshots_awaiting_compaction(&self) -> Vec<Arc<HostSnapshotMarker>> {
+        self.data.read().snapshots.clone()
+    }
+
+    pub fn should_compact_and_advance_snapshots(&self) -> bool {
+        let snapshots = self.data.read().snapshots.clone();
+
+        // if any host has 3 or more snapshots, we must compact. If all hosts have at least 2 snapshots
+        // we will compact. Otherwise, we'll only compact if there is a NextCompactionPlan (i.e. not all just leftover plans)
+        let mut per_host_count = HashMap::new();
+        for s in &snapshots {
+            let count = per_host_count.entry(&s.host_id).or_insert(0);
+            *count += 1;
+        }
+
+        for count in per_host_count.values() {
+            if *count >= 3 {
+                return true;
+            } else if *count < 2 {
+                return false;
+            }
+        }
+
+        // all hosts have at least 2 snapshots waiting to be processed
+        true
+    }
+
+    pub fn snapshot_notification_receiver(&self) -> tokio::sync::broadcast::Receiver<()> {
+        self.snapshot_added_tx.subscribe()
     }
 
     pub async fn load_compacted_data(
@@ -115,6 +181,7 @@ impl CompactedData {
         GenerationId::initialize(compaction_summary.last_generation_id);
 
         let mut data = InnerCompactedData {
+            snapshots: Vec::new(),
             databases: HashMap::new(),
             last_compaction_summary: Some(compaction_summary.clone()),
             last_compaction_sequence_number: compaction_summary.compaction_sequence_number,
@@ -158,11 +225,13 @@ impl CompactedData {
             table.compaction_detail = Some(Arc::new(compaction_detail));
         }
 
+        let (snapshot_added_tx, _) = tokio::sync::broadcast::channel(1);
         Ok(Arc::new(Self {
             compactor_id: Arc::from(compactor_id),
             object_store,
             compaction_config,
             data: RwLock::new(data),
+            snapshot_added_tx,
         }))
     }
 
@@ -187,6 +256,48 @@ impl CompactedData {
         } else {
             Vec::new()
         }
+    }
+
+    pub fn tables_with_gen1_awaiting_compaction_and_markers(
+        &self,
+    ) -> (DatabaseTableGenerations, Vec<Arc<HostSnapshotMarker>>) {
+        let data = self.data.read();
+        let mut db_tables: HashMap<Arc<str>, HashMap<Arc<str>, Vec<Generation>>> = HashMap::new();
+
+        for (db_name, compacted_db) in data.databases.iter() {
+            for (table_name, compacted_table) in compacted_db.tables.iter() {
+                if let Some(gens) = compacted_table.compacting_gen1s_and_generations() {
+                    db_tables
+                        .entry(Arc::clone(db_name))
+                        .or_default()
+                        .insert(Arc::clone(table_name), gens);
+                }
+            }
+        }
+
+        // get the last host snapshot marker from each host
+        let mut markers = HashMap::new();
+        for s in &data.snapshots {
+            let e = markers.entry(&s.host_id).or_insert_with(|| s);
+            if s.snapshot_sequence_number > e.snapshot_sequence_number {
+                *e = s;
+            }
+        }
+        let markers: Vec<_> = markers.into_values().cloned().collect();
+
+        (db_tables, markers)
+    }
+
+    pub fn last_snapshot_marker_per_host(&self) -> Vec<Arc<HostSnapshotMarker>> {
+        let data = self.data.read();
+        let mut markers = HashMap::new();
+        for s in &data.snapshots {
+            let e = markers.entry(&s.host_id).or_insert_with(|| s);
+            if s.snapshot_sequence_number > e.snapshot_sequence_number {
+                *e = s;
+            }
+        }
+        markers.into_values().cloned().collect()
     }
 
     pub fn add_compacting_gen1_files(
@@ -277,8 +388,17 @@ impl CompactedData {
         self.data.read().last_compaction_summary.clone()
     }
 
-    pub fn set_last_summary(&self, summary: CompactionSummary) {
+    /// Sets the last compaction summary and removes all the matching markers from the compacted data.
+    pub fn set_last_summary_and_remove_markers(&self, summary: CompactionSummary) {
         let mut data = self.data.write();
+        data.snapshots.retain(|s| {
+            summary
+                .snapshot_markers
+                .iter()
+                .find(|m| m.host_id == s.host_id)
+                .map(|m| s.snapshot_sequence_number > m.snapshot_sequence_number)
+                .unwrap_or(true)
+        });
         data.last_compaction_summary = Some(summary);
     }
 
@@ -305,7 +425,7 @@ impl CompactedData {
         db_name: &str,
         table_name: &str,
         filters: &[Expr],
-    ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
+    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<HostSnapshotMarker>>) {
         let data = self.data.read();
         data.databases
             .get(db_name)
@@ -314,6 +434,8 @@ impl CompactedData {
             .unwrap_or_default()
     }
 }
+
+pub type DatabaseTableGenerations = HashMap<Arc<str>, HashMap<Arc<str>, Vec<Generation>>>;
 
 #[derive(Debug, Default, Eq, PartialEq)]
 struct CompactedDatabase {
@@ -391,7 +513,7 @@ impl CompactedTable {
     fn parquet_files_and_host_markers(
         &self,
         filters: &[Expr],
-    ) -> (Vec<Arc<ParquetFile>>, Vec<HostSnapshotMarker>) {
+    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<HostSnapshotMarker>>) {
         let mut files = self.file_index.parquet_files_for_filter(filters);
         let mut markers = None;
 
@@ -424,5 +546,39 @@ impl CompactedTable {
             }
         }
         removed
+    }
+
+    /// If there are any gen1 files awaiting compaction, this returns a vec of all those generations
+    /// along with the generations that have been compacted and the leftover gen1 files. This can be
+    /// used by the planner to create a plan.
+    fn compacting_gen1s_and_generations(&self) -> Option<Vec<Generation>> {
+        if self.compacting_gen1_files.is_empty() {
+            None
+        } else {
+            let mut gens: Vec<_> = self
+                .compacting_gen1_files
+                .iter()
+                .map(|(gid, f)| Generation {
+                    id: *gid,
+                    level: GenerationLevel::one(),
+                    start_time_secs: f.chunk_time / 1_000_000_000,
+                    max_time: f.max_time,
+                })
+                .collect();
+
+            if let Some(detail) = &self.compaction_detail {
+                for g in &detail.compacted_generations {
+                    gens.push(*g);
+                }
+
+                for g in detail.leftover_gen1_files.iter().map(|f| f.generation()) {
+                    gens.push(g);
+                }
+            }
+
+            gens.sort();
+
+            Some(gens)
+        }
     }
 }
