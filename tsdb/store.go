@@ -55,7 +55,7 @@ const SeriesFileDirectory = "_series"
 // databaseState keeps track of the state of a database.
 type databaseState struct{ indexTypes map[string]int }
 
-// struct to hold the result of opening each reader in a goroutine
+// struct to hold the result of opening each readegr in a goroutine
 type shardResponse struct {
 	s   *Shard
 	err error
@@ -678,10 +678,10 @@ func (s *Store) Shard(id uint64) *Shard {
 // longer in a "bad" state. This method will return any shards that
 // were removed from the cache.
 func (s *Store) ClearBadShardList() map[uint64]error {
+	badShards := s.GetBadShardList()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	badShards := s.GetBadShardList()
 	clear(s.badShards.shardErrors)
 
 	return badShards
