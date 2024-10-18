@@ -11,24 +11,20 @@ COMMIT_SHA="$(git rev-parse HEAD)"
 COMMIT_TS="$(env TZ=UTC0 git show --quiet --date='format-local:%Y-%m-%dT%H:%M:%SZ' --format="%cd" HEAD)"
 NOW="$(date --utc --iso-8601=seconds)"
 REPO_URL="https://github.com/influxdata/influxdb_pro"
-PRIVATE_KEY=$(cat /home/circleci/.ssh/id_rsa)
-CORE_INTERNAL_PRIVATE_KEY=$(cat /home/circleci/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0)
-PUBLIC_KEY=$(cat /home/circleci/.ssh/id_rsa.pub)
-KNOWN_HOSTS=$(cat /home/circleci/.ssh/known_hosts)
 
-INTERNAL_PRIVATE_KEY_SUM=$(md5sum /home/circleci/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0)
-echo "INTERNAL KEY MD5: $INTERNAL_PRIVATE_KEY_SUM"
+# not sure why default agent does not work, maybe because it already has another key?
+eval `ssh-agent -s`
+/usr/bin/ssh-add ~/.ssh/id_rsa_ca8e26e8972e85a859556d40cb3790d0
+ssh-add -L
 
+export DOCKER_BUILDKIT=1
 exec docker buildx build \
+  --ssh default=$SSH_AUTH_SOCK \
   --build-arg CARGO_INCREMENTAL="no" \
   --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
   --build-arg FEATURES="$FEATURES" \
   --build-arg RUST_VERSION="$RUST_VERSION" \
   --build-arg PACKAGE="$PACKAGE" \
-  --build-arg PRIVATE_KEY="$PRIVATE_KEY" \
-  --build-arg CORE_INTERNAL_PRIVATE_KEY="$CORE_INTERNAL_PRIVATE_KEY" \
-  --build-arg PUBLIC_KEY="$PUBLIC_KEY" \
-  --build-arg KNOWN_HOSTS="$KNOWN_HOSTS" \
   --label org.opencontainers.image.created="$NOW" \
   --label org.opencontainers.image.url="$REPO_URL" \
   --label org.opencontainers.image.revision="$COMMIT_SHA" \

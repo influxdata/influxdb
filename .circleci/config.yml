@@ -602,7 +602,7 @@ workflows:
             - lint
             - fmt
             - cargo-audit
-      - build-docker:
+      - build-docker
           <<: *release_filter
       - publish-docker:
           <<: *release_filter
