@@ -44,11 +44,7 @@ pub(crate) async fn run_snapshot_plan(
 
     let mut new_compaction_detail_paths =
         Vec::with_capacity(snapshot_advance_plan.compaction_plans.len());
-    let mut new_snapshot_markers = snapshot_advance_plan
-        .host_snapshot_markers
-        .values()
-        .filter_map(|hc| hc.marker.clone())
-        .collect::<Vec<_>>();
+    let mut new_snapshot_markers = snapshot_advance_plan.host_snapshot_markers.clone();
 
     // if there is an existing compaction summary, carry forward any compaction details that
     // were not compacted in this cycle. Also carry forward any host snapshot markers that
@@ -134,7 +130,7 @@ pub(crate) async fn run_snapshot_plan(
     )
     .await?;
 
-    compacted_data.set_last_summary(compaction_summary.clone());
+    compacted_data.set_last_summary_and_remove_markers(compaction_summary.clone());
 
     Ok(compaction_summary)
 }
@@ -229,7 +225,7 @@ pub(crate) async fn run_compaction_plan_group(
     )
     .await?;
 
-    compacted_data.set_last_summary(compaction_summary.clone());
+    compacted_data.set_last_summary_and_remove_markers(compaction_summary.clone());
 
     Ok(compaction_summary)
 }
@@ -238,14 +234,13 @@ pub(crate) async fn run_compaction_plan_group(
 async fn run_plan_and_write_detail(
     plan: CompactionPlan,
     compacted_data: Arc<CompactedData>,
-    snapshot_markers: Vec<HostSnapshotMarker>,
+    snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
     table_definition: &TableDefinition,
     compaction_sequence_number: CompactionSequenceNumber,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionDetailPath> {
-    debug!("Running compaction plan: {:?}", plan);
-
+    debug!(plan = ?plan, "Running compaction plan");
     let path = match plan {
         CompactionPlan::Compaction(plan) => {
             let index_columns = table_definition
@@ -411,7 +406,7 @@ async fn run_plan_and_write_detail(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
+    use crate::planner::NextCompactionPlan;
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
     use influxdb3_id::DbId;
@@ -673,19 +668,11 @@ mod tests {
             leftover_ids: vec![],
         });
         let snapshot_advance_plan = SnapshotAdvancePlan {
-            host_snapshot_markers: vec![(
-                "test-host".to_string(),
-                HostSnapshotCounter {
-                    marker: Some(HostSnapshotMarker {
-                        host_id: "test-host".to_string(),
-                        snapshot_sequence_number: SnapshotSequenceNumber::new(2),
-                        next_file_id: ParquetFileId::current(),
-                    }),
-                    snapshot_count: 2,
-                },
-            )]
-            .into_iter()
-            .collect(),
+            host_snapshot_markers: vec![Arc::new(HostSnapshotMarker {
+                host_id: "test-host".to_string(),
+                snapshot_sequence_number: SnapshotSequenceNumber::new(2),
+                next_file_id: ParquetFileId::current(),
+            })],
             compaction_plans: vec![("test_db".into(), vec![compaction_plan])]
                 .into_iter()
                 .collect(),

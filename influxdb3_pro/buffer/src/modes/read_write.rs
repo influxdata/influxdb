@@ -31,8 +31,6 @@ pub struct ReadWriteMode {
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     replicas: Option<Replicas>,
-    /// Unified snapshot channels for primary and all replicas
-    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     compacted_data: Option<Arc<CompactedData>>,
 }
 
@@ -79,23 +77,21 @@ impl ReadWriteMode {
         )
         .await?;
 
-        let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-            tokio::sync::watch::channel(None);
-
-        // spawn tokio task to watch for persisted snapshots on primary and send to unified watch
-        let mut primary_persisted_snapshot_notify_rx = primary.watch_persisted_snapshots();
-        let persisted_snapshot_combined_notify_tx = persisted_snapshot_notify_tx.clone();
-        tokio::spawn(async move {
-            while primary_persisted_snapshot_notify_rx.changed().await.is_ok() {
-                persisted_snapshot_combined_notify_tx
-                    .send(
-                        primary_persisted_snapshot_notify_rx
-                            .borrow_and_update()
-                            .clone(),
-                    )
-                    .expect("watch failed");
-            }
-        });
+        // if we're keeping track of compacted data, send the snapshots to it
+        if let Some(compacted_data) = &compacted_data {
+            let mut primary_persisted_snapshot_notify_rx = primary.watch_persisted_snapshots();
+            let compacted_data = Arc::clone(compacted_data);
+            tokio::spawn(async move {
+                while primary_persisted_snapshot_notify_rx.changed().await.is_ok() {
+                    if let Some(snapshot) = primary_persisted_snapshot_notify_rx
+                        .borrow_and_update()
+                        .clone()
+                    {
+                        compacted_data.add_snapshot(snapshot);
+                    }
+                }
+            });
+        }
 
         let replicas = if let Some(ReplicationConfig {
             interval: replication_interval,
@@ -109,7 +105,7 @@ impl ReadWriteMode {
                     metric_registry,
                     replication_interval,
                     hosts,
-                    persisted_snapshot_notify_tx,
+                    compacted_data: compacted_data.clone(),
                     parquet_cache,
                 })
                 .await?,
@@ -121,7 +117,6 @@ impl ReadWriteMode {
             host_id,
             primary,
             replicas,
-            persisted_snapshot_notify_rx,
             compacted_data,
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
@@ -177,7 +172,7 @@ impl Bufferer for ReadWriteMode {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        self.persisted_snapshot_notify_rx.clone()
+        unimplemented!("watch_persisted_snapshots not implemented for ReadWriteMode")
     }
 }
 

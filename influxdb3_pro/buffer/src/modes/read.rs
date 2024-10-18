@@ -25,8 +25,6 @@ use tokio::sync::watch::Receiver;
 #[derive(Debug)]
 pub struct ReadMode {
     replicas: Replicas,
-    /// Unified snapshot channel for all replicas
-    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     compacted_data: Option<Arc<CompactedData>>,
 }
 
@@ -41,19 +39,15 @@ impl ReadMode {
         parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
         compacted_data: Option<Arc<CompactedData>>,
     ) -> Result<Self, anyhow::Error> {
-        let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
-            tokio::sync::watch::channel(None);
-
         Ok(Self {
-            persisted_snapshot_notify_rx,
             replicas: Replicas::new(CreateReplicasArgs {
                 last_cache,
                 object_store,
                 metric_registry,
                 replication_interval,
                 hosts,
-                persisted_snapshot_notify_tx,
                 parquet_cache,
+                compacted_data: compacted_data.clone(),
             })
             .await
             .context("failed to initialize replicas")?,
@@ -97,7 +91,7 @@ impl Bufferer for ReadMode {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        self.persisted_snapshot_notify_rx.clone()
+        unimplemented!("watch_persisted_snapshots not implemented for ReadMode")
     }
 }
 

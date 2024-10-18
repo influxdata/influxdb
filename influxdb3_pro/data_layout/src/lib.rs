@@ -42,7 +42,7 @@ pub struct CompactionSummary {
     /// on startup to ensure that we don't reuse generation ids.
     pub last_generation_id: GenerationId,
     /// The last `SnapshotSequenceNumber` for each host that is getting compacted.
-    pub snapshot_markers: Vec<HostSnapshotMarker>,
+    pub snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
     /// The paths to the compaction details for each table.
     pub compaction_details: Vec<CompactionDetailPath>,
 }
@@ -78,7 +78,7 @@ pub struct CompactionDetail {
     /// table gets compacted, they can run ahead of the global compaction summary. This information
     /// will allow downstream hosts using the compacted data to know which gen1 files they
     /// have that should be used vs. what is already compacted in.
-    pub snapshot_markers: Vec<HostSnapshotMarker>,
+    pub snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
     /// This is the list of all generations of compacted data. The ids of the generations are
     /// unique and can be used to lookup the `GenerationDetail` which contains the list of
     /// `ParquetFile`s that are in that generation and the `FileIndex` for the generation.
@@ -98,7 +98,7 @@ impl CompactionDetail {
         sequence_number: CompactionSequenceNumber,
         compacted_ids: &[GenerationId],
         new_gen: Generation,
-        new_snapshot_markers: Vec<HostSnapshotMarker>,
+        new_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
         leftover_gen1_files: Vec<Gen1File>,
     ) -> Self {
         let mut filtered_compacted_generations: Vec<_> = self
@@ -132,7 +132,7 @@ impl CompactionDetail {
     pub fn new_from_leftovers(
         &self,
         sequence_number: CompactionSequenceNumber,
-        new_snapshot_markers: Vec<HostSnapshotMarker>,
+        new_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
         leftover_gen1_files: Vec<Gen1File>,
     ) -> Self {
         let mut filtered_leftover_gen1_files: Vec<_> = self.leftover_gen1_files.to_vec();
@@ -337,6 +337,10 @@ impl GenerationLevel {
 
     pub fn is_under_two(&self) -> bool {
         self.0 < 2
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        self.0
     }
 }
 

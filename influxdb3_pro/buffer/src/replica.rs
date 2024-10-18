@@ -7,6 +7,7 @@ use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
     object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails,
@@ -76,8 +77,8 @@ pub(crate) struct CreateReplicasArgs {
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
     pub hosts: Vec<String>,
-    pub persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl Replicas {
@@ -88,8 +89,8 @@ impl Replicas {
             metric_registry,
             replication_interval,
             hosts,
-            persisted_snapshot_notify_tx,
             parquet_cache,
+            compacted_data,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut handles = vec![];
@@ -97,8 +98,8 @@ impl Replicas {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
             let metric_registry = Arc::clone(&metric_registry);
-            let persisted_snapshot_notify_tx = persisted_snapshot_notify_tx.clone();
             let parquet_cache = parquet_cache.clone();
+            let compacted_data = compacted_data.clone();
             let handle = tokio::spawn(async move {
                 info!(%host_identifier_prefix, "creating replicated buffer for host");
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
@@ -108,7 +109,7 @@ impl Replicas {
                     last_cache,
                     replication_interval,
                     metric_registry,
-                    persisted_snapshot_notify_tx,
+                    compacted_data,
                     parquet_cache,
                 })
                 .await
@@ -195,7 +196,7 @@ impl Replicas {
         table_name: &str,
         table_schema: Schema,
         _filters: &[Expr],
-        host_markers: &[HostSnapshotMarker],
+        host_markers: &[Arc<HostSnapshotMarker>],
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
         let mut chunks = vec![];
@@ -234,8 +235,8 @@ pub(crate) struct ReplicatedBuffer {
     last_cache: Arc<LastCacheProvider>,
     catalog: Arc<Catalog>,
     metrics: ReplicatedBufferMetrics,
-    persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    compacted_data: Option<Arc<CompactedData>>,
 }
 
 pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr";
@@ -252,8 +253,8 @@ pub(crate) struct CreateReplicatedBufferArgs {
     last_cache: Arc<LastCacheProvider>,
     replication_interval: Duration,
     metric_registry: Arc<Registry>,
-    persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl ReplicatedBuffer {
@@ -265,8 +266,8 @@ impl ReplicatedBuffer {
             last_cache,
             replication_interval,
             metric_registry,
-            persisted_snapshot_notify_tx,
             parquet_cache,
+            compacted_data,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
         let (catalog, persisted_files) = {
@@ -306,8 +307,8 @@ impl ReplicatedBuffer {
             last_cache,
             catalog,
             metrics: ReplicatedBufferMetrics { replica_ttbr },
-            persisted_snapshot_notify_tx,
             parquet_cache,
+            compacted_data,
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
@@ -537,8 +538,8 @@ impl ReplicatedBuffer {
         let object_store = Arc::clone(&self.object_store);
         let buffer = Arc::clone(&self.buffer);
         let persisted_files = Arc::clone(&self.persisted_files);
-        let persisted_snapshot_notify_tx = self.persisted_snapshot_notify_tx.clone();
         let parquet_cache = self.parquet_cache.clone();
+        let compacted_data = self.compacted_data.clone();
 
         tokio::spawn(async move {
             // Update the persisted files:
@@ -577,9 +578,9 @@ impl ReplicatedBuffer {
                             }
                         }
                         persisted_files.add_persisted_snapshot_files(snapshot.clone());
-                        persisted_snapshot_notify_tx
-                            .send(Some(snapshot))
-                            .expect("watch failed");
+                        if let Some(compacted_data) = compacted_data {
+                            compacted_data.add_snapshot(snapshot);
+                        }
                         break;
                     }
                     Err(error) => {
@@ -733,11 +734,6 @@ mod tests {
         // Check that snapshots (and parquet) have been persisted:
         verify_snapshot_count(1, Arc::clone(&obj_store), primary_id).await;
 
-        // Create a unified snapshot channel for all replicas:
-        let (persisted_snapshot_notify_tx, mut persisted_snapshot_notify_rx) =
-            tokio::sync::watch::channel(None);
-        persisted_snapshot_notify_rx.mark_unchanged();
-
         // Spin up a replicated buffer:
         let replica = ReplicatedBuffer::new(CreateReplicatedBufferArgs {
             replica_order: 0,
@@ -746,8 +742,8 @@ mod tests {
             last_cache: primary.last_cache_provider(),
             replication_interval: Duration::from_millis(10),
             metric_registry: Arc::new(Registry::new()),
-            persisted_snapshot_notify_tx,
             parquet_cache: None,
+            compacted_data: None,
         })
         .await
         .unwrap();
@@ -801,10 +797,6 @@ mod tests {
 
         // Allow for another snapshot on primary:
         verify_snapshot_count(2, Arc::clone(&obj_store), primary_id).await;
-
-        // verify that it came through on the channel
-        assert!(persisted_snapshot_notify_rx.changed().await.is_ok());
-        assert!(persisted_snapshot_notify_rx.borrow_and_update().is_some());
 
         // Check the primary chunks:
         {
@@ -887,10 +879,6 @@ mod tests {
             primaries.insert(p, primary);
         }
 
-        // Create a unified snapshot channel for all replicas:
-        let (persisted_snapshot_notify_tx, _persisted_snapshot_notify_rx) =
-            tokio::sync::watch::channel(None);
-
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(CreateReplicasArgs {
             last_cache: Arc::new(LastCacheProvider::new()),
@@ -898,7 +886,7 @@ mod tests {
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
-            persisted_snapshot_notify_tx,
+            compacted_data: None,
             parquet_cache: None,
         })
         .await
@@ -1001,10 +989,6 @@ mod tests {
             primaries.insert(p, primary);
         }
         // Spin up a set of replicated buffers:
-        // Create a unified snapshot channel for all replicas:
-        let (persisted_snapshot_notify_tx, _persisted_snapshot_notify_rx) =
-            tokio::sync::watch::channel(None);
-
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
@@ -1013,8 +997,8 @@ mod tests {
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
-            persisted_snapshot_notify_tx,
             parquet_cache: None,
+            compacted_data: None,
         })
         .await
         .unwrap();
@@ -1163,8 +1147,6 @@ mod tests {
             let ctx = IOxSessionContext::with_testing();
             let runtime_env = ctx.inner().runtime_env();
             register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
-            let (persisted_snapshot_notify_tx, _persisted_snapshot_notify_rx) =
-                tokio::sync::watch::channel(None);
             let replicas = Replicas::new(CreateReplicasArgs {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
@@ -1173,8 +1155,8 @@ mod tests {
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
-                persisted_snapshot_notify_tx,
                 parquet_cache: Some(parquet_cache),
+                compacted_data: None,
             })
             .await
             .unwrap();
@@ -1232,8 +1214,6 @@ mod tests {
             let ctx = IOxSessionContext::with_testing();
             let runtime_env = ctx.inner().runtime_env();
             register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&non_cached_obj_store));
-            let (persisted_snapshot_notify_tx, _persisted_snapshot_notify_rx) =
-                tokio::sync::watch::channel(None);
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
                 last_cache: Arc::new(LastCacheProvider::new()),
@@ -1241,8 +1221,8 @@ mod tests {
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
-                persisted_snapshot_notify_tx,
                 parquet_cache: None,
+                compacted_data: None,
             })
             .await
             .unwrap();
