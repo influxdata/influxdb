@@ -26,15 +26,19 @@ use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
 use influxdb3_pro_index::FileIndex;
-use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::ParquetFile;
 use influxdb3_write::ParquetFileId;
+use influxdb3_write::{
+    chunk::ParquetChunk,
+    parquet_cache::{CacheRequest, ParquetCacheOracle},
+};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
+use iox_time::{Time, TimeProvider};
 use object_store::path::Path as ObjPath;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -110,6 +114,7 @@ pub struct Compactor {
     catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
+    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 }
 
 impl Compactor {
@@ -118,12 +123,14 @@ impl Compactor {
         catalog: Arc<Catalog>,
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
+        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
     ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
         Ok(Self {
             compacted_data,
             catalog,
             object_store_url,
             executor,
+            parquet_cache_prefetcher,
         })
     }
 
@@ -167,6 +174,7 @@ impl Compactor {
                         Arc::clone(&self.catalog),
                         self.object_store_url.clone(),
                         Arc::clone(&self.executor),
+                        self.parquet_cache_prefetcher.clone(),
                     )
                     .await;
                     info!(?compaction_summary, "completed snapshot plan");
@@ -188,6 +196,7 @@ impl Compactor {
                         Arc::clone(&self.catalog),
                         self.object_store_url.clone(),
                         Arc::clone(&self.executor),
+                        self.parquet_cache_prefetcher.clone(),
                     )
                     .await;
                     info!(?compaction_summary, "completed compaction plan group");
@@ -197,6 +206,57 @@ impl Compactor {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParquetCachePreFetcher {
+    /// Cache oracle to prefetch into cache
+    parquet_cache: Arc<dyn ParquetCacheOracle>,
+    /// Hold the humantime::Duration as seconds. For eg. "1d"
+    /// will translate to 86_400 seconds.
+    preemptive_cache_age_secs: u64,
+    /// Time provider
+    time_provider: Arc<dyn TimeProvider>,
+}
+
+impl ParquetCachePreFetcher {
+    pub fn new(
+        parquet_cache: Arc<dyn ParquetCacheOracle>,
+        preemptive_cache_age: humantime::Duration,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
+        Self {
+            parquet_cache,
+            preemptive_cache_age_secs: preemptive_cache_age.as_secs(),
+            time_provider,
+        }
+    }
+
+    pub fn register(&self, cache_request: CacheRequest, parquet_max_time: i64) {
+        let now = self.time_provider.now();
+        self.check_and_register(now, cache_request, parquet_max_time);
+    }
+
+    fn check_and_register(
+        &self,
+        now: Time,
+        cache_request: CacheRequest,
+        parquet_max_time: i64,
+    ) {
+        if self.should_prefetch(now, parquet_max_time) {
+            self.parquet_cache.register(cache_request);
+        }
+    }
+
+    fn should_prefetch(&self, now: Time, parquet_max_time: i64) -> bool {
+        // This check is to make sure we don't prefetch compacted files that are old
+        // and don't cover most recent period. If we are interested in caching only last
+        // 3 days periods worth of data, there is no point in prefetching a file that holds
+        // data for a period that ends before last 3 days.
+        let min_time_for_prefetching =
+            now - std::time::Duration::from_secs(self.preemptive_cache_age_secs);
+        parquet_max_time >= min_time_for_prefetching.timestamp_nanos()
     }
 }
 
@@ -212,6 +272,7 @@ pub struct CompactFilesArgs {
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
     pub exec: Arc<Executor>,
+    pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 }
 
 /// Compact `paths` together into one or more parquet files
@@ -230,6 +291,7 @@ pub async fn compact_files(
         object_store,
         object_store_url,
         exec,
+        parquet_cache_prefetcher,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
     let dedupe_key: Vec<_> = table_schema.primary_key();
@@ -254,6 +316,7 @@ pub async fn compact_files(
         compactor_id,
         generation,
         index_columns,
+        parquet_cache_prefetcher.clone(),
     );
 
     loop {
@@ -375,6 +438,8 @@ struct SeriesWriter {
     min_time: i64,
     /// Max time for the current file
     max_time: i64,
+    /// Parquet cache oracle to prefetch parquet file into cache
+    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 }
 
 impl SeriesWriter {
@@ -389,6 +454,7 @@ impl SeriesWriter {
         compactor_id: Arc<str>,
         generation: Generation,
         index_columns: Vec<String>,
+        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
     ) -> Self {
         let mut series_key = table_schema
             .primary_key()
@@ -415,6 +481,7 @@ impl SeriesWriter {
             min_time: i64::MAX,
             max_time: i64::MIN,
             series_key,
+            parquet_cache_prefetcher,
         }
     }
 
@@ -645,6 +712,21 @@ impl SeriesWriter {
             .await
             .map_err(CompactorError::CloseArrowWriter)?;
 
+        // NOTE: is this `take` ok? It looks like we create series writer once
+        //       and we are only interested in `self.output_paths.last()` and
+        //       not `self.output_paths` itself, if that's the case `take` is
+        //       fine otherwise need to `clone`
+        if let Some(cache_prefetcher) = self.parquet_cache_prefetcher.take() {
+            let (cache_request, receiver) =
+                CacheRequest::create(self.output_paths.last().unwrap().to_owned());
+            cache_prefetcher.register(cache_request, self.max_time);
+            // Don't think this error strictly needs handling, worst case there'll be a
+            // cache miss - enough to debug log it?
+            if let Err(e) = receiver.await {
+                debug!(error = ?e, "Errored when trying to prefetch compacted path into cache");
+            }
+        }
+
         // we need the size of the file written into object storage and that doesn't seem to
         // be available from the writer. The bytes_written method on the writer returns a number
         // smaller than the actual file size. So we'll get the metadata from object storage to
@@ -779,5 +861,84 @@ impl AsyncFileWriter for AsyncMultiPart {
         Box::pin(AsyncMultiPartComplete {
             complete: self.multi_part.complete(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{str::FromStr, sync::Arc};
+
+    use chrono::Utc;
+    use humantime::Duration;
+    use influxdb3_write::parquet_cache::{CacheRequest, ParquetCacheOracle};
+    use iox_time::{MockProvider, Time};
+    use object_store::path::Path as ObjPath;
+    use observability_deps::tracing::debug;
+
+    use crate::ParquetCachePreFetcher;
+
+    const PATH: &str = "sample/test/file/path.parquet";
+
+    #[derive(Debug)]
+    struct MockCacheOracle;
+
+    impl ParquetCacheOracle for MockCacheOracle {
+        fn register(&self, _cache_request: influxdb3_write::parquet_cache::CacheRequest) {
+            debug!("calling cache with request path");
+        }
+    }
+
+    fn setup_prefetcher_3days() -> ParquetCachePreFetcher {
+        let mock_cache_oracle = Arc::new(MockCacheOracle);
+        let now = Utc::now().timestamp_nanos_opt().unwrap();
+        let mock_time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(now)));
+        ParquetCachePreFetcher::new(mock_cache_oracle, Duration::from_str("3d").unwrap(), mock_time_provider)
+    }
+
+    fn parquet_max_time_nanos(num_days: i64) -> (Time, i64) {
+        let now = Utc::now();
+        let parquet_max_time = (now - chrono::Duration::days(num_days))
+            .timestamp_nanos_opt()
+            .unwrap();
+        (Time::from_timestamp_nanos(now.timestamp_nanos_opt().unwrap()), parquet_max_time)
+    }
+
+    #[test]
+    fn test_cache_pre_fetcher_time_after_lower_bound() {
+        let (now, parquet_max_time) = parquet_max_time_nanos(2);
+        let pre_fetcher = setup_prefetcher_3days();
+
+        let should_prefetch = pre_fetcher.should_prefetch(now, parquet_max_time);
+
+        assert!(should_prefetch);
+    }
+
+    #[test]
+    fn test_cache_pre_fetcher_time_equals_lower_bound() {
+        let (now, parquet_max_time) = parquet_max_time_nanos(3);
+        let pre_fetcher = setup_prefetcher_3days();
+
+        let should_prefetch = pre_fetcher.should_prefetch(now, parquet_max_time);
+
+        assert!(should_prefetch);
+    }
+
+    #[test]
+    fn test_cache_pre_fetcher_time_before_lower_bound() {
+        let (now, parquet_max_time) = parquet_max_time_nanos(4);
+        let pre_fetcher = setup_prefetcher_3days();
+
+        let should_prefetch = pre_fetcher.should_prefetch(now, parquet_max_time);
+
+        assert!(!should_prefetch);
+    }
+
+    #[test]
+    fn test_cache_prefetcher_register() {
+        let (now, parquet_max_time) = parquet_max_time_nanos(3);
+        let pre_fetcher = setup_prefetcher_3days();
+        let (cache_request, _) = CacheRequest::create(ObjPath::from(PATH));
+
+        pre_fetcher.check_and_register(now, cache_request, parquet_max_time);
     }
 }

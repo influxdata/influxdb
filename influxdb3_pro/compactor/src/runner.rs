@@ -1,7 +1,10 @@
 //! Logic for running many compaction tasks in parallel.
 
-use crate::planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
+use crate::{
+    planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan},
+    ParquetCachePreFetcher,
+};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
 use influxdb3_catalog::catalog::{Catalog, TableDefinition};
@@ -38,6 +41,7 @@ pub(crate) async fn run_snapshot_plan(
     catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
+    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 ) -> Result<CompactionSummary> {
     debug!(snapshot_advance_plan = ?snapshot_advance_plan, "Running snapshot plan");
     let compaction_sequence_number = compacted_data.next_compaction_sequence_number();
@@ -108,6 +112,7 @@ pub(crate) async fn run_snapshot_plan(
                 compaction_sequence_number,
                 object_store_url.clone(),
                 Arc::clone(&exec),
+                parquet_cache_prefetcher.clone(),
             )
             .await?;
 
@@ -141,6 +146,7 @@ pub(crate) async fn run_compaction_plan_group(
     catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
+    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 ) -> Result<CompactionSummary> {
     debug!(compaction_plan_group = ?compaction_plan_group, "Running compaction plan group");
 
@@ -204,6 +210,7 @@ pub(crate) async fn run_compaction_plan_group(
             compaction_sequence_number,
             object_store_url.clone(),
             Arc::clone(&exec),
+            parquet_cache_prefetcher.clone(),
         )
         .await?;
 
@@ -239,6 +246,7 @@ async fn run_plan_and_write_detail(
     compaction_sequence_number: CompactionSequenceNumber,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
+    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 ) -> Result<CompactionDetailPath> {
     debug!(plan = ?plan, "Running compaction plan");
     let path = match plan {
@@ -269,6 +277,7 @@ async fn run_plan_and_write_detail(
                 object_store: Arc::clone(&compacted_data.object_store),
                 object_store_url,
                 exec,
+                parquet_cache_prefetcher: parquet_cache_prefetcher.clone(),
             };
 
             let compactor_output = compact_files(args).await.expect("compaction failed");
@@ -405,9 +414,12 @@ async fn run_plan_and_write_detail(
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::planner::NextCompactionPlan;
     use arrow_util::assert_batches_eq;
+    use chrono::Utc;
     use executor::register_current_runtime_for_io;
     use influxdb3_id::DbId;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
@@ -419,16 +431,26 @@ mod tests {
         FieldDefinition, Row, SnapshotDetails, SnapshotSequenceNumber, TableChunk, TableChunks,
         TableDefinition, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
     };
-    use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::write_buffer::queryable_buffer::QueryableBuffer;
+    use influxdb3_write::{last_cache::LastCacheProvider, parquet_cache::ParquetCacheOracle};
+    use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use object_store::path::Path as ObjPath;
     use object_store::ObjectStore;
     use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
-    #[tokio::test]
+    #[derive(Debug)]
+    struct MockParquetCacheOracle;
+
+    impl ParquetCacheOracle for MockParquetCacheOracle {
+        fn register(&self, _cache_request: influxdb3_write::parquet_cache::CacheRequest) {
+            debug!("Incoming cache request to prefetch parquet file");
+        }
+    }
+
+    #[test_log::test(tokio::test)]
     async fn test_run_snapshot_plan() {
         let obj_store = Arc::new(InMemory::new());
         let persister = Arc::new(Persister::new(
@@ -678,12 +700,21 @@ mod tests {
                 .collect(),
         };
 
+        let parquet_cache: Arc<dyn ParquetCacheOracle> = Arc::new(MockParquetCacheOracle);
+        let now = Utc::now().timestamp_nanos_opt().unwrap();
+        let mock_time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(now)));
+        let parquet_cache_updater = Some(ParquetCachePreFetcher::new(
+            parquet_cache,
+            humantime::Duration::from_str("1d").unwrap(),
+            mock_time_provider,
+        ));
         let output = run_snapshot_plan(
             snapshot_advance_plan,
             Arc::clone(&compacted_data),
             catalog,
             persister.object_store_url().clone(),
             exec,
+            parquet_cache_updater,
         )
         .await
         .unwrap();

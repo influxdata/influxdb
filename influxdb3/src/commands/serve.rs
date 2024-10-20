@@ -15,7 +15,7 @@ use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::Compactor;
+use influxdb3_pro_compactor::{Compactor, ParquetCachePreFetcher};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_process::{
@@ -276,6 +276,17 @@ pub struct Config {
         action
     )]
     pub disable_parquet_mem_cache: bool,
+
+    /// The interval to prefetch into parquet cache when compacting.
+    ///
+    /// Enter as a human-readable time, e.g., "1d", etc.
+    #[clap(
+        long = "preemptive-cache-age",
+        env = "INFLUXDB3_PREEMPTIVE_CACHE_AGE",
+        default_value = "3d",
+        action
+    )]
+    pub preemptive_cache_age: humantime::Duration,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -453,8 +464,6 @@ pub async fn command(config: Config) -> Result<()> {
         None
     };
 
-    let time_provider = Arc::new(SystemProvider::new());
-
     let catalog = persister
         .load_or_create_catalog()
         .await
@@ -491,7 +500,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::clone(&object_store),
                     Arc::clone(&metrics),
                     replica_config,
-                    parquet_cache,
+                    parquet_cache.clone(),
                     compacted_data.clone(),
                 )
                 .await
@@ -509,7 +518,7 @@ pub async fn command(config: Config) -> Result<()> {
                 wal_config,
                 metric_registry: Arc::clone(&metrics),
                 replication_config: replica_config,
-                parquet_cache,
+                parquet_cache: parquet_cache.clone(),
                 compacted_data: compacted_data.clone(),
             })
             .await
@@ -535,7 +544,7 @@ pub async fn command(config: Config) -> Result<()> {
         .max_request_size(config.max_http_request_size)
         .write_buffer(Arc::clone(&write_buffer))
         .query_executor(query_executor)
-        .time_provider(time_provider)
+        .time_provider(Arc::clone(&time_provider))
         .persister(Arc::clone(&persister))
         .tcp_listener(listener);
 
@@ -549,12 +558,23 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut futures = Vec::new();
 
+    let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache {
+        Some(ParquetCachePreFetcher::new(
+            Arc::clone(&parquet_cache),
+            config.preemptive_cache_age,
+            Arc::<SystemProvider>::clone(&time_provider),
+        ))
+    } else {
+        None
+    };
+
     if config.pro_config.run_compactions && compacted_data.is_some() {
         let compactor = Compactor::new(
             compacted_data.expect("compacted data must be present if compactions are enabled"),
             Arc::clone(&write_buffer.catalog()),
             persister.object_store_url().clone(),
             Arc::clone(&exec),
+            parquet_cache_prefetcher,
         )
         .await
         .map_err(Error::Compactor)?;

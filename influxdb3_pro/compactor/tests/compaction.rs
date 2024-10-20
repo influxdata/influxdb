@@ -1,3 +1,5 @@
+mod common;
+
 use arrow::array::BooleanArray;
 use arrow::array::DictionaryArray;
 use arrow::array::Float64Array;
@@ -32,6 +34,8 @@ use parquet_file::storage::ParquetStorage;
 use parquet_file::storage::StorageId;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+
+use crate::common::build_parquet_cache_prefetcher;
 
 #[tokio::test]
 async fn five_files_multiple_series_same_schema() {
@@ -115,6 +119,7 @@ async fn five_files_multiple_series_same_schema() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -127,6 +132,7 @@ async fn five_files_multiple_series_same_schema() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput {
         output_paths,
@@ -317,6 +323,7 @@ async fn two_files_two_series_and_same_schema() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -329,6 +336,7 @@ async fn two_files_two_series_and_same_schema() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput {
         output_paths,
@@ -462,6 +470,7 @@ async fn two_files_same_series_and_schema() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -474,6 +483,7 @@ async fn two_files_same_series_and_schema() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput {
         output_paths,
@@ -609,6 +619,7 @@ async fn two_files_similar_series_and_compatible_schema() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -626,6 +637,7 @@ async fn two_files_similar_series_and_compatible_schema() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput {
         output_paths,
@@ -760,6 +772,7 @@ async fn deduplication_of_data() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -772,6 +785,7 @@ async fn deduplication_of_data() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput {
         output_paths,
@@ -899,6 +913,7 @@ async fn compactor_casting() {
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.get_table_schema("test_table").unwrap();
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
@@ -914,6 +929,7 @@ async fn compactor_casting() {
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
+        parquet_cache_prefetcher,
     };
     let CompactorOutput { file_index, .. } = compact_files(args).await.unwrap();
 
