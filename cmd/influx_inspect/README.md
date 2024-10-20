@@ -49,17 +49,26 @@ WAL storage path.
 `default` = "$HOME/.influxdb/wal"
 
 #### `-out` string
-Destination file to export to
+Destination file to export to.
+In case of export to Parquet, destination should be existing directory.
 
 `default` = "$HOME/.influxdb/export"
 
-#### `-database` string (optional)
+#### `-database` string
 Database to export.
+Mandatory for export to Parquet, optional otherwise (default).
 
 `default` = ""
 
-#### `-retention` string (optional)
+#### `-retention` string
 Retention policy to export.
+Mandatory for export to Parquet, optional otherwise (default).
+
+`default` = ""
+
+#### `-measurement` string
+Name of the measurement to export.
+Mandatory for export to Parquet, optional otherwise (default).
 
 `default` = ""
 
@@ -74,6 +83,16 @@ Compress the output.
 
 `default` = false
 
+#### `-parquet` bool (optional)
+Export to Parquet.
+
+`default` = false
+
+#### `-chunk-size` int (optional)
+Size to partition Parquet files, in bytes.
+
+`default` = 100000000
+
 #### Sample Commands
 
 Export entire database and compress output:
@@ -84,6 +103,11 @@ influx_inspect export --compress
 Export specific retention policy:
 ```
 influx_inspect export --database mydb --retention autogen
+```
+
+Export specific measurement to Parquet:
+```
+influx_inspect export --database mydb --retention autogen --measurement cpu --parquet
 ```
 
 ##### Sample Data
