@@ -659,7 +659,7 @@ fn convert_v3_parsed_line(
     // TODO: change the default time resolution to microseconds in v3
     let time_value_nanos = line
         .timestamp
-        .map(|ts| apply_precision_to_timestamp(precision, ts))
+        .and_then(|ts| apply_precision_to_timestamp(precision, ts))
         .unwrap_or(ingest_time.timestamp_nanos());
     fields.push(Field {
         name: TIME_COLUMN_NAME.to_string().into(),
@@ -773,7 +773,7 @@ fn convert_v1_parsed_line(
     // set the time value
     let time_value_nanos = line
         .timestamp
-        .map(|ts| apply_precision_to_timestamp(precision, ts))
+        .and_then(|ts| apply_precision_to_timestamp(precision, ts))
         .unwrap_or(ingest_time.timestamp_nanos());
 
     let chunk_time = gen1_duration.chunk_time_for_timestamp(Timestamp::new(time_value_nanos));
@@ -797,7 +797,8 @@ fn convert_v1_parsed_line(
     );
 }
 
-fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
+/// Returns `None` if calculation overflows
+fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> Option<i64> {
     let multiplier = match precision {
         Precision::Auto => match crate::guess_precision(ts) {
             Precision::Second => 1_000_000_000,
@@ -812,8 +813,7 @@ fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
         Precision::Microsecond => 1_000,
         Precision::Nanosecond => 1,
     };
-
-    ts * multiplier
+    ts.checked_mul(multiplier)
 }
 
 #[cfg(test)]
