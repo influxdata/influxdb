@@ -40,6 +40,7 @@ impl TelemetryStore {
         storage_type: Arc<str>,
         cores: usize,
         persisted_files: Option<Arc<dyn ParquetMetrics>>,
+        telemetry_endpoint: String,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -58,6 +59,7 @@ impl TelemetryStore {
         if !cfg!(test) {
             sample_metrics(store.clone(), Duration::from_secs(SAMPLER_INTERVAL_SECS)).await;
             send_telemetry_in_background(
+                telemetry_endpoint,
                 store.clone(),
                 Duration::from_secs(MAIN_SENDER_INTERVAL_SECS),
             )
@@ -306,6 +308,7 @@ mod tests {
             Arc::from("Memory"),
             10,
             Some(parqet_file_metrics),
+            "http://localhost/telemetry".to_owned(),
         )
         .await;
         // check snapshot
