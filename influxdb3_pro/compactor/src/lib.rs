@@ -54,6 +54,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 
 pub mod planner;
 mod runner;
@@ -132,54 +133,67 @@ impl Compactor {
         let generation_levels = self.compacted_data.compaction_config.compaction_levels();
 
         loop {
-            match new_snapshot.recv().await {
-                Ok(_) => {}
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    // Ignore the lagged error and continue
-                    warn!("lagged snapshot notification, continuing");
+            let check_snapshot = tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(100)) => false,
+                v = new_snapshot.recv() => {
+                    match v {
+                        Ok(_) => true,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            // Ignore the lagged error and continue
+                            warn!("lagged snapshot notification, continuing");
+                            true
+                        }
+                        Err(e) => {
+                            error!(error = ?e, "error receiving snapshot, exiting compaction loop");
+                            break;
+                        }
+                    }
                 }
-                Err(e) => {
-                    error!(error = ?e, "error receiving snapshot, exiting compaction loop");
-                    break;
+            };
+
+            if check_snapshot {
+                let host = self
+                    .compacted_data
+                    .last_snapshot_host()
+                    .unwrap_or("unknown".to_string());
+                debug!(host = ?host, "received new snapshot");
+
+                if let Some(snapshot_plan) =
+                    SnapshotAdvancePlan::should_advance(&self.compacted_data)
+                {
+                    let compaction_summary = runner::run_snapshot_plan(
+                        snapshot_plan,
+                        Arc::clone(&self.compacted_data),
+                        Arc::clone(&self.catalog),
+                        self.object_store_url.clone(),
+                        Arc::clone(&self.executor),
+                    )
+                    .await;
+                    info!(?compaction_summary, "completed snapshot plan");
                 }
             }
 
-            let host = self
-                .compacted_data
-                .last_snapshot_host()
-                .unwrap_or("unknown".to_string());
-            debug!(host = ?host, "received new snapshot");
-            if let Some(snapshot_plan) = SnapshotAdvancePlan::should_advance(&self.compacted_data) {
-                let _compaction_summary = runner::run_snapshot_plan(
-                    snapshot_plan,
-                    Arc::clone(&self.compacted_data),
-                    Arc::clone(&self.catalog),
-                    self.object_store_url.clone(),
-                    Arc::clone(&self.executor),
-                )
-                .await;
+            for level in &generation_levels {
+                // TODO: wire up later generation compactions
+                if *level > GenerationLevel::new(4) {
+                    break;
+                }
 
-                for level in &generation_levels {
-                    // TODO: wire up later generation compactions
-                    if *level > GenerationLevel::new(4) {
-                        break;
-                    }
+                if let Some(plan_group) =
+                    CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
+                {
+                    let compaction_summary = runner::run_compaction_plan_group(
+                        plan_group,
+                        Arc::clone(&self.compacted_data),
+                        Arc::clone(&self.catalog),
+                        self.object_store_url.clone(),
+                        Arc::clone(&self.executor),
+                    )
+                    .await;
+                    info!(?compaction_summary, "completed compaction plan group");
 
-                    if let Some(plan_group) =
-                        CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
-                    {
-                        let _compaction_summary = runner::run_compaction_plan_group(
-                            plan_group,
-                            Arc::clone(&self.compacted_data),
-                            Arc::clone(&self.catalog),
-                            self.object_store_url.clone(),
-                            Arc::clone(&self.executor),
-                        )
-                        .await;
-
-                        // only one run set of compactions, then go back to waiting for a snapshot
-                        break;
-                    }
+                    // only one run set of compactions, then go back to waiting for a snapshot
+                    break;
                 }
             }
         }

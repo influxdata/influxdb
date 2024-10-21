@@ -137,7 +137,7 @@ pub(crate) fn create_next_plan(
     must_advance: bool,
 ) -> Option<NextCompactionPlan> {
     // first, group the generations together into what their start time would be at the
-    // chosen output level. Only inlude generations that are less than the output level.
+    // chosen output level. Only include generations that are less than the output level.
     let mut new_block_times_to_gens = BTreeMap::new();
     for gen in generations {
         // only include generations that are less than the desired output level, unless we're
@@ -171,6 +171,24 @@ pub(crate) fn create_next_plan(
                 .or_insert(0);
             *count += 1;
         }
+
+        // ensure we have at least one generation newer than this block to keep around. We want
+        // to do this because we could have lagged data coming in, or another gen1 file coming
+        // in from another host. We don't want to compact too aggressively, otherwise we'll
+        // end up redoing all that work.
+        let gen_end_time = gen_time
+            + compaction_config
+                .generation_duration(output_level)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+        let has_one_newer = generations
+            .iter()
+            .any(|g| g.start_time_secs >= gen_end_time);
+        // only enforce this if we don't have to advance the snapshot
+        if !has_one_newer && !must_advance {
+            continue;
+        }
+
         // check that all counts are at least equal to the host count
         let all_over_host_count = prev_times_counts
             .values()
@@ -273,22 +291,50 @@ mod tests {
             output_time: &'a str,
             // the expected ids from the input that will be used for the compaction
             compact_ids: Vec<u64>,
+            // the expected leftover gen1 ids after the compaction
+            leftover_gen1_ids: Vec<u64>,
         }
 
         let compaction_config = CompactionConfig::default();
         let test_cases = vec![
+            TestCase {
+                description: "gen1 to 2 compaction, but only if an gen1 left behind",
+                input: vec![
+                    (5, 1, "2024-10-14/12-00"),
+                    (6, 1, "2024-10-14/12-10"),
+                    (7, 1, "2024-10-14/12-20"),
+                ],
+                output_level: 2,
+                output_time: "2024-10-14/12-00",
+                compact_ids: vec![5, 6],
+                leftover_gen1_ids: vec![7],
+            },
+            TestCase {
+                description: "gen1 to 2 as a compaction into an existing gen2",
+                input: vec![
+                    (7, 1, "2024-10-14/12-20"),
+                    (6, 1, "2024-10-14/12-10"),
+                    (8, 2, "2024-10-14/12-00"),
+                ],
+                output_level: 2,
+                output_time: "2024-10-14/12-00",
+                compact_ids: vec![6, 8],
+                leftover_gen1_ids: vec![7],
+            },
             TestCase {
                 description: "level 2 to 3 compaction",
                 input: vec![
                     (3, 2, "2024-10-14/12-00"),
                     (6, 2, "2024-10-14/12-20"),
                     (9, 2, "2024-10-14/12-40"),
+                    (10, 2, "2024-10-14/13-00"),
                     (12, 3, "2024-10-14/11-00"),
                     (15, 3, "2024-10-14/10-00"),
                 ],
                 output_level: 3,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![3, 6, 9],
+                leftover_gen1_ids: vec![],
             },
             TestCase {
                 description: "level 2 to 3 with some gen1 blocks coming along for the ride",
@@ -296,6 +342,7 @@ mod tests {
                     (3, 2, "2024-10-14/12-00"),
                     (6, 2, "2024-10-14/12-20"),
                     (9, 2, "2024-10-14/12-40"),
+                    (10, 2, "2024-10-14/13-00"),
                     (12, 3, "2024-10-14/11-00"),
                     (15, 3, "2024-10-14/10-00"),
                     (7, 1, "2024-10-14/12-10"),
@@ -304,6 +351,7 @@ mod tests {
                 output_level: 3,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![3, 6, 7, 9, 11],
+                leftover_gen1_ids: vec![],
             },
         ];
 
@@ -332,6 +380,7 @@ mod tests {
                 Some(NextCompactionPlan {
                     output_generation,
                     input_ids,
+                    leftover_ids,
                     ..
                 }) => {
                     assert_eq!(
@@ -358,6 +407,14 @@ mod tests {
                         "{}: expected ids {:?} but got {:?}",
                         tc.description, tc.compact_ids, ids_to_compact
                     );
+                    let mut leftover_gen1_ids =
+                        leftover_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
+                    leftover_gen1_ids.sort();
+                    assert_eq!(
+                        tc.leftover_gen1_ids, leftover_gen1_ids,
+                        "{}: expected leftover gen1 ids {:?} but got {:?}",
+                        tc.description, tc.leftover_gen1_ids, leftover_gen1_ids
+                    );
                 }
                 _ => panic!(
                     "expected a compaction plan for test case '{}'",
@@ -381,11 +438,41 @@ mod tests {
         let compaction_config = CompactionConfig::default();
         let test_cases = vec![
             TestCase {
+                description: "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind",
+                input: vec![
+                    (7, 1, "2024-10-14/12-00"),
+                    (6, 1, "2024-10-14/12-10"),
+                    (9, 2, "2024-10-14/11-40"),
+                ],
+                output_level: 2,
+            },
+            TestCase {
+                description:
+                    "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind (odd split)",
+                input: vec![
+                    (7, 1, "2024-10-14/12-10"),
+                    (6, 1, "2024-10-14/12-20"),
+                    (9, 2, "2024-10-14/11-40"),
+                ],
+                output_level: 2,
+            },
+            TestCase {
                 description: "level 2 to 3 compaction, but not enough gen2 blocks",
                 input: vec![
                     (3, 2, "2024-10-14/12-00"),
                     (6, 2, "2024-10-14/12-20"),
                     (11, 3, "2024-10-14/11-00"),
+                ],
+                output_level: 3,
+            },
+            TestCase {
+                description: "level 2 to 3 compaction, but don't have a gen2 block to leave behind",
+                input: vec![
+                    (3, 2, "2024-10-14/12-00"),
+                    (6, 2, "2024-10-14/12-20"),
+                    (9, 2, "2024-10-14/12-40"),
+                    (12, 3, "2024-10-14/11-00"),
+                    (15, 3, "2024-10-14/10-00"),
                 ],
                 output_level: 3,
             },

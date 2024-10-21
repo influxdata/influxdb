@@ -132,6 +132,10 @@ async fn two_writers_gen1_compaction() {
     let _ = snapshot_notify.recv().await;
     do_writes(&writer2_buffer, writer2_id, 1, 2).await;
     let _ = snapshot_notify.recv().await;
+    do_writes(read_write_mode.as_ref(), writer1_id, 2, 1).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(&writer2_buffer, writer2_id, 2, 2).await;
+    let _ = snapshot_notify.recv().await;
 
     // wait for a compaction to happen
     let mut count = 0;
@@ -139,13 +143,18 @@ async fn two_writers_gen1_compaction() {
         if let Some(detail) = compacted_data.get_last_compaction_detail("test_db", "m1") {
             if detail.sequence_number.as_u64() > 1 {
                 // we should have a single compacted generation
-                assert_eq!(detail.compacted_generations.len(), 1);
+                assert_eq!(
+                    detail.compacted_generations.len(),
+                    1,
+                    "should have a single generation. compaction details: {:?}",
+                    detail
+                );
                 // nothing should be leftover as it should all now exist in gen3
                 assert_eq!(
                     detail.leftover_gen1_files.len(),
-                    0,
-                    "leftover gen1 files: {:?}",
-                    detail.leftover_gen1_files
+                    1,
+                    "should have one leftover gen1 file. details: {:?}",
+                    detail
                 );
                 break;
             }
@@ -180,6 +189,12 @@ async fn two_writers_gen1_compaction() {
             "| 106.0 | 1970-01-01T00:01:00.000000106Z | writer2 |",
             "| 107.0 | 1970-01-01T00:01:00.000000107Z | writer2 |",
             "| 108.0 | 1970-01-01T00:01:00.000000108Z | writer2 |",
+            "| 203.0 | 1970-01-01T00:02:00.000000203Z | writer1 |",
+            "| 204.0 | 1970-01-01T00:02:00.000000204Z | writer1 |",
+            "| 205.0 | 1970-01-01T00:02:00.000000205Z | writer1 |",
+            "| 206.0 | 1970-01-01T00:02:00.000000206Z | writer2 |",
+            "| 207.0 | 1970-01-01T00:02:00.000000207Z | writer2 |",
+            "| 208.0 | 1970-01-01T00:02:00.000000208Z | writer2 |",
             "| 3.0   | 1970-01-01T00:00:00.000000003Z | writer1 |",
             "| 4.0   | 1970-01-01T00:00:00.000000004Z | writer1 |",
             "| 5.0   | 1970-01-01T00:00:00.000000005Z | writer1 |",
