@@ -1,7 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
-use crate::DatabaseSchemaProvider;
 use arrow::datatypes::SchemaRef;
 use bimap::BiHashMap;
 use influxdb3_id::{ColumnId, DbId, TableId};
@@ -165,6 +164,44 @@ impl Catalog {
         Ok(db)
     }
 
+    pub fn db_name_to_id(&self, db_name: &str) -> Option<DbId> {
+        self.inner.read().db_map.get_by_right(db_name).copied()
+    }
+
+    pub fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
+        self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
+    }
+
+    pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
+        self.db_schema_and_id(db_name).map(|(_, schema)| schema)
+    }
+
+    pub fn db_schema_by_id(&self, db_id: DbId) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().databases.get(&db_id).cloned()
+    }
+
+    pub fn db_schema_and_id(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
+        let inner = self.inner.read();
+        let db_id = inner.db_map.get_by_right(db_name)?;
+        inner
+            .databases
+            .get(db_id)
+            .map(|db| (*db_id, Arc::clone(db)))
+    }
+
+    pub fn db_names(&self) -> Vec<String> {
+        self.inner
+            .read()
+            .databases
+            .values()
+            .map(|db| db.name.to_string())
+            .collect()
+    }
+
+    pub fn list_db_schema(&self) -> Vec<Arc<DatabaseSchema>> {
+        self.inner.read().databases.values().cloned().collect()
+    }
+
     pub fn sequence_number(&self) -> SequenceNumber {
         self.inner.read().sequence
     }
@@ -240,46 +277,6 @@ impl Catalog {
 
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
-    }
-}
-
-impl DatabaseSchemaProvider for Catalog {
-    fn db_name_to_id(&self, db_name: &str) -> Option<DbId> {
-        self.inner.read().db_map.get_by_right(db_name).copied()
-    }
-
-    fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
-        self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
-    }
-
-    fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
-        self.db_schema_and_id(db_name).map(|(_, schema)| schema)
-    }
-
-    fn db_schema_by_id(&self, db_id: DbId) -> Option<Arc<DatabaseSchema>> {
-        self.inner.read().databases.get(&db_id).cloned()
-    }
-
-    fn db_schema_and_id(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
-        let inner = self.inner.read();
-        let db_id = inner.db_map.get_by_right(db_name)?;
-        inner
-            .databases
-            .get(db_id)
-            .map(|db| (*db_id, Arc::clone(db)))
-    }
-
-    fn db_names(&self) -> Vec<String> {
-        self.inner
-            .read()
-            .databases
-            .values()
-            .map(|db| db.name.to_string())
-            .collect()
-    }
-
-    fn list_db_schema(&self) -> Vec<Arc<DatabaseSchema>> {
-        self.inner.read().databases.values().cloned().collect()
     }
 }
 

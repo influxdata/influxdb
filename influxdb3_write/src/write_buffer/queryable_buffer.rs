@@ -14,10 +14,7 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
-use influxdb3_catalog::{
-    catalog::{Catalog, DatabaseSchema},
-    DatabaseSchemaProvider,
-};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};

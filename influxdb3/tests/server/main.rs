@@ -93,11 +93,15 @@ impl ConfigProvider for TestConfig {
 
 /// A running instance of the `influxdb3 serve` process
 ///
-/// Logs will be emitted to stdout/stderr if the TEST_LOG environment
-/// variable is set, e.g.,
+/// Logs will be emitted to stdout/stderr if the TEST_LOG environment variable is set, e.g.,
 /// ```
-/// TEST_LOG= cargo test
+/// TEST_LOG= cargo nextest run -p influxdb3 --nocapture
 /// ```
+/// This will forward the value provided in `TEST_LOG` to the `LOG_FILTER` env var on the running
+/// `influxdb` binary. By default, a log filter of `info` is used, which would provide similar
+/// output to what is seen in production, however, per-crate filters can be provided via this
+/// argument, e.g., `info,influxdb3_write=debug` would emit logs at `INFO` level for all crates
+/// except for the `influxdb3_write` crate, which will emit logs at the `DEBUG` level.
 pub struct TestServer {
     auth_token: Option<String>,
     bind_addr: SocketAddr,
@@ -128,10 +132,12 @@ impl TestServer {
             .args(["--wal-flush-interval", "10ms"])
             .args(config.as_args());
 
-        // If TEST_LOG env var is not defined, discard stdout/stderr
-        if std::env::var("TEST_LOG").is_err() {
-            command = command.stdout(Stdio::null()).stderr(Stdio::null());
-        }
+        // If TEST_LOG env var is not defined, discard stdout/stderr, otherwise, pass it to the
+        // inner binary in the "LOG_FILTER" env var:
+        command = match std::env::var("TEST_LOG") {
+            Ok(val) => command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val }),
+            Err(_) => command.stdout(Stdio::null()).stderr(Stdio::null()),
+        };
 
         let server_process = command.spawn().expect("spawn the influxdb3 server process");
 

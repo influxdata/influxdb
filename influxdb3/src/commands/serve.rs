@@ -436,7 +436,7 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::InitializePersistedCatalog)?,
     );
 
-    let last_cache = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
@@ -458,7 +458,7 @@ pub async fn command(config: Config) -> Result<()> {
         &config.object_store_config,
         catalog.instance_id(),
         num_cpus,
-        Arc::clone(&write_buffer_impl.persisted_files()),
+        Some(Arc::clone(&write_buffer_impl.persisted_files())),
         config.telemetry_endpoint,
     )
     .await;
@@ -473,7 +473,7 @@ pub async fn command(config: Config) -> Result<()> {
     )?;
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-        db_schema_provider: write_buffer.db_schema_provider(),
+        catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
         exec: Arc::clone(&exec),
         metrics: Arc::clone(&metrics),
@@ -511,7 +511,7 @@ async fn setup_telemetry_store(
     object_store_config: &ObjectStoreConfig,
     instance_id: Arc<str>,
     num_cpus: usize,
-    persisted_files: Arc<PersistedFiles>,
+    persisted_files: Option<Arc<PersistedFiles>>,
     telemetry_endpoint: String,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
@@ -530,7 +530,7 @@ async fn setup_telemetry_store(
         Arc::from(influx_version),
         Arc::from(storage_type),
         num_cpus,
-        persisted_files,
+        persisted_files.map(|p| p as _),
         telemetry_endpoint,
     )
     .await

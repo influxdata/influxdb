@@ -779,7 +779,7 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&catalog),
-                Arc::new(LastCacheProvider::new_from_db_schema_provider(catalog as _).unwrap()),
+                Arc::new(LastCacheProvider::new_from_catalog(catalog as _).unwrap()),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig::test_config(),
@@ -802,7 +802,7 @@ mod tests {
         )
         .unwrap();
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
-            db_schema_provider: write_buffer.db_schema_provider(),
+            catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
             exec: Arc::clone(&exec),
             metrics: Arc::clone(&metrics),
