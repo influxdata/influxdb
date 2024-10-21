@@ -215,7 +215,7 @@ pub struct ParquetCachePreFetcher {
     parquet_cache: Arc<dyn ParquetCacheOracle>,
     /// Hold the humantime::Duration as seconds. For eg. "1d"
     /// will translate to 86_400 seconds.
-    preemptive_cache_age_secs: u64,
+    preemptive_cache_age_secs: std::time::Duration,
     /// Time provider
     time_provider: Arc<dyn TimeProvider>,
 }
@@ -228,7 +228,9 @@ impl ParquetCachePreFetcher {
     ) -> Self {
         Self {
             parquet_cache,
-            preemptive_cache_age_secs: preemptive_cache_age.as_secs(),
+            preemptive_cache_age_secs: std::time::Duration::from_secs(
+                preemptive_cache_age.as_secs(),
+            ),
             time_provider,
         }
     }
@@ -249,8 +251,7 @@ impl ParquetCachePreFetcher {
         // and don't cover most recent period. If we are interested in caching only last
         // 3 days periods worth of data, there is no point in prefetching a file that holds
         // data for a period that ends before last 3 days.
-        let min_time_for_prefetching =
-            now - std::time::Duration::from_secs(self.preemptive_cache_age_secs);
+        let min_time_for_prefetching = now - self.preemptive_cache_age_secs;
         parquet_max_time >= min_time_for_prefetching.timestamp_nanos()
     }
 }
@@ -491,6 +492,19 @@ impl SeriesWriter {
         if self.output_paths.is_empty() {
             Err(CompactorError::NoCompactedFiles)
         } else {
+            // prefetch cache
+            for output_path in &self.output_paths {
+                if let Some(cache_prefetcher) = self.parquet_cache_prefetcher.clone() {
+                    let (cache_request, receiver) = CacheRequest::create(output_path.to_owned());
+                    cache_prefetcher.register(cache_request, self.max_time);
+                    // Don't think this error strictly needs handling, worst case there'll be a
+                    // cache miss - enough to debug log it?
+                    if let Err(e) = receiver.await {
+                        debug!(error = ?e, "Errored when trying to prefetch compacted path into cache");
+                    }
+                }
+            }
+
             Ok(CompactorOutput {
                 output_paths: self.output_paths,
                 file_index: self.file_index,
@@ -706,21 +720,6 @@ impl SeriesWriter {
             .close()
             .await
             .map_err(CompactorError::CloseArrowWriter)?;
-
-        // NOTE: is this `take` ok? It looks like we create series writer once
-        //       and we are only interested in `self.output_paths.last()` and
-        //       not `self.output_paths` itself, if that's the case `take` is
-        //       fine otherwise need to `clone`
-        if let Some(cache_prefetcher) = self.parquet_cache_prefetcher.take() {
-            let (cache_request, receiver) =
-                CacheRequest::create(self.output_paths.last().unwrap().to_owned());
-            cache_prefetcher.register(cache_request, self.max_time);
-            // Don't think this error strictly needs handling, worst case there'll be a
-            // cache miss - enough to debug log it?
-            if let Err(e) = receiver.await {
-                debug!(error = ?e, "Errored when trying to prefetch compacted path into cache");
-            }
-        }
 
         // we need the size of the file written into object storage and that doesn't seem to
         // be available from the writer. The bytes_written method on the writer returns a number
