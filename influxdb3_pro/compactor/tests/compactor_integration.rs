@@ -1,3 +1,5 @@
+mod common;
+
 use arrow_array::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::execution::context::SessionContext;
@@ -24,6 +26,8 @@ use parquet_file::storage::{ParquetStorage, StorageId};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
+
+use crate::common::build_parquet_cache_prefetcher;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn two_writers_gen1_compaction() {
@@ -108,12 +112,15 @@ async fn two_writers_gen1_compaction() {
         .await
         .unwrap(),
     );
+    let obj_store = Arc::new(InMemory::new());
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let compactor = Compactor::new(
         Arc::clone(&compacted_data),
         Arc::clone(&writer1_catalog),
         writer1_persister.object_store_url().clone(),
         Arc::clone(&exec),
+        parquet_cache_prefetcher,
     )
     .await
     .unwrap();

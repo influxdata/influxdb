@@ -33,6 +33,7 @@ chrono.workspace = true
 datafusion.workspace = true
 futures-util.workspace = true
 hashbrown.workspace = true
+humantime.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
@@ -49,7 +50,9 @@ test_helpers.workspace = true
 pretty_assertions.workspace = true
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_pro_buffer = { path = "../buffer" }
+influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
 serde_json.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true
