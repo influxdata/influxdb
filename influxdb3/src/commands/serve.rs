@@ -436,7 +436,7 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::InitializePersistedCatalog)?,
     );
 
-    let last_cache = LastCacheProvider::new_from_db_schema_provider(Arc::clone(&catalog) as _)
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
         .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
@@ -473,7 +473,7 @@ pub async fn command(config: Config) -> Result<()> {
     )?;
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-        db_schema_provider: write_buffer.db_schema_provider(),
+        catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
         exec: Arc::clone(&exec),
         metrics: Arc::clone(&metrics),

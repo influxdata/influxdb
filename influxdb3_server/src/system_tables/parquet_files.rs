@@ -94,7 +94,7 @@ impl IoxSystemTable for ParquetFilesTable {
         let parquet_files: Vec<ParquetFile> = self.buffer.parquet_files(
             self.db_id,
             self.buffer
-                .db_schema_provider()
+                .catalog()
                 .db_schema_by_id(self.db_id)
                 .expect("db exists")
                 .table_name_to_id(table_name.as_str())
