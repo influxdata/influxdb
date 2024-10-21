@@ -445,8 +445,8 @@ mod tests {
     struct MockParquetCacheOracle;
 
     impl ParquetCacheOracle for MockParquetCacheOracle {
-        fn register(&self, _cache_request: influxdb3_write::parquet_cache::CacheRequest) {
-            debug!("Incoming cache request to prefetch parquet file");
+        fn register(&self, cache_request: influxdb3_write::parquet_cache::CacheRequest) {
+            debug!(cache_request = ?cache_request.get_path(), "Incoming cache request to prefetch parquet file");
         }
     }
 

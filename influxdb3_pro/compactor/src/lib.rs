@@ -238,12 +238,7 @@ impl ParquetCachePreFetcher {
         self.check_and_register(now, cache_request, parquet_max_time);
     }
 
-    fn check_and_register(
-        &self,
-        now: Time,
-        cache_request: CacheRequest,
-        parquet_max_time: i64,
-    ) {
+    fn check_and_register(&self, now: Time, cache_request: CacheRequest, parquet_max_time: i64) {
         if self.should_prefetch(now, parquet_max_time) {
             self.parquet_cache.register(cache_request);
         }
@@ -874,6 +869,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use object_store::path::Path as ObjPath;
     use observability_deps::tracing::debug;
+    use pretty_assertions::assert_eq;
 
     use crate::ParquetCachePreFetcher;
 
@@ -883,8 +879,9 @@ mod tests {
     struct MockCacheOracle;
 
     impl ParquetCacheOracle for MockCacheOracle {
-        fn register(&self, _cache_request: influxdb3_write::parquet_cache::CacheRequest) {
-            debug!("calling cache with request path");
+        fn register(&self, cache_request: influxdb3_write::parquet_cache::CacheRequest) {
+            debug!(path = ?cache_request.get_path(), "calling cache with request path");
+            assert_eq!(PATH, cache_request.get_path().as_ref());
         }
     }
 
@@ -892,7 +889,11 @@ mod tests {
         let mock_cache_oracle = Arc::new(MockCacheOracle);
         let now = Utc::now().timestamp_nanos_opt().unwrap();
         let mock_time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(now)));
-        ParquetCachePreFetcher::new(mock_cache_oracle, Duration::from_str("3d").unwrap(), mock_time_provider)
+        ParquetCachePreFetcher::new(
+            mock_cache_oracle,
+            Duration::from_str("3d").unwrap(),
+            mock_time_provider,
+        )
     }
 
     fn parquet_max_time_nanos(num_days: i64) -> (Time, i64) {
@@ -900,7 +901,10 @@ mod tests {
         let parquet_max_time = (now - chrono::Duration::days(num_days))
             .timestamp_nanos_opt()
             .unwrap();
-        (Time::from_timestamp_nanos(now.timestamp_nanos_opt().unwrap()), parquet_max_time)
+        (
+            Time::from_timestamp_nanos(now.timestamp_nanos_opt().unwrap()),
+            parquet_max_time,
+        )
     }
 
     #[test]
