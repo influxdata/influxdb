@@ -16,8 +16,11 @@ use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
 use influxdb3_id::DbId;
+use influxdb3_id::ParquetFileId;
+use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -25,8 +28,6 @@ use last_cache::LastCacheProvider;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -74,11 +75,11 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         precision: Precision,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
-    /// Returns the catalog
-    fn catalog(&self) -> Arc<catalog::Catalog>;
+    /// Returns the database schema provider
+    fn catalog(&self) -> Arc<Catalog>;
 
     /// Returns the parquet files for a given database and table
-    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile>;
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
     fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
@@ -111,8 +112,8 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
@@ -124,8 +125,8 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
     /// This should handle removal of the cache's information from the catalog as well
     async fn delete_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: &str,
     ) -> Result<(), write_buffer::Error>;
 }
@@ -166,8 +167,10 @@ pub struct PersistedSnapshot {
     pub host_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
-    /// The next db id to be used with databases when the snapshot is loaded
+    /// The next db id to be used for databases when the snapshot is loaded
     pub next_db_id: DbId,
+    /// The next table id to be used for tables when the snapshot is loaded
+    pub next_table_id: TableId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -184,7 +187,7 @@ pub struct PersistedSnapshot {
     pub max_time: i64,
     /// The collection of databases that had tables persisted in this snapshot. The tables will then have their
     /// name and the parquet file.
-    pub databases: HashMap<Arc<str>, DatabaseTables>,
+    pub databases: HashMap<DbId, DatabaseTables>,
 }
 
 impl PersistedSnapshot {
@@ -196,8 +199,9 @@ impl PersistedSnapshot {
     ) -> Self {
         Self {
             host_id,
-            next_file_id: ParquetFileId::current(),
+            next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
+            next_table_id: TableId::next_id(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,
@@ -211,23 +215,22 @@ impl PersistedSnapshot {
 
     fn add_parquet_file(
         &mut self,
-        database_name: Arc<str>,
-        table_name: Arc<str>,
+        database_id: DbId,
+        table_id: TableId,
         parquet_file: ParquetFile,
     ) {
-        if self.next_file_id < parquet_file.id {
-            self.next_file_id = ParquetFileId::from(parquet_file.id.as_u64() + 1);
-        }
+        // Update the next_file_id field, as we likely have a new file
+        self.next_file_id = ParquetFileId::next_id();
         self.parquet_size_bytes += parquet_file.size_bytes;
         self.row_count += parquet_file.row_count;
         self.min_time = self.min_time.min(parquet_file.min_time);
         self.max_time = self.max_time.max(parquet_file.max_time);
 
         self.databases
-            .entry(database_name)
+            .entry(database_id)
             .or_default()
             .tables
-            .entry(table_name)
+            .entry(table_id)
             .or_default()
             .push(parquet_file);
     }
@@ -235,47 +238,7 @@ impl PersistedSnapshot {
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: hashbrown::HashMap<Arc<str>, Vec<ParquetFile>>,
-}
-
-/// The next file id to be used when persisting `ParquetFile`s
-pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
-
-#[derive(Debug, Hash, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
-/// A newtype wrapper for ids used with `ParquetFile`
-pub struct ParquetFileId(u64);
-
-impl ParquetFileId {
-    pub fn new() -> Self {
-        Self(NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst))
-    }
-
-    pub fn as_u64(&self) -> u64 {
-        self.0
-    }
-
-    pub fn current() -> Self {
-        ParquetFileId(NEXT_FILE_ID.load(Ordering::SeqCst))
-    }
-}
-
-impl From<u64> for ParquetFileId {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-impl From<data_types::ParquetFileId> for ParquetFileId {
-    fn from(value: data_types::ParquetFileId) -> Self {
-        // i64 to u64 cast. IOx uses i64 for file ids
-        Self(value.get() as u64)
-    }
-}
-
-impl Default for ParquetFileId {
-    fn default() -> Self {
-        Self::new()
-    }
+    pub tables: hashbrown::HashMap<TableId, Vec<ParquetFile>>,
 }
 
 /// The summary data for a persisted parquet file in a snapshot.

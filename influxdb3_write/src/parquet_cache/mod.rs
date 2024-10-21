@@ -27,7 +27,7 @@ use object_store::{
 use observability_deps::tracing::{error, info, warn};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
-    oneshot,
+    oneshot, watch,
 };
 
 /// Shared future type for cache values that are being fetched
@@ -63,6 +63,9 @@ impl CacheRequest {
 pub trait ParquetCacheOracle: Send + Sync + Debug {
     /// Register a cache request with the oracle
     fn register(&self, cache_request: CacheRequest);
+
+    // Get a receiver that is notified when a prune takes place and how much memory was freed
+    fn prune_notifier(&self) -> watch::Receiver<usize>;
 }
 
 /// Concrete implementation of the [`ParquetCacheOracle`]
@@ -71,6 +74,7 @@ pub trait ParquetCacheOracle: Send + Sync + Debug {
 #[derive(Debug, Clone)]
 pub struct MemCacheOracle {
     cache_request_tx: Sender<CacheRequest>,
+    prune_notifier_tx: watch::Sender<usize>,
 }
 
 // TODO(trevor): make this configurable with reasonable default
@@ -85,8 +89,12 @@ impl MemCacheOracle {
     fn new(mem_cached_store: Arc<MemCachedObjectStore>, prune_interval: Duration) -> Self {
         let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
         background_cache_request_handler(Arc::clone(&mem_cached_store), cache_request_rx);
-        background_cache_pruner(mem_cached_store, prune_interval);
-        Self { cache_request_tx }
+        let (prune_notifier_tx, _prune_notifier_rx) = watch::channel(0);
+        background_cache_pruner(mem_cached_store, prune_notifier_tx.clone(), prune_interval);
+        Self {
+            cache_request_tx,
+            prune_notifier_tx,
+        }
     }
 }
 
@@ -98,6 +106,10 @@ impl ParquetCacheOracle for MemCacheOracle {
                 error!(%error, "error registering cache request");
             };
         });
+    }
+
+    fn prune_notifier(&self) -> watch::Receiver<usize> {
+        self.prune_notifier_tx.subscribe()
     }
 }
 
@@ -329,12 +341,12 @@ impl Cache {
     /// Prune least recently hit entries from the cache
     ///
     /// This is a no-op if the `used` amount on the cache is not >= its `capacity`
-    fn prune(&self) {
+    fn prune(&self) -> Option<usize> {
         let used = self.used.load(Ordering::SeqCst);
-        if used < self.capacity {
-            return;
-        }
         let n_to_prune = (self.map.len() as f64 * self.prune_percent).floor() as usize;
+        if used < self.capacity || n_to_prune == 0 {
+            return None;
+        }
         // use a BinaryHeap to determine the cut-off time, at which, entries that were
         // last hit before that time will be pruned:
         let mut prune_heap = BinaryHeap::with_capacity(n_to_prune);
@@ -372,6 +384,8 @@ impl Cache {
         }
         // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::SeqCst);
+
+        Some(freed)
     }
 }
 
@@ -668,6 +682,7 @@ fn background_cache_request_handler(
 /// A background task for pruning un-needed entries in the cache
 fn background_cache_pruner(
     mem_store: Arc<MemCachedObjectStore>,
+    prune_notifier_tx: watch::Sender<usize>,
     interval_duration: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -675,7 +690,9 @@ fn background_cache_pruner(
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            mem_store.cache.prune();
+            if let Some(freed) = mem_store.cache.prune() {
+                let _ = prune_notifier_tx.send(freed);
+            }
         }
     })
 }
@@ -769,6 +786,7 @@ pub(crate) mod tests {
             cache_prune_percent,
             cache_prune_interval,
         );
+        let mut prune_notifier = oracle.prune_notifier();
         // PUT an entry into the store:
         let path_1 = Path::from("0.parquet");
         let payload_1 = b"Janeway";
@@ -861,8 +879,8 @@ pub(crate) mod tests {
         assert_eq!(1, inner_store.total_read_request_count(&path_2));
         assert_eq!(1, inner_store.total_read_request_count(&path_3));
 
-        // allow some time for pruning:
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        prune_notifier.changed().await.unwrap();
+        assert_eq!(23, *prune_notifier.borrow_and_update());
 
         // GET paris from the cached store, this will not be served by the cache, because paris was
         // evicted by neelix:

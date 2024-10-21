@@ -21,4 +21,6 @@ thiserror.workspace = true
 [dev-dependencies]
 test-log.workspace = true
 proptest.workspace = true
+mockito.workspace = true
+mockall.workspace = true
 

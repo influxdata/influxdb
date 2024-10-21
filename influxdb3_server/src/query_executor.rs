@@ -58,17 +58,31 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
 }
 
+/// Arguments for [`QueryExecutorImpl::new`]
+#[derive(Debug)]
+pub struct CreateQueryExecutorArgs {
+    pub catalog: Arc<Catalog>,
+    pub write_buffer: Arc<dyn WriteBuffer>,
+    pub exec: Arc<Executor>,
+    pub metrics: Arc<Registry>,
+    pub datafusion_config: Arc<HashMap<String, String>>,
+    pub concurrent_query_limit: usize,
+    pub query_log_size: usize,
+    pub telemetry_store: Arc<TelemetryStore>,
+}
+
 impl QueryExecutorImpl {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        catalog: Arc<Catalog>,
-        write_buffer: Arc<dyn WriteBuffer>,
-        exec: Arc<Executor>,
-        metrics: Arc<Registry>,
-        datafusion_config: Arc<HashMap<String, String>>,
-        concurrent_query_limit: usize,
-        query_log_size: usize,
-        telemetry_store: Arc<TelemetryStore>,
+        CreateQueryExecutorArgs {
+            catalog,
+            write_buffer,
+            exec,
+            metrics,
+            datafusion_config,
+            concurrent_query_limit,
+            query_log_size,
+            telemetry_store,
+        }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
             &metrics,
@@ -106,6 +120,7 @@ impl QueryExecutor for QueryExecutorImpl {
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
+        debug!(catalog = ?self.catalog, "query executor catalog");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
@@ -166,7 +181,7 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
-        let mut databases = self.catalog.list_databases();
+        let mut databases = self.catalog.db_names();
         // sort them to ensure consistent order:
         databases.sort_unstable();
         let databases = StringArray::from(databases);
@@ -185,7 +200,7 @@ impl QueryExecutor for QueryExecutorImpl {
         let mut databases = if let Some(db) = database {
             vec![db.to_owned()]
         } else {
-            self.catalog.list_databases()
+            self.catalog.db_names()
         };
         // sort them to ensure consistent order:
         databases.sort_unstable();
@@ -309,7 +324,6 @@ impl QueryDatabase for QueryExecutorImpl {
                 db_name: name.into(),
             }))
         })?;
-
         Ok(Some(Arc::new(Database::new(
             db_schema,
             Arc::clone(&self.write_buffer),
@@ -350,7 +364,7 @@ impl Database {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            Arc::clone(&db_schema.name),
+            db_schema.id,
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
         ));
@@ -376,14 +390,17 @@ impl Database {
     }
 
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
-        self.db_schema.get_table_schema(table_name).map(|schema| {
-            Arc::new(QueryTable {
-                db_schema: Arc::clone(&self.db_schema),
-                name: table_name.into(),
-                schema: schema.clone(),
-                write_buffer: Arc::clone(&self.write_buffer),
+        let table_name: Arc<str> = table_name.into();
+        self.db_schema
+            .table_schema(Arc::clone(&table_name))
+            .map(|schema| {
+                Arc::new(QueryTable {
+                    db_schema: Arc::clone(&self.db_schema),
+                    table_name,
+                    schema: schema.clone(),
+                    write_buffer: Arc::clone(&self.write_buffer),
+                })
             })
-        })
     }
 }
 
@@ -449,7 +466,7 @@ impl QueryNamespace for Database {
         ctx.inner().register_udtf(
             LAST_CACHE_UDTF_NAME,
             Arc::new(LastCacheFunction::new(
-                self.db_schema.name.to_string(),
+                self.db_schema.id,
                 self.write_buffer.last_cache_provider(),
             )),
         );
@@ -502,19 +519,22 @@ impl SchemaProvider for Database {
             .collect()
     }
 
-    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
-        Ok(self.query_table(name).await.map(|qt| qt as _))
+    async fn table(
+        &self,
+        table_name: &str,
+    ) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        Ok(self.query_table(table_name).await.map(|qt| qt as _))
     }
 
     fn table_exist(&self, name: &str) -> bool {
-        self.db_schema.table_exists(name)
+        self.db_schema.table_name_to_id(name).is_some()
     }
 }
 
 #[derive(Debug)]
 pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
-    name: Arc<str>,
+    table_name: Arc<str>,
     schema: Schema,
     write_buffer: Arc<dyn WriteBuffer>,
 }
@@ -529,7 +549,7 @@ impl QueryTable {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.write_buffer.get_table_chunks(
             &self.db_schema.name,
-            self.name.as_ref(),
+            &self.table_name,
             filters,
             projection,
             ctx,
@@ -572,7 +592,7 @@ impl TableProvider for QueryTable {
             ?limit,
             "QueryTable as TableProvider::scan"
         );
-        let mut builder = ProviderBuilder::new(Arc::clone(&self.name), self.schema.clone());
+        let mut builder = ProviderBuilder::new(Arc::clone(&self.table_name), self.schema.clone());
 
         let chunks = self.chunks(ctx, projection, &filters, limit)?;
         for chunk in chunks {
@@ -599,8 +619,11 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
-        persister::Persister, write_buffer::WriteBufferImpl, WriteBuffer,
+        last_cache::LastCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+        persister::Persister,
+        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
+        WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -611,6 +634,8 @@ mod tests {
     use crate::{
         query_executor::QueryExecutorImpl, system_tables::table_name_predicate_error, QueryExecutor,
     };
+
+    use super::CreateQueryExecutorArgs;
 
     fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
@@ -642,16 +667,17 @@ mod tests {
         let (object_store, parquet_cache) =
             test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let executor = make_exec(Arc::clone(&object_store));
-        let host_id = Arc::from("dummy-host-id");
+        let exec = make_exec(Arc::clone(&object_store));
+        let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::new(
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
+        let write_buffer_impl = Arc::new(
             WriteBufferImpl::new(
                 Arc::clone(&persister),
-                Arc::new(Catalog::new(host_id, instance_id)),
-                Arc::new(LastCacheProvider::new()),
+                Arc::clone(&catalog),
+                Arc::new(LastCacheProvider::new_from_catalog(catalog as _).unwrap()),
                 Arc::<MockProvider>::clone(&time_provider),
-                Arc::clone(&executor),
+                Arc::clone(&exec),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
@@ -663,19 +689,22 @@ mod tests {
             .await
             .unwrap(),
         );
+
+        let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
+        let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
-        let df_config = Arc::new(Default::default());
-        let dummy_telem_store = TelemetryStore::new_without_background_runners();
-        let query_executor = QueryExecutorImpl::new(
-            write_buffer.catalog(),
-            Arc::clone(&write_buffer),
-            executor,
+        let datafusion_config = Arc::new(Default::default());
+        let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
+            catalog: write_buffer.catalog(),
+            write_buffer: Arc::clone(&write_buffer),
+            exec,
             metrics,
-            df_config,
-            10,
-            10,
-            dummy_telem_store,
-        );
+            datafusion_config,
+            concurrent_query_limit: 10,
+            query_log_size: 10,
+            telemetry_store,
+        });
 
         (write_buffer, query_executor, time_provider)
     }

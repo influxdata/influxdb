@@ -11,13 +11,14 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::DbId;
+use influxdb3_id::{DbId, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
 use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -229,13 +230,16 @@ pub enum CatalogOp {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefinition {
+    pub database_id: DbId,
     pub database_name: Arc<str>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TableDefinition {
+    pub database_id: DbId,
     pub database_name: Arc<str>,
     pub table_name: Arc<str>,
+    pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
     pub key: Option<Vec<String>>,
 }
@@ -243,7 +247,9 @@ pub struct TableDefinition {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldAdditions {
     pub database_name: Arc<str>,
+    pub database_id: DbId,
     pub table_name: Arc<str>,
+    pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
 }
 
@@ -298,6 +304,8 @@ impl From<FieldDataType> for InfluxColumnType {
 /// Defines a last cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct LastCacheDefinition {
+    /// The table id the cache is associated with
+    pub table_id: TableId,
     /// The table name the cache is associated with
     pub table: String,
     /// Given name of the cache
@@ -315,6 +323,7 @@ pub struct LastCacheDefinition {
 impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
     pub fn new_with_explicit_value_columns(
+        table_id: TableId,
         table: impl Into<String>,
         name: impl Into<String>,
         key_columns: impl IntoIterator<Item: Into<String>>,
@@ -323,6 +332,7 @@ impl LastCacheDefinition {
         ttl: u64,
     ) -> Result<Self, Error> {
         Ok(Self {
+            table_id,
             table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
@@ -336,6 +346,7 @@ impl LastCacheDefinition {
 
     /// Create a new [`LastCacheDefinition`] with explicit value columns
     pub fn new_all_non_key_value_columns(
+        table_id: TableId,
         table: impl Into<String>,
         name: impl Into<String>,
         key_columns: impl IntoIterator<Item: Into<String>>,
@@ -343,6 +354,7 @@ impl LastCacheDefinition {
         ttl: u64,
     ) -> Result<Self, Error> {
         Ok(Self {
+            table_id,
             table: table.into(),
             name: name.into(),
             key_columns: key_columns.into_iter().map(Into::into).collect(),
@@ -420,24 +432,61 @@ impl PartialEq<LastCacheSize> for usize {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LastCacheDelete {
-    pub table: String,
+    pub table_name: String,
+    pub table_id: TableId,
     pub name: String,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct WriteBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
-    pub table_chunks: HashMap<Arc<str>, TableChunks>,
+    #[serde_as(as = "TableChunksMapAsVec")]
+    pub table_chunks: HashMap<TableId, TableChunks>,
     pub min_time_ns: i64,
     pub max_time_ns: i64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TableChunksMap {
+    table_id: TableId,
+    min_time: i64,
+    max_time: i64,
+    chunk_time_to_chunk: HashMap<i64, TableChunk>,
+}
+
+serde_with::serde_conv!(
+    TableChunksMapAsVec,
+    HashMap<TableId,TableChunks>,
+    |map: &HashMap<TableId, TableChunks>|
+        map.iter()
+           .map(|(table_id, chunk)| {
+               TableChunksMap {
+                    table_id: *table_id,
+                    min_time: chunk.min_time,
+                    max_time: chunk.max_time,
+                    chunk_time_to_chunk: chunk.chunk_time_to_chunk.clone()
+               }
+           })
+           .collect::<Vec<TableChunksMap>>(),
+    |vec: Vec<TableChunksMap>| -> Result<_, std::convert::Infallible> {
+        Ok(vec.into_iter().fold(HashMap::new(), |mut acc, chunk| {
+            acc.insert(chunk.table_id, TableChunks{
+                min_time: chunk.min_time,
+                max_time: chunk.max_time,
+                chunk_time_to_chunk: chunk.chunk_time_to_chunk
+            });
+            acc
+        }))
+    }
+);
 
 impl WriteBatch {
     pub fn new(
         database_id: DbId,
         database_name: Arc<str>,
-        table_chunks: HashMap<Arc<str>, TableChunks>,
+        table_chunks: HashMap<TableId, TableChunks>,
     ) -> Self {
         // find the min and max times across the table chunks
         let (min_time_ns, max_time_ns) = table_chunks.values().fold(
@@ -461,7 +510,7 @@ impl WriteBatch {
 
     pub fn add_write_batch(
         &mut self,
-        new_table_chunks: HashMap<Arc<str>, TableChunks>,
+        new_table_chunks: HashMap<TableId, TableChunks>,
         min_time_ns: i64,
         max_time_ns: i64,
     ) {

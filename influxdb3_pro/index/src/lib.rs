@@ -1,7 +1,7 @@
 pub mod memory;
 
 use hashbrown::HashMap;
-use influxdb3_write::ParquetFileId;
+use influxdb3_id::ParquetFileId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

@@ -11,6 +11,8 @@ observability_deps.workspace = true
 
 # local deps
 influxdb3_pro_index = { path = "../../influxdb3_pro/index" }
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
+influxdb3_id = { path = "../../influxdb3_id" }
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_write = { path = "../../influxdb3_write" }
 

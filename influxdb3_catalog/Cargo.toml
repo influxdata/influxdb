@@ -16,7 +16,9 @@ influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 
 # crates.io dependencies
+anyhow.workspace = true
 arrow.workspace = true
+bimap.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true

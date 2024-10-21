@@ -8,13 +8,25 @@ use crate::{
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
     sender::{send_telemetry_in_background, TelemetryPayload},
+    ParquetMetrics,
 };
 
-/// This store is responsible for holding all the stats which
-/// will be sent in the background to the server.
+/// This store is responsible for holding all the stats which will be sent in the background
+/// to the server. There are primarily 4 different types of data held in the store:
+///   - static info (like instance ids, OS etc): These are passed in to create telemetry store.
+///   - hourly samples (like parquet file metrics): These are sampled at the point of creating
+///     payload before sending to the server.
+///   - rates (cpu/mem): These are sampled every minute but these are regular time
+///     series data. These metrics are backed by [`crate::stats::Stats<T>`] type.
+///   - events (reads/writes): These are just raw events and in order to convert it into a
+///     time series, it is collected in a bucket first and then sampled at per minute interval.
+///     These metrics are usually backed by [`crate::stats::RollingStats<T>`] type.
+///     There are couple of metrics like number of writes/reads that is backed by just
+///     [`crate::stats::Stats<T>`] type as they are just counters for per minute
 #[derive(Debug)]
 pub struct TelemetryStore {
     inner: parking_lot::Mutex<TelemetryStoreInner>,
+    persisted_files: Option<Arc<dyn ParquetMetrics>>,
 }
 
 const SAMPLER_INTERVAL_SECS: u64 = 60;
@@ -27,6 +39,8 @@ impl TelemetryStore {
         influx_version: Arc<str>,
         storage_type: Arc<str>,
         cores: usize,
+        persisted_files: Option<Arc<dyn ParquetMetrics>>,
+        telemetry_endpoint: String,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -39,11 +53,13 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         let store = Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
+            persisted_files,
         });
 
         if !cfg!(test) {
             sample_metrics(store.clone(), Duration::from_secs(SAMPLER_INTERVAL_SECS)).await;
             send_telemetry_in_background(
+                telemetry_endpoint,
                 store.clone(),
                 Duration::from_secs(MAIN_SENDER_INTERVAL_SECS),
             )
@@ -52,8 +68,8 @@ impl TelemetryStore {
         store
     }
 
-    pub fn new_without_background_runners() -> Arc<Self> {
-        let instance_id = Arc::from("dummy-instance-id");
+    pub fn new_without_background_runners(persisted_files: Arc<dyn ParquetMetrics>) -> Arc<Self> {
+        let instance_id = Arc::from("sample-instance-id");
         let os = Arc::from("Linux");
         let influx_version = Arc::from("influxdb3-0.1.0");
         let storage_type = Arc::from("Memory");
@@ -61,6 +77,7 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
+            persisted_files: Some(persisted_files),
         })
     }
 
@@ -100,7 +117,14 @@ impl TelemetryStore {
 
     pub(crate) fn snapshot(&self) -> TelemetryPayload {
         let inner_store = self.inner.lock();
-        inner_store.snapshot()
+        let mut payload = inner_store.snapshot();
+        if let Some(persisted_files) = &self.persisted_files {
+            let (file_count, size_mb, row_count) = persisted_files.get_metrics();
+            payload.parquet_file_count = file_count;
+            payload.parquet_file_size_mb = size_mb;
+            payload.parquet_row_count = row_count;
+        }
+        payload
     }
 }
 
@@ -141,14 +165,10 @@ impl TelemetryStoreInner {
             influx_version,
             storage_type,
             cores,
-            // cpu
             cpu: Cpu::default(),
-            // mem
             memory: Memory::default(),
             per_minute_events_bucket: EventsBucket::new(),
-            // writes
             writes: Writes::default(),
-            // reads
             reads: Queries::default(),
         }
     }
@@ -194,6 +214,11 @@ impl TelemetryStoreInner {
             query_requests_min: self.reads.num_queries.min,
             query_requests_max: self.reads.num_queries.max,
             query_requests_avg: self.reads.num_queries.avg,
+
+            // hmmm. will be nice to pass persisted file in?
+            parquet_file_count: 0,
+            parquet_file_size_mb: 0.0,
+            parquet_row_count: 0,
         }
     }
 
@@ -263,15 +288,27 @@ mod tests {
 
     use super::*;
 
+    #[derive(Debug)]
+    struct SampleParquetMetrics;
+
+    impl ParquetMetrics for SampleParquetMetrics {
+        fn get_metrics(&self) -> (u64, f64, u64) {
+            (200, 500.25, 100)
+        }
+    }
+
     #[test_log::test(tokio::test)]
     async fn test_telemetry_store_cpu_mem() {
         // create store
+        let parqet_file_metrics = Arc::new(SampleParquetMetrics);
         let store: Arc<TelemetryStore> = TelemetryStore::new(
             Arc::from("some-instance-id"),
             Arc::from("Linux"),
             Arc::from("OSS-v3.0"),
             Arc::from("Memory"),
             10,
+            Some(parqet_file_metrics),
+            "http://localhost/telemetry".to_owned(),
         )
         .await;
         // check snapshot
@@ -283,7 +320,7 @@ mod tests {
         let expected_mem_in_mb = 117;
         store.add_cpu_and_memory(89.0, mem_used_bytes);
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 1");
+        info!(snapshot = ?snapshot, "sample snapshot 1");
         assert_eq!(89.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(89.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(89.0, snapshot.cpu_utilization_percent_avg);
@@ -294,13 +331,16 @@ mod tests {
         // add cpu/mem snapshot 2
         store.add_cpu_and_memory(100.0, 134567890);
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 2");
+        info!(snapshot = ?snapshot, "sample snapshot 2");
         assert_eq!(89.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(100.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(94.5, snapshot.cpu_utilization_percent_avg);
         assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min);
         assert_eq!(128, snapshot.memory_used_mb_max);
         assert_eq!(122, snapshot.memory_used_mb_avg);
+        assert_eq!(200, snapshot.parquet_file_count);
+        assert_eq!(500.25, snapshot.parquet_file_size_mb);
+        assert_eq!(100, snapshot.parquet_row_count);
 
         // add some writes
         store.add_write_metrics(100, 100);
@@ -365,7 +405,7 @@ mod tests {
         store.reset_metrics();
         // check snapshot 3
         let snapshot = store.snapshot();
-        info!(snapshot = ?snapshot, "dummy snapshot 3");
+        info!(snapshot = ?snapshot, "sample snapshot 3");
         assert_eq!(0.0, snapshot.cpu_utilization_percent_min);
         assert_eq!(0.0, snapshot.cpu_utilization_percent_max);
         assert_eq!(0.0, snapshot.cpu_utilization_percent_avg);

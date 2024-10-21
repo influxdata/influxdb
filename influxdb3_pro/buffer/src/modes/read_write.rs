@@ -6,10 +6,12 @@ use data_types::NamespaceName;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
+use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
@@ -107,6 +109,7 @@ impl ReadWriteMode {
                     hosts,
                     compacted_data: compacted_data.clone(),
                     parquet_cache,
+                    catalog,
                 })
                 .await?,
             )
@@ -121,6 +124,10 @@ impl ReadWriteMode {
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
         })
+    }
+
+    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+        self.primary.persisted_files()
     }
 }
 
@@ -155,15 +162,15 @@ impl Bufferer for ReadWriteMode {
     }
 
     fn catalog(&self) -> Arc<Catalog> {
-        self.primary.catalog()
+        Arc::clone(&self.primary.catalog())
     }
 
-    fn parquet_files(&self, db_name: &str, table_name: &str) -> Vec<ParquetFile> {
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
         // Parquet files need to be retrieved across primary and replicas
         // TODO: could this fall into another trait?
-        let mut files = self.primary.parquet_files(db_name, table_name);
+        let mut files = self.primary.parquet_files(db_id, table_id);
         if let Some(replicas) = &self.replicas {
-            files.append(&mut replicas.parquet_files(db_name, table_name));
+            files.append(&mut replicas.parquet_files(db_id, table_id));
         }
         // NOTE: do we need to sort this since this is used by the system tables and the query
         // executor could sort if desired...
@@ -186,19 +193,18 @@ impl ChunkContainer for ReadWriteMode {
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // Chunks are fetched from both primary and replicas
-        let db_schema = self
-            .primary
-            .catalog()
-            .db_schema(database_name)
-            .ok_or_else(|| {
-                DataFusionError::Execution(format!(
-                    "Database {} not found in catalog",
-                    database_name
-                ))
-            })?;
+        let (db_id, db_schema) =
+            self.catalog()
+                .db_schema_and_id(database_name)
+                .ok_or_else(|| {
+                    DataFusionError::Execution(format!(
+                        "Database {} not found in catalog",
+                        database_name
+                    ))
+                })?;
 
-        let table_schema = db_schema
-            .get_table_schema(table_name)
+        let (table_id, table_schema) = db_schema
+            .table_schema_and_id(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
 
         // first add in all the buffer chunks from primary and replicas. These chunks have the
@@ -221,30 +227,29 @@ impl ChunkContainer for ReadWriteMode {
 
         // now add in the compacted chunks so that they have the lowest chunk order precedence and
         // pull out the host markers to get gen1 chunks from primary and replicas
-        let host_markers =
-            if let Some(compacted_data) = &self.compacted_data {
-                let (parquet_files, host_markers) = compacted_data
-                    .get_parquet_files_and_host_markers(database_name, table_name, filters);
+        let host_markers = if let Some(compacted_data) = &self.compacted_data {
+            let (parquet_files, host_markers) =
+                compacted_data.get_parquet_files_and_host_markers(db_id, table_id, filters);
 
-                chunks.extend(
-                    parquet_files
-                        .into_iter()
-                        .map(|file| {
-                            Arc::new(parquet_chunk_from_file(
-                                &file,
-                                table_schema,
-                                self.object_store_url.clone(),
-                                Arc::clone(&self.object_store),
-                                chunks.len() as i64,
-                            )) as Arc<dyn QueryChunk>
-                        })
-                        .collect::<Vec<_>>(),
-                );
+            chunks.extend(
+                parquet_files
+                    .into_iter()
+                    .map(|file| {
+                        Arc::new(parquet_chunk_from_file(
+                            &file,
+                            &table_schema,
+                            self.object_store_url.clone(),
+                            Arc::clone(&self.object_store),
+                            chunks.len() as i64,
+                        )) as Arc<dyn QueryChunk>
+                    })
+                    .collect::<Vec<_>>(),
+            );
 
-                Some(host_markers)
-            } else {
-                None
-            };
+            Some(host_markers)
+        } else {
+            None
+        };
 
         // add the gen1 persisted chunks from the replicas
         if let Some(replicas) = &self.replicas {
@@ -304,8 +309,8 @@ impl LastCacheManager for ReadWriteMode {
     #[allow(clippy::too_many_arguments)]
     async fn create_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
@@ -314,8 +319,8 @@ impl LastCacheManager for ReadWriteMode {
     ) -> write_buffer::Result<Option<LastCacheDefinition>> {
         self.primary
             .create_last_cache(
-                db_name,
-                tbl_name,
+                db_id,
+                tbl_id,
                 cache_name,
                 count,
                 ttl,
@@ -327,12 +332,12 @@ impl LastCacheManager for ReadWriteMode {
 
     async fn delete_last_cache(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        tbl_id: TableId,
         cache_name: &str,
     ) -> write_buffer::Result<()> {
         self.primary
-            .delete_last_cache(db_name, tbl_name, cache_name)
+            .delete_last_cache(db_id, tbl_id, cache_name)
             .await
     }
 }

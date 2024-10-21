@@ -22,12 +22,13 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::{Catalog, TIME_COLUMN_NAME};
+use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_id::ParquetFileId;
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::ParquetFile;
-use influxdb3_write::ParquetFileId;
 use influxdb3_write::{
     chunk::ParquetChunk,
     parquet_cache::{CacheRequest, ParquetCacheOracle},
@@ -881,6 +882,10 @@ mod tests {
         fn register(&self, cache_request: influxdb3_write::parquet_cache::CacheRequest) {
             debug!(path = ?cache_request.get_path(), "calling cache with request path");
             assert_eq!(PATH, cache_request.get_path().as_ref());
+        }
+
+        fn prune_notifier(&self) -> tokio::sync::watch::Receiver<usize> {
+            unimplemented!()
         }
     }
 

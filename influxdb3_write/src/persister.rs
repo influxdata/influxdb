@@ -416,7 +416,7 @@ mod tests {
     use super::*;
     use crate::ParquetFileId;
     use influxdb3_catalog::catalog::SequenceNumber;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_wal::SnapshotSequenceNumber;
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
@@ -430,8 +430,8 @@ mod tests {
 
     #[tokio::test]
     async fn persist_catalog() {
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
@@ -446,8 +446,8 @@ mod tests {
 
     #[tokio::test]
     async fn persist_and_load_newest_catalog() {
-        let host_id: Arc<str> = Arc::from("dummy-host-id");
-        let instance_id: Arc<str> = Arc::from("dummy-instance-id");
+        let host_id: Arc<str> = Arc::from("sample-host-id");
+        let instance_id: Arc<str> = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
@@ -477,8 +477,10 @@ mod tests {
             catalog.wal_file_sequence_number,
             WalFileSequenceNumber::new(1)
         );
-        assert!(catalog.catalog.db_exists("my_second_db"));
-        assert!(!catalog.catalog.db_exists("my_db"));
+        // my_second_db
+        assert!(catalog.catalog.db_exists(DbId::from(1)));
+        // my_db
+        assert!(!catalog.catalog.db_exists(DbId::from(0)));
     }
 
     #[tokio::test]
@@ -489,7 +491,8 @@ mod tests {
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::new(0),
@@ -511,7 +514,8 @@ mod tests {
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -524,7 +528,8 @@ mod tests {
         let info_file_2 = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
-            next_db_id: DbId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: SequenceNumber::default(),
@@ -537,7 +542,8 @@ mod tests {
         let info_file_3 = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
-            next_db_id: DbId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: SequenceNumber::default(),
@@ -571,7 +577,8 @@ mod tests {
         let info_file = PersistedSnapshot {
             host_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: SequenceNumber::default(),
@@ -598,7 +605,8 @@ mod tests {
             let info_file = PersistedSnapshot {
                 host_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
-                next_db_id: DbId::from(0),
+                next_db_id: DbId::from(1),
+                next_table_id: TableId::from(1),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 catalog_sequence_number: SequenceNumber::new(id as u32),
@@ -633,13 +641,17 @@ mod tests {
             SequenceNumber::new(0),
         );
 
+        for _ in 0..=9875 {
+            let _id = ParquetFileId::new();
+        }
+
         info_file.add_parquet_file(
-            "foo".into(),
-            "bar".into(),
+            DbId::from(0),
+            TableId::from(0),
             crate::ParquetFile {
                 // Use a number that will be bigger than what's created in the
                 // PersistedSnapshot automatically
-                id: ParquetFileId::from(9876),
+                id: ParquetFileId::new(),
                 path: "test".into(),
                 size_bytes: 5,
                 row_count: 5,
@@ -717,7 +729,8 @@ mod tests {
             "db_one",
             0,
             "table_one",
-            Utc::now(),
+            0,
+            Utc::now().timestamp_nanos_opt().unwrap(),
             WalFileSequenceNumber::new(1),
         );
         let (bytes_written, meta) = persister
@@ -754,10 +767,12 @@ mod tests {
         // write raw json to catalog
         let catalog_json = r#"
             {
-              "databases": {},
+              "databases": [],
               "sequence": 0,
               "host_id": "test_host",
-              "instance_id": "24b1e1bf-b301-4101-affa-e3d668fe7d20"
+              "instance_id": "24b1e1bf-b301-4101-affa-e3d668fe7d20",
+              "db_map": [],
+              "table_map": []
             }
         "#;
         let local_disk =

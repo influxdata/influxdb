@@ -1,9 +1,14 @@
 use crate::catalog::TableDefinition;
+use crate::catalog::TableSchema;
 use arrow::datatypes::DataType as ArrowDataType;
+use bimap::BiHashMap;
+use influxdb3_id::ColumnId;
+use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -33,13 +38,46 @@ impl<'de> Deserialize<'de> for TableDefinition {
 #[serde_with::serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 struct TableSnapshot<'a> {
-    name: &'a str,
+    table_id: TableId,
+    table_name: &'a str,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key: Option<Vec<&'a str>>,
     #[serde_as(as = "serde_with::MapPreventDuplicates<_, _>")]
     cols: BTreeMap<&'a str, ColumnDefinition<'a>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot<'a>>,
+    #[serde_as(as = "ColumnMapAsArray")]
+    column_map: BiHashMap<ColumnId, Arc<str>>,
+    next_column_id: ColumnId,
+}
+
+serde_with::serde_conv!(
+    ColumnMapAsArray,
+    BiHashMap<ColumnId, Arc<str>>,
+    |map: &BiHashMap<ColumnId, Arc<str>>| {
+        let mut vec = map.iter().fold(Vec::new(), |mut acc, (id, name)| {
+            acc.push(ColumnMap {
+                column_id: *id,
+                name: Arc::clone(&name)
+            });
+            acc
+        });
+
+        vec.sort_by_key(|col| col.column_id);
+        vec
+    },
+    |vec: Vec<ColumnMap>| -> Result<_, std::convert::Infallible> {
+        Ok(vec.into_iter().fold(BiHashMap::new(), |mut acc, column| {
+            acc.insert(column.column_id, column.name);
+            acc
+        }))
+    }
+);
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ColumnMap {
+    column_id: ColumnId,
+    name: Arc<str>,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -119,6 +157,8 @@ impl From<InfluxColumnType> for InfluxType {
 /// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinition<'a> {
+    /// The id of the column
+    column_id: ColumnId,
     /// The column's data type
     #[serde(borrow)]
     r#type: DataType<'a>,
@@ -137,6 +177,7 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
                 (
                     f.name().as_str(),
                     ColumnDefinition {
+                        column_id: def.schema.name_to_id_unchecked(f.name().as_str().into()),
                         r#type: f.data_type().into(),
                         influx_type: col_type.into(),
                         nullable: f.is_nullable(),
@@ -147,10 +188,13 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
         let keys = def.schema().series_key();
         let last_caches = def.last_caches.values().map(Into::into).collect();
         Self {
-            name: def.name.as_ref(),
+            table_id: def.table_id,
+            table_name: def.table_name.as_ref(),
             cols,
             key: keys,
             last_caches,
+            next_column_id: def.schema.next_column_id(),
+            column_map: def.schema.column_map().clone(),
         }
     }
 }
@@ -206,9 +250,10 @@ impl<'a> From<&'a ArrowDataType> for DataType<'a> {
 
 impl<'a> From<TableSnapshot<'a>> for TableDefinition {
     fn from(snap: TableSnapshot<'a>) -> Self {
-        let name = snap.name.into();
+        let table_name = snap.table_name.into();
+        let table_id = snap.table_id;
         let mut b = SchemaBuilder::new();
-        b.measurement(snap.name.to_string());
+        b.measurement(snap.table_name.to_string());
         if let Some(keys) = snap.key {
             b.with_series_key(keys);
         }
@@ -226,7 +271,11 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
             }
         }
 
-        let schema = b.build().expect("valid schema from snapshot");
+        let schema = TableSchema::new_with_mapping(
+            b.build().expect("valid schema from snapshot"),
+            snap.column_map,
+            snap.next_column_id,
+        );
         let last_caches = snap
             .last_caches
             .into_iter()
@@ -234,7 +283,8 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
             .collect();
 
         Self {
-            name,
+            table_name,
+            table_id,
             schema,
             last_caches,
         }
@@ -262,6 +312,7 @@ impl<'a> From<DataType<'a>> for schema::InfluxFieldType {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LastCacheSnapshot<'a> {
+    table_id: TableId,
     table: &'a str,
     name: &'a str,
     keys: Vec<&'a str>,
@@ -273,6 +324,7 @@ struct LastCacheSnapshot<'a> {
 impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
     fn from(lcd: &'a LastCacheDefinition) -> Self {
         Self {
+            table_id: lcd.table_id,
             table: &lcd.table,
             name: &lcd.name,
             keys: lcd.key_columns.iter().map(|v| v.as_str()).collect(),
@@ -291,6 +343,7 @@ impl<'a> From<&'a LastCacheDefinition> for LastCacheSnapshot<'a> {
 impl<'a> From<LastCacheSnapshot<'a>> for LastCacheDefinition {
     fn from(snap: LastCacheSnapshot<'a>) -> Self {
         Self {
+            table_id: snap.table_id,
             table: snap.table.to_string(),
             name: snap.name.to_string(),
             key_columns: snap.keys.iter().map(|s| s.to_string()).collect(),

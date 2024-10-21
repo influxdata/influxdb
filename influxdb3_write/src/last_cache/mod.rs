@@ -23,7 +23,9 @@ use datafusion::{
 };
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::InnerCatalog;
+use influxdb3_catalog::catalog::Catalog;
+use influxdb3_id::DbId;
+use influxdb3_id::TableId;
 use influxdb3_wal::{
     Field, FieldData, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef, Row,
     WalContents, WalOp,
@@ -59,12 +61,12 @@ impl Error {
     }
 }
 
-/// A three level hashmap storing Database Name -> Table Name -> Cache Name -> LastCache
-type CacheMap = RwLock<HashMap<String, HashMap<String, HashMap<String, LastCache>>>>;
+/// A three level hashmap storing DbId -> TableId -> Cache Name -> LastCache
+type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<String, LastCache>>>>;
 
 /// Provides all last-N-value caches for the entire database
-#[derive(Default)]
 pub struct LastCacheProvider {
+    catalog: Arc<Catalog>,
     cache_map: CacheMap,
 }
 
@@ -79,10 +81,14 @@ pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 
 /// Arguments to the [`LastCacheProvider::create_cache`] method
 pub struct CreateCacheArguments {
+    /// The id of the database to create the cache for
+    pub db_id: DbId,
     /// The name of the database to create the cache for
     pub db_name: String,
+    /// The id of the table in the database to create the cache for
+    pub table_id: TableId,
     /// The name of the table in the database to create the cache for
-    pub tbl_name: String,
+    pub table_name: String,
     /// The Influx Schema of the table
     pub schema: Schema,
     /// An optional name for the cache
@@ -110,23 +116,23 @@ pub struct CreateCacheArguments {
 }
 
 impl LastCacheProvider {
-    /// Create a new [`LastCacheProvider`]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Initialize a [`LastCacheProvider`] from a [`InnerCatalog`]
-    pub fn new_from_catalog(catalog: &InnerCatalog) -> Result<Self, Error> {
-        let provider = LastCacheProvider::new();
-        for db_schema in catalog.databases() {
-            for tbl_def in db_schema.tables() {
-                for (cache_name, cache_def) in tbl_def.last_caches() {
+    /// Initialize a [`LastCacheProvider`] from a [`Catalog`]
+    pub fn new_from_catalog(catalog: Arc<Catalog>) -> Result<Self, Error> {
+        let provider = LastCacheProvider {
+            catalog: Arc::clone(&catalog),
+            cache_map: Default::default(),
+        };
+        for db_schema in catalog.list_db_schema() {
+            for table_def in db_schema.tables() {
+                for (cache_name, cache_def) in table_def.last_caches() {
                     assert!(
                         provider
                             .create_cache(CreateCacheArguments {
+                                db_id: db_schema.id,
                                 db_name: db_schema.name.to_string(),
-                                tbl_name: tbl_def.name.to_string(),
-                                schema: tbl_def.schema.clone(),
+                                table_id: table_def.table_id,
+                                table_name: table_def.table_name.to_string(),
+                                schema: table_def.influx_schema().clone(),
                                 cache_name: Some(cache_name.to_owned()),
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),
@@ -152,20 +158,22 @@ impl LastCacheProvider {
     /// traits.
     fn get_cache_name_and_schema(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         cache_name: Option<&str>,
     ) -> Option<(String, ArrowSchemaRef)> {
         self.cache_map
             .read()
-            .get(db_name)
-            .and_then(|db| db.get(tbl_name))
-            .and_then(|tbl| {
+            .get(&db_id)
+            .and_then(|db| db.get(&table_id))
+            .and_then(|table| {
                 if let Some(name) = cache_name {
-                    tbl.get(name)
+                    table
+                        .get(name)
                         .map(|lc| (name.to_string(), Arc::clone(&lc.schema)))
-                } else if tbl.len() == 1 {
-                    tbl.iter()
+                } else if table.len() == 1 {
+                    table
+                        .iter()
                         .map(|(name, lc)| (name.to_string(), Arc::clone(&lc.schema)))
                         .next()
                 } else {
@@ -175,15 +183,22 @@ impl LastCacheProvider {
     }
 
     /// Get the [`LastCacheDefinition`] for all caches contained in a database
-    pub fn get_last_caches_for_db(&self, db: &str) -> Vec<LastCacheDefinition> {
+    pub fn get_last_caches_for_db(&self, db: DbId) -> Vec<LastCacheDefinition> {
         let read = self.cache_map.read();
-        read.get(db)
-            .map(|tbl| {
-                tbl.iter()
-                    .flat_map(|(tbl_name, tbl_map)| {
-                        tbl_map
-                            .iter()
-                            .map(|(lc_name, lc)| lc.to_definition(&**tbl_name, lc_name))
+        read.get(&db)
+            .map(|table| {
+                table
+                    .iter()
+                    .flat_map(|(table_id, table_map)| {
+                        let table_name = self
+                            .catalog
+                            .db_schema_by_id(db)
+                            .expect("db exists")
+                            .table_id_to_name(*table_id)
+                            .expect("table exists");
+                        table_map.iter().map(move |(lc_name, lc)| {
+                            lc.to_definition(*table_id, table_name.as_ref(), lc_name)
+                        })
                     })
                     .collect()
             })
@@ -198,14 +213,16 @@ impl LastCacheProvider {
     pub fn create_cache(
         &self,
         CreateCacheArguments {
-            db_name,
-            tbl_name,
+            db_id,
+            table_id,
+            table_name,
             schema,
             cache_name,
             count,
             ttl,
             key_columns,
             value_columns,
+            ..
         }: CreateCacheArguments,
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let key_columns = if let Some(keys) = key_columns {
@@ -241,7 +258,10 @@ impl LastCacheProvider {
 
         // Generate the cache name if it was not provided
         let cache_name = cache_name.unwrap_or_else(|| {
-            format!("{tbl_name}_{keys}_last_cache", keys = key_columns.join("_"))
+            format!(
+                "{table_name}_{keys}_last_cache",
+                keys = key_columns.join("_")
+            )
         });
 
         let accept_new_fields = value_columns.is_none();
@@ -280,21 +300,22 @@ impl LastCacheProvider {
         // then this is an error.
         let mut lock = self.cache_map.write();
         if let Some(lc) = lock
-            .get(&db_name)
-            .and_then(|db| db.get(&tbl_name))
-            .and_then(|tbl| tbl.get(&cache_name))
+            .get(&db_id)
+            .and_then(|db| db.get(&table_id))
+            .and_then(|table| table.get(&cache_name))
         {
             return lc.compare_config(&last_cache).map(|_| None);
         }
 
-        lock.entry(db_name)
+        lock.entry(db_id)
             .or_default()
-            .entry_ref(&tbl_name)
+            .entry(table_id)
             .or_default()
             .insert(cache_name.clone(), last_cache);
 
         Ok(Some(LastCacheDefinition {
-            table: tbl_name,
+            table_id,
+            table: table_name,
             name: cache_name,
             key_columns,
             value_columns: last_cache_value_columns_def,
@@ -348,7 +369,7 @@ impl LastCacheProvider {
 
     pub fn create_cache_from_definition(
         &self,
-        db_name: &str,
+        db_id: DbId,
         schema: &Schema,
         definition: &LastCacheDefinition,
     ) {
@@ -375,9 +396,9 @@ impl LastCacheProvider {
 
         let mut lock = self.cache_map.write();
 
-        lock.entry(db_name.to_string())
+        lock.entry(db_id)
             .or_default()
-            .entry_ref(&definition.table)
+            .entry(definition.table_id)
             .or_default()
             .insert(definition.name.clone(), last_cache);
     }
@@ -389,30 +410,30 @@ impl LastCacheProvider {
     /// table's database; likewise for the database's entry in the provider's cache map.
     pub fn delete_cache(
         &self,
-        db_name: &str,
-        table_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         cache_name: &str,
     ) -> Result<(), Error> {
         let mut lock = self.cache_map.write();
 
-        let Some(db) = lock.get_mut(db_name) else {
+        let Some(db) = lock.get_mut(&db_id) else {
             return Err(Error::CacheDoesNotExist);
         };
 
-        let Some(tbl) = db.get_mut(table_name) else {
+        let Some(table) = db.get_mut(&table_id) else {
             return Err(Error::CacheDoesNotExist);
         };
 
-        if tbl.remove(cache_name).is_none() {
+        if table.remove(cache_name).is_none() {
             return Err(Error::CacheDoesNotExist);
         }
 
-        if tbl.is_empty() {
-            db.remove(table_name);
+        if table.is_empty() {
+            db.remove(&table_id);
         }
 
         if db.is_empty() {
-            lock.remove(db_name);
+            lock.remove(&db_id);
         }
 
         Ok(())
@@ -427,14 +448,14 @@ impl LastCacheProvider {
         for op in &wal_contents.ops {
             match op {
                 WalOp::Write(batch) => {
-                    if let Some(db_cache) = cache_map.get_mut(batch.database_name.as_ref()) {
+                    if let Some(db_cache) = cache_map.get_mut(&batch.database_id) {
                         if db_cache.is_empty() {
                             continue;
                         }
-                        for (tbl_name, tbl_chunks) in &batch.table_chunks {
-                            if let Some(tbl_cache) = db_cache.get_mut(tbl_name.as_ref()) {
-                                for (_, last_cache) in tbl_cache.iter_mut() {
-                                    for chunk in tbl_chunks.chunk_time_to_chunk.values() {
+                        for (table_id, table_chunks) in &batch.table_chunks {
+                            if let Some(table_cache) = db_cache.get_mut(table_id) {
+                                for (_, last_cache) in table_cache.iter_mut() {
+                                    for chunk in table_chunks.chunk_time_to_chunk.values() {
                                         for row in &chunk.rows {
                                             last_cache.push(row);
                                         }
@@ -455,7 +476,7 @@ impl LastCacheProvider {
         let mut cache_map = self.cache_map.write();
         cache_map.iter_mut().for_each(|(_, db)| {
             db.iter_mut()
-                .for_each(|(_, tbl)| tbl.iter_mut().for_each(|(_, lc)| lc.remove_expired()))
+                .for_each(|(_, table)| table.iter_mut().for_each(|(_, lc)| lc.remove_expired()))
         });
     }
 
@@ -463,20 +484,20 @@ impl LastCacheProvider {
     #[cfg(test)]
     pub(crate) fn get_cache_record_batches(
         &self,
-        db_name: &str,
-        tbl_name: &str,
+        db_id: DbId,
+        table_id: TableId,
         cache_name: Option<&str>,
         predicates: &[Predicate],
     ) -> Option<Result<Vec<RecordBatch>, ArrowError>> {
         self.cache_map
             .read()
-            .get(db_name)
-            .and_then(|db| db.get(tbl_name))
-            .and_then(|tbl| {
+            .get(&db_id)
+            .and_then(|db| db.get(&table_id))
+            .and_then(|table| {
                 if let Some(name) = cache_name {
-                    tbl.get(name)
-                } else if tbl.len() == 1 {
-                    tbl.iter().next().map(|(_, lc)| lc)
+                    table.get(name)
+                } else if table.len() == 1 {
+                    table.iter().next().map(|(_, lc)| lc)
                 } else {
                     None
                 }
@@ -490,7 +511,7 @@ impl LastCacheProvider {
         self.cache_map
             .read()
             .iter()
-            .flat_map(|(_, db)| db.iter().flat_map(|(_, tbl)| tbl.iter()))
+            .flat_map(|(_, db)| db.iter().flat_map(|(_, table)| table.iter()))
             .count()
     }
 }
@@ -803,10 +824,12 @@ impl LastCache {
     /// Convert the `LastCache` into a `LastCacheDefinition`
     fn to_definition(
         &self,
+        table_id: TableId,
         table: impl Into<String>,
         name: impl Into<String>,
     ) -> LastCacheDefinition {
         LastCacheDefinition {
+            table_id,
             table: table.into(),
             name: name.into(),
             key_columns: self.key_columns.iter().cloned().collect(),
@@ -1574,9 +1597,10 @@ mod tests {
     };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
+    use bimap::BiHashMap;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::DbId;
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -1588,12 +1612,13 @@ mod tests {
         let (obj_store, parquet_cache) =
             test_cached_obj_store_and_oracle(obj_store, Arc::clone(&time_provider));
         let persister = Arc::new(Persister::new(obj_store, "test_host"));
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
         WriteBufferImpl::new(
             persister,
-            Arc::new(Catalog::new(host_id, instance_id)),
-            Arc::new(LastCacheProvider::new()),
+            Arc::clone(&catalog),
+            Arc::new(LastCacheProvider::new_from_catalog(catalog as _).unwrap()),
             time_provider,
             crate::test_help::make_exec(),
             WalConfig::test_config(),
@@ -1606,7 +1631,9 @@ mod tests {
     #[tokio::test]
     async fn pick_up_latest_write() {
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
 
         let wbuf = setup_write_buffer().await;
 
@@ -1623,8 +1650,8 @@ mod tests {
 
         // Create the last cache:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("cache"),
             None,
             None,
@@ -1650,7 +1677,7 @@ mod tests {
         // Check what is in the last cache:
         let batch = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .get_cache_record_batches(db_id, tbl_id, None, predicates)
             .unwrap()
             .unwrap();
 
@@ -1678,7 +1705,7 @@ mod tests {
 
         let batch = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .get_cache_record_batches(db_id, tbl_id, None, predicates)
             .unwrap()
             .unwrap();
 
@@ -1712,7 +1739,9 @@ mod tests {
     #[tokio::test]
     async fn cache_key_column_predicates() {
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -1728,8 +1757,8 @@ mod tests {
 
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("cache"),
             None,
             None,
@@ -1927,7 +1956,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -1938,7 +1967,9 @@ mod tests {
     #[tokio::test]
     async fn non_default_cache_size() {
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -1954,8 +1985,8 @@ mod tests {
 
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("cache"),
             Some(10),
             None,
@@ -2101,7 +2132,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2112,7 +2143,9 @@ mod tests {
     #[tokio::test]
     async fn cache_ttl() {
         let db_name = "foo";
+        let db_id = DbId::from(0);
         let tbl_name = "cpu";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2128,8 +2161,8 @@ mod tests {
 
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("cache"),
             // use a cache size greater than 1 to ensure the TTL is doing the evicting
             Some(10),
@@ -2170,7 +2203,7 @@ mod tests {
         // Check what is in the last cache:
         let batches = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .get_cache_record_batches(db_id, tbl_id, None, predicates)
             .unwrap()
             .unwrap();
 
@@ -2209,7 +2242,7 @@ mod tests {
         // Check what is in the last cache:
         let batches = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .get_cache_record_batches(db_id, tbl_id, None, predicates)
             .unwrap()
             .unwrap();
 
@@ -2238,7 +2271,7 @@ mod tests {
         // Check what is in the last cache:
         let batches = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, predicates)
+            .get_cache_record_batches(db_id, tbl_id, None, predicates)
             .unwrap()
             .unwrap();
 
@@ -2257,7 +2290,9 @@ mod tests {
     #[tokio::test]
     async fn fields_as_key_columns() {
         let db_name = "cassini_mission";
+        let db_id = DbId::from(0);
         let tbl_name = "temp";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2276,8 +2311,8 @@ mod tests {
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("cache"),
             None,
             Some(Duration::from_millis(50)),
@@ -2376,7 +2411,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2387,7 +2422,9 @@ mod tests {
     #[tokio::test]
     async fn series_key_as_default() {
         let db_name = "windmills";
+        let db_id = DbId::from(0);
         let tbl_name = "wind_speed";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2402,7 +2439,7 @@ mod tests {
         .unwrap();
 
         // Create the last cache with keys on some field columns:
-        wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, Some("cache"), None, None, None, None)
             .await
             .expect("create last cache");
 
@@ -2508,7 +2545,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2519,7 +2556,9 @@ mod tests {
     #[tokio::test]
     async fn tag_set_as_default() {
         let db_name = "windmills";
+        let db_id = DbId::from(0);
         let tbl_name = "wind_speed";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2534,7 +2573,7 @@ mod tests {
         .unwrap();
 
         // Create the last cache with keys on some field columns:
-        wbuf.create_last_cache(db_name, tbl_name, Some("cache"), None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, Some("cache"), None, None, None, None)
             .await
             .expect("create last cache");
 
@@ -2640,7 +2679,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2651,7 +2690,9 @@ mod tests {
     #[tokio::test]
     async fn null_values() {
         let db_name = "weather";
+        let db_id = DbId::from(0);
         let tbl_name = "temp";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to update catalog
@@ -2667,7 +2708,7 @@ mod tests {
         .unwrap();
 
         // Create the last cache using default tags as keys
-        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, Some(10), None, None, None)
             .await
             .expect("create last cache");
 
@@ -2694,7 +2735,7 @@ mod tests {
 
         let batches = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_name, tbl_name, None, &[])
+            .get_cache_record_batches(db_id, tbl_id, None, &[])
             .unwrap()
             .unwrap();
 
@@ -2718,7 +2759,9 @@ mod tests {
     #[tokio::test]
     async fn new_fields_added_to_default_cache() {
         let db_name = "nhl_stats";
+        let db_id = DbId::from(0);
         let tbl_name = "plays";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -2733,7 +2776,7 @@ mod tests {
         .unwrap();
 
         // Create the last cache using default tags as keys
-        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, Some(10), None, None, None)
             .await
             .expect("create last cache");
 
@@ -2804,7 +2847,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2815,7 +2858,9 @@ mod tests {
     #[tokio::test]
     async fn new_field_ordering() {
         let db_name = "db";
+        let db_id = DbId::from(0);
         let tbl_name = "tbl";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -2833,8 +2878,8 @@ mod tests {
         // and using the default for fields, so that new fields will get added
         // to the cache.
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             None,
             None, // use default cache size of 1
             None,
@@ -2937,7 +2982,7 @@ mod tests {
         for t in test_cases {
             let batches = wbuf
                 .last_cache_provider()
-                .get_cache_record_batches(db_name, tbl_name, None, t.predicates)
+                .get_cache_record_batches(db_id, tbl_id, None, t.predicates)
                 .unwrap()
                 .unwrap();
 
@@ -2948,7 +2993,9 @@ mod tests {
     #[tokio::test]
     async fn idempotent_cache_creation() {
         let db_name = "db";
+        let db_id = DbId::from(0);
         let tbl_name = "tbl";
+        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -2963,21 +3010,21 @@ mod tests {
         .unwrap();
 
         // Create a last cache using all default settings
-        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
             .await
             .expect("create last cache");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Doing the same should be fine:
-        wbuf.create_last_cache(db_name, tbl_name, None, None, None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
             .await
             .expect("create last cache");
         assert_eq!(wbuf.last_cache_provider().size(), 1);
 
         // Specify the same arguments as what the defaults would produce (minus the value columns)
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("tbl_t1_t2_last_cache"),
             Some(1),
             Some(DEFAULT_CACHE_TTL),
@@ -2991,8 +3038,8 @@ mod tests {
         // Specify value columns, which would deviate from above, as that implies different cache
         // behaviour, i.e., no new fields are accepted:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             None,
             None,
             None,
@@ -3005,8 +3052,8 @@ mod tests {
 
         // Specify different key columns, along with the same cache name will produce error:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             Some("tbl_t1_t2_last_cache"),
             None,
             None,
@@ -3021,8 +3068,8 @@ mod tests {
         // different generated cache name, and therefore cache, so it will work:
         let name = wbuf
             .create_last_cache(
-                db_name,
-                tbl_name,
+                db_id,
+                tbl_id,
                 None,
                 None,
                 None,
@@ -3039,8 +3086,8 @@ mod tests {
 
         // Specify different TTL:
         wbuf.create_last_cache(
-            db_name,
-            tbl_name,
+            db_id,
+            tbl_id,
             None,
             None,
             Some(Duration::from_secs(10)),
@@ -3052,7 +3099,7 @@ mod tests {
         assert_eq!(wbuf.last_cache_provider().size(), 2);
 
         // Specify different count:
-        wbuf.create_last_cache(db_name, tbl_name, None, Some(10), None, None, None)
+        wbuf.create_last_cache(db_id, tbl_id, None, Some(10), None, None, None)
             .await
             .expect_err("create last cache should have failed");
         assert_eq!(wbuf.last_cache_provider().size(), 2);
@@ -3068,11 +3115,19 @@ mod tests {
             id: DbId::from(0),
             name: db_name.into(),
             tables: BTreeMap::new(),
+            table_map: {
+                let mut map = BiHashMap::new();
+                map.insert(TableId::from(0), "test_table_1".into());
+                map.insert(TableId::from(1), "test_table_2".into());
+                map
+            },
         };
+        let table_id = TableId::from(0);
         use schema::InfluxColumnType::*;
         use schema::InfluxFieldType::*;
         // Add a table to it:
         let mut table_def = TableDefinition::new(
+            table_id,
             "test_table_1".into(),
             [
                 ("t1", Tag),
@@ -3088,6 +3143,7 @@ mod tests {
         // Give that table a last cache:
         table_def.add_last_cache(
             LastCacheDefinition::new_all_non_key_value_columns(
+                table_id,
                 "test_table_1",
                 "test_cache_1",
                 ["t1", "t2"],
@@ -3096,11 +3152,11 @@ mod tests {
             )
             .unwrap(),
         );
-        database
-            .tables
-            .insert(Arc::clone(&table_def.name), table_def);
+        database.tables.insert(table_def.table_id, table_def);
         // Add another table to it:
+        let table_id = TableId::from(1);
         let mut table_def = TableDefinition::new(
+            table_id,
             "test_table_2".into(),
             [
                 ("t1", Tag),
@@ -3114,6 +3170,7 @@ mod tests {
         // Give that table a last cache:
         table_def.add_last_cache(
             LastCacheDefinition::new_with_explicit_value_columns(
+                table_id,
                 "test_table_2",
                 "test_cache_2",
                 ["t1"],
@@ -3126,6 +3183,7 @@ mod tests {
         // Give that table another last cache:
         table_def.add_last_cache(
             LastCacheDefinition::new_with_explicit_value_columns(
+                table_id,
                 "test_table_2",
                 "test_cache_3",
                 &[] as &[std::string::String],
@@ -3135,24 +3193,23 @@ mod tests {
             )
             .unwrap(),
         );
-        database
-            .tables
-            .insert(Arc::clone(&table_def.name), table_def);
+        database.tables.insert(table_def.table_id, table_def);
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let host_id = Arc::from("dummy-host-id");
-        let instance_id = Arc::from("dummy-instance-id");
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
         let mut catalog = Catalog::new(host_id, instance_id);
+        let db_id = database.id;
         catalog.insert_database(database);
-        let inner = catalog.clone_inner();
+        let catalog = Arc::new(catalog);
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
-        let provider = LastCacheProvider::new_from_catalog(&inner)
+        let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
             .expect("create last cache provider from catalog");
         // There should be a total of 3 caches:
         assert_eq!(3, provider.size());
         // Get the cache definitions and snapshot them to check their content. They are sorted to
         // ensure order, since the provider uses hashmaps and their order may not be guaranteed.
-        let mut caches = provider.get_last_caches_for_db(db_name);
+        let mut caches = provider.get_last_caches_for_db(db_id);
         caches.sort_by(|a, b| match a.table.partial_cmp(&b.table).unwrap() {
             ord @ Ordering::Less | ord @ Ordering::Greater => ord,
             Ordering::Equal => a.name.partial_cmp(&b.name).unwrap(),

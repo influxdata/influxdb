@@ -1,6 +1,7 @@
 //! Planner contains logic for organizing compaction within a table and creating compaction plans.
 
 use hashbrown::HashMap;
+use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{
     CompactionConfig, Generation, GenerationId, GenerationLevel, HostSnapshotMarker,
@@ -22,7 +23,7 @@ pub(crate) struct SnapshotAdvancePlan {
     /// The host snapshot markers that will be saved at the end of this advance plan being run
     pub(crate) host_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
     /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
-    pub(crate) compaction_plans: HashMap<Arc<str>, Vec<CompactionPlan>>,
+    pub(crate) compaction_plans: HashMap<DbId, Vec<CompactionPlan>>,
 }
 
 impl SnapshotAdvancePlan {
@@ -38,15 +39,13 @@ impl SnapshotAdvancePlan {
         let (gen1_tables, host_snapshot_markers) =
             compacted_data.tables_with_gen1_awaiting_compaction_and_markers();
 
-        for (db_name, table_map) in gen1_tables {
-            let plans = compaction_plans
-                .entry(Arc::clone(&db_name))
-                .or_insert_with(Vec::new);
-            for (table_name, generations) in table_map {
+        for (db_id, table_map) in gen1_tables {
+            let plans = compaction_plans.entry(db_id).or_insert_with(Vec::new);
+            for (table_id, generations) in table_map {
                 if let Some(plan) = create_next_plan(
                     &compacted_data.compaction_config,
-                    Arc::clone(&db_name),
-                    Arc::clone(&table_name),
+                    db_id,
+                    table_id,
                     &generations,
                     GenerationLevel::two(),
                     host_snapshot_markers.len(),
@@ -56,8 +55,8 @@ impl SnapshotAdvancePlan {
                     plans.push(CompactionPlan::Compaction(plan));
                 } else {
                     let plan = CompactionPlan::LeftoverOnly(LeftoverPlan {
-                        db_name: Arc::clone(&db_name),
-                        table_name: Arc::clone(&table_name),
+                        db_id,
+                        table_id,
                         leftover_gen1_ids: generations
                             .iter()
                             .filter_map(|g| {
@@ -100,13 +99,13 @@ impl CompactionPlanGroup {
     ) -> Option<Self> {
         let host_count = compacted_data.last_snapshot_marker_per_host().len();
         let mut compaction_plans = Vec::new();
-        for db in compacted_data.databases() {
-            for table in compacted_data.tables(db.as_ref()) {
-                let generations = compacted_data.get_generations(db.as_ref(), table.as_ref());
+        for db_id in compacted_data.databases() {
+            for table_id in compacted_data.tables(db_id) {
+                let generations = compacted_data.get_generations(db_id, table_id);
                 if let Some(plan) = create_next_plan(
                     &compacted_data.compaction_config,
-                    Arc::clone(&db),
-                    Arc::clone(&table),
+                    db_id,
+                    table_id,
                     &generations,
                     output_level,
                     host_count,
@@ -129,8 +128,8 @@ impl CompactionPlanGroup {
 /// run. If there are no compactions to run at that level, it will return None.
 pub(crate) fn create_next_plan(
     compaction_config: &CompactionConfig,
-    db_name: Arc<str>,
-    table_name: Arc<str>,
+    db_id: DbId,
+    table_id: TableId,
     generations: &[Generation],
     output_level: GenerationLevel,
     host_count: usize,
@@ -210,8 +209,8 @@ pub(crate) fn create_next_plan(
                 .map(|g| g.id)
                 .collect::<Vec<_>>();
             let compaction_plan = NextCompactionPlan {
-                db_name,
-                table_name,
+                db_id,
+                table_id,
                 output_generation,
                 input_ids,
                 leftover_ids,
@@ -231,17 +230,17 @@ pub(crate) enum CompactionPlan {
 }
 
 impl CompactionPlan {
-    pub(crate) fn db_name(&self) -> &str {
+    pub(crate) fn db_id(&self) -> DbId {
         match self {
-            Self::LeftoverOnly(plan) => &plan.db_name,
-            Self::Compaction(plan) => &plan.db_name,
+            Self::LeftoverOnly(plan) => plan.db_id,
+            Self::Compaction(plan) => plan.db_id,
         }
     }
 
-    pub(crate) fn table_name(&self) -> &str {
+    pub(crate) fn table_id(&self) -> TableId {
         match self {
-            Self::LeftoverOnly(plan) => &plan.table_name,
-            Self::Compaction(plan) => &plan.table_name,
+            Self::LeftoverOnly(plan) => plan.table_id,
+            Self::Compaction(plan) => plan.table_id,
         }
     }
 }
@@ -252,8 +251,8 @@ impl CompactionPlan {
 /// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 hosts.
 #[derive(Debug)]
 pub(crate) struct LeftoverPlan {
-    pub(crate) db_name: Arc<str>,
-    pub(crate) table_name: Arc<str>,
+    pub(crate) db_id: DbId,
+    pub(crate) table_id: TableId,
     pub(crate) leftover_gen1_ids: Vec<GenerationId>,
 }
 
@@ -263,8 +262,8 @@ pub(crate) struct LeftoverPlan {
 /// `CompactionDetail` file for the table.
 #[derive(Debug)]
 pub(crate) struct NextCompactionPlan {
-    pub db_name: Arc<str>,
-    pub table_name: Arc<str>,
+    pub db_id: DbId,
+    pub table_id: TableId,
     pub output_generation: Generation,
     /// The input generations for this compaction. Could be empty if there are only gen1 files
     /// getting compacted.
@@ -369,8 +368,8 @@ mod tests {
             gens.sort();
             let plan = create_next_plan(
                 &compaction_config,
-                "db".into(),
-                "table".into(),
+                DbId::new(),
+                TableId::new(),
                 &gens,
                 GenerationLevel::new(tc.output_level),
                 1,
@@ -503,8 +502,8 @@ mod tests {
             gens.sort();
             let plan = create_next_plan(
                 &compaction_config,
-                "db".into(),
-                "table".into(),
+                DbId::new(),
+                TableId::new(),
                 &gens,
                 GenerationLevel::new(tc.output_level),
                 1,

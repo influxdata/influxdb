@@ -16,6 +16,7 @@ schema.workspace = true
 
 # Local Crates
 influxdb3_catalog = { path = "../../influxdb3_catalog" }
+influxdb3_id = { path = "../../influxdb3_id" }
 influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_write = { path = "../../influxdb3_write" }
@@ -38,6 +39,7 @@ tokio.workspace = true
 datafusion_util.workspace = true
 metric.workspace = true
 parquet_file.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true
