@@ -48,9 +48,7 @@ async fn five_files_multiple_series_same_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -116,10 +114,7 @@ async fn five_files_multiple_series_same_schema() {
     let path4 = test_writer.write("test/batch/4", batch4).await;
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
@@ -268,9 +263,7 @@ async fn two_files_two_series_and_same_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -324,10 +317,7 @@ async fn two_files_two_series_and_same_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
@@ -419,9 +409,7 @@ async fn two_files_same_series_and_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -475,10 +463,7 @@ async fn two_files_same_series_and_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
@@ -551,9 +536,7 @@ async fn two_files_similar_series_and_compatible_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -628,10 +611,7 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
@@ -729,9 +709,7 @@ async fn deduplication_of_data() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -785,10 +763,7 @@ async fn deduplication_of_data() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {
@@ -855,9 +830,7 @@ async fn compactor_casting() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            ),
+            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -930,10 +903,7 @@ async fn compactor_casting() {
 
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
-    let db_schema = write_buffer
-        .catalog()
-        .db_schema("test_db")
-        .unwrap();
+    let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
     let table_schema = db_schema.table_schema("test_table").unwrap();
 
     let args = CompactFilesArgs {

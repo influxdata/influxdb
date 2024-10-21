@@ -1,4 +1,4 @@
-use crate::planner::{CompactionPlanGroup, SnapshotTracker};
+use crate::planner::{CompactionPlanGroup, SnapshotAdvancePlan};
 use arrow::array::as_largestring_array;
 use arrow::array::AsArray;
 use arrow::array::RecordBatch;
@@ -29,7 +29,7 @@ use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::chunk::ParquetChunk;
-use influxdb3_write::{ParquetFile, PersistedSnapshot};
+use influxdb3_write::ParquetFile;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -42,7 +42,7 @@ use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, warn};
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -55,7 +55,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use tokio::sync::watch::Receiver;
+use std::time::Duration;
 
 pub mod planner;
 mod runner;
@@ -111,96 +111,90 @@ pub struct Compactor {
     catalog: Arc<Catalog>,
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
-    /// New snapshots for gen1 files will come through this channel
-    persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
-    snapshot_tracker: SnapshotTracker,
 }
 
 impl Compactor {
     pub async fn new(
-        compaction_hosts: Vec<String>,
         compacted_data: Arc<CompactedData>,
         catalog: Arc<Catalog>,
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
-        persisted_snapshot_notify_rx: Receiver<Option<PersistedSnapshot>>,
     ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
-        let snapshot_tracker = SnapshotTracker::new(compaction_hosts);
-
         Ok(Self {
             compacted_data,
             catalog,
             object_store_url,
             executor,
-            persisted_snapshot_notify_rx,
-            snapshot_tracker,
         })
     }
 
     pub async fn compact(self) {
-        info!(
-            "starting compaction loop for hosts {:?}",
-            self.snapshot_tracker.hosts()
-        );
-        let mut persisted_snapshot_notify_rx = self.persisted_snapshot_notify_rx.clone();
+        info!("starting compaction loop");
+        let mut new_snapshot = self.compacted_data.snapshot_notification_receiver();
         let generation_levels = self.compacted_data.compaction_config.compaction_levels();
 
         loop {
-            if let Err(e) = persisted_snapshot_notify_rx.changed().await {
-                error!("Failed to wait for new snapshot: {}", e);
-                break;
-            }
-
-            let snapshot = match persisted_snapshot_notify_rx.borrow_and_update().clone() {
-                Some(snapshot) => snapshot,
-                None => continue,
+            let check_snapshot = tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(100)) => false,
+                v = new_snapshot.recv() => {
+                    match v {
+                        Ok(_) => true,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                            // Ignore the lagged error and continue
+                            warn!("lagged snapshot notification, continuing");
+                            true
+                        }
+                        Err(e) => {
+                            error!(error = ?e, "error receiving snapshot, exiting compaction loop");
+                            break;
+                        }
+                    }
+                }
             };
 
-            debug!(
-                "Received new snapshot for compaction {} from {}",
-                snapshot.snapshot_sequence_number.as_u64(),
-                snapshot.host_id
-            );
-            if let Err(e) = self.snapshot_tracker.add_snapshot(&snapshot) {
-                error!("Failed to add snapshot to tracker: {}", e);
-                continue;
+            if check_snapshot {
+                let host = self
+                    .compacted_data
+                    .last_snapshot_host()
+                    .unwrap_or("unknown".to_string());
+                debug!(host = ?host, "received new snapshot");
+
+                if let Some(snapshot_plan) =
+                    SnapshotAdvancePlan::should_advance(&self.compacted_data)
+                {
+                    let compaction_summary = runner::run_snapshot_plan(
+                        snapshot_plan,
+                        Arc::clone(&self.compacted_data),
+                        Arc::clone(&self.catalog),
+                        self.object_store_url.clone(),
+                        Arc::clone(&self.executor),
+                    )
+                    .await;
+                    info!(?compaction_summary, "completed snapshot plan");
+                }
             }
 
-            if self.snapshot_tracker.should_compact() {
-                let snapshot_plan = self
-                    .snapshot_tracker
-                    .to_plan_and_reset(&self.compacted_data);
+            for level in &generation_levels {
+                // TODO: wire up later generation compactions
+                if *level > GenerationLevel::new(4) {
+                    break;
+                }
 
-                let _compaction_summary = runner::run_snapshot_plan(
-                    snapshot_plan,
-                    Arc::clone(&self.compacted_data),
-                    Arc::clone(&self.catalog),
-                    self.object_store_url.clone(),
-                    Arc::clone(&self.executor),
-                )
-                .await;
+                if let Some(plan_group) =
+                    CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
+                {
+                    let compaction_summary = runner::run_compaction_plan_group(
+                        plan_group,
+                        Arc::clone(&self.compacted_data),
+                        Arc::clone(&self.catalog),
+                        self.object_store_url.clone(),
+                        Arc::clone(&self.executor),
+                    )
+                    .await;
+                    info!(?compaction_summary, "completed compaction plan group");
 
-                for level in &generation_levels {
-                    // TODO: wire up later generation compactions
-                    if *level > GenerationLevel::new(4) {
-                        break;
-                    }
-
-                    if let Some(plan_group) =
-                        CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
-                    {
-                        let _compaction_summary = runner::run_compaction_plan_group(
-                            plan_group,
-                            Arc::clone(&self.compacted_data),
-                            Arc::clone(&self.catalog),
-                            self.object_store_url.clone(),
-                            Arc::clone(&self.executor),
-                        )
-                        .await;
-
-                        // only one run set of compactions, then go back to waiting for a snapshot
-                        break;
-                    }
+                    // only one run set of compactions, then go back to waiting for a snapshot
+                    break;
                 }
             }
         }

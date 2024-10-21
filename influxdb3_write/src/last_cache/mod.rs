@@ -116,7 +116,7 @@ pub struct CreateCacheArguments {
 }
 
 impl LastCacheProvider {
-    /// Initialize a [`LastCacheProvider`] from a [`DatabaseSchemaProvider`]
+    /// Initialize a [`LastCacheProvider`] from a [`Catalog`]
     pub fn new_from_catalog(catalog: Arc<Catalog>) -> Result<Self, Error> {
         let provider = LastCacheProvider {
             catalog: Arc::clone(&catalog),

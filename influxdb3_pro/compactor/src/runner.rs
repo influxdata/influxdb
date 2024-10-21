@@ -4,7 +4,7 @@ use crate::planner::{CompactionPlan, CompactionPlanGroup, SnapshotAdvancePlan};
 use crate::{compact_files, CompactFilesArgs};
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+use influxdb3_catalog::catalog::{Catalog, TableDefinition};
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::persist::{
@@ -44,11 +44,7 @@ pub(crate) async fn run_snapshot_plan(
 
     let mut new_compaction_detail_paths =
         Vec::with_capacity(snapshot_advance_plan.compaction_plans.len());
-    let mut new_snapshot_markers = snapshot_advance_plan
-        .host_snapshot_markers
-        .values()
-        .filter_map(|hc| hc.marker.clone())
-        .collect::<Vec<_>>();
+    let mut new_snapshot_markers = snapshot_advance_plan.host_snapshot_markers.clone();
 
     // if there is an existing compaction summary, carry forward any compaction details that
     // were not compacted in this cycle. Also carry forward any host snapshot markers that
@@ -108,7 +104,6 @@ pub(crate) async fn run_snapshot_plan(
                 plan,
                 Arc::clone(&compacted_data),
                 new_snapshot_markers.clone(),
-                Arc::clone(&db_schema),
                 table_definition,
                 compaction_sequence_number,
                 object_store_url.clone(),
@@ -135,7 +130,7 @@ pub(crate) async fn run_snapshot_plan(
     )
     .await?;
 
-    compacted_data.set_last_summary(compaction_summary.clone());
+    compacted_data.set_last_summary_and_remove_markers(compaction_summary.clone());
 
     Ok(compaction_summary)
 }
@@ -207,7 +202,6 @@ pub(crate) async fn run_compaction_plan_group(
             CompactionPlan::Compaction(plan),
             Arc::clone(&compacted_data),
             last_summary.snapshot_markers.clone(),
-            Arc::clone(&db_schema),
             table_definition,
             compaction_sequence_number,
             object_store_url.clone(),
@@ -233,7 +227,7 @@ pub(crate) async fn run_compaction_plan_group(
     )
     .await?;
 
-    compacted_data.set_last_summary(compaction_summary.clone());
+    compacted_data.set_last_summary_and_remove_markers(compaction_summary.clone());
 
     Ok(compaction_summary)
 }
@@ -242,17 +236,20 @@ pub(crate) async fn run_compaction_plan_group(
 async fn run_plan_and_write_detail(
     plan: CompactionPlan,
     compacted_data: Arc<CompactedData>,
-    snapshot_markers: Vec<HostSnapshotMarker>,
-    database_schema: Arc<DatabaseSchema>,
+    snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
     table_definition: &TableDefinition,
     compaction_sequence_number: CompactionSequenceNumber,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<CompactionDetailPath> {
-    debug!("Running compaction plan: {:?}", plan);
-
+    debug!(plan = ?plan, "Running compaction plan");
     let path = match plan {
         CompactionPlan::Compaction(plan) => {
+            let database_schema = compacted_data
+                .catalog
+                .db_schema_by_id(plan.db_id)
+                .expect("plan to have valid database id");
+
             let index_columns = table_definition
                 .index_columns()
                 .iter()
@@ -376,6 +373,11 @@ async fn run_plan_and_write_detail(
             path
         }
         CompactionPlan::LeftoverOnly(plan) => {
+            let database_schema = compacted_data
+                .catalog
+                .db_schema_by_id(plan.db_id)
+                .expect("plan to have valid database id");
+
             let leftover_gen1_files: Vec<_> = compacted_data.remove_compacting_gen1_files(
                 plan.db_id,
                 plan.table_id,
@@ -424,7 +426,7 @@ async fn run_plan_and_write_detail(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::planner::{HostSnapshotCounter, NextCompactionPlan};
+    use crate::planner::NextCompactionPlan;
     use arrow_util::assert_batches_eq;
     use executor::register_current_runtime_for_io;
     use influxdb3_catalog::catalog::Catalog;
@@ -692,19 +694,11 @@ mod tests {
             leftover_ids: vec![],
         });
         let snapshot_advance_plan = SnapshotAdvancePlan {
-            host_snapshot_markers: vec![(
-                "test-host".to_string(),
-                HostSnapshotCounter {
-                    marker: Some(HostSnapshotMarker {
-                        host_id: "test-host".to_string(),
-                        snapshot_sequence_number: SnapshotSequenceNumber::new(2),
-                        next_file_id: ParquetFileId::next_id(),
-                    }),
-                    snapshot_count: 2,
-                },
-            )]
-            .into_iter()
-            .collect(),
+            host_snapshot_markers: vec![Arc::new(HostSnapshotMarker {
+                host_id: "test-host".to_string(),
+                snapshot_sequence_number: SnapshotSequenceNumber::new(2),
+                next_file_id: ParquetFileId::next_id(),
+            })],
             compaction_plans: vec![(database_id, vec![compaction_plan])]
                 .into_iter()
                 .collect(),

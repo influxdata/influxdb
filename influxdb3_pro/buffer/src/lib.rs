@@ -112,7 +112,7 @@ impl<Mode: Bufferer> Bufferer for WriteBufferPro<Mode> {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        self.mode.watch_persisted_snapshots()
+        unimplemented!("watch_persisted_snapshots not implemented for WriteBufferPro")
     }
 }
 

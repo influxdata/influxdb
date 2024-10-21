@@ -14,7 +14,7 @@ use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
-use influxdb3_write::{Bufferer, ChunkContainer, Precision, WriteBuffer};
+use influxdb3_write::{ChunkContainer, Precision, WriteBuffer};
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_query::QueryChunk;
 use iox_time::{SystemProvider, Time};
@@ -110,12 +110,10 @@ async fn two_writers_gen1_compaction() {
     );
 
     let compactor = Compactor::new(
-        vec![writer1_id.to_string(), writer2_id.to_string()],
         Arc::clone(&compacted_data),
         Arc::clone(&writer1_catalog),
         writer1_persister.object_store_url().clone(),
         Arc::clone(&exec),
-        read_write_mode.watch_persisted_snapshots(),
     )
     .await
     .unwrap();
@@ -123,24 +121,22 @@ async fn two_writers_gen1_compaction() {
     // run the compactor on the DataFusion executor, but don't drop it
     let _t = exec.executor().spawn(compactor.compact()).boxed();
 
-    let mut snapshot_notify = read_write_mode.watch_persisted_snapshots();
-
+    let mut snapshot_notify = compacted_data.snapshot_notification_receiver();
     // each call to do_writes will force a snapshot. We want to do two for each writer,
     // which will then trigger a compaction. We also want to do one more snapshot each
     // so that we'll have non-compacted files show up in this query too.
-    snapshot_notify.mark_unchanged();
-    do_writes(read_write_mode.as_ref(), writer1_id, 0).await;
-    snapshot_notify.changed().await.unwrap();
-    snapshot_notify.mark_unchanged();
-    do_writes(&writer2_buffer, writer2_id, 1).await;
-    snapshot_notify.changed().await.unwrap();
-    snapshot_notify.mark_unchanged();
-    do_writes(read_write_mode.as_ref(), writer1_id, 2).await;
-    snapshot_notify.changed().await.unwrap();
-    snapshot_notify.mark_unchanged();
-    do_writes(&writer2_buffer, writer2_id, 3).await;
-    snapshot_notify.changed().await.unwrap();
-    snapshot_notify.mark_unchanged();
+    do_writes(read_write_mode.as_ref(), writer1_id, 0, 1).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(&writer2_buffer, writer2_id, 0, 2).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(read_write_mode.as_ref(), writer1_id, 1, 1).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(&writer2_buffer, writer2_id, 1, 2).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(read_write_mode.as_ref(), writer1_id, 2, 1).await;
+    let _ = snapshot_notify.recv().await;
+    do_writes(&writer2_buffer, writer2_id, 2, 2).await;
+    let _ = snapshot_notify.recv().await;
 
     // wait for a compaction to happen
     let mut count = 0;
@@ -149,16 +145,26 @@ async fn two_writers_gen1_compaction() {
         let table_id = db_schema.table_name_to_id("m1").unwrap();
         if let Some(detail) = compacted_data.get_last_compaction_detail(db_id, table_id) {
             if detail.sequence_number.as_u64() > 1 {
-                // we should have a compacted generation
-                assert_eq!(detail.compacted_generations.len(), 1);
+                // we should have a single compacted generation
+                assert_eq!(
+                    detail.compacted_generations.len(),
+                    1,
+                    "should have a single generation. compaction details: {:?}",
+                    detail
+                );
                 // nothing should be leftover as it should all now exist in gen3
-                assert_eq!(detail.leftover_gen1_files.len(), 0);
+                assert_eq!(
+                    detail.leftover_gen1_files.len(),
+                    1,
+                    "should have one leftover gen1 file. details: {:?}",
+                    detail
+                );
                 break;
             }
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
         count += 1;
-        if count > 20 {
+        if count > 30 {
             panic!("compaction did not happen");
         }
     }
@@ -177,41 +183,53 @@ async fn two_writers_gen1_compaction() {
     let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
     assert_batches_sorted_eq!(
         [
-            "+------+--------------------------------+---------+",
-            "| f1   | time                           | w       |",
-            "+------+--------------------------------+---------+",
-            "| 0.0  | 1970-01-01T00:00:00Z           | writer1 |",
-            "| 1.0  | 1970-01-01T00:00:00.000000001Z | writer1 |",
-            "| 10.0 | 1970-01-01T00:04:30.000000001Z | writer2 |",
-            "| 11.0 | 1970-01-01T00:04:30.000000002Z | writer2 |",
-            "| 2.0  | 1970-01-01T00:00:00.000000002Z | writer1 |",
-            "| 3.0  | 1970-01-01T00:01:30Z           | writer2 |",
-            "| 4.0  | 1970-01-01T00:01:30.000000001Z | writer2 |",
-            "| 5.0  | 1970-01-01T00:01:30.000000002Z | writer2 |",
-            "| 6.0  | 1970-01-01T00:03:00Z           | writer1 |",
-            "| 7.0  | 1970-01-01T00:03:00.000000001Z | writer1 |",
-            "| 8.0  | 1970-01-01T00:03:00.000000002Z | writer1 |",
-            "| 9.0  | 1970-01-01T00:04:30Z           | writer2 |",
-            "+------+--------------------------------+---------+",
+            "+-------+--------------------------------+---------+",
+            "| f1    | time                           | w       |",
+            "+-------+--------------------------------+---------+",
+            "| 103.0 | 1970-01-01T00:01:00.000000103Z | writer1 |",
+            "| 104.0 | 1970-01-01T00:01:00.000000104Z | writer1 |",
+            "| 105.0 | 1970-01-01T00:01:00.000000105Z | writer1 |",
+            "| 106.0 | 1970-01-01T00:01:00.000000106Z | writer2 |",
+            "| 107.0 | 1970-01-01T00:01:00.000000107Z | writer2 |",
+            "| 108.0 | 1970-01-01T00:01:00.000000108Z | writer2 |",
+            "| 203.0 | 1970-01-01T00:02:00.000000203Z | writer1 |",
+            "| 204.0 | 1970-01-01T00:02:00.000000204Z | writer1 |",
+            "| 205.0 | 1970-01-01T00:02:00.000000205Z | writer1 |",
+            "| 206.0 | 1970-01-01T00:02:00.000000206Z | writer2 |",
+            "| 207.0 | 1970-01-01T00:02:00.000000207Z | writer2 |",
+            "| 208.0 | 1970-01-01T00:02:00.000000208Z | writer2 |",
+            "| 3.0   | 1970-01-01T00:00:00.000000003Z | writer1 |",
+            "| 4.0   | 1970-01-01T00:00:00.000000004Z | writer1 |",
+            "| 5.0   | 1970-01-01T00:00:00.000000005Z | writer1 |",
+            "| 6.0   | 1970-01-01T00:00:00.000000006Z | writer2 |",
+            "| 7.0   | 1970-01-01T00:00:00.000000007Z | writer2 |",
+            "| 8.0   | 1970-01-01T00:00:00.000000008Z | writer2 |",
+            "+-------+--------------------------------+---------+",
         ],
         &batches
     );
 }
 
-async fn do_writes(buffer: &(impl WriteBuffer + ?Sized), writer: &str, start_num: i64) {
+async fn do_writes(
+    buffer: &(impl WriteBuffer + ?Sized),
+    writer: &str,
+    minute: i64,
+    writer_offet: i64,
+) {
     let db = data_types::NamespaceName::new("test_db").unwrap();
 
     let number_of_writes = 3;
-    let offset = start_num * number_of_writes;
+    let writer_offset = writer_offet * number_of_writes;
 
     for i in 0..number_of_writes {
-        let num = (offset * 30 * 1_000_000_000) + i;
-        let data = format!("m1,w={} f1={} {}", writer, offset + i, num);
+        let val = i + writer_offset + (100 * minute);
+        let time = (minute * 60 * 1_000_000_000) + val;
+        let data = format!("m1,w={} f1={} {}", writer, val, time);
         buffer
             .write_lp(
                 db.clone(),
                 &data,
-                Time::from_timestamp_nanos(num),
+                Time::from_timestamp_nanos(time),
                 false,
                 Precision::Nanosecond,
             )
