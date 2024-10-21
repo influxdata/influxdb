@@ -161,7 +161,7 @@ impl Compactor {
                 if let Some(snapshot_plan) =
                     SnapshotAdvancePlan::should_advance(&self.compacted_data)
                 {
-                    let _compaction_summary = runner::run_snapshot_plan(
+                    let compaction_summary = runner::run_snapshot_plan(
                         snapshot_plan,
                         Arc::clone(&self.compacted_data),
                         Arc::clone(&self.catalog),
@@ -169,6 +169,7 @@ impl Compactor {
                         Arc::clone(&self.executor),
                     )
                     .await;
+                    info!(?compaction_summary, "completed snapshot plan");
                 }
             }
 
@@ -181,7 +182,7 @@ impl Compactor {
                 if let Some(plan_group) =
                     CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
                 {
-                    let _compaction_summary = runner::run_compaction_plan_group(
+                    let compaction_summary = runner::run_compaction_plan_group(
                         plan_group,
                         Arc::clone(&self.compacted_data),
                         Arc::clone(&self.catalog),
@@ -189,6 +190,7 @@ impl Compactor {
                         Arc::clone(&self.executor),
                     )
                     .await;
+                    info!(?compaction_summary, "completed compaction plan group");
 
                     // only one run set of compactions, then go back to waiting for a snapshot
                     break;

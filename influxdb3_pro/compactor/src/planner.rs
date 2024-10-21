@@ -172,7 +172,10 @@ pub(crate) fn create_next_plan(
             *count += 1;
         }
 
-        // ensure we have at least one generation newer than this block to keep around
+        // ensure we have at least one generation newer than this block to keep around. We want
+        // to do this because we could have lagged data coming in, or another gen1 file coming
+        // in from another host. We don't want to compact too aggressively, otherwise we'll
+        // end up redoing all that work.
         let gen_end_time = gen_time
             + compaction_config
                 .generation_duration(output_level)
