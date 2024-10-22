@@ -3,6 +3,7 @@ use influxdb3_wal::{
     LastCacheDelete, TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
 use schema::InfluxColumnType;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
@@ -154,7 +155,7 @@ impl TableDefinition {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CatalogIdMap {
     dbs: HashMap<DbId, DbId>,
     tables: HashMap<TableId, TableId>,
@@ -336,5 +337,268 @@ impl CatalogIdMap {
                 name: def.name.clone(),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ops::Deref, sync::Arc};
+
+    use influxdb3_id::{DbId, TableId};
+    use schema::{InfluxColumnType, SchemaBuilder};
+
+    use crate::catalog::{Catalog, DatabaseSchema, Error, TableDefinition, TableSchema};
+
+    fn create_table_inner<C, N, SK>(name: &str, cols: C, series_key: Option<SK>) -> TableDefinition
+    where
+        C: IntoIterator<Item = (N, InfluxColumnType)>,
+        N: Into<String>,
+        SK: IntoIterator<Item: AsRef<str>>,
+    {
+        let mut builder = SchemaBuilder::new();
+        for (name, col) in cols.into_iter() {
+            builder.influx_column(name, col);
+        }
+        if let Some(sk) = series_key {
+            builder.with_series_key(sk);
+        }
+        let schema = TableSchema::new(builder.build().unwrap());
+        TableDefinition {
+            table_id: TableId::new(),
+            table_name: name.into(),
+            schema,
+            last_caches: Default::default(),
+        }
+    }
+
+    fn create_table<C, N>(name: &str, cols: C) -> TableDefinition
+    where
+        C: IntoIterator<Item = (N, InfluxColumnType)>,
+        N: Into<String>,
+    {
+        create_table_inner::<C, N, &[&str]>(name, cols, None)
+    }
+
+    fn create_table_with_series_key<C, N, SK>(
+        name: &str,
+        cols: C,
+        series_key: SK,
+    ) -> TableDefinition
+    where
+        C: IntoIterator<Item = (N, InfluxColumnType)>,
+        N: Into<String>,
+        SK: IntoIterator<Item: AsRef<str>>,
+    {
+        create_table_inner(name, cols, Some(series_key))
+    }
+
+    fn create_catalog(name: &str) -> Arc<Catalog> {
+        let host_name = format!("host-{name}").as_str().into();
+        let instance_name = format!("instance-{name}").as_str().into();
+        let cat = Catalog::new(host_name, instance_name);
+        let tbl = create_table(
+            "bar",
+            [
+                ("t1", InfluxColumnType::Tag),
+                ("t2", InfluxColumnType::Tag),
+                (
+                    "f1",
+                    InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
+                ),
+            ],
+        );
+        let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
+        db.table_map
+            .insert(tbl.table_id, Arc::clone(&tbl.table_name));
+        db.tables.insert(tbl.table_id, tbl);
+        cat.insert_database(db);
+        cat.into()
+    }
+
+    #[test]
+    fn merge_two_identical_catalogs() {
+        let a = create_catalog("a");
+        // clone inner so that b is a carbon copy of a:
+        let b = Arc::new(Catalog::from_inner(a.clone_inner()));
+        let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
+        insta::assert_yaml_snapshot!(a);
+        insta::assert_yaml_snapshot!(b_to_a_map);
+        let a_to_b_map = b.merge(a).unwrap();
+        insta::assert_yaml_snapshot!(b);
+        insta::assert_yaml_snapshot!(a_to_b_map);
+    }
+
+    #[test]
+    fn merge_two_catalogs_with_same_content_different_ids() {
+        let a = create_catalog("a");
+        // b will have the same content as a, but will have assigned different IDs:
+        let b = create_catalog("b");
+        let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
+        insta::assert_yaml_snapshot!(a);
+        insta::assert_yaml_snapshot!(b_to_a_map);
+        let a_to_b_map = b.merge(a).unwrap();
+        insta::assert_yaml_snapshot!(b);
+        insta::assert_yaml_snapshot!(a_to_b_map);
+    }
+
+    #[test]
+    fn merge_catalog_with_new_database() {
+        let a = create_catalog("a");
+        let b = create_catalog("b");
+        b.db_or_create("biz").unwrap();
+        // check the db by name in b:
+        assert_eq!(DbId::from(2), b.db_name_to_id("biz").unwrap());
+        let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
+        // only use insta for the map here as the nesting of the catalog structure makes it
+        // difficult to use snapshots, due to there being several nested bi-directional maps,
+        // which don't seem to play nice with insta's sorting mechanisms.
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_yaml_snapshot!(b_to_a_map);
+        });
+        // check the db by name in a after merge:
+        assert_eq!(DbId::from(3), a.db_name_to_id("biz").unwrap());
+        let a_to_b_map = b.merge(a).unwrap();
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_yaml_snapshot!(a_to_b_map);
+        });
+    }
+
+    #[test]
+    fn merge_catalog_with_new_table() {
+        let a = create_catalog("a");
+        let b = create_catalog("b");
+        let new_tbl = create_table(
+            "doh",
+            [
+                ("t3", InfluxColumnType::Tag),
+                (
+                    "f2",
+                    InfluxColumnType::Field(schema::InfluxFieldType::Integer),
+                ),
+            ],
+        );
+        let mut db = b.db_schema("foo").unwrap().deref().clone();
+        db.table_map
+            .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+        db.tables.insert(new_tbl.table_id, new_tbl);
+        b.insert_database(db);
+        // check the db/table by name in b:
+        {
+            let (db_id, db_schema) = b.db_schema_and_id("foo").unwrap();
+            assert_eq!(DbId::from(1), db_id);
+            assert_eq!(TableId::from(2), db_schema.table_name_to_id("doh").unwrap());
+        }
+        let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
+        // check the db/table by name in a after merge:
+        {
+            let (db_id, db_schema) = a.db_schema_and_id("foo").unwrap();
+            assert_eq!(DbId::from(0), db_id);
+            assert_eq!(TableId::from(3), db_schema.table_name_to_id("doh").unwrap());
+        }
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_yaml_snapshot!(b_to_a_map);
+        });
+        let a_to_b_map = b.merge(a).unwrap();
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_yaml_snapshot!(a_to_b_map);
+        });
+    }
+
+    #[test]
+    fn merge_incompatible_catalog_field_type_mismatch() {
+        let a = create_catalog("a");
+        let b = create_catalog("b");
+        // Add a new table to a:
+        {
+            let new_tbl = create_table(
+                "doh",
+                [
+                    ("t3", InfluxColumnType::Tag),
+                    (
+                        "f2",
+                        InfluxColumnType::Field(schema::InfluxFieldType::UInteger),
+                    ),
+                ],
+            );
+            let mut db = a.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, new_tbl);
+            a.insert_database(db);
+        }
+        // Add a similar table to b, but in this case, the f2 field is an Integer, not UInteger
+        {
+            let new_tbl = create_table(
+                "doh",
+                [
+                    ("t3", InfluxColumnType::Tag),
+                    (
+                        "f2",
+                        InfluxColumnType::Field(schema::InfluxFieldType::Integer),
+                    ),
+                ],
+            );
+            let mut db = b.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, new_tbl);
+            b.insert_database(db);
+        }
+        let err = a
+            .merge(b)
+            .expect_err("merge should fail for incompatible field type");
+        assert!(matches!(err, Error::FieldTypeMismatch { .. }));
+    }
+
+    #[test]
+    fn merge_incompatible_catalog_series_key_mismatch() {
+        let a = create_catalog("a");
+        let b = create_catalog("b");
+        // Add a new table to a:
+        {
+            let new_tbl = create_table_with_series_key(
+                "doh",
+                [
+                    ("t1", InfluxColumnType::Tag),
+                    ("t2", InfluxColumnType::Tag),
+                    (
+                        "f2",
+                        InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
+                    ),
+                ],
+                ["t1", "t2"],
+            );
+            let mut db = a.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, new_tbl);
+            a.insert_database(db);
+        }
+        // Add a similar table to b, but in this case, the f2 field is an Integer, not UInteger
+        {
+            let new_tbl = create_table_with_series_key(
+                "doh",
+                [
+                    ("t1", InfluxColumnType::Tag),
+                    ("t2", InfluxColumnType::Tag),
+                    ("t3", InfluxColumnType::Tag),
+                    (
+                        "f2",
+                        InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
+                    ),
+                ],
+                // series key has an extra tag column
+                ["t1", "t2", "t3"],
+            );
+            let mut db = b.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, new_tbl);
+            b.insert_database(db);
+        }
+        let err = a
+            .merge(b)
+            .expect_err("merge should fail for incompatible series key");
+        assert!(matches!(err, Error::SeriesKeyMismatch { .. },));
     }
 }
