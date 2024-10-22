@@ -2733,6 +2733,7 @@ dependencies = [
  "influxdb3_test_helpers",
  "influxdb3_wal",
  "influxdb3_write",
+ "insta",
  "iox_query",
  "iox_time",
  "metric",

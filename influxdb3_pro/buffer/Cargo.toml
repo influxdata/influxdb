@@ -29,6 +29,7 @@ chrono.workspace = true
 datafusion.workspace = true
 futures.workspace = true
 futures-util.workspace = true
+insta.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 serde_json.workspace = true
