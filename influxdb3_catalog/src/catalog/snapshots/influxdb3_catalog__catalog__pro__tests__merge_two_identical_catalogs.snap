@@ -1,0 +1,46 @@
+---
+source: influxdb3_catalog/src/catalog/pro.rs
+expression: a
+---
+databases:
+  - id: 0
+    name: foo
+    tables:
+      - table_id: 0
+        table_name: bar
+        cols:
+          f1:
+            column_id: 2
+            type: bool
+            influx_type: field
+            nullable: true
+          t1:
+            column_id: 0
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: true
+          t2:
+            column_id: 1
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: true
+        column_map:
+          - column_id: 0
+            name: t1
+          - column_id: 1
+            name: t2
+          - column_id: 2
+            name: f1
+        next_column_id: 3
+sequence: 1
+host_id: host-a
+instance_id: instance-a
+db_map:
+  - db_id: 0
+    name: foo

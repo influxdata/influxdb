@@ -255,7 +255,7 @@ impl Catalog {
         self.inner.read().db_exists(db_id)
     }
 
-    pub fn insert_database(&mut self, db: DatabaseSchema) {
+    pub fn insert_database(&self, db: DatabaseSchema) {
         let mut inner = self.inner.write();
         inner.db_map.insert(db.id, Arc::clone(&db.name));
         inner.databases.insert(db.id, Arc::new(db));
