@@ -1002,7 +1002,7 @@ func (m *Launcher) writePIDFile(pidFilename string, overwrite bool) error {
 	openFlags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
 	pidFile, err := os.OpenFile(pidFilename, openFlags|os.O_EXCL, pidMode)
 	if err != nil {
-		if !errors.Is(err, os.ErrExist) {
+		if !errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("open file: %w", err)
 		}
 		if !overwrite {

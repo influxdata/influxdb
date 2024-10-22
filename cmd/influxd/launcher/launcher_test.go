@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	nethttp "net/http"
 	"os"
 	"path/filepath"
@@ -286,5 +287,6 @@ func TestLauncher_PIDFile_OverwriteFail(t *testing.T) {
 		require.Equal(t, lockContents, pidBytes)
 	}()
 
-	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %[1]q: overwrite file: open %[1]s: permission denied", pidFilename))
+	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %[1]q: overwrite file: open %[1]s:", pidFilename))
+	require.ErrorIs(t, err, fs.ErrPermission)
 }
