@@ -1,0 +1,78 @@
+{
+  "binaries": [
+    {
+      "source": "/tmp/workspace/artifacts/influxdb3-edge_x86_64-unknown-linux-musl.tar.gz",
+      "arch": "amd64",
+      "plat": "linux",
+      "type": "tar",
+      "targets": ["influxdb3"]
+    },
+    {
+      "source": "/tmp/workspace/artifacts/influxdb3-edge-aarch64-unknown-linux-musl.tar.gz",
+      "arch": "arm64",
+      "plat": "linux",
+      "type": "tar",
+      "targets": ["influxdb3"]
+    },
+    {
+      "source": "/tmp/workspace/artifacts/influxdb3-edge-aarch64-aarch64-apple-darwin.tar.gz",
+      "arch": "arm64",
+      "plat": "darwin",
+      "type": "tar",
+      "targets": ["influxdb3"]
+    },
+    {
+      "source": "/tmp/workspace/artifacts/influxdb3-edge-x86_64-pc-windows-gnu.tar.gz",
+      "arch": "amd64",
+      "plat": "windows",
+      "type": "tar",
+      "targets": ["influxdb3.exe"]
+    }
+  ],
+  "packages": [
+    {
+      "name":        "influxdb3",
+      "description": "Monolithic time-series database.",
+      "license":     "MIT/Apache-2.0",
+      "vendor":      "InfluxData",
+      "homepage":    "https://influxdata.com",
+      "maintainer": {
+        "name": "support",
+        "mail": "support@influxdata.com"
+      },
+      "additional": [
+        { "src": "LICENSE-APACHE", "dst": "usr/share/influxdb3/LICENSE-APACHE" },
+        { "src": "LICENSE-MIT",    "dst": "usr/share/influxdb3/LICENSE-MIT" },
+        { "src": "README.md",      "dst": "usr/share/influxdb3/README.md" }
+      ],
+      "bins": [ "influxdb3" ],
+      "dist": [
+        { "arch": "amd64", "plat": "linux" },
+        { "arch": "arm64", "plat": "linux" },
+        { "arch": "arm64", "plat": "darwin" }
+      ],
+      "src": ".circleci/packages/influxdb3"
+    },
+    {
+      "name":        "influxdb3",
+      "description": "Monolithic time-series database.",
+      "license":     "MIT/Apache-2.0",
+      "vendor":      "InfluxData",
+      "homepage":    "https://influxdata.com",
+      "maintainer": {
+        "name": "support",
+        "mail": "support@influxdata.com"
+      },
+      "additional": [
+        { "src": "LICENSE-APACHE", "dst": "LICENSE-APACHE" },
+        { "src": "LICENSE-MIT",    "dst": "LICENSE-MIT" },
+        { "src": "README.md",      "dst": "README.md" }
+      ],
+      "bins": [ "influxdb3.exe" ],
+      "dist": [
+        { "arch": "amd64", "plat": "windows" }
+      ],
+      "src": ".circleci/packages/influxdb3"
+    }
+  ]
+}

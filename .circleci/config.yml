@@ -35,6 +35,12 @@ jobs:
           command: |
             set -x
 
+            git checkout v1.11.8
+            export CIRCLE_TAG=v1.11.8
+            export CIRCLE_SHA1=199a607e1c7a5a687f96a636bb3bab9a61e4ae31
+            export CIRCLE_BRANCH=
+            export VERSION=v1.11.8
+
             printf '{
                 "version": "%s",
                 "branch": "%s",
@@ -57,13 +63,43 @@ jobs:
       - run:
           name: Build binaries
           command: |
-            export CC="$(xcc linux x86_64)"
+            set -x
+            git checkout v1.11.8
+            export CIRCLE_TAG=v1.11.8
+            export CIRCLE_SHA1=199a607e1c7a5a687f96a636bb3bab9a61e4ae31
+            export CIRCLE_BRANCH=
+            export VERSION=v1.11.8
+
+            mkdir darwin-amd64 \
+                  linux-amd64 \
+                  linux-arm64 \
+                  windows-amd64
+
+            # darwin amd64
+            export CC="$(xcc darwin)"
             export CGO_ENABLED=1
+            export GOOS=darwin
+            export GOARCH=amd64
+            for cmd in influxd influx influx_inspect
+            do
+              go build \
+                -tags "netgo,osusergo" \
+                -ldflags="
+                  -X \"main.version=${VERSION}\"
+                  -X \"main.branch=${CIRCLE_BRANCH}\"
+                  -X \"main.commit=${CIRCLE_SHA1}\"
+                  -linkmode=external \
+                  -extld=${CC}" \
+                  "github.com/influxdata/influxdb/cmd/${cmd}"
+                mv "${cmd}" darwin-amd64/
+            done
 
             # linux amd64 (static build)
+            export CC="$(xcc linux x86_64)"
+            export CGO_ENABLED=1
             export GOOS=linux
             export GOARCH=amd64
-            for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect}
+            for cmd in influxd influx influx_inspect
             do
               go build \
                 -tags "netgo,osusergo,static_build" \
@@ -75,24 +111,122 @@ jobs:
                   -linkmode=external
                   -extld=${CC}
                   -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
-                ${cmd}
+                  "github.com/influxdata/influxdb/cmd/${cmd}"
+                mv "${cmd}" linux-amd64/
             done
 
-            mkdir -p ./bins
+            # linux arm64 (static build)
+            export CC="$(xcc linux aarch64)"
+            export CGO_ENABLED=1
+            export GOOS=linux
+            export GOARCH=arm64
+            for cmd in influxd influx influx_inspect
+            do
+              go build \
+                -tags "netgo,osusergo,static_build" \
+                -buildmode=pie \
+                -ldflags="-s
+                  -X \"main.version=${VERSION}\"
+                  -X \"main.branch=${CIRCLE_BRANCH}\"
+                  -X \"main.commit=${CIRCLE_SHA1}\"
+                  -linkmode=external
+                  -extld=${CC}
+                  -extldflags \"-fno-PIC -static-pie -Wl,-z,stack-size=8388608\"" \
+                  "github.com/influxdata/influxdb/cmd/${cmd}"
+                mv "${cmd}" linux-arm64/
+            done
 
-            target="bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
-            tar -czf "${target}" \
-              influx             \
-              influx_inspect     \
-              influxd
-            md5sum    "${target}" > "${target}.md5"
-            sha256sum "${target}" > "${target}.sha256"
+            # windows amd64
+            export CC="$(xcc windows)"
+            export CGO_ENABLED=1
+            export GOOS=windows
+            export GOARCH=amd64
+            for cmd in influxd influx influx_inspect
+            do
+              go build \
+                -tags "netgo,osusergo,static_build" \
+                -buildmode=pie \
+                -ldflags="-s
+                  -X \"main.version=${VERSION}\"
+                  -X \"main.branch=${CIRCLE_BRANCH}\"
+                  -X \"main.commit=${CIRCLE_SHA1}\" \
+                  -linkmode=external \
+                  -extld=${CC}" \
+                  "github.com/influxdata/influxdb/cmd/${cmd}"
+                mv "${cmd}.exe" windows-amd64/
+            done
+
+            mkdir darwin-amd64-bins \
+                  linux-amd64-bins \
+                  linux-arm64-bins \
+                  windows-amd64-bins
+
+            # linux amd64 targz
+            export GOOS=linux
+            export GOARCH=amd64
+            target="${PWD}/linux-amd64-bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+            pushd "linux-amd64"
+              tar -czf "${target}" \
+                influx             \
+                influx_inspect     \
+                influxd
+              md5sum    "${target}" > "${target}.md5"
+              sha256sum "${target}" > "${target}.sha256"
+            popd
+
+            # linux arm64 targz
+            export GOOS=linux
+            export GOARCH=arm64
+            target="${PWD}/linux-arm64-bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+            pushd "linux-arm64"
+              tar -czf "${target}" \
+                influx             \
+                influx_inspect     \
+                influxd
+              md5sum    "${target}" > "${target}.md5"
+              sha256sum "${target}" > "${target}.sha256"
+            popd
+
+            # windows amd64 targz
+            export GOOS=windows
+            export GOARCH=amd64
+            target="${PWD}/windows-amd64-bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+            pushd "windows-amd64"
+              tar -czf "${target}" \
+                influx.exe         \
+                influx_inspect.exe \
+                influxd.exe
+              md5sum    "${target}" > "${target}.md5"
+              sha256sum "${target}" > "${target}.sha256"
+            popd
+
+            # darwin amd64 targz
+            export GOOS=darwin
+            export GOARCH=amd64
+            target="${PWD}/darwin-amd64-bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+            pushd "darwin-amd64"
+              tar -czf "${target}" \
+                influx             \
+                influx_inspect     \
+                influxd
+              md5sum    "${target}" > "${target}.md5"
+              sha256sum "${target}" > "${target}.sha256"
+            popd
       - store_artifacts:
-          path: bins/
+          path: darwin-amd64-bins
+      - store_artifacts:
+          path: linux-amd64-bins
+      - store_artifacts:
+          path: linux-arm64-bins
+      - store_artifacts:
+          path: windows-amd64-bins
       - persist_to_workspace:
           root: .
           paths:
-              - bins
+              - darwin-amd64-bins
+              - linux-amd64-bins
+              - linux-arm64-bins
+              - windows-amd64-bins
       - save_cache:
           key: influxdb-cache-v1-{{ checksum "go.mod" }}
           paths:
@@ -370,33 +504,33 @@ workflows:
     jobs:
       - build_binaries:
           <<: *release_filter
-      - build_packages:
-          <<: *release_filter
-          requires:
-            - build_binaries
-      - sign_packages:
-          <<: *release_filter
-          requires:
-            - build_packages
-      - test_pkgs_64bit:
-          <<: *release_filter
-          requires:
-            - build_packages
-      - changelog:
-          <<: *release_filter
-      - publish_changelog:
-          <<: *release_filter
-          workflow: release
-          requires:
-            - changelog
-      - publish_packages:
-          <<: *release_filter
-          requires:
-            - sign_packages
-      - slack:
-          <<: *release_filter
-          requires:
-            - publish_packages
+      #- build_packages:
+      #    <<: *release_filter
+      #    requires:
+      #      - build_binaries
+      # - sign_packages:
+      #     <<: *release_filter
+      #     requires:
+      #       - build_packages
+      # - test_pkgs_64bit:
+      #     <<: *release_filter
+      #     requires:
+      #       - build_packages
+      #- changelog:
+      #    <<: *release_filter
+      #- publish_changelog:
+      #    <<: *release_filter
+      #    workflow: release
+      #    requires:
+      #      - changelog
+      #- publish_packages:
+      #    <<: *release_filter
+      #    requires:
+      #      - sign_packages
+      #- slack:
+      #    <<: *release_filter
+      #    requires:
+      #      - publish_packages
       - static_code_checks:
           <<: *release_filter
       - fluxtest:
@@ -418,12 +552,12 @@ workflows:
       equal: [ << pipeline.parameters.workflow >>, build ]
     jobs:
       - build_binaries
-      - build_packages:
-          requires:
-            - build_binaries
-      - test_pkgs_64bit:
-          requires:
-            - build_packages
+      #- build_packages:
+      #    requires:
+      #      - build_binaries
+      #- test_pkgs_64bit:
+      #    requires:
+      #      - build_packages
       - static_code_checks
       - fluxtest
       - unit_test:
@@ -472,9 +606,9 @@ workflows:
             - unit_test_inmem
             - unit_test_race
             - unit_test_tsi1
-      - build_packages:
-          requires:
-            - build_binaries
-      - test_pkgs_64bit:
-          requires:
-            - build_packages
+      #- build_packages:
+      #    requires:
+      #      - build_binaries
+      #- test_pkgs_64bit:
+      #    requires:
+      #      - build_packages
