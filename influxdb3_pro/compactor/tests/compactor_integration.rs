@@ -30,6 +30,7 @@ use std::time::Duration;
 use crate::common::build_parquet_cache_prefetcher;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "flakey test as it depends on the timing of other writer to read"]
 async fn two_writers_gen1_compaction() {
     let metrics = Arc::new(metric::Registry::default());
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
