@@ -138,6 +138,8 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		return ErrNameTooLong
 	} else if rpi.ReplicaN < 1 {
 		return ErrReplicationFactorTooLow
+	} else if rpi.PastWriteLimit < 0 || rpi.FutureWriteLimit < 0 {
+		return ErrNegativeWriteLimit
 	}
 
 	// Normalise ShardDuration before comparing to any existing
@@ -1282,6 +1284,8 @@ func (rpi *RetentionPolicyInfo) marshal() *internal.RetentionPolicyInfo {
 		ReplicaN:           proto.Uint32(uint32(rpi.ReplicaN)),
 		Duration:           proto.Int64(int64(rpi.Duration)),
 		ShardGroupDuration: proto.Int64(int64(rpi.ShardGroupDuration)),
+		FutureWriteLimit:   proto.Int64(int64(rpi.FutureWriteLimit)),
+		PastWriteLimit:     proto.Int64(int64(rpi.PastWriteLimit)),
 	}
 
 	pb.ShardGroups = make([]*internal.ShardGroupInfo, len(rpi.ShardGroups))
@@ -1303,6 +1307,8 @@ func (rpi *RetentionPolicyInfo) unmarshal(pb *internal.RetentionPolicyInfo) {
 	rpi.ReplicaN = int(pb.GetReplicaN())
 	rpi.Duration = time.Duration(pb.GetDuration())
 	rpi.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
+	rpi.FutureWriteLimit = time.Duration(pb.GetFutureWriteLimit())
+	rpi.PastWriteLimit = time.Duration(pb.GetPastWriteLimit())
 
 	if len(pb.GetShardGroups()) > 0 {
 		rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))

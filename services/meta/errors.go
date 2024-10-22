@@ -69,6 +69,9 @@ var (
 	// ErrReplicationFactorTooLow is returned when the replication factor is not in an
 	// acceptable range.
 	ErrReplicationFactorTooLow = errors.New("replication factor must be greater than 0")
+
+	// ErrNegativeWriteLimit is returned when the FutureWriteLimit or PastWriteLimit is below zero
+	ErrNegativeWriteLimit = errors.New("negative write limit")
 )
 
 var (
