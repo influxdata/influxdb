@@ -144,7 +144,8 @@ type InfluxdOpts struct {
 	TracingType       string
 	ReportingDisabled bool
 
-	PIDFile string
+	PIDFile          string
+	OverwritePIDFile bool
 
 	AssetsPath string
 	BoltPath   string
@@ -215,7 +216,8 @@ func NewOpts(viper *viper.Viper) *InfluxdOpts {
 		FluxLogEnabled:    false,
 		ReportingDisabled: false,
 
-		PIDFile: "",
+		PIDFile:          "",
+		OverwritePIDFile: false,
 
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		SqLitePath: filepath.Join(dir, sqlite.DefaultFilename),
@@ -334,6 +336,12 @@ func (o *InfluxdOpts) BindCliOpts() []cli.Opt {
 			Flag:    "pid-file",
 			Default: o.PIDFile,
 			Desc:    "write process ID to a file",
+		},
+		{
+			DestP:   &o.OverwritePIDFile,
+			Flag:    "overwrite-pid-file",
+			Default: o.OverwritePIDFile,
+			Desc:    "overwrite PID file if it already exists instead of exiting",
 		},
 		{
 			DestP:   &o.SessionLength,

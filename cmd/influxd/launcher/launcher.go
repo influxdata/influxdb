@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	nethttp "net/http"
 	"os"
@@ -108,6 +109,11 @@ const (
 	LogTracing = "log"
 	// JaegerTracing enables tracing via the Jaeger client library
 	JaegerTracing = "jaeger"
+)
+
+var (
+	// ErrPIDFileExists indicates that a PID file already exists.
+	ErrPIDFileExists = errors.New("PID file exists (possible unclean shutdown or another instance already running)")
 )
 
 type labeledCloser struct {
@@ -249,7 +255,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		}
 	}
 
-	if err := m.writePIDFile(opts.PIDFile); err != nil {
+	if err := m.writePIDFile(opts.PIDFile, opts.OverwritePIDFile); err != nil {
 		return fmt.Errorf("error writing PIDFile %q: %w", opts.PIDFile, err)
 	}
 
@@ -975,32 +981,66 @@ func (m *Launcher) initTracing(opts *InfluxdOpts) {
 	}
 }
 
-// writePIDFile will write the process ID to pidFile and register a cleanup function to delete it during
-// shutdown. If pidFile is empty, then no PID file is written and no cleanup function is registered.
-func (m *Launcher) writePIDFile(pidFile string) error {
-	if pidFile == "" {
+// writePIDFile will write the process ID to pidFilename and register a cleanup function to delete it during
+// shutdown. If pidFilename is empty, then no PID file is written and no cleanup function is registered.
+// If pidFilename already exists and overwrite is false, then pidFilename is not overwritten and a
+// ErrPIDFileExists error is returned. If pidFilename already exists and overwrite is true, then pidFilename
+// will be overwritten but a warning will be logged.
+func (m *Launcher) writePIDFile(pidFilename string, overwrite bool) error {
+	if pidFilename == "" {
 		return nil
 	}
 
 	// Create directory to PIDfile if needed.
-	if err := os.MkdirAll(filepath.Dir(pidFile), 0777); err != nil {
+	if err := os.MkdirAll(filepath.Dir(pidFilename), 0777); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	// Write PID to file
-	pidStr := strconv.Itoa(os.Getpid())
-	if writeErr := os.WriteFile(pidFile, []byte(pidStr), 0666); writeErr != nil {
+	// Write PID to file, but don't clobber an existing PID file.
+	pidBytes := []byte(strconv.Itoa(os.Getpid()))
+	pidMode := fs.FileMode(0666)
+	openFlags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	pidFile, err := os.OpenFile(pidFilename, openFlags|os.O_EXCL, pidMode)
+	if err != nil {
+		if !errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("open file: %w", err)
+		}
+		if !overwrite {
+			return ErrPIDFileExists
+		} else {
+			m.log.Warn("PID file already exists, attempting to overwrite", zap.String("pidFile", pidFilename))
+			pidFile, err = os.OpenFile(pidFilename, openFlags, pidMode)
+			if err != nil {
+				return fmt.Errorf("overwrite file: %w", err)
+			}
+		}
+	}
+	_, writeErr := pidFile.Write(pidBytes) // Contract says Write must return an error if count < len(pidBytes).
+	closeErr := pidFile.Close()            // always close the file
+	if writeErr != nil || closeErr != nil {
+		var errs []error
+		if writeErr != nil {
+			errs = append(errs, fmt.Errorf("write file: %w", writeErr))
+		}
+		if closeErr != nil {
+			errs = append(errs, fmt.Errorf("close file: %w", closeErr))
+		}
+
 		// Let's make sure we don't leave a PID file behind on error.
-		removeErr := os.Remove(pidFile)
-		return fmt.Errorf("write file: %w; remove file: %w", writeErr, removeErr)
+		removeErr := os.Remove(pidFilename)
+		if removeErr != nil {
+			errs = append(errs, fmt.Errorf("remove file: %w", removeErr))
+		}
+
+		return errors.Join(errs...)
 	}
 
 	// Add a cleanup function.
 	m.closers = append(m.closers, labeledCloser{
 		label: "pidfile",
 		closer: func(context.Context) error {
-			if err := os.Remove(pidFile); err != nil {
-				return fmt.Errorf("removing PID file %q: %w", pidFile, err)
+			if err := os.Remove(pidFilename); err != nil {
+				return fmt.Errorf("removing PID file %q: %w", pidFilename, err)
 			}
 			return nil
 		},
