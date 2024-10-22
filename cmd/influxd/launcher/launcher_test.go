@@ -9,6 +9,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -217,7 +218,12 @@ func TestLauncher_PIDFile_Locked(t *testing.T) {
 		require.Equal(t, lockContents, contents)
 		curSt, err := os.Stat(pidFilename)
 		require.NoError(t, err)
-		require.Equal(t, origSt, curSt)
+
+		// CircleCI test runners for darwin don't have `noatime` / `relatime`, so
+		// the atime will differ, which is inside the system specific data.
+		if runtime.GOOS != "darwin" {
+			require.Equal(t, origSt, curSt)
+		}
 	}()
 
 	require.ErrorIs(t, err, launcher.ErrPIDFileExists)
