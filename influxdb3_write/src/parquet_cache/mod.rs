@@ -52,6 +52,11 @@ impl CacheRequest {
         let (notifier, receiver) = oneshot::channel();
         (Self { path, notifier }, receiver)
     }
+
+    /// Helper to get path used to create this request
+    pub fn get_path(&self) -> &Path {
+        &self.path
+    }
 }
 
 /// An interface for interacting with a Parquet Cache by registering [`CacheRequest`]s to it.
