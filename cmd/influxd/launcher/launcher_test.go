@@ -286,8 +286,8 @@ func TestLauncher_PIDFile_OverwriteFail(t *testing.T) {
 	defer func() {
 		l.ShutdownOrFail(t, ctx)
 
-		require.FileExists(t, pidFilename)
 		require.NoError(t, os.Chmod(pidFilename, 0644))
+		require.FileExists(t, pidFilename)
 		pidBytes, err := os.ReadFile(pidFilename)
 		require.NoError(t, err)
 		require.Equal(t, lockContents, pidBytes)
