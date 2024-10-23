@@ -167,6 +167,14 @@ impl CatalogIdMap {
         self.tables.extend(other.tables.drain());
     }
 
+    pub fn map_db_id(&self, database_id: DbId) -> Option<DbId> {
+        self.dbs.get(&database_id).copied()
+    }
+
+    pub fn map_table_id(&self, table_id: TableId) -> Option<TableId> {
+        self.tables.get(&table_id).copied()
+    }
+
     pub fn map_db_or_new(
         &mut self,
         target_catalog: &Catalog,

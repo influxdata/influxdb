@@ -1444,6 +1444,199 @@ mod tests {
         });
     }
 
+    /// note that there isn't really a way to just do new db right now.
+    #[test]
+    fn map_wal_content_for_replica_new_db_new_table() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // create a new db and table id as if they were on the replica:
+        let db_id = DbId::new();
+        let table_id = TableId::new();
+        let wal_content = create::wal_content(
+            (0, 1, 0),
+            [create::catalog_batch_op(
+                db_id,
+                "sup",
+                0,
+                [create::create_table_op(
+                    db_id,
+                    "sup",
+                    table_id,
+                    "dog",
+                    [
+                        create::field_def("t1", FieldDataType::Tag),
+                        create::field_def("f1", FieldDataType::Float),
+                        create::field_def("time", FieldDataType::Timestamp),
+                    ],
+                )],
+            )],
+        );
+        replica
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .expect("catalog batch should apply successfully on replica catalog");
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .unwrap();
+        let db = primary.db_schema("sup").unwrap();
+        insta::with_settings!({
+            description => "database schema in primary catalog after mapping and applying replica \
+            WAL content, should include table 'dog'"
+        }, {
+            insta::assert_yaml_snapshot!(db);
+        });
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_new_db_new_table_already_on_local() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // create a new db and table as if they were on the local primary and apply it to the primary:
+        let (primary_db_id, primary_table_id) = {
+            let db_id = DbId::new();
+            let table_id = TableId::new();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "fizz",
+                    0,
+                    [create::create_table_op(
+                        db_id,
+                        "fizz",
+                        table_id,
+                        "buzz",
+                        [
+                            create::field_def("t1", FieldDataType::Tag),
+                            create::field_def("f1", FieldDataType::Float),
+                            create::field_def("time", FieldDataType::Timestamp),
+                        ],
+                    )],
+                )],
+            );
+            primary
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("catalog batch should apply successfully on primary catalog");
+            (db_id, table_id)
+        };
+        // now do the same thing as if the db/table were created separately on the replica:
+        let (replica_db_id, replica_table_id, replica_wal_content) = {
+            let db_id = DbId::new();
+            let table_id = TableId::new();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "fizz",
+                    0,
+                    [create::create_table_op(
+                        db_id,
+                        "fizz",
+                        table_id,
+                        "buzz",
+                        [
+                            create::field_def("t1", FieldDataType::Tag),
+                            create::field_def("f1", FieldDataType::Float),
+                            create::field_def("time", FieldDataType::Timestamp),
+                        ],
+                    )],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("catalog batch should apply successfully on replica catalog");
+            (db_id, table_id, wal_content)
+        };
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        let id_map = replicated_catalog.id_map.lock().clone();
+        assert_eq!(primary_db_id, id_map.map_db_id(replica_db_id).unwrap());
+        assert_eq!(
+            primary_table_id,
+            id_map.map_table_id(replica_table_id).unwrap()
+        );
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .expect("mapped batch should still apply successfully to primary");
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_field_additions() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // there is a db called "foo" and a table called "bar" already, but get their IDs on the
+        // replica's catalog, so we can use the ID map to map them onto the primary
+        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+        let table_id = db_schema.table_name_to_id("bar").unwrap();
+        let wal_content = create::wal_content(
+            (0, 1, 0),
+            [create::catalog_batch_op(
+                db_id,
+                "foo",
+                0,
+                [create::add_fields_op(
+                    db_id,
+                    "foo",
+                    table_id,
+                    "bar",
+                    [create::field_def("f4", FieldDataType::Float)],
+                )],
+            )],
+        );
+        replica
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .expect("catalog batch should apply successfully to the replica catalog");
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        // apply the mapped wal content to the primary:
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .unwrap();
+        let db = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            description => "database schema in primary catalog after mapping and applying replica \
+            WAL content, table 'bar' should include field 'f4'"
+        }, {
+            insta::assert_yaml_snapshot!(db);
+        });
+    }
+
     async fn chunks_to_record_batches(
         chunks: Vec<Arc<dyn QueryChunk>>,
         ctx: &SessionContext,
@@ -1655,6 +1848,22 @@ mod tests {
                 database_name: db_name.into(),
                 time_ns,
                 ops: ops.into_iter().collect(),
+            })
+        }
+
+        pub(super) fn add_fields_op(
+            database_id: DbId,
+            db_name: impl Into<Arc<str>>,
+            table_id: TableId,
+            table_name: impl Into<Arc<str>>,
+            fields: impl IntoIterator<Item = FieldDefinition>,
+        ) -> CatalogOp {
+            CatalogOp::AddFields(influxdb3_wal::FieldAdditions {
+                database_name: db_name.into(),
+                database_id,
+                table_name: table_name.into(),
+                table_id,
+                field_definitions: fields.into_iter().collect(),
             })
         }
 
