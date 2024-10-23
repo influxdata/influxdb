@@ -268,6 +268,10 @@ func TestLauncher_PIDFile_Overwrite(t *testing.T) {
 }
 
 func TestLauncher_PIDFile_OverwriteFail(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("test will fail when run as root")
+	}
+
 	pidDir := t.TempDir()
 	pidFilename := filepath.Join(pidDir, "influxd.pid")
 	lockContents := []byte("foobar") // something wouldn't appear in normal lock file
