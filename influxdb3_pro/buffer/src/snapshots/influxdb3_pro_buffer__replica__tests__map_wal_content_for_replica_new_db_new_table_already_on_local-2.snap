@@ -1,0 +1,11 @@
+---
+source: influxdb3_pro/buffer/src/replica.rs
+description: id map after mapping replica WAL content
+expression: id_map
+---
+dbs:
+  1: 0
+  3: 2
+tables:
+  1: 0
+  3: 2
