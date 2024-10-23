@@ -33,9 +33,9 @@ use influxdb3_write::persister::Persister;
 use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
-use observability_deps::tracing::error;
+use observability_deps::tracing::{error, info};
 use service::hybrid;
-use std::convert::Infallible;
+use std::{convert::Infallible, net::SocketAddr};
 use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
@@ -81,6 +81,9 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
+    // This is just to do this quickly without getting
+    // involved in ServerBuilder type war
+    grpc_socket: Option<SocketAddr>,
 }
 
 impl CommonServerState {
@@ -95,6 +98,23 @@ impl CommonServerState {
             trace_exporter,
             trace_header_parser,
             telemetry_store,
+            grpc_socket: None,
+        })
+    }
+
+    pub fn new_with_grpc(
+        metrics: Arc<metric::Registry>,
+        trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
+        trace_header_parser: TraceHeaderParser,
+        telemetry_store: Arc<TelemetryStore>,
+        grpc_socket: SocketAddr,
+    ) -> Result<Self> {
+        Ok(Self {
+            metrics,
+            trace_exporter,
+            trace_header_parser,
+            telemetry_store,
+            grpc_socket: Some(grpc_socket),
         })
     }
 
@@ -178,10 +198,11 @@ where
         TRACE_SERVER_NAME,
     );
 
-    let grpc_service = trace_layer.clone().layer(make_flight_server(
+    let flight_server = make_flight_server(
         Arc::clone(&server.http.query_executor),
         Some(server.authorizer()),
-    ));
+    );
+    // let grpc_service = trace_layer.clone().layer(flight_server);
 
     let rest_service = hyper::service::make_service_fn(|_| {
         let http_server = Arc::clone(&server.http);
@@ -192,11 +213,24 @@ where
         futures::future::ready(Ok::<_, Infallible>(service))
     });
 
-    let hybrid_make_service = hybrid(rest_service, grpc_service);
+    // let hybrid_make_service = hybrid(rest_service, grpc_service);
+    let trace_layer_2 = trace_layer.clone();
+    tokio::spawn(async move {
+        let res = tonic::transport::Server::builder()
+            .layer(trace_layer_2)
+            .add_service(flight_server)
+            .serve(server.common_state.grpc_socket.unwrap())
+            .await;
+        if let Err(e) = res {
+            error!(err = ?e, "Cannot start GRPC server");
+        } else {
+            info!(socket = ?server.common_state.grpc_socket, "Started grpc server on ");
+        }
+    });
 
     let addr = AddrIncoming::from_listener(server.listener)?;
     hyper::server::Builder::new(addr, Http::new())
-        .serve(hybrid_make_service)
+        .serve(rest_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await?;
 

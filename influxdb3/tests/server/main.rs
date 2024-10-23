@@ -105,6 +105,7 @@ impl ConfigProvider for TestConfig {
 pub struct TestServer {
     auth_token: Option<String>,
     bind_addr: SocketAddr,
+    grpc_bind_addr: SocketAddr,
     server_process: Child,
     http_client: reqwest::Client,
 }
@@ -125,10 +126,12 @@ impl TestServer {
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
         let bind_addr = get_local_bind_addr();
+        let grpc_bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let mut command = command
             .arg("serve")
             .args(["--http-bind", &bind_addr.to_string()])
+            .args(["--grpc-bind", &grpc_bind_addr.to_string()])
             .args(["--wal-flush-interval", "10ms"])
             .args(config.as_args());
 
@@ -146,6 +149,7 @@ impl TestServer {
             bind_addr,
             server_process,
             http_client: reqwest::Client::new(),
+            grpc_bind_addr,
         };
 
         server.wait_until_ready().await;
@@ -157,9 +161,14 @@ impl TestServer {
         format!("http://{addr}", addr = self.bind_addr)
     }
 
+    /// Get the URL of the running service for use with an HTTP client
+    pub fn grpc_client_addr(&self) -> String {
+        format!("http://{addr}", addr = self.grpc_bind_addr)
+    }
+
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
     pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
-        let channel = tonic::transport::Channel::from_shared(self.client_addr())
+        let channel = tonic::transport::Channel::from_shared(self.grpc_client_addr())
             .expect("create tonic channel")
             .connect()
             .await
