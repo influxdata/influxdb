@@ -2736,6 +2736,7 @@ dependencies = [
  "influxdb3_test_helpers",
  "influxdb3_wal",
  "influxdb3_write",
+ "insta",
  "iox_query",
  "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=1d5011bde4c343890bb58aa77415b20cb900a4a8)",
  "metric",

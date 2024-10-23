@@ -229,21 +229,29 @@ pub(crate) struct ReplicatedBuffer {
     buffer: Arc<RwLock<BufferState>>,
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
-    catalog: Arc<ReplicaCatalog>,
+    catalog: Arc<ReplicatedCatalog>,
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     compacted_data: Option<Arc<CompactedData>>,
 }
 
 #[derive(Debug)]
-struct ReplicaCatalog {
+struct ReplicatedCatalog {
     catalog: Arc<Catalog>,
     id_map: Arc<parking_lot::Mutex<CatalogIdMap>>,
 }
 
-impl ReplicaCatalog {
-    fn new(catalog: Arc<Catalog>, id_map: Arc<parking_lot::Mutex<CatalogIdMap>>) -> Self {
-        Self { catalog, id_map }
+impl ReplicatedCatalog {
+    /// Create a replicated catalog from a primary, i.e., local catalog, and the catalog of another
+    /// host that is being replicated.
+    fn new(primary: Arc<Catalog>, replica: Arc<Catalog>) -> Result<Self> {
+        let id_map = primary
+            .merge(replica)
+            .context("unable to merge replica catalog with primary")?;
+        Ok(Self {
+            catalog: primary,
+            id_map: Arc::new(parking_lot::Mutex::new(id_map)),
+        })
     }
 
     fn map_wal_contents(&self, wal_contents: WalContents) -> WalContents {
@@ -286,8 +294,6 @@ impl ReplicaCatalog {
         }
     }
 }
-
-impl ReplicaCatalog {}
 
 pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr";
 
@@ -347,13 +353,7 @@ impl ReplicatedBuffer {
                 "time to be readable for the data in each replicated host buffer",
             )
             .recorder(attributes);
-        let id_map = catalog
-            .merge(persisted_catalog)
-            .context("unable to merge replica catalog with primary")?;
-        let replica_catalog = ReplicaCatalog::new(
-            Arc::clone(&catalog),
-            Arc::new(parking_lot::Mutex::new(id_map)),
-        );
+        let replica_catalog = ReplicatedCatalog::new(Arc::clone(&catalog), persisted_catalog)?;
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let replicated_buffer = Self {
             replica_order,
@@ -740,9 +740,13 @@ mod tests {
         arrow::array::RecordBatch, assert_batches_sorted_eq, execution::context::SessionContext,
     };
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+    use influxdb3_id::{DbId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
-    use influxdb3_wal::{Gen1Duration, WalConfig};
+    use influxdb3_wal::{
+        CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, Gen1Duration, WalConfig,
+        WalContents, WalFileSequenceNumber, WalOp,
+    };
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
@@ -756,11 +760,14 @@ mod tests {
     use metric::{Attributes, Metric, Registry, U64Gauge};
     use object_store::{memory::InMemory, path::Path, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
+    use schema::InfluxColumnType;
 
     use crate::replica::{
         CreateReplicasArgs, CreateReplicatedBufferArgs, Replicas, ReplicatedBuffer,
         REPLICA_TTBR_METRIC,
     };
+
+    use super::ReplicatedCatalog;
 
     #[test_log::test(tokio::test)]
     async fn replay_and_replicate_other_wal() {
@@ -1372,6 +1379,71 @@ mod tests {
         }
     }
 
+    #[test]
+    fn map_wal_content_for_replica_existing_db_new_table() {
+        // setup two catalogs, one as the "primary" i.e. local catalog that is shared between a
+        // local write buffer as well as replicas and a compactor, and one as a "replica", that is
+        // mapped onto the local primary
+        let primary = create::catalog("a");
+        let replica = create::catalog("b");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // get the DbId of the "foo" database as it is represented _on the replica_:
+        let db_id = replica.db_name_to_id("foo").unwrap();
+        // fabricate some WalContents that would originate from the "b" replica host that contain
+        // a single CreateTable operation for the table "pow" that does not exist locally:
+        let wal_content = create::wal_content(
+            (0, 1, 0),
+            [create::catalog_batch_op(
+                db_id,
+                "foo",
+                0,
+                [create::create_table_op(
+                    db_id,
+                    "foo",
+                    TableId::new(),
+                    "pow",
+                    [
+                        create::field_def("t1", FieldDataType::Tag),
+                        create::field_def("f1", FieldDataType::Boolean),
+                    ],
+                )],
+            )],
+        );
+        // check the replicated catalog's id map before we map the above wal content
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        // do the mapping, which will allocate a new ID for the "pow" table locally:
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        // check the replicated catalog's id map again, which will contain an entry for the new table:
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        // check the mapped wal contents, which should now use the local IDs for DB/tables
+        insta::with_settings!({ description => "mapped WAL content for local catalog"}, {
+            insta::assert_yaml_snapshot!(mapped_wal_content);
+        });
+        // apply the mapped catalog batch to the primary catalog, as it would be done during replay:
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .unwrap();
+        // check for the new table definition in the local primary catalog after the mapped batch
+        // was applied:
+        let db = primary.db_schema("foo").unwrap();
+        let tbl = db.table_definition("pow").unwrap();
+        insta::with_settings!({
+            description => "table definition in primary catalog after mapping and applying replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(tbl);
+        });
+    }
+
     async fn chunks_to_record_batches(
         chunks: Vec<Arc<dyn QueryChunk>>,
         ctx: &SessionContext,
@@ -1515,5 +1587,102 @@ mod tests {
         }
 
         panic!("no files were persisted after several tries");
+    }
+
+    mod create {
+        use super::*;
+        type SeriesKey<'a> = Option<&'a [&'a str]>;
+
+        pub(super) fn table<C, N, SK>(
+            name: &str,
+            cols: C,
+            series_key: Option<SK>,
+        ) -> TableDefinition
+        where
+            C: AsRef<[(N, InfluxColumnType)]>,
+            N: AsRef<str>,
+            SK: IntoIterator<Item: AsRef<str>>,
+        {
+            TableDefinition::new(TableId::new(), name.into(), cols, series_key)
+                .expect("create table definition")
+        }
+
+        pub(super) fn catalog(name: &str) -> Arc<Catalog> {
+            let host_name = format!("host-{name}").as_str().into();
+            let instance_name = format!("instance-{name}").as_str().into();
+            let cat = Catalog::new(host_name, instance_name);
+            let tbl = table(
+                "bar",
+                [
+                    ("t1", InfluxColumnType::Tag),
+                    ("t2", InfluxColumnType::Tag),
+                    (
+                        "f1",
+                        InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
+                    ),
+                ],
+                SeriesKey::None,
+            );
+            let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
+            db.table_map
+                .insert(tbl.table_id, Arc::clone(&tbl.table_name));
+            db.tables.insert(tbl.table_id, tbl);
+            cat.insert_database(db);
+            cat.into()
+        }
+
+        pub(super) fn wal_content(
+            (min_timestamp_ns, max_timestamp_ns, wal_file_number): (i64, i64, u64),
+            ops: impl IntoIterator<Item = WalOp>,
+        ) -> WalContents {
+            WalContents {
+                min_timestamp_ns,
+                max_timestamp_ns,
+                wal_file_number: WalFileSequenceNumber::new(wal_file_number),
+                ops: ops.into_iter().collect(),
+                snapshot: None,
+            }
+        }
+
+        pub(super) fn catalog_batch_op(
+            db_id: DbId,
+            db_name: impl Into<Arc<str>>,
+            time_ns: i64,
+            ops: impl IntoIterator<Item = CatalogOp>,
+        ) -> WalOp {
+            WalOp::Catalog(CatalogBatch {
+                database_id: db_id,
+                database_name: db_name.into(),
+                time_ns,
+                ops: ops.into_iter().collect(),
+            })
+        }
+
+        pub(super) fn create_table_op(
+            db_id: DbId,
+            db_name: impl Into<Arc<str>>,
+            table_id: TableId,
+            table_name: impl Into<Arc<str>>,
+            fields: impl IntoIterator<Item = FieldDefinition>,
+        ) -> CatalogOp {
+            CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+                database_id: db_id,
+                database_name: db_name.into(),
+                table_name: table_name.into(),
+                table_id,
+                field_definitions: fields.into_iter().collect(),
+                key: None,
+            })
+        }
+
+        pub(super) fn field_def(
+            name: impl Into<Arc<str>>,
+            data_type: FieldDataType,
+        ) -> FieldDefinition {
+            FieldDefinition {
+                name: name.into(),
+                data_type,
+            }
+        }
     }
 }

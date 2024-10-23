@@ -155,7 +155,7 @@ impl TableDefinition {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct CatalogIdMap {
     dbs: HashMap<DbId, DbId>,
     tables: HashMap<TableId, TableId>,
@@ -283,11 +283,11 @@ impl CatalogIdMap {
         match op {
             CatalogOp::CreateDatabase(def) => CatalogOp::CreateDatabase(DatabaseDefinition {
                 database_id,
-                database_name: Arc::clone(&def.database_name),
+                database_name: def.database_name,
             }),
             CatalogOp::CreateTable(def) => CatalogOp::CreateTable(WalTableDefinition {
                 database_id,
-                database_name: Arc::clone(&def.database_name),
+                database_name: def.database_name,
                 table_name: Arc::clone(&def.table_name),
                 table_id: self.map_table_or_new(
                     target_catalog,
@@ -295,11 +295,11 @@ impl CatalogIdMap {
                     &def.table_name,
                     def.table_id,
                 ),
-                field_definitions: def.field_definitions.clone(),
-                key: def.key.clone(),
+                field_definitions: def.field_definitions,
+                key: def.key,
             }),
             CatalogOp::AddFields(def) => CatalogOp::AddFields(FieldAdditions {
-                database_name: Arc::clone(&def.database_name),
+                database_name: def.database_name,
                 database_id,
                 table_name: Arc::clone(&def.table_name),
                 table_id: self.map_table_or_new(
@@ -308,7 +308,7 @@ impl CatalogIdMap {
                     &def.table_name,
                     def.table_id,
                 ),
-                field_definitions: def.field_definitions.clone(),
+                field_definitions: def.field_definitions,
             }),
             CatalogOp::CreateLastCache(def) => CatalogOp::CreateLastCache(LastCacheDefinition {
                 table_id: self.map_table_or_new(
@@ -317,10 +317,10 @@ impl CatalogIdMap {
                     &def.table,
                     def.table_id,
                 ),
-                table: def.table.clone(),
-                name: def.name.clone(),
-                key_columns: def.key_columns.clone(),
-                value_columns: def.value_columns.clone(),
+                table: def.table,
+                name: def.name,
+                key_columns: def.key_columns,
+                value_columns: def.value_columns,
                 count: def.count,
                 ttl: def.ttl,
             }),
@@ -334,7 +334,7 @@ impl CatalogIdMap {
                     &def.table_name,
                     def.table_id,
                 ),
-                name: def.name.clone(),
+                name: def.name,
             }),
         }
     }
