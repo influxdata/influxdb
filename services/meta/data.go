@@ -204,6 +204,8 @@ type RetentionPolicyUpdate struct {
 	Duration           *time.Duration
 	ReplicaN           *int
 	ShardGroupDuration *time.Duration
+	FutureWriteLimit   *time.Duration
+	PastWriteLimit     *time.Duration
 }
 
 // SetName sets the RetentionPolicyUpdate.Name.
@@ -217,6 +219,10 @@ func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 
 // SetShardGroupDuration sets the RetentionPolicyUpdate.ShardGroupDuration.
 func (rpu *RetentionPolicyUpdate) SetShardGroupDuration(v time.Duration) { rpu.ShardGroupDuration = &v }
+
+func (rpu *RetentionPolicyUpdate) SetFutureWriteLimit(v time.Duration) { rpu.FutureWriteLimit = &v }
+
+func (rpu *RetentionPolicyUpdate) SetPastWriteLimit(v time.Duration) { rpu.PastWriteLimit = &v }
 
 // UpdateRetentionPolicy updates an existing retention policy.
 func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
@@ -263,6 +269,12 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	}
 	if rpu.ShardGroupDuration != nil {
 		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
+	}
+	if rpu.FutureWriteLimit != nil {
+		rpi.FutureWriteLimit = *rpu.FutureWriteLimit
+	}
+	if rpu.PastWriteLimit != nil {
+		rpi.PastWriteLimit = *rpu.PastWriteLimit
 	}
 
 	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {

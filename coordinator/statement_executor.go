@@ -226,6 +226,7 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 		Duration:           stmt.Duration,
 		ReplicaN:           stmt.Replication,
 		ShardGroupDuration: stmt.ShardGroupDuration,
+		// TODO(DSB): update FutureWriteLimit and PastWriteLimit
 	}
 
 	// Update the retention policy.

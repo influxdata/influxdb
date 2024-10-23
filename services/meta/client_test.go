@@ -409,10 +409,15 @@ func TestMetaClient_DefaultRetentionPolicy(t *testing.T) {
 
 	duration := 1 * time.Hour
 	replicaN := 1
+	pastWriteLimit := 30 * time.Minute
+	futureWriteLimit := 40 * time.Minute
+
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicySpec{
-		Name:     "rp0",
-		Duration: &duration,
-		ReplicaN: &replicaN,
+		Name:             "rp0",
+		Duration:         &duration,
+		ReplicaN:         &replicaN,
+		FutureWriteLimit: &futureWriteLimit,
+		PastWriteLimit:   &pastWriteLimit,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -433,6 +438,10 @@ func TestMetaClient_DefaultRetentionPolicy(t *testing.T) {
 		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
 	} else if rp.ReplicaN != 1 {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	} else if rp.FutureWriteLimit != futureWriteLimit {
+		t.Fatalf("rp future write limit wrong: %s", rp.FutureWriteLimit.String())
+	} else if rp.PastWriteLimit != pastWriteLimit {
+		t.Fatalf("rp past write limit wrong: %s", rp.PastWriteLimit.String())
 	}
 
 	// Make sure default retention policy is now rp0
@@ -448,9 +457,14 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	defer os.RemoveAll(d)
 	defer c.Close()
 
+	pastWriteLimit := time.Hour
+	futureWriteLimit := time.Hour
+
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicySpec{
 		Name:               "rp0",
 		ShardGroupDuration: 4 * time.Hour,
+		FutureWriteLimit:   &futureWriteLimit,
+		PastWriteLimit:     &pastWriteLimit,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -464,9 +478,11 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	// doesn't change.
 	duration := 2 * rpi.ShardGroupDuration
 	replicaN := 1
+	futureWriteLimit *= 2
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
-		Duration: &duration,
-		ReplicaN: &replicaN,
+		Duration:         &duration,
+		ReplicaN:         &replicaN,
+		FutureWriteLimit: &futureWriteLimit,
 	}, true); err != nil {
 		t.Fatal(err)
 	}
@@ -477,8 +493,11 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	}
 	if exp, got := 4*time.Hour, rpi.ShardGroupDuration; exp != got {
 		t.Fatalf("shard group duration wrong: \n\texp: %s\n\tgot: %s", exp, got)
+	} else if exp, got := futureWriteLimit, rpi.FutureWriteLimit; exp != got {
+		t.Fatalf("future write limit wrong:\n\texp: %s\n\tgot: %s", exp, got)
+	} else if exp, got := pastWriteLimit, rpi.PastWriteLimit; exp != got {
+		t.Fatalf("past write limit wrong:\n\texp: %s\n\tgot: %s", exp, got)
 	}
-
 	// Set the duration to below the shard group duration. This should return an error.
 	duration = rpi.ShardGroupDuration / 2
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
