@@ -1637,6 +1637,241 @@ mod tests {
         });
     }
 
+    #[test]
+    fn map_wal_content_for_replica_field_additions_already_on_primary() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // perform a set of field additions on the primary, and then separately on the replica.
+        let (primary_db_id, primary_table_id) = {
+            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::add_fields_op(
+                        db_id,
+                        "foo",
+                        table_id,
+                        "bar",
+                        [create::field_def("f4", FieldDataType::Float)],
+                    )],
+                )],
+            );
+            primary
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("catalog batch should apply on primary");
+            (db_id, table_id)
+        };
+        let (replica_db_id, replica_table_id, replica_wal_content) = {
+            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::add_fields_op(
+                        db_id,
+                        "foo",
+                        table_id,
+                        "bar",
+                        [create::field_def("f4", FieldDataType::Float)],
+                    )],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("catalog batch should apply on primary");
+            (db_id, table_id, wal_content)
+        };
+        // the same field additions have been made on both primary and replica independently, now
+        // check the id map in the replicated catalog before mapping the wal content from the
+        // replica onto the primary
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        let id_map = replicated_catalog.id_map.lock().clone();
+        assert_eq!(primary_db_id, id_map.map_db_id(replica_db_id).unwrap());
+        assert_eq!(
+            primary_table_id,
+            id_map.map_table_id(replica_table_id).unwrap()
+        );
+        // TODO: should assert on column IDs when those are present
+        // NOTE: the following snapshot wont change since no new tables/dbs were added, but including
+        // column IDs into the mix should cause this snapshot to fail, and we can fix it then!
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .expect("mapped batch should still apply successfully to primary");
+        // check the structure of the db schema in primary to ensure only one "f4" column is there:
+        let db = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "db schema in primary after applying mapped replica batch, there should \
+            be a single field 'f4' in the 'bar' table."
+        }, {
+            insta::assert_yaml_snapshot!(db);
+        });
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_last_cache_create_and_delete() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // create a last cache on the replica:
+        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+        let table_id = db_schema.table_name_to_id("bar").unwrap();
+        let wal_content = create::wal_content(
+            (0, 1, 0),
+            [create::catalog_batch_op(
+                db_id,
+                "foo",
+                0,
+                [
+                    create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
+                        .build(),
+                ],
+            )],
+        );
+        replica
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .expect("catalog batch should apply successfully on replica catalog");
+        let id_map = replicated_catalog.id_map.lock().clone();
+        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let id_map = replicated_catalog.id_map.lock().clone();
+        // NOTE: this wont have changed, unless we give last caches IDs
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map after mapping replica WAL content"
+        }, {
+            insta::assert_yaml_snapshot!(id_map);
+        });
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .unwrap();
+        let db = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            description => "database schema with table 'bar' that now has a last cache definition \
+            from the replica"
+        }, {
+            insta::assert_yaml_snapshot!(db);
+        });
+        // now delete the last cache on the replica:
+        let wal_content = create::wal_content(
+            (0, 1, 0),
+            [create::catalog_batch_op(
+                db_id,
+                "foo",
+                0,
+                [create::delete_last_cache_op(table_id, "bar", "test_cache")],
+            )],
+        );
+        replica
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .expect("catalog batch to delete last cache should apply on replica catalog");
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .expect("mapped catalog batch should apply on primary to delete last cache");
+        let db = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            description => "database schema with table 'bar' that no longer has a last cache"
+        }, {
+            insta::assert_yaml_snapshot!(db);
+        });
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_last_cache_create_already_on_primary() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // create the same last cache on both primary and replica:
+        {
+            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [
+                        create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
+                            .build(),
+                    ],
+                )],
+            );
+            primary
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to primary to create last cache");
+        }
+        let replica_wal_content = {
+            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [
+                        create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
+                            .build(),
+                    ],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to primary to create last cache");
+            wal_content
+        };
+        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        // check the structure of the primary db schema to ensure it has only a single last cache:
+        let db_before_applying = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            description => "database schema for 'foo' db before applying the mapped catalog \
+            batch from the replica; it should have a 'bar' table containing a single last cache \
+            definition"
+        }, {
+            insta::assert_yaml_snapshot!(db_before_applying);
+        });
+        primary
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .expect("apply mapped catalog batch with last cache create from replica");
+        // check structure of the db schema on primary to ensure only a single last cache:
+        let db_after_applying = primary.db_schema("foo").unwrap();
+        insta::with_settings!({
+            description => "database schema for 'foo' db after applying the mapped catalog batch \
+            from the replica; it should still have a 'bar' table containing just a single last \
+            cache definition"
+        }, {
+            insta::assert_yaml_snapshot!(db_after_applying);
+        });
+    }
+
     async fn chunks_to_record_batches(
         chunks: Vec<Arc<dyn QueryChunk>>,
         ctx: &SessionContext,
@@ -1783,6 +2018,10 @@ mod tests {
     }
 
     mod create {
+        use influxdb3_wal::{
+            LastCacheDefinition, LastCacheDelete, LastCacheSize, LastCacheValueColumnsDef,
+        };
+
         use super::*;
         type SeriesKey<'a> = Option<&'a [&'a str]>;
 
@@ -1892,6 +2131,61 @@ mod tests {
                 name: name.into(),
                 data_type,
             }
+        }
+
+        pub(super) struct CreateLastCacheOpBuilder {
+            table_id: TableId,
+            table_name: String,
+            name: String,
+            key_columns: Vec<String>,
+            value_columns: Option<LastCacheValueColumnsDef>,
+            count: Option<LastCacheSize>,
+            ttl: Option<u64>,
+        }
+
+        impl CreateLastCacheOpBuilder {
+            pub(super) fn build(self) -> CatalogOp {
+                CatalogOp::CreateLastCache(LastCacheDefinition {
+                    table_id: self.table_id,
+                    table: self.table_name,
+                    name: self.name,
+                    key_columns: self.key_columns,
+                    value_columns: self
+                        .value_columns
+                        .unwrap_or(LastCacheValueColumnsDef::AllNonKeyColumns),
+                    count: self.count.unwrap_or_else(|| LastCacheSize::new(1).unwrap()),
+                    ttl: self.ttl.unwrap_or(3600),
+                })
+            }
+        }
+
+        pub(super) fn create_last_cache_op_builder(
+            table_id: TableId,
+            table_name: impl Into<String>,
+            cache_name: impl Into<String>,
+            key_columns: impl IntoIterator<Item: Into<String>>,
+        ) -> CreateLastCacheOpBuilder {
+            CreateLastCacheOpBuilder {
+                table_id,
+                table_name: table_name.into(),
+                name: cache_name.into(),
+                key_columns: key_columns.into_iter().map(Into::into).collect(),
+                value_columns: None,
+                count: None,
+                ttl: None,
+            }
+        }
+
+        pub(super) fn delete_last_cache_op(
+            table_id: TableId,
+            table_name: impl Into<String>,
+            cache_name: impl Into<String>,
+        ) -> CatalogOp {
+            CatalogOp::DeleteLastCache(LastCacheDelete {
+                table_name: table_name.into(),
+                table_id,
+                name: cache_name.into(),
+            })
         }
     }
 }

@@ -1,0 +1,51 @@
+---
+source: influxdb3_pro/buffer/src/replica.rs
+description: "db schema in primary after applying mapped replica batch, there should be a single field 'f4' in the 'bar' table."
+expression: db
+---
+id: 0
+name: foo
+tables:
+  0:
+    table_id: 0
+    table_name: bar
+    cols:
+      f1:
+        column_id: 0
+        type: bool
+        influx_type: field
+        nullable: true
+      f4:
+        column_id: 3
+        type: f64
+        influx_type: field
+        nullable: true
+      t1:
+        column_id: 1
+        type:
+          dict:
+            - i32
+            - str
+        influx_type: tag
+        nullable: true
+      t2:
+        column_id: 2
+        type:
+          dict:
+            - i32
+            - str
+        influx_type: tag
+        nullable: true
+    column_map:
+      - column_id: 0
+        name: f1
+      - column_id: 1
+        name: t1
+      - column_id: 2
+        name: t2
+      - column_id: 3
+        name: f4
+    next_column_id: 4
+table_map:
+  - table_id: 0
+    name: bar
