@@ -733,12 +733,9 @@ fn background_replication_interval(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
-    use data_types::NamespaceName;
-    use datafusion::{
-        arrow::array::RecordBatch, assert_batches_sorted_eq, execution::context::SessionContext,
-    };
+    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{DbId, TableId};
@@ -750,21 +747,22 @@ mod tests {
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
-        ParquetFile, Precision, WriteBuffer,
+        ParquetFile,
     };
-    use iox_query::{
-        exec::{DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext},
-        QueryChunk,
-    };
+    use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::{Attributes, Metric, Registry, U64Gauge};
     use object_store::{memory::InMemory, path::Path, ObjectStore};
-    use parquet_file::storage::{ParquetStorage, StorageId};
     use schema::InfluxColumnType;
 
-    use crate::replica::{
-        CreateReplicasArgs, CreateReplicatedBufferArgs, Replicas, ReplicatedBuffer,
-        REPLICA_TTBR_METRIC,
+    use crate::{
+        replica::{
+            CreateReplicasArgs, CreateReplicatedBufferArgs, Replicas, ReplicatedBuffer,
+            REPLICA_TTBR_METRIC,
+        },
+        test_helpers::{
+            chunks_to_record_batches, do_writes, make_exec, verify_snapshot_count, TestWrite,
+        },
     };
 
     use super::ReplicatedCatalog;
@@ -1872,41 +1870,6 @@ mod tests {
         });
     }
 
-    async fn chunks_to_record_batches(
-        chunks: Vec<Arc<dyn QueryChunk>>,
-        ctx: &SessionContext,
-    ) -> Vec<RecordBatch> {
-        let mut batches = vec![];
-        for chunk in chunks {
-            batches.append(&mut chunk.data().read_to_batches(chunk.schema(), ctx).await);
-        }
-        batches
-    }
-
-    struct TestWrite<LP> {
-        lp: LP,
-        time_seconds: i64,
-    }
-
-    async fn do_writes<LP: AsRef<str> + Send + Sync>(
-        db: &'static str,
-        buffer: &impl WriteBuffer,
-        writes: &[TestWrite<LP>],
-    ) {
-        for w in writes {
-            buffer
-                .write_lp(
-                    NamespaceName::new(db).unwrap(),
-                    w.lp.as_ref(),
-                    Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
-                    false,
-                    Precision::Nanosecond,
-                )
-                .await
-                .unwrap();
-        }
-    }
-
     async fn setup_primary(
         host_id: &str,
         object_store: Arc<dyn ObjectStore>,
@@ -1915,66 +1878,20 @@ mod tests {
     ) -> WriteBufferImpl {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let metric_registry = Arc::new(Registry::new());
         WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
             Arc::new(last_cache),
             time_provider,
-            make_exec(),
+            make_exec(object_store, metric_registry),
             wal_config,
             None,
         )
         .await
         .unwrap()
-    }
-
-    fn make_exec() -> Arc<Executor> {
-        let metrics = Arc::new(metric::Registry::default());
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-
-        let parquet_store = ParquetStorage::new(
-            Arc::clone(&object_store),
-            StorageId::from("test_exec_storage"),
-        );
-        Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                // Default to 1gb
-                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
-            },
-            DedicatedExecutor::new_testing(),
-        ))
-    }
-
-    async fn verify_snapshot_count(n: usize, object_store: Arc<dyn ObjectStore>, host_id: &str) {
-        let mut checks = 0;
-        let persister = Persister::new(object_store, host_id);
-        loop {
-            let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
-            if persisted_snapshots.len() > n {
-                panic!(
-                    "checking for {} snapshots but found {}",
-                    n,
-                    persisted_snapshots.len()
-                );
-            } else if persisted_snapshots.len() == n && checks > 5 {
-                // let enough checks happen to ensure extra snapshots aren't running ion the background
-                break;
-            } else {
-                checks += 1;
-                if checks > 10 {
-                    panic!("not persisting snapshots");
-                }
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
-        }
     }
 
     /// Wait for a [`Replicas`] to go from having no persisted files to having some persisted files

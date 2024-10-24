@@ -75,7 +75,7 @@ impl ReadWriteMode {
             time_provider,
             executor,
             wal_config,
-            None,
+            parquet_cache.clone(),
         )
         .await?;
 
