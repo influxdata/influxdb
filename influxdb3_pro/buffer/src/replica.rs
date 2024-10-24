@@ -261,27 +261,26 @@ impl ReplicatedCatalog {
     }
 
     fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> PersistedSnapshot {
-        let mut id_map = self.id_map.lock();
+        let id_map = self.id_map.lock();
         PersistedSnapshot {
             databases: snapshot
                 .databases
                 .into_iter()
-                .map(|(db_id, db_tables)| {
-                    let local_db_id = id_map.map_db_or_new(&self.catalog, "", db_id);
+                .map(|(replica_db_id, db_tables)| {
+                    let local_db_id = id_map
+                        .map_db_id(replica_db_id)
+                        .expect("unseen db id from replica");
                     (
                         local_db_id,
                         DatabaseTables {
                             tables: db_tables
                                 .tables
                                 .into_iter()
-                                .map(|(table_id, files)| {
+                                .map(|(replica_table_id, files)| {
                                     (
-                                        id_map.map_table_or_new(
-                                            &self.catalog,
-                                            local_db_id,
-                                            "",
-                                            table_id,
-                                        ),
+                                        id_map
+                                            .map_table_id(replica_table_id)
+                                            .expect("unseen table id from replica"),
                                         files,
                                     )
                                 })
@@ -738,7 +737,7 @@ mod tests {
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{DbId, TableId};
+    use influxdb3_id::{DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
         CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, Gen1Duration, WalConfig,
@@ -747,7 +746,7 @@ mod tests {
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
-        ParquetFile,
+        ParquetFile, PersistedSnapshot,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -1870,6 +1869,37 @@ mod tests {
         });
     }
 
+    #[test]
+    fn map_persisted_snapshot_for_replica() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+        let table_id = db_schema.table_name_to_id("bar").unwrap();
+        let snapshot = create::persisted_snapshot("host-primary")
+            .table(
+                db_id,
+                table_id,
+                create::parquet_file(ParquetFileId::new()).build(),
+            )
+            .build();
+        insta::with_settings!({
+            sort_maps => true,
+            description => "persisted snapshot as it was created on the replica, before mapping"
+        }, {
+            // use JSON snapshots since persisted snapshots are actually persisted as JSON:
+            insta::assert_json_snapshot!(snapshot);
+        });
+        let mapped_snapshot = replicated_catalog.map_snapshot_contents(snapshot);
+        insta::with_settings!({
+            sort_maps => true,
+            description => "persisted snapshot after mapping, as intended for the primary"
+        }, {
+            insta::assert_json_snapshot!(mapped_snapshot);
+        });
+    }
+
     async fn setup_primary(
         host_id: &str,
         object_store: Arc<dyn ObjectStore>,
@@ -1935,9 +1965,13 @@ mod tests {
     }
 
     mod create {
+        use influxdb3_catalog::catalog::SequenceNumber;
+        use influxdb3_id::ParquetFileId;
         use influxdb3_wal::{
             LastCacheDefinition, LastCacheDelete, LastCacheSize, LastCacheValueColumnsDef,
+            SnapshotSequenceNumber,
         };
+        use influxdb3_write::DatabaseTables;
 
         use super::*;
         type SeriesKey<'a> = Option<&'a [&'a str]>;
@@ -2103,6 +2137,109 @@ mod tests {
                 table_id,
                 name: cache_name.into(),
             })
+        }
+
+        pub(super) struct ParquetFileBuilder {
+            id: ParquetFileId,
+            path: Option<String>,
+            size_bytes: Option<u64>,
+            row_count: Option<u64>,
+            chunk_time: Option<i64>,
+            min_time: Option<i64>,
+            max_time: Option<i64>,
+        }
+
+        impl ParquetFileBuilder {
+            pub(super) fn build(self) -> ParquetFile {
+                ParquetFile {
+                    id: self.id,
+                    path: self.path.unwrap_or_default(),
+                    size_bytes: self.size_bytes.unwrap_or_default(),
+                    row_count: self.row_count.unwrap_or_default(),
+                    chunk_time: self.chunk_time.unwrap_or_default(),
+                    min_time: self.min_time.unwrap_or_default(),
+                    max_time: self.max_time.unwrap_or_default(),
+                }
+            }
+        }
+
+        pub(super) fn parquet_file(id: ParquetFileId) -> ParquetFileBuilder {
+            ParquetFileBuilder {
+                id,
+                path: None,
+                size_bytes: None,
+                row_count: None,
+                chunk_time: None,
+                min_time: None,
+                max_time: None,
+            }
+        }
+
+        pub(super) struct PersistedSnapshotBuilder {
+            host_id: String,
+            next_file_id: ParquetFileId,
+            next_db_id: DbId,
+            next_table_id: TableId,
+            snapshot_sequence_number: Option<SnapshotSequenceNumber>,
+            wal_file_sequence_number: Option<WalFileSequenceNumber>,
+            catalog_sequence_number: Option<SequenceNumber>,
+            parquet_size_bytes: Option<u64>,
+            row_count: Option<u64>,
+            min_time: Option<i64>,
+            max_time: Option<i64>,
+            databases: HashMap<DbId, DatabaseTables>,
+        }
+
+        impl PersistedSnapshotBuilder {
+            pub(super) fn build(self) -> PersistedSnapshot {
+                PersistedSnapshot {
+                    host_id: self.host_id,
+                    next_file_id: self.next_file_id,
+                    next_db_id: self.next_db_id,
+                    next_table_id: self.next_table_id,
+                    snapshot_sequence_number: self.snapshot_sequence_number.unwrap_or_default(),
+                    wal_file_sequence_number: self.wal_file_sequence_number.unwrap_or_default(),
+                    catalog_sequence_number: self.catalog_sequence_number.unwrap_or_default(),
+                    parquet_size_bytes: self.parquet_size_bytes.unwrap_or_default(),
+                    row_count: self.row_count.unwrap_or_default(),
+                    min_time: self.min_time.unwrap_or_default(),
+                    max_time: self.max_time.unwrap_or_default(),
+                    databases: self.databases,
+                }
+            }
+
+            pub(super) fn table(
+                mut self,
+                db_id: DbId,
+                table_id: TableId,
+                parquet_file: ParquetFile,
+            ) -> Self {
+                self.databases
+                    .entry(db_id)
+                    .or_default()
+                    .tables
+                    .entry(table_id)
+                    .or_default()
+                    .push(parquet_file);
+                self
+            }
+        }
+
+        pub(super) fn persisted_snapshot(host_id: &str) -> PersistedSnapshotBuilder {
+            PersistedSnapshotBuilder {
+                host_id: host_id.into(),
+                next_file_id: ParquetFileId::next_id(),
+                next_db_id: DbId::next_id(),
+                next_table_id: TableId::next_id(),
+                snapshot_sequence_number: None,
+                wal_file_sequence_number: None,
+                catalog_sequence_number: None,
+                parquet_size_bytes: None,
+                row_count: None,
+                min_time: None,
+                max_time: None,
+                databases: Default::default(),
+            }
         }
     }
 }

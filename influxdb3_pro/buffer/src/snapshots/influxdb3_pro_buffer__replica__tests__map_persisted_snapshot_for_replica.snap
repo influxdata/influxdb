@@ -1,0 +1,35 @@
+---
+source: influxdb3_pro/buffer/src/replica.rs
+description: "persisted snapshot as it was created on the replica, before mapping"
+expression: snapshot
+---
+{
+  "host_id": "host-primary",
+  "next_file_id": 0,
+  "next_db_id": 2,
+  "next_table_id": 2,
+  "snapshot_sequence_number": 0,
+  "wal_file_sequence_number": 0,
+  "catalog_sequence_number": 0,
+  "parquet_size_bytes": 0,
+  "row_count": 0,
+  "min_time": 0,
+  "max_time": 0,
+  "databases": {
+    "1": {
+      "tables": {
+        "1": [
+          {
+            "id": 0,
+            "path": "",
+            "size_bytes": 0,
+            "row_count": 0,
+            "chunk_time": 0,
+            "min_time": 0,
+            "max_time": 0
+          }
+        ]
+      }
+    }
+  }
+}
