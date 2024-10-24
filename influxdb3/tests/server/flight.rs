@@ -2,7 +2,10 @@ use arrow_flight::sql::SqlInfo;
 use arrow_flight::Ticket;
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
+use influxdb_iox_client::flightsql::FlightSqlClient;
+use observability_deps::tracing::info;
 use test_helpers::assert_contains;
+use tokio::time::Instant;
 
 use crate::collect_stream;
 use crate::TestServer;
@@ -145,6 +148,117 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
     Ok(())
 }
 
+#[test_log::test(tokio::test)]
+async fn flight_2() -> Result<(), influxdb3_client::Error> {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+        cpu,host=s1,region=us-east usage=0.89 2\n\
+        cpu,host=s1,region=us-east usage=0.85 3\n\
+        cpu,host=s2,region=us-east usage=0.85 4",
+            Precision::Nanosecond,
+        )
+        .await?;
+
+    let mut client = server.flight_sql_client("foo").await;
+
+    // Ad-hoc Query:
+    {
+        let response = client
+            .query("SELECT host, region, time, usage FROM cpu where host='s2'")
+            .await
+            .unwrap();
+
+        let batches = collect_stream(response).await;
+        assert_batches_sorted_eq!(
+            [
+                "+------+---------+--------------------------------+-------+",
+                "| host | region  | time                           | usage |",
+                "+------+---------+--------------------------------+-------+",
+                "| s2   | us-east | 1970-01-01T00:00:00.000000004Z | 0.85  |",
+                "+------+---------+--------------------------------+-------+",
+            ],
+            &batches
+        );
+    }
+
+    Ok(())
+}
+
+#[test_log::test(tokio::test)]
+async fn flight_3() -> Result<(), influxdb3_client::Error> {
+    // let server = TestServer::spawn().await;
+    //
+    // server
+    //     .write_lp_to_db(
+    //         "foo",
+    //         "cpu,host=s1,region=us-east usage=0.9 1\n\
+    //     cpu,host=s1,region=us-east usage=0.89 2\n\
+    //     cpu,host=s1,region=us-east usage=0.85 3\n\
+    //     cpu,host=s2,region=us-east usage=0.85 4",
+    //         Precision::Nanosecond,
+    //     )
+    //     .await?;
+    let mut http_times = vec![];
+    let http_client = influxdb3_client::Client::new("http://localhost:8181")?;
+    for _ in 0..100 {
+        let id: u32 = rand::random();
+        let query = format!("select int_val, float_val from measurement_data where series_id > {id} limit 100");
+        let start = Instant::now();
+        let _ = http_client.api_v3_query_sql("load_test", query).send().await;
+        let elapsed = start.elapsed().as_millis() as f64;
+        http_times.push(elapsed);
+    }
+
+    let mut grpc_times = vec![];
+    let channel = tonic::transport::Channel::from_shared("http://localhost:8181")
+        .expect("create tonic channel")
+        .connect()
+        .await
+        .expect("connect to gRPC client");
+    let mut client = FlightSqlClient::new(channel);
+    client.add_header("database", "load_test").unwrap();
+
+    for _ in 0..100 {
+        let id: u32 = rand::random();
+        let query = format!("select int_val, float_val from measurement_data where series_id > {id} limit 100");
+        let start = Instant::now();
+        let _ = client
+            .query(query)
+            .await;
+        let elapsed = start.elapsed().as_millis() as f64;
+        grpc_times.push(elapsed);
+    }
+
+    // Ad-hoc Query:
+    {
+        let response = client
+            .query("SELECT int_val, float_val FROM measurement_data limit 100")
+            .await
+            .unwrap();
+
+        let batches = collect_stream(response).await;
+        // assert_batches_sorted_eq!(
+        //     [
+        //         "+------+---------+--------------------------------+-------+",
+        //         "| host | region  | time                           | usage |",
+        //         "+------+---------+--------------------------------+-------+",
+        //         "| s2   | us-east | 1970-01-01T00:00:00.000000004Z | 0.85  |",
+        //         "+------+---------+--------------------------------+-------+",
+        //     ],
+        //     &batches
+        // );
+        info!(batches = ?batches, "All batches");
+    }
+
+    print_difference(&http_times, &grpc_times);
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn flight_influxql() {
     let server = TestServer::spawn().await;
@@ -218,4 +332,22 @@ async fn flight_influxql() {
             "This feature is not implemented: SHOW DATABASES"
         );
     }
+}
+
+fn print_difference(http_times: &[f64], grpc_times: &[f64]) {
+    let (http_min, http_max, http_avg) = stats(http_times);
+    let (grpc_min, grpc_max, grpc_avg) = stats(grpc_times);
+
+    info!("=========================================================");
+    info!(min = ?http_min, max = ?http_max, avg = ?http_avg, "HTTP STATS: ");
+    info!(min = ?grpc_min, max = ?grpc_max, avg = ?grpc_avg, "GRPC STATS: ");
+    info!("=========================================================");
+
+}
+
+fn stats(times: &[f64]) -> (f64, f64, f64) {
+    let min = times.iter().min_by(|a, b| a.total_cmp(b)).unwrap_or(&0.0);
+    let max = times.iter().max_by(|a, b| a.total_cmp(b)).unwrap_or(&0.0);
+    let avg = times.iter().sum::<f64>() / (times.len() as f64);
+    (*min, *max, avg)
 }

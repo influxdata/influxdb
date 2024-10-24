@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail, Context};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::Client;
+use influxdb_iox_client::flightsql::FlightSqlClient;
 use secrecy::{ExposeSecret, Secret};
 use url::Url;
 
@@ -314,6 +315,14 @@ impl InfluxDb3Config {
             .await
     }
 
+    pub(crate) async fn initialize_query_flight(
+        self,
+        querier_spec_path: Option<PathBuf>,
+    ) -> Result<(FlightSqlClient, LoadConfig), anyhow::Error> {
+        self.initialize_query_with_flight(LoadType::Query, querier_spec_path, None)
+            .await
+    }
+
     pub(crate) async fn initialize_write(
         self,
         writer_spec_path: Option<PathBuf>,
@@ -329,6 +338,139 @@ impl InfluxDb3Config {
     ) -> Result<(Client, LoadConfig), anyhow::Error> {
         self.initialize(LoadType::Full, querier_spec_path, writer_spec_path)
             .await
+    }
+
+    pub(crate) async fn initialize_full_flight(
+        self,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(FlightSqlClient, LoadConfig), anyhow::Error> {
+        self.initialize_query_with_flight(LoadType::Query, querier_spec_path, writer_spec_path)
+            .await
+    }
+
+    pub(crate) async fn initialize_query_with_flight(
+        &self,
+        load_type: LoadType,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<(FlightSqlClient, LoadConfig), anyhow::Error> {
+        let load_config = self.initialize_without_client(load_type, querier_spec_path, writer_spec_path).await?;
+        let client = self.flight_sql_client(self.host_url.as_ref().to_owned()).await;
+        Ok((client, load_config))
+    }
+
+    async fn initialize_without_client(
+        &self,
+        load_type: LoadType,
+        querier_spec_path: Option<PathBuf>,
+        writer_spec_path: Option<PathBuf>,
+    ) -> Result<LoadConfig, anyhow::Error> {
+        let Self {
+            host_url,
+            database_name,
+            auth_token,
+            builtin_spec,
+            print_spec,
+            results_dir,
+            configuration_name,
+            system_stats,
+            end_time,
+        } = self;
+
+        match (
+            builtin_spec.as_ref(),
+            load_type,
+            querier_spec_path.as_ref(),
+            writer_spec_path.as_ref(),
+        ) {
+            (None, LoadType::Write | LoadType::Full, _, None)
+            | (None, LoadType::Query | LoadType::Full, None, _) => {
+                if matches!(load_type, LoadType::Write) {
+                    // TODO - print help for query as well
+                    crate::commands::write::print_help();
+                }
+                bail!("You did not provide a spec path or specify a built-in spec");
+            }
+            _ => (),
+        }
+
+        let built_in_specs = crate::specs::built_in_specs();
+
+        // sepcify a time string for generated results file names:
+        let time_str = format!("{}", Local::now().format("%Y-%m-%dT%H-%M-%S"));
+
+        // initialize the load config:
+        let mut config = LoadConfig::new(database_name.to_string(), results_dir.to_path_buf(), end_time.to_owned(), *print_spec);
+
+        let config_name = if let Some(name) = configuration_name {
+            name.to_owned()
+        } else {
+            let http_client =
+                create_client(host_url.to_owned(), auth_token.to_owned()).context("unable to create influxdb3 client")?;
+            http_client
+                .ping()
+                .await
+                .context("influxdb3 server did not respond to ping request")?
+                .revision()
+                .to_owned()
+        };
+
+        // if builtin spec is set, use that instead of the spec path
+        if let Some(b) = builtin_spec {
+            let builtin = built_in_specs
+                .into_iter()
+                .find(|spec| spec.name == *b)
+                .with_context(|| {
+                    let names = crate::specs::built_in_spec_names().join(", ");
+                    format!(
+                        "built-in spec with name '{b}' not found, available built-in specs are: {names}"
+                    )
+                })?;
+            println!("using built-in spec: {}", builtin.name);
+            let spec_name = builtin.name.as_str();
+            config.setup_dir(spec_name, &config_name)?;
+            match load_type {
+                LoadType::Query => {
+                    config.setup_query(&time_str, builtin.query_spec)?;
+                },
+                _ => {
+                    bail!("flight sql client can only be used for query load type");
+                }
+            }
+        } else {
+            match load_type {
+                LoadType::Query => {
+                    let spec = QuerierSpec::from_path(querier_spec_path.unwrap())?;
+                    let spec_name = spec.name.to_owned();
+                    config.setup_dir(&spec_name, &config_name)?;
+                    config.setup_query(&time_str, spec)?;
+                },
+                _ => {
+                    bail!("flight sql client can only be used for query load type");
+                }
+            }
+        }
+        // if print spec is set, print the spec and exit
+        if *print_spec {
+            bail!("exiting after printing spec");
+        }
+
+        // Setup the system stats file if specified
+        if *system_stats {
+            config.setup_system(&time_str)?;
+        }
+
+        Ok(config)
+    }
+
+    async fn flight_sql_client(&self, client_addr: String) -> FlightSqlClient {
+        let channel = tonic::transport::Channel::from_shared(client_addr)
+            .expect("create tonic channel")
+            .connect()
+            .await
+            .expect("connect to gRPC client");
+        FlightSqlClient::new(channel)
     }
 
     async fn initialize(
