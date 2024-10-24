@@ -231,6 +231,7 @@ where
     let addr = AddrIncoming::from_listener(server.listener)?;
     hyper::server::Builder::new(addr, Http::new())
         .serve(rest_service)
+        // .serve(hybrid_make_service)
         .with_graceful_shutdown(shutdown.cancelled())
         .await?;
 

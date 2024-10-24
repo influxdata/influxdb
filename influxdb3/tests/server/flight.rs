@@ -214,7 +214,8 @@ async fn flight_3() -> Result<(), influxdb3_client::Error> {
     }
 
     let mut grpc_times = vec![];
-    let channel = tonic::transport::Channel::from_shared("http://localhost:8181")
+    let channel = tonic::transport::Channel::from_shared("http://localhost:8183")
+    // let channel = tonic::transport::Channel::from_shared("http://localhost:8181")
         .expect("create tonic channel")
         .connect()
         .await
