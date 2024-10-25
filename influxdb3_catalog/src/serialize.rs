@@ -48,7 +48,6 @@ struct TableSnapshot<'a> {
     last_caches: Vec<LastCacheSnapshot<'a>>,
     #[serde_as(as = "ColumnMapAsArray")]
     column_map: BiHashMap<ColumnId, Arc<str>>,
-    next_column_id: ColumnId,
 }
 
 serde_with::serde_conv!(
@@ -193,7 +192,6 @@ impl<'a> From<&'a TableDefinition> for TableSnapshot<'a> {
             cols,
             key: keys,
             last_caches,
-            next_column_id: def.schema.next_column_id(),
             column_map: def.schema.column_map().clone(),
         }
     }
@@ -274,7 +272,6 @@ impl<'a> From<TableSnapshot<'a>> for TableDefinition {
         let schema = TableSchema::new_with_mapping(
             b.build().expect("valid schema from snapshot"),
             snap.column_map,
-            snap.next_column_id,
         );
         let last_caches = snap
             .last_caches

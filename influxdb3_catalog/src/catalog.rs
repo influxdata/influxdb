@@ -884,7 +884,6 @@ impl TableDefinition {
 pub struct TableSchema {
     schema: Schema,
     column_map: BiHashMap<ColumnId, Arc<str>>,
-    next_column_id: ColumnId,
 }
 
 impl TableSchema {
@@ -897,26 +896,16 @@ impl TableSchema {
             .as_arrow()
             .fields()
             .iter()
-            .enumerate()
-            .map(|(idx, field)| (ColumnId::from(idx as u16), field.name().as_str().into()))
+            .map(|field| (ColumnId::new(), field.name().as_str().into()))
             .collect();
-        Self {
-            schema,
-            next_column_id: ColumnId::from(column_map.len() as u16),
-            column_map,
-        }
+        Self { schema, column_map }
     }
 
     pub(crate) fn new_with_mapping(
         schema: Schema,
         column_map: BiHashMap<ColumnId, Arc<str>>,
-        next_column_id: ColumnId,
     ) -> Self {
-        Self {
-            schema,
-            column_map,
-            next_column_id,
-        }
+        Self { schema, column_map }
     }
 
     pub fn as_arrow(&self) -> SchemaRef {
@@ -931,13 +920,8 @@ impl TableSchema {
         &self.column_map
     }
 
-    pub(crate) fn next_column_id(&self) -> ColumnId {
-        self.next_column_id
-    }
-
     fn add_column(&mut self, column_name: &str) {
-        let id = self.next_column_id;
-        self.next_column_id = id.next_id();
+        let id = ColumnId::new();
         self.column_map.insert(id, column_name.into());
     }
 
@@ -1211,6 +1195,7 @@ mod tests {
         );
 
         let table = database.tables.get_mut(&TableId::from(0)).unwrap();
+        println!("table: {table:#?}");
         assert_eq!(table.schema.column_map().len(), 1);
         assert_eq!(table.schema.id_to_name_unchecked(0.into()), "test".into());
 
@@ -1224,6 +1209,7 @@ mod tests {
         );
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
 
+        println!("table: {table:#?}");
         assert_eq!(table.schema.column_map().len(), 2);
         assert_eq!(table.schema.name_to_id_unchecked("test2".into()), 1.into());
     }

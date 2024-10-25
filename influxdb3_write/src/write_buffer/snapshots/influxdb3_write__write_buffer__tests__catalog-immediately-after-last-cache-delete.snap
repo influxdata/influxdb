@@ -21,19 +21,19 @@ expression: catalog_json
             {
               "cols": {
                 "f1": {
-                  "column_id": 0,
+                  "column_id": 6,
                   "influx_type": "field",
                   "nullable": true,
                   "type": "bool"
                 },
                 "f2": {
-                  "column_id": 3,
+                  "column_id": 10,
                   "influx_type": "field",
                   "nullable": true,
                   "type": "i64"
                 },
                 "t1": {
-                  "column_id": 1,
+                  "column_id": 7,
                   "influx_type": "tag",
                   "nullable": true,
                   "type": {
@@ -44,7 +44,7 @@ expression: catalog_json
                   }
                 },
                 "time": {
-                  "column_id": 2,
+                  "column_id": 8,
                   "influx_type": "time",
                   "nullable": false,
                   "type": {
@@ -57,23 +57,22 @@ expression: catalog_json
               },
               "column_map": [
                 {
-                  "column_id": 0,
+                  "column_id": 6,
                   "name": "f1"
                 },
                 {
-                  "column_id": 1,
+                  "column_id": 7,
                   "name": "t1"
                 },
                 {
-                  "column_id": 2,
+                  "column_id": 8,
                   "name": "time"
                 },
                 {
-                  "column_id": 3,
+                  "column_id": 10,
                   "name": "f2"
                 }
               ],
-              "next_column_id": 4,
               "table_id": 0,
               "table_name": "table"
             }

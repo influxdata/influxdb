@@ -199,7 +199,10 @@ mod tests {
         // test round-trip to JSON:
         let s = serde_json::to_string(&serde_vec_map).unwrap();
         // with using a hashmap the order changes so asserting on the JSON itself is flaky, so if
-        // you want to see it working use --nocapture on the test...
+        // you want to see it working use --nocapture on the test. The output looks like:
+        //
+        // [[0,"foo"],[2,"baz"],[1,"bar"]]
+        //
         println!("{s}");
         let d: SerdeVecHashMap<u32, &str> = serde_json::from_str(&s).unwrap();
         assert_eq!(d, serde_vec_map);

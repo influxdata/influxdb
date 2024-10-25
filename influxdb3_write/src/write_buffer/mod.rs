@@ -150,6 +150,11 @@ impl WriteBufferImpl {
             .first()
             .map(|s| s.next_table_id.set_next_id())
             .unwrap_or(());
+        // Set the next table id to use when adding a new database
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_column_id.set_next_id())
+            .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
         persisted_snapshots
             .first()
