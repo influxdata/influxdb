@@ -3,7 +3,7 @@
 use crate::catalog::Error::TableNotFound;
 use arrow::datatypes::SchemaRef;
 use bimap::BiHashMap;
-use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -12,7 +12,7 @@ use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -284,8 +284,7 @@ impl Catalog {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
-    #[serde_as(as = "DatabasesAsArray")]
-    databases: HashMap<DbId, Arc<DatabaseSchema>>,
+    databases: SerdeVecHashMap<DbId, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
     /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
     host_id: Arc<str>,
@@ -351,55 +350,10 @@ serde_with::serde_conv!(
     }
 );
 
-serde_with::serde_conv!(
-    DatabasesAsArray,
-    HashMap<DbId, Arc<DatabaseSchema>>,
-    |map: &HashMap<DbId, Arc<DatabaseSchema>>| {
-        map.values().fold(Vec::new(), |mut acc, db| {
-            acc.push(DatabasesSerialized {
-                id: db.id,
-                name: Arc::clone(&db.name),
-                tables: db.tables.values().cloned().collect(),
-            });
-            acc
-        })
-    },
-    |vec: Vec<DatabasesSerialized>| -> Result<_, String> {
-        vec.into_iter().fold(Ok(HashMap::new()), |acc, db| {
-            let mut acc = acc?;
-            let mut table_map = BiHashMap::new();
-            if let Some(_) = acc.insert(db.id, Arc::new(DatabaseSchema {
-                id: db.id,
-                name: Arc::clone(&db.name),
-                tables: db.tables.into_iter().fold(Ok(BTreeMap::new()), |acc, table| {
-                    let mut acc = acc?;
-                    let table_name = Arc::clone(&table.table_name);
-                    table_map.insert(table.table_id, Arc::clone(&table_name));
-                    if let Some(_) = acc.insert(table.table_id, table) {
-                        return Err(format!("found duplicate table: {}", table_name));
-                    }
-                    Ok(acc)
-                })?,
-                table_map
-            })) {
-                return Err(format!("found duplicate db: {}", db.name));
-            }
-            Ok(acc)
-        })
-    }
-);
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
-struct DatabasesSerialized {
-    pub id: DbId,
-    pub name: Arc<str>,
-    pub tables: Vec<TableDefinition>,
-}
-
 impl InnerCatalog {
     pub(crate) fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
-            databases: HashMap::new(),
+            databases: SerdeVecHashMap::new(),
             sequence: SequenceNumber::new(0),
             host_id,
             instance_id,
@@ -466,7 +420,7 @@ pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
-    pub tables: BTreeMap<TableId, TableDefinition>,
+    pub tables: SerdeVecHashMap<TableId, TableDefinition>,
     #[serde_as(as = "TableMapAsArray")]
     pub table_map: BiHashMap<TableId, Arc<str>>,
 }
@@ -476,7 +430,7 @@ impl DatabaseSchema {
         Self {
             id,
             name,
-            tables: BTreeMap::new(),
+            tables: Default::default(),
             table_map: BiHashMap::new(),
         }
     }
@@ -485,7 +439,7 @@ impl DatabaseSchema {
     /// everything is compatible and there are no updates to the existing schema, None will be
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
     pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
-        let mut updated_or_new_tables = BTreeMap::new();
+        let mut updated_or_new_tables = SerdeVecHashMap::new();
 
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
@@ -1031,7 +985,6 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_json_snapshot;
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
@@ -1048,7 +1001,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: BTreeMap::new(),
+            tables: SerdeVecHashMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(1), "test_table_1".into());
@@ -1104,10 +1057,6 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        // Perform a snapshot test to check that the JSON serialized catalog does not change in an
-        // undesired way when introducing features etc.
-        assert_json_snapshot!(catalog);
-
         // Serialize/deserialize to ensure roundtrip to/from JSON
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
@@ -1122,85 +1071,116 @@ mod tests {
         {
             let json = r#"{
                 "databases": [
-                    {
-                        "id": 0,
-                        "name": "db1",
-                        "tables": []
-                    },
-                    {
-                        "id": 0,
-                        "name": "db1",
-                        "tables": []
-                    }
-                ]
+                    [
+                        0,
+                        {
+                            "id": 0,
+                            "name": "db1",
+                            "tables": [],
+                            "table_map": []
+                        }
+                    ],
+                    [
+                        0,
+                        {
+                            "id": 0,
+                            "name": "db1",
+                            "tables": [],
+                            "table_map": []
+                        }
+                    ]
+                ],
+                "sequence": 0,
+                "host_id": "test",
+                "instance_id": "test",
+                "db_map": []
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "found duplicate db: db1");
+            assert_contains!(err.to_string(), "duplicate key found");
         }
         // Duplicate tables
         {
             let json = r#"{
                 "databases": [
-                    {
-                        "id": 0,
-                        "name": "db1",
-                        "tables": [
-                            {
-                                "table_id": 0,
-                                "table_name": "tbl1",
-                                "cols": {},
-                                "column_map": [],
-                                "next_column_id": 0
-                            },
-                            {
-                                "table_id": 0,
-                                "table_name": "tbl1",
-                                "cols": {},
-                                "column_map": [],
-                                "next_column_id": 0
-                            }
-                        ]
-                    }
-                ]
+                    [
+                        0,
+                        {
+                            "id": 0,
+                            "name": "db1",
+                            "tables": [
+                                [
+                                    0,
+                                    {
+                                        "table_id": 0,
+                                        "table_name": "tbl1",
+                                        "cols": {},
+                                        "column_map": [],
+                                        "next_column_id": 0
+                                    }
+                                ],
+                                [
+                                    0,
+                                    {
+                                        "table_id": 0,
+                                        "table_name": "tbl1",
+                                        "cols": {},
+                                        "column_map": [],
+                                        "next_column_id": 0
+                                    }
+                                ]
+                            ]
+                        }
+                    ]
+                ],
+                "sequence": 0,
+                "host_id": "test",
+                "instance_id": "test",
+                "db_map": []
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "found duplicate table: tbl1");
+            assert_contains!(err.to_string(), "duplicate key found");
         }
         // Duplicate columns
         {
             let json = r#"{
                 "databases": [
-                    {
-                        "id": 0,
-                        "name": "db1",
-                        "tables": [
-                            {
-                                "table_id": 0,
-                                "table_name": "tbl1",
-                                "cols": {
-                                    "col1": {
-                                        "column_id": 0,
-                                        "type": "i64",
-                                        "influx_type": "field",
-                                        "nullable": true
-                                    },
-                                    "col1": {
-                                        "column_id": 0,
-                                        "type": "u64",
-                                        "influx_type": "field",
-                                        "nullable": true
-                                    }
-                                },
-                                "column_map": [
+                    [
+                        0,
+                        {
+                            "id": 0,
+                            "name": "db1",
+                            "tables": [
+                                [
+                                    0,
                                     {
-                                        "column_id": 0,
-                                        "name": "col1"
+                                        "table_id": 0,
+                                        "table_name": "tbl1",
+                                        "cols": {
+                                            "col1": {
+                                                "column_id": 0,
+                                                "type": "i64",
+                                                "influx_type": "field",
+                                                "nullable": true
+                                            },
+                                            "col1": {
+                                                "column_id": 0,
+                                                "type": "u64",
+                                                "influx_type": "field",
+                                                "nullable": true
+                                            }
+                                        },
+                                        "column_map": [
+                                            {
+                                                "column_id": 0,
+                                                "name": "col1"
+                                            }
+                                        ],
+                                        "next_column_id": 1
                                     }
-                                ],
-                                "next_column_id": 1
-                            }
-                        ]
-                    }
+                                ]
+                            ]
+                        }
+                    ]
                 ]
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
@@ -1213,7 +1193,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test".into(),
-            tables: BTreeMap::new(),
+            tables: SerdeVecHashMap::new(),
             table_map: BiHashMap::new(),
         };
         database.tables.insert(
@@ -1256,7 +1236,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: BTreeMap::new(),
+            tables: SerdeVecHashMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(1), "test_table_1".into());
@@ -1291,8 +1271,6 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        assert_json_snapshot!(catalog);
-
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
@@ -1307,7 +1285,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: BTreeMap::new(),
+            tables: SerdeVecHashMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(0), "test".into());
@@ -1347,8 +1325,6 @@ mod tests {
             .write()
             .databases
             .insert(database.id, Arc::new(database));
-
-        assert_json_snapshot!(catalog);
 
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();

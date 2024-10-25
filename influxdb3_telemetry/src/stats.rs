@@ -21,10 +21,6 @@ pub(crate) struct RollingStats<T> {
 }
 
 impl<T: Default + Num + Copy + NumCast + PartialOrd> RollingStats<T> {
-    pub fn new() -> RollingStats<T> {
-        RollingStats::default()
-    }
-
     /// Update the rolling stats [`Self::min`]/[`Self::max`]/[`Self::avg`] using
     /// reference to an higher precision stats that is passed in. This is usually a
     /// per minute interval stats. One thing to note here is the [`Self::num_samples`]
@@ -70,10 +66,6 @@ pub(crate) struct Stats<T> {
 }
 
 impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
-    pub fn new() -> Stats<T> {
-        Stats::default()
-    }
-
     /// Update the [`Self::min`]/[`Self::max`]/[`Self::avg`] from a
     /// new value that is sampled.
     pub fn update(&mut self, new_val: T) -> Option<()> {

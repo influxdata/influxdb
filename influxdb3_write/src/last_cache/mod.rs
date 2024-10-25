@@ -1586,7 +1586,7 @@ fn data_type_from_buffer_field(field: &Field) -> DataType {
 
 #[cfg(test)]
 mod tests {
-    use std::{cmp::Ordering, collections::BTreeMap, sync::Arc, time::Duration};
+    use std::{cmp::Ordering, sync::Arc, time::Duration};
 
     use crate::{
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
@@ -1600,7 +1600,7 @@ mod tests {
     use bimap::BiHashMap;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{DbId, TableId};
+    use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -3114,7 +3114,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: db_name.into(),
-            tables: BTreeMap::new(),
+            tables: SerdeVecHashMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(0), "test_table_1".into());
