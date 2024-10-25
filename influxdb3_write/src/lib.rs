@@ -9,6 +9,7 @@ pub mod last_cache;
 pub mod parquet_cache;
 pub mod paths;
 pub mod persister;
+mod serialize;
 pub mod write_buffer;
 
 use async_trait::async_trait;
