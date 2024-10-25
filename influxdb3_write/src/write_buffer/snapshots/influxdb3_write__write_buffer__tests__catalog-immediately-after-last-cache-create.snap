@@ -4,74 +4,86 @@ expression: catalog_json
 ---
 {
   "databases": [
-    {
-      "id": 0,
-      "name": "db",
-      "tables": [
-        {
-          "cols": {
-            "f1": {
-              "column_id": 0,
-              "influx_type": "field",
-              "nullable": true,
-              "type": "bool"
-            },
-            "t1": {
-              "column_id": 1,
-              "influx_type": "tag",
-              "nullable": true,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              }
-            },
-            "time": {
-              "column_id": 2,
-              "influx_type": "time",
-              "nullable": false,
-              "type": {
-                "time": [
-                  "ns",
-                  null
-                ]
-              }
-            }
-          },
-          "column_map": [
+    [
+      0,
+      {
+        "id": 0,
+        "name": "db",
+        "table_map": [
+          {
+            "name": "table",
+            "table_id": 0
+          }
+        ],
+        "tables": [
+          [
+            0,
             {
-              "column_id": 0,
-              "name": "f1"
-            },
-            {
-              "column_id": 1,
-              "name": "t1"
-            },
-            {
-              "column_id": 2,
-              "name": "time"
-            }
-          ],
-          "last_caches": [
-            {
-              "keys": [
-                "t1"
+              "cols": {
+                "f1": {
+                  "column_id": 0,
+                  "influx_type": "field",
+                  "nullable": true,
+                  "type": "bool"
+                },
+                "t1": {
+                  "column_id": 1,
+                  "influx_type": "tag",
+                  "nullable": true,
+                  "type": {
+                    "dict": [
+                      "i32",
+                      "str"
+                    ]
+                  }
+                },
+                "time": {
+                  "column_id": 2,
+                  "influx_type": "time",
+                  "nullable": false,
+                  "type": {
+                    "time": [
+                      "ns",
+                      null
+                    ]
+                  }
+                }
+              },
+              "column_map": [
+                {
+                  "column_id": 0,
+                  "name": "f1"
+                },
+                {
+                  "column_id": 1,
+                  "name": "t1"
+                },
+                {
+                  "column_id": 2,
+                  "name": "time"
+                }
               ],
-              "n": 1,
-              "name": "cache",
-              "table": "table",
+              "last_caches": [
+                {
+                  "keys": [
+                    "t1"
+                  ],
+                  "n": 1,
+                  "name": "cache",
+                  "table": "table",
+                  "table_id": 0,
+                  "ttl": 14400,
+                  "vals": null
+                }
+              ],
+              "next_column_id": 3,
               "table_id": 0,
-              "ttl": 14400,
-              "vals": null
+              "table_name": "table"
             }
-          ],
-          "next_column_id": 3,
-          "table_id": 0,
-          "table_name": "table"
-        }
-      ]
-    }
+          ]
+        ]
+      }
+    ]
   ],
   "db_map": [
     {

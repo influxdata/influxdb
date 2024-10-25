@@ -8,7 +8,7 @@ use hashbrown::{
     HashMap,
 };
 use serde::{
-    de::{SeqAccess, Visitor},
+    de::{self, SeqAccess, Visitor},
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -19,7 +19,10 @@ use serde::{
 /// pair from the map. Deserialization assumes said serialization, and deserializes from the vector
 /// of tuples back into the map. Traits like `Deref`, `From`, etc. are implemented on this type such
 /// that it can be used as a `HashMap`.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// During deserialization, there are no duplicate keys allowed. If duplicates are found, an error
+/// will be thrown.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerdeVecHashMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
 
 impl<K, V> SerdeVecHashMap<K, V>
@@ -27,6 +30,15 @@ where
     K: Eq + std::hash::Hash,
 {
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<K, V> Default for SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    fn default() -> Self {
         Self(Default::default())
     }
 }
@@ -127,7 +139,13 @@ where
         D: Deserializer<'de>,
     {
         let v = deserializer.deserialize_seq(VecVisitor::new())?;
-        Ok(Self(v.into_iter().collect()))
+        let mut map = HashMap::with_capacity(v.len());
+        for (k, v) in v.into_iter() {
+            if map.insert(k, v).is_some() {
+                return Err(de::Error::custom("duplicate key found"));
+            }
+        }
+        Ok(Self(map))
     }
 }
 
