@@ -32,6 +32,10 @@ where
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn with_capacity(size: usize) -> Self {
+        Self(HashMap::with_capacity(size))
+    }
 }
 
 impl<K, V> Default for SerdeVecHashMap<K, V>
@@ -89,6 +93,15 @@ where
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()
+    }
+}
+
+impl<K, V> FromIterator<(K, V)> for SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 

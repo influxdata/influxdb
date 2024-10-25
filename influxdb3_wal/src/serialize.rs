@@ -91,7 +91,7 @@ mod tests {
     use crate::{
         Field, FieldData, Row, TableChunk, TableChunks, WalFileSequenceNumber, WalOp, WriteBatch,
     };
-    use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
+    use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
 
     #[test]
     fn test_serialize_deserialize() {
@@ -100,11 +100,11 @@ mod tests {
                 time: 1,
                 fields: vec![
                     Field {
-                        name: "f1".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Integer(10),
                     },
                     Field {
-                        name: "baz".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Timestamp(1),
                     },
                 ],

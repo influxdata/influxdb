@@ -2645,6 +2645,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "bimap",
+ "hashbrown 0.14.5",
  "influxdb-line-protocol",
  "influxdb3_id",
  "influxdb3_wal",

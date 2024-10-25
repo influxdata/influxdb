@@ -24,8 +24,8 @@ use datafusion::{
 use hashbrown::{HashMap, HashSet};
 use indexmap::{IndexMap, IndexSet};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::DbId;
 use influxdb3_id::TableId;
+use influxdb3_id::{ColumnId, DbId};
 use influxdb3_wal::{
     Field, FieldData, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef, Row,
     WalContents, WalOp,
@@ -535,7 +535,7 @@ pub(crate) struct LastCache {
     /// The key columns for this cache
     ///
     /// Uses an [`IndexSet`] for both fast iteration and fast lookup.
-    pub(crate) key_columns: Arc<IndexSet<String>>,
+    pub(crate) key_columns: Arc<IndexSet<ColumnId>>,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
     /// Whether or not this cache accepts newly written fields
@@ -545,7 +545,7 @@ pub(crate) struct LastCache {
     ///
     /// We only use this to check for columns that are part of the series key, so we don't care
     /// about the order, and a HashSet is sufficient.
-    series_key: Option<HashSet<String>>,
+    series_key: Option<HashSet<ColumnId>>,
     /// The internal state of the cache
     state: LastCacheState,
 }
@@ -555,9 +555,9 @@ impl LastCache {
     fn new(
         count: LastCacheSize,
         ttl: Duration,
-        key_columns: Vec<String>,
+        key_columns: Vec<ColumnId>,
         schema: ArrowSchemaRef,
-        series_key: Option<HashSet<String>>,
+        series_key: Option<HashSet<ColumnId>>,
         accept_new_fields: bool,
     ) -> Self {
         Self {
@@ -1028,8 +1028,8 @@ impl LastCacheState {
 /// Holds a node within a [`LastCache`] for a given key column
 #[derive(Debug)]
 struct LastCacheKey {
-    /// The name of the key column
-    column_name: String,
+    /// The column's ID
+    column_id: ColumnId,
     /// A map of key column value to nested [`LastCacheState`]
     ///
     /// All values should point at either another key or a [`LastCacheStore`]

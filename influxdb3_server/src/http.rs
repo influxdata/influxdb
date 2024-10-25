@@ -697,8 +697,8 @@ where
             .catalog()
             .db_schema_and_id(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = db_schema
-            .table_name_to_id(table.as_str())
+        let (table_id, table_def) = db_schema
+            .table_definition_and_id(table.as_str())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
 
         match self

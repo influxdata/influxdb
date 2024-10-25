@@ -613,7 +613,7 @@ mod tests {
         Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
-    use influxdb3_id::{DbId, TableId};
+    use influxdb3_id::{ColumnId, DbId, TableId};
     use object_store::memory::InMemory;
     use std::any::Any;
     use tokio::sync::oneshot::Receiver;
@@ -655,11 +655,11 @@ mod tests {
                                     time: 1,
                                     fields: vec![
                                         Field {
-                                            name: "f1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Integer(1),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Timestamp(1),
                                         },
                                     ],
@@ -668,11 +668,11 @@ mod tests {
                                     time: 3,
                                     fields: vec![
                                         Field {
-                                            name: "f1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Integer(2),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Timestamp(3),
                                         },
                                     ],
@@ -703,11 +703,11 @@ mod tests {
                                 time: 12,
                                 fields: vec![
                                     Field {
-                                        name: "f1".into(),
+                                        id: ColumnId::from(0),
                                         value: FieldData::Integer(3),
                                     },
                                     Field {
-                                        name: "time".into(),
+                                        id: ColumnId::from(1),
                                         value: FieldData::Timestamp(62_000000000),
                                     },
                                 ],
@@ -745,11 +745,11 @@ mod tests {
                                         time: 1,
                                         fields: vec![
                                             Field {
-                                                name: "f1".into(),
+                                                id: ColumnId::from(0),
                                                 value: FieldData::Integer(1),
                                             },
                                             Field {
-                                                name: "time".into(),
+                                                id: ColumnId::from(1),
                                                 value: FieldData::Timestamp(1),
                                             },
                                         ],
@@ -758,11 +758,11 @@ mod tests {
                                         time: 3,
                                         fields: vec![
                                             Field {
-                                                name: "f1".into(),
+                                                id: ColumnId::from(0),
                                                 value: FieldData::Integer(2),
                                             },
                                             Field {
-                                                name: "time".into(),
+                                                id: ColumnId::from(1),
                                                 value: FieldData::Timestamp(3),
                                             },
                                         ],
@@ -771,11 +771,11 @@ mod tests {
                                         time: 12,
                                         fields: vec![
                                             Field {
-                                                name: "f1".into(),
+                                                id: ColumnId::from(0),
                                                 value: FieldData::Integer(3),
                                             },
                                             Field {
-                                                name: "time".into(),
+                                                id: ColumnId::from(1),
                                                 value: FieldData::Timestamp(62_000000000),
                                             },
                                         ],
@@ -815,11 +815,11 @@ mod tests {
                                     time: 12,
                                     fields: vec![
                                         Field {
-                                            name: "f1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Integer(3),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Timestamp(62_000000000),
                                         },
                                     ],
@@ -888,11 +888,11 @@ mod tests {
                                 time: 26,
                                 fields: vec![
                                     Field {
-                                        name: "f1".into(),
+                                        id: ColumnId::from(0),
                                         value: FieldData::Integer(3),
                                     },
                                     Field {
-                                        name: "time".into(),
+                                        id: ColumnId::from(1),
                                         value: FieldData::Timestamp(128_000000000),
                                     },
                                 ],
@@ -949,11 +949,11 @@ mod tests {
                                     time: 26,
                                     fields: vec![
                                         Field {
-                                            name: "f1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Integer(3),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Timestamp(128_000000000),
                                         },
                                     ],

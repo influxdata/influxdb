@@ -11,7 +11,7 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
+use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -241,7 +241,7 @@ pub struct TableDefinition {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
-    pub key: Option<Vec<String>>,
+    pub key: Option<Vec<ColumnId>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -256,6 +256,7 @@ pub struct FieldAdditions {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub name: Arc<str>,
+    pub id: ColumnId,
     pub data_type: FieldDataType,
 }
 
@@ -307,11 +308,11 @@ pub struct LastCacheDefinition {
     /// The table id the cache is associated with
     pub table_id: TableId,
     /// The table name the cache is associated with
-    pub table: String,
+    pub table: Arc<str>,
     /// Given name of the cache
-    pub name: String,
+    pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<String>,
+    pub key_columns: Vec<Arc<str>>,
     /// Columns that store values in the cache
     pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
@@ -324,10 +325,10 @@ impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
     pub fn new_with_explicit_value_columns(
         table_id: TableId,
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        value_columns: impl IntoIterator<Item: Into<String>>,
+        table: impl Into<Arc<str>>,
+        name: impl Into<Arc<str>>,
+        key_columns: impl IntoIterator<Item: Into<Arc<str>>>,
+        value_columns: impl IntoIterator<Item: Into<Arc<str>>>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -347,9 +348,9 @@ impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
     pub fn new_all_non_key_value_columns(
         table_id: TableId,
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
+        table: impl Into<Arc<str>>,
+        name: impl Into<Arc<str>>,
+        key_columns: impl IntoIterator<Item: Into<Arc<str>>>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -371,7 +372,7 @@ impl LastCacheDefinition {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit { columns: Vec<String> },
+    Explicit { columns: Vec<Arc<str>> },
     /// Stores all non-key columns
     AllNonKeyColumns,
 }
@@ -432,9 +433,9 @@ impl PartialEq<LastCacheSize> for usize {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LastCacheDelete {
-    pub table_name: String,
+    pub table_name: Arc<str>,
     pub table_id: TableId,
-    pub name: String,
+    pub name: Arc<str>,
 }
 
 #[serde_as]
@@ -536,7 +537,7 @@ pub struct TableChunk {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Field {
-    pub name: Arc<str>,
+    pub id: ColumnId,
     pub value: FieldData,
 }
 
