@@ -1057,20 +1057,6 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        // TODO: with the use of the SerdeVecHashMap, using a snapshot test is flaky. This is
-        // because the serialized vector can not have a deterministic order. So, this part of the
-        // test is disabled for now.
-
-        // Perform a snapshot test to check that the JSON serialized catalog does not change in an
-        // undesired way when introducing features etc.
-        // insta::with_settings!({
-        //     sort_maps => true,
-        //     description => "catalog serialized, this snapshot is good for catching changes in \
-        //     catalog serialization"
-        // }, {
-        //     assert_json_snapshot!(catalog);
-        // });
-
         // Serialize/deserialize to ensure roundtrip to/from JSON
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
@@ -1285,17 +1271,6 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        // TODO: with the use of the SerdeVecHashMap, using a snapshot test is flaky. This is
-        // because the serialized vector can not have a deterministic order. So, this part of the
-        // test is disabled for now.
-
-        // insta::with_settings!({
-        //     sort_maps => true,
-        //     description => "catalog serialized with series keys"
-        // }, {
-        //     assert_json_snapshot!(catalog);
-        // });
-
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
@@ -1350,17 +1325,6 @@ mod tests {
             .write()
             .databases
             .insert(database.id, Arc::new(database));
-
-        // TODO: with the use of the SerdeVecHashMap, using a snapshot test is flaky. This is
-        // because the serialized vector can not have a deterministic order. So, this part of the
-        // test is disabled for now.
-
-        // insta::with_settings!({
-        //     sort_maps => true,
-        //     description => "catalog serialized with a last cache"
-        // }, {
-        //     assert_json_snapshot!(catalog);
-        // });
 
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
