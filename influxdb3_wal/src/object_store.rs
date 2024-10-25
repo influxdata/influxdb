@@ -681,7 +681,8 @@ mod tests {
                         },
                     )]),
                 },
-            )]),
+            )])
+            .into(),
             min_time_ns: 1,
             max_time_ns: 3,
         });
@@ -714,7 +715,8 @@ mod tests {
                         },
                     )]),
                 },
-            )]),
+            )])
+            .into(),
             min_time_ns: 62_000000000,
             max_time_ns: 62_000000000,
         });
@@ -782,7 +784,8 @@ mod tests {
                             },
                         )]),
                     },
-                )]),
+                )])
+                .into(),
                 min_time_ns: 1,
                 max_time_ns: 62_000000000,
             })],
@@ -824,7 +827,8 @@ mod tests {
                             },
                         )]),
                     },
-                )]),
+                )])
+                .into(),
                 min_time_ns: 62_000000000,
                 max_time_ns: 62_000000000,
             })],
@@ -896,7 +900,8 @@ mod tests {
                         },
                     )]),
                 },
-            )]),
+            )])
+            .into(),
             min_time_ns: 128_000000000,
             max_time_ns: 128_000000000,
         });
@@ -956,7 +961,8 @@ mod tests {
                             },
                         )]),
                     },
-                )]),
+                )])
+                .into(),
                 min_time_ns: 128_000000000,
                 max_time_ns: 128_000000000,
             })],

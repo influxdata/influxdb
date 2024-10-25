@@ -11,7 +11,7 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -442,45 +442,10 @@ pub struct LastCacheDelete {
 pub struct WriteBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
-    #[serde_as(as = "TableChunksMapAsVec")]
-    pub table_chunks: HashMap<TableId, TableChunks>,
+    pub table_chunks: SerdeVecHashMap<TableId, TableChunks>,
     pub min_time_ns: i64,
     pub max_time_ns: i64,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TableChunksMap {
-    table_id: TableId,
-    min_time: i64,
-    max_time: i64,
-    chunk_time_to_chunk: HashMap<i64, TableChunk>,
-}
-
-serde_with::serde_conv!(
-    TableChunksMapAsVec,
-    HashMap<TableId,TableChunks>,
-    |map: &HashMap<TableId, TableChunks>|
-        map.iter()
-           .map(|(table_id, chunk)| {
-               TableChunksMap {
-                    table_id: *table_id,
-                    min_time: chunk.min_time,
-                    max_time: chunk.max_time,
-                    chunk_time_to_chunk: chunk.chunk_time_to_chunk.clone()
-               }
-           })
-           .collect::<Vec<TableChunksMap>>(),
-    |vec: Vec<TableChunksMap>| -> Result<_, std::convert::Infallible> {
-        Ok(vec.into_iter().fold(HashMap::new(), |mut acc, chunk| {
-            acc.insert(chunk.table_id, TableChunks{
-                min_time: chunk.min_time,
-                max_time: chunk.max_time,
-                chunk_time_to_chunk: chunk.chunk_time_to_chunk
-            });
-            acc
-        }))
-    }
-);
 
 impl WriteBatch {
     pub fn new(
@@ -502,7 +467,7 @@ impl WriteBatch {
         Self {
             database_id,
             database_name,
-            table_chunks,
+            table_chunks: table_chunks.into(),
             min_time_ns,
             max_time_ns,
         }
@@ -510,7 +475,7 @@ impl WriteBatch {
 
     pub fn add_write_batch(
         &mut self,
-        new_table_chunks: HashMap<TableId, TableChunks>,
+        new_table_chunks: SerdeVecHashMap<TableId, TableChunks>,
         min_time_ns: i64,
         max_time_ns: i64,
     ) {

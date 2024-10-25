@@ -3,7 +3,10 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use hashbrown::HashMap;
+use hashbrown::{
+    hash_map::{IntoIter, Iter, IterMut},
+    HashMap,
+};
 use serde::{
     de::{SeqAccess, Visitor},
     ser::SerializeSeq,
@@ -16,8 +19,17 @@ use serde::{
 /// pair from the map. Deserialization assumes said serialization, and deserializes from the vector
 /// of tuples back into the map. Traits like `Deref`, `From`, etc. are implemented on this type such
 /// that it can be used as a `HashMap`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SerdeVecHashMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
+
+impl<K, V> SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    pub fn new() -> Self {
+        Self(Default::default())
+    }
+}
 
 impl<K, V, T> From<T> for SerdeVecHashMap<K, V>
 where
@@ -26,6 +38,45 @@ where
 {
     fn from(value: T) -> Self {
         Self(value.into())
+    }
+}
+
+impl<K, V> IntoIterator for SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    type Item = (K, V);
+
+    type IntoIter = IntoIter<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    type Item = (&'a K, &'a V);
+
+    type IntoIter = Iter<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a mut SerdeVecHashMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    type Item = (&'a K, &'a mut V);
+
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
     }
 }
 
