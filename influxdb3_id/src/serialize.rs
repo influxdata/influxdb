@@ -1,9 +1,9 @@
 use std::{
-    collections::HashMap,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
+use hashbrown::HashMap;
 use serde::{
     de::{SeqAccess, Visitor},
     ser::SerializeSeq,
@@ -16,10 +16,10 @@ use serde::{
 /// pair from the map. Deserialization assumes said serialization, and deserializes from the vector
 /// of tuples back into the map. Traits like `Deref`, `From`, etc. are implemented on this type such
 /// that it can be used as a `HashMap`.
-#[derive(Debug, Clone, PartialEq)]
-struct SerdeVecMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SerdeVecHashMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
 
-impl<K, V, T> From<T> for SerdeVecMap<K, V>
+impl<K, V, T> From<T> for SerdeVecHashMap<K, V>
 where
     K: Eq + std::hash::Hash,
     T: Into<HashMap<K, V>>,
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<K, V> Deref for SerdeVecMap<K, V>
+impl<K, V> Deref for SerdeVecHashMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -40,7 +40,7 @@ where
     }
 }
 
-impl<K, V> DerefMut for SerdeVecMap<K, V>
+impl<K, V> DerefMut for SerdeVecHashMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -49,7 +49,7 @@ where
     }
 }
 
-impl<K, V> Serialize for SerdeVecMap<K, V>
+impl<K, V> Serialize for SerdeVecHashMap<K, V>
 where
     K: Eq + std::hash::Hash + Serialize,
     V: Serialize,
@@ -66,7 +66,7 @@ where
     }
 }
 
-impl<'de, K, V> Deserialize<'de> for SerdeVecMap<K, V>
+impl<'de, K, V> Deserialize<'de> for SerdeVecHashMap<K, V>
 where
     K: Eq + std::hash::Hash + Deserialize<'de>,
     V: Deserialize<'de>,
@@ -101,7 +101,7 @@ where
 {
     type Value = Vec<(K, V)>;
 
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("a vector of key value pairs")
     }
 
@@ -119,20 +119,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use hashbrown::HashMap;
 
-    use super::SerdeVecMap;
+    use super::SerdeVecHashMap;
 
     #[test]
     fn serde_vec_map_with_json() {
         let map = HashMap::<u32, &str>::from_iter([(0, "foo"), (1, "bar"), (2, "baz")]);
-        let serde_vec_map = SerdeVecMap::from(map);
+        let serde_vec_map = SerdeVecHashMap::from(map);
         // test round-trip to JSON:
         let s = serde_json::to_string(&serde_vec_map).unwrap();
         // with using a hashmap the order changes so asserting on the JSON itself is flaky, so if
         // you want to see it working use --nocapture on the test...
         println!("{s}");
-        let d: SerdeVecMap<u32, &str> = serde_json::from_str(&s).unwrap();
+        let d: SerdeVecHashMap<u32, &str> = serde_json::from_str(&s).unwrap();
         assert_eq!(d, serde_vec_map);
     }
 }
