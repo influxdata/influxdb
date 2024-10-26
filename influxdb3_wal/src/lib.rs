@@ -327,8 +327,8 @@ impl LastCacheDefinition {
         table_id: TableId,
         table: impl Into<Arc<str>>,
         name: impl Into<Arc<str>>,
-        key_columns: impl IntoIterator<Item: Into<Arc<str>>>,
-        value_columns: impl IntoIterator<Item: Into<Arc<str>>>,
+        key_columns: Vec<impl Into<Arc<str>>>,
+        value_columns: Vec<impl Into<Arc<str>>>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -350,7 +350,7 @@ impl LastCacheDefinition {
         table_id: TableId,
         table: impl Into<Arc<str>>,
         name: impl Into<Arc<str>>,
-        key_columns: impl IntoIterator<Item: Into<Arc<str>>>,
+        key_columns: Vec<impl Into<Arc<str>>>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {

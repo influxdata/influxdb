@@ -1,14 +1,14 @@
+use crate::catalog::ColumnDefinition;
 use crate::catalog::TableDefinition;
-use crate::catalog::TableSchema;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
+use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
 use influxdb3_id::SerdeVecHashMap;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
-use schema::TIME_DATA_TYPE;
 use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -82,7 +82,7 @@ struct ColumnMap {
 ///
 /// Uses `#[non_exhaustive]` with the assumption that variants will be added as we support
 /// more Arrow data types.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 enum DataType {
@@ -110,7 +110,7 @@ enum DataType {
 }
 
 /// Representation of Arrow's `TimeUnit` for table snapshots.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 enum TimeUnit {
     #[serde(rename = "s")]
     Second,
@@ -171,8 +171,9 @@ impl From<InfluxColumnType> for DataType {
 /// The inner column definition for a [`TableSnapshot`]
 #[derive(Debug, Serialize, Deserialize)]
 struct ColumnDefinitionSnapshot {
+    name: Arc<str>,
     /// The id of the column
-    column_id: ColumnId,
+    id: ColumnId,
     /// The column's data type
     r#type: DataType,
     /// The columns Influx type
@@ -181,11 +182,26 @@ struct ColumnDefinitionSnapshot {
     nullable: bool,
 }
 
+impl From<ColumnDefinitionSnapshot> for ColumnDefinition {
+    fn from(snap: ColumnDefinitionSnapshot) -> Self {
+        Self {
+            id: snap.id,
+            name: Arc::clone(&snap.name),
+            data_type: match snap.influx_type {
+                InfluxType::Tag => InfluxColumnType::Tag,
+                InfluxType::Field => InfluxColumnType::Field(InfluxFieldType::from(&snap.r#type)),
+                InfluxType::Time => InfluxColumnType::Timestamp,
+            },
+            nullable: snap.nullable,
+        }
+    }
+}
+
 impl From<&TableDefinition> for TableSnapshot {
     fn from(def: &TableDefinition) -> Self {
         Self {
             table_id: def.table_id,
-            table_name: def.table_name.clone(),
+            table_name: Arc::clone(&def.table_name),
             key: def.series_key.clone(),
             cols: def
                 .columns
@@ -194,7 +210,8 @@ impl From<&TableDefinition> for TableSnapshot {
                     (
                         *col_id,
                         ColumnDefinitionSnapshot {
-                            column_id: *col_id,
+                            name: Arc::clone(&col_def.name),
+                            id: *col_id,
                             r#type: col_def.data_type.into(),
                             influx_type: col_def.data_type.into(),
                             nullable: col_def.nullable,
@@ -282,43 +299,51 @@ impl From<&ArrowDataType> for DataType {
 }
 
 impl From<TableSnapshot> for TableDefinition {
-    fn from(snap: TableSnapshot) -> Self {
-        let table_name = snap.table_name.into();
+    fn from(mut snap: TableSnapshot) -> Self {
         let table_id = snap.table_id;
         let mut b = SchemaBuilder::new();
-        b.measurement(snap.table_name.to_string());
-        if let Some(keys) = snap.key {
-            b.with_series_key(keys);
+        b.measurement(snap.table_name.as_ref());
+        if let Some(ref sk) = snap.key {
+            b.with_series_key(sk.iter().map(|k| {
+                snap.cols
+                    .get(k)
+                    .map(|def| Arc::clone(&def.name))
+                    .expect("valid column id in series key")
+            }));
         }
-        for (name, col) in snap.cols {
+        let mut columns = HashMap::with_capacity(snap.cols.len());
+        let mut column_map = BiHashMap::with_capacity(snap.cols.len());
+        for (_, col) in snap.cols.drain() {
             match col.influx_type {
                 InfluxType::Tag => {
-                    b.influx_column(name, schema::InfluxColumnType::Tag);
+                    b.influx_column(col.name.as_ref(), schema::InfluxColumnType::Tag);
                 }
                 InfluxType::Field => {
-                    b.influx_field(name, col.r#type.into());
+                    b.influx_field(col.name.as_ref(), InfluxFieldType::from(&col.r#type));
                 }
                 InfluxType::Time => {
                     b.timestamp();
                 }
             }
+            column_map.insert(col.id, Arc::clone(&col.name));
+            columns.insert(col.id, col.into());
         }
 
-        let schema = TableSchema::new_with_mapping(
-            b.build().expect("valid schema from snapshot"),
-            snap.column_map,
-        );
+        let schema = b.build().expect("valid schema from snapshot");
         let last_caches = snap
             .last_caches
             .into_iter()
-            .map(|lc_snap| (lc_snap.name.to_string(), lc_snap.into()))
+            .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
             .collect();
 
         Self {
-            table_name,
+            table_name: snap.table_name,
             table_id,
             schema,
+            columns,
+            column_map,
             last_caches,
+            series_key: snap.key,
         }
     }
 }
@@ -331,6 +356,19 @@ impl From<TableSnapshot> for TableDefinition {
 // See <https://github.com/influxdata/influxdb_iox/issues/11111>
 impl From<DataType> for InfluxFieldType {
     fn from(data_type: DataType) -> Self {
+        match data_type {
+            DataType::Bool => Self::Boolean,
+            DataType::I64 => Self::Integer,
+            DataType::U64 => Self::UInteger,
+            DataType::F64 => Self::Float,
+            DataType::Str => Self::String,
+            other => unimplemented!("unsupported data type in catalog {other:?}"),
+        }
+    }
+}
+
+impl From<&DataType> for InfluxFieldType {
+    fn from(data_type: &DataType) -> Self {
         match data_type {
             DataType::Bool => Self::Boolean,
             DataType::I64 => Self::Integer,
@@ -357,13 +395,11 @@ impl From<&LastCacheDefinition> for LastCacheSnapshot {
     fn from(lcd: &LastCacheDefinition) -> Self {
         Self {
             table_id: lcd.table_id,
-            table: lcd.table.clone(),
-            name: lcd.name.clone(),
-            keys: lcd.key_columns.iter().cloned().collect(),
+            table: Arc::clone(&lcd.table),
+            name: Arc::clone(&lcd.name),
+            keys: lcd.key_columns.to_vec(),
             vals: match &lcd.value_columns {
-                LastCacheValueColumnsDef::Explicit { columns } => {
-                    Some(columns.iter().cloned().collect())
-                }
+                LastCacheValueColumnsDef::Explicit { columns } => Some(columns.to_vec()),
                 LastCacheValueColumnsDef::AllNonKeyColumns => None,
             },
             n: lcd.count.into(),

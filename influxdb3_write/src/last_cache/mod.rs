@@ -44,7 +44,7 @@ pub enum Error {
     #[error("last cache already exists for database and table, but it was configured differently: {reason}")]
     CacheAlreadyExists { reason: String },
     #[error("specified key column ({column_name}) does not exist in the table schema")]
-    KeyColumnDoesNotExist { column_name: String },
+    KeyColumnDoesNotExist { column_name: Arc<str> },
     #[error("key column must be string, int, uint, or bool types")]
     InvalidKeyColumn,
     #[error("specified value column ({column_name}) does not exist in the table schema")]
@@ -83,18 +83,16 @@ pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 pub struct CreateCacheArguments {
     /// The id of the database to create the cache for
     pub db_id: DbId,
-    /// The name of the database to create the cache for
-    pub db_name: String,
     /// The id of the table in the database to create the cache for
     pub table_id: TableId,
     /// The name of the table in the database to create the cache for
-    pub table_name: String,
+    pub table_name: Arc<str>,
     /// The Influx Schema of the table
     pub schema: Schema,
     /// An optional name for the cache
     ///
     /// The cache name will default to `<table_name>_<keys>_last_cache`
-    pub cache_name: Option<String>,
+    pub cache_name: Option<Arc<str>>,
     /// The number of values to hold in the created cache
     ///
     /// This will default to 1.
@@ -108,11 +106,11 @@ pub struct CreateCacheArguments {
     /// This will default to:
     /// - the series key columns for a v3 table
     /// - the lexicographically ordered tag set for a v1 table
-    pub key_columns: Option<Vec<String>>,
+    pub key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     /// The value columns to use in the cache
     ///
     /// This will default to all non-key columns. The `time` column is always included.
-    pub value_columns: Option<Vec<String>>,
+    pub value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
 }
 
 impl LastCacheProvider {
@@ -129,11 +127,10 @@ impl LastCacheProvider {
                         provider
                             .create_cache(CreateCacheArguments {
                                 db_id: db_schema.id,
-                                db_name: db_schema.name.to_string(),
                                 table_id: table_def.table_id,
-                                table_name: table_def.table_name.to_string(),
+                                table_name: Arc::clone(&table_def.table_name),
                                 schema: table_def.influx_schema().clone(),
-                                cache_name: Some(cache_name.to_owned()),
+                                cache_name: Some(Arc::clone(&cache_name)),
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),
                                 key_columns: Some(cache_def.key_columns.clone()),
@@ -222,7 +219,6 @@ impl LastCacheProvider {
             ttl,
             key_columns,
             value_columns,
-            ..
         }: CreateCacheArguments,
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let key_columns = if let Some(keys) = key_columns {
@@ -239,7 +235,7 @@ impl LastCacheProvider {
                     Some((_, _)) => return Err(Error::InvalidKeyColumn),
                     None => {
                         return Err(Error::KeyColumnDoesNotExist {
-                            column_name: key.into(),
+                            column_name: Arc::clone(&key),
                         })
                     }
                 }
@@ -532,10 +528,14 @@ pub(crate) struct LastCache {
     /// Once values have lived in the cache beyond this [`Duration`], they can be evicted using
     /// the [`remove_expired`][LastCache::remove_expired] method.
     pub(crate) ttl: Duration,
-    /// The key columns for this cache
+    /// The key columns for this cache, by their IDs
     ///
-    /// Uses an [`IndexSet`] for both fast iteration and fast lookup.
-    pub(crate) key_columns: Arc<IndexSet<ColumnId>>,
+    /// Uses an [`IndexSet`] for both fast iteration and fast lookup and more importantly, this
+    /// map preserves the order of the elements, thereby maintaining the order of the keys in
+    /// the cache
+    pub(crate) key_column_ids: Arc<IndexSet<ColumnId>>,
+    /// The key columns for this cache, by their names
+    pub(crate) key_column_names: Arc<IndexSet<Arc<str>>>,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
     /// Whether or not this cache accepts newly written fields
@@ -555,15 +555,22 @@ impl LastCache {
     fn new(
         count: LastCacheSize,
         ttl: Duration,
-        key_columns: Vec<ColumnId>,
+        key_columns: Vec<(ColumnId, Arc<str>)>,
         schema: ArrowSchemaRef,
         series_key: Option<HashSet<ColumnId>>,
         accept_new_fields: bool,
     ) -> Self {
+        let mut key_column_ids = IndexSet::new();
+        let mut key_column_names = IndexSet::new();
+        for (id, name) in key_columns {
+            key_column_ids.insert(id);
+            key_column_names.insert(name);
+        }
         Self {
             count,
             ttl,
-            key_columns: Arc::new(key_columns.into_iter().collect()),
+            key_column_ids: Arc::new(key_column_ids),
+            key_column_names: Arc::new(key_column_names),
             series_key,
             accept_new_fields,
             schema,
@@ -581,7 +588,7 @@ impl LastCache {
         if self.ttl != other.ttl {
             return Err(Error::cache_already_exists("different ttl specified"));
         }
-        if self.key_columns != other.key_columns {
+        if self.key_column_ids != other.key_column_ids {
             return Err(Error::cache_already_exists("key columns are not the same"));
         }
         if self.accept_new_fields != other.accept_new_fields {
@@ -615,18 +622,18 @@ impl LastCache {
     pub(crate) fn push(&mut self, row: &Row) {
         let schema = Arc::clone(&self.schema);
         let mut target = &mut self.state;
-        let mut key_iter = self.key_columns.iter().peekable();
+        let mut key_iter = self.key_column_ids.iter().peekable();
         while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
             if target.is_init() {
                 *target = LastCacheState::Key(LastCacheKey {
-                    column_name: key.to_string(),
+                    column_id: *key,
                     value_map: Default::default(),
                 });
             }
             let Some(value) = row
                 .fields
                 .iter()
-                .find(|f| f.name.as_ref() == *key)
+                .find(|f| f.id == *key)
                 .map(|f| KeyValue::from(&f.value))
             else {
                 // ignore the row if it does not contain all key columns
@@ -634,13 +641,13 @@ impl LastCache {
             };
             let cache_key = target.as_key_mut().unwrap();
             assert_eq!(
-                &cache_key.column_name, key,
+                &cache_key.column_id, key,
                 "key columns must match cache key order"
             );
             target = cache_key.value_map.entry(value).or_insert_with(|| {
                 if let Some(next_key) = peek {
                     LastCacheState::Key(LastCacheKey {
-                        column_name: next_key.to_string(),
+                        column_id: **next_key,
                         value_map: Default::default(),
                     })
                 } else {
@@ -648,7 +655,7 @@ impl LastCache {
                         self.count.into(),
                         self.ttl,
                         Arc::clone(&schema),
-                        Arc::clone(&self.key_columns),
+                        Arc::clone(&self.key_column_ids),
                         self.series_key.as_ref(),
                     ))
                 }
@@ -660,7 +667,7 @@ impl LastCache {
                 self.count.into(),
                 self.ttl,
                 Arc::clone(&schema),
-                Arc::clone(&self.key_columns),
+                Arc::clone(&self.key_column_ids),
                 self.series_key.as_ref(),
             ));
         }
@@ -689,7 +696,7 @@ impl LastCache {
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
         let predicates: Vec<Option<&Predicate>> = self
-            .key_columns
+            .key_column_ids
             .iter()
             .map(|key| predicates.iter().find(|p| p.key == *key))
             .collect();
@@ -749,7 +756,7 @@ impl LastCache {
                 match expr {
                     Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
                         let key = if let Expr::Column(c) = left.as_ref() {
-                            if !self.key_columns.contains(c.name()) {
+                            if !self.key_column_ids.contains(c.name()) {
                                 return None;
                             }
                             c.name.to_string()
@@ -778,7 +785,7 @@ impl LastCache {
                         negated,
                     }) => {
                         let key = if let Expr::Column(c) = expr.as_ref() {
-                            if !self.key_columns.contains(c.name()) {
+                            if !self.key_column_ids.contains(c.name()) {
                                 return None;
                             }
                             c.name.to_string()
@@ -832,7 +839,7 @@ impl LastCache {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: self.key_columns.iter().cloned().collect(),
+            key_columns: self.key_column_ids.iter().cloned().collect(),
             value_columns: if self.accept_new_fields {
                 LastCacheValueColumnsDef::AllNonKeyColumns
             } else {
@@ -841,7 +848,7 @@ impl LastCache {
                         .schema
                         .fields()
                         .iter()
-                        .filter(|f| !self.key_columns.contains(f.name()))
+                        .filter(|f| !self.key_column_ids.contains(f.name()))
                         .map(|f| f.name().to_owned())
                         .collect(),
                 }
@@ -1142,9 +1149,9 @@ struct LastCacheStore {
     /// as fast lookup (see [here][perf]).
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
-    cache: IndexMap<String, CacheColumn>,
+    cache: IndexMap<ColumnId, CacheColumn>,
     /// A reference to the set of key columns for the cache
-    key_columns: Arc<IndexSet<String>>,
+    key_columns: Arc<IndexSet<ColumnId>>,
     /// A ring buffer holding the instants at which entries in the cache were inserted
     ///
     /// This is used to evict cache values that outlive the `ttl`
@@ -1165,8 +1172,8 @@ impl LastCacheStore {
         count: usize,
         ttl: Duration,
         schema: ArrowSchemaRef,
-        key_columns: Arc<IndexSet<String>>,
-        series_keys: Option<&HashSet<String>>,
+        key_columns: Arc<IndexSet<ColumnId>>,
+        series_keys: Option<&HashSet<ColumnId>>,
     ) -> Self {
         let cache = schema
             .fields()
@@ -3186,7 +3193,7 @@ mod tests {
                 table_id,
                 "test_table_2",
                 "test_cache_3",
-                &[] as &[std::string::String],
+                &[] as &[str],
                 ["f2"],
                 10,
                 500,

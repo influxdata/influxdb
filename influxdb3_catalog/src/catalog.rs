@@ -1,7 +1,6 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::TableNotFound;
-use arrow::datatypes::SchemaRef;
 use bimap::BiHashMap;
 use hashbrown::HashMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
@@ -475,7 +474,7 @@ impl DatabaseSchema {
                         let fields = field_additions
                             .field_definitions
                             .iter()
-                            .map(|f| (f.id, f.name.clone(), f.data_type.into()))
+                            .map(|f| (f.id, Arc::clone(&f.name), f.data_type.into()))
                             .collect::<Vec<_>>();
                         let new_table = TableDefinition::new(
                             field_additions.table_id,
@@ -492,8 +491,8 @@ impl DatabaseSchema {
                         .or_else(|| self.tables.get(&last_cache_definition.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: self.name.clone(),
-                        table_name: last_cache_definition.table.clone(),
+                        db_name: Arc::clone(&self.name),
+                        table_name: Arc::clone(&last_cache_definition.table),
                     })?;
 
                     if let Some(new_table) =
@@ -508,8 +507,8 @@ impl DatabaseSchema {
                         .or_else(|| self.tables.get(&last_cache_deletion.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: self.name.clone(),
-                        table_name: last_cache_deletion.table_name.clone(),
+                        db_name: Arc::clone(&self.name),
+                        table_name: Arc::clone(&last_cache_deletion.table_name),
                     })?;
 
                     if let Some(new_table) =
@@ -701,7 +700,7 @@ impl TableDefinition {
         for field_def in &table_definition.field_definitions {
             columns.push((
                 field_def.id,
-                field_def.name.clone(),
+                Arc::clone(&field_def.name),
                 field_def.data_type.into(),
             ));
         }
@@ -743,7 +742,7 @@ impl TableDefinition {
             } else {
                 new_fields.push((
                     field_def.id,
-                    field_def.name.clone(),
+                    Arc::clone(&field_def.name),
                     field_def.data_type.into(),
                 ));
             }
@@ -778,7 +777,7 @@ impl TableDefinition {
             } else {
                 new_fields.push((
                     field_def.id,
-                    field_def.name.clone(),
+                    Arc::clone(&field_def.name),
                     field_def.data_type.into(),
                 ));
             }
@@ -835,12 +834,12 @@ impl TableDefinition {
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
         for (_, col_def) in self.columns.drain() {
-            cols.insert(col_def.name.clone(), col_def);
+            cols.insert(Arc::clone(&col_def.name), col_def);
         }
         for (id, name, column_type) in columns {
             assert!(
                 cols.insert(
-                    name.clone(),
+                    Arc::clone(&name),
                     // any new column added by this function must be nullable:
                     ColumnDefinition::new(id, name, column_type, true)
                 )
@@ -867,7 +866,7 @@ impl TableDefinition {
         self.columns = cols
             .into_iter()
             .inspect(|(_, def)| {
-                self.column_map.insert(def.id, def.name.clone());
+                self.column_map.insert(def.id, Arc::clone(&def.name));
             })
             .map(|(_, def)| (def.id, def))
             .collect();
@@ -903,7 +902,8 @@ impl TableDefinition {
 
     /// Add a new last cache to this table definition
     pub fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
-        self.last_caches.insert(last_cache.name.clone(), last_cache);
+        self.last_caches
+            .insert(Arc::clone(&last_cache.name), last_cache);
     }
 
     /// Remove a last cache from the table definition
@@ -914,7 +914,7 @@ impl TableDefinition {
     pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &LastCacheDefinition)> {
         self.last_caches
             .iter()
-            .map(|(name, def)| (name.clone(), def))
+            .map(|(name, def)| (Arc::clone(name), def))
     }
 
     pub fn name_to_id(&self, name: Arc<str>) -> Option<ColumnId> {
@@ -962,60 +962,6 @@ impl ColumnDefinition {
             data_type,
             nullable,
         }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TableSchema {
-    schema: Schema,
-    column_map: BiHashMap<ColumnId, Arc<str>>,
-}
-
-impl TableSchema {
-    /// Creates a new `TableSchema` from scratch and assigns an id based off the
-    /// index. Any changes to the schema after this point will use the
-    /// next_column_id. For example if we have a column foo and drop it and then
-    /// add a new column foo, then it will use a new id, not reuse the old one.
-    fn new(schema: Schema) -> Self {
-        let column_map: BiHashMap<ColumnId, Arc<str>> = schema
-            .as_arrow()
-            .fields()
-            .iter()
-            .map(|field| (ColumnId::new(), field.name().as_str().into()))
-            .collect();
-        Self { schema, column_map }
-    }
-
-    pub(crate) fn new_with_mapping(
-        schema: Schema,
-        column_map: BiHashMap<ColumnId, Arc<str>>,
-    ) -> Self {
-        Self { schema, column_map }
-    }
-
-    pub fn as_arrow(&self) -> SchemaRef {
-        self.schema.as_arrow()
-    }
-
-    pub fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    pub(crate) fn column_map(&self) -> &BiHashMap<ColumnId, Arc<str>> {
-        &self.column_map
-    }
-
-    fn add_column(&mut self, column_name: &str) {
-        let id = ColumnId::new();
-        self.column_map.insert(id, column_name.into());
-    }
-
-    pub fn series_key(&self) -> Option<Vec<&str>> {
-        self.schema.series_key()
-    }
-
-    pub fn iter(&self) -> schema::SchemaIter<'_> {
-        self.schema.iter()
     }
 }
 
@@ -1365,8 +1311,8 @@ mod tests {
                 TableId::from(0),
                 "test",
                 "test_table_last_cache",
-                ["tag_2", "tag_3"],
-                ["field"],
+                vec!["tag_2", "tag_3"],
+                vec!["field"],
                 1,
                 600,
             )
