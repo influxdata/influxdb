@@ -253,7 +253,9 @@ impl Error {
             Self::WriteBuffer(WriteBufferError::LastCacheError(ref lc_err)) => match lc_err {
                 last_cache::Error::InvalidCacheSize
                 | last_cache::Error::CacheAlreadyExists { .. }
+                | last_cache::Error::ColumnDoesNotExistByName { .. }
                 | last_cache::Error::KeyColumnDoesNotExist { .. }
+                | last_cache::Error::KeyColumnDoesNotExistByName { .. }
                 | last_cache::Error::InvalidKeyColumn
                 | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
                     .status(StatusCode::BAD_REQUEST)

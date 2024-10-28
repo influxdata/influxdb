@@ -18,7 +18,7 @@ use super::LastCacheProvider;
 struct LastCacheFunctionProvider {
     db_id: DbId,
     table_id: TableId,
-    cache_name: String,
+    cache_name: Arc<str>,
     schema: SchemaRef,
     provider: Arc<LastCacheProvider>,
 }

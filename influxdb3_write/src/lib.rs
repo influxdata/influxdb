@@ -117,8 +117,8 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<ColumnId>>,
-        value_columns: Option<Vec<ColumnId>>,
+        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
     /// Delete a last-n-value cache
     ///

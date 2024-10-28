@@ -375,12 +375,12 @@ impl BufferState {
                     for op in catalog_batch.ops {
                         match op {
                             CatalogOp::CreateLastCache(definition) => {
-                                let table_schema = db_schema
-                                    .table_schema_by_id(definition.table_id)
+                                let table_def = db_schema
+                                    .table_definition_by_id(definition.table_id)
                                     .expect("table should exist");
                                 last_cache_provider.create_cache_from_definition(
                                     db_schema.id,
-                                    &table_schema,
+                                    table_def,
                                     &definition,
                                 );
                             }

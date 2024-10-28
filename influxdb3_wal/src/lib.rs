@@ -312,7 +312,7 @@ pub struct LastCacheDefinition {
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<Arc<str>>,
+    pub key_columns: Vec<ColumnId>,
     /// Columns that store values in the cache
     pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
@@ -327,8 +327,8 @@ impl LastCacheDefinition {
         table_id: TableId,
         table: impl Into<Arc<str>>,
         name: impl Into<Arc<str>>,
-        key_columns: Vec<impl Into<Arc<str>>>,
-        value_columns: Vec<impl Into<Arc<str>>>,
+        key_columns: Vec<ColumnId>,
+        value_columns: Vec<ColumnId>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -336,9 +336,9 @@ impl LastCacheDefinition {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            key_columns,
             value_columns: LastCacheValueColumnsDef::Explicit {
-                columns: value_columns.into_iter().map(Into::into).collect(),
+                columns: value_columns,
             },
             count: count.try_into()?,
             ttl,
@@ -350,7 +350,7 @@ impl LastCacheDefinition {
         table_id: TableId,
         table: impl Into<Arc<str>>,
         name: impl Into<Arc<str>>,
-        key_columns: Vec<impl Into<Arc<str>>>,
+        key_columns: Vec<ColumnId>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -358,7 +358,7 @@ impl LastCacheDefinition {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            key_columns,
             value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
             count: count.try_into()?,
             ttl,
@@ -372,7 +372,7 @@ impl LastCacheDefinition {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit { columns: Vec<Arc<str>> },
+    Explicit { columns: Vec<ColumnId> },
     /// Stores all non-key columns
     AllNonKeyColumns,
 }

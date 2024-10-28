@@ -219,8 +219,14 @@ impl Catalog {
             .expect("db should exist")
             .as_ref()
             .clone();
-        let table = db.tables.get_mut(&table_id).expect("table should exist");
+        let mut table = db
+            .tables
+            .get(&table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
         table.add_last_cache(last_cache);
+        db.tables.insert(table_id, Arc::new(table));
         inner.databases.insert(db_id, Arc::new(db));
         inner.sequence = inner.sequence.next();
         inner.updated = true;
@@ -234,8 +240,14 @@ impl Catalog {
             .expect("db should exist")
             .as_ref()
             .clone();
-        let table = db.tables.get_mut(&table_id).expect("table should exist");
+        let mut table = db
+            .tables
+            .get(&table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
         table.remove_last_cache(name);
+        db.tables.insert(table_id, Arc::new(table));
         inner.databases.insert(db_id, Arc::new(db));
         inner.sequence = inner.sequence.next();
         inner.updated = true;
@@ -421,7 +433,7 @@ pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
-    pub tables: SerdeVecHashMap<TableId, TableDefinition>,
+    pub tables: SerdeVecHashMap<TableId, Arc<TableDefinition>>,
     #[serde_as(as = "TableMapAsArray")]
     pub table_map: BiHashMap<TableId, Arc<str>>,
 }
@@ -453,11 +465,11 @@ impl DatabaseSchema {
                         if let Some(new_table) =
                             existing_table.new_if_definition_adds_new_fields(table_definition)?
                         {
-                            updated_or_new_tables.insert(new_table.table_id, new_table);
+                            updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                         }
                     } else {
                         let new_table = TableDefinition::new_from_op(table_definition);
-                        updated_or_new_tables.insert(new_table.table_id, new_table);
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
                 CatalogOp::AddFields(field_additions) => {
@@ -468,7 +480,7 @@ impl DatabaseSchema {
                         if let Some(new_table) =
                             existing_table.new_if_field_additions_add_fields(field_additions)?
                         {
-                            updated_or_new_tables.insert(new_table.table_id, new_table);
+                            updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                         }
                     } else {
                         let fields = field_additions
@@ -482,7 +494,7 @@ impl DatabaseSchema {
                             fields,
                             SeriesKey::None,
                         )?;
-                        updated_or_new_tables.insert(new_table.table_id, new_table);
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
                 CatalogOp::CreateLastCache(last_cache_definition) => {
@@ -498,7 +510,7 @@ impl DatabaseSchema {
                     if let Some(new_table) =
                         table.new_if_last_cache_definition_is_new(last_cache_definition)
                     {
-                        updated_or_new_tables.insert(new_table.table_id, new_table);
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
                 CatalogOp::DeleteLastCache(last_cache_deletion) => {
@@ -514,7 +526,7 @@ impl DatabaseSchema {
                     if let Some(new_table) =
                         table.new_if_last_cache_deletes_existing(last_cache_deletion)
                     {
-                        updated_or_new_tables.insert(new_table.table_id, new_table);
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
             }
@@ -525,7 +537,7 @@ impl DatabaseSchema {
         } else {
             for (table_id, table_def) in &self.tables {
                 if !updated_or_new_tables.contains_key(table_id) {
-                    updated_or_new_tables.insert(*table_id, table_def.clone());
+                    updated_or_new_tables.insert(*table_id, Arc::clone(table_def));
                 }
             }
 
@@ -580,24 +592,27 @@ impl DatabaseSchema {
             })
     }
 
-    pub fn table_definition(&self, table_name: impl Into<Arc<str>>) -> Option<&TableDefinition> {
+    pub fn table_definition(
+        &self,
+        table_name: impl Into<Arc<str>>,
+    ) -> Option<Arc<TableDefinition>> {
         self.table_map
             .get_by_right(&table_name.into())
-            .and_then(|table_id| self.tables.get(table_id))
+            .and_then(|table_id| self.tables.get(table_id).cloned())
     }
 
-    pub fn table_definition_by_id(&self, table_id: TableId) -> Option<&TableDefinition> {
-        self.tables.get(&table_id)
+    pub fn table_definition_by_id(&self, table_id: TableId) -> Option<Arc<TableDefinition>> {
+        self.tables.get(&table_id).cloned()
     }
 
     pub fn table_definition_and_id(
         &self,
         table_name: impl Into<Arc<str>>,
-    ) -> Option<(TableId, &TableDefinition)> {
+    ) -> Option<(TableId, Arc<TableDefinition>)> {
         let table_id = self.table_map.get_by_right(&table_name.into())?;
         self.tables
             .get(table_id)
-            .map(|table_def| (*table_id, table_def))
+            .map(|table_def| (*table_id, Arc::clone(table_def)))
     }
 
     pub fn table_ids(&self) -> Vec<TableId> {
@@ -615,8 +630,8 @@ impl DatabaseSchema {
         self.tables.contains_key(&table_id)
     }
 
-    pub fn tables(&self) -> impl Iterator<Item = &TableDefinition> {
-        self.tables.values()
+    pub fn tables(&self) -> impl Iterator<Item = Arc<TableDefinition>> + use<'_> {
+        self.tables.values().map(Arc::clone)
     }
 
     pub fn table_name_to_id(&self, table_name: impl Into<Arc<str>>) -> Option<TableId> {
@@ -917,8 +932,8 @@ impl TableDefinition {
             .map(|(name, def)| (Arc::clone(name), def))
     }
 
-    pub fn name_to_id(&self, name: Arc<str>) -> Option<ColumnId> {
-        self.column_map.get_by_right(&name).copied()
+    pub fn name_to_id(&self, name: impl Into<Arc<str>>) -> Option<ColumnId> {
+        self.column_map.get_by_right(&name.into()).copied()
     }
 
     pub fn id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
@@ -1005,43 +1020,47 @@ mod tests {
         use InfluxFieldType::*;
         database.tables.insert(
             TableId::from(1),
-            TableDefinition::new(
-                TableId::from(1),
-                "test_table_1".into(),
-                vec![
-                    (ColumnId::new(), "tag_1".into(), Tag),
-                    (ColumnId::new(), "tag_2".into(), Tag),
-                    (ColumnId::new(), "tag_3".into(), Tag),
-                    (ColumnId::new(), "time".into(), Timestamp),
-                    (ColumnId::new(), "string_field".into(), Field(String)),
-                    (ColumnId::new(), "bool_field".into(), Field(Boolean)),
-                    (ColumnId::new(), "i64_field".into(), Field(Integer)),
-                    (ColumnId::new(), "u64_field".into(), Field(UInteger)),
-                    (ColumnId::new(), "f64_field".into(), Field(Float)),
-                ],
-                SeriesKey::None,
-            )
-            .unwrap(),
+            Arc::new(
+                TableDefinition::new(
+                    TableId::from(1),
+                    "test_table_1".into(),
+                    vec![
+                        (ColumnId::new(), "tag_1".into(), Tag),
+                        (ColumnId::new(), "tag_2".into(), Tag),
+                        (ColumnId::new(), "tag_3".into(), Tag),
+                        (ColumnId::new(), "time".into(), Timestamp),
+                        (ColumnId::new(), "string_field".into(), Field(String)),
+                        (ColumnId::new(), "bool_field".into(), Field(Boolean)),
+                        (ColumnId::new(), "i64_field".into(), Field(Integer)),
+                        (ColumnId::new(), "u64_field".into(), Field(UInteger)),
+                        (ColumnId::new(), "f64_field".into(), Field(Float)),
+                    ],
+                    SeriesKey::None,
+                )
+                .unwrap(),
+            ),
         );
         database.tables.insert(
             TableId::from(2),
-            TableDefinition::new(
-                TableId::from(2),
-                "test_table_2".into(),
-                vec![
-                    (ColumnId::new(), "tag_1".into(), Tag),
-                    (ColumnId::new(), "tag_2".into(), Tag),
-                    (ColumnId::new(), "tag_3".into(), Tag),
-                    (ColumnId::new(), "time".into(), Timestamp),
-                    (ColumnId::new(), "string_field".into(), Field(String)),
-                    (ColumnId::new(), "bool_field".into(), Field(Boolean)),
-                    (ColumnId::new(), "i64_field".into(), Field(Integer)),
-                    (ColumnId::new(), "u64_field".into(), Field(UInteger)),
-                    (ColumnId::new(), "f64_field".into(), Field(Float)),
-                ],
-                SeriesKey::None,
-            )
-            .unwrap(),
+            Arc::new(
+                TableDefinition::new(
+                    TableId::from(2),
+                    "test_table_2".into(),
+                    vec![
+                        (ColumnId::new(), "tag_1".into(), Tag),
+                        (ColumnId::new(), "tag_2".into(), Tag),
+                        (ColumnId::new(), "tag_3".into(), Tag),
+                        (ColumnId::new(), "time".into(), Timestamp),
+                        (ColumnId::new(), "string_field".into(), Field(String)),
+                        (ColumnId::new(), "bool_field".into(), Field(Boolean)),
+                        (ColumnId::new(), "i64_field".into(), Field(Integer)),
+                        (ColumnId::new(), "u64_field".into(), Field(UInteger)),
+                        (ColumnId::new(), "f64_field".into(), Field(Float)),
+                    ],
+                    SeriesKey::None,
+                )
+                .unwrap(),
+            ),
         );
         catalog
             .inner
@@ -1190,17 +1209,19 @@ mod tests {
         };
         database.tables.insert(
             TableId::from(0),
-            TableDefinition::new(
-                TableId::from(0),
-                "test".into(),
-                vec![(
-                    ColumnId::from(0),
+            Arc::new(
+                TableDefinition::new(
+                    TableId::from(0),
                     "test".into(),
-                    InfluxColumnType::Field(InfluxFieldType::String),
-                )],
-                SeriesKey::None,
-            )
-            .unwrap(),
+                    vec![(
+                        ColumnId::from(0),
+                        "test".into(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    )],
+                    SeriesKey::None,
+                )
+                .unwrap(),
+            ),
         );
 
         let table = database.tables.get_mut(&TableId::from(0)).unwrap();
@@ -1208,7 +1229,7 @@ mod tests {
         assert_eq!(table.column_map.len(), 1);
         assert_eq!(table.id_to_name_unchecked(0.into()), "test".into());
 
-        table
+        Arc::make_mut(table)
             .add_columns(vec![(
                 ColumnId::from(1),
                 "test2".into(),
@@ -1246,23 +1267,25 @@ mod tests {
         use InfluxFieldType::*;
         database.tables.insert(
             TableId::from(1),
-            TableDefinition::new(
-                TableId::from(1),
-                "test_table_1".into(),
-                vec![
-                    (ColumnId::from(0), "tag_1".into(), Tag),
-                    (ColumnId::from(1), "tag_2".into(), Tag),
-                    (ColumnId::from(2), "tag_3".into(), Tag),
-                    (ColumnId::from(3), "time".into(), Timestamp),
-                    (ColumnId::from(4), "field".into(), Field(String)),
-                ],
-                SeriesKey::Some(vec![
-                    ColumnId::from(0),
-                    ColumnId::from(1),
-                    ColumnId::from(2),
-                ]),
-            )
-            .unwrap(),
+            Arc::new(
+                TableDefinition::new(
+                    TableId::from(1),
+                    "test_table_1".into(),
+                    vec![
+                        (ColumnId::from(0), "tag_1".into(), Tag),
+                        (ColumnId::from(1), "tag_2".into(), Tag),
+                        (ColumnId::from(2), "tag_3".into(), Tag),
+                        (ColumnId::from(3), "time".into(), Timestamp),
+                        (ColumnId::from(4), "field".into(), Field(String)),
+                    ],
+                    SeriesKey::Some(vec![
+                        ColumnId::from(0),
+                        ColumnId::from(1),
+                        ColumnId::from(2),
+                    ]),
+                )
+                .unwrap(),
+            ),
         );
         catalog
             .inner
@@ -1297,11 +1320,11 @@ mod tests {
             TableId::from(0),
             "test".into(),
             vec![
-                (ColumnId::new(), "tag_1".into(), Tag),
-                (ColumnId::new(), "tag_2".into(), Tag),
-                (ColumnId::new(), "tag_3".into(), Tag),
-                (ColumnId::new(), "time".into(), Timestamp),
-                (ColumnId::new(), "field".into(), Field(String)),
+                (ColumnId::from(0), "tag_1".into(), Tag),
+                (ColumnId::from(1), "tag_2".into(), Tag),
+                (ColumnId::from(2), "tag_3".into(), Tag),
+                (ColumnId::from(3), "time".into(), Timestamp),
+                (ColumnId::from(4), "field".into(), Field(String)),
             ],
             SeriesKey::None,
         )
@@ -1311,14 +1334,16 @@ mod tests {
                 TableId::from(0),
                 "test",
                 "test_table_last_cache",
-                vec!["tag_2", "tag_3"],
-                vec!["field"],
+                vec![ColumnId::from(1), ColumnId::from(2)],
+                vec![ColumnId::from(4)],
                 1,
                 600,
             )
             .unwrap(),
         );
-        database.tables.insert(TableId::from(0), table_def);
+        database
+            .tables
+            .insert(TableId::from(0), Arc::new(table_def));
         catalog
             .inner
             .write()

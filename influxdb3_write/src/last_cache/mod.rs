@@ -13,7 +13,7 @@ use arrow::{
     },
     datatypes::{
         DataType, Field as ArrowField, FieldRef, GenericStringType, Int32Type,
-        SchemaBuilder as ArrowSchemaBuilder, SchemaRef as ArrowSchemaRef, TimeUnit,
+        SchemaBuilder as ArrowSchemaBuilder, SchemaRef as ArrowSchemaRef,
     },
     error::ArrowError,
 };
@@ -22,8 +22,8 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use hashbrown::{HashMap, HashSet};
-use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::Catalog;
+use indexmap::IndexMap;
+use influxdb3_catalog::catalog::{Catalog, TableDefinition};
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
 use influxdb3_wal::{
@@ -43,12 +43,16 @@ pub enum Error {
     InvalidCacheSize,
     #[error("last cache already exists for database and table, but it was configured differently: {reason}")]
     CacheAlreadyExists { reason: String },
-    #[error("specified key column ({column_name}) does not exist in the table schema")]
-    KeyColumnDoesNotExist { column_name: Arc<str> },
+    #[error("specified column (name: {column_name}) does not exist in the table definition")]
+    ColumnDoesNotExistByName { column_name: String },
+    #[error("specified key column (id: {column_id}) does not exist in the table schema")]
+    KeyColumnDoesNotExist { column_id: ColumnId },
+    #[error("specified key column (name: {column_name}) does not exist in the table schema")]
+    KeyColumnDoesNotExistByName { column_name: String },
     #[error("key column must be string, int, uint, or bool types")]
     InvalidKeyColumn,
-    #[error("specified value column ({column_name}) does not exist in the table schema")]
-    ValueColumnDoesNotExist { column_name: String },
+    #[error("specified value column ({column_id}) does not exist in the table schema")]
+    ValueColumnDoesNotExist { column_id: ColumnId },
     #[error("requested last cache does not exist")]
     CacheDoesNotExist,
 }
@@ -62,7 +66,8 @@ impl Error {
 }
 
 /// A three level hashmap storing DbId -> TableId -> Cache Name -> LastCache
-type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<String, LastCache>>>>;
+// TODO: last caches could get a similar ID, e.g., `LastCacheId`
+type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<Arc<str>, LastCache>>>>;
 
 /// Provides all last-N-value caches for the entire database
 pub struct LastCacheProvider {
@@ -83,12 +88,8 @@ pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
 pub struct CreateCacheArguments {
     /// The id of the database to create the cache for
     pub db_id: DbId,
-    /// The id of the table in the database to create the cache for
-    pub table_id: TableId,
-    /// The name of the table in the database to create the cache for
-    pub table_name: Arc<str>,
-    /// The Influx Schema of the table
-    pub schema: Schema,
+    /// The definition of the table for which the cache is being created
+    pub table_def: Arc<TableDefinition>,
     /// An optional name for the cache
     ///
     /// The cache name will default to `<table_name>_<keys>_last_cache`
@@ -123,22 +124,42 @@ impl LastCacheProvider {
         for db_schema in catalog.list_db_schema() {
             for table_def in db_schema.tables() {
                 for (cache_name, cache_def) in table_def.last_caches() {
+                    let key_columns = cache_def
+                        .key_columns
+                        .iter()
+                        .map(|id| {
+                            table_def
+                                .id_to_name(*id)
+                                .map(|name| (*id, name))
+                                .ok_or_else(|| Error::KeyColumnDoesNotExist { column_id: *id })
+                        })
+                        .collect::<Result<Vec<_>, Error>>()?;
+                    let value_columns = match cache_def.value_columns {
+                        LastCacheValueColumnsDef::Explicit { ref columns } => Some(
+                            columns
+                                .iter()
+                                .map(|id| {
+                                    table_def
+                                        .id_to_name(*id)
+                                        .map(|name| (*id, name))
+                                        .ok_or_else(|| Error::ValueColumnDoesNotExist {
+                                            column_id: *id,
+                                        })
+                                })
+                                .collect::<Result<Vec<_>, Error>>()?,
+                        ),
+                        LastCacheValueColumnsDef::AllNonKeyColumns => None,
+                    };
                     assert!(
                         provider
                             .create_cache(CreateCacheArguments {
                                 db_id: db_schema.id,
-                                table_id: table_def.table_id,
-                                table_name: Arc::clone(&table_def.table_name),
-                                schema: table_def.influx_schema().clone(),
+                                table_def: Arc::clone(&table_def),
                                 cache_name: Some(Arc::clone(&cache_name)),
                                 count: Some(cache_def.count.into()),
                                 ttl: Some(Duration::from_secs(cache_def.ttl)),
-                                key_columns: Some(cache_def.key_columns.clone()),
-                                value_columns: match &cache_def.value_columns {
-                                    LastCacheValueColumnsDef::Explicit { columns } =>
-                                        Some(columns.clone()),
-                                    LastCacheValueColumnsDef::AllNonKeyColumns => None,
-                                },
+                                key_columns: Some(key_columns),
+                                value_columns,
                             })?
                             .is_some(),
                         "catalog should not contain duplicate last cache definitions"
@@ -158,20 +179,20 @@ impl LastCacheProvider {
         db_id: DbId,
         table_id: TableId,
         cache_name: Option<&str>,
-    ) -> Option<(String, ArrowSchemaRef)> {
+    ) -> Option<(Arc<str>, ArrowSchemaRef)> {
         self.cache_map
             .read()
             .get(&db_id)
             .and_then(|db| db.get(&table_id))
             .and_then(|table| {
-                if let Some(name) = cache_name {
+                if let Some(cache_name) = cache_name {
                     table
-                        .get(name)
-                        .map(|lc| (name.to_string(), Arc::clone(&lc.schema)))
+                        .get_key_value(cache_name)
+                        .map(|(name, lc)| (Arc::clone(&name), Arc::clone(&lc.schema)))
                 } else if table.len() == 1 {
                     table
                         .iter()
-                        .map(|(name, lc)| (name.to_string(), Arc::clone(&lc.schema)))
+                        .map(|(name, lc)| (Arc::clone(&name), Arc::clone(&lc.schema)))
                         .next()
                 } else {
                     None
@@ -194,7 +215,7 @@ impl LastCacheProvider {
                             .table_id_to_name(*table_id)
                             .expect("table exists");
                         table_map.iter().map(move |(lc_name, lc)| {
-                            lc.to_definition(*table_id, table_name.as_ref(), lc_name)
+                            lc.to_definition(*table_id, table_name.as_ref(), Arc::clone(&lc_name))
                         })
                     })
                     .collect()
@@ -211,9 +232,7 @@ impl LastCacheProvider {
         &self,
         CreateCacheArguments {
             db_id,
-            table_id,
-            table_name,
-            schema,
+            table_def,
             cache_name,
             count,
             ttl,
@@ -224,20 +243,16 @@ impl LastCacheProvider {
         let key_columns = if let Some(keys) = key_columns {
             // validate the key columns specified to ensure correct type (string, int, unit, or bool)
             // and that they exist in the table's schema.
-            for key in keys.iter() {
+            for (col_id, col_name) in keys.iter() {
                 use InfluxColumnType::*;
                 use InfluxFieldType::*;
-                match schema.field_by_name(key) {
+                match table_def.schema.field_by_name(&col_name) {
                     Some((
                         Tag | Field(Integer) | Field(UInteger) | Field(String) | Field(Boolean),
                         _,
                     )) => (),
                     Some((_, _)) => return Err(Error::InvalidKeyColumn),
-                    None => {
-                        return Err(Error::KeyColumnDoesNotExist {
-                            column_name: Arc::clone(&key),
-                        })
-                    }
+                    None => return Err(Error::KeyColumnDoesNotExist { column_id: *col_id }),
                 }
             }
             keys
@@ -245,34 +260,54 @@ impl LastCacheProvider {
             // use primary key, which defaults to series key if present, then lexicographically
             // ordered tags otherwise, there is no user-defined sort order in the schema, so if that
             // is introduced, we will need to make sure that is accommodated here.
-            let mut keys = schema.primary_key();
+            let mut keys = table_def.schema.primary_key();
             if let Some(&TIME_COLUMN_NAME) = keys.last() {
                 keys.pop();
             }
-            keys.iter().map(|s| s.to_string()).collect()
+            keys.iter()
+                .map(|s| {
+                    table_def
+                        .name_to_id(Arc::<str>::from(*s))
+                        .map(|id| (id, Arc::<str>::from(*s)))
+                        .ok_or_else(|| Error::KeyColumnDoesNotExistByName {
+                            column_name: s.to_string(),
+                        })
+                })
+                .collect::<Result<Vec<_>, Error>>()?
         };
 
         // Generate the cache name if it was not provided
         let cache_name = cache_name.unwrap_or_else(|| {
             format!(
                 "{table_name}_{keys}_last_cache",
-                keys = key_columns.join("_")
+                table_name = table_def.table_name,
+                keys = key_columns
+                    .iter()
+                    .map(|(_, name)| Arc::clone(name))
+                    .collect::<Vec<_>>()
+                    .join("_")
             )
+            .into()
         });
 
         let accept_new_fields = value_columns.is_none();
         let last_cache_value_columns_def = match &value_columns {
             None => LastCacheValueColumnsDef::AllNonKeyColumns,
             Some(cols) => LastCacheValueColumnsDef::Explicit {
-                columns: cols.clone(),
+                columns: cols.iter().map(|(id, _)| *id).collect(),
             },
         };
 
-        let cache_schema = self.last_cache_schema_from_schema(&schema, &key_columns, value_columns);
+        let cache_schema = self.last_cache_schema_from_schema(
+            &table_def.schema,
+            key_columns
+                .iter()
+                .map(|(_, name)| Arc::clone(&name))
+                .collect(),
+            value_columns.map(|cols| cols.iter().map(|(_, name)| Arc::clone(&name)).collect()),
+        );
 
-        let series_key = schema
-            .series_key()
-            .map(|keys| keys.into_iter().map(|s| s.to_string()).collect());
+        let series_key = table_def.series_key.as_ref().map(|sk| sk.as_slice());
 
         // create the actual last cache:
         let count = count
@@ -297,7 +332,7 @@ impl LastCacheProvider {
         let mut lock = self.cache_map.write();
         if let Some(lc) = lock
             .get(&db_id)
-            .and_then(|db| db.get(&table_id))
+            .and_then(|db| db.get(&table_def.table_id))
             .and_then(|table| table.get(&cache_name))
         {
             return lc.compare_config(&last_cache).map(|_| None);
@@ -305,15 +340,15 @@ impl LastCacheProvider {
 
         lock.entry(db_id)
             .or_default()
-            .entry(table_id)
+            .entry(table_def.table_id)
             .or_default()
             .insert(cache_name.clone(), last_cache);
 
         Ok(Some(LastCacheDefinition {
-            table_id,
-            table: table_name,
+            table_id: table_def.table_id,
+            table: Arc::clone(&table_def.table_name),
             name: cache_name,
-            key_columns,
+            key_columns: key_columns.into_iter().map(|(id, _)| id).collect(),
             value_columns: last_cache_value_columns_def,
             count,
             ttl: ttl.as_secs(),
@@ -323,14 +358,14 @@ impl LastCacheProvider {
     fn last_cache_schema_from_schema(
         &self,
         schema: &Schema,
-        key_columns: &[String],
-        value_columns: Option<Vec<String>>,
+        key_columns: Vec<Arc<str>>,
+        value_columns: Option<Vec<Arc<str>>>,
     ) -> SchemaRef {
         let mut schema_builder = ArrowSchemaBuilder::new();
         // Add key columns first:
         for (t, field) in schema
             .iter()
-            .filter(|&(_, f)| key_columns.contains(f.name()))
+            .filter(|&(_, f)| key_columns.contains(&Arc::<str>::from(f.name().as_str())))
         {
             if let InfluxColumnType::Tag = t {
                 // override tags with string type in the schema, because the KeyValue type stores
@@ -343,17 +378,17 @@ impl LastCacheProvider {
         // Add value columns second:
         match value_columns {
             Some(cols) => {
-                for (_, field) in schema
-                    .iter()
-                    .filter(|&(_, f)| cols.contains(f.name()) || f.name() == TIME_COLUMN_NAME)
-                {
+                for (_, field) in schema.iter().filter(|&(_, f)| {
+                    cols.contains(&Arc::<str>::from(f.name().as_str()))
+                        || f.name() == TIME_COLUMN_NAME
+                }) {
                     schema_builder.push(field.clone());
                 }
             }
             None => {
                 for (_, field) in schema
                     .iter()
-                    .filter(|&(_, f)| !key_columns.contains(f.name()))
+                    .filter(|&(_, f)| !key_columns.contains(&Arc::<str>::from(f.name().as_str())))
                 {
                     schema_builder.push(field.clone());
                 }
@@ -366,25 +401,48 @@ impl LastCacheProvider {
     pub fn create_cache_from_definition(
         &self,
         db_id: DbId,
-        schema: &Schema,
+        table_def: Arc<TableDefinition>,
         definition: &LastCacheDefinition,
     ) {
+        let key_columns = definition
+            .key_columns
+            .iter()
+            .map(|id| {
+                table_def
+                    .id_to_name(*id)
+                    .map(|name| (*id, name))
+                    .expect("a valid column id for key column")
+            })
+            .collect::<Vec<(ColumnId, Arc<str>)>>();
         let value_columns = match &definition.value_columns {
             LastCacheValueColumnsDef::AllNonKeyColumns => None,
-            LastCacheValueColumnsDef::Explicit { columns } => Some(columns.clone()),
+            LastCacheValueColumnsDef::Explicit { columns } => Some(
+                columns
+                    .iter()
+                    .map(|id| {
+                        table_def
+                            .id_to_name(*id)
+                            .expect("a valid column id for value column")
+                    })
+                    .collect(),
+            ),
         };
         let accept_new_fields = value_columns.is_none();
-        let series_key = schema
-            .series_key()
-            .map(|keys| keys.into_iter().map(|s| s.to_string()).collect());
+        let series_key = table_def.series_key.as_ref().map(|sk| sk.as_slice());
 
-        let schema =
-            self.last_cache_schema_from_schema(schema, &definition.key_columns, value_columns);
+        let schema = self.last_cache_schema_from_schema(
+            &table_def.schema,
+            key_columns
+                .iter()
+                .map(|(_, name)| Arc::clone(&name))
+                .collect(),
+            value_columns,
+        );
 
         let last_cache = LastCache::new(
             definition.count,
             Duration::from_secs(definition.ttl),
-            definition.key_columns.clone(),
+            key_columns,
             schema,
             series_key,
             accept_new_fields,
@@ -448,12 +506,20 @@ impl LastCacheProvider {
                         if db_cache.is_empty() {
                             continue;
                         }
+                        let Some(db_schema) = self.catalog.db_schema_by_id(batch.database_id)
+                        else {
+                            continue;
+                        };
                         for (table_id, table_chunks) in &batch.table_chunks {
                             if let Some(table_cache) = db_cache.get_mut(table_id) {
+                                let Some(table_def) = db_schema.table_definition_by_id(*table_id)
+                                else {
+                                    continue;
+                                };
                                 for (_, last_cache) in table_cache.iter_mut() {
                                     for chunk in table_chunks.chunk_time_to_chunk.values() {
                                         for row in &chunk.rows {
-                                            last_cache.push(row);
+                                            last_cache.push(row, Arc::clone(&table_def));
                                         }
                                     }
                                 }
@@ -530,12 +596,12 @@ pub(crate) struct LastCache {
     pub(crate) ttl: Duration,
     /// The key columns for this cache, by their IDs
     ///
-    /// Uses an [`IndexSet`] for both fast iteration and fast lookup and more importantly, this
+    /// Uses an [`IndexMap`] for both fast iteration and fast lookup and more importantly, this
     /// map preserves the order of the elements, thereby maintaining the order of the keys in
-    /// the cache
-    pub(crate) key_column_ids: Arc<IndexSet<ColumnId>>,
+    /// the cache.
+    pub(crate) key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
     /// The key columns for this cache, by their names
-    pub(crate) key_column_names: Arc<IndexSet<Arc<str>>>,
+    pub(crate) key_column_name_to_ids: Arc<HashMap<Arc<str>, ColumnId>>,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
     /// Whether or not this cache accepts newly written fields
@@ -557,21 +623,21 @@ impl LastCache {
         ttl: Duration,
         key_columns: Vec<(ColumnId, Arc<str>)>,
         schema: ArrowSchemaRef,
-        series_key: Option<HashSet<ColumnId>>,
+        series_key: Option<&[ColumnId]>,
         accept_new_fields: bool,
     ) -> Self {
-        let mut key_column_ids = IndexSet::new();
-        let mut key_column_names = IndexSet::new();
+        let mut key_column_ids = IndexMap::new();
+        let mut key_column_name_to_ids = HashMap::new();
         for (id, name) in key_columns {
-            key_column_ids.insert(id);
-            key_column_names.insert(name);
+            key_column_ids.insert(id, Arc::clone(&name));
+            key_column_name_to_ids.insert(name, id);
         }
         Self {
             count,
             ttl,
-            key_column_ids: Arc::new(key_column_ids),
-            key_column_names: Arc::new(key_column_names),
-            series_key,
+            key_column_id_to_names: Arc::new(key_column_ids),
+            key_column_name_to_ids: Arc::new(key_column_name_to_ids),
+            series_key: series_key.map(|sk| sk.iter().copied().collect()),
             accept_new_fields,
             schema,
             state: LastCacheState::Init,
@@ -588,7 +654,7 @@ impl LastCache {
         if self.ttl != other.ttl {
             return Err(Error::cache_already_exists("different ttl specified"));
         }
-        if self.key_column_ids != other.key_column_ids {
+        if self.key_column_id_to_names != other.key_column_id_to_names {
             return Err(Error::cache_already_exists("key columns are not the same"));
         }
         if self.accept_new_fields != other.accept_new_fields {
@@ -615,25 +681,29 @@ impl LastCache {
     ///
     /// If a key column is not present in the row, the row will be ignored.
     ///
+    /// This accepts a catalog along with database and table ids such that if new columns are added
+    /// to the cache for this row, i.e., for a cache that accepts new fields, then the name of the
+    /// field can be looked up for the arrow schema.
+    ///
     /// # Panics
     ///
     /// This will panic if the internal cache state's keys are out-of-order with respect to the
     /// order of the `key_columns` on this [`LastCache`]
-    pub(crate) fn push(&mut self, row: &Row) {
-        let schema = Arc::clone(&self.schema);
+    pub(crate) fn push(&mut self, row: &Row, table_def: Arc<TableDefinition>) {
         let mut target = &mut self.state;
-        let mut key_iter = self.key_column_ids.iter().peekable();
-        while let (Some(key), peek) = (key_iter.next(), key_iter.peek()) {
+        let mut key_iter = self.key_column_id_to_names.iter().peekable();
+        while let (Some((col_id, col_name)), peek) = (key_iter.next(), key_iter.peek()) {
             if target.is_init() {
                 *target = LastCacheState::Key(LastCacheKey {
-                    column_id: *key,
+                    column_id: *col_id,
+                    column_name: Arc::clone(&col_name),
                     value_map: Default::default(),
                 });
             }
             let Some(value) = row
                 .fields
                 .iter()
-                .find(|f| f.id == *key)
+                .find(|f| f.id == *col_id)
                 .map(|f| KeyValue::from(&f.value))
             else {
                 // ignore the row if it does not contain all key columns
@@ -641,21 +711,22 @@ impl LastCache {
             };
             let cache_key = target.as_key_mut().unwrap();
             assert_eq!(
-                &cache_key.column_id, key,
+                &cache_key.column_id, col_id,
                 "key columns must match cache key order"
             );
             target = cache_key.value_map.entry(value).or_insert_with(|| {
-                if let Some(next_key) = peek {
+                if let Some((next_col_id, next_col_name)) = peek {
                     LastCacheState::Key(LastCacheKey {
-                        column_id: **next_key,
+                        column_id: **next_col_id,
+                        column_name: Arc::clone(&next_col_name),
                         value_map: Default::default(),
                     })
                 } else {
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
-                        Arc::clone(&schema),
-                        Arc::clone(&self.key_column_ids),
+                        Arc::clone(&table_def),
+                        Arc::clone(&self.key_column_id_to_names),
                         self.series_key.as_ref(),
                     ))
                 }
@@ -666,8 +737,8 @@ impl LastCache {
             *target = LastCacheState::Store(LastCacheStore::new(
                 self.count.into(),
                 self.ttl,
-                Arc::clone(&schema),
-                Arc::clone(&self.key_column_ids),
+                Arc::clone(&table_def),
+                Arc::clone(&self.key_column_id_to_names),
                 self.series_key.as_ref(),
             ));
         }
@@ -683,8 +754,11 @@ impl LastCache {
         for f in self.schema.fields().iter() {
             sb.push(Arc::clone(f));
         }
-        for (name, data_type) in new_columns {
-            let field = Arc::new(ArrowField::new(name, data_type, true));
+        for (id, data_type) in new_columns {
+            let col_name = table_def
+                .id_to_name(id)
+                .expect("valid column id for new field added to last cache");
+            let field = Arc::new(ArrowField::new(col_name.as_ref(), data_type, true));
             sb.try_merge(&field).expect("buffer should have validated incoming writes to prevent against data type conflicts");
         }
         let new_schema = Arc::new(sb.finish());
@@ -696,9 +770,9 @@ impl LastCache {
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
         let predicates: Vec<Option<&Predicate>> = self
-            .key_column_ids
-            .iter()
-            .map(|key| predicates.iter().find(|p| p.key == *key))
+            .key_column_id_to_names
+            .keys()
+            .map(|col_id| predicates.iter().find(|p| p.column_id == *col_id))
             .collect();
 
         let mut caches = vec![ExtendedLastCacheState {
@@ -719,7 +793,11 @@ impl LastCache {
                     let next_states = cache_key.evaluate_predicate(pred);
                     new_caches.extend(next_states.into_iter().map(|(state, value)| {
                         let mut additional_columns = c.additional_columns.clone();
-                        additional_columns.push((&cache_key.column_name, value));
+                        additional_columns.push((
+                            cache_key.column_id,
+                            Arc::clone(&cache_key.column_name),
+                            value,
+                        ));
                         ExtendedLastCacheState {
                             state,
                             additional_columns,
@@ -728,7 +806,11 @@ impl LastCache {
                 } else {
                     new_caches.extend(cache_key.value_map.iter().map(|(v, state)| {
                         let mut additional_columns = c.additional_columns.clone();
-                        additional_columns.push((&cache_key.column_name, v));
+                        additional_columns.push((
+                            cache_key.column_id,
+                            Arc::clone(&cache_key.column_name),
+                            v,
+                        ));
                         ExtendedLastCacheState {
                             state,
                             additional_columns,
@@ -755,11 +837,8 @@ impl LastCache {
             .filter_map(|expr| {
                 match expr {
                     Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
-                        let key = if let Expr::Column(c) = left.as_ref() {
-                            if !self.key_column_ids.contains(c.name()) {
-                                return None;
-                            }
-                            c.name.to_string()
+                        let col_id = if let Expr::Column(c) = left.as_ref() {
+                            self.key_column_name_to_ids.get(c.name()).copied()?
                         } else {
                             return None;
                         };
@@ -774,8 +853,8 @@ impl LastCache {
                             _ => return None,
                         };
                         match op {
-                            Operator::Eq => Some(Predicate::new_eq(key, value)),
-                            Operator::NotEq => Some(Predicate::new_not_eq(key, value)),
+                            Operator::Eq => Some(Predicate::new_eq(col_id, value)),
+                            Operator::NotEq => Some(Predicate::new_not_eq(col_id, value)),
                             _ => None,
                         }
                     }
@@ -784,11 +863,8 @@ impl LastCache {
                         list,
                         negated,
                     }) => {
-                        let key = if let Expr::Column(c) = expr.as_ref() {
-                            if !self.key_column_ids.contains(c.name()) {
-                                return None;
-                            }
-                            c.name.to_string()
+                        let col_id = if let Expr::Column(c) = expr.as_ref() {
+                            self.key_column_name_to_ids.get(c.name()).copied()?
                         } else {
                             return None;
                         };
@@ -812,9 +888,9 @@ impl LastCache {
                             })
                             .collect();
                         if *negated {
-                            Some(Predicate::new_not_in(key, values))
+                            Some(Predicate::new_not_in(col_id, values))
                         } else {
-                            Some(Predicate::new_in(key, values))
+                            Some(Predicate::new_in(col_id, values))
                         }
                     }
                     _ => None,
@@ -832,14 +908,14 @@ impl LastCache {
     fn to_definition(
         &self,
         table_id: TableId,
-        table: impl Into<String>,
-        name: impl Into<String>,
+        table: impl Into<Arc<str>>,
+        name: impl Into<Arc<str>>,
     ) -> LastCacheDefinition {
         LastCacheDefinition {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: self.key_column_ids.iter().cloned().collect(),
+            key_columns: self.key_column_id_to_names.keys().copied().collect(),
             value_columns: if self.accept_new_fields {
                 LastCacheValueColumnsDef::AllNonKeyColumns
             } else {
@@ -848,8 +924,11 @@ impl LastCache {
                         .schema
                         .fields()
                         .iter()
-                        .filter(|f| !self.key_column_ids.contains(f.name()))
-                        .map(|f| f.name().to_owned())
+                        .filter_map(|f| {
+                            self.key_column_name_to_ids
+                                .get(&Arc::<str>::from(f.name().as_str()))
+                                .copied()
+                        })
                         .collect(),
                 }
             },
@@ -866,7 +945,7 @@ impl LastCache {
 #[derive(Debug)]
 struct ExtendedLastCacheState<'a> {
     state: &'a LastCacheState,
-    additional_columns: Vec<(&'a String, &'a KeyValue)>,
+    additional_columns: Vec<(ColumnId, Arc<str>, &'a KeyValue)>,
 }
 
 impl<'a> ExtendedLastCacheState<'a> {
@@ -877,7 +956,7 @@ impl<'a> ExtendedLastCacheState<'a> {
     ///
     /// # Panics
     ///
-    /// This assumes taht the `state` is a [`LastCacheStore`] and will panic otherwise.
+    /// This assumes that the `state` is a [`LastCacheStore`] and will panic otherwise.
     fn to_record_batch(&self, output_schema: &ArrowSchemaRef) -> Result<RecordBatch, ArrowError> {
         let store = self
             .state
@@ -891,8 +970,8 @@ impl<'a> ExtendedLastCacheState<'a> {
             Some(
                 self.additional_columns
                     .iter()
-                    .map(|(name, value)| {
-                        let field = Arc::new(value.as_arrow_field(*name));
+                    .map(|(_id, name, value)| {
+                        let field = Arc::new(value.as_arrow_field(name.as_ref()));
                         match value {
                             KeyValue::String(v) => {
                                 let mut builder = StringBuilder::new();
@@ -934,37 +1013,37 @@ impl<'a> ExtendedLastCacheState<'a> {
 /// A predicate used for evaluating key column values in the cache on query
 #[derive(Debug, Clone)]
 pub(crate) struct Predicate {
-    /// The left-hand-side of the predicate
-    key: String,
+    /// The left-hand-side of the predicate as a valid `ColumnId`
+    column_id: ColumnId,
     /// The right-hand-side of the predicate
     kind: PredicateKind,
 }
 
 impl Predicate {
-    fn new_eq(key: impl Into<String>, value: KeyValue) -> Self {
+    fn new_eq(column_id: ColumnId, value: KeyValue) -> Self {
         Self {
-            key: key.into(),
+            column_id,
             kind: PredicateKind::Eq(value),
         }
     }
 
-    fn new_not_eq(key: impl Into<String>, value: KeyValue) -> Self {
+    fn new_not_eq(column_id: ColumnId, value: KeyValue) -> Self {
         Self {
-            key: key.into(),
+            column_id,
             kind: PredicateKind::NotEq(value),
         }
     }
 
-    fn new_in(key: impl Into<String>, values: Vec<KeyValue>) -> Self {
+    fn new_in(column_id: ColumnId, values: Vec<KeyValue>) -> Self {
         Self {
-            key: key.into(),
+            column_id,
             kind: PredicateKind::In(values),
         }
     }
 
-    fn new_not_in(key: impl Into<String>, values: Vec<KeyValue>) -> Self {
+    fn new_not_in(column_id: ColumnId, values: Vec<KeyValue>) -> Self {
         Self {
-            key: key.into(),
+            column_id,
             kind: PredicateKind::NotIn(values),
         }
     }
@@ -1037,6 +1116,8 @@ impl LastCacheState {
 struct LastCacheKey {
     /// The column's ID
     column_id: ColumnId,
+    /// The column's name
+    column_name: Arc<str>,
     /// A map of key column value to nested [`LastCacheState`]
     ///
     /// All values should point at either another key or a [`LastCacheStore`]
@@ -1055,10 +1136,10 @@ impl LastCacheKey {
         &'a self,
         predicate: &'b Predicate,
     ) -> Vec<(&'a LastCacheState, &'b KeyValue)> {
-        if predicate.key != self.column_name {
+        if predicate.column_id != self.column_id {
             panic!(
-                "attempted to evaluate unexpected predicate with key {} for column named {}",
-                predicate.key, self.column_name
+                "attempted to evaluate unexpected predicate with key {} for column with id {}",
+                predicate.column_id, self.column_id
             );
         }
         match &predicate.kind {
@@ -1150,8 +1231,10 @@ struct LastCacheStore {
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<ColumnId, CacheColumn>,
-    /// A reference to the set of key columns for the cache
-    key_columns: Arc<IndexSet<ColumnId>>,
+    /// A reference to the key column id lookup for the cache
+    key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
+    /// A reference to the column name map for the parent cache
+    table_def: Arc<TableDefinition>,
     /// A ring buffer holding the instants at which entries in the cache were inserted
     ///
     /// This is used to evict cache values that outlive the `ttl`
@@ -1171,28 +1254,30 @@ impl LastCacheStore {
     fn new(
         count: usize,
         ttl: Duration,
-        schema: ArrowSchemaRef,
-        key_columns: Arc<IndexSet<ColumnId>>,
+        table_def: Arc<TableDefinition>,
+        key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
         series_keys: Option<&HashSet<ColumnId>>,
     ) -> Self {
-        let cache = schema
-            .fields()
+        let cache = table_def
+            .columns
             .iter()
-            .filter(|f| !key_columns.contains(f.name()))
-            .map(|f| {
-                (
-                    f.name().to_string(),
-                    CacheColumn::new(
-                        f.data_type(),
-                        count,
-                        series_keys.is_some_and(|sk| sk.contains(f.name().as_str())),
-                    ),
-                )
+            .filter_map(|(col_id, col_def)| {
+                (!key_column_id_to_names.contains_key(col_id)).then(|| {
+                    (
+                        *col_id,
+                        CacheColumn::new(
+                            &col_def.data_type,
+                            count,
+                            series_keys.is_some_and(|sk| sk.contains(col_id)),
+                        ),
+                    )
+                })
             })
             .collect();
         Self {
             cache,
-            key_columns,
+            key_column_id_to_names,
+            table_def,
             instants: VecDeque::with_capacity(count),
             count,
             ttl,
@@ -1214,32 +1299,28 @@ impl LastCacheStore {
     ///
     /// If new fields were added to the [`LastCacheStore`] by this push, the return will be a
     /// list of those field's name and arrow [`DataType`], and `None` otherwise.
-    fn push<'a>(
-        &mut self,
-        row: &'a Row,
-        accept_new_fields: bool,
-    ) -> Option<Vec<(&'a str, DataType)>> {
+    fn push(&mut self, row: &Row, accept_new_fields: bool) -> Option<Vec<(ColumnId, DataType)>> {
         if row.time <= self.last_time.timestamp_nanos() {
             return None;
         }
         let mut result = None;
-        let mut seen = HashSet::<&str>::new();
+        let mut seen = HashSet::<ColumnId>::new();
         if accept_new_fields {
             // Check the length before any rows are added to ensure that the correct amount
             // of nulls are back-filled when new fields/columns are added:
             let starting_cache_size = self.len();
             for field in row.fields.iter() {
-                seen.insert(field.name.as_ref());
-                if let Some(col) = self.cache.get_mut(field.name.as_ref()) {
+                seen.insert(field.id);
+                if let Some(col) = self.cache.get_mut(&field.id) {
                     // In this case, the field already has an entry in the cache, so just push:
                     col.push(&field.value);
-                } else if !self.key_columns.contains(field.name.as_ref()) {
+                } else if !self.key_column_id_to_names.contains_key(&field.id) {
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
                     let data_type = data_type_from_buffer_field(field);
                     let col = self
                         .cache
-                        .entry(field.name.to_string())
+                        .entry(field.id)
                         .or_insert_with(|| CacheColumn::new(&data_type, self.count, false));
                     // Back-fill the new cache entry with nulls, then push the new value:
                     for _ in 0..starting_cache_size {
@@ -1249,23 +1330,23 @@ impl LastCacheStore {
                     // Add the new field to the list of new columns returned:
                     result
                         .get_or_insert_with(Vec::new)
-                        .push((field.name.as_ref(), data_type));
+                        .push((field.id, DataType::from(&data_type)));
                 }
                 // There is no else block, because the only alternative would be that this is a
                 // key column, which we ignore.
             }
         } else {
             for field in row.fields.iter() {
-                seen.insert(field.name.as_ref());
-                if let Some(c) = self.cache.get_mut(field.name.as_ref()) {
+                seen.insert(field.id);
+                if let Some(c) = self.cache.get_mut(&field.id) {
                     c.push(&field.value);
                 }
             }
         }
         // Need to check for columns not seen in the buffered row data, to push nulls into
         // those respective cache entries.
-        for (name, column) in self.cache.iter_mut() {
-            if !seen.contains(name.as_str()) {
+        for (id, column) in self.cache.iter_mut() {
+            if !seen.contains(id) {
                 column.push_null();
             }
         }
@@ -1293,16 +1374,29 @@ impl LastCacheStore {
             .iter()
             .cloned()
             .filter_map(|f| {
-                if let Some(c) = self.cache.get(f.name()) {
-                    Some((f, c.data.as_array()))
-                } else if self.key_columns.contains(f.name()) {
+                let Some(col_id) = self
+                    .table_def
+                    .name_to_id(Arc::<str>::from(f.name().as_str()))
+                else {
+                    return Some(Err(ArrowError::from_external_error(Box::new(
+                        Error::ColumnDoesNotExistByName {
+                            column_name: f.name().to_string(),
+                        },
+                    ))));
+                };
+                if let Some(c) = self.cache.get(&col_id) {
+                    Some(Ok((f, c.data.as_array())))
+                } else if self.key_column_id_to_names.contains_key(&col_id) {
                     // We prepend key columns with the extended set provided
                     None
                 } else {
-                    Some((Arc::clone(&f), new_null_array(f.data_type(), self.len())))
+                    Some(Ok((
+                        Arc::clone(&f),
+                        new_null_array(f.data_type(), self.len()),
+                    )))
                 }
             })
-            .collect();
+            .collect::<Result<(Vec<FieldRef>, Vec<ArrayRef>), ArrowError>>()?;
 
         let mut sb = ArrowSchemaBuilder::new();
         if let Some((ext_fields, mut ext_arrays)) = extended {
@@ -1352,7 +1446,7 @@ struct CacheColumn {
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: &InfluxColumnType, size: usize, is_series_key: bool) -> Self {
         Self {
             size,
             data: CacheColumnData::new(data_type, size, is_series_key),
@@ -1395,24 +1489,23 @@ enum CacheColumnData {
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
-    fn new(data_type: &DataType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: &InfluxColumnType, size: usize, is_series_key: bool) -> Self {
         match data_type {
-            DataType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
-            DataType::Int64 => Self::I64(VecDeque::with_capacity(size)),
-            DataType::UInt64 => Self::U64(VecDeque::with_capacity(size)),
-            DataType::Float64 => Self::F64(VecDeque::with_capacity(size)),
-            DataType::Timestamp(TimeUnit::Nanosecond, _) => {
-                Self::Time(VecDeque::with_capacity(size))
-            }
-            DataType::Utf8 => Self::String(VecDeque::with_capacity(size)),
-            DataType::Dictionary(k, v) if **k == DataType::Int32 && **v == DataType::Utf8 => {
+            InfluxColumnType::Tag => {
                 if is_series_key {
                     Self::Key(VecDeque::with_capacity(size))
                 } else {
                     Self::Tag(VecDeque::with_capacity(size))
                 }
             }
-            _ => panic!("unsupported data type for last cache: {data_type}"),
+            InfluxColumnType::Field(field) => match field {
+                InfluxFieldType::Float => Self::F64(VecDeque::with_capacity(size)),
+                InfluxFieldType::Integer => Self::I64(VecDeque::with_capacity(size)),
+                InfluxFieldType::UInteger => Self::U64(VecDeque::with_capacity(size)),
+                InfluxFieldType::String => Self::String(VecDeque::with_capacity(size)),
+                InfluxFieldType::Boolean => Self::Bool(VecDeque::with_capacity(size)),
+            },
+            InfluxColumnType::Timestamp => Self::Time(VecDeque::with_capacity(size)),
         }
     }
 
@@ -1574,20 +1667,15 @@ impl CacheColumnData {
     }
 }
 
-fn data_type_from_buffer_field(field: &Field) -> DataType {
+fn data_type_from_buffer_field(field: &Field) -> InfluxColumnType {
     match field.value {
-        FieldData::Timestamp(_) => DataType::Timestamp(TimeUnit::Nanosecond, None),
-        FieldData::Key(_) => {
-            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
-        }
-        FieldData::Tag(_) => {
-            DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8))
-        }
-        FieldData::String(_) => DataType::Utf8,
-        FieldData::Integer(_) => DataType::Int64,
-        FieldData::UInteger(_) => DataType::UInt64,
-        FieldData::Float(_) => DataType::Float64,
-        FieldData::Boolean(_) => DataType::Boolean,
+        FieldData::Timestamp(_) => InfluxColumnType::Timestamp,
+        FieldData::Key(_) | FieldData::Tag(_) => InfluxColumnType::Tag,
+        FieldData::String(_) => InfluxColumnType::Field(InfluxFieldType::String),
+        FieldData::Integer(_) => InfluxColumnType::Field(InfluxFieldType::Integer),
+        FieldData::UInteger(_) => InfluxColumnType::Field(InfluxFieldType::UInteger),
+        FieldData::Float(_) => InfluxColumnType::Field(InfluxFieldType::Float),
+        FieldData::Boolean(_) => InfluxColumnType::Field(InfluxFieldType::Boolean),
     }
 }
 
@@ -1607,7 +1695,7 @@ mod tests {
     use bimap::BiHashMap;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
+    use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -1638,9 +1726,7 @@ mod tests {
     #[tokio::test]
     async fn pick_up_latest_write() {
         let db_name = "foo";
-        let db_id = DbId::from(0);
         let tbl_name = "cpu";
-        let tbl_id = TableId::from(0);
 
         let wbuf = setup_write_buffer().await;
 
@@ -1655,6 +1741,10 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id("foo").unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let col_id = table_def.name_to_id("host").unwrap();
+
         // Create the last cache:
         wbuf.create_last_cache(
             db_id,
@@ -1662,7 +1752,7 @@ mod tests {
             Some("cache"),
             None,
             None,
-            Some(vec!["host".to_string()]),
+            Some(vec![(col_id, "host".into())]),
             None,
         )
         .await
@@ -1679,7 +1769,7 @@ mod tests {
         .await
         .unwrap();
 
-        let predicates = &[Predicate::new_eq("host", KeyValue::string("a"))];
+        let predicates = &[Predicate::new_eq(col_id, KeyValue::string("a"))];
 
         // Check what is in the last cache:
         let batch = wbuf
@@ -1746,9 +1836,7 @@ mod tests {
     #[tokio::test]
     async fn cache_key_column_predicates() {
         let db_name = "foo";
-        let db_id = DbId::from(0);
         let tbl_name = "cpu";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -1762,6 +1850,11 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id("foo").unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let host_col_id = table_def.name_to_id("host").unwrap();
+        let region_col_id = table_def.name_to_id("host").unwrap();
+
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
             db_id,
@@ -1769,7 +1862,10 @@ mod tests {
             Some("cache"),
             None,
             None,
-            Some(vec!["region".to_string(), "host".to_string()]),
+            Some(vec![
+                (region_col_id, "region".into()),
+                (host_col_id, "host".into()),
+            ]),
             None,
         )
         .await
@@ -1805,8 +1901,8 @@ mod tests {
             // Predicate including both key columns only produces value columns from the cache
             TestCase {
                 predicates: &[
-                    Predicate::new_eq("region", KeyValue::string("us")),
-                    Predicate::new_eq("host", KeyValue::string("c")),
+                    Predicate::new_eq(region_col_id, KeyValue::string("us")),
+                    Predicate::new_eq(host_col_id, KeyValue::string("c")),
                 ],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
@@ -1819,7 +1915,7 @@ mod tests {
             // Predicate on only region key column will have host column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new_eq("region", KeyValue::string("us"))],
+                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("us"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1832,7 +1928,7 @@ mod tests {
             },
             // Similar to previous, with a different region predicate:
             TestCase {
-                predicates: &[Predicate::new_eq("region", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("ca"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1846,7 +1942,7 @@ mod tests {
             // Predicate on only host key column will have region column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new_eq("host", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("a"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1875,7 +1971,10 @@ mod tests {
             // Using a non-existent key column as a predicate has no effect:
             // TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new_eq("container_id", KeyValue::string("12345"))],
+                predicates: &[Predicate::new_eq(
+                    ColumnId::new(),
+                    KeyValue::string("12345"),
+                )],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1891,31 +1990,31 @@ mod tests {
             },
             // Using a non existent key column value yields empty result set:
             TestCase {
-                predicates: &[Predicate::new_eq("region", KeyValue::string("eu"))],
+                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("eu"))],
                 expected: &["++", "++"],
             },
             // Using an invalid combination of key column values yields an empty result set:
             TestCase {
                 predicates: &[
-                    Predicate::new_eq("region", KeyValue::string("ca")),
-                    Predicate::new_eq("host", KeyValue::string("a")),
+                    Predicate::new_eq(region_col_id, KeyValue::string("ca")),
+                    Predicate::new_eq(host_col_id, KeyValue::string("a")),
                 ],
                 expected: &["++", "++"],
             },
             // Using a non-existent key column value (for host column) also yields empty result set:
             TestCase {
-                predicates: &[Predicate::new_eq("host", KeyValue::string("g"))],
+                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("g"))],
                 expected: &["++", "++"],
             },
             // Using an incorrect type for a key column value in predicate also yields empty result
             // set. TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new_eq("host", KeyValue::Bool(true))],
+                predicates: &[Predicate::new_eq(host_col_id, KeyValue::Bool(true))],
                 expected: &["++", "++"],
             },
             // Using a != predicate
             TestCase {
-                predicates: &[Predicate::new_not_eq("region", KeyValue::string("us"))],
+                predicates: &[Predicate::new_not_eq(region_col_id, KeyValue::string("us"))],
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -1929,7 +2028,7 @@ mod tests {
             // Using an IN predicate:
             TestCase {
                 predicates: &[Predicate::new_in(
-                    "host",
+                    host_col_id,
                     vec![KeyValue::string("a"), KeyValue::string("b")],
                 )],
                 expected: &[
@@ -1944,7 +2043,7 @@ mod tests {
             // Using a NOT IN predicate:
             TestCase {
                 predicates: &[Predicate::new_not_in(
-                    "host",
+                    host_col_id,
                     vec![KeyValue::string("a"), KeyValue::string("b")],
                 )],
                 expected: &[
@@ -1974,9 +2073,7 @@ mod tests {
     #[tokio::test]
     async fn non_default_cache_size() {
         let db_name = "foo";
-        let db_id = DbId::from(0);
         let tbl_name = "cpu";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -1990,6 +2087,11 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id("foo").unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let host_col_id = table_def.name_to_id("host").unwrap();
+        let region_col_id = table_def.name_to_id("host").unwrap();
+
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
             db_id,
@@ -1997,7 +2099,10 @@ mod tests {
             Some("cache"),
             Some(10),
             None,
-            Some(vec!["region".to_string(), "host".to_string()]),
+            Some(vec![
+                (region_col_id, "region".into()),
+                (host_col_id, "host".into()),
+            ]),
             None,
         )
         .await
@@ -2060,8 +2165,8 @@ mod tests {
         let test_cases = [
             TestCase {
                 predicates: &[
-                    Predicate::new_eq("region", KeyValue::string("us")),
-                    Predicate::new_eq("host", KeyValue::string("a")),
+                    Predicate::new_eq(region_col_id, KeyValue::string("us")),
+                    Predicate::new_eq(host_col_id, KeyValue::string("a")),
                 ],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
@@ -2075,7 +2180,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq("region", KeyValue::string("us"))],
+                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("us"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -2092,7 +2197,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq("host", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("a"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -2105,7 +2210,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq("host", KeyValue::string("b"))],
+                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("b"))],
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -2150,9 +2255,7 @@ mod tests {
     #[tokio::test]
     async fn cache_ttl() {
         let db_name = "foo";
-        let db_id = DbId::from(0);
         let tbl_name = "cpu";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2166,6 +2269,11 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id("foo").unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let host_col_id = table_def.name_to_id("host").unwrap();
+        let region_col_id = table_def.name_to_id("host").unwrap();
+
         // Create the last cache with keys on all tag columns:
         wbuf.create_last_cache(
             db_id,
@@ -2174,7 +2282,10 @@ mod tests {
             // use a cache size greater than 1 to ensure the TTL is doing the evicting
             Some(10),
             Some(Duration::from_millis(50)),
-            Some(vec!["region".to_string(), "host".to_string()]),
+            Some(vec![
+                (region_col_id, "region".into()),
+                (host_col_id, "host".into()),
+            ]),
             None,
         )
         .await
@@ -2203,8 +2314,8 @@ mod tests {
 
         // Check the cache for values:
         let predicates = &[
-            Predicate::new_eq("region", KeyValue::string("us")),
-            Predicate::new_eq("host", KeyValue::string("a")),
+            Predicate::new_eq(region_col_id, KeyValue::string("us")),
+            Predicate::new_eq(host_col_id, KeyValue::string("a")),
         ];
 
         // Check what is in the last cache:
@@ -2273,7 +2384,7 @@ mod tests {
         .unwrap();
 
         // Check the cache for values:
-        let predicates = &[Predicate::new_eq("host", KeyValue::string("a"))];
+        let predicates = &[Predicate::new_eq(host_col_id, KeyValue::string("a"))];
 
         // Check what is in the last cache:
         let batches = wbuf
@@ -2297,9 +2408,7 @@ mod tests {
     #[tokio::test]
     async fn fields_as_key_columns() {
         let db_name = "cassini_mission";
-        let db_id = DbId::from(0);
         let tbl_name = "temp";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2316,6 +2425,13 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id("cassini_mission").unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id("temp").unwrap();
+        let component_id_col_id = table_def.name_to_id("component_id").unwrap();
+        let active_col_id = table_def.name_to_id("active").unwrap();
+        let type_col_id = table_def.name_to_id("type").unwrap();
+        let loc_col_id = table_def.name_to_id("loc").unwrap();
+
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(
             db_id,
@@ -2324,10 +2440,10 @@ mod tests {
             None,
             Some(Duration::from_millis(50)),
             Some(vec![
-                "component_id".to_string(),
-                "active".to_string(),
-                "type".to_string(),
-                "loc".to_string(),
+                (component_id_col_id, "component_id".into()),
+                (active_col_id, "active".into()),
+                (type_col_id, "type".into()),
+                (loc_col_id, "loc".into()),
             ]),
             None,
         )
@@ -2379,7 +2495,7 @@ mod tests {
             },
             // Predicates on tag key column work as expected:
             TestCase {
-                predicates: &[Predicate::new_eq("component_id", KeyValue::string("333"))],
+                predicates: &[Predicate::new_eq(component_id_col_id, KeyValue::string("333"))],
                 expected: &[
                     "+--------------+--------+--------+------+---------+-----------------------------+",
                     "| component_id | active | type   | loc  | reading | time                        |",
@@ -2390,7 +2506,7 @@ mod tests {
             },
             // Predicate on a non-string field key:
             TestCase {
-                predicates: &[Predicate::new_eq("active", KeyValue::Bool(false))],
+                predicates: &[Predicate::new_eq(active_col_id, KeyValue::Bool(false))],
                 expected: &[
                     "+--------------+--------+-------------+---------+---------+-----------------------------+",
                     "| component_id | active | type        | loc     | reading | time                        |",
@@ -2402,7 +2518,7 @@ mod tests {
             },
             // Predicate on a string field key:
             TestCase {
-                predicates: &[Predicate::new_eq("type", KeyValue::string("camera"))],
+                predicates: &[Predicate::new_eq(type_col_id, KeyValue::string("camera"))],
                 expected: &[
                     "+--------------+--------+--------+-----------+---------+-----------------------------+",
                     "| component_id | active | type   | loc       | reading | time                        |",
@@ -2429,9 +2545,7 @@ mod tests {
     #[tokio::test]
     async fn series_key_as_default() {
         let db_name = "windmills";
-        let db_id = DbId::from(0);
         let tbl_name = "wind_speed";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2444,6 +2558,12 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let state_col_id = table_def.name_to_id("state").unwrap();
+        let county_col_id = table_def.name_to_id("county").unwrap();
+        let farm_col_id = table_def.name_to_id("farm").unwrap();
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_id, tbl_id, Some("cache"), None, None, None, None)
@@ -2495,7 +2615,7 @@ mod tests {
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("state", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq(state_col_id, KeyValue::string("ca"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2511,7 +2631,7 @@ mod tests {
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("county", KeyValue::string("napa"))],
+                predicates: &[Predicate::new_eq(county_col_id, KeyValue::string("napa"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2523,7 +2643,7 @@ mod tests {
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("farm", KeyValue::string("30-01"))],
+                predicates: &[Predicate::new_eq(farm_col_id, KeyValue::string("30-01"))],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -2535,9 +2655,9 @@ mod tests {
             // Predicate on all series key columns:
             TestCase {
                 predicates: &[
-                    Predicate::new_eq("state", KeyValue::string("ca")),
-                    Predicate::new_eq("county", KeyValue::string("nevada")),
-                    Predicate::new_eq("farm", KeyValue::string("40-01")),
+                    Predicate::new_eq(state_col_id, KeyValue::string("ca")),
+                    Predicate::new_eq(county_col_id, KeyValue::string("nevada")),
+                    Predicate::new_eq(farm_col_id, KeyValue::string("40-01")),
                 ],
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
@@ -2563,9 +2683,7 @@ mod tests {
     #[tokio::test]
     async fn tag_set_as_default() {
         let db_name = "windmills";
-        let db_id = DbId::from(0);
         let tbl_name = "wind_speed";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do one write to update the catalog with a db and table:
@@ -2578,6 +2696,12 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let state_col_id = table_def.name_to_id("state").unwrap();
+        let county_col_id = table_def.name_to_id("county").unwrap();
+        let farm_col_id = table_def.name_to_id("farm").unwrap();
 
         // Create the last cache with keys on some field columns:
         wbuf.create_last_cache(db_id, tbl_id, Some("cache"), None, None, None, None)
@@ -2629,7 +2753,7 @@ mod tests {
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("state", KeyValue::string("ca"))],
+                predicates: &[Predicate::new_eq(state_col_id, KeyValue::string("ca"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2645,7 +2769,7 @@ mod tests {
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("county", KeyValue::string("napa"))],
+                predicates: &[Predicate::new_eq(county_col_id, KeyValue::string("napa"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2657,7 +2781,7 @@ mod tests {
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq("farm", KeyValue::string("30-01"))],
+                predicates: &[Predicate::new_eq(farm_col_id, KeyValue::string("30-01"))],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
                     "| county | farm  | state | speed | time                        |",
@@ -2669,9 +2793,9 @@ mod tests {
             // Predicate on all series key columns:
             TestCase {
                 predicates: &[
-                    Predicate::new_eq("state", KeyValue::string("ca")),
-                    Predicate::new_eq("county", KeyValue::string("nevada")),
-                    Predicate::new_eq("farm", KeyValue::string("40-01")),
+                    Predicate::new_eq(state_col_id, KeyValue::string("ca")),
+                    Predicate::new_eq(county_col_id, KeyValue::string("nevada")),
+                    Predicate::new_eq(farm_col_id, KeyValue::string("40-01")),
                 ],
                 expected: &[
                     "+--------+-------+-------+-------+-----------------------------+",
@@ -2697,9 +2821,7 @@ mod tests {
     #[tokio::test]
     async fn null_values() {
         let db_name = "weather";
-        let db_id = DbId::from(0);
         let tbl_name = "temp";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to update catalog
@@ -2713,6 +2835,9 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let tbl_id = db_schema.table_name_to_id(tbl_name).unwrap();
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_id, tbl_id, None, Some(10), None, None, None)
@@ -2766,9 +2891,7 @@ mod tests {
     #[tokio::test]
     async fn new_fields_added_to_default_cache() {
         let db_name = "nhl_stats";
-        let db_id = DbId::from(0);
         let tbl_name = "plays";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -2781,6 +2904,10 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let game_id_col_id = table_def.name_to_id("game_id").unwrap();
 
         // Create the last cache using default tags as keys
         wbuf.create_last_cache(db_id, tbl_id, None, Some(10), None, None, None)
@@ -2815,7 +2942,7 @@ mod tests {
         let test_cases = [
             // Cache that has values in the zone columns should produce them:
             TestCase {
-                predicates: &[Predicate::new_eq("game_id", KeyValue::string("4"))],
+                predicates: &[Predicate::new_eq(game_id_col_id, KeyValue::string("4"))],
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -2826,7 +2953,7 @@ mod tests {
             },
             // Cache that does not have a zone column will produce it with nulls:
             TestCase {
-                predicates: &[Predicate::new_eq("game_id", KeyValue::string("1"))],
+                predicates: &[Predicate::new_eq(game_id_col_id, KeyValue::string("1"))],
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -2865,9 +2992,7 @@ mod tests {
     #[tokio::test]
     async fn new_field_ordering() {
         let db_name = "db";
-        let db_id = DbId::from(0);
         let tbl_name = "tbl";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -2881,6 +3006,10 @@ mod tests {
         .await
         .unwrap();
 
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let t1_col_id = table_def.name_to_id("t1").unwrap();
+
         // Create the last cache using the single `t1` tag column as key
         // and using the default for fields, so that new fields will get added
         // to the cache.
@@ -2890,7 +3019,7 @@ mod tests {
             None,
             None, // use default cache size of 1
             None,
-            Some(vec!["t1".to_string()]),
+            Some(vec![(t1_col_id, "t1".into())]),
             None,
         )
         .await
@@ -2942,7 +3071,7 @@ mod tests {
         let test_cases = [
             // Can query on specific key column values:
             TestCase {
-                predicates: &[Predicate::new_eq("t1", KeyValue::string("a"))],
+                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("a"))],
                 expected: &[
                     "+----+-----+--------------------------------+-----+-----+-----+",
                     "| t1 | f1  | time                           | f2  | f3  | f4  |",
@@ -2952,7 +3081,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq("t1", KeyValue::string("b"))],
+                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("b"))],
                 expected: &[
                     "+----+------+--------------------------------+----+------+------+",
                     "| t1 | f1   | time                           | f2 | f3   | f4   |",
@@ -2962,7 +3091,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq("t1", KeyValue::string("c"))],
+                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("c"))],
                 expected: &[
                     "+----+-------+--------------------------------+-------+-------+----+",
                     "| t1 | f1    | time                           | f2    | f3    | f4 |",
@@ -3000,9 +3129,7 @@ mod tests {
     #[tokio::test]
     async fn idempotent_cache_creation() {
         let db_name = "db";
-        let db_id = DbId::from(0);
         let tbl_name = "tbl";
-        let tbl_id = TableId::from(0);
         let wbuf = setup_write_buffer().await;
 
         // Do a write to setup catalog:
@@ -3015,6 +3142,13 @@ mod tests {
         )
         .await
         .unwrap();
+
+        let (db_id, db_schema) = wbuf.catalog().db_schema_and_id(db_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let t1_col_id = table_def.name_to_id("t1").unwrap();
+        let t2_col_id = table_def.name_to_id("t2").unwrap();
+        let f1_col_id = table_def.name_to_id("f1").unwrap();
+        let f2_col_id = table_def.name_to_id("f2").unwrap();
 
         // Create a last cache using all default settings
         wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
@@ -3035,7 +3169,7 @@ mod tests {
             Some("tbl_t1_t2_last_cache"),
             Some(1),
             Some(DEFAULT_CACHE_TTL),
-            Some(vec!["t1".to_string(), "t2".to_string()]),
+            Some(vec![(t1_col_id, "t1".into()), (t2_col_id, "t2".into())]),
             None,
         )
         .await
@@ -3051,7 +3185,7 @@ mod tests {
             None,
             None,
             None,
-            Some(vec!["f1".to_string(), "f2".to_string()]),
+            Some(vec![(f1_col_id, "f1".into()), (f2_col_id, "f2".into())]),
         )
         .await
         .expect_err("create last cache should have failed");
@@ -3064,7 +3198,7 @@ mod tests {
             Some("tbl_t1_t2_last_cache"),
             None,
             None,
-            Some(vec!["t1".to_string()]),
+            Some(vec![(t1_col_id, "t1".into())]),
             None,
         )
         .await
@@ -3080,7 +3214,7 @@ mod tests {
                 None,
                 None,
                 None,
-                Some(vec!["t1".to_string()]),
+                Some(vec![(t1_col_id, "t1".into())]),
                 None,
             )
             .await
@@ -3112,7 +3246,7 @@ mod tests {
         assert_eq!(wbuf.last_cache_provider().size(), 2);
     }
 
-    type SeriesKey = Option<Vec<String>>;
+    type SeriesKey = Option<Vec<ColumnId>>;
 
     #[test]
     fn catalog_initialization() {
@@ -3136,13 +3270,13 @@ mod tests {
         let mut table_def = TableDefinition::new(
             table_id,
             "test_table_1".into(),
-            [
-                ("t1", Tag),
-                ("t2", Tag),
-                ("t3", Tag),
-                ("time", Timestamp),
-                ("f1", Field(String)),
-                ("f2", Field(Float)),
+            vec![
+                (ColumnId::from(0), "t1".into(), Tag),
+                (ColumnId::from(1), "t2".into(), Tag),
+                (ColumnId::from(2), "t3".into(), Tag),
+                (ColumnId::from(3), "time".into(), Timestamp),
+                (ColumnId::from(4), "f1".into(), Field(String)),
+                (ColumnId::from(5), "f2".into(), Field(Float)),
             ],
             SeriesKey::None,
         )
@@ -3153,23 +3287,25 @@ mod tests {
                 table_id,
                 "test_table_1",
                 "test_cache_1",
-                ["t1", "t2"],
+                vec![ColumnId::from(0), ColumnId::from(1)],
                 1,
                 600,
             )
             .unwrap(),
         );
-        database.tables.insert(table_def.table_id, table_def);
+        database
+            .tables
+            .insert(table_def.table_id, Arc::new(table_def));
         // Add another table to it:
         let table_id = TableId::from(1);
         let mut table_def = TableDefinition::new(
             table_id,
             "test_table_2".into(),
-            [
-                ("t1", Tag),
-                ("time", Timestamp),
-                ("f1", Field(String)),
-                ("f2", Field(Float)),
+            vec![
+                (ColumnId::from(6), "t1".into(), Tag),
+                (ColumnId::from(7), "time".into(), Timestamp),
+                (ColumnId::from(8), "f1".into(), Field(String)),
+                (ColumnId::from(9), "f2".into(), Field(Float)),
             ],
             SeriesKey::None,
         )
@@ -3180,8 +3316,8 @@ mod tests {
                 table_id,
                 "test_table_2",
                 "test_cache_2",
-                ["t1"],
-                ["f1"],
+                vec![ColumnId::from(6)],
+                vec![ColumnId::from(8)],
                 5,
                 60,
             )
@@ -3193,14 +3329,16 @@ mod tests {
                 table_id,
                 "test_table_2",
                 "test_cache_3",
-                &[] as &[str],
-                ["f2"],
+                vec![],
+                vec![ColumnId::from(9)],
                 10,
                 500,
             )
             .unwrap(),
         );
-        database.tables.insert(table_def.table_id, table_def);
+        database
+            .tables
+            .insert(table_def.table_id, Arc::new(table_def));
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
         let host_id = Arc::from("sample-host-id");

@@ -385,8 +385,8 @@ struct LastCacheSnapshot {
     table_id: TableId,
     table: Arc<str>,
     name: Arc<str>,
-    keys: Vec<Arc<str>>,
-    vals: Option<Vec<Arc<str>>>,
+    keys: Vec<ColumnId>,
+    vals: Option<Vec<ColumnId>>,
     n: usize,
     ttl: u64,
 }
