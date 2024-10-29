@@ -3,8 +3,13 @@ package launcher_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/fs"
 	nethttp "net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,6 +19,10 @@ import (
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // Default context.
@@ -163,4 +172,130 @@ func TestLauncher_PingHeaders(t *testing.T) {
 
 	assert.Equal(t, []string{"OSS"}, resp.Header.Values("X-Influxdb-Build"))
 	assert.Equal(t, []string{"dev"}, resp.Header.Values("X-Influxdb-Version"))
+}
+
+func TestLauncher_PIDFile(t *testing.T) {
+	pidDir := t.TempDir()
+	pidFilename := filepath.Join(pidDir, "influxd.pid")
+
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.PIDFile = pidFilename
+	})
+	defer func() {
+		l.ShutdownOrFail(t, ctx)
+		require.NoFileExists(t, pidFilename)
+	}()
+
+	require.FileExists(t, pidFilename)
+	pidBytes, err := os.ReadFile(pidFilename)
+	require.NoError(t, err)
+	require.Equal(t, strconv.Itoa(os.Getpid()), string(pidBytes))
+}
+
+func TestLauncher_PIDFile_Locked(t *testing.T) {
+	pidDir := t.TempDir()
+	pidFilename := filepath.Join(pidDir, "influxd.pid")
+	lockContents := []byte("foobar") // something wouldn't appear in normal lock file
+
+	// Write PID file to lock out the launcher.
+	require.NoError(t, os.WriteFile(pidFilename, lockContents, 0666))
+	require.FileExists(t, pidFilename)
+	origSt, err := os.Stat(pidFilename)
+	require.NoError(t, err)
+
+	// Make sure we get an error about the PID file from the launcher
+	l := launcher.NewTestLauncher()
+	err = l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+		o.PIDFile = pidFilename
+	})
+	defer func() {
+		l.ShutdownOrFail(t, ctx)
+
+		require.FileExists(t, pidFilename)
+		contents, err := os.ReadFile(pidFilename)
+		require.NoError(t, err)
+		require.Equal(t, lockContents, contents)
+		curSt, err := os.Stat(pidFilename)
+		require.NoError(t, err)
+
+		// We can't compare origSt and curSt directly because even on mounts
+		// with "noatime" or "relatime" options, the sys.Atim field can still
+		// change. We'll just compare the most relevant exposed fields.
+		require.Equal(t, origSt.ModTime(), curSt.ModTime())
+		require.Equal(t, origSt.Mode(), curSt.Mode())
+	}()
+
+	require.ErrorIs(t, err, launcher.ErrPIDFileExists)
+	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %q: PID file exists (possible unclean shutdown or another instance already running)", pidFilename))
+}
+
+func TestLauncher_PIDFile_Overwrite(t *testing.T) {
+	pidDir := t.TempDir()
+	pidFilename := filepath.Join(pidDir, "influxd.pid")
+	lockContents := []byte("foobar") // something wouldn't appear in normal lock file
+
+	// Write PID file to lock out the launcher (or not in this case).
+	require.NoError(t, os.WriteFile(pidFilename, lockContents, 0666))
+	require.FileExists(t, pidFilename)
+
+	// Make sure we get an error about the PID file from the launcher.
+	l := launcher.NewTestLauncher()
+	loggerCore, ol := observer.New(zap.WarnLevel)
+	l.Logger = zap.New(loggerCore)
+	err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+		o.PIDFile = pidFilename
+		o.OverwritePIDFile = true
+	})
+	defer func() {
+		l.ShutdownOrFail(t, ctx)
+
+		require.NoFileExists(t, pidFilename)
+	}()
+	require.NoError(t, err)
+
+	expLogs := []observer.LoggedEntry{
+		{
+			Entry:   zapcore.Entry{Level: zap.WarnLevel, Message: "PID file already exists, attempting to overwrite"},
+			Context: []zapcore.Field{zap.String("pidFile", pidFilename)},
+		},
+	}
+	require.Equal(t, expLogs, ol.AllUntimed())
+	require.FileExists(t, pidFilename)
+	pidBytes, err := os.ReadFile(pidFilename)
+	require.NoError(t, err)
+	require.Equal(t, strconv.Itoa(os.Getpid()), string(pidBytes))
+}
+
+func TestLauncher_PIDFile_OverwriteFail(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("test will fail when run as root")
+	}
+
+	pidDir := t.TempDir()
+	pidFilename := filepath.Join(pidDir, "influxd.pid")
+	lockContents := []byte("foobar") // something wouldn't appear in normal lock file
+
+	// Write PID file to lock out the launcher.
+	require.NoError(t, os.WriteFile(pidFilename, lockContents, 0666))
+	require.FileExists(t, pidFilename)
+	require.NoError(t, os.Chmod(pidFilename, 0000))
+
+	// Make sure we get an error about the PID file from the launcher
+	l := launcher.NewTestLauncher()
+	err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
+		o.PIDFile = pidFilename
+		o.OverwritePIDFile = true
+	})
+	defer func() {
+		l.ShutdownOrFail(t, ctx)
+
+		require.NoError(t, os.Chmod(pidFilename, 0644))
+		require.FileExists(t, pidFilename)
+		pidBytes, err := os.ReadFile(pidFilename)
+		require.NoError(t, err)
+		require.Equal(t, lockContents, pidBytes)
+	}()
+
+	require.ErrorContains(t, err, fmt.Sprintf("error writing PIDFile %[1]q: overwrite file: open %[1]s:", pidFilename))
+	require.ErrorIs(t, err, fs.ErrPermission)
 }
