@@ -39,11 +39,11 @@ pub struct ProServeConfig {
     /// This tells the server to run compactions. Only a single server should ever be running
     /// compactions for a given compactor_id. All other servers can read from that compactor id
     /// to pick up compacted files. This option is only applicable if a compactor-id is set.
-    /// Set this to false if you want to run a server that only reads from compacted data.
+    /// Set this flag if this server should be running compactions.
     #[clap(
         long = "run-compactions",
         env = "INFLUXDB3_PRO_RUN_COMPACTIONS",
-        default_value = "true",
+        default_value = "false",
         action
     )]
     pub run_compactions: bool,

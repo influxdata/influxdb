@@ -620,6 +620,12 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::Job);
 
         futures.push(t.boxed());
+    } else if let Some(compacted_data) = compacted_data {
+        // We're not running compactions, so we need to poll in the background to keep
+        // refreshing the compacted data from whatever server is running them
+        tokio::spawn(async move {
+            compacted_data.poll_for_updates().await;
+        });
     }
 
     futures.push(

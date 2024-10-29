@@ -2,7 +2,7 @@
 
 use crate::persist::{
     get_compaction_detail, get_generation_detail, load_compaction_summary,
-    CompactedDataPersistenceError,
+    load_compaction_summary_for_sequence, CompactedDataPersistenceError,
 };
 use crate::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
@@ -17,8 +17,7 @@ use influxdb3_pro_index::memory::FileIndex;
 use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
-use observability_deps::tracing::error;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::RwLock;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -426,6 +425,158 @@ impl CompactedData {
             .map(|t| t.parquet_files_and_host_markers(filters))
             .unwrap_or_default()
     }
+
+    /// Continuously polls object storage for the next compaction summary written by the compactor.
+    pub async fn poll_for_updates(&self) {
+        loop {
+            // sleep for 10 seconds before looking for a new snapshot
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
+            if let Some(compaction_summary) = self.update_from_next_summary().await {
+                info!(compaction_summary = ?compaction_summary, "updated from compaction summary");
+            }
+        }
+    }
+
+    /// Looks for the next compaction summary based on the next sequence number. If present,
+    /// compaction details are loaded along with generation details. The `CompactedData` structure
+    /// is updated and the new summary is returned. Or None if no new summary is found.
+    async fn update_from_next_summary(&self) -> Option<CompactionSummary> {
+        let (last_summary, next_compaction_sequence_number) = {
+            let data = self.data.read();
+            (
+                data.last_compaction_summary.clone(),
+                data.last_compaction_sequence_number.next(),
+            )
+        };
+
+        // get next summary or ignore error and return none
+        let next_summary = match load_compaction_summary_for_sequence(
+            &self.compactor_id,
+            next_compaction_sequence_number,
+            Arc::clone(&self.object_store),
+        )
+        .await
+        {
+            Ok(Some(summary)) => summary,
+            Ok(None) => return None,
+            Err(e) => {
+                warn!(error = ?e, "error loading compaction summary");
+                return None;
+            }
+        };
+
+        // load each new compaction detail, updating based on every generation and detail within
+        for compaction_detail_path in &next_summary.compaction_details {
+            // only update if this is a new detail from the last summary
+            if last_summary.as_ref().map_or(true, |last| {
+                !last.compaction_details.contains(compaction_detail_path)
+            }) {
+                let detail = match get_compaction_detail(
+                    compaction_detail_path,
+                    Arc::clone(&self.object_store),
+                )
+                .await
+                {
+                    Some(detail) => detail,
+                    None => {
+                        error!(compaction_detail = ?compaction_detail_path, "compaction detail not found");
+                        continue;
+                    }
+                };
+
+                // figure out which generation details we have to load
+                let new_gens = self.generations_to_load(
+                    detail.db_id,
+                    detail.table_id,
+                    &detail.compacted_generations,
+                );
+
+                // load those generations and inject them into the compacted table, removing all others
+                let mut gen_details = Vec::with_capacity(new_gens.len());
+                for genid in new_gens {
+                    let gen_path = GenerationDetailPath::new(&self.compactor_id, genid);
+                    let detail = match get_generation_detail(
+                        &gen_path,
+                        Arc::clone(&self.object_store),
+                    )
+                    .await
+                    {
+                        Some(detail) => detail,
+                        None => {
+                            error!(generation_detail = ?gen_path, "generation detail not found");
+                            continue;
+                        }
+                    };
+
+                    gen_details.push(detail);
+                }
+
+                self.update_compaction_detail_and_add_generations(detail, gen_details);
+            }
+        }
+
+        // now update the summary
+        let mut data = self.data.write();
+        data.last_compaction_summary = Some(next_summary.clone());
+        data.last_compaction_sequence_number = next_summary.compaction_sequence_number;
+
+        Some(next_summary)
+    }
+
+    /// Returns a vec of ids for generations that don't exist in the table
+    fn generations_to_load(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        generations: &[Generation],
+    ) -> Vec<GenerationId> {
+        let data = self.data.read();
+        let table = data
+            .databases
+            .get(&db_id)
+            .and_then(|db| db.tables.get(&table_id));
+
+        match table {
+            None => generations.iter().map(|g| g.id).collect::<Vec<_>>(),
+            Some(t) => generations
+                .iter()
+                .filter(|g| !t.compacted_generations.contains_key(&g.id))
+                .map(|g| g.id)
+                .collect::<Vec<_>>(),
+        }
+    }
+
+    /// Updates the compaction detail, adds the new generations and removes all generations from
+    /// the map that aren't in the compaction detail.
+    fn update_compaction_detail_and_add_generations(
+        &self,
+        compaction_detail: CompactionDetail,
+        generations: Vec<GenerationDetail>,
+    ) {
+        let mut data = self.data.write();
+
+        let db = data.databases.entry(compaction_detail.db_id).or_default();
+        let table = db.tables.entry(compaction_detail.table_id).or_default();
+
+        // add the new generations
+        for gen in generations {
+            table.add_generation_detail(gen);
+        }
+
+        // get the list of generations that are no longer in the new detail
+        let mut generatons_to_keep =
+            HashMap::with_capacity(compaction_detail.compacted_generations.len());
+        for gen in &compaction_detail.compacted_generations {
+            if let Some(compacted_files) = table.compacted_generations.remove(&gen.id) {
+                generatons_to_keep.insert(gen.id, compacted_files);
+            }
+        }
+
+        table.compacted_generations = generatons_to_keep;
+
+        table.compaction_detail = Some(Arc::new(compaction_detail));
+    }
 }
 
 pub type DatabaseTableGenerations = HashMap<DbId, HashMap<TableId, Vec<Generation>>>;
@@ -573,5 +724,262 @@ impl CompactedTable {
 
             Some(gens)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persist::{
+        persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
+    };
+    use crate::CompactionDetailPath;
+    use influxdb3_id::ParquetFileId;
+    use influxdb3_wal::SnapshotSequenceNumber;
+
+    #[tokio::test]
+    async fn updates_next_summary() {
+        let catalog = Arc::new(Catalog::new("test-host".into(), "test".into()));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(object_store::memory::InMemory::new());
+        let compactor_id = "com";
+        let compacted_data = CompactedData::load_compacted_data(
+            compactor_id,
+            CompactionConfig::default(),
+            Arc::clone(&object_store),
+            catalog,
+        )
+        .await
+        .unwrap();
+
+        // we should get back none when we try to get the next compaction summary
+        assert!(compacted_data.update_from_next_summary().await.is_none());
+
+        // write a generation and compaction detail for a db and table
+        let db_name: Arc<str> = "testdb".into();
+        let db_id = DbId::new();
+        let table_name: Arc<str> = "table1".into();
+        let table_id = TableId::new();
+        let sequence_number = CompactionSequenceNumber::new(1);
+        let gen2 = Generation {
+            id: GenerationId::new(),
+            level: GenerationLevel::two(),
+            start_time_secs: 0,
+            max_time: 10000,
+        };
+        let gen2_file_id = ParquetFileId::new();
+        let gen2_detail = GenerationDetail {
+            id: gen2.id,
+            level: gen2.level,
+            start_time_s: gen2.start_time_secs,
+            max_time_ns: gen2.max_time,
+            files: vec![Arc::from(ParquetFile {
+                id: gen2_file_id,
+                path: "2".to_string(),
+                size_bytes: 0,
+                row_count: 0,
+                chunk_time: 0,
+                min_time: 0,
+                max_time: 0,
+            })],
+            file_index: Default::default(),
+        };
+        persist_generation_detail(
+            compactor_id,
+            gen2.id,
+            &gen2_detail,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+
+        let gen3 = Generation {
+            id: GenerationId::new(),
+            level: GenerationLevel::new(3),
+            start_time_secs: 0,
+            max_time: 0,
+        };
+        let gen3_file_id = ParquetFileId::new();
+        let gen3_detail = GenerationDetail {
+            id: gen3.id,
+            level: gen3.level,
+            start_time_s: gen3.start_time_secs,
+            max_time_ns: gen3.max_time,
+            files: vec![Arc::from(ParquetFile {
+                id: gen3_file_id,
+                path: "3".to_string(),
+                size_bytes: 0,
+                row_count: 0,
+                chunk_time: 0,
+                min_time: 0,
+                max_time: 0,
+            })],
+            file_index: Default::default(),
+        };
+        persist_generation_detail(
+            compactor_id,
+            gen3.id,
+            &gen3_detail,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+
+        let snapshot_markers = vec![Arc::new(HostSnapshotMarker {
+            host_id: "A".into(),
+            next_file_id: ParquetFileId::from(25),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+        })];
+
+        let compaction_detail_path =
+            CompactionDetailPath::new("com", "testdb", db_id, "table1", table_id, sequence_number);
+        let compaction_detail = CompactionDetail {
+            db_name: Arc::clone(&db_name),
+            db_id,
+            table_name: Arc::clone(&table_name),
+            table_id,
+            sequence_number,
+            snapshot_markers: snapshot_markers.clone(),
+            compacted_generations: vec![gen2, gen3],
+            leftover_gen1_files: vec![],
+        };
+        persist_compaction_detail(
+            compactor_id,
+            Arc::clone(&db_name),
+            db_id,
+            Arc::clone(&table_name),
+            table_id,
+            &compaction_detail,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+
+        // now write a summary
+        let summary = CompactionSummary {
+            compaction_sequence_number: CompactionSequenceNumber::new(1),
+            last_file_id: ParquetFileId::from(25),
+            last_generation_id: GenerationId::from(3),
+            compaction_details: vec![compaction_detail_path],
+            snapshot_markers,
+        };
+        persist_compaction_summary(compactor_id, &summary, Arc::clone(&object_store))
+            .await
+            .unwrap();
+
+        let next_summary = compacted_data.update_from_next_summary().await.unwrap();
+        assert_eq!(next_summary, summary);
+        // ensure we have the new generations in the compacted data
+        let detail = compacted_data
+            .get_last_compaction_detail(db_id, table_id)
+            .unwrap();
+        assert_eq!(detail.as_ref(), &compaction_detail);
+
+        let paths =
+            compacted_data.paths_for_files_in_generations(db_id, table_id, &[gen2.id, gen3.id]);
+        let expected_paths = vec![ObjPath::from("2"), ObjPath::from("3")];
+        assert_eq!(paths, expected_paths);
+
+        // now ensure that the next update is none
+        assert!(compacted_data.update_from_next_summary().await.is_none());
+
+        // now write a new summary with a new compaction detail and a new generation that replaces one of the older ones
+        let next_sequence_number = sequence_number.next();
+        let gen4 = Generation {
+            id: GenerationId::new(),
+            level: GenerationLevel::new(4),
+            start_time_secs: 0,
+            max_time: 0,
+        };
+        let gen4_file_id = ParquetFileId::new();
+        let gen4_detail = GenerationDetail {
+            id: gen4.id,
+            level: gen4.level,
+            start_time_s: gen4.start_time_secs,
+            max_time_ns: gen4.max_time,
+            files: vec![Arc::from(ParquetFile {
+                id: gen4_file_id,
+                path: "4".to_string(),
+                size_bytes: 0,
+                row_count: 0,
+                chunk_time: 0,
+                min_time: 0,
+                max_time: 0,
+            })],
+            file_index: Default::default(),
+        };
+        persist_generation_detail(
+            compactor_id,
+            gen4.id,
+            &gen4_detail,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+
+        let next_snapshot_markers = vec![Arc::new(HostSnapshotMarker {
+            host_id: "A".into(),
+            next_file_id: ParquetFileId::from(30),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(2),
+        })];
+        let new_detail = CompactionDetail {
+            db_name: Arc::clone(&db_name),
+            db_id,
+            table_name: Arc::clone(&table_name),
+            table_id,
+            sequence_number: next_sequence_number,
+            snapshot_markers: next_snapshot_markers.clone(),
+            compacted_generations: vec![gen3, gen4],
+            leftover_gen1_files: vec![],
+        };
+        let new_detail_path = CompactionDetailPath::new(
+            "com",
+            "testdb",
+            db_id,
+            "table1",
+            table_id,
+            next_sequence_number,
+        );
+        persist_compaction_detail(
+            compactor_id,
+            Arc::clone(&db_name),
+            db_id,
+            Arc::clone(&table_name),
+            table_id,
+            &new_detail,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+
+        let next_summary = CompactionSummary {
+            compaction_sequence_number: next_sequence_number,
+            last_file_id: ParquetFileId::from(30),
+            last_generation_id: GenerationId::from(4),
+            compaction_details: vec![new_detail_path],
+            snapshot_markers: next_snapshot_markers,
+        };
+        persist_compaction_summary(compactor_id, &next_summary, Arc::clone(&object_store))
+            .await
+            .unwrap();
+
+        let next_summary = compacted_data.update_from_next_summary().await.unwrap();
+        assert_eq!(next_summary, next_summary);
+        // ensure we have the new generations in the compacted data
+        let detail = compacted_data
+            .get_last_compaction_detail(db_id, table_id)
+            .unwrap();
+        assert_eq!(detail.as_ref(), &new_detail);
+
+        let paths =
+            compacted_data.paths_for_files_in_generations(db_id, table_id, &[gen3.id, gen4.id]);
+        let expected_paths = vec![ObjPath::from("3"), ObjPath::from("4")];
+        assert_eq!(paths, expected_paths);
+
+        // make sure gen2 is purged
+        let paths = compacted_data.paths_for_files_in_generations(db_id, table_id, &[gen2.id]);
+        assert!(paths.is_empty());
+
+        // now ensure that the next update is none
+        assert!(compacted_data.update_from_next_summary().await.is_none());
     }
 }
