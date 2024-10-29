@@ -8,8 +8,8 @@ expression: caches
     "table": "test_table_1",
     "name": "test_cache_1",
     "key_columns": [
-      "t1",
-      "t2"
+      0,
+      1
     ],
     "value_columns": {
       "type": "all_non_key_columns"
@@ -22,13 +22,13 @@ expression: caches
     "table": "test_table_2",
     "name": "test_cache_2",
     "key_columns": [
-      "t1"
+      6
     ],
     "value_columns": {
       "type": "explicit",
       "columns": [
-        "f1",
-        "time"
+        8,
+        7
       ]
     },
     "count": 5,
@@ -42,8 +42,8 @@ expression: caches
     "value_columns": {
       "type": "explicit",
       "columns": [
-        "f2",
-        "time"
+        9,
+        7
       ]
     },
     "count": 10,

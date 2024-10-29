@@ -5,15 +5,18 @@ use arrow::array::{
     Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
     UInt64Builder,
 };
-use arrow::datatypes::{GenericStringType, Int32Type, SchemaRef};
+use arrow::datatypes::{GenericStringType, Int32Type};
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
 use datafusion::logical_expr::{BinaryExpr, Expr};
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::TableDefinition;
+use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::{debug, error, info};
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashSet};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -38,7 +41,7 @@ pub struct TableBuffer {
 }
 
 impl TableBuffer {
-    pub fn new(index_columns: &[&str], sort_key: SortKey) -> Self {
+    pub fn new(index_columns: Vec<ColumnId>, sort_key: SortKey) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
             snapshotting_chunks: vec![],
@@ -67,10 +70,11 @@ impl TableBuffer {
     /// The partitions are stored and returned in a `HashMap`, keyed on the generation time.
     pub fn partitioned_record_batches(
         &self,
-        schema: SchemaRef,
+        table_def: Arc<TableDefinition>,
         filter: &[Expr],
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
+        let schema = table_def.schema.as_arrow();
         for sc in &self.snapshotting_chunks {
             let cols: std::result::Result<Vec<_>, _> = schema
                 .fields()
@@ -97,14 +101,19 @@ impl TableBuffer {
                 .entry(*t)
                 .or_insert_with(|| (ts_min_max, Vec::new()));
             *ts = ts.union(&ts_min_max);
-            v.push(c.record_batch(schema.clone(), filter)?);
+            v.push(c.record_batch(Arc::clone(&table_def), filter)?);
         }
         Ok(batches)
     }
 
-    pub fn record_batches(&self, schema: SchemaRef, filter: &[Expr]) -> Result<Vec<RecordBatch>> {
+    pub fn record_batches(
+        &self,
+        table_def: Arc<TableDefinition>,
+        filter: &[Expr],
+    ) -> Result<Vec<RecordBatch>> {
         let mut batches =
             Vec::with_capacity(self.snapshotting_chunks.len() + self.chunk_time_to_chunks.len());
+        let schema = table_def.schema.as_arrow();
 
         for sc in &self.snapshotting_chunks {
             let cols: std::result::Result<Vec<_>, _> = schema
@@ -125,7 +134,7 @@ impl TableBuffer {
         }
 
         for c in self.chunk_time_to_chunks.values() {
-            batches.push(c.record_batch(schema.clone(), filter)?)
+            batches.push(c.record_batch(Arc::clone(&table_def), filter)?)
         }
 
         Ok(batches)
@@ -157,8 +166,8 @@ impl TableBuffer {
         let mut size = size_of::<Self>();
 
         for c in self.chunk_time_to_chunks.values() {
-            for (k, v) in &c.data {
-                size += k.len() + size_of::<String>() + v.size();
+            for biulder in c.data.values() {
+                size += size_of::<ColumnId>() + size_of::<String>() + biulder.size();
             }
 
             size += c.index.size();
@@ -167,7 +176,11 @@ impl TableBuffer {
         size
     }
 
-    pub fn snapshot(&mut self, older_than_chunk_time: i64) -> Vec<SnapshotChunk> {
+    pub fn snapshot(
+        &mut self,
+        table_def: Arc<TableDefinition>,
+        older_than_chunk_time: i64,
+    ) -> Vec<SnapshotChunk> {
         info!(%older_than_chunk_time, "Snapshotting table buffer");
         let keys_to_remove = self
             .chunk_time_to_chunks
@@ -180,7 +193,7 @@ impl TableBuffer {
             .map(|chunk_time| {
                 let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
                 let timestamp_min_max = chunk.timestamp_min_max();
-                let (schema, record_batch) = chunk.into_schema_record_batch();
+                let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
                 SnapshotChunk {
                     chunk_time,
@@ -232,7 +245,7 @@ impl std::fmt::Debug for TableBuffer {
 struct MutableTableChunk {
     timestamp_min: i64,
     timestamp_max: i64,
-    data: BTreeMap<Arc<str>, Builder>,
+    data: BTreeMap<ColumnId, Builder>,
     row_count: usize,
     index: BufferIndex,
 }
@@ -245,14 +258,14 @@ impl MutableTableChunk {
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in r.fields {
-                value_added.insert(f.name.clone());
+                value_added.insert(f.id);
 
                 match f.value {
                     FieldData::Timestamp(v) => {
                         self.timestamp_min = self.timestamp_min.min(v);
                         self.timestamp_max = self.timestamp_max.max(v);
 
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             debug!("Creating new timestamp builder");
                             let mut time_builder = TimestampNanosecondBuilder::new();
                             // append nulls for all previous rows
@@ -269,20 +282,17 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Tag(v) => {
-                        if !self.data.contains_key(&f.name) {
+                        if let Entry::Vacant(e) = self.data.entry(f.id) {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
                                 tag_builder.append_null();
                             }
-                            self.data.insert(f.name.clone(), Builder::Tag(tag_builder));
+                            e.insert(Builder::Tag(tag_builder));
                         }
-                        let b = self
-                            .data
-                            .get_mut(&f.name)
-                            .expect("tag builder should exist");
+                        let b = self.data.get_mut(&f.id).expect("tag builder should exist");
                         if let Builder::Tag(b) = b {
-                            self.index.add_row_if_indexed_column(b.len(), &f.name, &v);
+                            self.index.add_row_if_indexed_column(b.len(), f.id, &v);
                             b.append(v)
                                 .expect("shouldn't be able to overflow 32 bit dictionary");
                         } else {
@@ -290,25 +300,22 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Key(v) => {
-                        if !self.data.contains_key(&f.name) {
+                        if let Entry::Vacant(e) = self.data.entry(f.id) {
                             let key_builder = StringDictionaryBuilder::new();
                             if self.row_count > 0 {
                                 panic!("series key columns must be passed in the very first write for a table");
                             }
-                            self.data.insert(f.name.clone(), Builder::Key(key_builder));
+                            e.insert(Builder::Key(key_builder));
                         }
-                        let b = self
-                            .data
-                            .get_mut(&f.name)
-                            .expect("key builder should exist");
+                        let b = self.data.get_mut(&f.id).expect("key builder should exist");
                         let Builder::Key(b) = b else {
                             panic!("unexpected field type");
                         };
-                        self.index.add_row_if_indexed_column(b.len(), &f.name, &v);
+                        self.index.add_row_if_indexed_column(b.len(), f.id, &v);
                         b.append_value(v);
                     }
                     FieldData::String(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut string_builder = StringBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
@@ -323,7 +330,7 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Integer(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut int_builder = Int64Builder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
@@ -338,7 +345,7 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::UInteger(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut uint_builder = UInt64Builder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
@@ -353,7 +360,7 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Float(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut float_builder = Float64Builder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
@@ -368,7 +375,7 @@ impl MutableTableChunk {
                         }
                     }
                     FieldData::Boolean(v) => {
-                        let b = self.data.entry(f.name).or_insert_with(|| {
+                        let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut bool_builder = BooleanBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
@@ -410,25 +417,32 @@ impl MutableTableChunk {
         TimestampMinMax::new(self.timestamp_min, self.timestamp_max)
     }
 
-    fn record_batch(&self, schema: SchemaRef, filter: &[Expr]) -> Result<RecordBatch> {
-        let row_ids = self.index.get_rows_from_index_for_filter(filter);
+    fn record_batch(
+        &self,
+        table_def: Arc<TableDefinition>,
+        filter: &[Expr],
+    ) -> Result<RecordBatch> {
+        let row_ids = self
+            .index
+            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter);
+        let schema = table_def.schema.as_arrow();
 
         let mut cols = Vec::with_capacity(schema.fields().len());
 
         for f in schema.fields() {
             match row_ids {
                 Some(row_ids) => {
-                    let b = self
-                        .data
-                        .get(f.name().as_str())
+                    let b = table_def
+                        .column_name_to_id(f.name().as_str())
+                        .and_then(|id| self.data.get(&id))
                         .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .get_rows(row_ids);
                     cols.push(b);
                 }
                 None => {
-                    let b = self
-                        .data
-                        .get(f.name().as_str())
+                    let b = table_def
+                        .column_name_to_id(f.name().as_str())
+                        .and_then(|id| self.data.get(&id))
                         .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
                         .as_arrow();
                     cols.push(b);
@@ -439,12 +453,18 @@ impl MutableTableChunk {
         Ok(RecordBatch::try_new(schema, cols)?)
     }
 
-    fn into_schema_record_batch(self) -> (Schema, RecordBatch) {
+    fn into_schema_record_batch(self, table_def: Arc<TableDefinition>) -> (Schema, RecordBatch) {
         let mut cols = Vec::with_capacity(self.data.len());
         let mut schema_builder = SchemaBuilder::new();
-        for (col_name, builder) in self.data.into_iter() {
+        for (col_id, builder) in self.data.into_iter() {
             let (col_type, col) = builder.into_influxcol_and_arrow();
-            schema_builder.influx_column(col_name.as_ref(), col_type);
+            schema_builder.influx_column(
+                table_def
+                    .column_id_to_name(col_id)
+                    .expect("valid column id")
+                    .as_ref(),
+                col_type,
+            );
             cols.push(col);
         }
         let schema = schema_builder
@@ -471,25 +491,25 @@ impl std::fmt::Debug for MutableTableChunk {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 struct BufferIndex {
-    // column name -> string value -> row indexes
-    columns: HashMap<Arc<str>, HashMap<String, Vec<usize>>>,
+    // column id -> string value -> row indexes
+    columns: HashMap<ColumnId, HashMap<String, Vec<usize>>>,
 }
 
 impl BufferIndex {
-    fn new(column_names: &[&str]) -> Self {
+    fn new(column_ids: Vec<ColumnId>) -> Self {
         let mut columns = HashMap::new();
 
-        for c in column_names {
-            columns.insert(c.to_string().into(), HashMap::new());
+        for id in column_ids {
+            columns.insert(id, HashMap::new());
         }
 
         Self { columns }
     }
 
-    fn add_row_if_indexed_column(&mut self, row_index: usize, column_name: &str, value: &str) {
-        if let Some(column) = self.columns.get_mut(column_name) {
+    fn add_row_if_indexed_column(&mut self, row_index: usize, column_id: ColumnId, value: &str) {
+        if let Some(column) = self.columns.get_mut(&column_id) {
             column
                 .entry_ref(value)
                 .and_modify(|c| c.push(row_index))
@@ -497,7 +517,11 @@ impl BufferIndex {
         }
     }
 
-    fn get_rows_from_index_for_filter(&self, filter: &[Expr]) -> Option<&Vec<usize>> {
+    fn get_rows_from_index_for_filter(
+        &self,
+        table_def: Arc<TableDefinition>,
+        filter: &[Expr],
+    ) -> Option<&Vec<usize>> {
         for expr in filter {
             if let Expr::BinaryExpr(BinaryExpr { left, op, right }) = expr {
                 if *op == datafusion::logical_expr::Operator::Eq {
@@ -505,9 +529,9 @@ impl BufferIndex {
                         if let Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(v))) =
                             right.as_ref()
                         {
-                            return self
-                                .columns
-                                .get(c.name.as_str())
+                            return table_def
+                                .column_name_to_id(c.name())
+                                .and_then(|id| self.columns.get(&id))
                                 .and_then(|m| m.get(v.as_str()));
                         }
                     }
@@ -521,8 +545,10 @@ impl BufferIndex {
     #[allow(dead_code)]
     fn size(&self) -> usize {
         let mut size = size_of::<Self>();
-        for (k, v) in &self.columns {
-            size += k.len() + size_of::<String>() + size_of::<HashMap<String, Vec<usize>>>();
+        for (_, v) in &self.columns {
+            size += size_of::<ColumnId>()
+                + size_of::<String>()
+                + size_of::<HashMap<String, Vec<usize>>>();
             for (k, v) in v {
                 size += k.len() + size_of::<String>() + size_of::<Vec<usize>>();
                 size += v.len() * size_of::<usize>();
@@ -690,18 +716,34 @@ mod tests {
     use super::*;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use datafusion::common::Column;
+    use influxdb3_id::TableId;
     use influxdb3_wal::Field;
-    use schema::{InfluxFieldType, SchemaBuilder};
+    use schema::InfluxFieldType;
 
     #[test]
     fn partitioned_table_buffer_batches() {
-        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
-        let schema = SchemaBuilder::with_capacity(3)
-            .tag("tag")
-            .influx_field("val", InfluxFieldType::String)
-            .timestamp()
-            .build()
-            .unwrap();
+        let table_def = Arc::new(
+            TableDefinition::new(
+                TableId::new(),
+                "test_table".into(),
+                vec![
+                    (ColumnId::from(0), "tag".into(), InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(1),
+                        "val".into(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ),
+                    (
+                        ColumnId::from(2),
+                        "time".into(),
+                        InfluxColumnType::Timestamp,
+                    ),
+                ],
+                None,
+            )
+            .unwrap(),
+        );
+        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
 
         for t in 0..10 {
             let offset = t * 10;
@@ -710,15 +752,15 @@ mod tests {
                     time: offset + 1,
                     fields: vec![
                         Field {
-                            name: "tag".into(),
+                            id: ColumnId::from(0),
                             value: FieldData::Tag("a".to_string()),
                         },
                         Field {
-                            name: "val".into(),
+                            id: ColumnId::from(1),
                             value: FieldData::String(format!("thing {t}-1")),
                         },
                         Field {
-                            name: "time".into(),
+                            id: ColumnId::from(2),
                             value: FieldData::Timestamp(offset + 1),
                         },
                     ],
@@ -727,15 +769,15 @@ mod tests {
                     time: offset + 2,
                     fields: vec![
                         Field {
-                            name: "tag".into(),
+                            id: ColumnId::from(0),
                             value: FieldData::Tag("b".to_string()),
                         },
                         Field {
-                            name: "val".into(),
+                            id: ColumnId::from(1),
                             value: FieldData::String(format!("thing {t}-2")),
                         },
                         Field {
-                            name: "time".into(),
+                            id: ColumnId::from(2),
                             value: FieldData::Timestamp(offset + 2),
                         },
                     ],
@@ -746,7 +788,7 @@ mod tests {
         }
 
         let partitioned_batches = table_buffer
-            .partitioned_record_batches(schema.as_arrow(), &[])
+            .partitioned_record_batches(Arc::clone(&table_def), &[])
             .unwrap();
 
         println!("{partitioned_batches:#?}");
@@ -781,28 +823,43 @@ mod tests {
 
     #[test]
     fn tag_row_index() {
-        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
-        let schema = SchemaBuilder::with_capacity(3)
-            .tag("tag")
-            .influx_field("value", InfluxFieldType::Integer)
-            .timestamp()
-            .build()
-            .unwrap();
+        let table_def = Arc::new(
+            TableDefinition::new(
+                TableId::new(),
+                "test_table".into(),
+                vec![
+                    (ColumnId::from(0), "tag".into(), InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(1),
+                        "value".into(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ),
+                    (
+                        ColumnId::from(2),
+                        "time".into(),
+                        InfluxColumnType::Timestamp,
+                    ),
+                ],
+                None,
+            )
+            .unwrap(),
+        );
+        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
 
         let rows = vec![
             Row {
                 time: 1,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(1),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(1),
                     },
                 ],
@@ -811,15 +868,15 @@ mod tests {
                 time: 2,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("b".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(2),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(2),
                     },
                 ],
@@ -828,15 +885,15 @@ mod tests {
                 time: 3,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(3),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(3),
                     },
                 ],
@@ -860,12 +917,12 @@ mod tests {
             .get(&0)
             .unwrap()
             .index
-            .get_rows_from_index_for_filter(filter)
+            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter)
             .unwrap();
         assert_eq!(a_rows, &[0, 2]);
 
         let a = table_buffer
-            .record_batches(schema.as_arrow(), filter)
+            .record_batches(Arc::clone(&table_def), filter)
             .unwrap();
         let expected_a = vec![
             "+-----+-------+--------------------------------+",
@@ -893,12 +950,12 @@ mod tests {
             .get(&0)
             .unwrap()
             .index
-            .get_rows_from_index_for_filter(filter)
+            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter)
             .unwrap();
         assert_eq!(b_rows, &[1]);
 
         let b = table_buffer
-            .record_batches(schema.as_arrow(), filter)
+            .record_batches(Arc::clone(&table_def), filter)
             .unwrap();
         let expected_b = vec![
             "+-----+-------+--------------------------------+",
@@ -912,22 +969,22 @@ mod tests {
 
     #[test]
     fn computed_size_of_buffer() {
-        let mut table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
+        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
 
         let rows = vec![
             Row {
                 time: 1,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("a".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(1),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(1),
                     },
                 ],
@@ -936,15 +993,15 @@ mod tests {
                 time: 2,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("b".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(2),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(2),
                     },
                 ],
@@ -953,15 +1010,15 @@ mod tests {
                 time: 3,
                 fields: vec![
                     Field {
-                        name: "tag".into(),
+                        id: ColumnId::from(0),
                         value: FieldData::Tag("this is a long tag value to store".to_string()),
                     },
                     Field {
-                        name: "value".into(),
+                        id: ColumnId::from(1),
                         value: FieldData::Integer(3),
                     },
                     Field {
-                        name: "time".into(),
+                        id: ColumnId::from(2),
                         value: FieldData::Timestamp(3),
                     },
                 ],
@@ -976,7 +1033,7 @@ mod tests {
 
     #[test]
     fn timestamp_min_max_works_when_empty() {
-        let table_buffer = TableBuffer::new(&["tag"], SortKey::empty());
+        let table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);

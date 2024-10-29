@@ -221,6 +221,7 @@ struct ErrorMessage<T: Serialize> {
 impl Error {
     /// Convert this error into an HTTP [`Response`]
     fn into_response(self) -> Response<Body> {
+        debug!(error = ?self, "API error");
         match self {
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
@@ -242,6 +243,18 @@ impl Error {
                 let err = ErrorMessage {
                     error: "parsing failed for write_lp endpoint".into(),
                     data: Some(err),
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(body)
+                    .unwrap()
+            }
+            Self::WriteBuffer(err @ WriteBufferError::ColumnDoesNotExist(_)) => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: err.to_string(),
+                    data: None,
                 };
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
@@ -702,6 +715,32 @@ where
         let (table_id, table_def) = db_schema
             .table_definition_and_id(table.as_str())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+        let key_columns = key_columns
+            .map(|names| {
+                names
+                    .into_iter()
+                    .map(|name| {
+                        table_def
+                            .column_def_and_id(name.as_str())
+                            .map(|(id, def)| (id, Arc::clone(&def.name)))
+                            .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
+                    })
+                    .collect::<Result<Vec<_>, WriteBufferError>>()
+            })
+            .transpose()?;
+        let value_columns = value_columns
+            .map(|names| {
+                names
+                    .into_iter()
+                    .map(|name| {
+                        table_def
+                            .column_def_and_id(name.as_str())
+                            .map(|(id, def)| (id, Arc::clone(&def.name)))
+                            .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
+                    })
+                    .collect::<Result<Vec<_>, WriteBufferError>>()
+            })
+            .transpose()?;
 
         match self
             .write_buffer

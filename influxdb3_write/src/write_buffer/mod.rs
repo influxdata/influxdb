@@ -79,6 +79,9 @@ pub enum Error {
     #[error("tried accessing database and table that do not exist")]
     TableDoesNotExist,
 
+    #[error("tried accessing column with name ({0}) that does not exist")]
+    ColumnDoesNotExist(String),
+
     #[error(
         "updating catalog on delete of last cache failed, you will need to delete the cache \
         again on server restart"

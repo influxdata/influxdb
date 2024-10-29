@@ -260,6 +260,20 @@ pub struct FieldDefinition {
     pub data_type: FieldDataType,
 }
 
+impl FieldDefinition {
+    pub fn new(
+        id: ColumnId,
+        name: impl Into<Arc<str>>,
+        data_type: impl Into<FieldDataType>,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            data_type: data_type.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub enum FieldDataType {
     String,
@@ -323,6 +337,9 @@ pub struct LastCacheDefinition {
 
 impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
+    ///
+    /// This is intended for tests and expects that the column id for the time
+    /// column is included in the value columns argument.
     pub fn new_with_explicit_value_columns(
         table_id: TableId,
         table: impl Into<Arc<str>>,
@@ -346,6 +363,8 @@ impl LastCacheDefinition {
     }
 
     /// Create a new [`LastCacheDefinition`] with explicit value columns
+    ///
+    /// This is intended for tests.
     pub fn new_all_non_key_value_columns(
         table_id: TableId,
         table: impl Into<Arc<str>>,
@@ -541,6 +560,15 @@ pub struct Field {
     pub value: FieldData,
 }
 
+impl Field {
+    pub fn new(id: ColumnId, value: impl Into<FieldData>) -> Self {
+        Self {
+            id,
+            value: value.into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Row {
     pub time: i64,
@@ -593,6 +621,18 @@ impl<'a> From<FieldValue<'a>> for FieldData {
             FieldValue::F64(v) => Self::Float(v),
             FieldValue::String(v) => Self::String(v.to_string()),
             FieldValue::Boolean(v) => Self::Boolean(v),
+        }
+    }
+}
+
+impl<'a> From<&FieldValue<'a>> for FieldData {
+    fn from(value: &FieldValue<'a>) -> Self {
+        match value {
+            FieldValue::I64(v) => Self::Integer(*v),
+            FieldValue::U64(v) => Self::UInteger(*v),
+            FieldValue::F64(v) => Self::Float(*v),
+            FieldValue::String(v) => Self::String(v.to_string()),
+            FieldValue::Boolean(v) => Self::Boolean(*v),
         }
     }
 }

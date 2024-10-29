@@ -80,11 +80,11 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let (table_id, table_schema) = db_schema
-            .table_schema_and_id(table_name)
+        let (table_id, table_def) = db_schema
+            .table_definition_and_id(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
 
-        let arrow_schema = table_schema.as_arrow();
+        let influx_schema = table_def.influx_schema();
 
         let buffer = self.buffer.read();
 
@@ -96,20 +96,20 @@ impl QueryableBuffer {
         };
 
         Ok(table_buffer
-            .partitioned_record_batches(Arc::clone(&arrow_schema), filters)
+            .partitioned_record_batches(Arc::clone(&table_def), filters)
             .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?
             .into_iter()
             .map(|(gen_time, (ts_min_max, batches))| {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
-                    &table_schema,
+                    influx_schema,
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
                 Arc::new(BufferChunk {
                     batches,
-                    schema: table_schema.clone(),
+                    schema: influx_schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
                         data_types::TableId::new(0),
@@ -150,7 +150,11 @@ impl QueryableBuffer {
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
                 let db_schema = catalog.db_schema_by_id(*database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
-                    let snapshot_chunks = table_buffer.snapshot(snapshot_details.end_time_marker);
+                    let table_def = db_schema
+                        .table_definition_by_id(*table_id)
+                        .expect("table exists");
+                    let snapshot_chunks =
+                        table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
 
                     for chunk in snapshot_chunks {
                         let table_name =
@@ -411,18 +415,20 @@ impl BufferState {
 
         for (table_id, table_chunks) in write_batch.table_chunks {
             let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
-                let table_schema = db_schema
+                let table_def = db_schema
                     .table_definition_by_id(table_id)
                     .expect("table should exist");
-                let sort_key = table_schema
+                // TODO: can we have the primary key stored on the table definition (we already have
+                // the series key, so that doesn't seem like too much of a stretch).
+                let sort_key = table_def
                     .influx_schema()
                     .primary_key()
                     .iter()
                     .map(|c| c.to_string())
                     .collect::<Vec<_>>();
-                let index_columns = table_schema.index_columns();
+                let index_columns = table_def.index_column_ids();
 
-                TableBuffer::new(&index_columns, SortKey::from(sort_key))
+                TableBuffer::new(index_columns, SortKey::from(sort_key))
             });
             for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
                 table_buffer.buffer_chunk(chunk_time, chunk.rows);

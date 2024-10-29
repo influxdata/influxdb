@@ -2,14 +2,13 @@ use crate::catalog::ColumnDefinition;
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
-use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
 use influxdb3_id::SerdeVecHashMap;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
+use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
-use schema::{InfluxColumnType, SchemaBuilder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -219,33 +218,8 @@ impl From<&TableDefinition> for TableSnapshot {
                     )
                 })
                 .collect(),
-            last_caches: vec![],
+            last_caches: def.last_caches.values().map(Into::into).collect(),
         }
-        // let cols = def
-        //     .schema()
-        //     .iter()
-        //     .map(|(col_type, f)| {
-        //         (
-        //             f.name().as_str(),
-        //             ColumnDefinitionSnapshot {
-        //                 column_id: def.schema.name_to_id_unchecked(f.name().as_str().into()),
-        //                 r#type: f.data_type().into(),
-        //                 influx_type: col_type.into(),
-        //                 nullable: f.is_nullable(),
-        //             },
-        //         )
-        //     })
-        //     .collect();
-        // let keys = def.schema().series_key();
-        // let last_caches = def.last_caches.values().map(Into::into).collect();
-        // Self {
-        //     table_id: def.table_id,
-        //     table_name: def.table_name.as_ref(),
-        //     cols,
-        //     key: keys,
-        //     last_caches,
-        //     column_map: def.schema.column_map().clone(),
-        // }
     }
 }
 
@@ -299,51 +273,37 @@ impl From<&ArrowDataType> for DataType {
 }
 
 impl From<TableSnapshot> for TableDefinition {
-    fn from(mut snap: TableSnapshot) -> Self {
+    fn from(snap: TableSnapshot) -> Self {
         let table_id = snap.table_id;
-        let mut b = SchemaBuilder::new();
-        b.measurement(snap.table_name.as_ref());
-        if let Some(ref sk) = snap.key {
-            b.with_series_key(sk.iter().map(|k| {
-                snap.cols
-                    .get(k)
-                    .map(|def| Arc::clone(&def.name))
-                    .expect("valid column id in series key")
-            }));
-        }
-        let mut columns = HashMap::with_capacity(snap.cols.len());
-        let mut column_map = BiHashMap::with_capacity(snap.cols.len());
-        for (_, col) in snap.cols.drain() {
-            match col.influx_type {
-                InfluxType::Tag => {
-                    b.influx_column(col.name.as_ref(), schema::InfluxColumnType::Tag);
-                }
-                InfluxType::Field => {
-                    b.influx_field(col.name.as_ref(), InfluxFieldType::from(&col.r#type));
-                }
-                InfluxType::Time => {
-                    b.timestamp();
-                }
-            }
-            column_map.insert(col.id, Arc::clone(&col.name));
-            columns.insert(col.id, col.into());
-        }
-
-        let schema = b.build().expect("valid schema from snapshot");
-        let last_caches = snap
-            .last_caches
-            .into_iter()
-            .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
-            .collect();
-
-        Self {
-            table_name: snap.table_name,
+        let table_def = Self::new(
             table_id,
-            schema,
-            columns,
-            column_map,
-            last_caches,
-            series_key: snap.key,
+            snap.table_name,
+            snap.cols
+                .into_iter()
+                .map(|(id, def)| {
+                    (
+                        id,
+                        def.name,
+                        match def.influx_type {
+                            InfluxType::Tag => InfluxColumnType::Tag,
+                            InfluxType::Field => {
+                                InfluxColumnType::Field(InfluxFieldType::from(def.r#type))
+                            }
+                            InfluxType::Time => InfluxColumnType::Timestamp,
+                        },
+                    )
+                })
+                .collect(),
+            snap.key,
+        )
+        .expect("serialized catalog should be valid");
+        Self {
+            last_caches: snap
+                .last_caches
+                .into_iter()
+                .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
+                .collect(),
+            ..table_def
         }
     }
 }

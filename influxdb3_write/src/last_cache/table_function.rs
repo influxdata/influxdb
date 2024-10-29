@@ -51,6 +51,9 @@ impl TableProvider for LastCacheFunctionProvider {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        // TODO: need to use the catalog here and inject a fresh table def for the record batch
+        // production.. I think
+        todo!("pick up here");
         let read = self.provider.cache_map.read();
         let batches = if let Some(cache) = read
             .get(&self.db_id)

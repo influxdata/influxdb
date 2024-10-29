@@ -567,6 +567,17 @@ impl DatabaseSchema {
         Ok(new_db)
     }
 
+    /// Insert a [`TableDefinition`] to the `tables` map and also update the `table_map`
+    pub fn insert_table(
+        &mut self,
+        table_id: TableId,
+        table_def: Arc<TableDefinition>,
+    ) -> Option<Arc<TableDefinition>> {
+        self.table_map
+            .insert(table_id, Arc::clone(&table_def.table_name));
+        self.tables.insert(table_id, table_def)
+    }
+
     pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
         self.table_schema_and_id(table_name)
             .map(|(_, schema)| schema.clone())
@@ -833,9 +844,9 @@ impl TableDefinition {
         }
     }
 
-    /// Check if the column exists in the [`TableDefinition`]s schema
-    pub fn column_exists(&self, column: &str) -> bool {
-        self.influx_schema().find_index_of(column).is_some()
+    /// Check if the column exists in the [`TableDefinition`]
+    pub fn column_exists(&self, column: impl Into<Arc<str>>) -> bool {
+        self.column_map.get_by_right(&column.into()).is_some()
     }
 
     /// Add the columns to this [`TableDefinition`]
@@ -889,11 +900,11 @@ impl TableDefinition {
         Ok(())
     }
 
-    pub fn index_columns(&self) -> Vec<&str> {
-        self.influx_schema()
+    pub fn index_column_ids(&self) -> Vec<ColumnId> {
+        self.columns
             .iter()
-            .filter_map(|(col_type, field)| match col_type {
-                InfluxColumnType::Tag => Some(field.name().as_str()),
+            .filter_map(|(id, def)| match def.data_type {
+                InfluxColumnType::Tag => Some(*id),
                 InfluxColumnType::Field(_) | InfluxColumnType::Timestamp => None,
             })
             .collect()
@@ -907,8 +918,10 @@ impl TableDefinition {
         self.influx_schema().len()
     }
 
-    pub fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
-        self.influx_schema().field_type_by_name(name)
+    pub fn field_type_by_name(&self, name: impl Into<Arc<str>>) -> Option<InfluxColumnType> {
+        self.column_name_to_id(name)
+            .and_then(|id| self.columns.get(&id))
+            .map(|def| def.data_type)
     }
 
     pub fn is_v3(&self) -> bool {
@@ -932,27 +945,36 @@ impl TableDefinition {
             .map(|(name, def)| (Arc::clone(name), def))
     }
 
-    pub fn name_to_id(&self, name: impl Into<Arc<str>>) -> Option<ColumnId> {
+    pub fn column_name_to_id(&self, name: impl Into<Arc<str>>) -> Option<ColumnId> {
         self.column_map.get_by_right(&name.into()).copied()
     }
 
-    pub fn id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
+    pub fn column_id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
         self.column_map.get_by_left(&id).cloned()
     }
 
-    pub fn name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
+    pub fn column_name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
         *self
             .column_map
             .get_by_right(&name)
             .expect("Column exists in mapping")
     }
 
-    pub fn id_to_name_unchecked(&self, id: ColumnId) -> Arc<str> {
+    pub fn column_id_to_name_unchecked(&self, id: ColumnId) -> Arc<str> {
         Arc::clone(
             self.column_map
                 .get_by_left(&id)
                 .expect("Column exists in mapping"),
         )
+    }
+
+    pub fn column_def_and_id(
+        &self,
+        name: impl Into<Arc<str>>,
+    ) -> Option<(ColumnId, &ColumnDefinition)> {
+        self.column_map
+            .get_by_right(&name.into())
+            .and_then(|id| self.columns.get(id).map(|def| (*id, def)))
     }
 }
 
@@ -1124,8 +1146,7 @@ mod tests {
                                     {
                                         "table_id": 0,
                                         "table_name": "tbl1",
-                                        "cols": {},
-                                        "column_map": [],
+                                        "cols": [],
                                         "next_column_id": 0
                                     }
                                 ],
@@ -1134,8 +1155,7 @@ mod tests {
                                     {
                                         "table_id": 0,
                                         "table_name": "tbl1",
-                                        "cols": {},
-                                        "column_map": [],
+                                        "cols": [],
                                         "next_column_id": 0
                                     }
                                 ]
@@ -1166,27 +1186,28 @@ mod tests {
                                     {
                                         "table_id": 0,
                                         "table_name": "tbl1",
-                                        "cols": {
-                                            "col1": {
-                                                "column_id": 0,
-                                                "type": "i64",
-                                                "influx_type": "field",
-                                                "nullable": true
-                                            },
-                                            "col1": {
-                                                "column_id": 0,
-                                                "type": "u64",
-                                                "influx_type": "field",
-                                                "nullable": true
-                                            }
-                                        },
-                                        "column_map": [
-                                            {
-                                                "column_id": 0,
-                                                "name": "col1"
-                                            }
-                                        ],
-                                        "next_column_id": 1
+                                        "cols": [
+                                            [
+                                                0,
+                                                {
+                                                    "id": 0,
+                                                    "name": "col",
+                                                    "type": "i64",
+                                                    "influx_type": "field",
+                                                    "nullable": true
+                                                }
+                                            ],
+                                            [
+                                                0,
+                                                {
+                                                    "id": 0,
+                                                    "name": "col",
+                                                    "type": "u64",
+                                                    "influx_type": "field",
+                                                    "nullable": true
+                                                }
+                                            ]
+                                        ]
                                     }
                                 ]
                             ]
@@ -1195,7 +1216,7 @@ mod tests {
                 ]
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "found duplicate key");
+            assert_contains!(err.to_string(), "duplicate key found");
         }
     }
 
@@ -1227,7 +1248,7 @@ mod tests {
         let table = database.tables.get_mut(&TableId::from(0)).unwrap();
         println!("table: {table:#?}");
         assert_eq!(table.column_map.len(), 1);
-        assert_eq!(table.id_to_name_unchecked(0.into()), "test".into());
+        assert_eq!(table.column_id_to_name_unchecked(0.into()), "test".into());
 
         Arc::make_mut(table)
             .add_columns(vec![(
@@ -1245,7 +1266,7 @@ mod tests {
 
         println!("table: {table:#?}");
         assert_eq!(table.column_map.len(), 2);
-        assert_eq!(table.name_to_id_unchecked("test2".into()), 1.into());
+        assert_eq!(table.column_name_to_id_unchecked("test2".into()), 1.into());
     }
 
     #[test]
