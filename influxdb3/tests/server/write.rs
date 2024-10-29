@@ -3,7 +3,7 @@ use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use test_helpers::assert_contains;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn api_v3_write() {

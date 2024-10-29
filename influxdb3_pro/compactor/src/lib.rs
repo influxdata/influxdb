@@ -26,6 +26,7 @@ use futures_util::StreamExt;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_config::ProConfig;
 use influxdb3_id::ColumnId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
@@ -65,6 +66,7 @@ use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
 use tokio::sync::oneshot::error::RecvError;
+use tokio::sync::RwLock;
 
 pub mod planner;
 mod runner;
@@ -123,6 +125,7 @@ pub struct Compactor {
     object_store_url: ObjectStoreUrl,
     executor: Arc<Executor>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pro_config: Arc<RwLock<ProConfig>>,
 }
 
 impl Compactor {
@@ -132,6 +135,7 @@ impl Compactor {
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+        pro_config: Arc<RwLock<ProConfig>>,
     ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
         Ok(Self {
             compacted_data,
@@ -139,6 +143,7 @@ impl Compactor {
             object_store_url,
             executor,
             parquet_cache_prefetcher,
+            pro_config,
         })
     }
 
@@ -183,6 +188,7 @@ impl Compactor {
                         self.object_store_url.clone(),
                         Arc::clone(&self.executor),
                         self.parquet_cache_prefetcher.clone(),
+                        Arc::clone(&self.pro_config),
                     )
                     .await;
                     info!(?compaction_summary, "completed snapshot plan");
@@ -205,6 +211,7 @@ impl Compactor {
                         self.object_store_url.clone(),
                         Arc::clone(&self.executor),
                         self.parquet_cache_prefetcher.clone(),
+                        Arc::clone(&self.pro_config),
                     )
                     .await;
                     info!(?compaction_summary, "completed compaction plan group");

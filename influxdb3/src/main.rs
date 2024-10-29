@@ -26,6 +26,7 @@ use trogging::{
 
 mod commands {
     pub(crate) mod common;
+    pub mod configure;
     pub mod last_cache;
     pub mod query;
     pub mod serve;
@@ -91,6 +92,9 @@ enum Command {
 
     /// Manage last-n-value caches
     LastCache(commands::last_cache::Config),
+
+    /// Configure InfluxDB 3.0 while it is running
+    Configure(commands::configure::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -145,6 +149,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::LastCache(config)) => {
                 if let Err(e) = commands::last_cache::command(config).await {
                     eprintln!("Last Cache command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Configure(config)) => {
+                if let Err(e) = commands::configure::command(config).await {
+                    eprintln!("Configure command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

@@ -1,4 +1,4 @@
-use crate::TestServer;
+use crate::server::TestServer;
 use futures::StreamExt;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;

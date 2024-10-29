@@ -3,7 +3,7 @@
 members = [
     "influxdb3",
     "influxdb3_catalog",
-    "influxdb3_client",
+    "influxdb3_client", "influxdb3_config",
     "influxdb3_id",
     "influxdb3_load_generator",
     "influxdb3_pro/*",

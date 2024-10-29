@@ -2,7 +2,7 @@ use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use serde_json::json;
 
-use crate::{collect_stream, TestServer};
+use crate::server::{collect_stream, TestServer};
 
 #[tokio::test]
 async fn queries_table() {

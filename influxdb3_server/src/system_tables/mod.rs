@@ -1,5 +1,6 @@
 use std::{any::Any, collections::HashMap, ops::Deref, sync::Arc};
 
+use config::FileIndexTable;
 use datafusion::{
     catalog::SchemaProvider,
     datasource::TableProvider,
@@ -8,11 +9,13 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_config::ProConfig;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
 use parquet_files::ParquetFilesTable;
+use tokio::sync::RwLock;
 use tonic::async_trait;
 
 use crate::system_tables::compacted_data::CompactedDataTable;
@@ -20,6 +23,7 @@ use crate::system_tables::compacted_data::CompactedDataTable;
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 mod compacted_data;
+mod config;
 mod last_caches;
 mod parquet_files;
 mod queries;
@@ -31,6 +35,7 @@ pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const COMPACTED_DATA_TABLE_NAME: &str = "compacted_data";
+pub(crate) const FILE_INDEX_TABLE_NAME: &str = "file_index";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -53,6 +58,7 @@ impl SystemSchemaProvider {
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+        pro_config: Arc<RwLock<ProConfig>>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -64,6 +70,13 @@ impl SystemSchemaProvider {
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+        tables.insert(
+            FILE_INDEX_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
+                buffer.catalog(),
+                pro_config,
+            )))),
+        );
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
             buffer,

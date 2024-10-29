@@ -2714,6 +2714,7 @@ dependencies = [
  "hyper 0.14.31",
  "influxdb3_catalog",
  "influxdb3_client",
+ "influxdb3_config",
  "influxdb3_pro_buffer",
  "influxdb3_pro_clap_blocks",
  "influxdb3_pro_compactor",
@@ -2795,6 +2796,18 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "influxdb3_config"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "influxdb3_catalog",
+ "influxdb3_id",
+ "object_store",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2895,6 +2908,7 @@ dependencies = [
  "hashbrown 0.15.1",
  "humantime",
  "influxdb3_catalog",
+ "influxdb3_config",
  "influxdb3_id",
  "influxdb3_pro_buffer",
  "influxdb3_pro_data_layout",
@@ -3001,6 +3015,7 @@ dependencies = [
  "hyper 0.14.31",
  "influxdb-line-protocol",
  "influxdb3_catalog",
+ "influxdb3_config",
  "influxdb3_id",
  "influxdb3_pro_data_layout",
  "influxdb3_process",

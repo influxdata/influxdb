@@ -1,7 +1,8 @@
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 
-use crate::{ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer};
 
+mod file_index;
 mod replicas;
 
 /// Configuration for a [`TestServer`]

@@ -8,6 +8,7 @@ use crate::{
 use datafusion::execution::object_store::ObjectStoreUrl;
 use hashbrown::HashSet;
 use influxdb3_catalog::catalog::{Catalog, TableDefinition};
+use influxdb3_config::ProConfig;
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::persist::{
@@ -20,6 +21,7 @@ use influxdb3_pro_data_layout::{
 use iox_query::exec::Executor;
 use observability_deps::tracing::{debug, error, trace};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum CompactRunnerError {
@@ -42,6 +44,7 @@ pub(crate) async fn run_snapshot_plan(
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pro_config: Arc<RwLock<ProConfig>>,
 ) -> Result<CompactionSummary> {
     debug!(snapshot_advance_plan = ?snapshot_advance_plan, "Running snapshot plan");
     let compaction_sequence_number = compacted_data.next_compaction_sequence_number();
@@ -113,6 +116,7 @@ pub(crate) async fn run_snapshot_plan(
                 object_store_url.clone(),
                 Arc::clone(&exec),
                 parquet_cache_prefetcher.clone(),
+                Arc::clone(&pro_config),
             )
             .await?;
 
@@ -147,6 +151,7 @@ pub(crate) async fn run_compaction_plan_group(
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pro_config: Arc<RwLock<ProConfig>>,
 ) -> Result<CompactionSummary> {
     debug!(compaction_plan_group = ?compaction_plan_group, "Running compaction plan group");
 
@@ -213,6 +218,7 @@ pub(crate) async fn run_compaction_plan_group(
             object_store_url.clone(),
             Arc::clone(&exec),
             parquet_cache_prefetcher.clone(),
+            Arc::clone(&pro_config),
         )
         .await?;
 
@@ -249,6 +255,7 @@ async fn run_plan_and_write_detail(
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pro_config: Arc<RwLock<ProConfig>>,
 ) -> Result<CompactionDetailPath> {
     debug!(plan = ?plan, "Running compaction plan");
     let path = match plan {
@@ -258,7 +265,11 @@ async fn run_plan_and_write_detail(
                 .db_schema_by_id(&plan.db_id)
                 .expect("plan to have valid database id");
 
-            let index_columns = table_definition.index_column_ids();
+            let index_columns = pro_config
+                .read()
+                .await
+                .index_columns(plan.db_id, &table_definition)
+                .unwrap_or_else(|| table_definition.index_column_ids());
 
             // get the paths of all the files getting compacted
             let paths = compacted_data.paths_for_files_in_generations(
@@ -480,6 +491,7 @@ mod tests {
         let exec = Arc::new(Executor::new_testing());
         let catalog = Arc::new(Catalog::new("test-host".into(), "test-id".into()));
         let persisted_files = Arc::new(PersistedFiles::default());
+        let pro_config = Arc::new(RwLock::new(ProConfig::default()));
 
         register_current_runtime_for_io();
 
@@ -743,6 +755,7 @@ mod tests {
             persister.object_store_url().clone(),
             exec,
             parquet_cache_updater,
+            Arc::clone(&pro_config),
         )
         .await
         .unwrap();

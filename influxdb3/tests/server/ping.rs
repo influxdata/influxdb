@@ -1,7 +1,7 @@
 use hyper::Method;
 use serde_json::Value;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn test_ping() {

@@ -1,6 +1,6 @@
 use hyper::StatusCode;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn api_v3_configure_last_cache_create() {

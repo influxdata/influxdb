@@ -28,11 +28,13 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
+use influxdb3_config::ProConfig;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
+use object_store::ObjectStore;
 use observability_deps::tracing::error;
 use service::hybrid;
 use std::convert::Infallible;
@@ -40,6 +42,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace::ctx::SpanContext;
@@ -81,6 +84,8 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
+    pro_config: Arc<RwLock<ProConfig>>,
+    object_store: Arc<dyn ObjectStore>,
 }
 
 impl CommonServerState {
@@ -89,12 +94,16 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
+        pro_config: Arc<RwLock<ProConfig>>,
+        object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
             telemetry_store,
+            pro_config,
+            object_store,
         })
     }
 
@@ -235,6 +244,7 @@ mod tests {
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_config::ProConfig;
     use influxdb3_id::{DbId, TableId};
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
@@ -253,6 +263,7 @@ mod tests {
     use std::num::NonZeroUsize;
     use std::sync::Arc;
     use tokio::net::TcpListener;
+    use tokio::sync::RwLock;
     use tokio_util::sync::CancellationToken;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -795,11 +806,14 @@ mod tests {
         let sample_telem_store =
             TelemetryStore::new_without_background_runners(parquet_metrics_provider);
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+        let pro_config = Arc::new(RwLock::new(ProConfig::default()));
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
             None,
             trace_header_parser,
             Arc::clone(&sample_telem_store),
+            Arc::clone(&pro_config),
+            Arc::clone(&object_store),
         )
         .unwrap();
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
@@ -812,6 +826,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             compacted_data: None,
+            pro_config: Arc::clone(&pro_config),
         });
 
         // bind to port 0 will assign a random available port:

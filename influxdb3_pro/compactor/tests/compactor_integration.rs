@@ -6,6 +6,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures::FutureExt;
+use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::modes::read_write::ReadWriteArgs;
 use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
@@ -26,6 +27,7 @@ use parquet_file::storage::{ParquetStorage, StorageId};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 use crate::common::build_parquet_cache_prefetcher;
 
@@ -121,6 +123,7 @@ async fn two_writers_gen1_compaction() {
         writer1_persister.object_store_url().clone(),
         Arc::clone(&exec),
         parquet_cache_prefetcher,
+        Arc::new(RwLock::new(ProConfig::default())),
     )
     .await
     .unwrap();

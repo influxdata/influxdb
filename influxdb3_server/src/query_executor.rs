@@ -19,6 +19,7 @@ use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_config::ProConfig;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
@@ -41,6 +42,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
@@ -58,6 +60,7 @@ pub struct QueryExecutorImpl {
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    pro_config: Arc<RwLock<ProConfig>>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -72,6 +75,7 @@ pub struct CreateQueryExecutorArgs {
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
     pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    pub pro_config: Arc<RwLock<ProConfig>>,
 }
 
 impl QueryExecutorImpl {
@@ -86,6 +90,7 @@ impl QueryExecutorImpl {
             query_log_size,
             telemetry_store,
             compacted_data,
+            pro_config,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -107,6 +112,7 @@ impl QueryExecutorImpl {
             query_log,
             telemetry_store,
             compacted_data,
+            pro_config,
         }
     }
 }
@@ -336,6 +342,7 @@ impl QueryDatabase for QueryExecutorImpl {
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
             self.compacted_data.clone(),
+            Arc::clone(&self.pro_config),
         ))))
     }
 
@@ -369,12 +376,14 @@ impl Database {
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+        pro_config: Arc<RwLock<ProConfig>>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
             Arc::clone(&db_schema),
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
             compacted_data.clone(),
+            Arc::clone(&pro_config),
         ));
         Self {
             db_schema,
@@ -625,6 +634,7 @@ mod tests {
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
+    use tokio::sync::RwLock;
 
     use crate::{
         query_executor::QueryExecutorImpl,
@@ -734,6 +744,7 @@ mod tests {
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
+        let pro_config = Arc::new(RwLock::new(Default::default()));
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
@@ -744,6 +755,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store,
             compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
+            pro_config,
         });
 
         (write_buffer, query_executor, time_provider)

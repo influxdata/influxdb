@@ -4,7 +4,7 @@ use influxdb3_client::Precision;
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use serde_json::json;
 
-use crate::{pro::tmp_dir, ConfigProvider, TestServer};
+use crate::server::{pro::tmp_dir, ConfigProvider, TestServer};
 
 #[tokio::test]
 async fn two_primaries_one_replica() {

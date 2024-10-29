@@ -307,6 +307,36 @@ impl TestServer {
             .await
             .expect("failed to send request to delete last cache")
     }
+
+    pub async fn api_v3_configure_file_index_create(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .post(format!(
+                "{base}/api/v3/pro/configure/file_index",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to create file index")
+    }
+
+    pub async fn api_v3_configure_file_index_delete(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .delete(format!(
+                "{base}/api/v3/pro/configure/file_index",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to delete file index")
+    }
 }
 
 /// Get an available bind address on localhost

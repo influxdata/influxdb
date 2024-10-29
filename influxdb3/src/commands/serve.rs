@@ -11,6 +11,8 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
+use influxdb3_config::Config as ConfigTrait;
+use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
@@ -43,6 +45,7 @@ use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
@@ -59,6 +62,9 @@ pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 pub enum Error {
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+
+    #[error("Access of Object Store failed: {0}")]
+    ObjectStore(#[from] object_store::Error),
 
     #[error("Tracing config error: {0}")]
     TracingConfig(#[from] trace_exporters::Error),
@@ -566,11 +572,24 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await;
 
+    let pro_config = match ProConfig::load(&object_store).await {
+        Ok(config) => Arc::new(RwLock::new(config)),
+        // If the config is not found we should create it
+        Err(object_store::Error::NotFound { .. }) => {
+            let config = ProConfig::default();
+            config.persist(catalog.host_id(), &object_store).await?;
+            Arc::new(RwLock::new(ProConfig::default()))
+        }
+        Err(err) => return Err(err.into()),
+    };
+
     let common_state = CommonServerState::new(
         Arc::clone(&metrics),
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
+        Arc::clone(&pro_config),
+        Arc::clone(&object_store),
     )?;
 
     let sys_table_compacted_data: Option<Arc<dyn CompactedDataSystemTableView>> =
@@ -590,6 +609,7 @@ pub async fn command(config: Config) -> Result<()> {
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
         compacted_data: sys_table_compacted_data,
+        pro_config: Arc::clone(&pro_config),
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -631,6 +651,7 @@ pub async fn command(config: Config) -> Result<()> {
             persister.object_store_url().clone(),
             Arc::clone(&exec),
             parquet_cache_prefetcher,
+            pro_config,
         )
         .await
         .map_err(Error::Compactor)?;
