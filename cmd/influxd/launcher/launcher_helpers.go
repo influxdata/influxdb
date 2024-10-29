@@ -55,6 +55,8 @@ type TestLauncher struct {
 	Bucket *influxdb.Bucket
 	Auth   *influxdb.Authorization
 
+	Logger *zap.Logger
+
 	httpClient *httpc.Client
 	apiClient  *api.APIClient
 
@@ -146,7 +148,10 @@ func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ..
 	}
 
 	// Set up top-level logger to write into the test-case.
-	tl.Launcher.log = zaptest.NewLogger(tb, zaptest.Level(opts.LogLevel)).With(zap.String("test_name", tb.Name()))
+	if tl.Logger == nil {
+		tl.Logger = zaptest.NewLogger(tb, zaptest.Level(opts.LogLevel)).With(zap.String("test_name", tb.Name()))
+	}
+	tl.Launcher.log = tl.Logger
 	return tl.Launcher.run(ctx, opts)
 }
 
