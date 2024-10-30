@@ -69,7 +69,9 @@ func (i *importer) CreateDatabase(rp *meta.RetentionPolicySpec) error {
 		(rp.ReplicaN != nil && rpi.ReplicaN != *rp.ReplicaN) ||
 		(rpi.ShardGroupDuration != rp.ShardGroupDuration) ||
 		(rp.PastWriteLimit != nil && rpi.PastWriteLimit != *rp.PastWriteLimit) ||
-		(rp.FutureWriteLimit != nil && rpi.FutureWriteLimit != *rp.FutureWriteLimit))
+		(rp.FutureWriteLimit != nil && rpi.FutureWriteLimit != *rp.FutureWriteLimit) ||
+		(rp.FutureWriteLimit != nil && rpi.FutureWriteLimit != *rp.FutureWriteLimit) ||
+		(rp.PastWriteLimit != nil && rpi.PastWriteLimit != *rp.PastWriteLimit))
 	if nonmatchingRp {
 		return fmt.Errorf("retention policy %v already exists with different parameters", rp.Name)
 	} else {

@@ -29,6 +29,8 @@ type Command struct {
 	replication     int
 	duration        time.Duration
 	shardDuration   time.Duration
+	futureLimit     time.Duration
+	pastLimit       time.Duration
 	buildTSI        bool
 	replace         bool
 }
@@ -75,6 +77,13 @@ func (cmd *Command) Run(args []string) (err error) {
 	if cmd.replication > 0 {
 		rp.ReplicaN = &cmd.replication
 	}
+	if cmd.futureLimit > 0 {
+		rp.FutureWriteLimit = &cmd.futureLimit
+	}
+	if cmd.pastLimit > 0 {
+		rp.PastWriteLimit = &cmd.pastLimit
+	}
+
 	err = i.CreateDatabase(rp)
 	if err != nil {
 		return err

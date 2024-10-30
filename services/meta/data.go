@@ -270,10 +270,10 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	if rpu.ShardGroupDuration != nil {
 		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
-	if rpu.FutureWriteLimit != nil {
+	if rpu.FutureWriteLimit != nil && *rpu.FutureWriteLimit > 0 {
 		rpi.FutureWriteLimit = *rpu.FutureWriteLimit
 	}
-	if rpu.PastWriteLimit != nil {
+	if rpu.PastWriteLimit != nil && *rpu.PastWriteLimit > 0 {
 		rpi.PastWriteLimit = *rpu.PastWriteLimit
 	}
 
@@ -1144,10 +1144,10 @@ func (s *RetentionPolicySpec) marshal() *internal.RetentionPolicySpec {
 	if s.ReplicaN != nil {
 		pb.ReplicaN = proto.Uint32(uint32(*s.ReplicaN))
 	}
-	if s.FutureWriteLimit != nil {
+	if s.FutureWriteLimit != nil && *s.FutureWriteLimit > 0 {
 		pb.FutureWriteLimit = proto.Int64(int64(*s.FutureWriteLimit))
 	}
-	if s.PastWriteLimit != nil {
+	if s.PastWriteLimit != nil && *s.PastWriteLimit > 0 {
 		pb.PastWriteLimit = proto.Int64(int64(*s.PastWriteLimit))
 	}
 	return pb

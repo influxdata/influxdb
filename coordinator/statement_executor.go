@@ -226,7 +226,8 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 		Duration:           stmt.Duration,
 		ReplicaN:           stmt.Replication,
 		ShardGroupDuration: stmt.ShardGroupDuration,
-		// TODO(DSB): update FutureWriteLimit and PastWriteLimit
+		FutureWriteLimit:   stmt.FutureWriteLimit,
+		PastWriteLimit:     stmt.PastWriteLimit,
 	}
 
 	// Update the retention policy.
@@ -287,6 +288,8 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 		Duration:           stmt.RetentionPolicyDuration,
 		ReplicaN:           stmt.RetentionPolicyReplication,
 		ShardGroupDuration: stmt.RetentionPolicyShardGroupDuration,
+		FutureWriteLimit:   stmt.FutureWriteLimit,
+		PastWriteLimit:     stmt.PastWriteLimit,
 	}
 	_, err := e.MetaClient.CreateDatabaseWithRetentionPolicy(stmt.Name, &spec)
 	return err
@@ -304,6 +307,8 @@ func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql
 		Duration:           &stmt.Duration,
 		ReplicaN:           &stmt.Replication,
 		ShardGroupDuration: stmt.ShardGroupDuration,
+		FutureWriteLimit:   &stmt.FutureWriteLimit,
+		PastWriteLimit:     &stmt.PastWriteLimit,
 	}
 
 	// Create new retention policy.
