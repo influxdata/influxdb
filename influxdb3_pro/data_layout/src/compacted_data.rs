@@ -17,6 +17,7 @@ use influxdb3_pro_index::memory::FileIndex;
 use influxdb3_write::{ParquetFile, PersistedSnapshot};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use std::fmt::Debug;
@@ -123,8 +124,10 @@ impl CompactedData {
             }
         }
 
-        // notify any watchers (mostly the compactor loop)
-        self.snapshot_added_tx.send(()).unwrap();
+        // notify any watchers if there are any (mostly the compactor loop)
+        if let Err(e) = self.snapshot_added_tx.send(()) {
+            error!(error = %e, "error sending snapshot added notification");
+        }
     }
 
     pub fn last_snapshot_host(&self) -> Option<String> {
