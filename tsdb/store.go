@@ -511,7 +511,6 @@ func (s *Store) enableShards(wg *sync.WaitGroup, resC chan *shardResponse) error
 		}
 		s.databases[res.s.database].addIndexType(res.s.IndexType())
 	}
-	close(resC)
 
 	// Check if any databases are running multiple index types.
 	for db, state := range s.databases {

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"io"
 	"path/filepath"
 	"sync"
@@ -167,6 +168,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	if e.precreatorService != nil {
 		e.precreatorService.WithLogger(log)
 	}
+
+	sl := run.NewStartupProgressLogger(e.logger)
+	e.tsdbStore.WithStartupMetrics(sl)
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
