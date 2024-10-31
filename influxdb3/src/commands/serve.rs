@@ -430,6 +430,10 @@ pub async fn command(config: Config) -> Result<()> {
             "datafusion",
             tokio_datafusion_config
                 .builder()
+                .map(|mut builder| {
+                    builder.enable_all();
+                    builder
+                })
                 .map_err(Error::TokioRuntime)?,
             Arc::clone(&metrics),
         ),
