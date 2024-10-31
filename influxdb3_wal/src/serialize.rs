@@ -91,7 +91,7 @@ mod tests {
     use crate::{
         Field, FieldData, Row, TableChunk, TableChunks, WalFileSequenceNumber, WalOp, WriteBatch,
     };
-    use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
+    use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 
     #[test]
     fn test_serialize_deserialize() {
@@ -116,7 +116,7 @@ mod tests {
             chunk_time_to_chunk: [(1, chunk)].iter().cloned().collect(),
         };
         let table_id = TableId::from(2);
-        let mut table_chunks = SerdeVecHashMap::new();
+        let mut table_chunks = SerdeVecMap::new();
         table_chunks.insert(table_id, chunks);
 
         let contents = WalContents {

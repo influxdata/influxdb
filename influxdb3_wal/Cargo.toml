@@ -23,6 +23,7 @@ byteorder.workspace = true
 crc32fast.workspace  = true
 futures-util.workspace = true
 hashbrown.workspace = true
+indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 serde.workspace = true

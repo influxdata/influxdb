@@ -267,6 +267,7 @@ impl Error {
                 last_cache::Error::InvalidCacheSize
                 | last_cache::Error::CacheAlreadyExists { .. }
                 | last_cache::Error::ColumnDoesNotExistByName { .. }
+                | last_cache::Error::ColumnDoesNotExistById { .. }
                 | last_cache::Error::KeyColumnDoesNotExist { .. }
                 | last_cache::Error::KeyColumnDoesNotExistByName { .. }
                 | last_cache::Error::InvalidKeyColumn

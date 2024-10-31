@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 mod serialize;
-pub use serialize::SerdeVecHashMap;
+pub use serialize::SerdeVecMap;
 
 #[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DbId(u32);

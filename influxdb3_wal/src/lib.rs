@@ -11,7 +11,8 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
+use indexmap::IndexMap;
+use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -462,7 +463,7 @@ pub struct LastCacheDelete {
 pub struct WriteBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
-    pub table_chunks: SerdeVecHashMap<TableId, TableChunks>,
+    pub table_chunks: SerdeVecMap<TableId, TableChunks>,
     pub min_time_ns: i64,
     pub max_time_ns: i64,
 }
@@ -471,7 +472,7 @@ impl WriteBatch {
     pub fn new(
         database_id: DbId,
         database_name: Arc<str>,
-        table_chunks: HashMap<TableId, TableChunks>,
+        table_chunks: IndexMap<TableId, TableChunks>,
     ) -> Self {
         // find the min and max times across the table chunks
         let (min_time_ns, max_time_ns) = table_chunks.values().fold(
@@ -495,7 +496,7 @@ impl WriteBatch {
 
     pub fn add_write_batch(
         &mut self,
-        new_table_chunks: SerdeVecHashMap<TableId, TableChunks>,
+        new_table_chunks: SerdeVecMap<TableId, TableChunks>,
         min_time_ns: i64,
         max_time_ns: i64,
     ) {

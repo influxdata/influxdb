@@ -3,7 +3,7 @@ use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
 use influxdb3_id::ColumnId;
-use influxdb3_id::SerdeVecHashMap;
+use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::InfluxColumnType;
@@ -43,7 +43,7 @@ struct TableSnapshot {
     table_name: Arc<str>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     key: Option<Vec<ColumnId>>,
-    cols: SerdeVecHashMap<ColumnId, ColumnDefinitionSnapshot>,
+    cols: SerdeVecMap<ColumnId, ColumnDefinitionSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
 }

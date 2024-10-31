@@ -2,7 +2,7 @@ use std::{borrow::Cow, sync::Arc};
 
 use crate::{write_buffer::Result, Precision, WriteLineError};
 use data_types::{NamespaceName, Timestamp};
-use hashbrown::HashMap;
+use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
     influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
 };
@@ -687,7 +687,7 @@ impl WriteValidator<LinesParsed> {
         gen1_duration: Gen1Duration,
         precision: Precision,
     ) -> ValidatedLines {
-        let mut table_chunks = HashMap::new();
+        let mut table_chunks = IndexMap::new();
         let line_count = self.state.lines.len();
         let mut field_count = 0;
         let mut index_count = 0;
@@ -724,7 +724,7 @@ impl WriteValidator<LinesParsed> {
 
 fn convert_qualified_line(
     line: QualifiedLine,
-    table_chunk_map: &mut HashMap<TableId, TableChunks>,
+    table_chunk_map: &mut IndexMap<TableId, TableChunks>,
     ingest_time: Time,
     gen1_duration: Gen1Duration,
     precision: Precision,

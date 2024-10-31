@@ -19,6 +19,7 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 arrow.workspace = true
 bimap.workspace = true
 hashbrown.workspace = true
+indexmap.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true

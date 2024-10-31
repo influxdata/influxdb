@@ -613,6 +613,7 @@ mod tests {
         Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
     };
     use async_trait::async_trait;
+    use indexmap::IndexMap;
     use influxdb3_id::{ColumnId, DbId, TableId};
     use object_store::memory::InMemory;
     use std::any::Any;
@@ -642,7 +643,7 @@ mod tests {
         let op1 = WalOp::Write(WriteBatch {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
-            table_chunks: HashMap::from([(
+            table_chunks: IndexMap::from([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 1,
@@ -691,7 +692,7 @@ mod tests {
         let op2 = WalOp::Write(WriteBatch {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
-            table_chunks: HashMap::from([(
+            table_chunks: IndexMap::from([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 12,
@@ -732,7 +733,7 @@ mod tests {
             ops: vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
-                table_chunks: HashMap::from([(
+                table_chunks: IndexMap::from([(
                     TableId::from(0),
                     TableChunks {
                         min_time: 1,
@@ -803,7 +804,7 @@ mod tests {
             ops: vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
-                table_chunks: HashMap::from([(
+                table_chunks: IndexMap::from([(
                     TableId::from(0),
                     TableChunks {
                         min_time: 12,
@@ -876,7 +877,7 @@ mod tests {
         let op3 = WalOp::Write(WriteBatch {
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
-            table_chunks: HashMap::from([(
+            table_chunks: IndexMap::from([(
                 TableId::from(0),
                 TableChunks {
                     min_time: 26,
@@ -937,7 +938,7 @@ mod tests {
             ops: vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
-                table_chunks: HashMap::from([(
+                table_chunks: IndexMap::from([(
                     TableId::from(0),
                     TableChunks {
                         min_time: 26,

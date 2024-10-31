@@ -19,64 +19,62 @@ expression: catalog_json
           [
             0,
             {
-              "cols": {
-                "f1": {
-                  "column_id": 6,
-                  "influx_type": "field",
-                  "nullable": true,
-                  "type": "bool"
-                },
-                "f2": {
-                  "column_id": 10,
-                  "influx_type": "field",
-                  "nullable": true,
-                  "type": "i64"
-                },
-                "t1": {
-                  "column_id": 7,
-                  "influx_type": "tag",
-                  "nullable": true,
-                  "type": {
-                    "dict": [
-                      "i32",
-                      "str"
-                    ]
+              "cols": [
+                [
+                  1,
+                  {
+                    "id": 1,
+                    "influx_type": "field",
+                    "name": "f1",
+                    "nullable": true,
+                    "type": "bool"
                   }
-                },
-                "time": {
-                  "column_id": 8,
-                  "influx_type": "time",
-                  "nullable": false,
-                  "type": {
-                    "time": [
-                      "ns",
-                      null
-                    ]
+                ],
+                [
+                  3,
+                  {
+                    "id": 3,
+                    "influx_type": "field",
+                    "name": "f2",
+                    "nullable": true,
+                    "type": "i64"
                   }
-                }
-              },
-              "column_map": [
-                {
-                  "column_id": 6,
-                  "name": "f1"
-                },
-                {
-                  "column_id": 7,
-                  "name": "t1"
-                },
-                {
-                  "column_id": 8,
-                  "name": "time"
-                },
-                {
-                  "column_id": 10,
-                  "name": "f2"
-                }
+                ],
+                [
+                  0,
+                  {
+                    "id": 0,
+                    "influx_type": "tag",
+                    "name": "t1",
+                    "nullable": true,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    }
+                  }
+                ],
+                [
+                  2,
+                  {
+                    "id": 2,
+                    "influx_type": "time",
+                    "name": "time",
+                    "nullable": false,
+                    "type": {
+                      "time": [
+                        "ns",
+                        null
+                      ]
+                    }
+                  }
+                ]
               ],
               "last_caches": [
                 {
                   "keys": [
-                    "t1"
+                    0
                   ],
                   "n": 1,
                   "name": "cache",

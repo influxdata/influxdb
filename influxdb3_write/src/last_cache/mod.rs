@@ -4,15 +4,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use arrow::datatypes::SchemaRef;
+use arrow::array::new_null_array;
 use arrow::{
     array::{
-        new_null_array, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
-        Int64Builder, RecordBatch, StringBuilder, StringDictionaryBuilder,
-        TimestampNanosecondBuilder, UInt64Builder,
+        ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder, Int64Builder,
+        RecordBatch, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
+        UInt64Builder,
     },
     datatypes::{
-        DataType, Field as ArrowField, FieldRef, GenericStringType, Int32Type,
+        DataType, Field as ArrowField, GenericStringType, Int32Type,
         SchemaBuilder as ArrowSchemaBuilder, SchemaRef as ArrowSchemaRef,
     },
     error::ArrowError,
@@ -33,7 +33,7 @@ use influxdb3_wal::{
 use iox_time::Time;
 use observability_deps::tracing::debug;
 use parking_lot::RwLock;
-use schema::{InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
+use schema::{InfluxColumnType, InfluxFieldType, TIME_COLUMN_NAME};
 
 mod table_function;
 pub use table_function::LastCacheFunction;
@@ -46,6 +46,8 @@ pub enum Error {
     CacheAlreadyExists { reason: String },
     #[error("specified column (name: {column_name}) does not exist in the table definition")]
     ColumnDoesNotExistByName { column_name: String },
+    #[error("specified column (id: {column_id}) does not exist in the table definition")]
+    ColumnDoesNotExistById { column_id: ColumnId },
     #[error("specified key column (id: {column_id}) does not exist in the table schema")]
     KeyColumnDoesNotExist { column_id: ColumnId },
     #[error("specified key column (name: {column_name}) does not exist in the table schema")]
@@ -188,11 +190,11 @@ impl LastCacheProvider {
                 if let Some(cache_name) = cache_name {
                     table
                         .get_key_value(cache_name)
-                        .map(|(name, lc)| (Arc::clone(name), Arc::clone(&lc.schema)))
+                        .map(|(name, lc)| (Arc::clone(name), lc.arrow_schema()))
                 } else if table.len() == 1 {
                     table
                         .iter()
-                        .map(|(name, lc)| (Arc::clone(name), Arc::clone(&lc.schema)))
+                        .map(|(name, lc)| (Arc::clone(name), lc.arrow_schema()))
                         .next()
                 } else {
                     None
@@ -295,24 +297,30 @@ impl LastCacheProvider {
             .into()
         });
 
-        let accept_new_fields = value_columns.is_none();
-        let last_cache_value_columns_def = match &value_columns {
-            None => LastCacheValueColumnsDef::AllNonKeyColumns,
-            Some(cols) => LastCacheValueColumnsDef::Explicit {
-                columns: cols.iter().map(|(id, _)| *id).collect(),
-            },
+        let (value_columns, schema) = match value_columns {
+            Some(cols) => {
+                let ids = cols
+                    .into_iter()
+                    .map(|(id, _)| id)
+                    .collect::<Vec<ColumnId>>();
+                let (schema, _) = last_cache_schema_from_table_def(
+                    Arc::clone(&table_def),
+                    key_columns.iter().map(|(id, _)| *id).collect(),
+                    Some(ids.as_slice()),
+                );
+                (ValueColumnType::Explicit { columns: ids }, schema)
+            }
+            None => {
+                let (schema, seen) = last_cache_schema_from_table_def(
+                    Arc::clone(&table_def),
+                    key_columns.iter().map(|(id, _)| *id).collect(),
+                    None,
+                );
+                (ValueColumnType::AcceptNew { seen }, schema)
+            }
         };
 
-        let cache_schema = self.last_cache_schema_from_schema(
-            &table_def.schema,
-            key_columns
-                .iter()
-                .map(|(_, name)| Arc::clone(name))
-                .collect(),
-            value_columns
-                .as_ref()
-                .map(|cols| cols.iter().map(|(_, name)| Arc::clone(name)).collect()),
-        );
+        let last_cache_value_columns_def = LastCacheValueColumnsDef::from(&value_columns);
 
         let series_key = table_def.series_key.as_deref();
 
@@ -326,10 +334,9 @@ impl LastCacheProvider {
             count,
             ttl,
             key_columns.clone(),
-            value_columns.clone(),
-            cache_schema,
+            value_columns,
+            schema,
             series_key,
-            accept_new_fields,
         );
 
         // Check to see if there is already a cache for the same database/table/cache name, and with
@@ -363,49 +370,6 @@ impl LastCacheProvider {
         }))
     }
 
-    fn last_cache_schema_from_schema(
-        &self,
-        schema: &Schema,
-        key_columns: Vec<Arc<str>>,
-        value_columns: Option<Vec<Arc<str>>>,
-    ) -> SchemaRef {
-        let mut schema_builder = ArrowSchemaBuilder::new();
-        // Add key columns first:
-        for (t, field) in schema
-            .iter()
-            .filter(|&(_, f)| key_columns.contains(&Arc::<str>::from(f.name().as_str())))
-        {
-            if let InfluxColumnType::Tag = t {
-                // override tags with string type in the schema, because the KeyValue type stores
-                // them as strings, and produces them as StringArray when creating RecordBatches:
-                schema_builder.push(ArrowField::new(field.name(), DataType::Utf8, false))
-            } else {
-                schema_builder.push(field.clone());
-            };
-        }
-        // Add value columns second:
-        match value_columns {
-            Some(cols) => {
-                for (_, field) in schema.iter().filter(|&(_, f)| {
-                    cols.contains(&Arc::<str>::from(f.name().as_str()))
-                        || f.name() == TIME_COLUMN_NAME
-                }) {
-                    schema_builder.push(field.clone());
-                }
-            }
-            None => {
-                for (_, field) in schema
-                    .iter()
-                    .filter(|&(_, f)| !key_columns.contains(&Arc::<str>::from(f.name().as_str())))
-                {
-                    schema_builder.push(field.clone());
-                }
-            }
-        }
-
-        Arc::new(schema_builder.finish())
-    }
-
     pub fn create_cache_from_definition(
         &self,
         db_id: DbId,
@@ -422,35 +386,30 @@ impl LastCacheProvider {
                     .expect("a valid column id for key column")
             })
             .collect::<Vec<(ColumnId, Arc<str>)>>();
-        let value_columns = match &definition.value_columns {
-            LastCacheValueColumnsDef::AllNonKeyColumns => None,
-            LastCacheValueColumnsDef::Explicit { columns } => Some(
-                columns
-                    .iter()
-                    .map(|id| {
-                        (
-                            *id,
-                            table_def
-                                .column_id_to_name(*id)
-                                .expect("a valid column id for value column"),
-                        )
-                    })
-                    .collect::<Vec<(ColumnId, Arc<str>)>>(),
-            ),
+        let (value_columns, schema) = match &definition.value_columns {
+            LastCacheValueColumnsDef::AllNonKeyColumns => {
+                let (schema, seen) = last_cache_schema_from_table_def(
+                    Arc::clone(&table_def),
+                    key_columns.iter().map(|(id, _)| *id).collect(),
+                    None,
+                );
+                (ValueColumnType::AcceptNew { seen }, schema)
+            }
+            LastCacheValueColumnsDef::Explicit { columns } => {
+                let (schema, _) = last_cache_schema_from_table_def(
+                    Arc::clone(&table_def),
+                    key_columns.iter().map(|(id, _)| *id).collect(),
+                    Some(columns.as_slice()),
+                );
+                (
+                    ValueColumnType::Explicit {
+                        columns: columns.to_vec(),
+                    },
+                    schema,
+                )
+            }
         };
-        let accept_new_fields = value_columns.is_none();
         let series_key = table_def.series_key.as_deref();
-
-        let schema = self.last_cache_schema_from_schema(
-            &table_def.schema,
-            key_columns
-                .iter()
-                .map(|(_, name)| Arc::clone(name))
-                .collect(),
-            value_columns
-                .as_ref()
-                .map(|cols| cols.iter().map(|(_, name)| name).cloned().collect()),
-        );
 
         let last_cache = LastCache::new(
             definition.count,
@@ -459,7 +418,6 @@ impl LastCacheProvider {
             value_columns,
             schema,
             series_key,
-            accept_new_fields,
         );
 
         let mut lock = self.cache_map.write();
@@ -567,6 +525,11 @@ impl LastCacheProvider {
         predicates: &[Predicate],
     ) -> Option<Result<Vec<RecordBatch>, ArrowError>> {
         use observability_deps::tracing::debug;
+        let table_def = self
+            .catalog
+            .db_schema_by_id(db_id)
+            .and_then(|db| db.table_definition_by_id(table_id))
+            .expect("valid db and table ids to get table definition");
 
         self.cache_map
             .read()
@@ -586,7 +549,7 @@ impl LastCacheProvider {
                     None
                 }
             })
-            .map(|lc| lc.to_record_batches(predicates))
+            .map(|lc| lc.to_record_batches(table_def, predicates))
     }
 
     /// Returns the total number of caches contained in the provider
@@ -598,6 +561,60 @@ impl LastCacheProvider {
             .flat_map(|(_, db)| db.iter().flat_map(|(_, table)| table.iter()))
             .count()
     }
+}
+
+fn last_cache_schema_from_table_def(
+    table_def: Arc<TableDefinition>,
+    key_columns: Vec<ColumnId>,
+    value_columns: Option<&[ColumnId]>,
+) -> (ArrowSchemaRef, HashSet<ColumnId>) {
+    let mut seen = HashSet::new();
+    let mut schema_builder = ArrowSchemaBuilder::new();
+    // Add key columns first, because of how the cache produces records, they should appear first
+    // in the schema, it is important that they go in order:
+    for id in &key_columns {
+        let def = table_def.columns.get(id).expect("valid key column");
+        seen.insert(*id);
+        if let InfluxColumnType::Tag = def.data_type {
+            // override tags with string type in the schema, because the KeyValue type stores
+            // them as strings, and produces them as StringArray when creating RecordBatches:
+            schema_builder.push(ArrowField::new(def.name.as_ref(), DataType::Utf8, false))
+        } else {
+            schema_builder.push(ArrowField::new(
+                def.name.as_ref(),
+                DataType::from(&def.data_type),
+                false,
+            ));
+        };
+    }
+    // Add value columns second:
+    if let Some(value_columns) = value_columns {
+        for (id, def) in table_def.columns.iter().filter(|(id, def)| {
+            value_columns.contains(id) || matches!(def.data_type, InfluxColumnType::Timestamp)
+        }) {
+            seen.insert(*id);
+            schema_builder.push(ArrowField::new(
+                def.name.as_ref(),
+                DataType::from(&def.data_type),
+                true,
+            ));
+        }
+    } else {
+        for (id, def) in table_def
+            .columns
+            .iter()
+            .filter(|(id, _)| !key_columns.contains(id))
+        {
+            seen.insert(*id);
+            schema_builder.push(ArrowField::new(
+                def.name.as_ref(),
+                DataType::from(&def.data_type),
+                true,
+            ));
+        }
+    }
+
+    (Arc::new(schema_builder.finish()), seen)
 }
 
 /// A Last-N-Values Cache
@@ -624,12 +641,10 @@ pub(crate) struct LastCache {
     pub(crate) key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
     /// The key columns for this cache, by their names
     pub(crate) key_column_name_to_ids: Arc<HashMap<Arc<str>, ColumnId>>,
-    /// The value column IDs for this cache, if they were set explicitly
-    pub(crate) value_columns: Option<Vec<ColumnId>>,
+    /// The value columns for this cache
+    pub(crate) value_columns: ValueColumnType,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
-    /// Whether or not this cache accepts newly written fields
-    pub(crate) accept_new_fields: bool,
     /// Optionally store the series key for tables that use it for ensuring non-nullability in the
     /// column buffer for series key columns
     ///
@@ -640,16 +655,32 @@ pub(crate) struct LastCache {
     state: LastCacheState,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum ValueColumnType {
+    AcceptNew { seen: HashSet<ColumnId> },
+    Explicit { columns: Vec<ColumnId> },
+}
+
+impl From<&ValueColumnType> for LastCacheValueColumnsDef {
+    fn from(t: &ValueColumnType) -> Self {
+        match t {
+            ValueColumnType::AcceptNew { .. } => Self::AllNonKeyColumns,
+            ValueColumnType::Explicit { columns } => Self::Explicit {
+                columns: columns.to_vec(),
+            },
+        }
+    }
+}
+
 impl LastCache {
     /// Create a new [`LastCache`]
     fn new(
         count: LastCacheSize,
         ttl: Duration,
         key_columns: Vec<(ColumnId, Arc<str>)>,
-        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        value_columns: ValueColumnType,
         schema: ArrowSchemaRef,
         series_key: Option<&[ColumnId]>,
-        accept_new_fields: bool,
     ) -> Self {
         let mut key_column_ids = IndexMap::new();
         let mut key_column_name_to_ids = HashMap::new();
@@ -657,16 +688,14 @@ impl LastCache {
             key_column_ids.insert(id, Arc::clone(&name));
             key_column_name_to_ids.insert(name, id);
         }
-        let value_columns = value_columns.map(|cols| cols.into_iter().map(|(id, _)| id).collect());
         Self {
             count,
             ttl,
             key_column_id_to_names: Arc::new(key_column_ids),
             key_column_name_to_ids: Arc::new(key_column_name_to_ids),
             value_columns,
-            series_key: series_key.map(|sk| sk.iter().copied().collect()),
-            accept_new_fields,
             schema,
+            series_key: series_key.map(|sk| sk.iter().copied().collect()),
             state: LastCacheState::Init,
         }
     }
@@ -684,16 +713,9 @@ impl LastCache {
         if self.key_column_id_to_names != other.key_column_id_to_names {
             return Err(Error::cache_already_exists("key columns are not the same"));
         }
-        if self.accept_new_fields != other.accept_new_fields {
-            return Err(Error::cache_already_exists(if self.accept_new_fields {
-                "new configuration does not accept new fields"
-            } else {
-                "new configuration accepts new fields while the existing does not"
-            }));
-        }
-        if !self.schema.contains(&other.schema) {
+        if self.value_columns != other.value_columns {
             return Err(Error::cache_already_exists(
-                "the schema from specified value columns do not align",
+                "provided value columns are not the same",
             ));
         }
         if self.series_key != other.series_key {
@@ -702,6 +724,21 @@ impl LastCache {
             ));
         }
         Ok(())
+    }
+
+    fn arrow_schema(&self) -> ArrowSchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    fn accept_new_fields(&self) -> bool {
+        matches!(self.value_columns, ValueColumnType::AcceptNew { .. })
+    }
+
+    fn has_new_columns(&self, row: &Row) -> bool {
+        match &self.value_columns {
+            ValueColumnType::AcceptNew { seen } => row.fields.iter().any(|f| !seen.contains(&f.id)),
+            ValueColumnType::Explicit { .. } => false,
+        }
     }
 
     /// Push a [`Row`] from the write buffer into the cache
@@ -713,6 +750,7 @@ impl LastCache {
     /// This will panic if the internal cache state's keys are out-of-order with respect to the
     /// order of the `key_columns` on this [`LastCache`]
     pub(crate) fn push(&mut self, row: &Row, table_def: Arc<TableDefinition>) {
+        let accept_new_fields = self.accept_new_fields();
         let mut target = &mut self.state;
         let mut key_iter = self.key_column_id_to_names.iter().peekable();
         while let (Some((col_id, col_name)), peek) = (key_iter.next(), key_iter.peek()) {
@@ -745,12 +783,14 @@ impl LastCache {
                         value_map: Default::default(),
                     })
                 } else {
+                    debug!(?table_def, "initializing cache store");
                     LastCacheState::Store(LastCacheStore::new(
                         self.count.into(),
                         self.ttl,
                         Arc::clone(&table_def),
                         Arc::clone(&self.key_column_id_to_names),
                         self.series_key.as_ref(),
+                        accept_new_fields,
                     ))
                 }
             });
@@ -763,34 +803,33 @@ impl LastCache {
                 Arc::clone(&table_def),
                 Arc::clone(&self.key_column_id_to_names),
                 self.series_key.as_ref(),
+                accept_new_fields,
             ));
         }
         let store = target.as_store_mut().expect(
             "cache target should be the actual store after iterating through all key columns",
         );
-        let Some(new_columns) = store.push(row, self.accept_new_fields) else {
-            // Unless new columns were added, and we need to update the schema, we are done.
-            return;
-        };
-        debug!(?new_columns, "new columns added to cache");
-
-        let mut sb = ArrowSchemaBuilder::new();
-        for f in self.schema.fields().iter() {
-            sb.push(Arc::clone(f));
+        store.push(row);
+        if self.has_new_columns(row) {
+            let (schema, seen) = last_cache_schema_from_table_def(
+                table_def,
+                self.key_column_id_to_names
+                    .iter()
+                    .map(|(id, _)| *id)
+                    .collect(),
+                None,
+            );
+            self.schema = schema;
+            self.value_columns = ValueColumnType::AcceptNew { seen };
         }
-        for (id, data_type) in new_columns {
-            let col_name = table_def
-                .column_id_to_name(id)
-                .expect("valid column id for new field added to last cache");
-            let field = Arc::new(ArrowField::new(col_name.as_ref(), data_type, true));
-            sb.try_merge(&field).expect("buffer should have validated incoming writes to prevent against data type conflicts");
-        }
-        let new_schema = Arc::new(sb.finish());
-        self.schema = new_schema;
     }
 
     /// Produce a set of [`RecordBatch`]es from the cache, using the given set of [`Predicate`]s
-    fn to_record_batches(&self, predicates: &[Predicate]) -> Result<Vec<RecordBatch>, ArrowError> {
+    fn to_record_batches(
+        &self,
+        table_def: Arc<TableDefinition>,
+        predicates: &[Predicate],
+    ) -> Result<Vec<RecordBatch>, ArrowError> {
         debug!(?predicates, "converting last cache to record batches");
         // map the provided predicates on to the key columns
         // there may not be predicates provided for each key column, hence the Option
@@ -854,7 +893,7 @@ impl LastCache {
 
         caches
             .into_iter()
-            .map(|c| c.to_record_batch(&self.schema))
+            .map(|c| c.to_record_batch(Arc::clone(&table_def), Arc::clone(&self.schema)))
             .collect()
     }
 
@@ -948,27 +987,11 @@ impl LastCache {
             name: name.into(),
             key_columns: self.key_column_id_to_names.keys().copied().collect(),
             value_columns: match &self.value_columns {
-                Some(cols) => LastCacheValueColumnsDef::Explicit {
-                    columns: cols.to_vec(),
+                ValueColumnType::AcceptNew { .. } => LastCacheValueColumnsDef::AllNonKeyColumns,
+                ValueColumnType::Explicit { columns, .. } => LastCacheValueColumnsDef::Explicit {
+                    columns: columns.to_vec(),
                 },
-                None => LastCacheValueColumnsDef::AllNonKeyColumns,
             },
-            // value_columns: if self.accept_new_fields {
-            //     LastCacheValueColumnsDef::AllNonKeyColumns
-            // } else {
-            //     LastCacheValueColumnsDef::Explicit {
-            //         columns: self
-            //             .schema
-            //             .fields()
-            //             .iter()
-            //             .filter_map(|f| {
-            //                 self.key_column_name_to_ids
-            //                     .get(&Arc::<str>::from(f.name().as_str()))
-            //                     .copied()
-            //             })
-            //             .collect(),
-            //     }
-            // },
             count: self.count,
             ttl: self.ttl.as_secs(),
         }
@@ -994,56 +1017,56 @@ impl<'a> ExtendedLastCacheState<'a> {
     /// # Panics
     ///
     /// This assumes that the `state` is a [`LastCacheStore`] and will panic otherwise.
-    fn to_record_batch(&self, output_schema: &ArrowSchemaRef) -> Result<RecordBatch, ArrowError> {
+    fn to_record_batch(
+        &self,
+        table_def: Arc<TableDefinition>,
+        schema: ArrowSchemaRef,
+    ) -> Result<RecordBatch, ArrowError> {
         let store = self
             .state
             .as_store()
             .expect("should only be calling to_record_batch when using a store");
         let n = store.len();
-        let extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)> = if self.additional_columns.is_empty()
-        {
+        let extended: Option<Vec<ArrayRef>> = if self.additional_columns.is_empty() {
             None
         } else {
             Some(
                 self.additional_columns
                     .iter()
-                    .map(|(_id, name, value)| {
-                        let field = Arc::new(value.as_arrow_field(name.as_ref()));
-                        match value {
-                            KeyValue::String(v) => {
-                                let mut builder = StringBuilder::new();
-                                for _ in 0..n {
-                                    builder.append_value(v);
-                                }
-                                (field, Arc::new(builder.finish()) as ArrayRef)
+                    .map(|(_id, _name, value)| match value {
+                        KeyValue::String(v) => {
+                            let mut builder = StringBuilder::new();
+                            for _ in 0..n {
+                                builder.append_value(v);
                             }
-                            KeyValue::Int(v) => {
-                                let mut builder = Int64Builder::new();
-                                for _ in 0..n {
-                                    builder.append_value(*v);
-                                }
-                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            Arc::new(builder.finish()) as ArrayRef
+                        }
+                        KeyValue::Int(v) => {
+                            let mut builder = Int64Builder::new();
+                            for _ in 0..n {
+                                builder.append_value(*v);
                             }
-                            KeyValue::UInt(v) => {
-                                let mut builder = UInt64Builder::new();
-                                for _ in 0..n {
-                                    builder.append_value(*v);
-                                }
-                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            Arc::new(builder.finish()) as ArrayRef
+                        }
+                        KeyValue::UInt(v) => {
+                            let mut builder = UInt64Builder::new();
+                            for _ in 0..n {
+                                builder.append_value(*v);
                             }
-                            KeyValue::Bool(v) => {
-                                let mut builder = BooleanBuilder::new();
-                                for _ in 0..n {
-                                    builder.append_value(*v);
-                                }
-                                (field, Arc::new(builder.finish()) as ArrayRef)
+                            Arc::new(builder.finish()) as ArrayRef
+                        }
+                        KeyValue::Bool(v) => {
+                            let mut builder = BooleanBuilder::new();
+                            for _ in 0..n {
+                                builder.append_value(*v);
                             }
+                            Arc::new(builder.finish()) as ArrayRef
                         }
                     })
                     .collect(),
             )
         };
-        store.to_record_batch(output_schema, extended)
+        store.to_record_batch(table_def, schema, extended)
     }
 }
 
@@ -1231,18 +1254,6 @@ impl KeyValue {
     }
 }
 
-impl KeyValue {
-    /// Get the corresponding arrow field definition for this [`KeyValue`]
-    fn as_arrow_field(&self, name: impl Into<String>) -> ArrowField {
-        match self {
-            KeyValue::String(_) => ArrowField::new(name, DataType::Utf8, false),
-            KeyValue::Int(_) => ArrowField::new(name, DataType::Int64, false),
-            KeyValue::UInt(_) => ArrowField::new(name, DataType::UInt64, false),
-            KeyValue::Bool(_) => ArrowField::new(name, DataType::Boolean, false),
-        }
-    }
-}
-
 impl From<&FieldData> for KeyValue {
     fn from(field: &FieldData) -> Self {
         match field {
@@ -1269,10 +1280,11 @@ struct LastCacheStore {
     ///
     /// [perf]: https://github.com/indexmap-rs/indexmap?tab=readme-ov-file#performance
     cache: IndexMap<ColumnId, CacheColumn>,
-    /// A reference to the key column id lookup for the cache
+    /// A reference to the key column id lookup for the cache. This is within an `Arc` because it is
+    /// shared with the parent `LastCache`.
     key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
-    /// A reference to the column name map for the parent cache
-    table_def: Arc<TableDefinition>,
+    /// Whether or not this store accepts new fields when they are added to the cached table
+    accept_new_fields: bool,
     /// A ring buffer holding the instants at which entries in the cache were inserted
     ///
     /// This is used to evict cache values that outlive the `ttl`
@@ -1295,6 +1307,7 @@ impl LastCacheStore {
         table_def: Arc<TableDefinition>,
         key_column_id_to_names: Arc<IndexMap<ColumnId, Arc<str>>>,
         series_keys: Option<&HashSet<ColumnId>>,
+        accept_new_fields: bool,
     ) -> Self {
         let cache = table_def
             .columns
@@ -1304,7 +1317,7 @@ impl LastCacheStore {
                 (
                     *col_id,
                     CacheColumn::new(
-                        &col_def.data_type,
+                        col_def.data_type,
                         count,
                         series_keys.is_some_and(|sk| sk.contains(col_id)),
                     ),
@@ -1314,11 +1327,11 @@ impl LastCacheStore {
         Self {
             cache,
             key_column_id_to_names,
-            table_def,
             instants: VecDeque::with_capacity(count),
             count,
             ttl,
             last_time: Time::from_timestamp_nanos(0),
+            accept_new_fields,
         }
     }
 
@@ -1336,13 +1349,12 @@ impl LastCacheStore {
     ///
     /// If new fields were added to the [`LastCacheStore`] by this push, the return will be a
     /// list of those field's name and arrow [`DataType`], and `None` otherwise.
-    fn push(&mut self, row: &Row, accept_new_fields: bool) -> Option<Vec<(ColumnId, DataType)>> {
+    fn push(&mut self, row: &Row) {
         if row.time <= self.last_time.timestamp_nanos() {
-            return None;
+            return;
         }
-        let mut result = None;
         let mut seen = HashSet::<ColumnId>::new();
-        if accept_new_fields {
+        if self.accept_new_fields {
             // Check the length before any rows are added to ensure that the correct amount
             // of nulls are back-filled when new fields/columns are added:
             let starting_cache_size = self.len();
@@ -1356,20 +1368,14 @@ impl LastCacheStore {
                     debug!(?field, "adding field");
                     // In this case, there is not an entry for the field in the cache, so if the
                     // value is not one of the key columns, then it is a new field being added.
-                    let data_type = data_type_from_buffer_field(field);
-                    let col = self
-                        .cache
-                        .entry(field.id)
-                        .or_insert_with(|| CacheColumn::new(&data_type, self.count, false));
+                    let col = self.cache.entry(field.id).or_insert_with(|| {
+                        CacheColumn::new(data_type_from_buffer_field(field), self.count, false)
+                    });
                     // Back-fill the new cache entry with nulls, then push the new value:
                     for _ in 0..starting_cache_size {
                         col.push_null();
                     }
                     col.push(&field.value);
-                    // Add the new field to the list of new columns returned:
-                    result
-                        .get_or_insert_with(Vec::new)
-                        .push((field.id, DataType::from(&data_type)));
                 } else {
                     debug!(?field, "not adding field");
                 }
@@ -1396,7 +1402,6 @@ impl LastCacheStore {
         }
         self.instants.push_front(Instant::now());
         self.last_time = Time::from_timestamp_nanos(row.time);
-        result
     }
 
     /// Convert the contents of this cache into a arrow [`RecordBatch`]
@@ -1407,48 +1412,33 @@ impl LastCacheStore {
     /// for the cache.
     fn to_record_batch(
         &self,
-        output_schema: &ArrowSchemaRef,
-        extended: Option<(Vec<FieldRef>, Vec<ArrayRef>)>,
+        table_def: Arc<TableDefinition>,
+        schema: ArrowSchemaRef,
+        extended: Option<Vec<ArrayRef>>,
     ) -> Result<RecordBatch, ArrowError> {
-        let (fields, mut arrays): (Vec<FieldRef>, Vec<ArrayRef>) = output_schema
-            .fields()
-            .iter()
-            .cloned()
-            .filter_map(|f| {
-                let Some(col_id) = self
-                    .table_def
-                    .column_name_to_id(Arc::<str>::from(f.name().as_str()))
-                else {
-                    return Some(Err(ArrowError::from_external_error(Box::new(
-                        Error::ColumnDoesNotExistByName {
-                            column_name: f.name().to_string(),
-                        },
-                    ))));
-                };
-                if let Some(c) = self.cache.get(&col_id) {
-                    Some(Ok((f, c.data.as_array())))
-                } else if self.key_column_id_to_names.contains_key(&col_id) {
-                    // We prepend key columns with the extended set provided
-                    None
-                } else {
-                    Some(Ok((
-                        Arc::clone(&f),
-                        new_null_array(f.data_type(), self.len()),
-                    )))
+        let mut arrays = extended.unwrap_or_default();
+        if self.accept_new_fields {
+            for field in schema.fields().iter() {
+                let id = table_def
+                    .column_name_to_id(field.name().as_str())
+                    .ok_or_else(|| {
+                        ArrowError::from_external_error(Box::new(Error::ColumnDoesNotExistByName {
+                            column_name: field.name().to_string(),
+                        }))
+                    })?;
+                if self.key_column_id_to_names.contains_key(&id) {
+                    continue;
                 }
-            })
-            .collect::<Result<(Vec<FieldRef>, Vec<ArrayRef>), ArrowError>>()?;
-
-        let mut sb = ArrowSchemaBuilder::new();
-        if let Some((ext_fields, mut ext_arrays)) = extended {
-            // If there are key column values being outputted, they get prepended to appear before
-            // all value columns in the query output:
-            sb.extend(ext_fields);
-            ext_arrays.append(&mut arrays);
-            arrays = ext_arrays;
+                arrays.push(self.cache.get(&id).map_or_else(
+                    || new_null_array(field.data_type(), self.len()),
+                    |c| c.data.as_array(),
+                ));
+            }
+        } else {
+            arrays.extend(self.cache.iter().map(|(_, col)| col.data.as_array()));
         }
-        sb.extend(fields);
-        RecordBatch::try_new(Arc::new(sb.finish()), arrays)
+        debug!(?arrays, ?schema, "producing record batch from store");
+        RecordBatch::try_new(schema, arrays)
     }
 
     /// Remove expired values from the [`LastCacheStore`]
@@ -1487,7 +1477,7 @@ struct CacheColumn {
 
 impl CacheColumn {
     /// Create a new [`CacheColumn`] for the given arrow [`DataType`] and size
-    fn new(data_type: &InfluxColumnType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: InfluxColumnType, size: usize, is_series_key: bool) -> Self {
         Self {
             size,
             data: CacheColumnData::new(data_type, size, is_series_key),
@@ -1530,7 +1520,7 @@ enum CacheColumnData {
 
 impl CacheColumnData {
     /// Create a new [`CacheColumnData`]
-    fn new(data_type: &InfluxColumnType, size: usize, is_series_key: bool) -> Self {
+    fn new(data_type: InfluxColumnType, size: usize, is_series_key: bool) -> Self {
         match data_type {
             InfluxColumnType::Tag => {
                 if is_series_key {
@@ -1736,7 +1726,7 @@ mod tests {
     use bimap::BiHashMap;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
+    use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
     use insta::assert_json_snapshot;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -1764,7 +1754,7 @@ mod tests {
         .unwrap()
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn pick_up_latest_write() {
         let db_name = "foo";
         let tbl_name = "cpu";
@@ -3030,7 +3020,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn new_field_ordering() {
         let db_name = "db";
         let tbl_name = "tbl";
@@ -3114,44 +3104,44 @@ mod tests {
             TestCase {
                 predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("a"))],
                 expected: &[
-                    "+----+-----+--------------------------------+-----+-----+-----+",
-                    "| t1 | f1  | time                           | f2  | f3  | f4  |",
-                    "+----+-----+--------------------------------+-----+-----+-----+",
-                    "| a  | 1.0 | 1970-01-01T00:00:00.000001500Z | 2.0 | 3.0 | 4.0 |",
-                    "+----+-----+--------------------------------+-----+-----+-----+",
+                    "+----+-----+-----+-----+-----+--------------------------------+",
+                    "| t1 | f1  | f2  | f3  | f4  | time                           |",
+                    "+----+-----+-----+-----+-----+--------------------------------+",
+                    "| a  | 1.0 | 2.0 | 3.0 | 4.0 | 1970-01-01T00:00:00.000001500Z |",
+                    "+----+-----+-----+-----+-----+--------------------------------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("b"))],
                 expected: &[
-                    "+----+------+--------------------------------+----+------+------+",
-                    "| t1 | f1   | time                           | f2 | f3   | f4   |",
-                    "+----+------+--------------------------------+----+------+------+",
-                    "| b  | 10.0 | 1970-01-01T00:00:00.000001500Z |    | 30.0 | 40.0 |",
-                    "+----+------+--------------------------------+----+------+------+",
+                    "+----+------+----+------+------+--------------------------------+",
+                    "| t1 | f1   | f2 | f3   | f4   | time                           |",
+                    "+----+------+----+------+------+--------------------------------+",
+                    "| b  | 10.0 |    | 30.0 | 40.0 | 1970-01-01T00:00:00.000001500Z |",
+                    "+----+------+----+------+------+--------------------------------+",
                 ],
             },
             TestCase {
                 predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("c"))],
                 expected: &[
-                    "+----+-------+--------------------------------+-------+-------+----+",
-                    "| t1 | f1    | time                           | f2    | f3    | f4 |",
-                    "+----+-------+--------------------------------+-------+-------+----+",
-                    "| c  | 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |    |",
-                    "+----+-------+--------------------------------+-------+-------+----+",
+                    "+----+-------+-------+-------+----+--------------------------------+",
+                    "| t1 | f1    | f2    | f3    | f4 | time                           |",
+                    "+----+-------+-------+-------+----+--------------------------------+",
+                    "| c  | 100.0 | 200.0 | 300.0 |    | 1970-01-01T00:00:00.000001500Z |",
+                    "+----+-------+-------+-------+----+--------------------------------+",
                 ],
             },
             // Can query accross key column values:
             TestCase {
                 predicates: &[],
                 expected: &[
-                    "+----+-------+--------------------------------+-------+-------+------+",
-                    "| t1 | f1    | time                           | f2    | f3    | f4   |",
-                    "+----+-------+--------------------------------+-------+-------+------+",
-                    "| a  | 1.0   | 1970-01-01T00:00:00.000001500Z | 2.0   | 3.0   | 4.0  |",
-                    "| b  | 10.0  | 1970-01-01T00:00:00.000001500Z |       | 30.0  | 40.0 |",
-                    "| c  | 100.0 | 1970-01-01T00:00:00.000001500Z | 200.0 | 300.0 |      |",
-                    "+----+-------+--------------------------------+-------+-------+------+",
+                    "+----+-------+-------+-------+------+--------------------------------+",
+                    "| t1 | f1    | f2    | f3    | f4   | time                           |",
+                    "+----+-------+-------+-------+------+--------------------------------+",
+                    "| a  | 1.0   | 2.0   | 3.0   | 4.0  | 1970-01-01T00:00:00.000001500Z |",
+                    "| b  | 10.0  |       | 30.0  | 40.0 | 1970-01-01T00:00:00.000001500Z |",
+                    "| c  | 100.0 | 200.0 | 300.0 |      | 1970-01-01T00:00:00.000001500Z |",
+                    "+----+-------+-------+-------+------+--------------------------------+",
                 ],
             },
         ];
@@ -3296,7 +3286,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: db_name.into(),
-            tables: SerdeVecHashMap::new(),
+            tables: SerdeVecMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(0), "test_table_1".into());

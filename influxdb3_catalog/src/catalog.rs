@@ -3,7 +3,8 @@
 use crate::catalog::Error::TableNotFound;
 use bimap::BiHashMap;
 use hashbrown::HashMap;
-use influxdb3_id::{ColumnId, DbId, SerdeVecHashMap, TableId};
+use indexmap::IndexMap;
+use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
@@ -297,7 +298,7 @@ impl Catalog {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
-    databases: SerdeVecHashMap<DbId, Arc<DatabaseSchema>>,
+    databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
     sequence: SequenceNumber,
     /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
     host_id: Arc<str>,
@@ -366,7 +367,7 @@ serde_with::serde_conv!(
 impl InnerCatalog {
     pub(crate) fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
-            databases: SerdeVecHashMap::new(),
+            databases: SerdeVecMap::new(),
             sequence: SequenceNumber::new(0),
             host_id,
             instance_id,
@@ -433,7 +434,7 @@ pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
-    pub tables: SerdeVecHashMap<TableId, Arc<TableDefinition>>,
+    pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     #[serde_as(as = "TableMapAsArray")]
     pub table_map: BiHashMap<TableId, Arc<str>>,
 }
@@ -452,7 +453,7 @@ impl DatabaseSchema {
     /// everything is compatible and there are no updates to the existing schema, None will be
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
     pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
-        let mut updated_or_new_tables = SerdeVecHashMap::new();
+        let mut updated_or_new_tables = SerdeVecMap::new();
 
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
@@ -659,7 +660,7 @@ pub struct TableDefinition {
     pub table_id: TableId,
     pub table_name: Arc<str>,
     pub schema: Schema,
-    pub columns: HashMap<ColumnId, ColumnDefinition>,
+    pub columns: IndexMap<ColumnId, ColumnDefinition>,
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Option<Vec<ColumnId>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
@@ -687,7 +688,7 @@ impl TableDefinition {
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         schema_builder.measurement(table_name.as_ref());
-        let mut columns = HashMap::with_capacity(ordered_columns.len());
+        let mut columns = IndexMap::with_capacity(ordered_columns.len());
         let mut column_map = BiHashMap::with_capacity(ordered_columns.len());
         for (name, (col_id, column_type)) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
@@ -859,7 +860,7 @@ impl TableDefinition {
         // Use BTree to insert existing and new columns, and use that to generate the
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
-        for (_, col_def) in self.columns.drain() {
+        for (_, col_def) in self.columns.drain(..) {
             cols.insert(Arc::clone(&col_def.name), col_def);
         }
         for (id, name, column_type) in columns {
@@ -1030,7 +1031,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: SerdeVecHashMap::new(),
+            tables: SerdeVecMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(1), "test_table_1".into());
@@ -1225,7 +1226,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test".into(),
-            tables: SerdeVecHashMap::new(),
+            tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
         };
         database.tables.insert(
@@ -1277,7 +1278,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: SerdeVecHashMap::new(),
+            tables: SerdeVecMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(1), "test_table_1".into());
@@ -1328,7 +1329,7 @@ mod tests {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
-            tables: SerdeVecHashMap::new(),
+            tables: SerdeVecMap::new(),
             table_map: {
                 let mut map = BiHashMap::new();
                 map.insert(TableId::from(0), "test".into());
