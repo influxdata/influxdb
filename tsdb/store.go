@@ -486,6 +486,9 @@ func (s *Store) loadShards(ctx context.Context) error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 
 	if err := s.enableShards(shardLoaderWg, shardResC); err != nil {
 		return err
@@ -1113,12 +1116,6 @@ func byDatabase(name string) func(sh *Shard) bool {
 func byRetentionPolicy(name string) ShardPredicate {
 	return func(sh *Shard) bool {
 		return sh.retentionPolicy == name
-	}
-}
-
-func byIndexType(name string) ShardPredicate {
-	return func(sh *Shard) bool {
-		return sh.IndexType() == name
 	}
 }
 

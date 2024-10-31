@@ -2872,12 +2872,12 @@ type mockStartupLogger struct {
 
 func (m *mockStartupLogger) AddShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
+	m.shardTracker = append(m.shardTracker, "shard-add")
 	m.mu.Unlock()
 }
 
 func (m *mockStartupLogger) CompletedShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
+	m.shardTracker = append(m.shardTracker, "shard-complete")
 	m.mu.Unlock()
 }

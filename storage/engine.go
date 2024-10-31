@@ -3,13 +3,13 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"io"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
