@@ -56,6 +56,7 @@ use schema::sort::SortKey;
 use schema::Schema;
 use std::fmt::Debug;
 use std::future::Future;
+use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -824,11 +825,15 @@ impl Debug for RecordBatchHolder {
 
 struct AsyncMultiPart {
     multi_part: Box<dyn MultipartUpload>,
+    bytes_buffer: Vec<u8>,
 }
 
 impl AsyncMultiPart {
     fn new(multi_part: Box<dyn MultipartUpload>) -> Self {
-        Self { multi_part }
+        Self {
+            multi_part,
+            bytes_buffer: Vec::new(),
+        }
     }
 }
 
@@ -869,16 +874,48 @@ impl Future for AsyncMultiPartComplete<'_> {
     }
 }
 
+/// s3 and other Object Stores require an 5mb minimum for all parts and in some cases like with R2 each
+/// part must be 5mb. We need to handle that use case
+const MULTIPART_UPLOAD_MINIMUM: usize = 5242880; // 5mb as bytes
+
 impl AsyncFileWriter for AsyncMultiPart {
     fn write(&mut self, bs: Bytes) -> BoxFuture<'_, parquet::errors::Result<()>> {
-        Box::pin(AsyncMultiPartWrite {
-            payload: self.multi_part.put_part(PutPayload::from_bytes(bs)),
-        })
+        self.bytes_buffer.extend_from_slice(bs.as_ref());
+        if self.bytes_buffer.len() < MULTIPART_UPLOAD_MINIMUM {
+            Box::pin(async { Ok(()) })
+        } else {
+            let buffer = self
+                .bytes_buffer
+                .drain(0..MULTIPART_UPLOAD_MINIMUM)
+                .collect::<Vec<u8>>();
+            Box::pin(AsyncMultiPartWrite {
+                payload: self
+                    .multi_part
+                    .put_part(PutPayload::from_bytes(Bytes::from(buffer))),
+            })
+        }
     }
 
     fn complete(&mut self) -> BoxFuture<'_, parquet::errors::Result<()>> {
-        Box::pin(AsyncMultiPartComplete {
-            complete: self.multi_part.complete(),
+        Box::pin(async {
+            if !self.bytes_buffer.is_empty() {
+                Box::pin(AsyncMultiPartWrite {
+                    payload: self
+                        .multi_part
+                        // Since we're completing the upload grab the rest of the bytes and write them out
+                        // to object store before completing the upload
+                        .put_part(PutPayload::from_bytes(Bytes::from(mem::take(
+                            &mut self.bytes_buffer,
+                        )))),
+                })
+                .await?;
+            }
+
+            // Now that we have written out any residual data we can complete the upload
+            AsyncMultiPartComplete {
+                complete: self.multi_part.complete(),
+            }
+            .await
         })
     }
 }
