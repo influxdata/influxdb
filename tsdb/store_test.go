@@ -154,12 +154,12 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
 		sh := s.Shard(1)
 		require.NotNil(t, sh)
 
 		// Create another shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 2, true))
 		sh = s.Shard(2)
 		require.NotNil(t, sh)
 
@@ -194,22 +194,22 @@ func TestStore_BadShardLoading(t *testing.T) {
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 1, true))
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
 		sh := s.Shard(1)
 		require.NotNil(t, sh)
 
 		// Create another shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 2, true))
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 2, true))
 		sh = s.Shard(2)
 		require.NotNil(t, sh)
 
 		// Create another shard and verify that it exists.
-		require.NoError(t, s.CreateShard("db0", "rp0", 3, true))
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 3, true))
 		sh = s.Shard(3)
 		require.NotNil(t, sh)
 
 		s.SetShardOpenErrorForTest(sh.ID(), errors.New("a shard opening error occurred"))
-		err2 := s.OpenShard(s.Shard(sh.ID()), false)
+		err2 := s.OpenShard(context.Background(), s.Shard(sh.ID()), false)
 		require.Error(t, err2, "no error opening bad shard")
 
 		msl := &mockStartupLogger{}
