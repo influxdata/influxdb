@@ -212,6 +212,22 @@ pub enum WalOp {
     Catalog(CatalogBatch),
 }
 
+impl WalOp {
+    pub fn as_write(&self) -> Option<&WriteBatch> {
+        match self {
+            WalOp::Write(w) => Some(w),
+            WalOp::Catalog(_) => None,
+        }
+    }
+
+    pub fn as_catalog(&self) -> Option<&CatalogBatch> {
+        match self {
+            WalOp::Write(_) => None,
+            WalOp::Catalog(c) => Some(c),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CatalogBatch {
     pub database_id: DbId,
