@@ -214,8 +214,7 @@ impl WriteValidator<WithCatalog> {
     }
 }
 
-/// Vec storing qualified column data from an incoming write, the bool designates new columns added
-/// by a write
+/// Type alias for storing new columns added by a write
 type ColumnTracker = Vec<(ColumnId, Arc<str>, InfluxColumnType)>;
 
 /// Validate an individual line of v3 line protocol and update the database
