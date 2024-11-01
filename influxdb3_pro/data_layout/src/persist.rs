@@ -1,8 +1,8 @@
 //! Functions for persisting and loading data from the comapcted data layout.
 
 use crate::{
-    CompactionDetail, CompactionDetailPath, CompactionSummary, CompactionSummaryPath,
-    GenerationDetail, GenerationDetailPath, GenerationId,
+    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary,
+    CompactionSummaryPath, GenerationDetail, GenerationDetailPath, GenerationId,
 };
 use bytes::Bytes;
 use futures_util::stream::StreamExt;
@@ -168,6 +168,8 @@ pub async fn persist_compaction_summary(
     Ok(())
 }
 
+/// Load the latest compaction summary for the given compactor id. This does a LIST operation to
+/// find the latest compaction summary.
 pub async fn load_compaction_summary(
     compactor_id: &str,
     object_store: Arc<dyn ObjectStore>,
@@ -189,6 +191,33 @@ pub async fn load_compaction_summary(
     let compaction_summary: CompactionSummary = serde_json::from_slice(&bytes)?;
 
     Ok(Some(compaction_summary))
+}
+
+/// Load the compaction summary for the given sequence number.
+pub async fn load_compaction_summary_for_sequence(
+    compactor_id: &str,
+    compaction_sequence_number: CompactionSequenceNumber,
+    object_store: Arc<dyn ObjectStore>,
+) -> Result<Option<CompactionSummary>> {
+    let path = CompactionSummaryPath::new(compactor_id, compaction_sequence_number);
+
+    match object_store.get(&path.0).await {
+        Ok(get_result) => match get_result.bytes().await {
+            Ok(bytes) => {
+                let compaction_summary: CompactionSummary = serde_json::from_slice(&bytes)?;
+                Ok(Some(compaction_summary))
+            }
+            Err(e) => {
+                error!(error = %e, "Error reading compaction summary from object store");
+                Err(CompactedDataPersistenceError::ObjectStoreError(e))
+            }
+        },
+        Err(object_store::Error::NotFound { .. }) => Ok(None),
+        Err(e) => {
+            error!(error = %e, "Error getting compaction summary from object store");
+            Err(CompactedDataPersistenceError::ObjectStoreError(e))
+        }
+    }
 }
 
 /// Get the bytes at the given path from the object store. Will retry forever until it gets the bytes.
