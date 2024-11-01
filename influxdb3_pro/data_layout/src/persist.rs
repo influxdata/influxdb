@@ -208,19 +208,13 @@ pub async fn load_compaction_summary_for_sequence(
                 Ok(Some(compaction_summary))
             }
             Err(e) => {
-                error!(
-                    "Error reading file from object store: {}, retrying in 1 second",
-                    e
-                );
+                error!(error = %e, "Error reading compaction summary from object store");
                 Err(CompactedDataPersistenceError::ObjectStoreError(e))
             }
         },
         Err(object_store::Error::NotFound { .. }) => Ok(None),
         Err(e) => {
-            error!(
-                "Error reading file from object store: {}, retrying in 1 second",
-                e
-            );
+            error!(error = %e, "Error getting compaction summary from object store");
             Err(CompactedDataPersistenceError::ObjectStoreError(e))
         }
     }
