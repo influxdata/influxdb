@@ -28,12 +28,12 @@ RUN \
   --mount=type=cache,id=influxdb3_rustup,sharing=locked,target=/usr/local/rustup \
   --mount=type=cache,id=influxdb3_registry,sharing=locked,target=/usr/local/cargo/registry \
   --mount=type=cache,id=influxdb3_git,sharing=locked,target=/usr/local/cargo/git \
-  --mount=type=cache,id=influxdb3_target,sharing=locked,target=/influxdb_iox/target \
-    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target && \
+  --mount=type=cache,id=influxdb3_target,sharing=locked,target=/influxdb3/target \
+    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target && \
     cargo build --target-dir /influxdb3/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
     objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
     cp "/influxdb3/target/$PROFILE/$PACKAGE" /root/$PACKAGE && \
-    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
+    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target
 
 
 FROM debian:bookworm-slim
