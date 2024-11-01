@@ -385,7 +385,7 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
-	walkShardsAndProcess := func(fn func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
+	walkShardsAndProcess := func(fn func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
 		for _, db := range dbDirs {
 			rpDirs, err := s.getRetentionPolicyDirs(db, log)
 			if err != nil {
@@ -415,13 +415,27 @@ func (s *Store) loadShards() error {
 				}
 
 				for _, sh := range shardDirs {
+					fullPath := filepath.Join(s.path, db.Name(), rp.Name())
+
 					// Series file should not be in a retention policy but skip just in case.
 					if sh.Name() == SeriesFileDirectory {
-						log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
+						log.Warn("Skipping series file in retention policy dir", zap.String("path", fullPath))
 						continue
 					}
 
-					if err := fn(sfile, idx, sh, db, rp); err != nil {
+					// Shard file names are numeric shardIDs
+					shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
+					if err != nil {
+						log.Info("invalid shard ID found at path", zap.String("path", fullPath))
+						continue
+					}
+
+					if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db.Name(), rp.Name(), shardID) {
+						log.Info("skipping shard", zap.String("path", fullPath), logger.Shard(shardID))
+						continue
+					}
+
+					if err := fn(shardID, sfile, idx, sh, db, rp); err != nil {
 						return err
 					}
 				}
@@ -436,7 +450,7 @@ func (s *Store) loadShards() error {
 	// zero buffer channel.
 	rawShardCount := 0
 	if s.startupProgressMetrics != nil {
-		err := walkShardsAndProcess(func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+		err := walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 			rawShardCount++
 			s.startupProgressMetrics.AddShard()
 			return nil
@@ -447,10 +461,10 @@ func (s *Store) loadShards() error {
 	}
 
 	shardResC := make(chan *shardResponse, rawShardCount)
-	err = walkShardsAndProcess(func(sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+	err = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		shardLoaderWg.Add(1)
 
-		go func(db, rp, sh string) {
+		go func(shardID uint64, db, rp, sh string) {
 			defer shardLoaderWg.Done()
 
 			t.Take()
@@ -459,26 +473,6 @@ func (s *Store) loadShards() error {
 			start := time.Now()
 			path := filepath.Join(s.path, db, rp, sh)
 			walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
-
-			// Shard file names are numeric shardIDs
-			shardID, err := strconv.ParseUint(sh, 10, 64)
-			if err != nil {
-				log.Info("invalid shard ID found at path", zap.String("path", path))
-				shardResC <- &shardResponse{err: fmt.Errorf("%s is not a valid ID. Skipping shard.", sh)}
-				if s.startupProgressMetrics != nil {
-					s.startupProgressMetrics.CompletedShard()
-				}
-				return
-			}
-
-			if s.EngineOptions.ShardFilter != nil && !s.EngineOptions.ShardFilter(db, rp, shardID) {
-				log.Info("skipping shard", zap.String("path", path), logger.Shard(shardID))
-				shardResC <- &shardResponse{}
-				if s.startupProgressMetrics != nil {
-					s.startupProgressMetrics.CompletedShard()
-				}
-				return
-			}
 
 			// Copy options and assign shared index.
 			opt := s.EngineOptions
@@ -515,7 +509,7 @@ func (s *Store) loadShards() error {
 			if s.startupProgressMetrics != nil {
 				s.startupProgressMetrics.CompletedShard()
 			}
-		}(db.Name(), rp.Name(), sh.Name())
+		}(shardID, db.Name(), rp.Name(), sh.Name())
 
 		return nil
 	})
