@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/run"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -167,6 +168,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	if e.precreatorService != nil {
 		e.precreatorService.WithLogger(log)
 	}
+
+	sl := run.NewStartupProgressLogger(e.logger)
+	e.tsdbStore.WithStartupMetrics(sl)
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
