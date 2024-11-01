@@ -428,14 +428,12 @@ impl InnerCatalog {
     }
 }
 
-#[serde_with::serde_as]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
-    #[serde_as(as = "TableMapAsArray")]
     pub table_map: BiHashMap<TableId, Arc<str>>,
 }
 
@@ -1091,6 +1089,13 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
+        insta::with_settings!({
+            sort_maps => true,
+            description => "catalog serialization to help catch breaking changes"
+        }, {
+            insta::assert_json_snapshot!(catalog);
+        });
+
         // Serialize/deserialize to ensure roundtrip to/from JSON
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
@@ -1315,6 +1320,13 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
+        insta::with_settings!({
+            sort_maps => true,
+            description => "catalog serialization to help catch breaking changes"
+        }, {
+            insta::assert_json_snapshot!(catalog);
+        });
+
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
         let deserialized = Catalog::from_inner(deserialized_inner);
@@ -1371,6 +1383,13 @@ mod tests {
             .write()
             .databases
             .insert(database.id, Arc::new(database));
+
+        insta::with_settings!({
+            sort_maps => true,
+            description => "catalog serialization to help catch breaking changes"
+        }, {
+            insta::assert_json_snapshot!(catalog);
+        });
 
         let serialized = serde_json::to_string(&catalog).unwrap();
         let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();

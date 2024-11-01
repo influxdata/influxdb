@@ -9,12 +9,6 @@ expression: catalog_json
       {
         "id": 0,
         "name": "db",
-        "table_map": [
-          {
-            "name": "table",
-            "table_id": 0
-          }
-        ],
         "tables": [
           [
             0,

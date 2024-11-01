@@ -1,8 +1,10 @@
 use crate::catalog::ColumnDefinition;
+use crate::catalog::DatabaseSchema;
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
 use influxdb3_id::ColumnId;
+use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
@@ -11,6 +13,66 @@ use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+impl Serialize for DatabaseSchema {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let snapshot = DatabaseSnapshot::from(self);
+        snapshot.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DatabaseSchema {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        DatabaseSnapshot::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DatabaseSnapshot {
+    id: DbId,
+    name: Arc<str>,
+    tables: SerdeVecMap<TableId, TableSnapshot>,
+}
+
+impl From<&DatabaseSchema> for DatabaseSnapshot {
+    fn from(db: &DatabaseSchema) -> Self {
+        Self {
+            id: db.id,
+            name: Arc::clone(&db.name),
+            tables: db
+                .tables
+                .iter()
+                .map(|(table_id, table_def)| (*table_id, table_def.as_ref().into()))
+                .collect(),
+        }
+    }
+}
+
+impl From<DatabaseSnapshot> for DatabaseSchema {
+    fn from(snap: DatabaseSnapshot) -> Self {
+        let mut table_map = BiHashMap::with_capacity(snap.tables.len());
+        let tables = snap
+            .tables
+            .into_iter()
+            .map(|(id, table)| {
+                table_map.insert(id, Arc::clone(&table.table_name));
+                (id, Arc::new(table.into()))
+            })
+            .collect();
+        Self {
+            id: snap.id,
+            name: snap.name,
+            tables,
+            table_map,
+        }
+    }
+}
 
 impl Serialize for TableDefinition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -46,35 +108,6 @@ struct TableSnapshot {
     cols: SerdeVecMap<ColumnId, ColumnDefinitionSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
-}
-
-serde_with::serde_conv!(
-    ColumnMapAsArray,
-    BiHashMap<ColumnId, Arc<str>>,
-    |map: &BiHashMap<ColumnId, Arc<str>>| {
-        let mut vec = map.iter().fold(Vec::new(), |mut acc, (id, name)| {
-            acc.push(ColumnMap {
-                column_id: *id,
-                name: Arc::clone(&name)
-            });
-            acc
-        });
-
-        vec.sort_by_key(|col| col.column_id);
-        vec
-    },
-    |vec: Vec<ColumnMap>| -> Result<_, std::convert::Infallible> {
-        Ok(vec.into_iter().fold(BiHashMap::new(), |mut acc, column| {
-            acc.insert(column.column_id, column.name);
-            acc
-        }))
-    }
-);
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ColumnMap {
-    column_id: ColumnId,
-    name: Arc<str>,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
