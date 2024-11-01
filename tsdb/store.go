@@ -445,19 +445,16 @@ func (s *Store) loadShards() error {
 		return nil
 	}
 
-	// We use `rawShardCount` as a buffer size for channel creation below.
-	// If there is no startupProgressMetrics count then this will be 0 creating a
-	// zero buffer channel.
 	rawShardCount := 0
-	if s.startupProgressMetrics != nil {
-		err := walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
-			rawShardCount++
+	err = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+		rawShardCount++
+		if s.startupProgressMetrics != nil {
 			s.startupProgressMetrics.AddShard()
-			return nil
-		})
-		if err != nil {
-			return err
 		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	shardResC := make(chan *shardResponse, rawShardCount)
