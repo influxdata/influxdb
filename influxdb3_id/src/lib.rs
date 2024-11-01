@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 mod serialize;
-pub use serialize::SerdeVecHashMap;
+pub use serialize::SerdeVecMap;
 
 #[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
 pub struct DbId(u32);
@@ -90,23 +90,29 @@ impl Display for TableId {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash)]
-pub struct ColumnId(u16);
+pub struct ColumnId(u32);
+
+static NEXT_COLUMN_ID: AtomicU32 = AtomicU32::new(0);
 
 impl ColumnId {
-    pub fn new(id: u16) -> Self {
-        Self(id)
+    pub fn new() -> Self {
+        Self(NEXT_COLUMN_ID.fetch_add(1, Ordering::SeqCst))
     }
 
-    pub fn next_id(&self) -> Self {
-        Self(self.0 + 1)
+    pub fn next_id() -> Self {
+        Self(NEXT_COLUMN_ID.load(Ordering::SeqCst))
     }
 
-    pub fn as_u16(&self) -> u16 {
+    pub fn set_next_id(&self) {
+        NEXT_COLUMN_ID.store(self.0, Ordering::SeqCst)
+    }
+
+    pub fn as_u32(&self) -> u32 {
         self.0
     }
 }
-impl From<u16> for ColumnId {
-    fn from(value: u16) -> Self {
+impl From<u32> for ColumnId {
+    fn from(value: u32) -> Self {
         Self(value)
     }
 }
@@ -114,6 +120,12 @@ impl From<u16> for ColumnId {
 impl Display for ColumnId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl Default for ColumnId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

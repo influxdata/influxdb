@@ -1,0 +1,106 @@
+---
+source: influxdb3_catalog/src/catalog.rs
+description: catalog serialization to help catch breaking changes
+expression: catalog
+---
+{
+  "databases": [
+    [
+      0,
+      {
+        "id": 0,
+        "name": "test_db",
+        "tables": [
+          [
+            1,
+            {
+              "table_id": 1,
+              "table_name": "test_table_1",
+              "key": [
+                0,
+                1,
+                2
+              ],
+              "cols": [
+                [
+                  4,
+                  {
+                    "name": "field",
+                    "id": 4,
+                    "type": "str",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  0,
+                  {
+                    "name": "tag_1",
+                    "id": 0,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": false
+                  }
+                ],
+                [
+                  1,
+                  {
+                    "name": "tag_2",
+                    "id": 1,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": false
+                  }
+                ],
+                [
+                  2,
+                  {
+                    "name": "tag_3",
+                    "id": 2,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": false
+                  }
+                ],
+                [
+                  3,
+                  {
+                    "name": "time",
+                    "id": 3,
+                    "type": {
+                      "time": [
+                        "ns",
+                        null
+                      ]
+                    },
+                    "influx_type": "time",
+                    "nullable": false
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    ]
+  ],
+  "sequence": 0,
+  "host_id": "sample-host-id",
+  "instance_id": "instance-id",
+  "db_map": []
+}

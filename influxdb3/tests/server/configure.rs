@@ -26,6 +26,7 @@ async fn api_v3_configure_last_cache_create() {
     #[derive(Default)]
     struct TestCase {
         // These attributes all map to parameters of the request body:
+        description: &'static str,
         db: Option<&'static str>,
         table: Option<&'static str>,
         cache_name: Option<&'static str>,
@@ -38,58 +39,58 @@ async fn api_v3_configure_last_cache_create() {
     }
 
     let test_cases = [
-        // No parameters specified:
         TestCase {
+            description: "no parameters specified",
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Missing database name:
         TestCase {
+            description: "missing database name",
             table: Some(tbl_name),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Missing table name:
         TestCase {
+            description: "missing table name",
             db: Some(db_name),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Good, will use defaults for everything omitted, and get back a 201:
         TestCase {
+            description: "Good, will use defaults for everything omitted, and get back a 201",
             db: Some(db_name),
             table: Some(tbl_name),
             expected: StatusCode::CREATED,
             ..Default::default()
         },
-        // Same as before, will be successful, but with 204:
         TestCase {
+            description: "Same as before, will be successful, but with 204",
             db: Some(db_name),
             table: Some(tbl_name),
             expected: StatusCode::NO_CONTENT,
             ..Default::default()
         },
-        // Use a specific cache name, will succeed and create new cache:
         // NOTE: this will only differ from the previous cache in name, should this actually
         // be an error?
         TestCase {
+            description: "Use a specific cache name, will succeed and create new cache",
             db: Some(db_name),
             table: Some(tbl_name),
             cache_name: Some("my_cache"),
             expected: StatusCode::CREATED,
             ..Default::default()
         },
-        // Same as previous, but will get 204 because it does nothing:
         TestCase {
+            description: "Same as previous, but will get 204 because it does nothing",
             db: Some(db_name),
             table: Some(tbl_name),
             cache_name: Some("my_cache"),
             expected: StatusCode::NO_CONTENT,
             ..Default::default()
         },
-        // Same as previous, but this time try to use different parameters, this will result in
-        // a bad request:
         TestCase {
+            description: "Same as previous, but this time try to use different parameters, this \
+            will result in a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
             cache_name: Some("my_cache"),
@@ -98,32 +99,33 @@ async fn api_v3_configure_last_cache_create() {
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Will create new cache, because key columns are unique, and so will be the name:
         TestCase {
+            description:
+                "Will create new cache, because key columns are unique, and so will be the name",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["t1", "t2"]),
             expected: StatusCode::CREATED,
             ..Default::default()
         },
-        // Same as previous, but will get 204 because nothing happens:
         TestCase {
+            description: "Same as previous, but will get 204 because nothing happens",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["t1", "t2"]),
             expected: StatusCode::NO_CONTENT,
             ..Default::default()
         },
-        // Use an invalid key column (by name) is a bad request:
         TestCase {
+            description: "Use an invalid key column (by name) is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["not_a_key_column"]),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Use an invalid key column (by type) is a bad request:
         TestCase {
+            description: "Use an invalid key column (by type) is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
             // f5 is a float, which is not supported as a key column:
@@ -131,16 +133,16 @@ async fn api_v3_configure_last_cache_create() {
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Use an invalid value column is a bad request:
         TestCase {
+            description: "Use an invalid value column is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
             val_cols: Some(&["not_a_value_column"]),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
         },
-        // Use an invalid cache size is a bad request:
         TestCase {
+            description: "Use an invalid cache size is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
             count: Some(11),
@@ -166,7 +168,12 @@ async fn api_v3_configure_last_cache_create() {
             .await
             .expect("send /api/v3/configure/last_cache request");
         let status = resp.status();
-        assert_eq!(t.expected, status, "test case ({i}) failed");
+        assert_eq!(
+            t.expected,
+            status,
+            "test case ({i}) failed, {description}",
+            description = t.description
+        );
     }
 }
 

@@ -2645,6 +2645,8 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "bimap",
+ "hashbrown 0.14.5",
+ "indexmap 2.6.0",
  "influxdb-line-protocol",
  "influxdb3_id",
  "influxdb3_wal",
@@ -2680,7 +2682,7 @@ dependencies = [
 name = "influxdb3_id"
 version = "0.1.0"
 dependencies = [
- "hashbrown 0.14.5",
+ "indexmap 2.6.0",
  "serde",
  "serde_json",
 ]
@@ -2842,6 +2844,7 @@ dependencies = [
  "data_types",
  "futures-util",
  "hashbrown 0.14.5",
+ "indexmap 2.6.0",
  "influxdb-line-protocol",
  "influxdb3_id",
  "iox_time",

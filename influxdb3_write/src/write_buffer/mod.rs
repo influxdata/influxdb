@@ -23,7 +23,7 @@ use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
 use influxdb3_wal::{
@@ -78,6 +78,9 @@ pub enum Error {
 
     #[error("tried accessing database and table that do not exist")]
     TableDoesNotExist,
+
+    #[error("tried accessing column with name ({0}) that does not exist")]
+    ColumnDoesNotExist(String),
 
     #[error(
         "updating catalog on delete of last cache failed, you will need to delete the cache \
@@ -149,6 +152,11 @@ impl WriteBufferImpl {
         persisted_snapshots
             .first()
             .map(|s| s.next_table_id.set_next_id())
+            .unwrap_or(());
+        // Set the next table id to use when adding a new database
+        persisted_snapshots
+            .first()
+            .map(|s| s.next_column_id.set_next_id())
             .unwrap_or(());
         // Set the next file id to use when persisting ParquetFiles
         persisted_snapshots
@@ -452,27 +460,21 @@ impl LastCacheManager for WriteBufferImpl {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
+        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
         let db_schema = catalog
             .db_schema_by_id(db_id)
             .ok_or(Error::DbDoesNotExist)?;
-        let schema = db_schema
-            .table_schema_by_id(table_id)
+        let table_def = db_schema
+            .table_definition_by_id(table_id)
             .ok_or(Error::TableDoesNotExist)?;
 
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
             db_id,
-            db_name: db_schema.name.to_string(),
-            table_id,
-            table_name: db_schema
-                .table_id_to_name(table_id)
-                .expect("table exists")
-                .to_string(),
-            schema,
+            table_def,
             cache_name,
             count,
             ttl,
@@ -514,10 +516,7 @@ impl LastCacheManager for WriteBufferImpl {
                 database_name: Arc::clone(&db_schema.name),
                 ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
                     table_id: tbl_id,
-                    table_name: db_schema
-                        .table_id_to_name(tbl_id)
-                        .expect("table exists")
-                        .to_string(),
+                    table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
                     name: cache_name.into(),
                 })],
             })])

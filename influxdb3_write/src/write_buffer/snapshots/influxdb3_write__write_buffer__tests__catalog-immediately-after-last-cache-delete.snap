@@ -9,71 +9,62 @@ expression: catalog_json
       {
         "id": 0,
         "name": "db",
-        "table_map": [
-          {
-            "name": "table",
-            "table_id": 0
-          }
-        ],
         "tables": [
           [
             0,
             {
-              "cols": {
-                "f1": {
-                  "column_id": 0,
-                  "influx_type": "field",
-                  "nullable": true,
-                  "type": "bool"
-                },
-                "f2": {
-                  "column_id": 3,
-                  "influx_type": "field",
-                  "nullable": true,
-                  "type": "i64"
-                },
-                "t1": {
-                  "column_id": 1,
-                  "influx_type": "tag",
-                  "nullable": true,
-                  "type": {
-                    "dict": [
-                      "i32",
-                      "str"
-                    ]
+              "cols": [
+                [
+                  1,
+                  {
+                    "id": 1,
+                    "influx_type": "field",
+                    "name": "f1",
+                    "nullable": true,
+                    "type": "bool"
                   }
-                },
-                "time": {
-                  "column_id": 2,
-                  "influx_type": "time",
-                  "nullable": false,
-                  "type": {
-                    "time": [
-                      "ns",
-                      null
-                    ]
+                ],
+                [
+                  3,
+                  {
+                    "id": 3,
+                    "influx_type": "field",
+                    "name": "f2",
+                    "nullable": true,
+                    "type": "i64"
                   }
-                }
-              },
-              "column_map": [
-                {
-                  "column_id": 0,
-                  "name": "f1"
-                },
-                {
-                  "column_id": 1,
-                  "name": "t1"
-                },
-                {
-                  "column_id": 2,
-                  "name": "time"
-                },
-                {
-                  "column_id": 3,
-                  "name": "f2"
-                }
+                ],
+                [
+                  0,
+                  {
+                    "id": 0,
+                    "influx_type": "tag",
+                    "name": "t1",
+                    "nullable": true,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    }
+                  }
+                ],
+                [
+                  2,
+                  {
+                    "id": 2,
+                    "influx_type": "time",
+                    "name": "time",
+                    "nullable": false,
+                    "type": {
+                      "time": [
+                        "ns",
+                        null
+                      ]
+                    }
+                  }
+                ]
               ],
-              "next_column_id": 4,
               "table_id": 0,
               "table_name": "table"
             }

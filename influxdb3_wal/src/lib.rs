@@ -11,7 +11,8 @@ use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use influxdb3_id::{DbId, SerdeVecHashMap, TableId};
+use indexmap::IndexMap;
+use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -241,7 +242,7 @@ pub struct TableDefinition {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
-    pub key: Option<Vec<String>>,
+    pub key: Option<Vec<ColumnId>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -256,7 +257,22 @@ pub struct FieldAdditions {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     pub name: Arc<str>,
+    pub id: ColumnId,
     pub data_type: FieldDataType,
+}
+
+impl FieldDefinition {
+    pub fn new(
+        id: ColumnId,
+        name: impl Into<Arc<str>>,
+        data_type: impl Into<FieldDataType>,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            data_type: data_type.into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
@@ -307,11 +323,11 @@ pub struct LastCacheDefinition {
     /// The table id the cache is associated with
     pub table_id: TableId,
     /// The table name the cache is associated with
-    pub table: String,
+    pub table: Arc<str>,
     /// Given name of the cache
-    pub name: String,
+    pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<String>,
+    pub key_columns: Vec<ColumnId>,
     /// Columns that store values in the cache
     pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
@@ -322,12 +338,15 @@ pub struct LastCacheDefinition {
 
 impl LastCacheDefinition {
     /// Create a new [`LastCacheDefinition`] with explicit value columns
+    ///
+    /// This is intended for tests and expects that the column id for the time
+    /// column is included in the value columns argument.
     pub fn new_with_explicit_value_columns(
         table_id: TableId,
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
-        value_columns: impl IntoIterator<Item: Into<String>>,
+        table: impl Into<Arc<str>>,
+        name: impl Into<Arc<str>>,
+        key_columns: Vec<ColumnId>,
+        value_columns: Vec<ColumnId>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -335,9 +354,9 @@ impl LastCacheDefinition {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            key_columns,
             value_columns: LastCacheValueColumnsDef::Explicit {
-                columns: value_columns.into_iter().map(Into::into).collect(),
+                columns: value_columns,
             },
             count: count.try_into()?,
             ttl,
@@ -345,11 +364,13 @@ impl LastCacheDefinition {
     }
 
     /// Create a new [`LastCacheDefinition`] with explicit value columns
+    ///
+    /// This is intended for tests.
     pub fn new_all_non_key_value_columns(
         table_id: TableId,
-        table: impl Into<String>,
-        name: impl Into<String>,
-        key_columns: impl IntoIterator<Item: Into<String>>,
+        table: impl Into<Arc<str>>,
+        name: impl Into<Arc<str>>,
+        key_columns: Vec<ColumnId>,
         count: usize,
         ttl: u64,
     ) -> Result<Self, Error> {
@@ -357,7 +378,7 @@ impl LastCacheDefinition {
             table_id,
             table: table.into(),
             name: name.into(),
-            key_columns: key_columns.into_iter().map(Into::into).collect(),
+            key_columns,
             value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
             count: count.try_into()?,
             ttl,
@@ -371,7 +392,7 @@ impl LastCacheDefinition {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit { columns: Vec<String> },
+    Explicit { columns: Vec<ColumnId> },
     /// Stores all non-key columns
     AllNonKeyColumns,
 }
@@ -432,9 +453,9 @@ impl PartialEq<LastCacheSize> for usize {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct LastCacheDelete {
-    pub table_name: String,
+    pub table_name: Arc<str>,
     pub table_id: TableId,
-    pub name: String,
+    pub name: Arc<str>,
 }
 
 #[serde_as]
@@ -442,7 +463,7 @@ pub struct LastCacheDelete {
 pub struct WriteBatch {
     pub database_id: DbId,
     pub database_name: Arc<str>,
-    pub table_chunks: SerdeVecHashMap<TableId, TableChunks>,
+    pub table_chunks: SerdeVecMap<TableId, TableChunks>,
     pub min_time_ns: i64,
     pub max_time_ns: i64,
 }
@@ -451,7 +472,7 @@ impl WriteBatch {
     pub fn new(
         database_id: DbId,
         database_name: Arc<str>,
-        table_chunks: HashMap<TableId, TableChunks>,
+        table_chunks: IndexMap<TableId, TableChunks>,
     ) -> Self {
         // find the min and max times across the table chunks
         let (min_time_ns, max_time_ns) = table_chunks.values().fold(
@@ -475,7 +496,7 @@ impl WriteBatch {
 
     pub fn add_write_batch(
         &mut self,
-        new_table_chunks: SerdeVecHashMap<TableId, TableChunks>,
+        new_table_chunks: SerdeVecMap<TableId, TableChunks>,
         min_time_ns: i64,
         max_time_ns: i64,
     ) {
@@ -536,8 +557,17 @@ pub struct TableChunk {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Field {
-    pub name: Arc<str>,
+    pub id: ColumnId,
     pub value: FieldData,
+}
+
+impl Field {
+    pub fn new(id: ColumnId, value: impl Into<FieldData>) -> Self {
+        Self {
+            id,
+            value: value.into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -592,6 +622,18 @@ impl<'a> From<FieldValue<'a>> for FieldData {
             FieldValue::F64(v) => Self::Float(v),
             FieldValue::String(v) => Self::String(v.to_string()),
             FieldValue::Boolean(v) => Self::Boolean(v),
+        }
+    }
+}
+
+impl<'a> From<&FieldValue<'a>> for FieldData {
+    fn from(value: &FieldValue<'a>) -> Self {
+        match value {
+            FieldValue::I64(v) => Self::Integer(*v),
+            FieldValue::U64(v) => Self::UInteger(*v),
+            FieldValue::F64(v) => Self::Float(*v),
+            FieldValue::String(v) => Self::String(v.to_string()),
+            FieldValue::Boolean(v) => Self::Boolean(*v),
         }
     }
 }

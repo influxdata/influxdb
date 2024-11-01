@@ -3,9 +3,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use hashbrown::{
-    hash_map::{IntoIter, Iter, IterMut},
-    HashMap,
+use indexmap::{
+    map::{IntoIter, Iter, IterMut},
+    IndexMap,
 };
 use serde::{
     de::{self, SeqAccess, Visitor},
@@ -13,28 +13,38 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-/// A new-type around a `HashMap` that provides special serialization and deserialization behaviour.
+/// A new-type around a [`IndexMap`] that provides special serialization and deserialization behaviour.
 ///
 /// Specifically, it will be serialized as a vector of tuples, each tuple containing a key-value
 /// pair from the map. Deserialization assumes said serialization, and deserializes from the vector
 /// of tuples back into the map. Traits like `Deref`, `From`, etc. are implemented on this type such
-/// that it can be used as a `HashMap`.
+/// that it can be used as a `IndexMap`.
 ///
 /// During deserialization, there are no duplicate keys allowed. If duplicates are found, an error
 /// will be thrown.
+///
+/// The `IndexMap` type is used to preserve insertion, and thereby iteration order. This ensures
+/// consistent ordering of entities when this map is iterated over, for e.g., column ordering in
+/// queries, or entity ordering during serialization. Since `IndexMap` stores key/value pairs in a
+/// contiguous vector, iterating over its members is faster than a `HashMap`. This is beneficial for
+/// WAL serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SerdeVecHashMap<K: Eq + std::hash::Hash, V>(HashMap<K, V>);
+pub struct SerdeVecMap<K: Eq + std::hash::Hash, V>(IndexMap<K, V>);
 
-impl<K, V> SerdeVecHashMap<K, V>
+impl<K, V> SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn with_capacity(size: usize) -> Self {
+        Self(IndexMap::with_capacity(size))
+    }
 }
 
-impl<K, V> Default for SerdeVecHashMap<K, V>
+impl<K, V> Default for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -43,17 +53,17 @@ where
     }
 }
 
-impl<K, V, T> From<T> for SerdeVecHashMap<K, V>
+impl<K, V, T> From<T> for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
-    T: Into<HashMap<K, V>>,
+    T: Into<IndexMap<K, V>>,
 {
     fn from(value: T) -> Self {
         Self(value.into())
     }
 }
 
-impl<K, V> IntoIterator for SerdeVecHashMap<K, V>
+impl<K, V> IntoIterator for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -66,7 +76,7 @@ where
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a SerdeVecHashMap<K, V>
+impl<'a, K, V> IntoIterator for &'a SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -79,7 +89,7 @@ where
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a mut SerdeVecHashMap<K, V>
+impl<'a, K, V> IntoIterator for &'a mut SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -92,18 +102,27 @@ where
     }
 }
 
-impl<K, V> Deref for SerdeVecHashMap<K, V>
+impl<K, V> FromIterator<(K, V)> for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
-    type Target = HashMap<K, V>;
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<K, V> Deref for SerdeVecMap<K, V>
+where
+    K: Eq + std::hash::Hash,
+{
+    type Target = IndexMap<K, V>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<K, V> DerefMut for SerdeVecHashMap<K, V>
+impl<K, V> DerefMut for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash,
 {
@@ -112,7 +131,7 @@ where
     }
 }
 
-impl<K, V> Serialize for SerdeVecHashMap<K, V>
+impl<K, V> Serialize for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash + Serialize,
     V: Serialize,
@@ -129,7 +148,7 @@ where
     }
 }
 
-impl<'de, K, V> Deserialize<'de> for SerdeVecHashMap<K, V>
+impl<'de, K, V> Deserialize<'de> for SerdeVecMap<K, V>
 where
     K: Eq + std::hash::Hash + Deserialize<'de>,
     V: Deserialize<'de>,
@@ -139,7 +158,7 @@ where
         D: Deserializer<'de>,
     {
         let v = deserializer.deserialize_seq(VecVisitor::new())?;
-        let mut map = HashMap::with_capacity(v.len());
+        let mut map = IndexMap::with_capacity(v.len());
         for (k, v) in v.into_iter() {
             if map.insert(k, v).is_some() {
                 return Err(de::Error::custom("duplicate key found"));
@@ -188,20 +207,18 @@ where
 
 #[cfg(test)]
 mod tests {
-    use hashbrown::HashMap;
+    use indexmap::IndexMap;
 
-    use super::SerdeVecHashMap;
+    use super::SerdeVecMap;
 
     #[test]
     fn serde_vec_map_with_json() {
-        let map = HashMap::<u32, &str>::from_iter([(0, "foo"), (1, "bar"), (2, "baz")]);
-        let serde_vec_map = SerdeVecHashMap::from(map);
+        let map = IndexMap::<u32, &str>::from_iter([(0, "foo"), (1, "bar"), (2, "baz")]);
+        let serde_vec_map = SerdeVecMap::from(map);
         // test round-trip to JSON:
         let s = serde_json::to_string(&serde_vec_map).unwrap();
-        // with using a hashmap the order changes so asserting on the JSON itself is flaky, so if
-        // you want to see it working use --nocapture on the test...
-        println!("{s}");
-        let d: SerdeVecHashMap<u32, &str> = serde_json::from_str(&s).unwrap();
+        assert_eq!(r#"[[0,"foo"],[1,"bar"],[2,"baz"]]"#, s);
+        let d: SerdeVecMap<u32, &str> = serde_json::from_str(&s).unwrap();
         assert_eq!(d, serde_vec_map);
     }
 }

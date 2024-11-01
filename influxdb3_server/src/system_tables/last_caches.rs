@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::{GenericListBuilder, StringBuilder};
+use arrow::array::{GenericListBuilder, UInt32Builder};
 use arrow_array::{ArrayRef, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
@@ -31,12 +31,12 @@ fn last_caches_schema() -> SchemaRef {
         Field::new("name", DataType::Utf8, false),
         Field::new(
             "key_columns",
-            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
             false,
         ),
         Field::new(
             "value_columns",
-            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
             true,
         ),
         Field::new("count", DataType::UInt64, false),
@@ -83,20 +83,20 @@ fn from_last_cache_definitions(
     ));
     // Key Columns
     columns.push({
-        let values_builder = StringBuilder::new();
+        let values_builder = UInt32Builder::new();
         let mut builder = GenericListBuilder::<i32, _>::new(values_builder);
 
         for c in caches {
             c.key_columns
                 .iter()
-                .for_each(|k| builder.values().append_value(k));
+                .for_each(|k| builder.values().append_value(k.as_u32()));
             builder.append(true);
         }
         Arc::new(builder.finish())
     });
     // Value Columns
     columns.push({
-        let values_builder = StringBuilder::new();
+        let values_builder = UInt32Builder::new();
         let mut builder = GenericListBuilder::<i32, _>::new(values_builder);
 
         for c in caches {
@@ -104,7 +104,7 @@ fn from_last_cache_definitions(
                 LastCacheValueColumnsDef::Explicit { columns } => {
                     columns
                         .iter()
-                        .for_each(|v| builder.values().append_value(v));
+                        .for_each(|v| builder.values().append_value(v.as_u32()));
                     builder.append(true);
                 }
                 LastCacheValueColumnsDef::AllNonKeyColumns => {
