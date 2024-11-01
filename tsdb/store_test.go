@@ -145,6 +145,96 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 }
 
+// Ensure the store can create a new shard.
+func TestStore_StartupShardProgress(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		require.NoError(t, s.Reopen(t, WithStartupMetrics(msl)))
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called. This test opens 3 total shards - 1 shard
+		// fails, but we still want to track that it was attempted to be opened.
+		require.Equal(t, msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+		})
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
+// Introduces a test to ensure that shard loading still accounts for bad shards. We still want these to show up
+// during the initial shard loading even though its in a error state.
+func TestStore_BadShardLoading(t *testing.T) {
+	t.Parallel()
+
+	test := func(index string) {
+		s := MustOpenStore(t, index)
+		defer s.Close()
+
+		// Create a new shard and verify that it exists.
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 1, true))
+		sh := s.Shard(1)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 2, true))
+		sh = s.Shard(2)
+		require.NotNil(t, sh)
+
+		// Create another shard and verify that it exists.
+		require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", 3, true))
+		sh = s.Shard(3)
+		require.NotNil(t, sh)
+
+		s.SetShardOpenErrorForTest(sh.ID(), errors.New("a shard opening error occurred"))
+		err2 := s.OpenShard(context.Background(), s.Shard(sh.ID()), false)
+		require.Error(t, err2, "no error opening bad shard")
+
+		msl := &mockStartupLogger{}
+
+		// Reopen shard and recheck.
+		require.NoError(t, s.Reopen(t, WithStartupMetrics(msl)))
+
+		// Equality check to make sure shards are always added prior to
+		// completion being called. This test opens 3 total shards - 1 shard
+		// fails, but we still want to track that it was attempted to be opened.
+		require.Equal(t, msl.shardTracker, []string{
+			"shard-add",
+			"shard-add",
+			"shard-add",
+			"shard-complete",
+			"shard-complete",
+			"shard-complete",
+		})
+	}
+
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) { test(index) })
+	}
+}
+
 func TestStore_BadShard(t *testing.T) {
 	const errStr = "a shard open error"
 	indexes := tsdb.RegisteredIndexes()
@@ -2623,6 +2713,13 @@ func WithWALFlushOnShutdown(flush bool) StoreOption {
 	}
 }
 
+func WithStartupMetrics(sm *mockStartupLogger) StoreOption {
+	return func(s *Store) error {
+		s.WithStartupMetrics(sm)
+		return nil
+	}
+}
+
 // NewStore returns a new instance of Store with a temporary path.
 func NewStore(tb testing.TB, index string, opts ...StoreOption) *Store {
 	tb.Helper()
@@ -2766,4 +2863,21 @@ func dirExists(path string) bool {
 		return true
 	}
 	return !os.IsNotExist(err)
+}
+
+type mockStartupLogger struct {
+	shardTracker []string
+	mu           sync.Mutex
+}
+
+func (m *mockStartupLogger) AddShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, "shard-add")
+	m.mu.Unlock()
+}
+
+func (m *mockStartupLogger) CompletedShard() {
+	m.mu.Lock()
+	m.shardTracker = append(m.shardTracker, "shard-complete")
+	m.mu.Unlock()
 }
