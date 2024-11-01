@@ -461,11 +461,17 @@ func (s *Store) loadShards() error {
 	}
 
 	shardResC := make(chan *shardResponse, rawShardCount)
-	err = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+	_ = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		shardLoaderWg.Add(1)
 
-		go func(shardID uint64, db, rp, sh string) {
+		loadSingleShard := func(shardID uint64, sfile *SeriesFile, idx interface{}, db, rp, sh string) (rshard *Shard, rerr error) {
 			defer shardLoaderWg.Done()
+			defer func() {
+				shardResC <- &shardResponse{s: rshard, err: rerr}
+				if s.startupProgressMetrics != nil {
+					s.startupProgressMetrics.CompletedShard()
+				}
+			}()
 
 			t.Take()
 			defer t.Release()
@@ -497,19 +503,13 @@ func (s *Store) loadShards() error {
 			err = s.OpenShard(shard, false)
 			if err != nil {
 				log.Error("Failed to open shard", logger.Shard(shardID), zap.Error(err))
-				shardResC <- &shardResponse{err: fmt.Errorf("failed to open shard: %d: %w", shardID, err)}
-				if s.startupProgressMetrics != nil {
-					s.startupProgressMetrics.CompletedShard()
-				}
-				return
+				return nil, fmt.Errorf("failed to open shard: %d: %w", shardID, err)
 			}
 
-			shardResC <- &shardResponse{s: shard}
 			log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
-			if s.startupProgressMetrics != nil {
-				s.startupProgressMetrics.CompletedShard()
-			}
-		}(shardID, db.Name(), rp.Name(), sh.Name())
+			return shard, nil
+		}
+		go loadSingleShard(shardID, sfile, idx, db.Name(), rp.Name(), sh.Name())
 
 		return nil
 	})
