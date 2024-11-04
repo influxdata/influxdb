@@ -328,6 +328,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
+// loadShards loads all shards on disk. s.mu must be held before calling loadShards.
 func (s *Store) loadShards() error {
 	// Limit the number of concurrent TSM files to be opened to the number of cores.
 	s.EngineOptions.OpenLimiter = limiter.NewFixed(runtime.GOMAXPROCS(0))
@@ -456,6 +457,7 @@ func (s *Store) loadShards() error {
 		return nil
 	}
 
+	// Find total shard count for progress and channel size.
 	totalShardCount := 0
 	err = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		totalShardCount++
@@ -468,6 +470,7 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
+	// Do the actual work of loading shards.
 	shardResC := make(chan *shardResponse, totalShardCount)
 	pendingShardCount := 0
 	err = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
