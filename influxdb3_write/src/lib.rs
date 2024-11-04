@@ -343,13 +343,14 @@ mod test_helpers {
         let db_name = NamespaceName::new(db_name).unwrap();
         let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
             .unwrap()
-            .v1_parse_lines_and_update_schema(lp, false)
-            .unwrap()
-            .convert_lines_to_buffer(
+            .v1_parse_lines_and_update_schema(
+                lp,
+                false,
                 Time::from_timestamp_nanos(0),
-                Gen1Duration::new_5m(),
                 Precision::Nanosecond,
-            );
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         result.valid_data
     }
