@@ -536,8 +536,10 @@ func (s *Store) loadShards() error {
 
 		return nil
 	})
-	// We can't abort on this error, because we need to wait for all the goroutines we just spawned.
-	log.Error("error walking shards while loading", zap.Error(err))
+	if err != nil {
+		// We can't abort on this error, because we need to wait for all the goroutines we just spawned.
+		log.Error("error walking shards while loading", zap.Error(err))
+	}
 
 	for finishedShardCount := 0; finishedShardCount < pendingShardCount; finishedShardCount++ {
 		res := <-shardResC
