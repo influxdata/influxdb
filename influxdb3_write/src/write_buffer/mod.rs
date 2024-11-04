@@ -225,8 +225,8 @@ impl WriteBufferImpl {
             self.catalog(),
             ingest_time.timestamp_nanos(),
         )?
-        .v1_parse_lines_and_update_schema(lp, accept_partial)?
-        .convert_lines_to_buffer(ingest_time, self.wal_config.gen1_duration, precision);
+        .v1_parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
+        .convert_lines_to_buffer(self.wal_config.gen1_duration);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -267,8 +267,8 @@ impl WriteBufferImpl {
             self.catalog(),
             ingest_time.timestamp_nanos(),
         )?
-        .v3_parse_lines_and_update_schema(lp, accept_partial)?
-        .convert_lines_to_buffer(ingest_time, self.wal_config.gen1_duration, precision);
+        .v3_parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
+        .convert_lines_to_buffer(self.wal_config.gen1_duration);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
         // replayed on restart
@@ -560,13 +560,14 @@ mod tests {
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
         WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
             .unwrap()
-            .v1_parse_lines_and_update_schema(lp, false)
-            .unwrap()
-            .convert_lines_to_buffer(
+            .v1_parse_lines_and_update_schema(
+                lp,
+                false,
                 Time::from_timestamp_nanos(0),
-                Gen1Duration::new_5m(),
                 Precision::Nanosecond,
-            );
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         let db = catalog.db_schema_by_id(DbId::from(0)).unwrap();
 
