@@ -385,25 +385,37 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
-	walkShardsAndProcess := func(fn func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
+	// For thread-safety reasons, we need to load and cache the database series files and
+	// indices serially. Once they are all created and cached, they can be retrieved in
+	// parallel later.
+	for _, db := range dbDirs {
+		rpDirs, err := s.getRetentionPolicyDirs(db, log)
+		if err != nil {
+			return err
+		} else if rpDirs == nil {
+			continue
+		}
+
+		// Load and cache series file.
+		_, err = s.openSeriesFile(db.Name())
+		if err != nil {
+			return err
+		}
+
+		// Create and cache database index.
+		_, err = s.createIndexIfNotExists(db.Name())
+		if err != nil {
+			return err
+		}
+	}
+
+	walkShardsAndProcess := func(fn func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error) error {
 		for _, db := range dbDirs {
 			rpDirs, err := s.getRetentionPolicyDirs(db, log)
 			if err != nil {
 				return err
 			} else if rpDirs == nil {
 				continue
-			}
-
-			// Load series file.
-			sfile, err := s.openSeriesFile(db.Name())
-			if err != nil {
-				return err
-			}
-
-			// Retrieve database index.
-			idx, err := s.createIndexIfNotExists(db.Name())
-			if err != nil {
-				return err
 			}
 
 			for _, rp := range rpDirs {
@@ -435,7 +447,7 @@ func (s *Store) loadShards() error {
 						continue
 					}
 
-					if err := fn(shardID, sfile, idx, sh, db, rp); err != nil {
+					if err := fn(shardID, sh, db, rp); err != nil {
 						return err
 					}
 				}
@@ -446,7 +458,7 @@ func (s *Store) loadShards() error {
 	}
 
 	rawShardCount := 0
-	err = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+	err = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		rawShardCount++
 		if s.startupProgressMetrics != nil {
 			s.startupProgressMetrics.AddShard()
@@ -458,10 +470,10 @@ func (s *Store) loadShards() error {
 	}
 
 	shardResC := make(chan *shardResponse, rawShardCount)
-	_ = walkShardsAndProcess(func(shardID uint64, sfile *SeriesFile, idx interface{}, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+	_ = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
 		shardLoaderWg.Add(1)
 
-		loadSingleShard := func(shardID uint64, sfile *SeriesFile, idx interface{}, db, rp, sh string) (rshard *Shard, rerr error) {
+		loadSingleShard := func(shardID uint64, db, rp, sh string) (rshard *Shard, rerr error) {
 			defer shardLoaderWg.Done()
 			defer func() {
 				shardResC <- &shardResponse{s: rshard, err: rerr}
@@ -476,6 +488,18 @@ func (s *Store) loadShards() error {
 			start := time.Now()
 			path := filepath.Join(s.path, db, rp, sh)
 			walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
+
+			// Load cached series file.
+			sfile, err := s.openSeriesFile(db)
+			if err != nil {
+				return nil, err
+			}
+
+			// Load cached index.
+			idx, err := s.createIndexIfNotExists(db)
+			if err != nil {
+				return nil, err
+			}
 
 			// Copy options and assign shared index.
 			opt := s.EngineOptions
@@ -506,7 +530,7 @@ func (s *Store) loadShards() error {
 			log.Info("Opened shard", zap.String("index_version", shard.IndexType()), zap.String("path", path), zap.Duration("duration", time.Since(start)))
 			return shard, nil
 		}
-		go loadSingleShard(shardID, sfile, idx, db.Name(), rp.Name(), sh.Name())
+		go loadSingleShard(shardID, db.Name(), rp.Name(), sh.Name())
 
 		return nil
 	})
