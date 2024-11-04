@@ -376,7 +376,6 @@ func (s *Store) loadShards() error {
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
 	defer logEnd()
 
-	shardLoaderWg := new(sync.WaitGroup)
 	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
 	// Determine how many shards we need to open by checking the store path.
@@ -457,9 +456,9 @@ func (s *Store) loadShards() error {
 		return nil
 	}
 
-	rawShardCount := 0
+	totalShardCount := 0
 	err = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
-		rawShardCount++
+		totalShardCount++
 		if s.startupProgressMetrics != nil {
 			s.startupProgressMetrics.AddShard()
 		}
@@ -469,12 +468,12 @@ func (s *Store) loadShards() error {
 		return err
 	}
 
-	shardResC := make(chan *shardResponse, rawShardCount)
-	_ = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
-		shardLoaderWg.Add(1)
+	shardResC := make(chan *shardResponse, totalShardCount)
+	pendingShardCount := 0
+	err = walkShardsAndProcess(func(shardID uint64, sh os.DirEntry, db os.DirEntry, rp os.DirEntry) error {
+		pendingShardCount++
 
 		loadSingleShard := func(shardID uint64, db, rp, sh string) (rshard *Shard, rerr error) {
-			defer shardLoaderWg.Done()
 			defer func() {
 				shardResC <- &shardResponse{s: rshard, err: rerr}
 				if s.startupProgressMetrics != nil {
@@ -534,21 +533,11 @@ func (s *Store) loadShards() error {
 
 		return nil
 	})
+	// We can't abort on this error, because we need to wait for all the goroutines we just spawned.
+	log.Error("error walking shards while loading", zap.Error(err))
 
-	if err := s.enableShards(shardLoaderWg, shardResC); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Store) enableShards(wg *sync.WaitGroup, resC chan *shardResponse) error {
-	go func() {
-		wg.Wait()
-		close(resC)
-	}()
-
-	for res := range resC {
+	for finishedShardCount := 0; finishedShardCount < pendingShardCount; finishedShardCount++ {
+		res := <-shardResC
 		if res.s == nil || res.err != nil {
 			continue
 		}
@@ -567,7 +556,7 @@ func (s *Store) enableShards(wg *sync.WaitGroup, resC chan *shardResponse) error
 			for idx, cnt := range state.indexTypes {
 				fields = append(fields, zap.Int(fmt.Sprintf("%s_count", idx), cnt))
 			}
-			s.Logger.Warn("Mixed shard index types", append(fields, logger.Database(db))...)
+			log.Warn("Mixed shard index types", append(fields, logger.Database(db))...)
 		}
 	}
 
