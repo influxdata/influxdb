@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap/zaptest"
 	"math"
 	"math/rand"
 	"os"
@@ -17,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"go.uber.org/zap/zaptest"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/internal"
@@ -170,7 +171,7 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.shardTracker, []string{
+		require.Equal(t, msl.Tracked(), []string{
 			"shard-add",
 			"shard-add",
 			"shard-complete",
@@ -219,7 +220,7 @@ func TestStore_BadShardLoading(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.shardTracker, []string{
+		require.Equal(t, msl.Tracked(), []string{
 			"shard-add",
 			"shard-add",
 			"shard-add",
@@ -2949,18 +2950,29 @@ func dirExists(path string) bool {
 }
 
 type mockStartupLogger struct {
-	shardTracker []string
-	mu           sync.Mutex
+	// mu protects all following members.
+	mu sync.Mutex
+
+	_shardTracker []string
 }
 
 func (m *mockStartupLogger) AddShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-add"))
+	m._shardTracker = append(m._shardTracker, fmt.Sprintf("shard-add"))
 	m.mu.Unlock()
 }
 
 func (m *mockStartupLogger) CompletedShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, fmt.Sprintf("shard-complete"))
+	m._shardTracker = append(m._shardTracker, fmt.Sprintf("shard-complete"))
 	m.mu.Unlock()
+}
+
+func (m *mockStartupLogger) Tracked() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tracked := make([]string, len(m._shardTracker))
+	copy(tracked, m._shardTracker)
+	return tracked
 }
