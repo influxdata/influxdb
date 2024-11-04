@@ -2223,14 +2223,16 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
- "serde",
 ]
 
 [[package]]
 name = "hashbrown"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e087f84d4f86bf4b218b927129862374b72199ae7d8657835f1e89000eea4fb"
+checksum = "3a9bfc1af68b1726ea47d3d5109de126281def866b33970e10fbab11b5dafab3"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hashlink"
@@ -2560,7 +2562,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
 dependencies = [
  "equivalent",
- "hashbrown 0.15.0",
+ "hashbrown 0.15.1",
  "serde",
 ]
 
@@ -2595,7 +2597,7 @@ dependencies = [
  "datafusion_util",
  "dotenvy",
  "futures",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "hex",
  "humantime",
  "hyper 0.14.30",
@@ -2645,7 +2647,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "bimap",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "indexmap 2.6.0",
  "influxdb-line-protocol",
  "influxdb3_id",
@@ -2827,7 +2829,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "object_store",
  "parking_lot",
  "tokio",
@@ -2843,7 +2845,7 @@ dependencies = [
  "crc32fast",
  "data_types",
  "futures-util",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "indexmap 2.6.0",
  "influxdb-line-protocol",
  "influxdb3_id",
@@ -2879,7 +2881,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "futures-util",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "hex",
  "indexmap 2.6.0",
  "influxdb-line-protocol",
