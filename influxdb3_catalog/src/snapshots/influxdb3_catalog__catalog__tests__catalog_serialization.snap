@@ -1,253 +1,257 @@
 ---
 source: influxdb3_catalog/src/catalog.rs
+description: catalog serialization to help catch breaking changes
 expression: catalog
 ---
 {
   "databases": [
-    {
-      "id": 0,
-      "name": "test_db",
-      "tables": [
-        {
-          "table_id": 1,
-          "table_name": "test_table_1",
-          "cols": {
-            "bool_field": {
-              "column_id": 0,
-              "type": "bool",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "f64_field": {
-              "column_id": 1,
-              "type": "f64",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "i64_field": {
-              "column_id": 2,
-              "type": "i64",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "string_field": {
-              "column_id": 3,
-              "type": "str",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "tag_1": {
-              "column_id": 4,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
+    [
+      0,
+      {
+        "id": 0,
+        "name": "test_db",
+        "tables": [
+          [
+            1,
+            {
+              "table_id": 1,
+              "table_name": "test_table_1",
+              "cols": [
+                [
+                  5,
+                  {
+                    "name": "bool_field",
+                    "id": 5,
+                    "type": "bool",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  8,
+                  {
+                    "name": "f64_field",
+                    "id": 8,
+                    "type": "f64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  6,
+                  {
+                    "name": "i64_field",
+                    "id": 6,
+                    "type": "i64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  4,
+                  {
+                    "name": "string_field",
+                    "id": 4,
+                    "type": "str",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  0,
+                  {
+                    "name": "tag_1",
+                    "id": 0,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  1,
+                  {
+                    "name": "tag_2",
+                    "id": 1,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  2,
+                  {
+                    "name": "tag_3",
+                    "id": 2,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  3,
+                  {
+                    "name": "time",
+                    "id": 3,
+                    "type": {
+                      "time": [
+                        "ns",
+                        null
+                      ]
+                    },
+                    "influx_type": "time",
+                    "nullable": false
+                  }
+                ],
+                [
+                  7,
+                  {
+                    "name": "u64_field",
+                    "id": 7,
+                    "type": "u64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
                 ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "tag_2": {
-              "column_id": 5,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "tag_3": {
-              "column_id": 6,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "time": {
-              "column_id": 7,
-              "type": {
-                "time": [
-                  "ns",
-                  null
-                ]
-              },
-              "influx_type": "time",
-              "nullable": false
-            },
-            "u64_field": {
-              "column_id": 8,
-              "type": "u64",
-              "influx_type": "field",
-              "nullable": true
-            }
-          },
-          "column_map": [
-            {
-              "column_id": 0,
-              "name": "bool_field"
-            },
-            {
-              "column_id": 1,
-              "name": "f64_field"
-            },
-            {
-              "column_id": 2,
-              "name": "i64_field"
-            },
-            {
-              "column_id": 3,
-              "name": "string_field"
-            },
-            {
-              "column_id": 4,
-              "name": "tag_1"
-            },
-            {
-              "column_id": 5,
-              "name": "tag_2"
-            },
-            {
-              "column_id": 6,
-              "name": "tag_3"
-            },
-            {
-              "column_id": 7,
-              "name": "time"
-            },
-            {
-              "column_id": 8,
-              "name": "u64_field"
-            }
-          ],
-          "next_column_id": 9
-        },
-        {
-          "table_id": 2,
-          "table_name": "test_table_2",
-          "cols": {
-            "bool_field": {
-              "column_id": 0,
-              "type": "bool",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "f64_field": {
-              "column_id": 1,
-              "type": "f64",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "i64_field": {
-              "column_id": 2,
-              "type": "i64",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "string_field": {
-              "column_id": 3,
-              "type": "str",
-              "influx_type": "field",
-              "nullable": true
-            },
-            "tag_1": {
-              "column_id": 4,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "tag_2": {
-              "column_id": 5,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "tag_3": {
-              "column_id": 6,
-              "type": {
-                "dict": [
-                  "i32",
-                  "str"
-                ]
-              },
-              "influx_type": "tag",
-              "nullable": true
-            },
-            "time": {
-              "column_id": 7,
-              "type": {
-                "time": [
-                  "ns",
-                  null
-                ]
-              },
-              "influx_type": "time",
-              "nullable": false
-            },
-            "u64_field": {
-              "column_id": 8,
-              "type": "u64",
-              "influx_type": "field",
-              "nullable": true
-            }
-          },
-          "column_map": [
-            {
-              "column_id": 0,
-              "name": "bool_field"
-            },
-            {
-              "column_id": 1,
-              "name": "f64_field"
-            },
-            {
-              "column_id": 2,
-              "name": "i64_field"
-            },
-            {
-              "column_id": 3,
-              "name": "string_field"
-            },
-            {
-              "column_id": 4,
-              "name": "tag_1"
-            },
-            {
-              "column_id": 5,
-              "name": "tag_2"
-            },
-            {
-              "column_id": 6,
-              "name": "tag_3"
-            },
-            {
-              "column_id": 7,
-              "name": "time"
-            },
-            {
-              "column_id": 8,
-              "name": "u64_field"
+              ]
             }
           ],
-          "next_column_id": 9
-        }
-      ]
-    }
+          [
+            2,
+            {
+              "table_id": 2,
+              "table_name": "test_table_2",
+              "cols": [
+                [
+                  14,
+                  {
+                    "name": "bool_field",
+                    "id": 14,
+                    "type": "bool",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  17,
+                  {
+                    "name": "f64_field",
+                    "id": 17,
+                    "type": "f64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  15,
+                  {
+                    "name": "i64_field",
+                    "id": 15,
+                    "type": "i64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  13,
+                  {
+                    "name": "string_field",
+                    "id": 13,
+                    "type": "str",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ],
+                [
+                  9,
+                  {
+                    "name": "tag_1",
+                    "id": 9,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  10,
+                  {
+                    "name": "tag_2",
+                    "id": 10,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  11,
+                  {
+                    "name": "tag_3",
+                    "id": 11,
+                    "type": {
+                      "dict": [
+                        "i32",
+                        "str"
+                      ]
+                    },
+                    "influx_type": "tag",
+                    "nullable": true
+                  }
+                ],
+                [
+                  12,
+                  {
+                    "name": "time",
+                    "id": 12,
+                    "type": {
+                      "time": [
+                        "ns",
+                        null
+                      ]
+                    },
+                    "influx_type": "time",
+                    "nullable": false
+                  }
+                ],
+                [
+                  16,
+                  {
+                    "name": "u64_field",
+                    "id": 16,
+                    "type": "u64",
+                    "influx_type": "field",
+                    "nullable": true
+                  }
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    ]
   ],
   "sequence": 0,
   "host_id": "sample-host-id",

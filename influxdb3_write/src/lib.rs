@@ -18,9 +18,9 @@ use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::{self, SequenceNumber};
-use influxdb3_id::DbId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_id::TableId;
+use influxdb3_id::{ColumnId, DbId};
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -117,8 +117,8 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
+        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
     /// Delete a last-n-value cache
     ///
@@ -171,6 +171,8 @@ pub struct PersistedSnapshot {
     pub next_db_id: DbId,
     /// The next table id to be used for tables when the snapshot is loaded
     pub next_table_id: TableId,
+    /// The next column id to be used for columns when the snapshot is loaded
+    pub next_column_id: ColumnId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -202,6 +204,7 @@ impl PersistedSnapshot {
             next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
             next_table_id: TableId::next_id(),
+            next_column_id: ColumnId::next_id(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,
@@ -340,13 +343,14 @@ mod test_helpers {
         let db_name = NamespaceName::new(db_name).unwrap();
         let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
             .unwrap()
-            .v1_parse_lines_and_update_schema(lp, false)
-            .unwrap()
-            .convert_lines_to_buffer(
+            .v1_parse_lines_and_update_schema(
+                lp,
+                false,
                 Time::from_timestamp_nanos(0),
-                Gen1Duration::new_5m(),
                 Precision::Nanosecond,
-            );
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         result.valid_data
     }

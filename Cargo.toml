@@ -65,7 +65,7 @@ dotenvy = "0.15.7"
 flate2 = "1.0.27"
 futures = "0.3.28"
 futures-util = "0.3.30"
-hashbrown = { version = "0.14.5", features = ["serde"] }
+hashbrown = { version = "0.15.1", features = ["serde"] }
 hex = "0.4.3"
 http = "0.2.9"
 humantime = "2.1.0"

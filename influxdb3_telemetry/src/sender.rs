@@ -132,6 +132,19 @@ mod tests {
         mock.assert_async().await;
     }
 
+    #[test_log::test(test)]
+    #[should_panic]
+    fn test_sender_creation_with_invalid_url_panics() {
+        let client = reqwest::Client::new();
+        let _ = TelemetrySender::new(client, "localhost");
+    }
+
+    #[test_log::test(test)]
+    fn test_sender_creation_with_valid_url_succeeds() {
+        let client = reqwest::Client::new();
+        let _ = TelemetrySender::new(client, "http://localhost");
+    }
+
     #[test]
     fn test_url_join() {
         let url = Url::parse("https://foo.com/boo/1.html").unwrap();

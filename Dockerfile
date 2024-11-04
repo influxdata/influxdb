@@ -38,6 +38,7 @@ RUN \
     cp "/influxdb3/target/$PROFILE/$PACKAGE" /root/$PACKAGE && \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target
 
+
 FROM debian:bookworm-slim
 
 RUN apt update \

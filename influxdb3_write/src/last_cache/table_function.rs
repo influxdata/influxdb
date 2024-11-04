@@ -10,15 +10,15 @@ use datafusion::{
     physical_plan::{memory::MemoryExec, ExecutionPlan},
     scalar::ScalarValue,
 };
+use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::DbId;
-use influxdb3_id::TableId;
 
 use super::LastCacheProvider;
 
 struct LastCacheFunctionProvider {
     db_id: DbId,
-    table_id: TableId,
-    cache_name: String,
+    table_def: Arc<TableDefinition>,
+    cache_name: Arc<str>,
     schema: SchemaRef,
     provider: Arc<LastCacheProvider>,
 }
@@ -54,11 +54,11 @@ impl TableProvider for LastCacheFunctionProvider {
         let read = self.provider.cache_map.read();
         let batches = if let Some(cache) = read
             .get(&self.db_id)
-            .and_then(|db| db.get(&self.table_id))
+            .and_then(|db| db.get(&self.table_def.table_id))
             .and_then(|tbl| tbl.get(&self.cache_name))
         {
             let predicates = cache.convert_filter_exprs(filters);
-            cache.to_record_batches(&predicates)?
+            cache.to_record_batches(Arc::clone(&self.table_def), &predicates)?
         } else {
             // If there is no cache, it means that it was removed, in which case, we just return
             // an empty set of record batches.
@@ -97,27 +97,29 @@ impl TableFunctionImpl for LastCacheFunction {
             }
             None => None,
         };
-        let table_id = self
+        let Some(table_def) = self
             .provider
             .catalog
             .db_schema_by_id(self.db_id)
             .expect("db exists")
-            .table_name_to_id(table_name.as_str())
-            .expect("table exists");
-
-        match self.provider.get_cache_name_and_schema(
+            .table_definition(table_name.as_str())
+        else {
+            return plan_err!("provided table name is invalid");
+        };
+        let Some((cache_name, schema)) = self.provider.get_cache_name_and_schema(
             self.db_id,
-            table_id,
+            table_def.table_id,
             cache_name.map(|x| x.as_str()),
-        ) {
-            Some((cache_name, schema)) => Ok(Arc::new(LastCacheFunctionProvider {
-                db_id: self.db_id,
-                table_id,
-                cache_name,
-                schema,
-                provider: Arc::clone(&self.provider),
-            })),
-            None => plan_err!("could not find cache for the given arguments"),
-        }
+        ) else {
+            return plan_err!("could not find cache for the given arguments");
+        };
+
+        Ok(Arc::new(LastCacheFunctionProvider {
+            db_id: self.db_id,
+            table_def,
+            cache_name,
+            schema,
+            provider: Arc::clone(&self.provider),
+        }))
     }
 }
