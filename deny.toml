@@ -8,9 +8,6 @@ ignore = [
     # dependent on arrow-* upgrading dependencies on lexical-core
     # see https://github.com/apache/arrow-rs/pull/6401
     "RUSTSEC-2023-0086",
-    # Tonic + hyper upgrade is large - unblocking pipeline for now.
-    # https://rustsec.org/advisories/RUSTSEC-2024-0376
-    "RUSTSEC-2024-0376",
 ]
 git-fetch-with-cli = true
 
