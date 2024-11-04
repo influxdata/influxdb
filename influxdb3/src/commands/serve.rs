@@ -267,7 +267,7 @@ pub struct Config {
     #[clap(
         long = "telemetry-endpoint",
         env = "INFLUXDB3_TELEMETRY_ENDPOINT",
-        default_value = "localhost",
+        default_value = "http://127.0.0.1:9999",
         action
     )]
     pub telemetry_endpoint: String,
