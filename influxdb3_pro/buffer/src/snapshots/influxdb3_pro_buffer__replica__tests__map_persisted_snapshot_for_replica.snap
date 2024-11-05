@@ -8,6 +8,7 @@ expression: snapshot
   "next_file_id": 0,
   "next_db_id": 2,
   "next_table_id": 2,
+  "next_column_id": 6,
   "snapshot_sequence_number": 0,
   "wal_file_sequence_number": 0,
   "catalog_sequence_number": 0,

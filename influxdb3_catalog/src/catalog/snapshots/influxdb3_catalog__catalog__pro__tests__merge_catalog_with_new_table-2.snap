@@ -6,3 +6,6 @@ dbs:
   0: 1
 tables:
   3: 2
+columns:
+  8: 7
+  9: 6

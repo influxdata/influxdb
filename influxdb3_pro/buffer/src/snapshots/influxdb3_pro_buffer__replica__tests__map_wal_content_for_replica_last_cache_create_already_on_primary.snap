@@ -6,48 +6,40 @@ expression: db_before_applying
 id: 0
 name: foo
 tables:
-  0:
-    table_id: 0
-    table_name: bar
-    cols:
-      f1:
-        column_id: 0
-        type: bool
-        influx_type: field
-        nullable: true
-      t1:
-        column_id: 1
-        type:
-          dict:
-            - i32
-            - str
-        influx_type: tag
-        nullable: true
-      t2:
-        column_id: 2
-        type:
-          dict:
-            - i32
-            - str
-        influx_type: tag
-        nullable: true
-    last_caches:
-      - table_id: 0
-        table: bar
-        name: test_cache
-        keys:
-          - t1
-        vals: ~
-        n: 1
-        ttl: 3600
-    column_map:
-      - column_id: 0
-        name: f1
-      - column_id: 1
-        name: t1
-      - column_id: 2
-        name: t2
-    next_column_id: 3
-table_map:
-  - table_id: 0
-    name: bar
+  - - 0
+    - table_id: 0
+      table_name: bar
+      cols:
+        - - 2
+          - name: f1
+            id: 2
+            type: bool
+            influx_type: field
+            nullable: true
+        - - 0
+          - name: t1
+            id: 0
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: true
+        - - 1
+          - name: t2
+            id: 1
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: true
+      last_caches:
+        - table_id: 0
+          table: bar
+          name: test_cache
+          keys:
+            - 0
+          vals: ~
+          n: 1
+          ttl: 3600

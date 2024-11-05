@@ -244,7 +244,7 @@ async fn run_plan_and_write_detail(
     plan: CompactionPlan,
     compacted_data: Arc<CompactedData>,
     snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
-    table_definition: &TableDefinition,
+    table_definition: Arc<TableDefinition>,
     compaction_sequence_number: CompactionSequenceNumber,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
@@ -258,11 +258,7 @@ async fn run_plan_and_write_detail(
                 .db_schema_by_id(plan.db_id)
                 .expect("plan to have valid database id");
 
-            let index_columns = table_definition
-                .index_columns()
-                .iter()
-                .map(|c| c.to_string())
-                .collect();
+            let index_columns = table_definition.index_column_ids();
 
             // get the paths of all the files getting compacted
             let paths = compacted_data.paths_for_files_in_generations(
@@ -274,9 +270,8 @@ async fn run_plan_and_write_detail(
 
             // run the compaction
             let args = CompactFilesArgs {
+                table_def: Arc::clone(&table_definition),
                 compactor_id: Arc::clone(&compacted_data.compactor_id),
-                table_name: Arc::clone(&table_definition.table_name),
-                table_schema: table_definition.schema.schema().clone(),
                 paths,
                 limit: compacted_data.compaction_config.per_file_row_limit,
                 generation: plan.output_generation,
@@ -442,7 +437,7 @@ mod tests {
     use chrono::Utc;
     use executor::register_current_runtime_for_io;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_id::DbId;
+    use influxdb3_id::{ColumnId, DbId};
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{
         CompactionConfig, Generation, GenerationDetailPath, GenerationLevel,
@@ -519,19 +514,22 @@ mod tests {
                             table_id,
                             field_definitions: vec![
                                 FieldDefinition {
+                                    id: ColumnId::from(0),
                                     name: "tag1".into(),
                                     data_type: FieldDataType::Tag,
                                 },
                                 FieldDefinition {
+                                    id: ColumnId::from(1),
                                     name: "field1".into(),
                                     data_type: FieldDataType::Integer,
                                 },
                                 FieldDefinition {
+                                    id: ColumnId::from(2),
                                     name: "time".into(),
                                     data_type: FieldDataType::Timestamp,
                                 },
                             ],
-                            key: Some(vec!["tag1".into()]),
+                            key: Some(vec![ColumnId::from(0)]),
                         }),
                     ],
                 }),
@@ -550,15 +548,15 @@ mod tests {
                                         time: 1,
                                         fields: vec![
                                             Field {
-                                                name: "tag1".into(),
+                                                id: ColumnId::from(0),
                                                 value: FieldData::Tag("val".into()),
                                             },
                                             Field {
-                                                name: "field1".into(),
+                                                id: ColumnId::from(1),
                                                 value: FieldData::Integer(1),
                                             },
                                             Field {
-                                                name: "time".into(),
+                                                id: ColumnId::from(2),
                                                 value: FieldData::Timestamp(1),
                                             },
                                         ],
@@ -597,15 +595,15 @@ mod tests {
                                     time: 2,
                                     fields: vec![
                                         Field {
-                                            name: "tag1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Tag("val".into()),
                                         },
                                         Field {
-                                            name: "field1".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Integer(1),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(2),
                                             value: FieldData::Timestamp(2),
                                         },
                                     ],
@@ -651,15 +649,15 @@ mod tests {
                                     time: 3,
                                     fields: vec![
                                         Field {
-                                            name: "tag1".into(),
+                                            id: ColumnId::from(0),
                                             value: FieldData::Tag("val".into()),
                                         },
                                         Field {
-                                            name: "field1".into(),
+                                            id: ColumnId::from(1),
                                             value: FieldData::Integer(1),
                                         },
                                         Field {
-                                            name: "time".into(),
+                                            id: ColumnId::from(2),
                                             value: FieldData::Timestamp(3),
                                         },
                                     ],

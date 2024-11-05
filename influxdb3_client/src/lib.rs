@@ -711,7 +711,7 @@ pub struct LastCacheCreatedResponse {
     /// Given name of the cache
     pub name: String,
     /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<String>,
+    pub key_columns: Vec<u32>,
     /// Columns that store values in the cache
     pub value_columns: LastCacheValueColumnsDef,
     /// The number of last values to hold in the cache
@@ -726,7 +726,7 @@ pub struct LastCacheCreatedResponse {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
-    Explicit { columns: Vec<String> },
+    Explicit { columns: Vec<u32> },
     /// Stores all non-key columns
     AllNonKeyColumns,
 }
@@ -999,10 +999,10 @@ mod tests {
                 r#"{
                     "table": "table",
                     "name": "cache_name",
-                    "key_columns": ["col1", "col2"],
+                    "key_columns": [0, 1],
                     "value_columns": {
                         "type": "explicit",
-                        "columns": ["col3", "col4"]
+                        "columns": [2, 3]
                     },
                     "ttl": 120,
                     "count": 5

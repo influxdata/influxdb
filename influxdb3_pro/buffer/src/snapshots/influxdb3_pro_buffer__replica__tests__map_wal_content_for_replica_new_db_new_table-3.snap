@@ -6,39 +6,31 @@ expression: db
 id: 3
 name: sup
 tables:
-  3:
-    table_id: 3
-    table_name: dog
-    cols:
-      f1:
-        column_id: 0
-        type: f64
-        influx_type: field
-        nullable: true
-      t1:
-        column_id: 1
-        type:
-          dict:
-            - i32
-            - str
-        influx_type: tag
-        nullable: true
-      time:
-        column_id: 2
-        type:
-          time:
-            - ns
-            - ~
-        influx_type: time
-        nullable: false
-    column_map:
-      - column_id: 0
-        name: f1
-      - column_id: 1
-        name: t1
-      - column_id: 2
-        name: time
-    next_column_id: 3
-table_map:
-  - table_id: 3
-    name: dog
+  - - 3
+    - table_id: 3
+      table_name: dog
+      cols:
+        - - 10
+          - name: f1
+            id: 10
+            type: f64
+            influx_type: field
+            nullable: true
+        - - 9
+          - name: t1
+            id: 9
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: true
+        - - 11
+          - name: time
+            id: 11
+            type:
+              time:
+                - ns
+                - ~
+            influx_type: time
+            nullable: false

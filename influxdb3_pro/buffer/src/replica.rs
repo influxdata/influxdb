@@ -448,7 +448,7 @@ impl ReplicatedBuffer {
         let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
             return Ok(vec![]);
         };
-        let Some((table_id, table_schema)) = db_schema.table_schema_and_id(table_name) else {
+        let Some((table_id, table_def)) = db_schema.table_definition_and_id(table_name) else {
             return Ok(vec![]);
         };
         let buffer = self.buffer.read();
@@ -459,20 +459,20 @@ impl ReplicatedBuffer {
             return Ok(vec![]);
         };
         Ok(table_buffer
-            .partitioned_record_batches(table_schema.as_arrow(), filters)
+            .partitioned_record_batches(Arc::clone(&table_def), filters)
             .context("error getting partitioned batches from table buffer")?
             .into_iter()
             .map(|(gen_time, (ts_min_max, batches))| {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
                     Some(row_count),
-                    &table_schema,
+                    &table_def.schema,
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
                 Arc::new(BufferChunk {
                     batches,
-                    schema: table_schema.clone(),
+                    schema: table_def.schema.clone(),
                     stats: Arc::new(chunk_stats),
                     partition_id: TransitionPartitionId::new(
                         IoxTableId::new(0),
@@ -584,6 +584,7 @@ impl ReplicatedBuffer {
         snapshot_details: SnapshotDetails,
     ) {
         self.last_cache.write_wal_contents_to_cache(&wal_contents);
+        let catalog = self.catalog();
         // Update the Buffer by invoking the snapshot, to separate data in the buffer that will
         // get cleared by the snapshot, before fetching the snapshot from object store:
         {
@@ -591,9 +592,13 @@ impl ReplicatedBuffer {
             // when it is no longer needed, and is not held accross
             // await points below, which the compiler does not allow
             let mut buffer = self.buffer.write();
-            for (_, tbl_map) in buffer.db_to_table.iter_mut() {
-                for (_, tbl_buf) in tbl_map.iter_mut() {
-                    tbl_buf.snapshot(snapshot_details.end_time_marker);
+            for (db_id, tbl_map) in buffer.db_to_table.iter_mut() {
+                let db_schema = catalog.db_schema_by_id(*db_id).expect("db exists");
+                for (tbl_id, tbl_buf) in tbl_map.iter_mut() {
+                    let table_def = db_schema
+                        .table_definition_by_id(*tbl_id)
+                        .expect("table exists");
+                    tbl_buf.snapshot(table_def, snapshot_details.end_time_marker);
                 }
             }
             buffer.buffer_ops(wal_contents.ops, &self.last_cache);
@@ -737,7 +742,7 @@ mod tests {
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{DbId, ParquetFileId, TableId};
+    use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
         CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, Gen1Duration, WalConfig,
@@ -1152,7 +1157,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn parquet_cache_with_read_replicas() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         // spin up two primary write buffers:
@@ -1401,15 +1406,18 @@ mod tests {
                     TableId::new(),
                     "pow",
                     [
-                        create::field_def("t1", FieldDataType::Tag),
-                        create::field_def("f1", FieldDataType::Boolean),
+                        create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        create::field_def(ColumnId::new(), "f1", FieldDataType::Boolean),
                     ],
                 )],
             )],
         );
         // check the replicated catalog's id map before we map the above wal content
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         // do the mapping, which will allocate a new ID for the "pow" table locally:
@@ -1463,9 +1471,9 @@ mod tests {
                     table_id,
                     "dog",
                     [
-                        create::field_def("t1", FieldDataType::Tag),
-                        create::field_def("f1", FieldDataType::Float),
-                        create::field_def("time", FieldDataType::Timestamp),
+                        create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
+                        create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
                     ],
                 )],
             )],
@@ -1474,7 +1482,10 @@ mod tests {
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
@@ -1519,9 +1530,9 @@ mod tests {
                         table_id,
                         "buzz",
                         [
-                            create::field_def("t1", FieldDataType::Tag),
-                            create::field_def("f1", FieldDataType::Float),
-                            create::field_def("time", FieldDataType::Timestamp),
+                            create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                            create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
+                            create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
                         ],
                     )],
                 )],
@@ -1547,9 +1558,9 @@ mod tests {
                         table_id,
                         "buzz",
                         [
-                            create::field_def("t1", FieldDataType::Tag),
-                            create::field_def("f1", FieldDataType::Float),
-                            create::field_def("time", FieldDataType::Timestamp),
+                            create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                            create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
+                            create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
                         ],
                     )],
                 )],
@@ -1560,7 +1571,10 @@ mod tests {
             (db_id, table_id, wal_content)
         };
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
@@ -1602,7 +1616,11 @@ mod tests {
                     "foo",
                     table_id,
                     "bar",
-                    [create::field_def("f4", FieldDataType::Float)],
+                    [create::field_def(
+                        ColumnId::new(),
+                        "f4",
+                        FieldDataType::Float,
+                    )],
                 )],
             )],
         );
@@ -1610,7 +1628,10 @@ mod tests {
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully to the replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
@@ -1655,7 +1676,11 @@ mod tests {
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def("f4", FieldDataType::Float)],
+                        [create::field_def(
+                            ColumnId::new(),
+                            "f4",
+                            FieldDataType::Float,
+                        )],
                     )],
                 )],
             );
@@ -1678,7 +1703,11 @@ mod tests {
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def("f4", FieldDataType::Float)],
+                        [create::field_def(
+                            ColumnId::new(),
+                            "f4",
+                            FieldDataType::Float,
+                        )],
                     )],
                 )],
             );
@@ -1735,24 +1764,32 @@ mod tests {
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // create a last cache on the replica:
         let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
-        let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let wal_content = create::wal_content(
-            (0, 1, 0),
-            [create::catalog_batch_op(
-                db_id,
-                "foo",
-                0,
-                [
-                    create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
-                        .build(),
-                ],
-            )],
-        );
+        let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+        let t1_col_id = table_def.column_name_to_id("t1").unwrap();
+        let wal_content =
+            create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::create_last_cache_op_builder(
+                        table_id,
+                        "bar",
+                        "test_cache",
+                        [t1_col_id],
+                    )
+                    .build()],
+                )],
+            );
         replica
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
@@ -1808,17 +1845,21 @@ mod tests {
         // create the same last cache on both primary and replica:
         {
             let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
             let wal_content = create::wal_content(
                 (0, 1, 0),
                 [create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [
-                        create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
-                            .build(),
-                    ],
+                    [create::create_last_cache_op_builder(
+                        table_id,
+                        "bar",
+                        "test_cache",
+                        [t1_col_id],
+                    )
+                    .build()],
                 )],
             );
             primary
@@ -1827,17 +1868,21 @@ mod tests {
         }
         let replica_wal_content = {
             let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
             let wal_content = create::wal_content(
                 (0, 1, 0),
                 [create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [
-                        create::create_last_cache_op_builder(table_id, "bar", "test_cache", ["t1"])
-                            .build(),
-                    ],
+                    [create::create_last_cache_op_builder(
+                        table_id,
+                        "bar",
+                        "test_cache",
+                        [t1_col_id],
+                    )
+                    .build()],
                 )],
             );
             replica
@@ -1966,7 +2011,7 @@ mod tests {
 
     mod create {
         use influxdb3_catalog::catalog::SequenceNumber;
-        use influxdb3_id::ParquetFileId;
+        use influxdb3_id::{ColumnId, ParquetFileId};
         use influxdb3_wal::{
             LastCacheDefinition, LastCacheDelete, LastCacheSize, LastCacheValueColumnsDef,
             SnapshotSequenceNumber,
@@ -1974,7 +2019,7 @@ mod tests {
         use influxdb3_write::DatabaseTables;
 
         use super::*;
-        type SeriesKey<'a> = Option<&'a [&'a str]>;
+        type SeriesKey = Option<Vec<ColumnId>>;
 
         pub(super) fn table<C, N, SK>(
             name: &str,
@@ -1982,12 +2027,19 @@ mod tests {
             series_key: Option<SK>,
         ) -> TableDefinition
         where
-            C: AsRef<[(N, InfluxColumnType)]>,
-            N: AsRef<str>,
-            SK: IntoIterator<Item: AsRef<str>>,
+            C: IntoIterator<Item = (ColumnId, N, InfluxColumnType)>,
+            N: Into<Arc<str>>,
+            SK: IntoIterator<Item = ColumnId>,
         {
-            TableDefinition::new(TableId::new(), name.into(), cols, series_key)
-                .expect("create table definition")
+            TableDefinition::new(
+                TableId::new(),
+                name.into(),
+                cols.into_iter()
+                    .map(|(id, name, ty)| (id, name.into(), ty))
+                    .collect(),
+                series_key.map(|sk| sk.into_iter().collect()),
+            )
+            .expect("create table definition")
         }
 
         pub(super) fn catalog(name: &str) -> Arc<Catalog> {
@@ -1997,9 +2049,10 @@ mod tests {
             let tbl = table(
                 "bar",
                 [
-                    ("t1", InfluxColumnType::Tag),
-                    ("t2", InfluxColumnType::Tag),
+                    (ColumnId::new(), "t1", InfluxColumnType::Tag),
+                    (ColumnId::new(), "t2", InfluxColumnType::Tag),
                     (
+                        ColumnId::new(),
                         "f1",
                         InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
                     ),
@@ -2009,7 +2062,7 @@ mod tests {
             let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
             db.table_map
                 .insert(tbl.table_id, Arc::clone(&tbl.table_name));
-            db.tables.insert(tbl.table_id, tbl);
+            db.tables.insert(tbl.table_id, Arc::new(tbl));
             cat.insert_database(db);
             cat.into()
         }
@@ -2075,20 +2128,22 @@ mod tests {
         }
 
         pub(super) fn field_def(
+            id: ColumnId,
             name: impl Into<Arc<str>>,
             data_type: FieldDataType,
         ) -> FieldDefinition {
             FieldDefinition {
                 name: name.into(),
                 data_type,
+                id,
             }
         }
 
         pub(super) struct CreateLastCacheOpBuilder {
             table_id: TableId,
-            table_name: String,
-            name: String,
-            key_columns: Vec<String>,
+            table_name: Arc<str>,
+            name: Arc<str>,
+            key_columns: Vec<ColumnId>,
             value_columns: Option<LastCacheValueColumnsDef>,
             count: Option<LastCacheSize>,
             ttl: Option<u64>,
@@ -2112,15 +2167,15 @@ mod tests {
 
         pub(super) fn create_last_cache_op_builder(
             table_id: TableId,
-            table_name: impl Into<String>,
-            cache_name: impl Into<String>,
-            key_columns: impl IntoIterator<Item: Into<String>>,
+            table_name: impl Into<Arc<str>>,
+            cache_name: impl Into<Arc<str>>,
+            key_columns: impl IntoIterator<Item = ColumnId>,
         ) -> CreateLastCacheOpBuilder {
             CreateLastCacheOpBuilder {
                 table_id,
                 table_name: table_name.into(),
                 name: cache_name.into(),
-                key_columns: key_columns.into_iter().map(Into::into).collect(),
+                key_columns: key_columns.into_iter().collect(),
                 value_columns: None,
                 count: None,
                 ttl: None,
@@ -2129,8 +2184,8 @@ mod tests {
 
         pub(super) fn delete_last_cache_op(
             table_id: TableId,
-            table_name: impl Into<String>,
-            cache_name: impl Into<String>,
+            table_name: impl Into<Arc<str>>,
+            cache_name: impl Into<Arc<str>>,
         ) -> CatalogOp {
             CatalogOp::DeleteLastCache(LastCacheDelete {
                 table_name: table_name.into(),
@@ -2180,6 +2235,7 @@ mod tests {
             next_file_id: ParquetFileId,
             next_db_id: DbId,
             next_table_id: TableId,
+            next_column_id: ColumnId,
             snapshot_sequence_number: Option<SnapshotSequenceNumber>,
             wal_file_sequence_number: Option<WalFileSequenceNumber>,
             catalog_sequence_number: Option<SequenceNumber>,
@@ -2197,6 +2253,7 @@ mod tests {
                     next_file_id: self.next_file_id,
                     next_db_id: self.next_db_id,
                     next_table_id: self.next_table_id,
+                    next_column_id: self.next_column_id,
                     snapshot_sequence_number: self.snapshot_sequence_number.unwrap_or_default(),
                     wal_file_sequence_number: self.wal_file_sequence_number.unwrap_or_default(),
                     catalog_sequence_number: self.catalog_sequence_number.unwrap_or_default(),
@@ -2231,6 +2288,7 @@ mod tests {
                 next_file_id: ParquetFileId::next_id(),
                 next_db_id: DbId::next_id(),
                 next_table_id: TableId::next_id(),
+                next_column_id: ColumnId::next_id(),
                 snapshot_sequence_number: None,
                 wal_file_sequence_number: None,
                 catalog_sequence_number: None,

@@ -119,17 +119,18 @@ async fn five_files_multiple_series_same_schema() {
     let path5 = test_writer.write("test/batch/5", batch5).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let id_col_id = table_def.column_name_to_id("id").unwrap();
+    let field_col_id = table_def.column_name_to_id("field").unwrap();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        table_def,
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
         paths: vec![path1, path2, path3, path4, path5],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: vec!["id".into(), "field".into()],
+        index_columns: vec![id_col_id, field_col_id],
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -324,17 +325,19 @@ async fn two_files_two_series_and_same_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let id_col_id = table_def.column_name_to_id("id").unwrap();
+    let field_col_id = table_def.column_name_to_id("field").unwrap();
+    let host_col_id = table_def.column_name_to_id("host").unwrap();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
+        table_def,
         paths: vec![path2, path1],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        index_columns: vec![id_col_id, host_col_id, field_col_id],
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -472,17 +475,19 @@ async fn two_files_same_series_and_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let id_col_id = table_def.column_name_to_id("id").unwrap();
+    let field_col_id = table_def.column_name_to_id("field").unwrap();
+    let host_col_id = table_def.column_name_to_id("host").unwrap();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
+        table_def,
         paths: vec![path1, path2],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        index_columns: vec![id_col_id, host_col_id, field_col_id],
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -622,22 +627,20 @@ async fn two_files_similar_series_and_compatible_schema() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let id_col_id = table_def.column_name_to_id("id").unwrap();
+    let field_col_id = table_def.column_name_to_id("field").unwrap();
+    let host_col_id = table_def.column_name_to_id("host").unwrap();
+    let extra_tag_col_id = table_def.column_name_to_id("extra_tag").unwrap();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
+        table_def,
         paths: vec![path1, path2],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: vec![
-            "id".into(),
-            "host".into(),
-            "field".into(),
-            "extra_tag".into(),
-        ],
+        index_columns: vec![id_col_id, host_col_id, field_col_id, extra_tag_col_id],
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -776,17 +779,19 @@ async fn deduplication_of_data() {
     let path2 = test_writer.write("test/batch/2", batch2).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let id_col_id = table_def.column_name_to_id("id").unwrap();
+    let field_col_id = table_def.column_name_to_id("field").unwrap();
+    let host_col_id = table_def.column_name_to_id("host").unwrap();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
+        table_def,
         paths: vec![path2, path1],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: vec!["id".into(), "host".into(), "field".into()],
+        index_columns: vec![id_col_id, host_col_id, field_col_id],
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
@@ -918,20 +923,20 @@ async fn compactor_casting() {
     let path1 = test_writer.write("test/batch/1", batch1).await;
 
     let db_schema = write_buffer.catalog().db_schema("test_db").unwrap();
-    let table_schema = db_schema.table_schema("test_table").unwrap();
+    let table_def = db_schema.table_definition("test_table").unwrap();
+    let index_columns = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
+        .iter()
+        .map(|name| table_def.column_name_to_id(*name).unwrap())
+        .collect();
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
         compactor_id: "compactor_1".into(),
-        table_name: "test_table".into(),
-        table_schema: table_schema.clone(),
+        table_def,
         paths: vec![path1],
         limit: 2,
         generation: Generation::new(GenerationLevel::two()),
-        index_columns: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "time"]
-            .into_iter()
-            .map(ToString::to_string)
-            .collect(),
+        index_columns,
         object_store: persister.object_store(),
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
