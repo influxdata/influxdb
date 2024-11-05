@@ -1157,7 +1157,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn parquet_cache_with_read_replicas() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         // spin up two primary write buffers:
@@ -1414,7 +1414,10 @@ mod tests {
         );
         // check the replicated catalog's id map before we map the above wal content
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         // do the mapping, which will allocate a new ID for the "pow" table locally:
@@ -1479,7 +1482,10 @@ mod tests {
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
@@ -1565,7 +1571,10 @@ mod tests {
             (db_id, table_id, wal_content)
         };
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
@@ -1619,7 +1628,10 @@ mod tests {
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully to the replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
@@ -1774,7 +1786,10 @@ mod tests {
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({ description => "id map before mapping replica WAL content" }, {
+        insta::with_settings!({
+            sort_maps => true,
+            description => "id map before mapping replica WAL content"
+        }, {
             insta::assert_yaml_snapshot!(id_map);
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);

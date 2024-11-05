@@ -19,8 +19,10 @@ ops:
             table_id: 3
             field_definitions:
               - name: t1
+                id: 8
                 data_type: Tag
               - name: f1
+                id: 9
                 data_type: Boolean
             key: ~
 snapshot: ~

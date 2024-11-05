@@ -7,3 +7,7 @@ dbs:
   3: 2
 tables:
   0: 1
+columns:
+  0: 3
+  1: 4
+  2: 5

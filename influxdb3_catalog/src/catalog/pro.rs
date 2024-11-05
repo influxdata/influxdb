@@ -3,9 +3,9 @@ use bimap::BiHashMap;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DatabaseDefinition, FieldAdditions, LastCacheDefinition,
-    LastCacheDelete, LastCacheValueColumnsDef, TableDefinition as WalTableDefinition, WalContents,
-    WalOp, WriteBatch,
+    CatalogBatch, CatalogOp, DatabaseDefinition, Field, FieldAdditions, FieldDefinition,
+    LastCacheDefinition, LastCacheDelete, LastCacheValueColumnsDef, Row, TableChunk, TableChunks,
+    TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -107,14 +107,13 @@ impl TableDefinition {
         for other_col_def in other.columns.values() {
             let other_col_id = other_col_def.id;
             let other_col_name = Arc::clone(&other_col_def.name);
-            let local_col_id = if let Some(local_col_def) = self
+            if let Some(local_col_def) = self
                 .column_map
                 .get_by_right(&other_col_name)
                 .and_then(|id| self.columns.get(id))
             {
                 let ids = local_col_def.merge(self.table_name.as_ref(), other_col_def)?;
                 id_map.extend(ids);
-                local_col_def.id
             } else {
                 let new_col_id = ColumnId::new();
                 let other_cloned = other_col_def.clone();
@@ -123,9 +122,8 @@ impl TableDefinition {
                     ..other_cloned
                 };
                 new_columns.push((new_col_id, Arc::clone(&col_def.name), col_def.data_type));
-                new_col_id
+                id_map.columns.insert(other_col_id, new_col_id);
             };
-            id_map.columns.insert(other_col_id, local_col_id);
         }
 
         // validate the series keys match for existing tables:
@@ -179,7 +177,13 @@ impl TableDefinition {
             let col_id = ColumnId::new();
             id_map.columns.insert(*other_id, col_id);
             column_map.insert(col_id, Arc::clone(&other_def.name));
-            columns.insert(col_id, other_def.clone());
+            columns.insert(
+                col_id,
+                ColumnDefinition {
+                    id: col_id,
+                    ..other_def.clone()
+                },
+            );
         }
 
         // map the column ids in the series key:
@@ -300,6 +304,7 @@ impl CatalogIdMap {
     fn extend(&mut self, mut other: Self) {
         self.dbs.extend(other.dbs.drain());
         self.tables.extend(other.tables.drain());
+        self.columns.extend(other.columns.drain());
     }
 
     pub fn map_db_id(&self, database_id: DbId) -> Option<DbId> {
@@ -355,6 +360,32 @@ impl CatalogIdMap {
             })
     }
 
+    pub fn map_column_or_new(
+        &mut self,
+        target_catalog: &Catalog,
+        database_id: DbId,
+        table_id: TableId,
+        column_name: &str,
+        column_id: ColumnId,
+    ) -> ColumnId {
+        self.columns
+            .get(&column_id)
+            .copied()
+            .or_else(|| {
+                let id = target_catalog
+                    .db_schema_by_id(database_id)?
+                    .table_definition_by_id(table_id)?
+                    .column_name_to_id(column_name)?;
+                self.columns.insert(column_id, id);
+                Some(id)
+            })
+            .unwrap_or_else(|| {
+                let new_id = ColumnId::new();
+                self.columns.insert(column_id, new_id);
+                new_id
+            })
+    }
+
     pub fn map_wal_contents(
         &mut self,
         target_catalog: &Catalog,
@@ -394,12 +425,52 @@ impl CatalogIdMap {
                             .get(&table_id)
                             .copied()
                             .expect("write batch encountered for unseen table"),
-                        chunks,
+                        self.map_table_chunks(chunks),
                     )
                 })
                 .collect(),
             min_time_ns: from.min_time_ns,
             max_time_ns: from.max_time_ns,
+        }
+    }
+
+    fn map_table_chunks(&mut self, from: TableChunks) -> TableChunks {
+        TableChunks {
+            min_time: from.min_time,
+            max_time: from.max_time,
+            chunk_time_to_chunk: from
+                .chunk_time_to_chunk
+                .into_iter()
+                .map(|(time, chunk)| (time, self.map_table_chunk(chunk)))
+                .collect(),
+        }
+    }
+
+    fn map_table_chunk(&mut self, from: TableChunk) -> TableChunk {
+        TableChunk {
+            rows: from.rows.into_iter().map(|row| self.map_row(row)).collect(),
+        }
+    }
+
+    fn map_row(&mut self, row: Row) -> Row {
+        Row {
+            time: row.time,
+            fields: row
+                .fields
+                .into_iter()
+                .map(|field| self.map_field(field))
+                .collect(),
+        }
+    }
+
+    fn map_field(&mut self, from: Field) -> Field {
+        Field {
+            id: self
+                .columns
+                .get(&from.id)
+                .copied()
+                .expect("write batch contained unseen column"),
+            value: from.value,
         }
     }
 
@@ -428,31 +499,48 @@ impl CatalogIdMap {
                 database_id,
                 database_name: def.database_name,
             }),
-            CatalogOp::CreateTable(def) => CatalogOp::CreateTable(WalTableDefinition {
-                database_id,
-                database_name: def.database_name,
-                table_name: Arc::clone(&def.table_name),
-                table_id: self.map_table_or_new(
+            CatalogOp::CreateTable(def) => {
+                let table_id = self.map_table_or_new(
                     target_catalog,
                     database_id,
                     &def.table_name,
                     def.table_id,
-                ),
-                field_definitions: def.field_definitions,
-                key: def.key,
-            }),
-            CatalogOp::AddFields(def) => CatalogOp::AddFields(FieldAdditions {
-                database_name: def.database_name,
-                database_id,
-                table_name: Arc::clone(&def.table_name),
-                table_id: self.map_table_or_new(
+                );
+                CatalogOp::CreateTable(WalTableDefinition {
+                    database_id,
+                    database_name: def.database_name,
+                    table_name: Arc::clone(&def.table_name),
+                    table_id,
+                    field_definitions: self.map_field_definitions(
+                        target_catalog,
+                        database_id,
+                        table_id,
+                        def.field_definitions,
+                    ),
+                    key: def.key,
+                })
+            }
+            CatalogOp::AddFields(def) => {
+                let table_id = self.map_table_or_new(
                     target_catalog,
                     database_id,
                     &def.table_name,
                     def.table_id,
-                ),
-                field_definitions: def.field_definitions,
-            }),
+                );
+                CatalogOp::AddFields(FieldAdditions {
+                    database_name: def.database_name,
+                    database_id,
+                    table_name: Arc::clone(&def.table_name),
+                    table_id,
+                    field_definitions: self.map_field_definitions(
+                        target_catalog,
+                        database_id,
+                        table_id,
+                        def.field_definitions,
+                    ),
+                })
+            }
+
             CatalogOp::CreateLastCache(def) => CatalogOp::CreateLastCache(LastCacheDefinition {
                 table_id: self.map_table_or_new(
                     target_catalog,
@@ -462,8 +550,33 @@ impl CatalogIdMap {
                 ),
                 table: def.table,
                 name: def.name,
-                key_columns: def.key_columns,
-                value_columns: def.value_columns,
+                key_columns: def
+                    .key_columns
+                    .into_iter()
+                    .map(|id| {
+                        self.columns
+                            .get(&id)
+                            .copied()
+                            .expect("create last cache operation contained invalid key column id")
+                    })
+                    .collect(),
+                value_columns: match def.value_columns {
+                    LastCacheValueColumnsDef::Explicit { columns } => {
+                        LastCacheValueColumnsDef::Explicit {
+                            columns: columns
+                                .into_iter()
+                                .map(|id| {
+                                    self.columns.get(&id).copied().expect(
+                                    "create last cache operation contained invalid value column id",
+                                )
+                                })
+                                .collect(),
+                        }
+                    }
+                    LastCacheValueColumnsDef::AllNonKeyColumns => {
+                        LastCacheValueColumnsDef::AllNonKeyColumns
+                    }
+                },
                 count: def.count,
                 ttl: def.ttl,
             }),
@@ -481,6 +594,29 @@ impl CatalogIdMap {
             }),
         }
     }
+
+    fn map_field_definitions(
+        &mut self,
+        target_catalog: &Catalog,
+        database_id: DbId,
+        table_id: TableId,
+        field_definitions: Vec<FieldDefinition>,
+    ) -> Vec<FieldDefinition> {
+        field_definitions
+            .into_iter()
+            .map(|def| FieldDefinition {
+                name: Arc::clone(&def.name),
+                id: self.map_column_or_new(
+                    target_catalog,
+                    database_id,
+                    table_id,
+                    def.name.as_ref(),
+                    def.id,
+                ),
+                data_type: def.data_type,
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -488,6 +624,7 @@ mod tests {
     use std::{ops::Deref, sync::Arc};
 
     use influxdb3_id::{ColumnId, DbId, TableId};
+    use pretty_assertions::assert_eq;
     use schema::InfluxColumnType;
 
     use crate::catalog::{Catalog, DatabaseSchema, Error, TableDefinition};
@@ -560,10 +697,18 @@ mod tests {
         let b = Arc::new(Catalog::from_inner(a.clone_inner()));
         let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
         insta::assert_yaml_snapshot!(a);
-        insta::assert_yaml_snapshot!(b_to_a_map);
+        insta::with_settings!({
+            sort_maps => true
+        }, {
+            insta::assert_yaml_snapshot!(b_to_a_map);
+        });
         let a_to_b_map = b.merge(a).unwrap();
         insta::assert_yaml_snapshot!(b);
-        insta::assert_yaml_snapshot!(a_to_b_map);
+        insta::with_settings!({
+            sort_maps => true
+        }, {
+            insta::assert_yaml_snapshot!(a_to_b_map);
+        });
     }
 
     #[test]
@@ -573,10 +718,18 @@ mod tests {
         let b = create_catalog("b");
         let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
         insta::assert_yaml_snapshot!(a);
-        insta::assert_yaml_snapshot!(b_to_a_map);
+        insta::with_settings!({
+            sort_maps => true
+        }, {
+            insta::assert_yaml_snapshot!(b_to_a_map);
+        });
         let a_to_b_map = b.merge(a).unwrap();
         insta::assert_yaml_snapshot!(b);
-        insta::assert_yaml_snapshot!(a_to_b_map);
+        insta::with_settings!({
+            sort_maps => true
+        }, {
+            insta::assert_yaml_snapshot!(a_to_b_map);
+        });
     }
 
     #[test]
@@ -617,9 +770,7 @@ mod tests {
             ],
         );
         let mut db = b.db_schema("foo").unwrap().deref().clone();
-        db.table_map
-            .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
-        db.tables.insert(new_tbl.table_id, Arc::new(new_tbl));
+        db.insert_table(new_tbl.table_id, Arc::new(new_tbl));
         b.insert_database(db);
         // check the db/table by name in b:
         {
@@ -746,6 +897,10 @@ mod tests {
         let err = a
             .merge(b)
             .expect_err("merge should fail for incompatible series key");
-        assert!(matches!(err, Error::SeriesKeyMismatch { .. },));
+        let Error::Other(e) = err else {
+            panic!("incorrect error type");
+        };
+        let err = e.to_string();
+        assert_eq!("the series key from the other catalog's table does not match that of the local catalog", err);
     }
 }

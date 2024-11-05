@@ -6,22 +6,18 @@ expression: tbl
 table_id: 3
 table_name: pow
 cols:
-  f1:
-    column_id: 0
-    type: bool
-    influx_type: field
-    nullable: true
-  t1:
-    column_id: 1
-    type:
-      dict:
-        - i32
-        - str
-    influx_type: tag
-    nullable: true
-column_map:
-  - column_id: 0
-    name: f1
-  - column_id: 1
-    name: t1
-next_column_id: 2
+  - - 9
+    - name: f1
+      id: 9
+      type: bool
+      influx_type: field
+      nullable: true
+  - - 8
+    - name: t1
+      id: 8
+      type:
+        dict:
+          - i32
+          - str
+      influx_type: tag
+      nullable: true
