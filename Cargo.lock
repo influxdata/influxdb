@@ -2792,7 +2792,7 @@ dependencies = [
  "executor",
  "futures",
  "futures-util",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "humantime",
  "influxdb3_catalog",
  "influxdb3_id",
@@ -2829,7 +2829,7 @@ dependencies = [
  "chrono",
  "datafusion",
  "futures-util",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_pro_index",
@@ -2850,7 +2850,7 @@ name = "influxdb3_pro_index"
 version = "0.1.0"
 dependencies = [
  "datafusion",
- "hashbrown 0.14.5",
+ "hashbrown 0.15.1",
  "influxdb3_id",
  "influxdb3_write",
  "object_store",

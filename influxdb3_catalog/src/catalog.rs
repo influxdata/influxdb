@@ -19,7 +19,7 @@ use thiserror::Error;
 
 pub mod pro;
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("catalog updated elsewhere")]
     CatalogUpdatedElsewhere,
@@ -71,6 +71,9 @@ pub enum Error {
         table_name: String,
         existing: String,
     },
+
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
