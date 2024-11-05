@@ -24,7 +24,9 @@ use futures::{future::join_all, TryFutureExt};
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_id::ColumnId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
@@ -94,7 +96,9 @@ pub enum CompactorError {
     #[error("Failed to produce a RecordBatch: {0}")]
     FailedRecordStream(DataFusionError),
     #[error("'{0}' was not a column name in this table")]
-    MissingColumnName(String),
+    MissingColumnName(Arc<str>),
+    #[error("'{0}' was not a column id in this table")]
+    MissingColumnId(ColumnId),
     #[error("Failed to partition RecordBatch: {0}")]
     FailedPartition(ArrowError),
     #[error("Failed to create a reorg plan: {0}")]
@@ -293,12 +297,11 @@ impl ParquetCachePreFetcher {
 #[derive(Debug)]
 pub struct CompactFilesArgs {
     pub compactor_id: Arc<str>,
-    pub table_name: Arc<str>,
-    pub table_schema: Schema,
+    pub table_def: Arc<TableDefinition>,
     pub paths: Vec<ObjPath>,
     pub limit: usize,
     pub generation: Generation,
-    pub index_columns: Vec<String>,
+    pub index_columns: Vec<ColumnId>,
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
     pub exec: Arc<Executor>,
@@ -312,8 +315,7 @@ pub struct CompactFilesArgs {
 pub async fn compact_files(
     CompactFilesArgs {
         compactor_id,
-        table_name,
-        table_schema,
+        table_def,
         paths,
         limit,
         generation,
@@ -324,14 +326,13 @@ pub async fn compact_files(
         parquet_cache_prefetcher,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
-    let dedupe_key: Vec<_> = table_schema.primary_key();
+    let dedupe_key: Vec<_> = table_def.schema.primary_key();
     let dedupe_key = SortKey::from_columns(dedupe_key);
 
     let records = record_stream(
-        table_name.as_ref(),
+        Arc::clone(&table_def),
         dedupe_key,
         paths,
-        &table_schema,
         Arc::clone(&object_store),
         object_store_url,
         exec,
@@ -339,7 +340,7 @@ pub async fn compact_files(
     .await?;
 
     let mut series_writer = SeriesWriter::new(
-        Arc::new(table_schema.clone()),
+        table_def,
         object_store,
         limit,
         records,
@@ -363,15 +364,13 @@ pub async fn compact_files(
 /// Get a stream of `RecordBatch` formed from a set of input paths that get merged and deduplicated
 /// into a single stream.
 async fn record_stream(
-    table_name: &str,
+    table_def: Arc<TableDefinition>,
     sort_key: SortKey,
     paths: Vec<ObjPath>,
-    table_schema: &Schema,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
 ) -> Result<SendableRecordBatchStream, CompactorError> {
-    // We need to use the same partition id for every file if we want the reorg plan to not only
     // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
     // This is a concept for IOx and the query planner can be clever about deduping data if data
     // is in separate partitions. Mainly that it won't due to assuming that different partitions
@@ -400,11 +399,11 @@ async fn record_stream(
             object_store: Arc::clone(&object_store),
         };
 
-        let chunk_stats = create_chunk_statistics(None, table_schema, None, &NoColumnRanges);
+        let chunk_stats = create_chunk_statistics(None, &table_def.schema, None, &NoColumnRanges);
 
         let parquet_chunk: Arc<dyn QueryChunk> = Arc::new(ParquetChunk {
             partition_id: partition_id.clone(),
-            schema: table_schema.clone(),
+            schema: table_def.schema.clone(),
             stats: Arc::new(chunk_stats),
             sort_key: Some(sort_key.clone()),
             id: ChunkId::new_id(id as u128),
@@ -420,8 +419,8 @@ async fn record_stream(
     let plan = reorg
         .compact_plan(
             TableId::new(0),
-            table_name.into(),
-            table_schema,
+            Arc::clone(&table_def.table_name),
+            &table_def.schema,
             chunks,
             sort_key,
         )
@@ -439,6 +438,7 @@ async fn record_stream(
 /// Handles writing RecordBatches to a file in the object store
 /// ensuring each series is written to the same file
 struct SeriesWriter {
+    table_def: Arc<TableDefinition>,
     object_store: Arc<dyn ObjectStore>,
     /// the target size of each output file
     limit: usize,
@@ -449,7 +449,7 @@ struct SeriesWriter {
     /// Used to get the next `RecordBatch` to process
     record_batches: RecordBatchHolder,
     /// Series key (e.g. tags) to separate data out by
-    series_key: Vec<String>,
+    series_key: Vec<Arc<str>>,
     /// Files we have created
     output_paths: Vec<ObjPath>,
     /// Metadata for the files we have created
@@ -461,7 +461,7 @@ struct SeriesWriter {
     /// The current file id to use for this file we are compacting into
     current_file_id: ParquetFileId,
     /// What columns we are indexing on for the `FileIndex`
-    index_columns: Vec<Arc<str>>,
+    index_columns: Vec<ColumnId>,
     /// The `FileIndex` for this table that we are compacting
     file_index: FileIndex,
     /// Min time for the current file
@@ -477,26 +477,28 @@ impl SeriesWriter {
     /// compactions
     #[allow(clippy::too_many_arguments)]
     fn new(
-        table_schema: Arc<Schema>,
+        table_def: Arc<TableDefinition>,
         object_store: Arc<dyn ObjectStore>,
         limit: usize,
         stream: SendableRecordBatchStream,
         compactor_id: Arc<str>,
         generation: Generation,
-        index_columns: Vec<String>,
+        index_columns: Vec<ColumnId>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
     ) -> Self {
-        let mut series_key = table_schema
+        // TODO: this should come directly from a method on the table definition, and it is being
+        // somewhat confused with the "series key" from the v3 line protocol.
+        let series_key = table_def
+            .schema
             .primary_key()
             .iter()
-            .map(|f| f.to_string())
+            .filter(|f| **f != TIME_COLUMN_NAME)
+            .map(|f| Arc::from(*f))
             .collect::<Vec<_>>();
 
-        // get rid of time column
-        series_key.pop();
-
         Self {
-            record_batches: RecordBatchHolder::new(stream, table_schema),
+            record_batches: RecordBatchHolder::new(stream, Arc::new(table_def.schema.clone())),
+            table_def,
             object_store,
             limit,
             last_batch: None,
@@ -573,11 +575,7 @@ impl SeriesWriter {
         if let Some(last_batch) = self.last_batch.take() {
             let last_batch_slice = last_batch.slice(last_batch.num_rows() - 1, 1);
             let batch_slice = batch.slice(0, 1);
-            for key in self
-                .series_key
-                .iter()
-                .filter(|name| name != &TIME_COLUMN_NAME)
-            {
+            for key in self.series_key.iter() {
                 same_series = same_series
                     && batch_slice
                         .column_by_name(key)
@@ -696,7 +694,7 @@ impl SeriesWriter {
             .iter()
             .map(|name| {
                 Ok(Arc::clone(batch.column_by_name(name).ok_or_else(|| {
-                    CompactorError::MissingColumnName(name.clone())
+                    CompactorError::MissingColumnName(Arc::clone(name))
                 })?))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -711,8 +709,12 @@ impl SeriesWriter {
 
     /// Index a record batch for the current output file
     fn index_record_batch(&mut self, batch: &RecordBatch) -> Result<(), CompactorError> {
-        for column_name in self.index_columns.iter() {
-            let array = batch.column_by_name(column_name).unwrap();
+        for column_id in self.index_columns.iter() {
+            let column_name = self
+                .table_def
+                .column_id_to_name(*column_id)
+                .ok_or_else(|| CompactorError::MissingColumnId(*column_id))?;
+            let array = batch.column_by_name(&column_name).unwrap();
             // If the cast fails use null for the value. We might lose out on the indexing,
             // but this way we can handle most things
             let casted = cast_with_options(

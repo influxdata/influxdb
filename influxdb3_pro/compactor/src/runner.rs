@@ -258,11 +258,7 @@ async fn run_plan_and_write_detail(
                 .db_schema_by_id(plan.db_id)
                 .expect("plan to have valid database id");
 
-            let index_columns = table_definition
-                .index_column_ids()
-                .iter()
-                .map(|c| c.to_string())
-                .collect();
+            let index_columns = table_definition.index_column_ids();
 
             // get the paths of all the files getting compacted
             let paths = compacted_data.paths_for_files_in_generations(
@@ -274,9 +270,8 @@ async fn run_plan_and_write_detail(
 
             // run the compaction
             let args = CompactFilesArgs {
+                table_def: Arc::clone(&table_definition),
                 compactor_id: Arc::clone(&compacted_data.compactor_id),
-                table_name: Arc::clone(&table_definition.table_name),
-                table_schema: table_definition.schema.clone(),
                 paths,
                 limit: compacted_data.compaction_config.per_file_row_limit,
                 generation: plan.output_generation,
