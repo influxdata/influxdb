@@ -444,7 +444,7 @@ pub async fn command(config: Config) -> Result<()> {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(last_cache),
+            last_cache,
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,
