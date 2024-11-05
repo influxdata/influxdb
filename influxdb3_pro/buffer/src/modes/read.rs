@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
@@ -196,8 +196,8 @@ impl LastCacheManager for ReadMode {
         _cache_name: Option<&str>,
         _count: Option<usize>,
         _ttl: Option<Duration>,
-        _key_columns: Option<Vec<String>>,
-        _value_columns: Option<Vec<String>>,
+        _key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        _value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     ) -> WriteBufferResult<Option<LastCacheDefinition>> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }

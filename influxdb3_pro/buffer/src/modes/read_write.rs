@@ -6,7 +6,7 @@ use data_types::NamespaceName;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
@@ -314,8 +314,8 @@ impl LastCacheManager for ReadWriteMode {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<String>>,
-        value_columns: Option<Vec<String>>,
+        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
     ) -> write_buffer::Result<Option<LastCacheDefinition>> {
         self.primary
             .create_last_cache(
