@@ -251,8 +251,11 @@ pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,
     pub row_count: u64,
+    /// chunk time nanos
     pub chunk_time: i64,
+    /// min time nanos
     pub min_time: i64,
+    /// max time nanos
     pub max_time: i64,
 }
 

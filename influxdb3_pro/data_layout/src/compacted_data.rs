@@ -1,8 +1,12 @@
 //! Module that keeps track of comapcted data and provides methods for querying and loading it.
 
-use crate::persist::{
-    get_compaction_detail, get_generation_detail, load_compaction_summary,
-    load_compaction_summary_for_sequence, CompactedDataPersistenceError,
+use crate::{
+    gen_time_string,
+    persist::{
+        get_compaction_detail, get_generation_detail, load_compaction_summary,
+        load_compaction_summary_for_sequence, CompactedDataPersistenceError,
+    },
+    CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
 };
 use crate::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
@@ -70,15 +74,6 @@ impl PartialEq for CompactedData {
 }
 
 impl Eq for CompactedData {}
-
-#[derive(Debug, Eq, PartialEq)]
-struct InnerCompactedData {
-    // snapshots from different hosts that have yet to be compacted
-    snapshots: Vec<Arc<HostSnapshotMarker>>,
-    databases: HashMap<DbId, CompactedDatabase>,
-    last_compaction_summary: Option<CompactionSummary>,
-    last_compaction_sequence_number: CompactionSequenceNumber,
-}
 
 impl CompactedData {
     pub fn new(
@@ -576,6 +571,56 @@ impl CompactedData {
         table.compacted_generations = generatons_to_keep;
 
         table.compaction_detail = Some(Arc::new(compaction_detail));
+    }
+}
+
+impl CompactedDataSystemTableView for CompactedData {
+    fn query(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+    ) -> Option<Vec<CompactedDataSystemTableQueryResult>> {
+        let inner_data = self.data.read();
+        let compacted_table = inner_data
+            .get_databases()
+            .get(&db_id)?
+            .tables
+            .get(&table_id)?;
+        let compaction_detail = &compacted_table.compaction_detail.clone()?;
+        let all_parquet_files = &compacted_table.compacted_generations;
+        let results = compaction_detail
+            .compacted_generations
+            .iter()
+            .map(|gen| {
+                let parquet_files: Vec<Arc<ParquetFile>> = all_parquet_files
+                    .get(&gen.id)
+                    .expect("generation to have parquet files")
+                    // is this clone cheap? does it matter?
+                    .clone();
+                CompactedDataSystemTableQueryResult {
+                    generation_id: gen.id.as_u64(),
+                    generation_level: gen.level.as_u8(),
+                    generation_time: gen_time_string(gen.start_time_secs),
+                    parquet_files,
+                }
+            })
+            .collect();
+        Some(results)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct InnerCompactedData {
+    // snapshots from different hosts that have yet to be compacted
+    snapshots: Vec<Arc<HostSnapshotMarker>>,
+    databases: HashMap<DbId, CompactedDatabase>,
+    last_compaction_summary: Option<CompactionSummary>,
+    last_compaction_sequence_number: CompactionSequenceNumber,
+}
+
+impl InnerCompactedData {
+    fn get_databases(&self) -> &HashMap<DbId, CompactedDatabase> {
+        &self.databases
     }
 }
 

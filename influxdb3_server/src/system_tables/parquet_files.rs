@@ -1,18 +1,16 @@
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 use arrow_array::{ArrayRef, Int64Array, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
-use datafusion::{
-    error::DataFusionError,
-    logical_expr::{col, BinaryExpr, Expr, Operator},
-    scalar::ScalarValue,
-};
+use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_id::DbId;
 use influxdb3_write::{ParquetFile, WriteBuffer};
 use iox_system_tables::IoxSystemTable;
 
-use super::{PARQUET_FILES_TABLE_NAME, SYSTEM_SCHEMA_NAME};
+use crate::system_tables::{
+    find_table_name_in_filter, table_name_predicate_error, PARQUET_FILES_TABLE_NAME,
+};
 
 pub(super) struct ParquetFilesTable {
     db_id: DbId,
@@ -42,21 +40,6 @@ fn parquet_files_schema() -> SchemaRef {
     Arc::new(Schema::new(columns))
 }
 
-/// Used in queries to the system.parquet_files table
-///
-/// # Example
-/// ```sql
-/// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
-/// ```
-const TABLE_NAME_PREDICATE: &str = "table_name";
-
-pub(crate) fn table_name_predicate_error() -> DataFusionError {
-    DataFusionError::Plan(format!(
-        "must provide a {TABLE_NAME_PREDICATE} = '<table_name>' predicate in queries to \
-            {SYSTEM_SCHEMA_NAME}.{PARQUET_FILES_TABLE_NAME}"
-    ))
-}
-
 #[async_trait]
 impl IoxSystemTable for ParquetFilesTable {
     fn schema(&self) -> SchemaRef {
@@ -71,25 +54,8 @@ impl IoxSystemTable for ParquetFilesTable {
         let schema = self.schema();
 
         // extract `table_name` from filters
-        let table_name = filters
-            .ok_or_else(table_name_predicate_error)?
-            .iter()
-            .find_map(|f| match f {
-                Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
-                    if left.deref() == &col(TABLE_NAME_PREDICATE) && op == &Operator::Eq {
-                        match right.deref() {
-                            Expr::Literal(
-                                ScalarValue::Utf8(Some(s)) | ScalarValue::LargeUtf8(Some(s)),
-                            ) => Some(s.to_owned()),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
-            .ok_or_else(table_name_predicate_error)?;
+        let table_name = find_table_name_in_filter(filters)
+            .ok_or_else(|| table_name_predicate_error(PARQUET_FILES_TABLE_NAME))?;
 
         let parquet_files: Vec<ParquetFile> = self.buffer.parquet_files(
             self.db_id,

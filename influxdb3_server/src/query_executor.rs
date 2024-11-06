@@ -19,6 +19,7 @@ use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
@@ -56,6 +57,7 @@ pub struct QueryExecutorImpl {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
+    compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -69,6 +71,7 @@ pub struct CreateQueryExecutorArgs {
     pub concurrent_query_limit: usize,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
+    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
 }
 
 impl QueryExecutorImpl {
@@ -82,6 +85,7 @@ impl QueryExecutorImpl {
             concurrent_query_limit,
             query_log_size,
             telemetry_store,
+            compacted_data,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -102,6 +106,7 @@ impl QueryExecutorImpl {
             query_execution_semaphore,
             query_log,
             telemetry_store,
+            compacted_data,
         }
     }
 }
@@ -330,6 +335,7 @@ impl QueryDatabase for QueryExecutorImpl {
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
+            self.compacted_data.clone(),
         ))))
     }
 
@@ -362,11 +368,13 @@ impl Database {
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
+        compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            db_schema.id,
+            Arc::clone(&db_schema),
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
+            compacted_data.clone(),
         ));
         Self {
             db_schema,
@@ -616,6 +624,10 @@ mod tests {
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_id::ParquetFileId;
+    use influxdb3_pro_data_layout::{
+        CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
+    };
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -623,19 +635,64 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
-        WriteBuffer,
+        ParquetFile, WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
+    use pretty_assertions::assert_eq;
 
     use crate::{
-        query_executor::QueryExecutorImpl, system_tables::table_name_predicate_error, QueryExecutor,
+        query_executor::QueryExecutorImpl,
+        system_tables::{table_name_predicate_error, PARQUET_FILES_TABLE_NAME},
+        QueryExecutor,
     };
 
     use super::CreateQueryExecutorArgs;
+
+    #[derive(Debug)]
+    struct MockCompactedDataSysTable;
+
+    impl CompactedDataSystemTableView for MockCompactedDataSysTable {
+        fn query(
+            &self,
+            _db_id: influxdb3_id::DbId,
+            _table_id: influxdb3_id::TableId,
+        ) -> Option<Vec<influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult>> {
+            Some(vec![
+                CompactedDataSystemTableQueryResult {
+                    generation_id: 1,
+                    generation_level: 2,
+                    generation_time: "2024-01-02/23-00".to_owned(),
+                    parquet_files: vec![Arc::new(ParquetFile {
+                        id: ParquetFileId::new(),
+                        path: "/some/path.parquet".to_owned(),
+                        size_bytes: 450_000,
+                        row_count: 100_000,
+                        chunk_time: 1234567890000000000,
+                        min_time: 1234567890000000000,
+                        max_time: 1234567890000000000,
+                    })],
+                },
+                CompactedDataSystemTableQueryResult {
+                    generation_id: 2,
+                    generation_level: 3,
+                    generation_time: "2024-01-02/23-00".to_owned(),
+                    parquet_files: vec![Arc::new(ParquetFile {
+                        id: ParquetFileId::new(),
+                        path: "/some/path2.parquet".to_owned(),
+                        size_bytes: 450_000,
+                        row_count: 100_000,
+                        chunk_time: 1234567890000000000,
+                        min_time: 1234567890000000000,
+                        max_time: 1234567890000000000,
+                    })],
+                },
+            ])
+        }
+    }
 
     fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
@@ -704,6 +761,7 @@ mod tests {
             concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store,
+            compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
         });
 
         (write_buffer, query_executor, time_provider)
@@ -809,6 +867,64 @@ mod tests {
             .await
             .unwrap();
         let error: DataFusionError = stream.try_collect::<Vec<RecordBatch>>().await.unwrap_err();
-        assert_eq!(error.message(), table_name_predicate_error().message());
+        assert_eq!(
+            error.message(),
+            table_name_predicate_error(PARQUET_FILES_TABLE_NAME).message()
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn system_table_compacted_data_success() {
+        let (write_buffer, query_executor, _) = setup().await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..10 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+        }
+        let _ = write_buffer.watch_persisted_snapshots().changed().await;
+
+        // don't add parquet_id as it's changes everytime it's ran now
+        let query = "SELECT
+            table_name,
+            generation_id,
+            generation_level,
+            generation_time,
+            parquet_path,
+            parquet_size_bytes,
+            parquet_row_count,
+            parquet_chunk_time,
+            parquet_min_time,
+            parquet_max_time
+            FROM system.compacted_data WHERE table_name = 'cpu'";
+        let batch_stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+        assert_batches_sorted_eq!(
+            [
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| cpu        | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "| cpu        | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+            ],
+            &batches);
     }
 }

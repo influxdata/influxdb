@@ -16,8 +16,8 @@ use influxdb3_pro_buffer::{
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::{Compactor, ParquetCachePreFetcher};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::CompactionConfig;
+use influxdb3_pro_data_layout::{compacted_data::CompactedData, CompactedDataSystemTableView};
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -573,6 +573,13 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
     )?;
 
+    let sys_table_compacted_data: Option<Arc<dyn CompactedDataSystemTableView>> =
+        if let Some(ref compacted_data) = compacted_data {
+            Some(Arc::clone(compacted_data) as Arc<dyn CompactedDataSystemTableView>)
+        } else {
+            None
+        };
+
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
         catalog: write_buffer.catalog(),
         write_buffer: Arc::clone(&write_buffer),
@@ -582,6 +589,7 @@ pub async fn command(config: Config) -> Result<()> {
         concurrent_query_limit: 10,
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
+        compacted_data: sys_table_compacted_data,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)

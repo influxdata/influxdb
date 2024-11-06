@@ -2900,6 +2900,7 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_catalog",
  "influxdb3_id",
+ "influxdb3_pro_data_layout",
  "influxdb3_process",
  "influxdb3_telemetry",
  "influxdb3_wal",

@@ -29,6 +29,25 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// System table query result
+#[derive(Debug)]
+pub struct CompactedDataSystemTableQueryResult {
+    pub generation_id: u64,
+    pub generation_level: u8,
+    pub generation_time: String,
+    pub parquet_files: Vec<Arc<ParquetFile>>,
+}
+
+/// This trait is for a view of `CompactedData` that can be queried as a system table
+pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug {
+    // TODO: rationalise Option<Vec<_>> vs Vec<_>
+    fn query(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+    ) -> Option<Vec<CompactedDataSystemTableQueryResult>>;
+}
+
 /// The `CompactionSummary` keeps track of the last snapshot from each host that has been compacted.
 /// Every table will have its own `CompactionDetail` and the summary contains a pointer to
 /// whatever the latest compaction detail is for each table.

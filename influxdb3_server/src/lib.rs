@@ -811,6 +811,7 @@ mod tests {
             concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
+            compacted_data: None,
         });
 
         // bind to port 0 will assign a random available port:
