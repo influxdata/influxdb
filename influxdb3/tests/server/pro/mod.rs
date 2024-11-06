@@ -48,6 +48,12 @@ impl ConfigProvider for TestConfigPro {
                 path.to_owned(),
             ])
         }
+        if let Some(replication_interval) = &self.replication_interval {
+            args.append(&mut vec![
+                "--replication-interval".to_string(),
+                replication_interval.to_owned(),
+            ])
+        }
         args
     }
 
