@@ -125,9 +125,8 @@ impl QueryableBuffer {
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the last cache so the data is queryable.
     fn buffer_contents(&self, write: WalContents) {
-        let mut buffer = self.buffer.write();
-        self.last_cache_provider.evict_expired_cache_entries();
         self.last_cache_provider.write_wal_contents_to_cache(&write);
+        let mut buffer = self.buffer.write();
         buffer.buffer_ops(write.ops, &self.last_cache_provider);
     }
 

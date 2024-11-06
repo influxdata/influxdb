@@ -487,7 +487,7 @@ mod tests {
             Arc::clone(&exec),
             Arc::clone(&catalog),
             Arc::clone(&persister),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
             Arc::clone(&persisted_files),
             None,
         );

@@ -52,7 +52,7 @@ async fn five_files_multiple_series_same_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -270,7 +270,7 @@ async fn two_files_two_series_and_same_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -420,7 +420,7 @@ async fn two_files_same_series_and_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -551,7 +551,7 @@ async fn two_files_similar_series_and_compatible_schema() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -724,7 +724,7 @@ async fn deduplication_of_data() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),
@@ -849,7 +849,7 @@ async fn compactor_casting() {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap()),
+            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
             Arc::new(Executor::new_testing()),
             WalConfig::test_config(),

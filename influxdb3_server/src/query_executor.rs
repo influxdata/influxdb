@@ -675,7 +675,7 @@ mod tests {
             WriteBufferImpl::new(
                 Arc::clone(&persister),
                 Arc::clone(&catalog),
-                Arc::new(LastCacheProvider::new_from_catalog(catalog as _).unwrap()),
+                LastCacheProvider::new_from_catalog(catalog as _).unwrap(),
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&exec),
                 WalConfig {

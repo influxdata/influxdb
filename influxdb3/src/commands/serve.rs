@@ -298,6 +298,16 @@ pub struct Config {
         action
     )]
     pub preemptive_cache_age: humantime::Duration,
+
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
+    #[clap(
+        long = "last-cache-eviction-interval",
+        env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
+        default_value = "1m",
+        action
+    )]
+    pub last_cache_eviction_interval: humantime::Duration,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -488,8 +498,11 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
 
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
-        .map_err(Error::InitializeLastCache)?;
+    let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
+        Arc::clone(&catalog),
+        config.last_cache_eviction_interval.into(),
+    )
+    .map_err(Error::InitializeLastCache)?;
 
     let replica_config = config.pro_config.replicas.map(|replicas| {
         ReplicationConfig::new(
@@ -507,7 +520,7 @@ pub async fn command(config: Config) -> Result<()> {
                 (
                     Arc::new(
                         WriteBufferPro::read(
-                            Arc::new(last_cache),
+                            last_cache,
                             Arc::clone(&object_store),
                             Arc::clone(&metrics),
                             replica_config,
@@ -527,7 +540,7 @@ pub async fn command(config: Config) -> Result<()> {
                         host_id: persister.host_identifier_prefix().into(),
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
-                        last_cache: Arc::new(last_cache),
+                        last_cache,
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
                         executor: Arc::clone(&exec),
                         wal_config,
