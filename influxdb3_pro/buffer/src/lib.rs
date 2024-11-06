@@ -209,8 +209,7 @@ mod tests {
             host_id,
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
@@ -313,8 +312,7 @@ mod tests {
         let host_id = "picard";
         let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
-        let last_cache =
-            Arc::new(LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();

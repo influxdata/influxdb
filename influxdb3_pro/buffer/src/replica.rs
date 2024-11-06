@@ -975,9 +975,8 @@ mod tests {
 
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(CreateReplicasArgs {
-            last_cache: Arc::new(
-                LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
-            ),
+            last_cache: LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
+
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
@@ -1089,9 +1088,8 @@ mod tests {
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
-            last_cache: Arc::new(
-                LastCacheProvider::new_from_catalog(primaries["newton"].catalog()).unwrap(),
-            ),
+            last_cache: LastCacheProvider::new_from_catalog(primaries["newton"].catalog()).unwrap(),
+
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
@@ -1250,9 +1248,9 @@ mod tests {
             let replicas = Replicas::new(CreateReplicasArgs {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
-                last_cache: Arc::new(
-                    LastCacheProvider::new_from_catalog(primaries["skinner"].catalog()).unwrap(),
-                ),
+                last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
+                    .unwrap(),
+
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
@@ -1319,9 +1317,9 @@ mod tests {
             register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&non_cached_obj_store));
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
-                last_cache: Arc::new(
-                    LastCacheProvider::new_from_catalog(primaries["skinner"].catalog()).unwrap(),
-                ),
+                last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
+                    .unwrap(),
+
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
@@ -1959,7 +1957,7 @@ mod tests {
         WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             time_provider,
             make_exec(object_store, metric_registry),
             wal_config,
