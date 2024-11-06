@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use bimap::BiHashMap;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use indexmap::IndexMap;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DatabaseDefinition, Field, FieldAdditions, FieldDefinition,
@@ -17,81 +17,105 @@ use crate::catalog::{Catalog, DatabaseSchema, Error, InnerCatalog, Result, Table
 use super::ColumnDefinition;
 
 impl Catalog {
-    /// Merge another catlog into this one, producing a mapping that maps the IDs from the other
-    /// catalog to this one
+    /// Merge the `other` [`Catalog`] with this one, producing a [`CatalogIdMap`] that maps the
+    /// identifiers from the other catalog onto identifiers in this one.
+    ///
+    /// This uses the names of entities to determine a match, so a database named "foo" in the other
+    /// catalog will be merged into a database called "foo" in this catalog, or if "foo" does not
+    /// yet exist in this catalog, then it will be created, and a new identifier will be generated
+    /// for "foo". This logic applies down the hierarchy of the catalog, so tables and columns will
+    /// be treated similarly.
     pub fn merge(&self, other: Arc<Catalog>) -> Result<CatalogIdMap> {
         self.inner().write().merge(other)
     }
 }
 
 impl InnerCatalog {
+    /// Iterate over the [`DatabaseSchema`] in the `other` [`Catalog`] and merge them into this one.
+    ///
+    /// [`DatabaseSchema`] that do not exist locally will be created and added to the catalog with
+    /// new identifiers generated for the [`DatabaseSchema`] as well as its nested tables, columns,
+    /// etc.
+    ///
+    /// Databases that exist locally but not in the other catalog can be ignored, since the purpose
+    /// of the generated [`CatalogIdMap`] is to map identifiers from the `other` catalog to this one.
     fn merge(&mut self, other: Arc<Catalog>) -> Result<CatalogIdMap> {
         let mut id_map = CatalogIdMap::default();
-        for other_db_schema in other.list_db_schema() {
-            let other_db_id = other_db_schema.id;
-            let other_db_name = Arc::clone(&other_db_schema.name);
-            let local_db_id = if let Some(local_db_schema) =
-                self.databases.iter().find_map(|(_, db_schema)| {
-                    db_schema
-                        .name
-                        .eq(&other_db_name)
-                        .then_some(Arc::clone(db_schema))
-                }) {
-                let (ids, new_db) = local_db_schema.merge(other_db_schema)?;
-                if let Some(s) = new_db {
+        for other_db in other.list_db_schema() {
+            if let Some(this_db) = self
+                .db_map
+                .get_by_right(&other_db.name)
+                .and_then(|id| self.databases.get(id))
+                .cloned()
+            {
+                let (mapped_ids, new_db_if_updated) = this_db.merge(other_db)?;
+                if let Some(s) = new_db_if_updated {
                     self.databases.insert(s.id, Arc::clone(&s));
                     self.sequence = self.sequence.next();
                     self.updated = true;
                     self.db_map.insert(s.id, Arc::clone(&s.name));
                 }
-                id_map.extend(ids);
-                local_db_schema.id
+                id_map.extend(mapped_ids);
             } else {
                 let id = DbId::new();
-                let db = DatabaseSchema::new(id, Arc::clone(&other_db_name));
-                let (ids, new_db) = db.merge(other_db_schema)?;
-                let new_db = new_db.unwrap_or_else(|| Arc::new(db));
+                let db = DatabaseSchema::new(id, Arc::clone(&other_db.name));
+                let (mapped_ids, new_db_if_updated) = db.merge(other_db)?;
+                let new_db = new_db_if_updated.unwrap_or_else(|| Arc::new(db));
                 self.databases.insert(new_db.id, Arc::clone(&new_db));
                 self.sequence = self.sequence.next();
                 self.updated = true;
                 self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
-                id_map.extend(ids);
-                id
-            };
-            id_map.dbs.insert(other_db_id, local_db_id);
+                id_map.extend(mapped_ids);
+            }
         }
         Ok(id_map)
     }
 }
 
 impl DatabaseSchema {
+    /// Merge the `other` [`DatabaseSchema`] with this one, producing a [`CatalogIdMap`] that maps
+    /// the identifiers from the `other` schema onto this one, as well as a new `Arc<DatabaseSchema>`
+    /// if the merge resulted in changes to the schema. If the merge does not result in changes, then
+    /// `None` will be returned.
     fn merge(&self, other: Arc<Self>) -> Result<(CatalogIdMap, Option<Arc<Self>>)> {
         let mut id_map = CatalogIdMap::default();
-        let mut new_tables = IndexMap::new();
-        for other_tbl_def in other.tables.values() {
-            let other_tbl_name = Arc::clone(&other_tbl_def.table_name);
-            if let Some(local_tbl_def) = self.table_definition(other_tbl_name.as_ref()) {
-                let (ids, new_tbl) = local_tbl_def.merge(Arc::clone(other_tbl_def))?;
-                if let Some(new_tbl) = new_tbl {
-                    new_tables.insert(new_tbl.table_id, Arc::new(new_tbl));
+        id_map.dbs.insert(other.id, self.id);
+        let mut new_or_updated_tables = IndexMap::new();
+        // track new table ids for producing the updated schema:
+        let mut new_or_updated_table_ids = HashSet::new();
+        for other_tbl in other.tables.values() {
+            if let Some(this_tbl) = self.table_definition(other_tbl.table_name.as_ref()) {
+                let (mapped_ids, new_tbl_if_updated) = this_tbl.merge(Arc::clone(other_tbl))?;
+                if let Some(new_tbl) = new_tbl_if_updated {
+                    new_or_updated_table_ids.insert(new_tbl.table_id);
+                    new_or_updated_tables.insert(new_tbl.table_id, Arc::new(new_tbl));
                 }
-                id_map.extend(ids);
+                id_map.extend(mapped_ids);
             } else {
-                let (ids, tbl_def) =
-                    TableDefinition::new_from_other_host(Arc::clone(other_tbl_def))?;
-                new_tables.insert(tbl_def.table_id, tbl_def);
-                id_map.extend(ids);
+                let (mapped_ids, new_tbl_def) =
+                    TableDefinition::new_from_other_host(Arc::clone(other_tbl))?;
+                new_or_updated_tables.insert(new_tbl_def.table_id, new_tbl_def);
+                id_map.extend(mapped_ids);
             };
         }
-        let updated_schema = (!new_tables.is_empty()).then(|| {
-            let table_map = new_tables
+        let updated_schema = (!new_or_updated_tables.is_empty()).then(|| {
+            let tables = self
+                .tables
+                .iter()
+                // bring along tables from current schema that were not updated:
+                .filter(|(id, _)| !new_or_updated_table_ids.contains(*id))
+                .map(|(id, def)| (*id, Arc::clone(def)))
+                // bring in the new tables that were updated by the merge:
+                .chain(new_or_updated_tables)
+                .collect::<IndexMap<TableId, Arc<TableDefinition>>>();
+            let table_map = tables
                 .iter()
                 .map(|(id, def)| (*id, Arc::clone(&def.table_name)))
                 .collect();
             Arc::new(DatabaseSchema {
                 id: self.id,
                 name: Arc::clone(&self.name),
-                tables: new_tables.into(),
+                tables: tables.into(),
                 table_map,
             })
         });
@@ -100,29 +124,31 @@ impl DatabaseSchema {
 }
 
 impl TableDefinition {
+    /// Merge the `other` [`TableDefinition`] into this one, producing a [`CatalogIdMap`] that maps
+    /// identifiers from the `other` table onto this one, as well as a new `TableDefinition` if the
+    /// merge results in updates, i.e., new columns being added.
     fn merge(&self, other: Arc<Self>) -> Result<(CatalogIdMap, Option<Self>)> {
         let mut id_map = CatalogIdMap::default();
         id_map.tables.insert(other.table_id, self.table_id);
         let mut new_columns = Vec::new();
-        for other_col_def in other.columns.values() {
-            let other_col_id = other_col_def.id;
-            let other_col_name = Arc::clone(&other_col_def.name);
-            if let Some(local_col_def) = self
+        for other_col in other.columns.values() {
+            if let Some(this_col_def) = self
                 .column_map
-                .get_by_right(&other_col_name)
+                .get_by_right(&other_col.name)
                 .and_then(|id| self.columns.get(id))
             {
-                let ids = local_col_def.merge(self.table_name.as_ref(), other_col_def)?;
-                id_map.extend(ids);
+                let mapped_ids = this_col_def
+                    .check_compatibility_and_map_id(self.table_name.as_ref(), other_col)?;
+                id_map.extend(mapped_ids);
             } else {
                 let new_col_id = ColumnId::new();
-                let other_cloned = other_col_def.clone();
-                let col_def = ColumnDefinition {
+                let other_cloned = other_col.clone();
+                let new_col = ColumnDefinition {
                     id: new_col_id,
                     ..other_cloned
                 };
-                new_columns.push((new_col_id, Arc::clone(&col_def.name), col_def.data_type));
-                id_map.columns.insert(other_col_id, new_col_id);
+                new_columns.push((new_col_id, Arc::clone(&new_col.name), new_col.data_type));
+                id_map.columns.insert(other_col.id, new_col_id);
             };
         }
 
@@ -133,7 +159,7 @@ impl TableDefinition {
             .map(|sk| {
                 sk.iter()
                     .map(|id| {
-                        id_map.columns.get(id).copied().ok_or(Error::Other(anyhow!(
+                        id_map.map_column_id(id).ok_or(Error::Other(anyhow!(
                             "other table series key contained invalid id"
                         )))
                     })
@@ -149,7 +175,10 @@ impl TableDefinition {
         let mut new_last_caches: Vec<LastCacheDefinition> = vec![];
         for (merge_name, merge_last_cache) in other.last_caches() {
             if !self.last_caches.contains_key(&merge_name) {
-                new_last_caches.push(map_last_cache_definition(merge_last_cache, &id_map)?);
+                new_last_caches.push(map_last_cache_definition_column_ids(
+                    merge_last_cache,
+                    &id_map,
+                )?);
             }
         }
 
@@ -165,6 +194,11 @@ impl TableDefinition {
         }
     }
 
+    /// Create a new [`TableDefinition`] from another catalog, i.e., the `other` `TableDefinition`.
+    ///
+    /// This is intended for the case where a table exists in the other catalog that does not exist
+    /// locally. The main difference being that it will recreate the series key (with mapped column
+    /// ids).
     fn new_from_other_host(other: Arc<Self>) -> Result<(CatalogIdMap, Arc<Self>)> {
         let mut id_map = CatalogIdMap::default();
         let table_id = TableId::new();
@@ -193,9 +227,7 @@ impl TableDefinition {
             .map(|sk| sk
                 .iter()
                 .map(|other_id| id_map
-                    .columns
-                    .get(other_id)
-                    .copied()
+                    .map_column_id(other_id)
                     .ok_or_else(|| Error::Other(
                         anyhow!("the table from the other catalog contained an invalid column in its series key (id: {other_id})")
                     ))
@@ -206,7 +238,10 @@ impl TableDefinition {
         // map the ids from last cache definitions
         let mut last_caches = HashMap::new();
         for (name, lc) in &other.last_caches {
-            last_caches.insert(Arc::clone(name), map_last_cache_definition(lc, &id_map)?);
+            last_caches.insert(
+                Arc::clone(name),
+                map_last_cache_definition_column_ids(lc, &id_map)?,
+            );
         }
 
         Ok((
@@ -224,7 +259,10 @@ impl TableDefinition {
     }
 }
 
-fn map_last_cache_definition(
+/// Map all of the [`ColumnId`]s within a [`LastCacheDefinition`] from another host's catalog to
+/// their respective IDs on the local catalog. This assumes that all columns have been mapped
+/// already via the caller, and will throw errors if there are columns that cannot be found.
+fn map_last_cache_definition_column_ids(
     def: &LastCacheDefinition,
     id_map: &CatalogIdMap,
 ) -> Result<LastCacheDefinition> {
@@ -236,7 +274,7 @@ fn map_last_cache_definition(
         .key_columns
         .iter()
         .map(|id| {
-            id_map.columns.get(id).copied().ok_or_else(|| {
+            id_map.map_column_id(id).ok_or_else(|| {
                 Error::Other(anyhow!(
                     "last cache definition contained invalid key column id"
                 ))
@@ -248,7 +286,7 @@ fn map_last_cache_definition(
             let columns = columns
                 .iter()
                 .map(|id| {
-                    id_map.columns.get(id).copied().ok_or_else(|| {
+                    id_map.map_column_id(id).ok_or_else(|| {
                         Error::Other(anyhow!(
                             "last cache definition contained invalid value column id"
                         ))
@@ -271,7 +309,13 @@ fn map_last_cache_definition(
 }
 
 impl ColumnDefinition {
-    fn merge(&self, table_name: impl Into<String>, other: &Self) -> Result<CatalogIdMap> {
+    /// Check for compatibility between two column definitions and produce a [`CatalogIdMap`] that
+    /// contains a mapping of the [`ColumnId`] from the `other` catalog to this one.
+    fn check_compatibility_and_map_id(
+        &self,
+        table_name: impl Into<String>,
+        other: &Self,
+    ) -> Result<CatalogIdMap> {
         let mut id_map = CatalogIdMap::default();
         id_map.columns.insert(other.id, self.id);
         if other.nullable != self.nullable {
@@ -293,6 +337,9 @@ impl ColumnDefinition {
     }
 }
 
+/// Holds a set of maps for mapping identifiers from another host's [`Catalog`] onto the one being
+/// used locally. This is generated via methods on the various catalog types, e.g., see
+/// [`DatabaseSchema::merge`], [`TableDefinition::merge`], etc.
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct CatalogIdMap {
     dbs: HashMap<DbId, DbId>,
@@ -301,91 +348,109 @@ pub struct CatalogIdMap {
 }
 
 impl CatalogIdMap {
+    /// Extend this [`CatalogIdMap`] with the contents of another.
     fn extend(&mut self, mut other: Self) {
         self.dbs.extend(other.dbs.drain());
         self.tables.extend(other.tables.drain());
         self.columns.extend(other.columns.drain());
     }
 
-    pub fn map_db_id(&self, database_id: DbId) -> Option<DbId> {
-        self.dbs.get(&database_id).copied()
+    /// Map the given `database_id` from the other host's [`Catalog`] to the local one
+    pub fn map_db_id(&self, database_id: &DbId) -> Option<DbId> {
+        self.dbs.get(database_id).copied()
     }
 
-    pub fn map_table_id(&self, table_id: TableId) -> Option<TableId> {
-        self.tables.get(&table_id).copied()
+    /// Map the given `table_id` from the other host's [`Catalog`] to the local one
+    pub fn map_table_id(&self, table_id: &TableId) -> Option<TableId> {
+        self.tables.get(table_id).copied()
     }
 
+    /// Map the given `column_id` from the other host's [`Catalog`] to the local one
+    pub fn map_column_id(&self, column_id: &ColumnId) -> Option<ColumnId> {
+        self.columns.get(column_id).copied()
+    }
+
+    /// Map the given `other_db_id` from another host's [`Catalog`] to the local one, or if it
+    /// does not exist locally, create a new [`DbId`]. This first checks the internal ID map, then
+    /// checks to see if `other_db_name` exists in the local catalog to find a match before generating
+    /// a new [`DbId`].
     pub fn map_db_or_new(
         &mut self,
-        target_catalog: &Catalog,
-        from_name: &str,
-        from_id: DbId,
+        local_catalog: &Catalog,
+        other_db_name: &str,
+        other_db_id: DbId,
     ) -> DbId {
-        self.dbs
-            .get(&from_id)
-            .copied()
+        self.map_db_id(&other_db_id)
             .or_else(|| {
-                let id = target_catalog.db_name_to_id(from_name)?;
-                self.dbs.insert(from_id, id);
+                let id = local_catalog.db_name_to_id(other_db_name)?;
+                self.dbs.insert(other_db_id, id);
                 Some(id)
             })
             .unwrap_or_else(|| {
                 let new_id = DbId::new();
-                self.dbs.insert(from_id, new_id);
+                self.dbs.insert(other_db_id, new_id);
                 new_id
             })
     }
 
+    /// Map the given `other_table_id` from another host's [`Catalog`] to the local one, or if it
+    /// does not exist locally, create a new [`TableId`]. This first checks the internal ID map, then
+    /// checks to see if `other_table_name` exists in the local catalog to find a match before generating
+    /// a new [`TableId`].
     pub fn map_table_or_new(
         &mut self,
-        target_catalog: &Catalog,
-        database_id: DbId,
-        table_name: &str,
-        table_id: TableId,
+        local_catalog: &Catalog,
+        local_db_id: DbId,
+        other_table_name: &str,
+        other_table_id: TableId,
     ) -> TableId {
-        self.tables
-            .get(&table_id)
-            .copied()
+        self.map_table_id(&other_table_id)
             .or_else(|| {
-                let id = target_catalog
-                    .db_schema_by_id(database_id)?
-                    .table_name_to_id(table_name)?;
-                self.tables.insert(table_id, id);
+                let id = local_catalog
+                    .db_schema_by_id(local_db_id)?
+                    .table_name_to_id(other_table_name)?;
+                self.tables.insert(other_table_id, id);
                 Some(id)
             })
             .unwrap_or_else(|| {
                 let new_id = TableId::new();
-                self.tables.insert(table_id, new_id);
+                self.tables.insert(other_table_id, new_id);
                 new_id
             })
     }
 
+    /// Map the given `other_column_id` from another host's [`Catalog`] to the local one, or if it
+    /// does not exist locally, create a new [`ColumnId`]. This first checks the internal ID map, then
+    /// checks to see if `other_column_name` exists in the local catalog to find a match before generating
+    /// a new [`ColumnId`].
     pub fn map_column_or_new(
         &mut self,
-        target_catalog: &Catalog,
-        database_id: DbId,
-        table_id: TableId,
-        column_name: &str,
-        column_id: ColumnId,
+        local_catalog: &Catalog,
+        local_db_id: DbId,
+        local_table_id: TableId,
+        other_column_name: &str,
+        other_column_id: ColumnId,
     ) -> ColumnId {
         self.columns
-            .get(&column_id)
+            .get(&other_column_id)
             .copied()
             .or_else(|| {
-                let id = target_catalog
-                    .db_schema_by_id(database_id)?
-                    .table_definition_by_id(table_id)?
-                    .column_name_to_id(column_name)?;
-                self.columns.insert(column_id, id);
+                let id = local_catalog
+                    .db_schema_by_id(local_db_id)?
+                    .table_definition_by_id(local_table_id)?
+                    .column_name_to_id(other_column_name)?;
+                self.columns.insert(other_column_id, id);
                 Some(id)
             })
             .unwrap_or_else(|| {
                 let new_id = ColumnId::new();
-                self.columns.insert(column_id, new_id);
+                self.columns.insert(other_column_id, new_id);
                 new_id
             })
     }
 
+    /// Take the [`WalContents`] from another host and use the internal maps to map all of its
+    /// identifiers over to their local equivalent.
     pub fn map_wal_contents(
         &mut self,
         target_catalog: &Catalog,
@@ -625,7 +690,7 @@ mod tests {
 
     use influxdb3_id::{ColumnId, DbId, TableId};
     use pretty_assertions::assert_eq;
-    use schema::InfluxColumnType;
+    use schema::{InfluxColumnType, InfluxFieldType};
 
     use crate::catalog::{Catalog, DatabaseSchema, Error, TableDefinition};
 
@@ -902,5 +967,66 @@ mod tests {
         };
         let err = e.to_string();
         assert_eq!("the series key from the other catalog's table does not match that of the local catalog", err);
+    }
+
+    #[test]
+    fn merge_db_schema_not_updating_all_tables() {
+        let a = create_catalog("a");
+        let b = create_catalog("b");
+        // add a table to a:
+        {
+            let new_tbl = create_table(
+                "doh",
+                [
+                    (ColumnId::from(10), "t1", InfluxColumnType::Tag),
+                    (ColumnId::from(20), "t2", InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(30),
+                        "f2",
+                        InfluxColumnType::Field(InfluxFieldType::Boolean),
+                    ),
+                ],
+            );
+            let mut db = a.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, Arc::new(new_tbl));
+            a.insert_database(db);
+        }
+        // add the same table to b, but with an additional field "f3" - this will
+        // update the existing table definition in a when we do the merge:
+        {
+            let new_tbl = create_table(
+                "doh",
+                [
+                    (ColumnId::from(100), "t1", InfluxColumnType::Tag),
+                    (ColumnId::from(200), "t2", InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(300),
+                        "f2",
+                        InfluxColumnType::Field(InfluxFieldType::Boolean),
+                    ),
+                    (
+                        ColumnId::from(400),
+                        "f3",
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ),
+                ],
+            );
+            let mut db = b.db_schema("foo").unwrap().deref().clone();
+            db.table_map
+                .insert(new_tbl.table_id, Arc::clone(&new_tbl.table_name));
+            db.tables.insert(new_tbl.table_id, Arc::new(new_tbl));
+            b.insert_database(db);
+        }
+
+        let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_yaml_snapshot!(b_to_a_map);
+        });
+        let db = a.db_schema("foo").unwrap();
+        insta::with_settings!({ sort_maps => true }, {
+            insta::assert_json_snapshot!(db);
+        })
     }
 }

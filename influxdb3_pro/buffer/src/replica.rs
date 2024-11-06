@@ -268,7 +268,7 @@ impl ReplicatedCatalog {
                 .into_iter()
                 .map(|(replica_db_id, db_tables)| {
                     let local_db_id = id_map
-                        .map_db_id(replica_db_id)
+                        .map_db_id(&replica_db_id)
                         .expect("unseen db id from replica");
                     (
                         local_db_id,
@@ -279,7 +279,7 @@ impl ReplicatedCatalog {
                                 .map(|(replica_table_id, files)| {
                                     (
                                         id_map
-                                            .map_table_id(replica_table_id)
+                                            .map_table_id(&replica_table_id)
                                             .expect("unseen table id from replica"),
                                         files,
                                     )
@@ -1579,10 +1579,10 @@ mod tests {
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
         let id_map = replicated_catalog.id_map.lock().clone();
-        assert_eq!(primary_db_id, id_map.map_db_id(replica_db_id).unwrap());
+        assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
             primary_table_id,
-            id_map.map_table_id(replica_table_id).unwrap()
+            id_map.map_table_id(&replica_table_id).unwrap()
         );
         insta::with_settings!({
             sort_maps => true,
@@ -1728,10 +1728,10 @@ mod tests {
         });
         let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
         let id_map = replicated_catalog.id_map.lock().clone();
-        assert_eq!(primary_db_id, id_map.map_db_id(replica_db_id).unwrap());
+        assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
             primary_table_id,
-            id_map.map_table_id(replica_table_id).unwrap()
+            id_map.map_table_id(&replica_table_id).unwrap()
         );
         // TODO: should assert on column IDs when those are present
         // NOTE: the following snapshot wont change since no new tables/dbs were added, but including
