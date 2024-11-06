@@ -87,6 +87,30 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 	pr.AddPoint("cpu", 2.0, time.Now().Add(time.Minute*30), nil)
 	pr.AddPoint("cpu", -1.0, time.Now().Add(-time.Minute*5), nil)
 	pr.AddPoint("cpu", -2.0, time.Now().Add(-time.Minute*20), nil)
+
+	values := []float64{0.0, 1.0, -1.0}
+	dropped := []float64{2.0, -2.0}
+
+	MapPoints(t, c, pr, values, dropped)
+
+	// Clear the write limits by setting them to zero
+	// No points should be dropped
+	zeroDuration := time.Duration(0)
+	rpu := &meta.RetentionPolicyUpdate{
+		Name:               nil,
+		Duration:           nil,
+		ReplicaN:           nil,
+		ShardGroupDuration: nil,
+		FutureWriteLimit:   &zeroDuration,
+		PastWriteLimit:     &zeroDuration,
+	}
+	require.NoError(t, meta.ApplyRetentionUpdate(rpu, rp), "ApplyRetentionUpdate failed")
+	values = []float64{0.0, 1.0, 2.0, -1.0, -2.0}
+	dropped = []float64{}
+	MapPoints(t, c, pr, values, dropped)
+}
+
+func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WritePointsRequest, values []float64, dropped []float64) {
 	var (
 		shardMappings *coordinator.ShardMapping
 		err           error
@@ -105,8 +129,6 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 		}
 		return nil
 	}()
-	values := []float64{0.0, 1.0, -1.0}
-	dropped := []float64{2.0, -2.0}
 	verify :=
 		func(p []models.Point, values []float64) {
 			require.Equal(t, len(values), len(p), "unexpected number of points")

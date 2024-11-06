@@ -243,6 +243,18 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		return ErrRetentionPolicyNameExists
 	}
 
+	if err := ApplyRetentionUpdate(rpu, rpi); err != nil {
+		return err
+	}
+
+	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
+		di.DefaultRetentionPolicy = rpi.Name
+	}
+
+	return nil
+}
+
+func ApplyRetentionUpdate(rpu *RetentionPolicyUpdate, rpi *RetentionPolicyInfo) error {
 	// Enforce duration of at least MinRetentionPolicyDuration
 	if rpu.Duration != nil && *rpu.Duration < MinRetentionPolicyDuration && *rpu.Duration != 0 {
 		return ErrRetentionPolicyDurationTooLow
@@ -270,17 +282,12 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	if rpu.ShardGroupDuration != nil {
 		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
-	if rpu.FutureWriteLimit != nil && *rpu.FutureWriteLimit > 0 {
+	if rpu.FutureWriteLimit != nil {
 		rpi.FutureWriteLimit = *rpu.FutureWriteLimit
 	}
-	if rpu.PastWriteLimit != nil && *rpu.PastWriteLimit > 0 {
+	if rpu.PastWriteLimit != nil {
 		rpi.PastWriteLimit = *rpu.PastWriteLimit
 	}
-
-	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
-		di.DefaultRetentionPolicy = rpi.Name
-	}
-
 	return nil
 }
 
