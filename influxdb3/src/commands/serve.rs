@@ -271,6 +271,16 @@ pub struct Config {
         action
     )]
     pub telemetry_endpoint: String,
+
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
+    #[clap(
+        long = "last-cache-eviction-interval",
+        env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
+        default_value = "1m",
+        action
+    )]
+    pub last_cache_eviction_interval: humantime::Duration,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -436,15 +446,18 @@ pub async fn command(config: Config) -> Result<()> {
             .map_err(Error::InitializePersistedCatalog)?,
     );
 
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
-        .map_err(Error::InitializeLastCache)?;
+    let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
+        Arc::clone(&catalog) as _,
+        config.last_cache_eviction_interval.into(),
+    )
+    .map_err(Error::InitializeLastCache)?;
     info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
     let write_buffer_impl = Arc::new(
         WriteBufferImpl::new(
             Arc::clone(&persister),
             Arc::clone(&catalog),
-            Arc::new(last_cache),
+            last_cache,
             Arc::<SystemProvider>::clone(&time_provider),
             Arc::clone(&exec),
             wal_config,

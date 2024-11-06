@@ -591,7 +591,7 @@ mod tests {
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig::test_config(),
@@ -665,7 +665,7 @@ mod tests {
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             WalConfig {
@@ -723,7 +723,7 @@ mod tests {
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -761,7 +761,7 @@ mod tests {
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -818,7 +818,7 @@ mod tests {
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&wbuf.persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&wbuf.time_provider),
             Arc::clone(&wbuf.buffer.executor),
             WalConfig {
@@ -974,7 +974,7 @@ mod tests {
         let write_buffer = WriteBufferImpl::new(
             Arc::clone(&write_buffer.persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&write_buffer.time_provider),
             Arc::clone(&write_buffer.buffer.executor),
             WalConfig {
@@ -1982,7 +1982,7 @@ mod tests {
         let wbuf = WriteBufferImpl::new(
             Arc::clone(&persister),
             catalog,
-            Arc::new(last_cache),
+            last_cache,
             Arc::clone(&time_provider),
             crate::test_help::make_exec(),
             wal_config,
