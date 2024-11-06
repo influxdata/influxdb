@@ -1041,7 +1041,9 @@ impl<'a> ExtendedLastCacheState<'a> {
             .state
             .as_store()
             .expect("should only be calling to_record_batch when using a store");
-        let non_expired = store.len();
+        // Determine the number of elements that have not expired up front, so that the value used
+        // is consistent in the chain of methods used to produce record batches below:
+        let n_non_expired = store.len();
         let extended: Option<Vec<ArrayRef>> = if self.key_column_values.is_empty() {
             None
         } else {
@@ -1051,28 +1053,28 @@ impl<'a> ExtendedLastCacheState<'a> {
                     .map(|value| match value {
                         KeyValue::String(v) => {
                             let mut builder = StringBuilder::new();
-                            for _ in 0..non_expired {
+                            for _ in 0..n_non_expired {
                                 builder.append_value(v);
                             }
                             Arc::new(builder.finish()) as ArrayRef
                         }
                         KeyValue::Int(v) => {
                             let mut builder = Int64Builder::new();
-                            for _ in 0..non_expired {
+                            for _ in 0..n_non_expired {
                                 builder.append_value(*v);
                             }
                             Arc::new(builder.finish()) as ArrayRef
                         }
                         KeyValue::UInt(v) => {
                             let mut builder = UInt64Builder::new();
-                            for _ in 0..non_expired {
+                            for _ in 0..n_non_expired {
                                 builder.append_value(*v);
                             }
                             Arc::new(builder.finish()) as ArrayRef
                         }
                         KeyValue::Bool(v) => {
                             let mut builder = BooleanBuilder::new();
-                            for _ in 0..non_expired {
+                            for _ in 0..n_non_expired {
                                 builder.append_value(*v);
                             }
                             Arc::new(builder.finish()) as ArrayRef
@@ -1081,7 +1083,7 @@ impl<'a> ExtendedLastCacheState<'a> {
                     .collect(),
             )
         };
-        store.to_record_batch(table_def, schema, extended, non_expired)
+        store.to_record_batch(table_def, schema, extended, n_non_expired)
     }
 }
 
@@ -1421,12 +1423,16 @@ impl LastCacheStore {
     /// produced set of [`RecordBatch`]es. These are for the scenario where key columns are
     /// included in the outputted batches, as the [`LastCacheStore`] only holds the field columns
     /// for the cache.
+    ///
+    /// Accepts an `n_non_expired` argument to indicate the number of non-expired elements in the
+    /// store. This is passed in vs. calling `self.len()`, since that is already invoked in the
+    /// calling function, and calling it here _could_ produce a different result.
     fn to_record_batch(
         &self,
         table_def: Arc<TableDefinition>,
         schema: ArrowSchemaRef,
         extended: Option<Vec<ArrayRef>>,
-        take: usize,
+        n_non_expired: usize,
     ) -> Result<RecordBatch, ArrowError> {
         let mut arrays = extended.unwrap_or_default();
         if self.accept_new_fields {
@@ -1442,12 +1448,16 @@ impl LastCacheStore {
                     continue;
                 }
                 arrays.push(self.cache.get(&id).map_or_else(
-                    || new_null_array(field.data_type(), take),
-                    |c| c.data.as_array(take),
+                    || new_null_array(field.data_type(), n_non_expired),
+                    |c| c.data.as_array(n_non_expired),
                 ));
             }
         } else {
-            arrays.extend(self.cache.iter().map(|(_, col)| col.data.as_array(take)));
+            arrays.extend(
+                self.cache
+                    .iter()
+                    .map(|(_, col)| col.data.as_array(n_non_expired)),
+            );
         }
         RecordBatch::try_new(schema, arrays)
     }
@@ -1628,11 +1638,15 @@ impl CacheColumnData {
     }
 
     /// Produce an arrow [`ArrayRef`] from this column for the sake of producing [`RecordBatch`]es
-    fn as_array(&self, take: usize) -> ArrayRef {
+    ///
+    /// Accepts `n_non_expired` to indicate how many of the first elements in the column buffer to
+    /// take, i.e., those that have not yet expired. That value is determined externally by the
+    /// [`LastCacheStore`] that tracks TTL.
+    fn as_array(&self, n_non_expired: usize) -> ArrayRef {
         match self {
             CacheColumnData::I64(buf) => {
                 let mut b = Int64Builder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(*v),
                     None => b.append_null(),
                 });
@@ -1640,7 +1654,7 @@ impl CacheColumnData {
             }
             CacheColumnData::U64(buf) => {
                 let mut b = UInt64Builder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(*v),
                     None => b.append_null(),
                 });
@@ -1648,7 +1662,7 @@ impl CacheColumnData {
             }
             CacheColumnData::F64(buf) => {
                 let mut b = Float64Builder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(*v),
                     None => b.append_null(),
                 });
@@ -1656,7 +1670,7 @@ impl CacheColumnData {
             }
             CacheColumnData::String(buf) => {
                 let mut b = StringBuilder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(v),
                     None => b.append_null(),
                 });
@@ -1664,7 +1678,7 @@ impl CacheColumnData {
             }
             CacheColumnData::Bool(buf) => {
                 let mut b = BooleanBuilder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(*v),
                     None => b.append_null(),
                 });
@@ -1673,7 +1687,7 @@ impl CacheColumnData {
             CacheColumnData::Tag(buf) => {
                 let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
                     StringDictionaryBuilder::new();
-                buf.iter().take(take).for_each(|val| match val {
+                buf.iter().take(n_non_expired).for_each(|val| match val {
                     Some(v) => b.append_value(v),
                     None => b.append_null(),
                 });
@@ -1682,14 +1696,16 @@ impl CacheColumnData {
             CacheColumnData::Key(buf) => {
                 let mut b: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
                     StringDictionaryBuilder::new();
-                buf.iter().take(take).for_each(|val| {
+                buf.iter().take(n_non_expired).for_each(|val| {
                     b.append_value(val);
                 });
                 Arc::new(b.finish())
             }
             CacheColumnData::Time(buf) => {
                 let mut b = TimestampNanosecondBuilder::new();
-                buf.iter().take(take).for_each(|val| b.append_value(*val));
+                buf.iter()
+                    .take(n_non_expired)
+                    .for_each(|val| b.append_value(*val));
                 Arc::new(b.finish())
             }
         }

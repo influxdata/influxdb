@@ -272,10 +272,8 @@ pub struct Config {
     )]
     pub telemetry_endpoint: String,
 
-    /// The interval on which to evict expired entries from the Last-N-Value cache.
-    ///
-    /// Note, this can be fairly conservative, since the cache may hold expired entries, but will
-    /// not produce them when queried.
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
     #[clap(
         long = "last-cache-eviction-interval",
         env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
