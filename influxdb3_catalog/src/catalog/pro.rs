@@ -1071,7 +1071,7 @@ mod tests {
         }
         // add a last cache to 'b' but with a different configuration:
         {
-            let mut db = a.db_schema("foo").unwrap().deref().clone();
+            let mut db = b.db_schema("foo").unwrap().deref().clone();
             let mut tbl = db.table_definition("bar").unwrap().deref().clone();
             tbl.add_last_cache(LastCacheDefinition {
                 table_id: tbl.table_id,
