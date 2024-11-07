@@ -1894,7 +1894,7 @@ mod tests {
             );
             replica
                 .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
-                .expect("apply catalog batch to primary to create last cache");
+                .expect("apply catalog batch to replica to create last cache");
             wal_content
         };
         let mapped_wal_content = replicated_catalog
@@ -1921,6 +1921,144 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(db_after_applying);
         });
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_with_incompatible_last_cache_def() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // Simulate a WalOp on each host that creates a last cache using the same cache
+        // name, but with different cache configurations.
+        //
+        // First on the primary:
+        {
+            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::create_last_cache_op_builder(
+                        table_id,
+                        "bar",
+                        "test_cache",
+                        [t1_col_id],
+                    )
+                    .build()],
+                )],
+            );
+            primary
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to primary to create last cache");
+        }
+        // now on the replica:
+        let replica_wal_content = {
+            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::create_last_cache_op_builder(
+                        table_id,
+                        "bar",
+                        "test_cache",
+                        // this cache has a different set of key cols:
+                        [],
+                    )
+                    .build()],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to replica to create last cache");
+            wal_content
+        };
+        let err = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .expect_err(
+                "mapping the wal content should fail due to incompatible last cache definitions",
+            );
+        assert_contains!(
+            err.to_string(),
+            "WAL contained a CreateLastCache operation with a last cache name that already \
+            exists in the local catalog, but is not compatible"
+        );
+    }
+
+    #[test]
+    fn map_wal_content_for_replica_last_cache_create_unseen_table() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // create a wal op that creates a table and then a last cache for it on the replica:
+        let mut replica_wal_content = {
+            let db_id = replica.db_name_to_id("foo").unwrap();
+            let table_id = TableId::new();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [
+                        create::create_table_op(
+                            db_id,
+                            "foo",
+                            table_id,
+                            "baz",
+                            [create::field_def(
+                                ColumnId::new(),
+                                "fruits",
+                                FieldDataType::Tag,
+                            )],
+                        ),
+                        create::create_last_cache_op_builder(
+                            table_id,
+                            "bar",
+                            "test_cache",
+                            // this cache has a different set of key cols:
+                            [],
+                        )
+                        .build(),
+                    ],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch with table create and last cache create on replica");
+            wal_content
+        };
+        // now remove the create table op, simulating a corrupted wal:
+        replica_wal_content = WalContents {
+            ops: replica_wal_content
+                .ops
+                .into_iter()
+                .map(|op| match op {
+                    WalOp::Write(_) => op,
+                    WalOp::Catalog(catalog_batch) => WalOp::Catalog(CatalogBatch {
+                        ops: catalog_batch.ops.into_iter().skip(1).collect(),
+                        ..catalog_batch
+                    }),
+                })
+                .collect(),
+            ..replica_wal_content
+        };
+        let err = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .expect_err("mapping wal contents should fail");
+        assert_contains!(
+            err.to_string(),
+            "failed to map WAL contents: last cache definition contained invalid table id"
+        );
     }
 
     #[test]
