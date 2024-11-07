@@ -531,7 +531,7 @@ func (s *Store) loadShards() error {
 		return fmt.Errorf("error while finding shards to load: %w", err)
 	}
 
-	// Find total shard count for progress and channel size.
+	// Setup progress metrics.
 	if s.startupProgressMetrics != nil {
 		for _, _ = range shards {
 			s.startupProgressMetrics.AddShard()
