@@ -42,7 +42,7 @@ pub(crate) enum Error {
     #[error("object store error: {0}")]
     ObjectStore(#[from] object_store::Error),
 
-    #[error("unexpected replication error: {0}")]
+    #[error("unexpected replication error: {0:#}")]
     Unexpected(#[from] anyhow::Error),
 }
 
@@ -254,10 +254,12 @@ impl ReplicatedCatalog {
         })
     }
 
-    fn map_wal_contents(&self, wal_contents: WalContents) -> WalContents {
+    fn map_wal_contents(&self, wal_contents: WalContents) -> Result<WalContents> {
         self.id_map
             .lock()
             .map_wal_contents(&self.catalog, wal_contents)
+            .context("failed to map WAL contents")
+            .map_err(Into::into)
     }
 
     fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> PersistedSnapshot {
@@ -554,7 +556,10 @@ impl ReplicatedBuffer {
             .context("failed to verify and deserialize wal file contents")?;
 
         debug!(host = %self.host_identifier_prefix, ?wal_contents, catalog = ?self.catalog, "replay wal file (pre-map)");
-        let wal_contents = self.catalog.map_wal_contents(wal_contents);
+        // NOTE: if this call fails, then WAL replication will halt, logging errors on the
+        // replication interval until the problem is remedied. See this issue for enabling `DROP
+        // TABLE`: https://github.com/influxdata/influxdb_pro/issues/34
+        let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
         debug!(host = %self.host_identifier_prefix, ?wal_contents, "replay wal file (post-map)");
 
         match wal_contents.snapshot {
@@ -739,7 +744,7 @@ fn background_replication_interval(
 mod tests {
     use std::{collections::HashMap, sync::Arc, time::Duration};
 
-    use datafusion::assert_batches_sorted_eq;
+    use datafusion::{assert_batches_sorted_eq, common::assert_contains};
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
@@ -1419,7 +1424,7 @@ mod tests {
             insta::assert_yaml_snapshot!(id_map);
         });
         // do the mapping, which will allocate a new ID for the "pow" table locally:
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         // check the replicated catalog's id map again, which will contain an entry for the new table:
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
@@ -1486,7 +1491,7 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
             sort_maps => true,
@@ -1575,7 +1580,9 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        let mapped_wal_content = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .unwrap();
         let id_map = replicated_catalog.id_map.lock().clone();
         assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
@@ -1632,7 +1639,7 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
             sort_maps => true,
@@ -1724,7 +1731,9 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        let mapped_wal_content = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .unwrap();
         let id_map = replicated_catalog.id_map.lock().clone();
         assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
@@ -1790,7 +1799,7 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         let id_map = replicated_catalog.id_map.lock().clone();
         // NOTE: this wont have changed, unless we give last caches IDs
         insta::with_settings!({
@@ -1822,7 +1831,7 @@ mod tests {
         replica
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch to delete last cache should apply on replica catalog");
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content);
+        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         primary
             .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
             .expect("mapped catalog batch should apply on primary to delete last cache");
@@ -1888,7 +1897,9 @@ mod tests {
                 .expect("apply catalog batch to primary to create last cache");
             wal_content
         };
-        let mapped_wal_content = replicated_catalog.map_wal_contents(replica_wal_content);
+        let mapped_wal_content = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .unwrap();
         // check the structure of the primary db schema to ensure it has only a single last cache:
         let db_before_applying = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -1910,6 +1921,74 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(db_after_applying);
         });
+    }
+
+    #[test]
+    fn map_wal_with_incompatible_field_additions() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // add a field "f4" as a string column on the primary:
+        {
+            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::add_fields_op(
+                        db_id,
+                        "foo",
+                        table_id,
+                        "bar",
+                        [create::field_def(
+                            ColumnId::new(),
+                            "f4",
+                            FieldDataType::String,
+                        )],
+                    )],
+                )],
+            );
+            primary
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to primary");
+        }
+        // now add the same "f4", but as a float, to the replica:
+        let replica_wal_content = {
+            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let table_id = db_schema.table_name_to_id("bar").unwrap();
+            let wal_content = create::wal_content(
+                (0, 1, 0),
+                [create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [create::add_fields_op(
+                        db_id,
+                        "foo",
+                        table_id,
+                        "bar",
+                        [create::field_def(
+                            ColumnId::new(),
+                            "f4",
+                            FieldDataType::Float,
+                        )],
+                    )],
+                )],
+            );
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to replica to make sure it is valid");
+            wal_content
+        };
+        let err = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .unwrap_err()
+            .to_string();
+        assert_contains!(err, "Field type mismatch on table bar column f4");
     }
 
     #[test]

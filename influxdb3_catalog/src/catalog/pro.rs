@@ -7,6 +7,7 @@ use influxdb3_wal::{
     LastCacheDefinition, LastCacheDelete, LastCacheValueColumnsDef, Row, TableChunk, TableChunks,
     TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
+use schema::InfluxColumnType;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -423,29 +424,39 @@ impl CatalogIdMap {
     /// does not exist locally, create a new [`ColumnId`]. This first checks the internal ID map, then
     /// checks to see if `other_column_name` exists in the local catalog to find a match before generating
     /// a new [`ColumnId`].
+    #[allow(clippy::too_many_arguments)]
     pub fn map_column_or_new(
         &mut self,
         local_catalog: &Catalog,
         local_db_id: DbId,
         local_table_id: TableId,
+        local_table_name: Arc<str>,
         other_column_name: &str,
         other_column_id: ColumnId,
-    ) -> ColumnId {
-        self.columns
-            .get(&other_column_id)
-            .copied()
+        other_column_type: InfluxColumnType,
+    ) -> Result<ColumnId> {
+        self.map_column_id(&other_column_id)
+            .map(Ok)
             .or_else(|| {
-                let id = local_catalog
+                let local_tbl_def = local_catalog
                     .db_schema_by_id(local_db_id)?
-                    .table_definition_by_id(local_table_id)?
-                    .column_name_to_id(other_column_name)?;
+                    .table_definition_by_id(local_table_id)?;
+                let (id, def) = local_tbl_def.column_def_and_id(other_column_name)?;
+                if def.data_type != other_column_type {
+                    return Some(Err(Error::FieldTypeMismatch {
+                        table_name: local_table_name.to_string(),
+                        column_name: def.name.to_string(),
+                        existing: def.data_type,
+                        attempted: other_column_type,
+                    }));
+                }
                 self.columns.insert(other_column_id, id);
-                Some(id)
+                Some(Ok(id))
             })
             .unwrap_or_else(|| {
                 let new_id = ColumnId::new();
                 self.columns.insert(other_column_id, new_id);
-                new_id
+                Ok(new_id)
             })
     }
 
@@ -455,25 +466,27 @@ impl CatalogIdMap {
         &mut self,
         target_catalog: &Catalog,
         wal_contents: WalContents,
-    ) -> WalContents {
-        WalContents {
+    ) -> Result<WalContents> {
+        Ok(WalContents {
             min_timestamp_ns: wal_contents.min_timestamp_ns,
             max_timestamp_ns: wal_contents.max_timestamp_ns,
             wal_file_number: wal_contents.wal_file_number,
             ops: wal_contents
                 .ops
                 .into_iter()
-                .map(|op| match op {
-                    WalOp::Write(write_batch) => {
-                        WalOp::Write(self.map_write_batch(target_catalog, write_batch))
-                    }
-                    WalOp::Catalog(catalog_batch) => {
-                        WalOp::Catalog(self.map_catalog_batch(target_catalog, catalog_batch))
-                    }
+                .map(|op| {
+                    Ok(match op {
+                        WalOp::Write(write_batch) => {
+                            WalOp::Write(self.map_write_batch(target_catalog, write_batch))
+                        }
+                        WalOp::Catalog(catalog_batch) => {
+                            WalOp::Catalog(self.map_catalog_batch(target_catalog, catalog_batch)?)
+                        }
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<WalOp>>>()?,
             snapshot: wal_contents.snapshot,
-        }
+        })
     }
 
     fn map_write_batch(&mut self, target_catalog: &Catalog, from: WriteBatch) -> WriteBatch {
@@ -539,9 +552,13 @@ impl CatalogIdMap {
         }
     }
 
-    fn map_catalog_batch(&mut self, target_catalog: &Catalog, from: CatalogBatch) -> CatalogBatch {
+    fn map_catalog_batch(
+        &mut self,
+        target_catalog: &Catalog,
+        from: CatalogBatch,
+    ) -> Result<CatalogBatch> {
         let database_id = self.map_db_or_new(target_catalog, &from.database_name, from.database_id);
-        CatalogBatch {
+        Ok(CatalogBatch {
             database_id,
             database_name: Arc::clone(&from.database_name),
             time_ns: from.time_ns,
@@ -549,8 +566,8 @@ impl CatalogIdMap {
                 .ops
                 .into_iter()
                 .map(|op| self.map_catalog_op(target_catalog, database_id, op))
-                .collect(),
-        }
+                .collect::<Result<Vec<CatalogOp>>>()?,
+        })
     }
 
     fn map_catalog_op(
@@ -558,8 +575,8 @@ impl CatalogIdMap {
         target_catalog: &Catalog,
         database_id: DbId,
         op: CatalogOp,
-    ) -> CatalogOp {
-        match op {
+    ) -> Result<CatalogOp> {
+        let mapped_op = match op {
             CatalogOp::CreateDatabase(def) => CatalogOp::CreateDatabase(DatabaseDefinition {
                 database_id,
                 database_name: def.database_name,
@@ -580,8 +597,9 @@ impl CatalogIdMap {
                         target_catalog,
                         database_id,
                         table_id,
+                        Arc::clone(&def.table_name),
                         def.field_definitions,
-                    ),
+                    )?,
                     key: def.key,
                 })
             }
@@ -601,8 +619,9 @@ impl CatalogIdMap {
                         target_catalog,
                         database_id,
                         table_id,
+                        Arc::clone(&def.table_name),
                         def.field_definitions,
-                    ),
+                    )?,
                 })
             }
 
@@ -657,7 +676,8 @@ impl CatalogIdMap {
                 ),
                 name: def.name,
             }),
-        }
+        };
+        Ok(mapped_op)
     }
 
     fn map_field_definitions(
@@ -665,20 +685,25 @@ impl CatalogIdMap {
         target_catalog: &Catalog,
         database_id: DbId,
         table_id: TableId,
+        table_name: Arc<str>,
         field_definitions: Vec<FieldDefinition>,
-    ) -> Vec<FieldDefinition> {
+    ) -> Result<Vec<FieldDefinition>> {
         field_definitions
             .into_iter()
-            .map(|def| FieldDefinition {
-                name: Arc::clone(&def.name),
-                id: self.map_column_or_new(
-                    target_catalog,
-                    database_id,
-                    table_id,
-                    def.name.as_ref(),
-                    def.id,
-                ),
-                data_type: def.data_type,
+            .map(|def| {
+                Ok(FieldDefinition {
+                    name: Arc::clone(&def.name),
+                    id: self.map_column_or_new(
+                        target_catalog,
+                        database_id,
+                        table_id,
+                        Arc::clone(&table_name),
+                        def.name.as_ref(),
+                        def.id,
+                        def.data_type.into(),
+                    )?,
+                    data_type: def.data_type,
+                })
             })
             .collect()
     }
