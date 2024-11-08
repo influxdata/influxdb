@@ -2745,6 +2745,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "futures-util",
+ "hashbrown 0.15.1",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_pro_data_layout",
