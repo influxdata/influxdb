@@ -226,9 +226,9 @@ impl LastCacheProvider {
                     .flat_map(|(table_id, table_map)| {
                         let table_name = self
                             .catalog
-                            .db_schema_by_id(db)
+                            .db_schema_by_id(&db)
                             .expect("db exists")
-                            .table_id_to_name(*table_id)
+                            .table_id_to_name(table_id)
                             .expect("table exists");
                         table_map.iter().map(move |(lc_name, lc)| {
                             lc.to_definition(*table_id, table_name.as_ref(), Arc::clone(lc_name))
@@ -505,13 +505,13 @@ impl LastCacheProvider {
                         if db_cache.is_empty() {
                             continue;
                         }
-                        let Some(db_schema) = self.catalog.db_schema_by_id(batch.database_id)
+                        let Some(db_schema) = self.catalog.db_schema_by_id(&batch.database_id)
                         else {
                             continue;
                         };
                         for (table_id, table_chunks) in &batch.table_chunks {
                             if let Some(table_cache) = db_cache.get_mut(table_id) {
-                                let Some(table_def) = db_schema.table_definition_by_id(*table_id)
+                                let Some(table_def) = db_schema.table_definition_by_id(table_id)
                                 else {
                                     continue;
                                 };
@@ -552,8 +552,8 @@ impl LastCacheProvider {
     ) -> Option<Result<Vec<RecordBatch>, ArrowError>> {
         let table_def = self
             .catalog
-            .db_schema_by_id(db_id)
-            .and_then(|db| db.table_definition_by_id(table_id))
+            .db_schema_by_id(&db_id)
+            .and_then(|db| db.table_definition_by_id(&table_id))
             .expect("valid db and table ids to get table definition");
 
         self.cache_map

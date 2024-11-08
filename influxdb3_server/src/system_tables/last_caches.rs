@@ -107,7 +107,7 @@ fn from_last_cache_definitions(
 
     for cache_defn in cache_defns {
         let table_defn = db_schema
-            .table_definition_by_id(cache_defn.table_id)
+            .table_definition_by_id(&cache_defn.table_id)
             .expect("table should exist for last cache");
 
         table_name_arr.append_value(&cache_defn.table);
