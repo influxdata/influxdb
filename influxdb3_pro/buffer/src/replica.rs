@@ -1,6 +1,6 @@
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use chrono::Utc;
 use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId as IoxTableId, TransitionPartitionId};
 use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
@@ -262,37 +262,41 @@ impl ReplicatedCatalog {
             .map_err(Into::into)
     }
 
-    fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> PersistedSnapshot {
+    fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> Result<PersistedSnapshot> {
         let id_map = self.id_map.lock();
-        PersistedSnapshot {
+        Ok(PersistedSnapshot {
             databases: snapshot
                 .databases
                 .into_iter()
                 .map(|(replica_db_id, db_tables)| {
-                    let local_db_id = id_map
-                        .map_db_id(&replica_db_id)
-                        .expect("unseen db id from replica");
-                    (
+                    let local_db_id = id_map.map_db_id(&replica_db_id).ok_or_else(|| {
+                        Error::Unexpected(anyhow!(
+                            "invalid database id in persisted snapshot: {replica_db_id}"
+                        ))
+                    })?;
+                    Ok((
                         local_db_id,
                         DatabaseTables {
                             tables: db_tables
                                 .tables
                                 .into_iter()
                                 .map(|(replica_table_id, files)| {
-                                    (
+                                    Ok((
                                         id_map
                                             .map_table_id(&replica_table_id)
-                                            .expect("unseen table id from replica"),
+                                            .ok_or_else(|| Error::Unexpected(anyhow!("invalid table id in persisted snapshot: {replica_table_id}")))?,
                                         files,
-                                    )
+                                    ))
                                 })
-                                .collect(),
+                                .collect::<Result<hashbrown::HashMap<_, _>>>()?,
                         },
-                    )
+                    ))
                 })
-                .collect(),
+                // TODO: it is a bit annoying that two HashMap types are used in influxdb3_write,
+                // so we should probably pick one there.
+                .collect::<Result<HashMap<DbId, DatabaseTables>>>()?,
             ..snapshot
-        }
+        })
     }
 }
 
@@ -622,6 +626,9 @@ impl ReplicatedBuffer {
 
         tokio::spawn(async move {
             // Update the persisted files:
+            // This will continue to request the file from the object store if the request errors.
+            // However, if the snapshot is retrieved, and fails to map, an error will be logged and
+            // the loop will break. This will not halt replication.
             loop {
                 match object_store.get(&snapshot_path).await {
                     Ok(get_result) => {
@@ -632,12 +639,17 @@ impl ReplicatedBuffer {
                         let snapshot = serde_json::from_slice::<PersistedSnapshot>(&snapshot_bytes)
                             .expect("unable to deserialize snapshot bytes");
                         // Map the IDs in the snapshot:
-                        debug!(?snapshot, "map snapshot contents for replicated buffer");
-                        let snapshot = replica_catalog.map_snapshot_contents(snapshot);
-                        debug!(
-                            mapped_snapshot = ?snapshot,
-                            "map snapshot contents for replicated buffer (done)"
-                        );
+                        let snapshot = replica_catalog
+                            .map_snapshot_contents(snapshot)
+                            .inspect_err(|error| {
+                                let msg = format!("{error:#}");
+                                error!(
+                                    path = ?snapshot_path,
+                                    error = %msg,
+                                    "the replicated host contains an invalid snapshot file"
+                                );
+                            })
+                            .expect("failed to map the persisted snapshot file");
 
                         // Now that the snapshot has been loaded, clear the buffer of the data that
                         // was separated out previously and update the persisted files. If there is
@@ -2263,13 +2275,47 @@ mod tests {
             // use JSON snapshots since persisted snapshots are actually persisted as JSON:
             insta::assert_json_snapshot!(snapshot);
         });
-        let mapped_snapshot = replicated_catalog.map_snapshot_contents(snapshot);
+        let mapped_snapshot = replicated_catalog.map_snapshot_contents(snapshot).unwrap();
         insta::with_settings!({
             sort_maps => true,
             description => "persisted snapshot after mapping, as intended for the primary"
         }, {
             insta::assert_json_snapshot!(mapped_snapshot);
         });
+    }
+
+    #[test]
+    fn map_persisted_snapshot_with_invalid_ids_fails() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        let snapshot = create::persisted_snapshot("host-replica")
+            .table(
+                DbId::new(),
+                TableId::new(),
+                create::parquet_file(ParquetFileId::new()).build(),
+            )
+            .build();
+        let err = replicated_catalog
+            .map_snapshot_contents(snapshot)
+            .expect_err("snapshot with unseen database id should fail to map");
+        assert_contains!(
+            err.to_string(),
+            "invalid database id in persisted snapshot: 2"
+        );
+        let db_id = replica.db_name_to_id("foo").unwrap();
+        let snapshot = create::persisted_snapshot("host-replica")
+            .table(
+                db_id,
+                TableId::new(),
+                create::parquet_file(ParquetFileId::new()).build(),
+            )
+            .build();
+        let err = replicated_catalog
+            .map_snapshot_contents(snapshot)
+            .expect_err("snapshot with unseen table id should fail to map");
+        assert_contains!(err.to_string(), "invalid table id in persisted snapshot: 3");
     }
 
     async fn setup_primary(
