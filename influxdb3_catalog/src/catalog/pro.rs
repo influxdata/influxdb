@@ -563,12 +563,12 @@ impl CatalogIdMap {
                 })
             }
             CatalogOp::AddFields(def) => {
-                let table_id = self.map_table_or_new(
-                    target_catalog,
-                    database_id,
-                    &def.table_name,
-                    def.table_id,
-                );
+                let table_id =
+                    self.map_table_id(&def.table_id)
+                        .ok_or_else(|| Error::TableNotFound {
+                            db_name: Arc::clone(&def.database_name),
+                            table_name: Arc::clone(&def.table_name),
+                        })?;
                 CatalogOp::AddFields(FieldAdditions {
                     database_name: def.database_name,
                     database_id,
