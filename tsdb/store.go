@@ -823,20 +823,12 @@ func (s *Store) ReopenShard(shardID uint64, force bool) error {
 		return ErrShardNotFound
 	}
 
-	var loader *shardLoader
-	func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		loader = s.newShardLoader(shardID, "", "", true, withExistingShard(sh), withForceLoad(force))
-	}()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
+	loader := s.newShardLoader(shardID, "", "", true, withExistingShard(sh), withForceLoad(force))
 	res := loader.Load()
-
-	func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.registerShard(res)
-	}()
+	s.registerShard(res)
 
 	return res.err
 }
