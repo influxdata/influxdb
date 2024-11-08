@@ -919,6 +919,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	loader := s.newShardLoader(shardID, database, retentionPolicy, enabled)
 	res := loader.Load()
 	s.registerShard(res)
+	s.warnMixedIndexTypes(database)
 	return res.err
 }
 
