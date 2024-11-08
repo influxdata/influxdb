@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 use object_store::path::Path as ObjPath;
 use std::ops::Deref;
@@ -20,11 +21,11 @@ fn object_store_file_stem(n: u64) -> u64 {
 pub struct CatalogFilePath(ObjPath);
 
 impl CatalogFilePath {
-    pub fn new(host_prefix: &str, wal_file_sequence_number: WalFileSequenceNumber) -> Self {
+    pub fn new(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
+        let num = u64::MAX - catalog_sequence_number.as_u32() as u64;
         let path = ObjPath::from(format!(
             "{host_prefix}/catalogs/{:020}.{}",
-            object_store_file_stem(wal_file_sequence_number.as_u64()),
-            CATALOG_FILE_EXTENSION
+            num, CATALOG_FILE_EXTENSION
         ));
         Self(path)
     }
@@ -123,7 +124,7 @@ impl AsRef<ObjPath> for SnapshotInfoFilePath {
 #[test]
 fn catalog_file_path_new() {
     assert_eq!(
-        *CatalogFilePath::new("my_host", WalFileSequenceNumber::new(0)),
+        *CatalogFilePath::new("my_host", CatalogSequenceNumber::new(0)),
         ObjPath::from("my_host/catalogs/18446744073709551615.json")
     );
 }
