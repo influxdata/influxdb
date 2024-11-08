@@ -364,7 +364,7 @@ type shardLoader struct {
 	enabled    bool
 	logger     *zap.Logger
 
-	// Shard we are working with. Could be created by the loader are given by client code.
+	// Shard we are working with. Could be created by the loader or given by client code.
 	shard *Shard
 
 	// Should be loaded even if loading failed previously?
