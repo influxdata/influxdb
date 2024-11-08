@@ -383,8 +383,7 @@ type shardLoader struct {
 // Load loads a shard from disk in a thread-safe manner. After a call to Load,
 // the result must be registered with Store.registerShard, whether or not an error
 // occurred. The returned shard is guaranteed to not be nil and have the correct shard ID,
-//
-//	although it will not be properly loaded if there was an error.
+// although it will not be properly loaded if there was an error.
 func (l *shardLoader) Load() *shardResponse {
 	// Open engine.
 	if l.shard == nil {
