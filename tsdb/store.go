@@ -2549,7 +2549,7 @@ func (s *Store) findShards(log *zap.Logger) ([]shardInfo, error) {
 				// Shard file names are numeric shardIDs
 				shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
 				if err != nil {
-					log.Info("invalid shard ID found at path", zap.String("path", fullPath))
+					log.Warn("invalid shard ID found at path", zap.String("path", fullPath))
 					continue
 				}
 
