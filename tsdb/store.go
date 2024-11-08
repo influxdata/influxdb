@@ -389,6 +389,11 @@ func (l *shardLoader) Load() *shardResponse {
 	// Open engine.
 	if l.shard == nil {
 		l.shard = NewShard(l.shardID, l.path, l.walPath, l.sfile, l.engineOpts)
+
+		// Set options based on caller preferences.
+		l.shard.EnableOnOpen = l.enabled
+		l.shard.CompactionDisabled = l.engineOpts.CompactionDisabled
+		l.shard.WithLogger(l.logger)
 	}
 
 	err := func() error {
@@ -396,11 +401,6 @@ func (l *shardLoader) Load() *shardResponse {
 		if l.loadErr != nil {
 			return l.loadErr
 		}
-
-		// Set options based on caller preferences.
-		l.shard.EnableOnOpen = l.enabled
-		l.shard.CompactionDisabled = l.engineOpts.CompactionDisabled
-		l.shard.WithLogger(l.logger)
 
 		// Open the shard.
 		if err := l.shard.Open(); err != nil {
@@ -824,9 +824,21 @@ func (s *Store) ReopenShard(shardID uint64, force bool) error {
 		return ErrShardNotFound
 	}
 
-	loader := s.newShardLoader(shardID, "", "", true, withExistingShard(sh), withForceLoad(force))
+	var loader *shardLoader
+	func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		loader = s.newShardLoader(shardID, "", "", true, withExistingShard(sh), withForceLoad(force))
+	}()
+
 	res := loader.Load()
-	s.registerShard(res)
+
+	func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.registerShard(res)
+	}()
+
 	return res.err
 }
 
