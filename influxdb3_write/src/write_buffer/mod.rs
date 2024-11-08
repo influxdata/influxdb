@@ -541,7 +541,7 @@ mod tests {
     use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
-    use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -1137,7 +1137,7 @@ mod tests {
             "test_host".to_string(),
             prev_snapshot_seq,
             WalFileSequenceNumber::new(0),
-            SequenceNumber::new(0),
+            CatalogSequenceNumber::new(0),
         );
         let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
         // set ParquetFileId to be 0 so that we can make sure when it's loaded from the
@@ -1231,7 +1231,7 @@ mod tests {
         // If we manage to make it so that scenario only increments the catalog sequence once, then
         // this assertion may fail:
         assert_eq!(
-            SequenceNumber::new(2),
+            CatalogSequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
     }
@@ -1247,7 +1247,7 @@ mod tests {
             "test_host".to_string(),
             prev_snapshot_seq,
             WalFileSequenceNumber::new(0),
-            SequenceNumber::new(0),
+            CatalogSequenceNumber::new(0),
         );
 
         assert_eq!(prev_snapshot.next_file_id.as_u64(), 0);

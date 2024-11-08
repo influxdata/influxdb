@@ -159,7 +159,7 @@ fn update_persisted_files_with_snapshot(
 #[cfg(test)]
 mod tests {
 
-    use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
@@ -257,7 +257,7 @@ mod tests {
     ) -> PersistedSnapshot {
         let snap1 = SnapshotSequenceNumber::new(snapshot_id);
         let wal1 = WalFileSequenceNumber::new(wal_id);
-        let cat1 = SequenceNumber::new(catalog_id);
+        let cat1 = CatalogSequenceNumber::new(catalog_id);
         let mut new_snapshot =
             PersistedSnapshot::new("sample-host-id".to_owned(), snap1, wal1, cat1);
         parquet_files.into_iter().for_each(|file| {

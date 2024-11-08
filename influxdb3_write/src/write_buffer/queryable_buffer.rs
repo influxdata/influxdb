@@ -215,7 +215,7 @@ impl QueryableBuffer {
                 let sequence_number = inner_catalog.sequence_number();
 
                 match persister
-                    .persist_catalog(wal_file_number, &Catalog::from_inner(inner_catalog))
+                    .persist_catalog(&Catalog::from_inner(inner_catalog))
                     .await
                 {
                     Ok(_) => {

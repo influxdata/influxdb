@@ -5,7 +5,6 @@ use crate::last_cache;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
-use crate::PersistedCatalog;
 use crate::PersistedSnapshot;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -22,7 +21,6 @@ use futures_util::stream::StreamExt;
 use futures_util::stream::TryStreamExt;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
-use influxdb3_wal::WalFileSequenceNumber;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
@@ -124,15 +122,14 @@ impl Persister {
     /// instance id and create a new catalog and persist it immediately
     pub async fn load_or_create_catalog(&self) -> Result<Catalog> {
         let catalog = match self.load_catalog().await? {
-            Some(c) => Catalog::from_inner(c.catalog),
+            Some(c) => Catalog::from_inner(c),
             None => {
                 let uuid = Uuid::new_v4().to_string();
                 let instance_id = Arc::from(uuid.as_str());
                 info!(instance_id = ?instance_id, "Catalog not found, creating new instance id");
                 let new_catalog =
                     Catalog::new(Arc::from(self.host_identifier_prefix.as_str()), instance_id);
-                self.persist_catalog(WalFileSequenceNumber::new(0), &new_catalog)
-                    .await?;
+                self.persist_catalog(&new_catalog).await?;
                 new_catalog
             }
         };
@@ -142,7 +139,7 @@ impl Persister {
     /// Loads the most recently persisted catalog from object storage.
     ///
     /// This is used on server start.
-    pub async fn load_catalog(&self) -> Result<Option<PersistedCatalog>> {
+    pub async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
         let mut list = self
             .object_store
             .list(Some(&CatalogFilePath::dir(&self.host_identifier_prefix)));
@@ -181,18 +178,7 @@ impl Persister {
             Some(path) => {
                 let bytes = self.object_store.get(&path).await?.bytes().await?;
                 let catalog: InnerCatalog = serde_json::from_slice(&bytes)?;
-                let file_name = path
-                    .filename()
-                    // NOTE: this holds so long as CatalogFilePath is used
-                    // from crate::paths
-                    .expect("catalog file paths are guaranteed to have a filename");
-                let parsed_number = file_name
-                    .trim_end_matches(format!(".{}", crate::paths::CATALOG_FILE_EXTENSION).as_str())
-                    .parse::<u64>()?;
-                Ok(Some(PersistedCatalog {
-                    wal_file_sequence_number: WalFileSequenceNumber::new(u64::MAX - parsed_number),
-                    catalog,
-                }))
+                Ok(Some(catalog))
             }
         }
     }
@@ -268,14 +254,10 @@ impl Persister {
 
     /// Persists the catalog with the given `WalFileSequenceNumber`. If this is the highest ID, it will
     /// be the catalog that is returned the next time `load_catalog` is called.
-    pub async fn persist_catalog(
-        &self,
-        wal_file_sequence_number: WalFileSequenceNumber,
-        catalog: &Catalog,
-    ) -> Result<()> {
+    pub async fn persist_catalog(&self, catalog: &Catalog) -> Result<()> {
         let catalog_path = CatalogFilePath::new(
             self.host_identifier_prefix.as_str(),
-            wal_file_sequence_number,
+            catalog.sequence_number(),
         );
         let json = serde_json::to_vec_pretty(&catalog)?;
         self.object_store
@@ -415,9 +397,9 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 mod tests {
     use super::*;
     use crate::ParquetFileId;
-    use influxdb3_catalog::catalog::SequenceNumber;
+    use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, TableId};
-    use influxdb3_wal::SnapshotSequenceNumber;
+    use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
@@ -438,10 +420,7 @@ mod tests {
         let catalog = Catalog::new(host_id, instance_id);
         let _ = catalog.db_or_create("my_db");
 
-        persister
-            .persist_catalog(WalFileSequenceNumber::new(0), &catalog)
-            .await
-            .unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
     }
 
     #[tokio::test]
@@ -454,18 +433,12 @@ mod tests {
         let catalog = Catalog::new(host_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_db");
 
-        persister
-            .persist_catalog(WalFileSequenceNumber::new(0), &catalog)
-            .await
-            .unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
 
         let catalog = Catalog::new(host_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_second_db");
 
-        persister
-            .persist_catalog(WalFileSequenceNumber::new(1), &catalog)
-            .await
-            .unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
 
         let catalog = persister
             .load_catalog()
@@ -473,14 +446,10 @@ mod tests {
             .expect("loading the catalog did not cause an error")
             .expect("there was a catalog to load");
 
-        assert_eq!(
-            catalog.wal_file_sequence_number,
-            WalFileSequenceNumber::new(1)
-        );
         // my_second_db
-        assert!(catalog.catalog.db_exists(DbId::from(1)));
+        assert!(catalog.db_exists(DbId::from(1)));
         // my_db
-        assert!(!catalog.catalog.db_exists(DbId::from(0)));
+        assert!(!catalog.db_exists(DbId::from(0)));
     }
 
     #[tokio::test]
@@ -496,7 +465,7 @@ mod tests {
             next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
-            catalog_sequence_number: SequenceNumber::new(0),
+            catalog_sequence_number: CatalogSequenceNumber::new(0),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -520,7 +489,7 @@ mod tests {
             next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
-            catalog_sequence_number: SequenceNumber::default(),
+            catalog_sequence_number: CatalogSequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -535,7 +504,7 @@ mod tests {
             next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
-            catalog_sequence_number: SequenceNumber::default(),
+            catalog_sequence_number: CatalogSequenceNumber::default(),
             databases: HashMap::new(),
             max_time: 1,
             min_time: 0,
@@ -550,7 +519,7 @@ mod tests {
             next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
-            catalog_sequence_number: SequenceNumber::default(),
+            catalog_sequence_number: CatalogSequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -586,7 +555,7 @@ mod tests {
             next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
-            catalog_sequence_number: SequenceNumber::default(),
+            catalog_sequence_number: CatalogSequenceNumber::default(),
             databases: HashMap::new(),
             min_time: 0,
             max_time: 1,
@@ -615,7 +584,7 @@ mod tests {
                 next_column_id: ColumnId::from(1),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
-                catalog_sequence_number: SequenceNumber::new(id as u32),
+                catalog_sequence_number: CatalogSequenceNumber::new(id as u32),
                 databases: HashMap::new(),
                 min_time: 0,
                 max_time: 1,
@@ -644,7 +613,7 @@ mod tests {
             "test_host".to_string(),
             SnapshotSequenceNumber::new(0),
             WalFileSequenceNumber::new(0),
-            SequenceNumber::new(0),
+            CatalogSequenceNumber::new(0),
         );
 
         for _ in 0..=9875 {
@@ -761,11 +730,9 @@ mod tests {
         info!(local_disk = ?local_disk, "Using local disk");
         let persister = Persister::new(Arc::new(local_disk), "test_host");
         let _ = persister.load_or_create_catalog().await.unwrap();
-        let persisted_catalog = persister.load_catalog().await.unwrap().unwrap();
-        assert_eq!(
-            persisted_catalog.wal_file_sequence_number,
-            WalFileSequenceNumber::new(0)
-        );
+        let persisted_catalog = persister.load_catalog().await.unwrap();
+
+        assert!(persisted_catalog.is_some());
     }
 
     #[test_log::test(tokio::test)]
@@ -785,7 +752,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         info!(local_disk = ?local_disk, "Using local disk");
 
-        let catalog_path = CatalogFilePath::new("test_host", WalFileSequenceNumber::new(0));
+        let catalog_path = CatalogFilePath::new("test_host", CatalogSequenceNumber::new(0));
         let _ = local_disk
             .put(&catalog_path, catalog_json.into())
             .await

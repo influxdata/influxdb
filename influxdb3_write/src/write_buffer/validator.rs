@@ -806,13 +806,13 @@ fn apply_precision_to_timestamp(precision: Precision, ts: i64) -> i64 {
 mod tests {
     use std::sync::Arc;
 
-    use crate::{catalog::Catalog, write_buffer::Error, Precision};
+    use super::WriteValidator;
+    use crate::{write_buffer::Error, Precision};
     use data_types::NamespaceName;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::TableId;
     use influxdb3_wal::Gen1Duration;
     use iox_time::Time;
-
-    use super::WriteValidator;
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {

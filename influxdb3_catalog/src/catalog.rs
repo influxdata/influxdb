@@ -79,9 +79,9 @@ pub const TIME_COLUMN_NAME: &str = "time";
 #[derive(
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
-pub struct SequenceNumber(u32);
+pub struct CatalogSequenceNumber(u32);
 
-impl SequenceNumber {
+impl CatalogSequenceNumber {
     pub fn new(id: u32) -> Self {
         Self(id)
     }
@@ -202,7 +202,7 @@ impl Catalog {
         self.inner.read().databases.values().cloned().collect()
     }
 
-    pub fn sequence_number(&self) -> SequenceNumber {
+    pub fn sequence_number(&self) -> CatalogSequenceNumber {
         self.inner.read().sequence
     }
 
@@ -280,7 +280,7 @@ impl Catalog {
     /// After the catalog has been persisted, mark it as not updated, if the sequence number
     /// matches. If it doesn't then the catalog was updated while persistence was running and
     /// will need to be persisted on the next snapshot.
-    pub fn set_updated_false_if_sequence_matches(&self, sequence_number: SequenceNumber) {
+    pub fn set_updated_false_if_sequence_matches(&self, sequence_number: CatalogSequenceNumber) {
         let mut inner = self.inner.write();
         if inner.sequence == sequence_number {
             inner.updated = false;
@@ -297,7 +297,7 @@ impl Catalog {
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
-    sequence: SequenceNumber,
+    sequence: CatalogSequenceNumber,
     /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
     host_id: Arc<str>,
     /// The instance_id uniquely identifies the instance that generated the catalog
@@ -366,7 +366,7 @@ impl InnerCatalog {
     pub(crate) fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
             databases: SerdeVecMap::new(),
-            sequence: SequenceNumber::new(0),
+            sequence: CatalogSequenceNumber::new(0),
             host_id,
             instance_id,
             updated: false,
@@ -374,7 +374,7 @@ impl InnerCatalog {
         }
     }
 
-    pub fn sequence_number(&self) -> SequenceNumber {
+    pub fn sequence_number(&self) -> CatalogSequenceNumber {
         self.sequence
     }
 
