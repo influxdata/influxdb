@@ -466,10 +466,10 @@ impl LastCacheManager for WriteBufferImpl {
         let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
         let db_schema = catalog
-            .db_schema_by_id(db_id)
+            .db_schema_by_id(&db_id)
             .ok_or(Error::DbDoesNotExist)?;
         let table_def = db_schema
-            .table_definition_by_id(table_id)
+            .table_definition_by_id(&table_id)
             .ok_or(Error::TableDoesNotExist)?;
 
         if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
@@ -503,7 +503,7 @@ impl LastCacheManager for WriteBufferImpl {
         cache_name: &str,
     ) -> crate::Result<(), self::Error> {
         let catalog = self.catalog();
-        let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
+        let db_schema = catalog.db_schema_by_id(&db_id).expect("db should exist");
         self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
         catalog.delete_last_cache(db_id, tbl_id, cache_name);
 
@@ -516,7 +516,7 @@ impl LastCacheManager for WriteBufferImpl {
                 database_name: Arc::clone(&db_schema.name),
                 ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
                     table_id: tbl_id,
-                    table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
+                    table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
                     name: cache_name.into(),
                 })],
             })])
@@ -569,7 +569,7 @@ mod tests {
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
-        let db = catalog.db_schema_by_id(DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
 
         assert_eq!(db.tables.len(), 2);
         // cpu table

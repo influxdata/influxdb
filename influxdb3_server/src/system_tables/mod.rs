@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use datafusion::{catalog::SchemaProvider, datasource::TableProvider, error::DataFusionError};
-use influxdb3_id::DbId;
+use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
@@ -38,19 +38,24 @@ impl std::fmt::Debug for SystemSchemaProvider {
 }
 
 impl SystemSchemaProvider {
-    pub(crate) fn new(db_id: DbId, query_log: Arc<QueryLog>, buffer: Arc<dyn WriteBuffer>) -> Self {
+    pub(crate) fn new(
+        db_schema: Arc<DatabaseSchema>,
+        query_log: Arc<QueryLog>,
+        buffer: Arc<dyn WriteBuffer>,
+    ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
         tables.insert(QUERIES_TABLE_NAME, queries);
         let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
-            db_id,
+            Arc::clone(&db_schema),
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
-            db_id, buffer,
+            db_schema.id,
+            buffer,
         ))));
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         Self { tables }
