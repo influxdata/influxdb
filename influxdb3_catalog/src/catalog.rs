@@ -81,8 +81,6 @@ pub const TIME_COLUMN_NAME: &str = "time";
 )]
 pub struct SequenceNumber(u32);
 
-type SeriesKey = Option<Vec<ColumnId>>;
-
 impl SequenceNumber {
     pub fn new(id: u32) -> Self {
         Self(id)
@@ -472,27 +470,18 @@ impl DatabaseSchema {
                     }
                 }
                 CatalogOp::AddFields(field_additions) => {
-                    let new_or_existing_table = updated_or_new_tables
+                    let Some(new_or_existing_table) = updated_or_new_tables
                         .get(&field_additions.table_id)
-                        .or_else(|| self.tables.get(&field_additions.table_id));
-                    if let Some(existing_table) = new_or_existing_table {
-                        if let Some(new_table) =
-                            existing_table.new_if_field_additions_add_fields(field_additions)?
-                        {
-                            updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
-                        }
-                    } else {
-                        let fields = field_additions
-                            .field_definitions
-                            .iter()
-                            .map(|f| (f.id, Arc::clone(&f.name), f.data_type.into()))
-                            .collect::<Vec<_>>();
-                        let new_table = TableDefinition::new(
-                            field_additions.table_id,
-                            Arc::clone(&field_additions.table_name),
-                            fields,
-                            SeriesKey::None,
-                        )?;
+                        .or_else(|| self.tables.get(&field_additions.table_id))
+                    else {
+                        return Err(Error::TableNotFound {
+                            db_name: Arc::clone(&field_additions.database_name),
+                            table_name: Arc::clone(&field_additions.table_name),
+                        });
+                    };
+                    if let Some(new_table) =
+                        new_or_existing_table.new_if_field_additions_add_fields(field_additions)?
+                    {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
