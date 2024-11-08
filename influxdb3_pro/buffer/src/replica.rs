@@ -339,7 +339,7 @@ impl ReplicatedBuffer {
             let catalog = persister.load_catalog()
                 .await
                 .with_context(|| format!("unable to load a catalog for host '{host_identifier_prefix}' from object store"))?
-                .map(|persisted| Arc::new(Catalog::from_inner(persisted.catalog)))
+                .map(|persisted| Arc::new(Catalog::from_inner(persisted)))
                 .with_context(|| format!("there was no catalog for host '{host_identifier_prefix}'"))?;
             let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
                 persisted_snapshots,
@@ -2337,7 +2337,7 @@ mod tests {
     }
 
     mod create {
-        use influxdb3_catalog::catalog::SequenceNumber;
+        use influxdb3_catalog::catalog::CatalogSequenceNumber;
         use influxdb3_id::{ColumnId, ParquetFileId};
         use influxdb3_wal::SnapshotSequenceNumber;
         use influxdb3_write::DatabaseTables;
@@ -2435,7 +2435,7 @@ mod tests {
             next_column_id: ColumnId,
             snapshot_sequence_number: Option<SnapshotSequenceNumber>,
             wal_file_sequence_number: Option<WalFileSequenceNumber>,
-            catalog_sequence_number: Option<SequenceNumber>,
+            catalog_sequence_number: Option<CatalogSequenceNumber>,
             parquet_size_bytes: Option<u64>,
             row_count: Option<u64>,
             min_time: Option<i64>,
