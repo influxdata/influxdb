@@ -81,7 +81,7 @@ pub(crate) async fn run_snapshot_plan(
     }
 
     for (db_id, table_plans) in snapshot_advance_plan.compaction_plans {
-        let Some(db_schema) = catalog.db_schema_by_id(db_id) else {
+        let Some(db_schema) = catalog.db_schema_by_id(&db_id) else {
             // this is a bug, but we can't panic here because it would cause the compactor to stop.
             // we'll just skip this table and log an error.
             error!(
@@ -94,7 +94,7 @@ pub(crate) async fn run_snapshot_plan(
         for plan in table_plans {
             let table_id = plan.table_id();
 
-            let Some(table_definition) = db_schema.table_definition_by_id(table_id) else {
+            let Some(table_definition) = db_schema.table_definition_by_id(&table_id) else {
                 // this is a bug, but we can't panic here because it would cause the compactor to stop.
                 // we'll just skip this table and log an error.
                 error!(
@@ -184,7 +184,7 @@ pub(crate) async fn run_compaction_plan_group(
         // NOTE(trevor): could get the table id from the db schema?
         let table_id = plan.table_id;
 
-        let db_schema = match catalog.db_schema_by_id(db_id) {
+        let db_schema = match catalog.db_schema_by_id(&db_id) {
             Some(db_schema) => db_schema,
             None => {
                 error!(
@@ -196,7 +196,7 @@ pub(crate) async fn run_compaction_plan_group(
             }
         };
 
-        let table_definition = match db_schema.table_definition_by_id(table_id) {
+        let table_definition = match db_schema.table_definition_by_id(&table_id) {
             Some(table_definition) => table_definition,
             None => {
                 error!(%table_id, db_name = %db_schema.name, "Table definition not found while running compaction cycle");
@@ -255,7 +255,7 @@ async fn run_plan_and_write_detail(
         CompactionPlan::Compaction(plan) => {
             let database_schema = compacted_data
                 .catalog
-                .db_schema_by_id(plan.db_id)
+                .db_schema_by_id(&plan.db_id)
                 .expect("plan to have valid database id");
 
             let index_columns = table_definition.index_column_ids();
@@ -379,7 +379,7 @@ async fn run_plan_and_write_detail(
         CompactionPlan::LeftoverOnly(plan) => {
             let database_schema = compacted_data
                 .catalog
-                .db_schema_by_id(plan.db_id)
+                .db_schema_by_id(&plan.db_id)
                 .expect("plan to have valid database id");
 
             let leftover_gen1_files: Vec<_> = compacted_data.remove_compacting_gen1_files(

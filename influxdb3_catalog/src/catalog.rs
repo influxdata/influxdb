@@ -86,8 +86,6 @@ pub const TIME_COLUMN_NAME: &str = "time";
 )]
 pub struct SequenceNumber(u32);
 
-type SeriesKey = Option<Vec<ColumnId>>;
-
 impl SequenceNumber {
     pub fn new(id: u32) -> Self {
         Self(id)
@@ -175,16 +173,16 @@ impl Catalog {
         self.inner.read().db_map.get_by_right(db_name).copied()
     }
 
-    pub fn db_id_to_name(&self, db_id: DbId) -> Option<Arc<str>> {
-        self.inner.read().db_map.get_by_left(&db_id).map(Arc::clone)
+    pub fn db_id_to_name(&self, db_id: &DbId) -> Option<Arc<str>> {
+        self.inner.read().db_map.get_by_left(db_id).map(Arc::clone)
     }
 
     pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
         self.db_schema_and_id(db_name).map(|(_, schema)| schema)
     }
 
-    pub fn db_schema_by_id(&self, db_id: DbId) -> Option<Arc<DatabaseSchema>> {
-        self.inner.read().databases.get(&db_id).cloned()
+    pub fn db_schema_by_id(&self, db_id: &DbId) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().databases.get(db_id).cloned()
     }
 
     pub fn db_schema_and_id(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
@@ -477,27 +475,18 @@ impl DatabaseSchema {
                     }
                 }
                 CatalogOp::AddFields(field_additions) => {
-                    let new_or_existing_table = updated_or_new_tables
+                    let Some(new_or_existing_table) = updated_or_new_tables
                         .get(&field_additions.table_id)
-                        .or_else(|| self.tables.get(&field_additions.table_id));
-                    if let Some(existing_table) = new_or_existing_table {
-                        if let Some(new_table) =
-                            existing_table.new_if_field_additions_add_fields(field_additions)?
-                        {
-                            updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
-                        }
-                    } else {
-                        let fields = field_additions
-                            .field_definitions
-                            .iter()
-                            .map(|f| (f.id, Arc::clone(&f.name), f.data_type.into()))
-                            .collect::<Vec<_>>();
-                        let new_table = TableDefinition::new(
-                            field_additions.table_id,
-                            Arc::clone(&field_additions.table_name),
-                            fields,
-                            SeriesKey::None,
-                        )?;
+                        .or_else(|| self.tables.get(&field_additions.table_id))
+                    else {
+                        return Err(Error::TableNotFound {
+                            db_name: Arc::clone(&field_additions.database_name),
+                            table_name: Arc::clone(&field_additions.table_name),
+                        });
+                    };
+                    if let Some(new_table) =
+                        new_or_existing_table.new_if_field_additions_add_fields(field_additions)?
+                    {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
@@ -587,9 +576,9 @@ impl DatabaseSchema {
             .map(|(_, schema)| schema.clone())
     }
 
-    pub fn table_schema_by_id(&self, table_id: TableId) -> Option<Schema> {
+    pub fn table_schema_by_id(&self, table_id: &TableId) -> Option<Schema> {
         self.tables
-            .get(&table_id)
+            .get(table_id)
             .map(|table| table.influx_schema())
             .cloned()
     }
@@ -616,8 +605,8 @@ impl DatabaseSchema {
             .and_then(|table_id| self.tables.get(table_id).cloned())
     }
 
-    pub fn table_definition_by_id(&self, table_id: TableId) -> Option<Arc<TableDefinition>> {
-        self.tables.get(&table_id).cloned()
+    pub fn table_definition_by_id(&self, table_id: &TableId) -> Option<Arc<TableDefinition>> {
+        self.tables.get(table_id).cloned()
     }
 
     pub fn table_definition_and_id(
@@ -641,8 +630,8 @@ impl DatabaseSchema {
             .collect()
     }
 
-    pub fn table_exists(&self, table_id: TableId) -> bool {
-        self.tables.contains_key(&table_id)
+    pub fn table_exists(&self, table_id: &TableId) -> bool {
+        self.tables.contains_key(table_id)
     }
 
     pub fn tables(&self) -> impl Iterator<Item = Arc<TableDefinition>> + use<'_> {
@@ -653,8 +642,8 @@ impl DatabaseSchema {
         self.table_map.get_by_right(&table_name.into()).copied()
     }
 
-    pub fn table_id_to_name(&self, table_id: TableId) -> Option<Arc<str>> {
-        self.table_map.get_by_left(&table_id).map(Arc::clone)
+    pub fn table_id_to_name(&self, table_id: &TableId) -> Option<Arc<str>> {
+        self.table_map.get_by_left(table_id).map(Arc::clone)
     }
 }
 
@@ -953,8 +942,8 @@ impl TableDefinition {
         self.column_map.get_by_right(&name.into()).copied()
     }
 
-    pub fn column_id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
-        self.column_map.get_by_left(&id).cloned()
+    pub fn column_id_to_name(&self, id: &ColumnId) -> Option<Arc<str>> {
+        self.column_map.get_by_left(id).cloned()
     }
 
     pub fn column_name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
@@ -964,10 +953,10 @@ impl TableDefinition {
             .expect("Column exists in mapping")
     }
 
-    pub fn column_id_to_name_unchecked(&self, id: ColumnId) -> Arc<str> {
+    pub fn column_id_to_name_unchecked(&self, id: &ColumnId) -> Arc<str> {
         Arc::clone(
             self.column_map
-                .get_by_left(&id)
+                .get_by_left(id)
                 .expect("Column exists in mapping"),
         )
     }
@@ -1018,6 +1007,7 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 
 #[cfg(test)]
 mod tests {
+    use influxdb3_wal::{create, FieldDataType};
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
@@ -1259,7 +1249,7 @@ mod tests {
         let table = database.tables.get_mut(&TableId::from(0)).unwrap();
         println!("table: {table:#?}");
         assert_eq!(table.column_map.len(), 1);
-        assert_eq!(table.column_id_to_name_unchecked(0.into()), "test".into());
+        assert_eq!(table.column_id_to_name_unchecked(&0.into()), "test".into());
 
         Arc::make_mut(table)
             .add_columns(vec![(
@@ -1411,5 +1401,33 @@ mod tests {
         let catalog = Catalog::new(cloned_host_id, cloned_instance_id);
         assert_eq!(instance_id, catalog.instance_id());
         assert_eq!(host_id, catalog.host_id());
+    }
+
+    /// See: https://github.com/influxdata/influxdb/issues/25524
+    #[test]
+    fn apply_catalog_batch_fails_for_add_fields_on_nonexist_table() {
+        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
+        catalog.insert_database(DatabaseSchema::new(DbId::new(), Arc::from("foo")));
+        let db_id = catalog.db_name_to_id("foo").unwrap();
+        let catalog_batch = create::catalog_batch_op(
+            db_id,
+            "foo",
+            0,
+            [create::add_fields_op(
+                db_id,
+                "foo",
+                TableId::new(),
+                "banana",
+                [create::field_def(
+                    ColumnId::new(),
+                    "papaya",
+                    FieldDataType::String,
+                )],
+            )],
+        );
+        let err = catalog
+            .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
+            .expect_err("should fail to apply AddFields operation for non-existent table");
+        assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }
 }

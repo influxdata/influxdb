@@ -60,7 +60,7 @@ impl SystemSchemaProvider {
         ))));
         tables.insert(QUERIES_TABLE_NAME, queries);
         let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
-            db_schema.id,
+            Arc::clone(&db_schema),
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);

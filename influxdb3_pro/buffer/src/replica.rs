@@ -598,10 +598,10 @@ impl ReplicatedBuffer {
             // await points below, which the compiler does not allow
             let mut buffer = self.buffer.write();
             for (db_id, tbl_map) in buffer.db_to_table.iter_mut() {
-                let db_schema = catalog.db_schema_by_id(*db_id).expect("db exists");
+                let db_schema = catalog.db_schema_by_id(db_id).expect("db exists");
                 for (tbl_id, tbl_buf) in tbl_map.iter_mut() {
                     let table_def = db_schema
-                        .table_definition_by_id(*tbl_id)
+                        .table_definition_by_id(tbl_id)
                         .expect("table exists");
                     tbl_buf.snapshot(table_def, snapshot_details.end_time_marker);
                 }

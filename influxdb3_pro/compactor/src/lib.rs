@@ -712,7 +712,7 @@ impl SeriesWriter {
         for column_id in self.index_columns.iter() {
             let column_name = self
                 .table_def
-                .column_id_to_name(*column_id)
+                .column_id_to_name(column_id)
                 .ok_or_else(|| CompactorError::MissingColumnId(*column_id))?;
             let array = batch.column_by_name(&column_name).unwrap();
             // If the cast fails use null for the value. We might lose out on the indexing,
