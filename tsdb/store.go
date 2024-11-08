@@ -100,7 +100,10 @@ func (se *shardErrorMap) setShardOpenError(shardID uint64, err error) {
 	if err == nil {
 		delete(se.shardErrors, shardID)
 	} else {
-		if se.shardErrors[shardID] != err {
+		// Ignore incoming error if it is from a previous open failure. We don't want to keep
+		// re-wrapping the same error. For safety, make sure we have an ErrPreviousShardFail in
+		//  case we hadn't recorded it.
+		if !errors.Is(err, ErrPreviousShardFail{}) || !errors.Is(se.shardErrors[shardID], ErrPreviousShardFail{}) {
 			se.shardErrors[shardID] = &ErrPreviousShardFail{error: fmt.Errorf("opening shard previously failed with: %w", err)}
 		}
 	}
@@ -361,6 +364,9 @@ type shardLoader struct {
 	enabled    bool
 	logger     *zap.Logger
 
+	// Shard we are working with. Could be created by the loader are given by client code.
+	shard *Shard
+
 	// Should be loaded even if loading failed previously?
 	force bool
 
@@ -381,7 +387,9 @@ type shardLoader struct {
 //	although it will not be properly loaded if there was an error.
 func (l *shardLoader) Load() *shardResponse {
 	// Open engine.
-	shard := NewShard(l.shardID, l.path, l.walPath, l.sfile, l.engineOpts)
+	if l.shard == nil {
+		l.shard = NewShard(l.shardID, l.path, l.walPath, l.sfile, l.engineOpts)
+	}
 
 	err := func() error {
 		// Stop and return error if previous open failed.
@@ -390,19 +398,19 @@ func (l *shardLoader) Load() *shardResponse {
 		}
 
 		// Set options based on caller preferences.
-		shard.EnableOnOpen = l.enabled
-		shard.CompactionDisabled = l.engineOpts.CompactionDisabled
-		shard.WithLogger(l.logger)
+		l.shard.EnableOnOpen = l.enabled
+		l.shard.CompactionDisabled = l.engineOpts.CompactionDisabled
+		l.shard.WithLogger(l.logger)
 
 		// Open the shard.
-		if err := shard.Open(); err != nil {
+		if err := l.shard.Open(); err != nil {
 			return err
 		}
 
 		return nil
 	}()
 
-	return &shardResponse{s: shard, err: err}
+	return &shardResponse{s: l.shard, err: err}
 }
 
 type shardLoaderOption func(*shardLoader)
@@ -418,6 +426,14 @@ func withForceLoad(force bool) shardLoaderOption {
 func withIndexVersion(indexVersion string) shardLoaderOption {
 	return func(l *shardLoader) {
 		l.engineOpts.IndexVersion = indexVersion
+	}
+}
+
+// withExistingShard uses an existing Shard already registered with Store instead
+// of creating a new one.
+func withExistingShard(shard *Shard) shardLoaderOption {
+	return func(l *shardLoader) {
+		l.shard = shard
 	}
 }
 
@@ -447,7 +463,7 @@ func (s *Store) newShardLoader(shardID uint64, db, rp string, enabled bool, opts
 	// Check for error from last load attempt.
 	lastErr, _ := s.badShards.shardError(shardID)
 	if lastErr != nil && !l.force {
-		l.loadErr = lastErr
+		l.loadErr = fmt.Errorf("not attempting to open shard %d; %w", shardID, lastErr)
 		return l
 	}
 
@@ -612,13 +628,16 @@ func (s *Store) registerShard(res *shardResponse) {
 		s.badShards.setShardOpenError(res.s.ID(), res.err)
 		return
 	}
-	s.shards[res.s.id] = res.s
-	s.epochs[res.s.id] = newEpochTracker()
-	if _, ok := s.databases[res.s.database]; !ok {
-		s.databases[res.s.database] = new(databaseState)
-	}
-	s.databases[res.s.database].addIndexType(res.s.IndexType())
 
+	// Avoid registering an already registered shard.
+	if s.shards[res.s.id] != res.s {
+		s.shards[res.s.id] = res.s
+		s.epochs[res.s.id] = newEpochTracker()
+		if _, ok := s.databases[res.s.database]; !ok {
+			s.databases[res.s.database] = new(databaseState)
+		}
+		s.databases[res.s.database].addIndexType(res.s.IndexType())
+	}
 }
 
 // warnMixedIndexTypes checks the databases listed in dbList for mixed
@@ -799,18 +818,16 @@ func (e ErrPreviousShardFail) Error() string {
 	return e.error.Error()
 }
 
-func (s *Store) OpenShard(sh *Shard, force bool) error {
+func (s *Store) ReopenShard(shardID uint64, force bool) error {
+	sh := s.Shard(shardID)
 	if sh == nil {
-		return errors.New("cannot open nil shard")
+		return ErrShardNotFound
 	}
-	oldErr, bad := s.badShards.shardError(sh.ID())
-	if force || !bad {
-		err := sh.Open()
-		s.badShards.setShardOpenError(sh.ID(), err)
-		return err
-	} else {
-		return fmt.Errorf("not attempting to open shard %d; %w", sh.ID(), oldErr)
-	}
+
+	loader := s.newShardLoader(shardID, "", "", true, withExistingShard(sh), withForceLoad(force))
+	res := loader.Load()
+	s.registerShard(res)
+	return res.err
 }
 
 func (s *Store) SetShardOpenErrorForTest(shardID uint64, err error) {
