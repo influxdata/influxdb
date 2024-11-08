@@ -17,7 +17,7 @@ use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::catalog::{self, SequenceNumber};
+use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::ParquetFileId;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
@@ -151,15 +151,6 @@ pub struct BufferedWriteRequest {
     pub index_count: usize,
 }
 
-/// A persisted Catalog that contains the database, table, and column schemas.
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct PersistedCatalog {
-    /// The wal file number that triggered the snapshot to persisst this catalog
-    pub wal_file_sequence_number: WalFileSequenceNumber,
-    /// The catalog that was persisted.
-    pub catalog: catalog::InnerCatalog,
-}
-
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
@@ -178,7 +169,7 @@ pub struct PersistedSnapshot {
     /// The wal file sequence number that triggered this snapshot
     pub wal_file_sequence_number: WalFileSequenceNumber,
     /// The catalog sequence number associated with this snapshot
-    pub catalog_sequence_number: SequenceNumber,
+    pub catalog_sequence_number: CatalogSequenceNumber,
     /// The size of the snapshot parquet files in bytes.
     pub parquet_size_bytes: u64,
     /// The number of rows across all parquet files in the snapshot.
@@ -197,7 +188,7 @@ impl PersistedSnapshot {
         host_id: String,
         snapshot_sequence_number: SnapshotSequenceNumber,
         wal_file_sequence_number: WalFileSequenceNumber,
-        catalog_sequence_number: SequenceNumber,
+        catalog_sequence_number: CatalogSequenceNumber,
     ) -> Self {
         Self {
             host_id,
@@ -326,10 +317,10 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 
 #[cfg(test)]
 mod test_helpers {
-    use crate::catalog::Catalog;
     use crate::write_buffer::validator::WriteValidator;
     use crate::Precision;
     use data_types::NamespaceName;
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WriteBatch};
     use iox_time::Time;
     use std::sync::Arc;
