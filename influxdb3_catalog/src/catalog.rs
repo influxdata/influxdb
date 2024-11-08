@@ -948,8 +948,8 @@ impl TableDefinition {
         self.column_map.get_by_right(&name.into()).copied()
     }
 
-    pub fn column_id_to_name(&self, id: ColumnId) -> Option<Arc<str>> {
-        self.column_map.get_by_left(&id).cloned()
+    pub fn column_id_to_name(&self, id: &ColumnId) -> Option<Arc<str>> {
+        self.column_map.get_by_left(id).cloned()
     }
 
     pub fn column_name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {

@@ -363,7 +363,7 @@ impl Database {
         query_log: Arc<QueryLog>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            db_schema.id,
+            Arc::clone(&db_schema),
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
         ));

@@ -133,7 +133,7 @@ impl LastCacheProvider {
                         .iter()
                         .map(|id| {
                             table_def
-                                .column_id_to_name(*id)
+                                .column_id_to_name(id)
                                 .map(|name| (*id, name))
                                 .ok_or(Error::KeyColumnDoesNotExist { column_id: *id })
                         })
@@ -144,7 +144,7 @@ impl LastCacheProvider {
                                 .iter()
                                 .map(|id| {
                                     table_def
-                                        .column_id_to_name(*id)
+                                        .column_id_to_name(id)
                                         .map(|name| (*id, name))
                                         .ok_or(Error::ValueColumnDoesNotExist { column_id: *id })
                                 })
@@ -408,7 +408,7 @@ impl LastCacheProvider {
             .iter()
             .map(|id| {
                 table_def
-                    .column_id_to_name(*id)
+                    .column_id_to_name(id)
                     .map(|name| (*id, name))
                     .expect("a valid column id for key column")
             })
