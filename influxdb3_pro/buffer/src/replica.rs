@@ -750,8 +750,8 @@ mod tests {
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
-        CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, Gen1Duration, WalConfig,
-        WalContents, WalFileSequenceNumber, WalOp,
+        CatalogBatch, FieldDataType, Gen1Duration, WalConfig, WalContents, WalFileSequenceNumber,
+        WalOp,
     };
     use influxdb3_write::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
@@ -1397,20 +1397,24 @@ mod tests {
         let db_id = replica.db_name_to_id("foo").unwrap();
         // fabricate some WalContents that would originate from the "b" replica host that contain
         // a single CreateTable operation for the table "pow" that does not exist locally:
-        let wal_content = create::wal_content(
+        let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
-            [create::catalog_batch_op(
+            [influxdb3_wal::create::catalog_batch_op(
                 db_id,
                 "foo",
                 0,
-                [create::create_table_op(
+                [influxdb3_wal::create::create_table_op(
                     db_id,
                     "foo",
                     TableId::new(),
                     "pow",
                     [
-                        create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
-                        create::field_def(ColumnId::new(), "f1", FieldDataType::Boolean),
+                        influxdb3_wal::create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        influxdb3_wal::create::field_def(
+                            ColumnId::new(),
+                            "f1",
+                            FieldDataType::Boolean,
+                        ),
                     ],
                 )],
             )],
@@ -1462,21 +1466,29 @@ mod tests {
         // create a new db and table id as if they were on the replica:
         let db_id = DbId::new();
         let table_id = TableId::new();
-        let wal_content = create::wal_content(
+        let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
-            [create::catalog_batch_op(
+            [influxdb3_wal::create::catalog_batch_op(
                 db_id,
                 "sup",
                 0,
-                [create::create_table_op(
+                [influxdb3_wal::create::create_table_op(
                     db_id,
                     "sup",
                     table_id,
                     "dog",
                     [
-                        create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
-                        create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
-                        create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
+                        influxdb3_wal::create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        influxdb3_wal::create::field_def(
+                            ColumnId::new(),
+                            "f1",
+                            FieldDataType::Float,
+                        ),
+                        influxdb3_wal::create::field_def(
+                            ColumnId::new(),
+                            "time",
+                            FieldDataType::Timestamp,
+                        ),
                     ],
                 )],
             )],
@@ -1521,21 +1533,33 @@ mod tests {
         let (primary_db_id, primary_table_id) = {
             let db_id = DbId::new();
             let table_id = TableId::new();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "fizz",
                     0,
-                    [create::create_table_op(
+                    [influxdb3_wal::create::create_table_op(
                         db_id,
                         "fizz",
                         table_id,
                         "buzz",
                         [
-                            create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
-                            create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
-                            create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "t1",
+                                FieldDataType::Tag,
+                            ),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "f1",
+                                FieldDataType::Float,
+                            ),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "time",
+                                FieldDataType::Timestamp,
+                            ),
                         ],
                     )],
                 )],
@@ -1549,21 +1573,33 @@ mod tests {
         let (replica_db_id, replica_table_id, replica_wal_content) = {
             let db_id = DbId::new();
             let table_id = TableId::new();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "fizz",
                     0,
-                    [create::create_table_op(
+                    [influxdb3_wal::create::create_table_op(
                         db_id,
                         "fizz",
                         table_id,
                         "buzz",
                         [
-                            create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
-                            create::field_def(ColumnId::new(), "f1", FieldDataType::Float),
-                            create::field_def(ColumnId::new(), "time", FieldDataType::Timestamp),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "t1",
+                                FieldDataType::Tag,
+                            ),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "f1",
+                                FieldDataType::Float,
+                            ),
+                            influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "time",
+                                FieldDataType::Timestamp,
+                            ),
                         ],
                     )],
                 )],
@@ -1610,18 +1646,18 @@ mod tests {
         // replica's catalog, so we can use the ID map to map them onto the primary
         let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let wal_content = create::wal_content(
+        let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
-            [create::catalog_batch_op(
+            [influxdb3_wal::create::catalog_batch_op(
                 db_id,
                 "foo",
                 0,
-                [create::add_fields_op(
+                [influxdb3_wal::create::add_fields_op(
                     db_id,
                     "foo",
                     table_id,
                     "bar",
-                    [create::field_def(
+                    [influxdb3_wal::create::field_def(
                         ColumnId::new(),
                         "f4",
                         FieldDataType::Float,
@@ -1670,18 +1706,18 @@ mod tests {
         let (primary_db_id, primary_table_id) = {
             let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::add_fields_op(
+                    [influxdb3_wal::create::add_fields_op(
                         db_id,
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def(
+                        [influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f4",
                             FieldDataType::Float,
@@ -1697,18 +1733,18 @@ mod tests {
         let (replica_db_id, replica_table_id, replica_wal_content) = {
             let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::add_fields_op(
+                    [influxdb3_wal::create::add_fields_op(
                         db_id,
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def(
+                        [influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f4",
                             FieldDataType::Float,
@@ -1773,22 +1809,21 @@ mod tests {
         let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
         let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-        let wal_content =
-            create::wal_content(
-                (0, 1, 0),
-                [create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [create::create_last_cache_op_builder(
-                        table_id,
-                        "bar",
-                        "test_cache",
-                        [t1_col_id],
-                    )
-                    .build()],
-                )],
-            );
+        let wal_content = influxdb3_wal::create::wal_contents(
+            (0, 1, 0),
+            [influxdb3_wal::create::catalog_batch_op(
+                db_id,
+                "foo",
+                0,
+                [influxdb3_wal::create::create_last_cache_op_builder(
+                    table_id,
+                    "bar",
+                    "test_cache",
+                    [t1_col_id],
+                )
+                .build()],
+            )],
+        );
         replica
             .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
@@ -1819,13 +1854,17 @@ mod tests {
             insta::assert_yaml_snapshot!(db);
         });
         // now delete the last cache on the replica:
-        let wal_content = create::wal_content(
+        let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
-            [create::catalog_batch_op(
+            [influxdb3_wal::create::catalog_batch_op(
                 db_id,
                 "foo",
                 0,
-                [create::delete_last_cache_op(table_id, "bar", "test_cache")],
+                [influxdb3_wal::create::delete_last_cache_op(
+                    table_id,
+                    "bar",
+                    "test_cache",
+                )],
             )],
         );
         replica
@@ -1854,13 +1893,13 @@ mod tests {
             let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
             let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::create_last_cache_op_builder(
+                    [influxdb3_wal::create::create_last_cache_op_builder(
                         table_id,
                         "bar",
                         "test_cache",
@@ -1877,13 +1916,13 @@ mod tests {
             let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
             let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::create_last_cache_op_builder(
+                    [influxdb3_wal::create::create_last_cache_op_builder(
                         table_id,
                         "bar",
                         "test_cache",
@@ -1937,13 +1976,13 @@ mod tests {
             let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
             let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::create_last_cache_op_builder(
+                    [influxdb3_wal::create::create_last_cache_op_builder(
                         table_id,
                         "bar",
                         "test_cache",
@@ -1960,13 +1999,13 @@ mod tests {
         let replica_wal_content = {
             let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::create_last_cache_op_builder(
+                    [influxdb3_wal::create::create_last_cache_op_builder(
                         table_id,
                         "bar",
                         "test_cache",
@@ -2003,25 +2042,25 @@ mod tests {
         let mut replica_wal_content = {
             let db_id = replica.db_name_to_id("foo").unwrap();
             let table_id = TableId::new();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
                     [
-                        create::create_table_op(
+                        influxdb3_wal::create::create_table_op(
                             db_id,
                             "foo",
                             table_id,
                             "baz",
-                            [create::field_def(
+                            [influxdb3_wal::create::field_def(
                                 ColumnId::new(),
                                 "fruits",
                                 FieldDataType::Tag,
                             )],
                         ),
-                        create::create_last_cache_op_builder(
+                        influxdb3_wal::create::create_last_cache_op_builder(
                             table_id,
                             "bar",
                             "test_cache",
@@ -2071,18 +2110,18 @@ mod tests {
         {
             let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::add_fields_op(
+                    [influxdb3_wal::create::add_fields_op(
                         db_id,
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def(
+                        [influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f4",
                             FieldDataType::String,
@@ -2098,18 +2137,18 @@ mod tests {
         let replica_wal_content = {
             let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = create::wal_content(
+            let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
-                [create::catalog_batch_op(
+                [influxdb3_wal::create::catalog_batch_op(
                     db_id,
                     "foo",
                     0,
-                    [create::add_fields_op(
+                    [influxdb3_wal::create::add_fields_op(
                         db_id,
                         "foo",
                         table_id,
                         "bar",
-                        [create::field_def(
+                        [influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f4",
                             FieldDataType::Float,
@@ -2127,6 +2166,79 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert_contains!(err, "Field type mismatch on table bar column f4");
+    }
+
+    #[test]
+    fn map_wal_with_field_additions_for_invalid_table() {
+        let primary = create::catalog("primary");
+        let replica = create::catalog("replica");
+        let replicated_catalog =
+            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
+        // Perform two WAL operations on the replica to create a table, then add fields to it:
+        let mut replica_wal_content = {
+            let db_id = replica.db_name_to_id("foo").unwrap();
+            let table_id = TableId::new();
+            let wal_content = influxdb3_wal::create::wal_contents(
+                (0, 1, 0),
+                [influxdb3_wal::create::catalog_batch_op(
+                    db_id,
+                    "foo",
+                    0,
+                    [
+                        influxdb3_wal::create::create_table_op(
+                            db_id,
+                            "foo",
+                            table_id,
+                            "phi",
+                            [influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "zeta",
+                                FieldDataType::Integer,
+                            )],
+                        ),
+                        influxdb3_wal::create::add_fields_op(
+                            db_id,
+                            "foo",
+                            table_id,
+                            "phi",
+                            [influxdb3_wal::create::field_def(
+                                ColumnId::new(),
+                                "theta",
+                                FieldDataType::UInteger,
+                            )],
+                        ),
+                    ],
+                )],
+            );
+            // apply the wal content to the replica to make sure it is valid:
+            replica
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .expect("apply catalog batch to replica to check its validity");
+            wal_content
+        };
+        // now remove the create table op, simulating a corrupted wal:
+        replica_wal_content = WalContents {
+            ops: replica_wal_content
+                .ops
+                .into_iter()
+                .map(|op| match op {
+                    WalOp::Write(_) => op,
+                    WalOp::Catalog(cat) => WalOp::Catalog(CatalogBatch {
+                        ops: cat.ops.into_iter().skip(1).collect(),
+                        ..cat
+                    }),
+                })
+                .collect(),
+            ..replica_wal_content
+        };
+        let err = replicated_catalog
+            .map_wal_contents(replica_wal_content)
+            .expect_err("applying corrupt wal content to primary should fail");
+
+        assert_contains!(
+            err.to_string(),
+            "failed to map WAL contents: Table phi not in DB schema for foo"
+        );
     }
 
     #[test]
@@ -2227,10 +2339,7 @@ mod tests {
     mod create {
         use influxdb3_catalog::catalog::SequenceNumber;
         use influxdb3_id::{ColumnId, ParquetFileId};
-        use influxdb3_wal::{
-            LastCacheDefinition, LastCacheDelete, LastCacheSize, LastCacheValueColumnsDef,
-            SnapshotSequenceNumber,
-        };
+        use influxdb3_wal::SnapshotSequenceNumber;
         use influxdb3_write::DatabaseTables;
 
         use super::*;
@@ -2280,133 +2389,6 @@ mod tests {
             db.tables.insert(tbl.table_id, Arc::new(tbl));
             cat.insert_database(db);
             cat.into()
-        }
-
-        pub(super) fn wal_content(
-            (min_timestamp_ns, max_timestamp_ns, wal_file_number): (i64, i64, u64),
-            ops: impl IntoIterator<Item = WalOp>,
-        ) -> WalContents {
-            WalContents {
-                min_timestamp_ns,
-                max_timestamp_ns,
-                wal_file_number: WalFileSequenceNumber::new(wal_file_number),
-                ops: ops.into_iter().collect(),
-                snapshot: None,
-            }
-        }
-
-        pub(super) fn catalog_batch_op(
-            db_id: DbId,
-            db_name: impl Into<Arc<str>>,
-            time_ns: i64,
-            ops: impl IntoIterator<Item = CatalogOp>,
-        ) -> WalOp {
-            WalOp::Catalog(CatalogBatch {
-                database_id: db_id,
-                database_name: db_name.into(),
-                time_ns,
-                ops: ops.into_iter().collect(),
-            })
-        }
-
-        pub(super) fn add_fields_op(
-            database_id: DbId,
-            db_name: impl Into<Arc<str>>,
-            table_id: TableId,
-            table_name: impl Into<Arc<str>>,
-            fields: impl IntoIterator<Item = FieldDefinition>,
-        ) -> CatalogOp {
-            CatalogOp::AddFields(influxdb3_wal::FieldAdditions {
-                database_name: db_name.into(),
-                database_id,
-                table_name: table_name.into(),
-                table_id,
-                field_definitions: fields.into_iter().collect(),
-            })
-        }
-
-        pub(super) fn create_table_op(
-            db_id: DbId,
-            db_name: impl Into<Arc<str>>,
-            table_id: TableId,
-            table_name: impl Into<Arc<str>>,
-            fields: impl IntoIterator<Item = FieldDefinition>,
-        ) -> CatalogOp {
-            CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
-                database_id: db_id,
-                database_name: db_name.into(),
-                table_name: table_name.into(),
-                table_id,
-                field_definitions: fields.into_iter().collect(),
-                key: None,
-            })
-        }
-
-        pub(super) fn field_def(
-            id: ColumnId,
-            name: impl Into<Arc<str>>,
-            data_type: FieldDataType,
-        ) -> FieldDefinition {
-            FieldDefinition {
-                name: name.into(),
-                data_type,
-                id,
-            }
-        }
-
-        pub(super) struct CreateLastCacheOpBuilder {
-            table_id: TableId,
-            table_name: Arc<str>,
-            name: Arc<str>,
-            key_columns: Vec<ColumnId>,
-            value_columns: Option<LastCacheValueColumnsDef>,
-            count: Option<LastCacheSize>,
-            ttl: Option<u64>,
-        }
-
-        impl CreateLastCacheOpBuilder {
-            pub(super) fn build(self) -> CatalogOp {
-                CatalogOp::CreateLastCache(LastCacheDefinition {
-                    table_id: self.table_id,
-                    table: self.table_name,
-                    name: self.name,
-                    key_columns: self.key_columns,
-                    value_columns: self
-                        .value_columns
-                        .unwrap_or(LastCacheValueColumnsDef::AllNonKeyColumns),
-                    count: self.count.unwrap_or_else(|| LastCacheSize::new(1).unwrap()),
-                    ttl: self.ttl.unwrap_or(3600),
-                })
-            }
-        }
-
-        pub(super) fn create_last_cache_op_builder(
-            table_id: TableId,
-            table_name: impl Into<Arc<str>>,
-            cache_name: impl Into<Arc<str>>,
-            key_columns: impl IntoIterator<Item = ColumnId>,
-        ) -> CreateLastCacheOpBuilder {
-            CreateLastCacheOpBuilder {
-                table_id,
-                table_name: table_name.into(),
-                name: cache_name.into(),
-                key_columns: key_columns.into_iter().collect(),
-                value_columns: None,
-                count: None,
-                ttl: None,
-            }
-        }
-
-        pub(super) fn delete_last_cache_op(
-            table_id: TableId,
-            table_name: impl Into<Arc<str>>,
-            cache_name: impl Into<Arc<str>>,
-        ) -> CatalogOp {
-            CatalogOp::DeleteLastCache(LastCacheDelete {
-                table_name: table_name.into(),
-                table_id,
-                name: cache_name.into(),
-            })
         }
 
         pub(super) struct ParquetFileBuilder {
