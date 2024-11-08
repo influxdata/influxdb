@@ -1002,6 +1002,7 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 
 #[cfg(test)]
 mod tests {
+    use influxdb3_wal::{create, FieldDataType};
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
@@ -1395,5 +1396,33 @@ mod tests {
         let catalog = Catalog::new(cloned_host_id, cloned_instance_id);
         assert_eq!(instance_id, catalog.instance_id());
         assert_eq!(host_id, catalog.host_id());
+    }
+
+    /// See: https://github.com/influxdata/influxdb/issues/25524
+    #[test]
+    fn apply_catalog_batch_fails_for_add_fields_on_nonexist_table() {
+        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
+        catalog.insert_database(DatabaseSchema::new(DbId::new(), Arc::from("foo")));
+        let db_id = catalog.db_name_to_id("foo").unwrap();
+        let catalog_batch = create::catalog_batch_op(
+            db_id,
+            "foo",
+            0,
+            [create::add_fields_op(
+                db_id,
+                "foo",
+                TableId::new(),
+                "banana",
+                [create::field_def(
+                    ColumnId::new(),
+                    "papaya",
+                    FieldDataType::String,
+                )],
+            )],
+        );
+        let err = catalog
+            .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
+            .expect_err("should fail to apply AddFields operation for non-existent table");
+        assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }
 }

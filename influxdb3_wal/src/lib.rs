@@ -3,6 +3,7 @@
 //! writes durable until they can be written in larger batches as Parquet files and other snapshot and
 //! index files in object storage.
 
+pub mod create;
 pub mod object_store;
 pub mod serialize;
 mod snapshot_tracker;
