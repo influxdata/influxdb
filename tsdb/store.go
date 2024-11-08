@@ -402,11 +402,7 @@ func (l *shardLoader) Load() *shardResponse {
 		}
 
 		// Open the shard.
-		if err := l.shard.Open(); err != nil {
-			return err
-		}
-
-		return nil
+		return l.shard.Open()
 	}()
 
 	return &shardResponse{s: l.shard, err: err}
