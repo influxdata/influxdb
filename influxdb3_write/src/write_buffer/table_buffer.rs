@@ -460,7 +460,7 @@ impl MutableTableChunk {
             let (col_type, col) = builder.into_influxcol_and_arrow();
             schema_builder.influx_column(
                 table_def
-                    .column_id_to_name(col_id)
+                    .column_id_to_name(&col_id)
                     .expect("valid column id")
                     .as_ref(),
                 col_type,

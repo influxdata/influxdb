@@ -367,7 +367,7 @@ impl CatalogIdMap {
         self.map_table_id(&other_table_id)
             .or_else(|| {
                 let id = local_catalog
-                    .db_schema_by_id(local_db_id)?
+                    .db_schema_by_id(&local_db_id)?
                     .table_name_to_id(other_table_name)?;
                 self.tables.insert(other_table_id, id);
                 Some(id)
@@ -398,8 +398,8 @@ impl CatalogIdMap {
             .map(Ok)
             .or_else(|| {
                 let local_tbl_def = local_catalog
-                    .db_schema_by_id(local_db_id)?
-                    .table_definition_by_id(local_table_id)?;
+                    .db_schema_by_id(&local_db_id)?
+                    .table_definition_by_id(&local_table_id)?;
                 let (id, def) = local_tbl_def.column_def_and_id(other_column_name)?;
                 if def.data_type != other_column_type {
                     return Some(Err(Error::FieldTypeMismatch {
@@ -590,8 +590,8 @@ impl CatalogIdMap {
             CatalogOp::CreateLastCache(def) => {
                 let mapped_def = self.map_last_cache_definition_column_ids(&def)?;
                 let tbl_def = target_catalog
-                    .db_schema_by_id(database_id)
-                    .and_then(|db| db.table_definition_by_id(mapped_def.table_id))
+                    .db_schema_by_id(&database_id)
+                    .and_then(|db| db.table_definition_by_id(&mapped_def.table_id))
                     // this unwrap is okay as the call to map the last cache definition would
                     // catch a missing table:
                     .unwrap();

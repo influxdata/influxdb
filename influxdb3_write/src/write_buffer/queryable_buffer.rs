@@ -147,17 +147,17 @@ impl QueryableBuffer {
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
-                let db_schema = catalog.db_schema_by_id(*database_id).expect("db exists");
+                let db_schema = catalog.db_schema_by_id(database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
                     let table_def = db_schema
-                        .table_definition_by_id(*table_id)
+                        .table_definition_by_id(table_id)
                         .expect("table exists");
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
 
                     for chunk in snapshot_chunks {
                         let table_name =
-                            db_schema.table_id_to_name(*table_id).expect("table exists");
+                            db_schema.table_id_to_name(table_id).expect("table exists");
                         let persist_job = PersistJob {
                             database_id: *database_id,
                             table_id: *table_id,
@@ -373,14 +373,14 @@ impl BufferState {
 
                     let db_schema = self
                         .catalog
-                        .db_schema_by_id(catalog_batch.database_id)
+                        .db_schema_by_id(&catalog_batch.database_id)
                         .expect("database should exist");
 
                     for op in catalog_batch.ops {
                         match op {
                             CatalogOp::CreateLastCache(definition) => {
                                 let table_def = db_schema
-                                    .table_definition_by_id(definition.table_id)
+                                    .table_definition_by_id(&definition.table_id)
                                     .expect("table should exist");
                                 last_cache_provider.create_cache_from_definition(
                                     db_schema.id,
@@ -410,14 +410,14 @@ impl BufferState {
     fn add_write_batch(&mut self, write_batch: WriteBatch) {
         let db_schema = self
             .catalog
-            .db_schema_by_id(write_batch.database_id)
+            .db_schema_by_id(&write_batch.database_id)
             .expect("database should exist");
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
         for (table_id, table_chunks) in write_batch.table_chunks {
             let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
                 let table_def = db_schema
-                    .table_definition_by_id(table_id)
+                    .table_definition_by_id(&table_id)
                     .expect("table should exist");
                 // TODO: can we have the primary key stored on the table definition (we already have
                 // the series key, so that doesn't seem like too much of a stretch).
