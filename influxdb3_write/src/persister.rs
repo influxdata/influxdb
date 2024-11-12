@@ -398,7 +398,7 @@ mod tests {
     use super::*;
     use crate::ParquetFileId;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_id::{ColumnId, DbId, TableId};
+    use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
@@ -407,7 +407,7 @@ mod tests {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
         arrow::datatypes::Schema, chrono::Utc,
         datafusion::physical_plan::stream::RecordBatchReceiverStreamBuilder,
-        object_store::local::LocalFileSystem, std::collections::HashMap,
+        object_store::local::LocalFileSystem,
     };
 
     #[tokio::test]
@@ -466,7 +466,7 @@ mod tests {
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::new(0),
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
             min_time: 0,
             max_time: 1,
             row_count: 0,
@@ -490,7 +490,7 @@ mod tests {
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::default(),
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
             min_time: 0,
             max_time: 1,
             row_count: 0,
@@ -505,7 +505,7 @@ mod tests {
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: CatalogSequenceNumber::default(),
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
             max_time: 1,
             min_time: 0,
             row_count: 0,
@@ -520,7 +520,7 @@ mod tests {
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: CatalogSequenceNumber::default(),
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
             min_time: 0,
             max_time: 1,
             row_count: 0,
@@ -556,7 +556,7 @@ mod tests {
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::default(),
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
             min_time: 0,
             max_time: 1,
             row_count: 0,
@@ -585,7 +585,7 @@ mod tests {
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
                 catalog_sequence_number: CatalogSequenceNumber::new(id as u32),
-                databases: HashMap::new(),
+                databases: SerdeVecMap::new(),
                 min_time: 0,
                 max_time: 1,
                 row_count: 0,
