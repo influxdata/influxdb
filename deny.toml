@@ -7,6 +7,8 @@ ignore = [
     # dependent on arrow-* upgrading dependencies on lexical-core
     # see https://github.com/apache/arrow-rs/pull/6401
     "RUSTSEC-2023-0086",
+    # dependent on datafusion-common moving away from instant
+    "RUSTSEC-2024-0384",
 ]
 git-fetch-with-cli = true
 
@@ -19,6 +21,7 @@ allow = [
     "CC0-1.0",
     "ISC",
     "MIT",
+    "Unicode-3.0",
     "Zlib",
 ]
 

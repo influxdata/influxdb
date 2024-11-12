@@ -405,7 +405,6 @@ impl Database {
 
 #[async_trait]
 impl QueryNamespace for Database {
-
     fn retention_time_ns(&self) -> Option<i64> {
         None
     }
