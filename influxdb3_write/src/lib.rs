@@ -19,6 +19,7 @@ use datafusion::prelude::Expr;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_id::ParquetFileId;
+use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -26,7 +27,6 @@ use iox_query::QueryChunk;
 use iox_time::Time;
 use last_cache::LastCacheProvider;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -180,7 +180,7 @@ pub struct PersistedSnapshot {
     pub max_time: i64,
     /// The collection of databases that had tables persisted in this snapshot. The tables will then have their
     /// name and the parquet file.
-    pub databases: HashMap<DbId, DatabaseTables>,
+    pub databases: SerdeVecMap<DbId, DatabaseTables>,
 }
 
 impl PersistedSnapshot {
@@ -203,7 +203,7 @@ impl PersistedSnapshot {
             row_count: 0,
             min_time: i64::MAX,
             max_time: i64::MIN,
-            databases: HashMap::new(),
+            databases: SerdeVecMap::new(),
         }
     }
 
@@ -232,7 +232,7 @@ impl PersistedSnapshot {
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseTables {
-    pub tables: hashbrown::HashMap<TableId, Vec<ParquetFile>>,
+    pub tables: SerdeVecMap<TableId, Vec<ParquetFile>>,
 }
 
 /// The summary data for a persisted parquet file in a snapshot.
@@ -252,6 +252,21 @@ impl ParquetFile {
         TimestampMinMax {
             min: self.min_time,
             max: self.max_time,
+        }
+    }
+}
+
+#[cfg(test)]
+impl ParquetFile {
+    pub(crate) fn create_for_test(path: impl Into<String>) -> Self {
+        Self {
+            id: ParquetFileId::new(),
+            path: path.into(),
+            size_bytes: 1024,
+            row_count: 1,
+            chunk_time: 0,
+            min_time: 0,
+            max_time: 1,
         }
     }
 }

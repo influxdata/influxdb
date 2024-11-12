@@ -1,0 +1,126 @@
+---
+source: influxdb3_write/src/persister.rs
+expression: snapshot
+---
+{
+  "host_id": "host",
+  "next_file_id": 8,
+  "next_db_id": 2,
+  "next_table_id": 4,
+  "next_column_id": 0,
+  "snapshot_sequence_number": 0,
+  "wal_file_sequence_number": 0,
+  "catalog_sequence_number": 0,
+  "parquet_size_bytes": 1024,
+  "row_count": 1,
+  "min_time": 0,
+  "max_time": 1,
+  "databases": [
+    [
+      0,
+      {
+        "tables": [
+          [
+            0,
+            [
+              {
+                "id": 0,
+                "path": "1.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              },
+              {
+                "id": 1,
+                "path": "2.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              }
+            ]
+          ],
+          [
+            1,
+            [
+              {
+                "id": 2,
+                "path": "3.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              },
+              {
+                "id": 3,
+                "path": "4.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              }
+            ]
+          ]
+        ]
+      }
+    ],
+    [
+      1,
+      {
+        "tables": [
+          [
+            2,
+            [
+              {
+                "id": 4,
+                "path": "5.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              },
+              {
+                "id": 5,
+                "path": "6.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              }
+            ]
+          ],
+          [
+            3,
+            [
+              {
+                "id": 6,
+                "path": "7.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              },
+              {
+                "id": 7,
+                "path": "8.parquet",
+                "size_bytes": 1024,
+                "row_count": 1,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 1
+              }
+            ]
+          ]
+        ]
+      }
+    ]
+  ]
+}
