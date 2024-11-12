@@ -502,7 +502,7 @@ func (s *Store) loadShards(ctx context.Context) error {
 
 	// Setup progress metrics.
 	if s.startupProgressMetrics != nil {
-		for _, _ = range shards {
+		for _ = range shards {
 			s.startupProgressMetrics.AddShard()
 		}
 	}
