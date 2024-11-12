@@ -9,7 +9,7 @@ license.workspace = true
 # Core crates
 data_types.workspace = true
 iox_time.workspace = true
-influxdb-line-protocol = { workspace = true, features = ["v3"] }
+influxdb-line-protocol = { workspace = true }
 observability_deps.workspace = true
 schema.workspace =  true
 

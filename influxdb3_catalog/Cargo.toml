@@ -9,7 +9,7 @@ license.workspace = true
 # Core Crates
 influxdb-line-protocol.workspace = true
 observability_deps.workspace = true
-schema = { workspace = true, features = ["v3"] }
+schema = { workspace = true }
 
 # Local deps
 influxdb3_id = { path = "../influxdb3_id" }
