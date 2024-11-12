@@ -4,7 +4,6 @@
 [advisories]
 yanked = "deny"
 ignore = [
-    "RUSTSEC-2024-0363",
     # dependent on arrow-* upgrading dependencies on lexical-core
     # see https://github.com/apache/arrow-rs/pull/6401
     "RUSTSEC-2023-0086",
