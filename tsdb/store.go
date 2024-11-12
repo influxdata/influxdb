@@ -517,14 +517,13 @@ func (s *Store) loadShards(ctx context.Context) error {
 		loader := s.newShardLoader(sh.id, sh.db, sh.rp, false)
 
 		// Now perform the actual loading in parallel in separate goroutines.
-		go func() {
+		go func(log *zap.Logger) {
 			t.Take(ctx)
 			defer t.Release()
 
-			log := log.With(logger.Shard(sh.id), zap.String("path", loader.path))
 			start := time.Now()
 			res := loader.Load(ctx)
-			if res.err != nil {
+			if res.err == nil {
 				log.Info("Opened shard", zap.String("index_version", res.s.IndexType()), zap.Duration("duration", time.Since(start)))
 			} else {
 				log.Error("Failed to open shard", zap.Error(res.err))
@@ -534,7 +533,7 @@ func (s *Store) loadShards(ctx context.Context) error {
 			if s.startupProgressMetrics != nil {
 				s.startupProgressMetrics.CompletedShard()
 			}
-		}()
+		}(log.With(logger.Shard(sh.id), zap.String("path", loader.path)))
 	}
 
 	// Register shards serially as the parallel goroutines finish opening them.
