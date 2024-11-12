@@ -396,7 +396,7 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParquetFileId;
+    use crate::{DatabaseTables, ParquetFile, ParquetFileId};
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -652,6 +652,73 @@ mod tests {
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
+    }
+
+    #[test]
+    fn persisted_snapshot_structure() {
+        let databases = [
+            (
+                DbId::new(),
+                DatabaseTables {
+                    tables: [
+                        (
+                            TableId::new(),
+                            vec![
+                                ParquetFile::create_for_test("1.parquet"),
+                                ParquetFile::create_for_test("2.parquet"),
+                            ],
+                        ),
+                        (
+                            TableId::new(),
+                            vec![
+                                ParquetFile::create_for_test("3.parquet"),
+                                ParquetFile::create_for_test("4.parquet"),
+                            ],
+                        ),
+                    ]
+                    .into(),
+                },
+            ),
+            (
+                DbId::new(),
+                DatabaseTables {
+                    tables: [
+                        (
+                            TableId::new(),
+                            vec![
+                                ParquetFile::create_for_test("5.parquet"),
+                                ParquetFile::create_for_test("6.parquet"),
+                            ],
+                        ),
+                        (
+                            TableId::new(),
+                            vec![
+                                ParquetFile::create_for_test("7.parquet"),
+                                ParquetFile::create_for_test("8.parquet"),
+                            ],
+                        ),
+                    ]
+                    .into(),
+                },
+            ),
+        ]
+        .into();
+        let snapshot = PersistedSnapshot {
+            host_id: "host".to_string(),
+            next_file_id: ParquetFileId::new(),
+            next_db_id: DbId::new(),
+            next_table_id: TableId::new(),
+            next_column_id: ColumnId::new(),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(0),
+            wal_file_sequence_number: WalFileSequenceNumber::new(0),
+            catalog_sequence_number: CatalogSequenceNumber::new(0),
+            parquet_size_bytes: 1_024,
+            row_count: 1,
+            min_time: 0,
+            max_time: 1,
+            databases,
+        };
+        insta::assert_json_snapshot!(snapshot);
     }
 
     #[tokio::test]
