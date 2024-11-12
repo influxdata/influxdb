@@ -345,16 +345,16 @@ mod tests {
 
         assert_eq!(
             batches[0]["host"].to_data().child_data()[0].buffers()[1],
-            Buffer::from([b'a'].to_vec())
+            Buffer::from([b'a'])
         );
 
         assert_eq!(
             batches[0]["time"].to_data().buffers(),
-            &[Buffer::from(vec![123, 0, 0, 0, 0, 0, 0, 0])]
+            &[Buffer::from([123, 0, 0, 0, 0, 0, 0, 0])]
         );
         assert_eq!(
             batches[0]["val"].to_data().buffers(),
-            &[Buffer::from(1_u64.to_le_bytes().to_vec())]
+            &[Buffer::from(1_u64.to_le_bytes())]
         );
 
         shutdown.cancel();
