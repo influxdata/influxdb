@@ -8,7 +8,10 @@ use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, PartitionKey, TimestampMinMax, TransitionPartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TimestampMinMax,
+    TransitionPartitionId,
+};
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
@@ -111,9 +114,12 @@ impl QueryableBuffer {
                     batches,
                     schema: influx_schema.clone(),
                     stats: Arc::new(chunk_stats),
-                    partition_id: TransitionPartitionId::new(
-                        data_types::TableId::new(0),
-                        &PartitionKey::from(gen_time.to_string()),
+                    partition_id: TransitionPartitionId::from_parts(
+                        PartitionId::new(0),
+                        Some(PartitionHashId::new(
+                            data_types::TableId::new(0),
+                            &PartitionKey::from(gen_time.to_string()),
+                        )),
                     ),
                     sort_key: None,
                     id: ChunkId::new(),
@@ -480,9 +486,12 @@ async fn sort_dedupe_persist(
         batches: vec![persist_job.batch],
         schema: persist_job.schema.clone(),
         stats: Arc::new(chunk_stats),
-        partition_id: TransitionPartitionId::new(
-            data_types::TableId::new(0),
-            &PartitionKey::from(format!("{}", persist_job.chunk_time)),
+        partition_id: TransitionPartitionId::from_parts(
+            PartitionId::new(0),
+            Some(PartitionHashId::new(
+                data_types::TableId::new(0),
+                &PartitionKey::from(format!("{}", persist_job.chunk_time)),
+            )),
         ),
         sort_key: Some(persist_job.sort_key.clone()),
         id: ChunkId::new(),

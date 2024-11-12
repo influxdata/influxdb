@@ -2,7 +2,10 @@ use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context};
 use chrono::Utc;
-use data_types::{ChunkId, ChunkOrder, PartitionKey, TableId as IoxTableId, TransitionPartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId as IoxTableId,
+    TransitionPartitionId,
+};
 use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
@@ -480,9 +483,12 @@ impl ReplicatedBuffer {
                     batches,
                     schema: table_def.schema.clone(),
                     stats: Arc::new(chunk_stats),
-                    partition_id: TransitionPartitionId::new(
-                        IoxTableId::new(0),
-                        &PartitionKey::from(gen_time.to_string()),
+                    partition_id: TransitionPartitionId::from_parts(
+                        PartitionId::new(0),
+                        Some(PartitionHashId::new(
+                            IoxTableId::new(0),
+                            &PartitionKey::from(gen_time.to_string()),
+                        )),
                     ),
                     sort_key: None,
                     id: ChunkId::new(),

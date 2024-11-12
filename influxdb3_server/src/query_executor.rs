@@ -30,7 +30,7 @@ use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
-use iox_query::{Extension, QueryDatabase};
+use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
@@ -414,24 +414,6 @@ impl Database {
 
 #[async_trait]
 impl QueryNamespace for Database {
-    async fn chunks(
-        &self,
-        table_name: &str,
-        filters: &[Expr],
-        projection: Option<&Vec<usize>>,
-        ctx: IOxSessionContext,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let _span_recorder = SpanRecorder::new(ctx.child_span("QueryDatabase::chunks"));
-        debug!(%table_name, ?filters, "Database as QueryNamespace::chunks");
-
-        let Some(table) = self.query_table(table_name).await else {
-            debug!(%table_name, "No entry for table");
-            return Ok(vec![]);
-        };
-
-        table.chunks(&ctx.inner().state(), projection, filters, None)
-    }
-
     fn retention_time_ns(&self) -> Option<i64> {
         None
     }
@@ -483,7 +465,7 @@ impl QueryNamespace for Database {
 
     fn new_extended_query_context(
         &self,
-        _extension: Arc<dyn Extension>,
+        _extension: std::option::Option<std::sync::Arc<(dyn iox_query::Extension + 'static)>>,
         _span_ctx: Option<SpanContext>,
         _query_config: Option<&QueryConfig>,
     ) -> IOxSessionContext {
@@ -809,10 +791,10 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 2142       | 2         | 0        | 10       |",
-                    "| cpu        | 2142       | 2         | 20       | 30       |",
-                    "| cpu        | 2142       | 2         | 40       | 50       |",
-                    "| cpu        | 2142       | 2         | 60       | 70       |",
+                    "| cpu        | 1940       | 2         | 0        | 10       |",
+                    "| cpu        | 1940       | 2         | 20       | 30       |",
+                    "| cpu        | 1940       | 2         | 40       | 50       |",
+                    "| cpu        | 1940       | 2         | 60       | 70       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -822,10 +804,10 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| mem        | 2142       | 2         | 0        | 10       |",
-                    "| mem        | 2142       | 2         | 20       | 30       |",
-                    "| mem        | 2142       | 2         | 40       | 50       |",
-                    "| mem        | 2142       | 2         | 60       | 70       |",
+                    "| mem        | 1940       | 2         | 0        | 10       |",
+                    "| mem        | 1940       | 2         | 20       | 30       |",
+                    "| mem        | 1940       | 2         | 40       | 50       |",
+                    "| mem        | 1940       | 2         | 60       | 70       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },

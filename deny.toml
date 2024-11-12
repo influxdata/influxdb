@@ -5,10 +5,12 @@
 version = 2
 yanked = "deny"
 ignore = [
-    "RUSTSEC-2024-0363",
     # dependent on arrow-* upgrading dependencies on lexical-core
     # see https://github.com/apache/arrow-rs/pull/6401
     "RUSTSEC-2023-0086",
+    # dependent on datafusion-common moving away from instant
+    # https://github.com/apache/datafusion/pull/13355
+    "RUSTSEC-2024-0384",
 ]
 git-fetch-with-cli = true
 
@@ -26,6 +28,7 @@ allow = [
     "MIT",
     "OpenSSL",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Zlib",
 ]
 exceptions = [

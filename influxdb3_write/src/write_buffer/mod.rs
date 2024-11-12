@@ -18,7 +18,10 @@ use crate::{
     PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError};
+use data_types::{
+    ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
+    PartitionId,
+};
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
@@ -353,9 +356,12 @@ pub fn parquet_chunk_from_file(
     chunk_order: i64,
 ) -> ParquetChunk {
     let partition_key = data_types::PartitionKey::from(parquet_file.chunk_time.to_string());
-    let partition_id = data_types::partition::TransitionPartitionId::new(
-        data_types::TableId::new(0),
-        &partition_key,
+    let partition_id = data_types::partition::TransitionPartitionId::from_parts(
+        PartitionId::new(0),
+        Some(PartitionHashId::new(
+            data_types::TableId::new(0),
+            &partition_key,
+        )),
     );
 
     let chunk_stats = create_chunk_statistics(
