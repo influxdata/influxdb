@@ -5,13 +5,13 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) mod validator;
 
-use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
+use crate::{chunk::ParquetChunk, DatabaseManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
@@ -27,8 +27,8 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
+use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, Wal, WalConfig, WalFileNotifier,
     WalOp,
@@ -528,6 +528,38 @@ impl LastCacheManager for WriteBufferImpl {
             })])
             .await?;
 
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl DatabaseManager for WriteBufferImpl {
+    async fn delete_database(&self, name: String) -> crate::Result<(), self::Error> {
+        let (db_id, db_schema) = self
+            .catalog
+            .db_id_and_schema(&name)
+            .ok_or_else(|| self::Error::DbDoesNotExist)?;
+
+        let deletion_time = self.time_provider.now();
+        // delete last cache for db
+        self.last_cache_provider().delete_caches_for_db(&db_id);
+        // clear queryable buffer
+        self.buffer.clear_buffer_for_db(&db_id);
+        // soft delete db
+        self.catalog.delete_database(db_id, deletion_time);
+        // write to wal
+        self.wal
+            .write_ops(vec![WalOp::Catalog(CatalogBatch {
+                time_ns: deletion_time.timestamp_nanos(),
+                database_id: db_id,
+                database_name: Arc::clone(&db_schema.name),
+                ops: vec![CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
+                    database_id: db_id,
+                    database_name: Arc::clone(&db_schema.name),
+                    deletion_time: deletion_time.timestamp_nanos(),
+                })],
+            })])
+            .await?;
         Ok(())
     }
 }
@@ -1882,6 +1914,34 @@ mod tests {
         assert_eq!(1, test_store.get_ranges_request_count(&path));
         assert_eq!(2, test_store.get_range_request_count(&path));
         assert_eq!(0, test_store.head_request_count(&path));
+    }
+
+    #[tokio::test]
+    async fn test_delete_database() {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let result = write_buffer.delete_database("foo".to_string()).await;
+
+        assert!(result.is_ok());
     }
 
     struct TestWrite<LP> {

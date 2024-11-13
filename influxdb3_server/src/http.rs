@@ -122,6 +122,10 @@ pub enum Error {
     ServingHttp(#[from] hyper::Error),
 
     /// Missing parameters for query
+    #[error("missing query parameters 'db'")]
+    MissingDeleteDatabaseParams,
+
+    /// Missing parameters for query
     #[error("missing query parameters 'db' and 'q'")]
     MissingQueryParams,
 
@@ -711,7 +715,7 @@ where
         let (db_id, db_schema) = self
             .write_buffer
             .catalog()
-            .db_schema_and_id(&db)
+            .db_id_and_schema(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
         let (table_id, table_def) = db_schema
             .table_definition_and_id(table.as_str())
@@ -784,7 +788,7 @@ where
         let (db_id, db_schema) = self
             .write_buffer
             .catalog()
-            .db_schema_and_id(&db)
+            .db_id_and_schema(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
         let table_id = db_schema
             .table_name_to_id(table)
@@ -793,6 +797,16 @@ where
             .delete_last_cache(db_id, table_id, &name)
             .await?;
 
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
+    async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<DatabaseDeleteRequest>(query)?;
+        self.write_buffer.delete_database(delete_req.db).await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())
@@ -1112,6 +1126,11 @@ struct LastCacheDeleteRequest {
     name: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct DatabaseDeleteRequest {
+    db: String,
+}
+
 pub(crate) async fn route_request<Q: QueryExecutor, T: TimeProvider>(
     http_server: Arc<HttpApi<Q, T>>,
     mut req: Request<Body>,
@@ -1190,6 +1209,7 @@ where
         (Method::DELETE, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_delete(req).await
         }
+        (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

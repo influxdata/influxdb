@@ -329,6 +329,11 @@ impl QueryableBuffer {
     ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>> {
         self.persisted_snapshot_notify_rx.clone()
     }
+
+    pub fn clear_buffer_for_db(&self, db_id: &DbId) {
+        let mut buffer = self.buffer.write();
+        buffer.db_to_table.remove(db_id);
+    }
 }
 
 #[async_trait]
@@ -404,6 +409,7 @@ impl BufferState {
                             CatalogOp::AddFields(_) => (),
                             CatalogOp::CreateTable(_) => (),
                             CatalogOp::CreateDatabase(_) => (),
+                            CatalogOp::DeleteDatabase(_) => (),
                         }
                     }
                 }

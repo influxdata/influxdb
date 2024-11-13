@@ -244,12 +244,24 @@ pub enum CatalogOp {
     AddFields(FieldAdditions),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
+    // This holds the new name after the old one is marked as deleted
+    // todo: maybe we need to save old and new names?
+    // or, can this name be ignored and when wal is replayed, it just
+    // creates the name again?
+    DeleteDatabase(DeleteDatabaseDefinition),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefinition {
     pub database_id: DbId,
     pub database_name: Arc<str>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteDatabaseDefinition {
+    pub database_id: DbId,
+    pub database_name: Arc<str>,
+    pub deletion_time: i64,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

@@ -9,6 +9,7 @@ use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
 };
 use influxdb_line_protocol::FieldValue;
+use iox_time::Time;
 use observability_deps::tracing::info;
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
@@ -16,6 +17,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use thiserror::Error;
+
+const SOFT_DB_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 #[derive(Debug, Error, Clone)]
 pub enum Error {
@@ -173,14 +176,14 @@ impl Catalog {
     }
 
     pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
-        self.db_schema_and_id(db_name).map(|(_, schema)| schema)
+        self.db_id_and_schema(db_name).map(|(_, schema)| schema)
     }
 
     pub fn db_schema_by_id(&self, db_id: &DbId) -> Option<Arc<DatabaseSchema>> {
         self.inner.read().databases.get(db_id).cloned()
     }
 
-    pub fn db_schema_and_id(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
+    pub fn db_id_and_schema(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
         let inner = self.inner.read();
         let db_id = inner.db_map.get_by_right(db_name)?;
         inner
@@ -289,6 +292,28 @@ impl Catalog {
 
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
+    }
+
+    pub fn delete_database(&self, db_id: DbId, deletion_time: Time) {
+        let db_schema = self
+            .db_schema_by_id(&db_id)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        self.do_delete_db(db_schema, db_id, deletion_time);
+    }
+
+    fn do_delete_db(&self, mut db_schema: DatabaseSchema, db_id: DbId, deletion_time: Time) {
+        db_schema.soft_delete_db(deletion_time);
+        self.do_insert_db(db_id, db_schema);
+    }
+
+    fn do_insert_db(&self, db_id: DbId, db_schema: DatabaseSchema) {
+        let mut inner = self.inner.write();
+        inner.db_map.insert(db_id, Arc::clone(&db_schema.name));
+        inner.databases.insert(db_id, Arc::new(db_schema));
+        inner.sequence = inner.sequence.next();
+        inner.updated = true;
     }
 }
 
@@ -433,6 +458,7 @@ pub struct DatabaseSchema {
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
+    pub deleted: bool,
 }
 
 impl DatabaseSchema {
@@ -442,6 +468,7 @@ impl DatabaseSchema {
             name,
             tables: Default::default(),
             table_map: BiHashMap::new(),
+            deleted: false,
         }
     }
 
@@ -450,6 +477,8 @@ impl DatabaseSchema {
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
     pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
         let mut updated_or_new_tables = SerdeVecMap::new();
+        let mut schema_deleted = false;
+        let mut schema_name = Arc::clone(&self.name);
 
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
@@ -517,6 +546,12 @@ impl DatabaseSchema {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
+                CatalogOp::DeleteDatabase(params) => {
+                    schema_deleted = true;
+                    let deletion_time = Time::from_timestamp_nanos(params.deletion_time);
+                    schema_name =
+                        DatabaseSchema::make_new_schema_name(&params.database_name, deletion_time);
+                }
             }
         }
 
@@ -537,9 +572,10 @@ impl DatabaseSchema {
 
             Ok(Some(Self {
                 id: self.id,
-                name: Arc::clone(&self.name),
+                name: schema_name,
                 tables: updated_or_new_tables,
                 table_map: new_table_maps,
+                deleted: schema_deleted,
             }))
         }
     }
@@ -639,6 +675,21 @@ impl DatabaseSchema {
 
     pub fn table_id_to_name(&self, table_id: &TableId) -> Option<Arc<str>> {
         self.table_map.get_by_left(table_id).map(Arc::clone)
+    }
+
+    pub fn soft_delete_db(&mut self, deletion_time: Time) {
+        self.deleted = true;
+        self.name = DatabaseSchema::make_new_schema_name(&self.name, deletion_time);
+    }
+
+    pub fn make_new_schema_name(name: &str, deletion_time: Time) -> Arc<str> {
+        Arc::from(format!(
+            "{}-{}",
+            name,
+            deletion_time
+                .date_time()
+                .format(SOFT_DB_DELETION_TIME_FORMAT)
+        ))
     }
 }
 
@@ -1026,6 +1077,7 @@ mod tests {
                 map.insert(TableId::from(2), "test_table_2".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1223,6 +1275,7 @@ mod tests {
             name: "test".into(),
             tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
+            deleted: false,
         };
         database.tables.insert(
             TableId::from(0),
@@ -1279,6 +1332,7 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_1".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1337,6 +1391,7 @@ mod tests {
                 map.insert(TableId::from(0), "test".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1424,5 +1479,19 @@ mod tests {
             .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
+    }
+
+    #[test]
+    fn soft_delete_db() {
+        let deletion_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
+        let db_id = DbId::new();
+        catalog.insert_database(DatabaseSchema::new(db_id, Arc::from("foo")));
+
+        catalog.delete_database(db_id, deletion_time);
+
+        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
+        assert_contains!(&*db_schema.name, "foo-20241114T110000");
+        assert!(db_schema.deleted);
     }
 }

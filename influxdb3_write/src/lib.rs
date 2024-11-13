@@ -49,7 +49,13 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer: Bufferer + ChunkContainer + LastCacheManager {}
+pub trait WriteBuffer: Bufferer + ChunkContainer + LastCacheManager + DatabaseManager {}
+
+/// Database manager - supports only delete operation
+#[async_trait::async_trait]
+pub trait DatabaseManager: Debug + Send + Sync + 'static {
+    async fn delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
+}
 
 /// The buffer is for buffering data in memory and in the wal before it is persisted as parquet files in storage.
 #[async_trait]

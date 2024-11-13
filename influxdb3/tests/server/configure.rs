@@ -1,4 +1,5 @@
 use hyper::StatusCode;
+use pretty_assertions::assert_eq;
 
 use crate::TestServer;
 
@@ -366,4 +367,67 @@ async fn api_v3_configure_last_cache_delete() {
             }
         }
     }
+}
+
+#[tokio::test]
+async fn api_v3_configure_db_delete() {
+    let db_name = "db";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(200, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_db_delete_no_db() {
+    let db_name = "db";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::INTERNAL_SERVER_ERROR, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_db_delete_missing_query_param() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
 }
