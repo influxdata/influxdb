@@ -20,7 +20,7 @@ use super::Error;
 
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
-pub(crate) struct WithCatalog {
+pub struct WithCatalog {
     catalog: Arc<Catalog>,
     db_schema: Arc<DatabaseSchema>,
     time_now_ns: i64,
@@ -28,23 +28,33 @@ pub(crate) struct WithCatalog {
 
 /// Type state for the [`WriteValidator`] after it has parsed v1 or v3
 /// line protocol.
-pub(crate) struct LinesParsed {
+pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
     catalog_batch: Option<CatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
+impl LinesParsed {
+    /// Convert this set of parsed and qualified lines into a set of rows
+    ///
+    /// This is useful for testing when you need to use the write validator to parse line protocol
+    /// and get the raw row data for the WAL.
+    pub fn to_rows(self) -> Vec<Row> {
+        self.lines.into_iter().map(|line| line.row).collect()
+    }
+}
+
 /// A state machine for validating v1 or v3 line protocol and updating
 /// the [`Catalog`] with new tables or schema changes.
-pub(crate) struct WriteValidator<State> {
+pub struct WriteValidator<State> {
     state: State,
 }
 
 impl WriteValidator<WithCatalog> {
     /// Initialize the [`WriteValidator`] by getting a handle to, or creating
     /// a handle to the [`DatabaseSchema`] for the given namespace name `db_name`.
-    pub(crate) fn initialize(
+    pub fn initialize(
         db_name: NamespaceName<'static>,
         catalog: Arc<Catalog>,
         time_now_ns: i64,
@@ -69,7 +79,7 @@ impl WriteValidator<WithCatalog> {
     ///
     /// If this function succeeds, then the catalog will receive an update, so
     /// steps following this should be infallible.
-    pub(crate) fn v3_parse_lines_and_update_schema(
+    pub fn v3_parse_lines_and_update_schema(
         self,
         lp: &str,
         accept_partial: bool,
@@ -150,7 +160,7 @@ impl WriteValidator<WithCatalog> {
     ///
     /// If this function succeeds, then the catalog will receive an update, so
     /// steps following this should be infallible.
-    pub(crate) fn v1_parse_lines_and_update_schema(
+    pub fn v1_parse_lines_and_update_schema(
         self,
         lp: &str,
         accept_partial: bool,
@@ -729,6 +739,13 @@ pub(crate) struct ValidatedLines {
 }
 
 impl WriteValidator<LinesParsed> {
+    /// Convert this into the inner [`LinesParsed`]
+    ///
+    /// This is mainly used for testing
+    pub fn into_inner(self) -> LinesParsed {
+        self.state
+    }
+
     /// Convert a set of valid parsed `v3` lines to a [`ValidatedLines`] which will
     /// be buffered and written to the WAL, if configured.
     ///

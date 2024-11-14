@@ -941,10 +941,10 @@ impl TableDefinition {
         self.column_map.get_by_left(id).cloned()
     }
 
-    pub fn column_name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
+    pub fn column_name_to_id_unchecked(&self, name: impl Into<Arc<str>>) -> ColumnId {
         *self
             .column_map
-            .get_by_right(&name)
+            .get_by_right(&name.into())
             .expect("Column exists in mapping")
     }
 
@@ -1262,7 +1262,7 @@ mod tests {
 
         println!("table: {table:#?}");
         assert_eq!(table.column_map.len(), 2);
-        assert_eq!(table.column_name_to_id_unchecked("test2".into()), 1.into());
+        assert_eq!(table.column_name_to_id_unchecked("test2"), 1.into());
     }
 
     #[test]

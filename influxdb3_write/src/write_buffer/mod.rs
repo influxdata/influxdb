@@ -3,7 +3,7 @@
 pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
-pub(crate) mod validator;
+pub mod validator;
 
 use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
