@@ -35,10 +35,10 @@ func (m MetaClient) WaitForDataChanged() chan struct{} {
 }
 
 type Subscription struct {
-	WritePointsFn func(request subscriber.WriteRequest) error
+	WritePointsFn func(request subscriber.WriteRequest) (string, error)
 }
 
-func (s Subscription) WritePointsContext(_ context.Context, request subscriber.WriteRequest) error {
+func (s Subscription) WritePointsContext(_ context.Context, request subscriber.WriteRequest) (string, error) {
 	return s.WritePointsFn(request)
 }
 
@@ -68,9 +68,9 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
-			return nil
+			return "fake_destination", nil
 		}
 		urls <- u
 		return sub, nil
@@ -79,8 +79,10 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -143,9 +145,9 @@ func TestService_ModeALL(t *testing.T) {
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
-			return nil
+			return "fake_destination", nil
 		}
 		urls <- u
 		return sub, nil
@@ -154,8 +156,10 @@ func TestService_ModeALL(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -220,9 +224,9 @@ func TestService_ModeANY(t *testing.T) {
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
-			return nil
+			return "fake_destination", nil
 		}
 		urls <- u
 		return sub, nil
@@ -231,8 +235,10 @@ func TestService_ModeANY(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -307,9 +313,9 @@ func TestService_Multiple(t *testing.T) {
 	urls := make(chan url.URL, 4)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
-			return nil
+			return "fake_destination", nil
 		}
 		urls <- u
 		return sub, nil
@@ -318,8 +324,10 @@ func TestService_Multiple(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}
@@ -440,7 +448,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	// Explicitly closed below for testing
-	s.Open()
+	require.NoError(t, s.Open())
 
 	// DatabaseInfo should be called once during open
 	select {
@@ -509,7 +517,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	//Close service ensure not called
-	s.Close()
+	require.NoError(t, s.Close())
 	dataChanged <- struct{}{}
 	select {
 	case <-calls:
@@ -545,9 +553,9 @@ func TestService_BadUTF8(t *testing.T) {
 	urls := make(chan url.URL, 2)
 	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
-		sub.WritePointsFn = func(p subscriber.WriteRequest) error {
+		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
-			return nil
+			return "fake_destination", nil
 		}
 		urls <- u
 		return sub, nil
@@ -556,8 +564,10 @@ func TestService_BadUTF8(t *testing.T) {
 	s := subscriber.NewService(subscriber.NewConfig())
 	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
-	s.Open()
-	defer s.Close()
+	require.NoError(t, s.Open())
+	defer func() {
+		require.NoError(t, s.Close())
+	}()
 
 	// Signal that data has changed
 	dataChanged <- struct{}{}

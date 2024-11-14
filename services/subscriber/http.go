@@ -13,7 +13,8 @@ import (
 
 // HTTP supports writing points over HTTP using the line protocol.
 type HTTP struct {
-	c client.HTTPClient
+	c    client.HTTPClient
+	addr string
 }
 
 // NewHTTP returns a new HTTP points writer with default options.
@@ -39,16 +40,16 @@ func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string
 	if err != nil {
 		return nil, err
 	}
-	return &HTTP{c: c}, nil
+	return &HTTP{c: c, addr: addr}, nil
 }
 
 // WritePoints writes points over HTTP transport.
-func (h *HTTP) WritePointsContext(ctx context.Context, request WriteRequest) (err error) {
+func (h *HTTP) WritePointsContext(ctx context.Context, request WriteRequest) (destination string, err error) {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:        request.Database,
 		RetentionPolicy: request.RetentionPolicy,
 	})
-	return h.c.WriteRawCtx(ctx, bp, bytes.NewReader(request.lineProtocol))
+	return h.addr, h.c.WriteRawCtx(ctx, bp, bytes.NewReader(request.lineProtocol))
 }
 
 func createTLSConfig(caCerts string, tlsConfig *tls.Config) (*tls.Config, error) {

@@ -66,7 +66,7 @@ func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr Wri
 	return writeReq, numInvalid
 }
 
-// pointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
+// PointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
 // It includes the trailing newline.
 func (w *WriteRequest) PointAt(i int) []byte {
 	start := w.pointOffsets[i]
@@ -92,7 +92,7 @@ func (w *WriteRequest) SizeOf() int {
 // Only WritePoints() needs to be satisfied.  PointsWriter implementations
 // must be goroutine safe.
 type PointsWriter interface {
-	WritePointsContext(ctx context.Context, request WriteRequest) error
+	WritePointsContext(ctx context.Context, request WriteRequest) (destination string, err error)
 }
 
 // subEntry is a unique set that identifies a given subscription.
@@ -350,7 +350,7 @@ func (s *Service) updateSubs() {
 					s.Logger.Info("Subscription creation failed", zap.String("name", si.Name), zap.Error(err))
 					continue
 				}
-				s.subs[se] = newChanWriter(s, sub)
+				s.subs[se] = newChanWriter(s, sub, se)
 				s.Logger.Info("Added new subscription",
 					logger.Database(se.db),
 					logger.RetentionPolicy(se.rp))
@@ -395,7 +395,7 @@ func (s *Service) updateSubs() {
 func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 	switch u.Scheme {
 	case "udp":
-		return NewUDP(u.Host), nil
+		return NewUDP(u), nil
 	case "http":
 		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
 	case "https":
@@ -422,7 +422,7 @@ type chanWriter struct {
 	wg            sync.WaitGroup
 }
 
-func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
+func newChanWriter(s *Service, sub PointsWriter, se subEntry) *chanWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
 		writeRequests: make(chan WriteRequest, s.conf.WriteBufferSize),
@@ -431,7 +431,7 @@ func newChanWriter(s *Service, sub PointsWriter) *chanWriter {
 		pw:            sub,
 		pointsWritten: &s.stats.PointsWritten,
 		failures:      &s.stats.WriteFailures,
-		logger:        s.Logger,
+		logger:        s.Logger.With(zap.String("name", se.name), logger.Database(se.db), logger.RetentionPolicy(se.rp)),
 	}
 	for i := 0; i < s.conf.WriteConcurrency; i++ {
 		cw.wg.Add(1)
@@ -486,9 +486,9 @@ func (c *chanWriter) Close() {
 
 func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
-		err := c.pw.WritePointsContext(c.ctx, wr)
+		dest, err := c.pw.WritePointsContext(c.ctx, wr)
 		if err != nil {
-			c.logger.Info(err.Error())
+			c.logger.Warn("Write failed", zap.String("destination", dest), zap.Error(err))
 			atomic.AddInt64(c.failures, 1)
 		} else {
 			atomic.AddInt64(c.pointsWritten, int64(len(wr.pointOffsets)))
@@ -531,18 +531,20 @@ type balancewriter struct {
 	i           int
 }
 
-func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteRequest) error {
+func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteRequest) (string, error) {
 	var lastErr error
+	var lastDest string
 	for range b.writers {
-		// round robin through destinations.
+		// round-robin through destinations.
 		i := b.i
 		w := b.writers[i]
 		b.i = (b.i + 1) % len(b.writers)
 
 		// write points to destination.
-		err := w.WritePointsContext(ctx, request)
+		dest, err := w.WritePointsContext(ctx, request)
 		if err != nil {
 			lastErr = err
+			lastDest = dest
 			atomic.AddInt64(&b.stats[i].failures, 1)
 		} else {
 			atomic.AddInt64(&b.stats[i].pointsWritten, int64(len(request.pointOffsets)))
@@ -551,7 +553,7 @@ func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteReq
 			}
 		}
 	}
-	return lastErr
+	return lastDest, lastErr
 }
 
 // Statistics returns statistics for periodic monitoring.
