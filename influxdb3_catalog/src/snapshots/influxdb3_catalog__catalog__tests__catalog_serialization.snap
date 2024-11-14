@@ -263,6 +263,7 @@ snapshot_kind: text
             }
           ]
         ],
+        "processing_engine_calls": [],
         "deleted": false
       }
     ]

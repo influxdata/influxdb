@@ -11,6 +11,7 @@ snapshot_kind: text
         "deleted": false,
         "id": 0,
         "name": "db",
+        "processing_engine_calls": [],
         "tables": [
           [
             0,

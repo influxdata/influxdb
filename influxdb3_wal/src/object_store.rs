@@ -11,7 +11,7 @@ use hashbrown::HashMap;
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutPayload};
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, warn};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -185,11 +185,14 @@ impl WalObjectStore {
     /// the operation is durable in the configured object store.
     async fn write_ops(&self, ops: Vec<WalOp>) -> crate::Result<(), crate::Error> {
         let (tx, rx) = oneshot::channel();
+        let pre_lock_time = tokio::time::Instant::now();
+        info!("asking for lock.");
         self.flush_buffer
             .lock()
             .await
             .wal_buffer
             .buffer_ops_with_response(ops, tx)?;
+        warn!("took {:?} to get lock", pre_lock_time.elapsed());
 
         match rx.await {
             Ok(WriteResult::Success(())) => Ok(()),
@@ -441,7 +444,7 @@ impl FlushBuffer {
         Vec<oneshot::Sender<WriteResult>>,
         Option<(SnapshotInfo, OwnedSemaphorePermit)>,
     ) {
-        // convert into wal contents and resopnses and capture if a snapshot should be taken
+        // convert into wal contents and responses and capture if a snapshot should be taken
         let (mut wal_contents, responses) = self.flush_buffer_with_responses();
         self.snapshot_tracker.add_wal_period(WalPeriod {
             wal_file_number: wal_contents.wal_file_number,
