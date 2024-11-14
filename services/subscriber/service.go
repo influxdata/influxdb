@@ -66,7 +66,7 @@ func NewWriteRequest(r *coordinator.WritePointsRequest, log *zap.Logger) (wr Wri
 	return writeReq, numInvalid
 }
 
-// pointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
+// PointAt uses pointOffsets to slice the lineProtocol buffer and retrieve the i_th point in the request.
 // It includes the trailing newline.
 func (w *WriteRequest) PointAt(i int) []byte {
 	start := w.pointOffsets[i]
@@ -92,11 +92,7 @@ func (w *WriteRequest) SizeOf() int {
 // Only WritePoints() needs to be satisfied.  PointsWriter implementations
 // must be goroutine safe.
 type PointsWriter interface {
-	WritePointsContext(ctx context.Context, request WriteRequest) error
-}
-
-type PointsWriterWithDestination interface {
-	WritePointsContextWithDestination(ctx context.Context, request WriteRequest) (destination string, err error)
+	WritePointsContext(ctx context.Context, request WriteRequest) (destination string, err error)
 }
 
 // subEntry is a unique set that identifies a given subscription.
@@ -114,7 +110,7 @@ type Service struct {
 		Databases() []meta.DatabaseInfo
 		WaitForDataChanged() chan struct{}
 	}
-	NewPointsWriter func(u url.URL) (PointsWriterWithDestination, error)
+	NewPointsWriter func(u url.URL) (PointsWriter, error)
 	Logger          *zap.Logger
 	stats           *Statistics
 	wg              sync.WaitGroup
@@ -270,7 +266,7 @@ func (s *Service) waitForMetaUpdates() {
 	}
 }
 
-func (s *Service) createSubscription(se subEntry, mode string, destinations []string) (PointsWriterWithDestination, error) {
+func (s *Service) createSubscription(se subEntry, mode string, destinations []string) (PointsWriter, error) {
 	var bm BalanceMode
 	switch mode {
 	case "ALL":
@@ -280,7 +276,7 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	default:
 		return nil, fmt.Errorf("unknown balance mode %q", mode)
 	}
-	writers := make([]PointsWriterWithDestination, 0, len(destinations))
+	writers := make([]PointsWriter, 0, len(destinations))
 	stats := make([]writerStats, 0, len(destinations))
 	// add only valid destinations
 	for _, dest := range destinations {
@@ -395,35 +391,18 @@ func (s *Service) updateSubs() {
 	}
 }
 
-type pointsWriterWrapper struct {
-	PointsWriter
-	destination string
-}
-
-func (p *pointsWriterWrapper) WritePointsContextWithDestination(ctx context.Context, request WriteRequest) (destination string, err error) {
-	return p.destination, p.WritePointsContext(ctx, request)
-}
-
 // newPointsWriter returns a new PointsWriter from the given URL.
-func (s *Service) newPointsWriter(u url.URL) (PointsWriterWithDestination, error) {
+func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 	switch u.Scheme {
 	case "udp":
-		return &pointsWriterWrapper{PointsWriter: NewUDP(u.Host), destination: u.String()}, nil
+		return NewUDP(u), nil
 	case "http":
-		http, err := NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
-		if err != nil {
-			return nil, err
-		}
-		return &pointsWriterWrapper{PointsWriter: http, destination: u.String()}, nil
+		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
 	case "https":
 		if s.conf.InsecureSkipVerify {
 			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
-		https, err := NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
-		if err != nil {
-			return nil, err
-		}
-		return &pointsWriterWrapper{PointsWriter: https, destination: u.String()}, nil
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
@@ -434,7 +413,7 @@ type chanWriter struct {
 	writeRequests chan WriteRequest
 	ctx           context.Context
 	cancel        context.CancelFunc
-	pw            PointsWriterWithDestination
+	pw            PointsWriter
 	pointsWritten *int64
 	failures      *int64
 	logger        *zap.Logger
@@ -443,7 +422,7 @@ type chanWriter struct {
 	wg            sync.WaitGroup
 }
 
-func newChanWriter(s *Service, sub PointsWriterWithDestination, se subEntry) *chanWriter {
+func newChanWriter(s *Service, sub PointsWriter, se subEntry) *chanWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	cw := &chanWriter{
 		writeRequests: make(chan WriteRequest, s.conf.WriteBufferSize),
@@ -507,7 +486,7 @@ func (c *chanWriter) Close() {
 
 func (c *chanWriter) Run() {
 	for wr := range c.writeRequests {
-		dest, err := c.pw.WritePointsContextWithDestination(c.ctx, wr)
+		dest, err := c.pw.WritePointsContext(c.ctx, wr)
 		if err != nil {
 			c.logger.Warn("Write failed", zap.String("destination", dest), zap.Error(err))
 			atomic.AddInt64(c.failures, 1)
@@ -546,13 +525,13 @@ type writerStats struct {
 // balances writes across PointsWriters according to BalanceMode
 type balancewriter struct {
 	bm          BalanceMode
-	writers     []PointsWriterWithDestination
+	writers     []PointsWriter
 	stats       []writerStats
 	defaultTags models.StatisticTags
 	i           int
 }
 
-func (b *balancewriter) WritePointsContextWithDestination(ctx context.Context, request WriteRequest) (string, error) {
+func (b *balancewriter) WritePointsContext(ctx context.Context, request WriteRequest) (string, error) {
 	var lastErr error
 	var lastDest string
 	for range b.writers {
@@ -562,7 +541,7 @@ func (b *balancewriter) WritePointsContextWithDestination(ctx context.Context, r
 		b.i = (b.i + 1) % len(b.writers)
 
 		// write points to destination.
-		dest, err := w.WritePointsContextWithDestination(ctx, request)
+		dest, err := w.WritePointsContext(ctx, request)
 		if err != nil {
 			lastErr = err
 			lastDest = dest

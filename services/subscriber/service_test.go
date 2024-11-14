@@ -38,7 +38,7 @@ type Subscription struct {
 	WritePointsFn func(request subscriber.WriteRequest) (string, error)
 }
 
-func (s Subscription) WritePointsContextWithDestination(_ context.Context, request subscriber.WriteRequest) (string, error) {
+func (s Subscription) WritePointsContext(_ context.Context, request subscriber.WriteRequest) (string, error) {
 	return s.WritePointsFn(request)
 }
 
@@ -66,7 +66,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 
 	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
-	newPointsWriter := func(u url.URL) (subscriber.PointsWriterWithDestination, error) {
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
 		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
@@ -143,7 +143,7 @@ func TestService_ModeALL(t *testing.T) {
 
 	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
-	newPointsWriter := func(u url.URL) (subscriber.PointsWriterWithDestination, error) {
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
 		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
@@ -222,7 +222,7 @@ func TestService_ModeANY(t *testing.T) {
 
 	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
-	newPointsWriter := func(u url.URL) (subscriber.PointsWriterWithDestination, error) {
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
 		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
@@ -311,7 +311,7 @@ func TestService_Multiple(t *testing.T) {
 
 	prs := make(chan subscriber.WriteRequest, 4)
 	urls := make(chan url.URL, 4)
-	newPointsWriter := func(u url.URL) (subscriber.PointsWriterWithDestination, error) {
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
 		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
@@ -551,7 +551,7 @@ func TestService_BadUTF8(t *testing.T) {
 
 	prs := make(chan subscriber.WriteRequest, 2)
 	urls := make(chan url.URL, 2)
-	newPointsWriter := func(u url.URL) (subscriber.PointsWriterWithDestination, error) {
+	newPointsWriter := func(u url.URL) (subscriber.PointsWriter, error) {
 		sub := Subscription{}
 		sub.WritePointsFn = func(p subscriber.WriteRequest) (string, error) {
 			prs <- p
