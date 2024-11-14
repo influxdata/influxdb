@@ -1,10 +1,14 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use crate::catalog::Error::TableNotFound;
+use crate::catalog::Error::{
+    ProcessingEngineCallNotFound, ProcessingEngineUnimplemented, TableNotFound,
+};
+use arrow::array::RecordBatch;
 use bimap::BiHashMap;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
+use influxdb3_process_engine::python_call::{ProcessEngineTrigger, PythonCall, TriggerType};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteTableDefinition, FieldAdditions, LastCacheDefinition,
     LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
@@ -73,6 +77,28 @@ pub enum Error {
         table_name: String,
         existing: String,
     },
+
+    #[error(
+        "Cannot overwrite Process Engine Call {} in Database {}",
+        call_name,
+        database_name
+    )]
+    ProcessEngineCallExists {
+        database_name: String,
+        call_name: String,
+    },
+
+    #[error(
+        "Processing Engine Call {} not in DB schema for {}",
+        call_name,
+        database_name
+    )]
+    ProcessingEngineCallNotFound {
+        call_name: String,
+        database_name: String,
+    },
+    #[error("Processing Engine Unimplemented: {}", feature_description)]
+    ProcessingEngineUnimplemented { feature_description: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -321,6 +347,136 @@ impl Catalog {
         }
     }
 
+    pub fn insert_process_engine_call(
+        &self,
+        db: &str,
+        call_name: String,
+        code: String,
+        function_name: String,
+    ) -> Result<()> {
+        let mut inner = self.inner.write();
+        let Some(db_id) = inner.db_map.get_by_right(db) else {
+            return Err(TableNotFound {
+                db_name: format!("{:?}", inner.db_map).into(),
+                table_name: "".into(),
+            });
+        };
+        let db = inner.databases.get(db_id).expect("db should exist");
+        if db.processing_engine_calls.contains_key(&call_name) {
+            return Err(Error::ProcessEngineCallExists {
+                database_name: db.name.to_string(),
+                call_name,
+            });
+        }
+        let mut new_db = db.as_ref().clone();
+        new_db.processing_engine_calls.insert(
+            call_name.clone(),
+            PythonCall::new(call_name, code, function_name),
+        );
+        inner.upsert_db(new_db);
+        Ok(())
+    }
+
+    pub fn insert_process_engine_trigger(
+        &self,
+        db_name: &str,
+        call_name: String,
+        source_table: String,
+        derived_table: String,
+        keys: Option<Vec<String>>,
+    ) -> Result<()> {
+        let mut inner = self.inner.write();
+        // TODO: proper error
+        let db_id = inner.db_map.get_by_right(db_name).unwrap();
+        let db = inner.databases.get(db_id).expect("db should exist");
+        if db.table_id_and_definition(derived_table.as_str()).is_some() {
+            return Err(Error::ProcessEngineCallExists {
+                database_name: derived_table,
+                call_name,
+            });
+        }
+
+        let Some((source_table_id, table_definition)) =
+            db.table_id_and_definition(source_table.as_str())
+        else {
+            return Err(TableNotFound {
+                db_name: db_name.into(),
+                table_name: source_table.into(),
+            });
+        };
+
+        let Some(call) = db.processing_engine_calls.get(&call_name) else {
+            panic!("create error.")
+        };
+
+        let output_keys = match &keys {
+            Some(inner_keys) => Some(inner_keys.iter().map(|key| key.as_str()).collect()),
+            None => table_definition.schema.series_key(),
+        };
+
+        let key_set = output_keys
+            .clone()
+            .unwrap_or_default()
+            .iter()
+            .map(|x| *x)
+            .collect::<HashSet<_>>();
+
+        let output_schema = call
+            .call(&RecordBatch::new_empty(table_definition.schema.as_arrow()))
+            .unwrap()
+            .schema();
+        let table_id = TableId::new();
+        let mut key_column_ids = vec![];
+        // This is a new table, so build up its columns:
+        let mut columns = Vec::new();
+        for field in output_schema.fields() {
+            let col_id = ColumnId::new();
+            let column_type =
+                if let Some(influx_column_type) = field.metadata().get("iox::column::type") {
+                    InfluxColumnType::try_from(influx_column_type.as_str()).unwrap()
+                } else if key_set.contains(field.name().as_str()) {
+                    key_column_ids.push(col_id);
+                    InfluxColumnType::Tag
+                } else if field.name() == "time" {
+                    InfluxColumnType::Timestamp
+                } else {
+                    InfluxColumnType::Field(field.data_type().clone().try_into().unwrap())
+                };
+            columns.push((col_id, field.name().as_str().into(), column_type));
+        }
+        let key_column_ids = if output_keys.is_none() {
+            None
+        } else {
+            Some(key_column_ids)
+        };
+
+        let new_definition = TableDefinition::new(
+            table_id,
+            derived_table.as_str().into(),
+            columns,
+            key_column_ids,
+        )?;
+        let mut new_db = db.as_ref().clone();
+        new_db.insert_table(table_id, Arc::new(new_definition));
+        let trigger = ProcessEngineTrigger {
+            source_table: source_table_id,
+            trigger_table: table_id,
+            trigger_name: call_name,
+            trigger_type: TriggerType::OnRead,
+        };
+        new_db
+            .processing_engine_write_triggers
+            .entry(source_table_id)
+            .or_default()
+            .insert(table_id, trigger.clone());
+        new_db
+            .processing_engine_source_table
+            .insert(table_id, trigger);
+
+        inner.upsert_db(new_db);
+        Ok(())
+    }
+
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
     }
@@ -480,6 +636,10 @@ pub struct DatabaseSchema {
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
+    pub processing_engine_calls: HashMap<String, PythonCall>,
+    // Map from source table to output table for processing engine triggers.
+    pub processing_engine_write_triggers: HashMap<TableId, HashMap<TableId, ProcessEngineTrigger>>,
+    pub processing_engine_source_table: HashMap<TableId, ProcessEngineTrigger>,
     pub deleted: bool,
 }
 
@@ -490,6 +650,9 @@ impl DatabaseSchema {
             name,
             tables: Default::default(),
             table_map: BiHashMap::new(),
+            processing_engine_calls: HashMap::new(),
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: false,
         }
     }
@@ -531,7 +694,7 @@ impl DatabaseSchema {
                         .get(&field_additions.table_id)
                         .or_else(|| db_schema.tables.get(&field_additions.table_id))
                     else {
-                        return Err(Error::TableNotFound {
+                        return Err(TableNotFound {
                             db_name: Arc::clone(&field_additions.database_name),
                             table_name: Arc::clone(&field_additions.table_name),
                         });
@@ -539,6 +702,37 @@ impl DatabaseSchema {
                     if let Some(new_table) =
                         new_or_existing_table.new_if_field_additions_add_fields(field_additions)?
                     {
+                        // this table's schema was updated. Downstream processing engines may need to be modified.
+                        if let Some(downstream_triggers) = db_schema
+                            .processing_engine_write_triggers
+                            .get(&new_table.table_id)
+                        {
+                            for (downstream_table_id, trigger) in downstream_triggers {
+                                let downstream_table =
+                                    db_schema.tables.get(downstream_table_id).unwrap();
+                                let Some(trigger) =
+                                    db_schema.processing_engine_calls.get(&trigger.trigger_name)
+                                else {
+                                    return Err(ProcessingEngineCallNotFound {
+                                        call_name: trigger.trigger_name.to_string(),
+                                        database_name: db_schema.name.to_string(),
+                                    });
+                                };
+                                // TODO: Handle python errors
+                                let new_schema = trigger
+                                    .call(&RecordBatch::new_empty(new_table.schema.as_arrow()))
+                                    .unwrap()
+                                    .schema();
+                                // TODO: Determine what semantics we want when new fields are added to source table.
+                                if new_schema != downstream_table.schema.as_arrow() {
+                                    return Err(ProcessingEngineUnimplemented {
+                                        feature_description: "output schema update not supported"
+                                            .to_string(),
+                                    });
+                                }
+                            }
+                        }
+
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
@@ -641,6 +835,9 @@ impl DatabaseSchema {
                 name: schema_name,
                 tables: updated_or_new_tables,
                 table_map: new_table_maps,
+                processing_engine_calls: HashMap::new(),
+                processing_engine_write_triggers: HashMap::new(),
+                processing_engine_source_table: HashMap::new(),
                 deleted: schema_deleted,
             }))
         }
@@ -1201,6 +1398,9 @@ mod tests {
                 map.insert(TableId::from(2), "test_table_2".into());
                 map
             },
+            processing_engine_calls: Default::default(),
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: false,
         };
         use InfluxColumnType::*;
@@ -1409,6 +1609,9 @@ mod tests {
             name: "test".into(),
             tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
+            processing_engine_calls: Default::default(),
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: false,
         };
         database.tables.insert(
@@ -1466,6 +1669,9 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_1".into());
                 map
             },
+            processing_engine_calls: Default::default(),
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: false,
         };
         use InfluxColumnType::*;
@@ -1525,6 +1731,9 @@ mod tests {
                 map.insert(TableId::from(0), "test".into());
                 map
             },
+            processing_engine_calls: Default::default(),
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: false,
         };
         use InfluxColumnType::*;

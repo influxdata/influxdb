@@ -33,7 +33,7 @@ pub(crate) fn spec() -> BuiltInSpec {
                 },
             ],
             copies: None,
-            lines_per_sample: Some(10_000),
+            lines_per_sample: Some(20_000),
         }],
     };
 

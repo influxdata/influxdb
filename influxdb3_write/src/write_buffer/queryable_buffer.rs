@@ -99,6 +99,10 @@ impl QueryableBuffer {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        info!(
+            "getting table chunks for table {:?} with filters {:?}",
+            table_name, filters
+        );
         let (table_id, table_def) = db_schema
             .table_id_and_definition(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
@@ -186,8 +190,10 @@ impl QueryableBuffer {
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
+                    info!("table buffer before snapshot: {:?}", table_buffer);
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
+                    info!("table buffer after snapshot: {:?}", table_buffer);
 
                     for chunk in snapshot_chunks {
                         let table_name =

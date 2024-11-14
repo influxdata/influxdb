@@ -1,0 +1,22 @@
+[package]
+name = "influxdb3_process_engine"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+datafusion.workspace = true
+arrow.workspace =  true
+
+# Local Deps
+influxdb3_id = { path = "../influxdb3_id" }
+serde = { version = "1.0.214", features = ["derive"] }
+
+[dependencies.pyo3]
+version = "0.22.6"
+# this is necessary to automatically initialize the Python interpreter
+features = ["auto-initialize", "gil-refs"]
+
+[lints]
+workspace = true

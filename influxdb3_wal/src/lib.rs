@@ -806,7 +806,7 @@ pub fn background_wal_flush<W: Wal>(
                 let snapshot_wal = Arc::clone(&wal);
                 tokio::spawn(async move {
                     let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert!(snapshot_info.snapshot_details == snapshot_details);
+                    assert_eq!(snapshot_info.snapshot_details, snapshot_details);
 
                     snapshot_wal
                         .cleanup_snapshot(snapshot_info, snapshot_permit)

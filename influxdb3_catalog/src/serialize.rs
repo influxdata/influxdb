@@ -3,10 +3,12 @@ use crate::catalog::DatabaseSchema;
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
+use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
+use influxdb3_process_engine::python_call::{ProcessEngineTrigger, PythonCall};
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
@@ -38,6 +40,8 @@ struct DatabaseSnapshot {
     id: DbId,
     name: Arc<str>,
     tables: SerdeVecMap<TableId, TableSnapshot>,
+    #[serde(default)]
+    processing_engine_calls: SerdeVecMap<String, ProcessingEngineCallSnapshot>,
     deleted: bool,
 }
 
@@ -50,6 +54,11 @@ impl From<&DatabaseSchema> for DatabaseSnapshot {
                 .tables
                 .iter()
                 .map(|(table_id, table_def)| (*table_id, table_def.as_ref().into()))
+                .collect(),
+            processing_engine_calls: db
+                .processing_engine_calls
+                .iter()
+                .map(|(name, call)| (name.clone(), call.into()))
                 .collect(),
             deleted: db.deleted,
         }
@@ -67,11 +76,19 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                 (id, Arc::new(table.into()))
             })
             .collect();
+        let python_calls = snap
+            .processing_engine_calls
+            .into_iter()
+            .map(|(name, call)| (name, call.into()))
+            .collect();
         Self {
             id: snap.id,
             name: snap.name,
             tables,
             table_map,
+            processing_engine_calls: python_calls,
+            processing_engine_write_triggers: HashMap::new(),
+            processing_engine_source_table: HashMap::new(),
             deleted: snap.deleted,
         }
     }
@@ -112,6 +129,13 @@ struct TableSnapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
     deleted: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProcessingEngineCallSnapshot {
+    pub call_name: String,
+    pub code: String,
+    pub function_name: String,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -342,6 +366,26 @@ impl From<TableSnapshot> for TableDefinition {
                 .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
                 .collect(),
             ..table_def
+        }
+    }
+}
+
+impl From<&PythonCall> for ProcessingEngineCallSnapshot {
+    fn from(call: &PythonCall) -> Self {
+        Self {
+            call_name: call.call_name.to_string(),
+            code: call.code.to_string(),
+            function_name: call.function_name.to_string(),
+        }
+    }
+}
+
+impl From<ProcessingEngineCallSnapshot> for PythonCall {
+    fn from(call: ProcessingEngineCallSnapshot) -> Self {
+        Self {
+            call_name: call.call_name.to_string(),
+            code: call.code.to_string(),
+            function_name: call.function_name.to_string(),
         }
     }
 }

@@ -1,6 +1,7 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
+snapshot_kind: text
 ---
 {
   "databases": [
@@ -10,6 +11,7 @@ expression: catalog_json
         "deleted": false,
         "id": 0,
         "name": "db",
+        "processing_engine_calls": [],
         "tables": [
           [
             0,

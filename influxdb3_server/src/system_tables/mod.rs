@@ -1,5 +1,6 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
+use self::{last_caches::LastCachesTable, queries::QueriesTable};
 use datafusion::{catalog::SchemaProvider, datasource::TableProvider, error::DataFusionError};
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_sys_events::SysEventStore;
@@ -10,13 +11,14 @@ use meta_caches::MetaCachesTable;
 use parquet_files::ParquetFilesTable;
 use tonic::async_trait;
 
-use self::{last_caches::LastCachesTable, queries::QueriesTable};
-
 mod last_caches;
 mod meta_caches;
 mod parquet_files;
+use crate::system_tables::python_call::PythonCallTable;
 #[cfg(test)]
 pub(crate) use parquet_files::table_name_predicate_error;
+
+mod python_call;
 mod queries;
 
 pub const SYSTEM_SCHEMA_NAME: &str = "system";
@@ -25,6 +27,8 @@ const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 const META_CACHES_TABLE_NAME: &str = "meta_caches";
 const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 const QUERIES_TABLE_NAME: &str = "queries";
+
+const PROCESS_ENGINE_CALLS_TABLE_NAME: &str = "process_engine_calls";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -67,6 +71,16 @@ impl SystemSchemaProvider {
             db_schema.id,
             buffer,
         ))));
+        tables.insert(
+            PROCESS_ENGINE_CALLS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(PythonCallTable::new(
+                db_schema
+                    .processing_engine_calls
+                    .iter()
+                    .map(|(_name, call)| call.clone())
+                    .collect(),
+            )))),
+        );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         Self { tables }
     }

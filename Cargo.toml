@@ -7,7 +7,7 @@ members = [
     "influxdb3_client",
     "influxdb3_id",
     "influxdb3_load_generator",
-    "influxdb3_process",
+    "influxdb3_process", "influxdb3_process_engine",
     "influxdb3_server",
     "influxdb3_telemetry",
     "influxdb3_test_helpers",
@@ -38,7 +38,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-arrow = { version = "53.0.0", features = ["prettyprint", "chrono-tz"] }
+arrow = { version = "53.0.0", features = ["prettyprint", "chrono-tz", "pyarrow"] }
 arrow-array = "53.0.0"
 arrow-buffer = "53.0.0"
 arrow-csv = "53.0.0"
@@ -181,6 +181,7 @@ inherits = "release"
 codegen-units = 16
 lto = false
 incremental = true
+debug = true
 
 # This profile extends the `quick-release` profile with debuginfo turned on in order to
 # produce more human friendly symbols for profiling tools

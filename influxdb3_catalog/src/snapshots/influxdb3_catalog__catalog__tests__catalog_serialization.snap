@@ -2,6 +2,7 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: catalog
+snapshot_kind: text
 ---
 {
   "databases": [
@@ -252,6 +253,7 @@ expression: catalog
             }
           ]
         ],
+        "processing_engine_calls": [],
         "deleted": false
       }
     ]

@@ -15,6 +15,7 @@ iox_time.workspace = true
 # Local deps
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
+influxdb3_process_engine = { path = "../influxdb3_process_engine"}
 
 # crates.io dependencies
 arrow.workspace = true

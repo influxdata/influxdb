@@ -3330,6 +3330,9 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_2".into());
                 map
             },
+            processing_engine_calls: Default::default(),
+            processing_engine_write_triggers: Default::default(),
+            processing_engine_source_table: Default::default(),
             deleted: false,
         };
         let table_id = TableId::from(0);

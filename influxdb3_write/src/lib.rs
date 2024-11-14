@@ -168,6 +168,10 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
     ) -> Result<(), write_buffer::Error>;
 }
 
+/// [`ProcessEngineManager`] is used to manage external hooks that users have implemented.
+#[async_trait::async_trait]
+pub trait ProcessEngineManager: Debug + Send + Sync + 'static {}
+
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
 /// returning an error for any invalid lines. This is the error information for a single invalid line.
 #[derive(Debug, Serialize)]
