@@ -19,14 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/predicate"
-
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/predicate"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
@@ -171,7 +170,7 @@ func TestStore_StartupShardProgress(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.shardTracker, []string{
+		require.Equal(t, msl.Tracked(), []string{
 			"shard-add",
 			"shard-add",
 			"shard-complete",
@@ -209,7 +208,7 @@ func TestStore_BadShardLoading(t *testing.T) {
 		require.NotNil(t, sh)
 
 		s.SetShardOpenErrorForTest(sh.ID(), errors.New("a shard opening error occurred"))
-		err2 := s.OpenShard(context.Background(), s.Shard(sh.ID()), false)
+		err2 := s.ReopenShard(context.Background(), sh.ID(), false)
 		require.Error(t, err2, "no error opening bad shard")
 
 		msl := &mockStartupLogger{}
@@ -220,7 +219,7 @@ func TestStore_BadShardLoading(t *testing.T) {
 		// Equality check to make sure shards are always added prior to
 		// completion being called. This test opens 3 total shards - 1 shard
 		// fails, but we still want to track that it was attempted to be opened.
-		require.Equal(t, msl.shardTracker, []string{
+		require.Equal(t, msl.Tracked(), []string{
 			"shard-add",
 			"shard-add",
 			"shard-add",
@@ -241,24 +240,30 @@ func TestStore_BadShard(t *testing.T) {
 	for _, idx := range indexes {
 		func() {
 			s := MustOpenStore(t, idx)
-			defer require.NoErrorf(t, s.Close(), "closing store with index type: %s", idx)
+			defer func() {
+				require.NoErrorf(t, s.Close(), "closing store with index type: %s", idx)
+			}()
 
-			sh := tsdb.NewTempShard(t, idx)
-			shId := sh.ID()
-			err := s.OpenShard(context.Background(), sh.Shard, false)
+			var shId uint64 = 1
+			require.NoError(t, s.CreateShard(context.Background(), "db0", "rp0", shId, true))
+			err := s.ReopenShard(context.Background(), shId, false)
 			require.NoError(t, err, "opening temp shard")
-			require.NoError(t, sh.Close(), "closing temporary shard")
 
 			expErr := errors.New(errStr)
-			s.SetShardOpenErrorForTest(sh.ID(), expErr)
-			err2 := s.OpenShard(context.Background(), sh.Shard, false)
+			s.SetShardOpenErrorForTest(shId, expErr)
+			err2 := s.ReopenShard(context.Background(), shId, false)
+			require.Error(t, err2, "no error opening bad shard")
+			require.True(t, errors.Is(err2, tsdb.ErrPreviousShardFail{}), "exp: ErrPreviousShardFail, got: %v", err2)
+			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
+
+			// make sure we didn't modify the shard open error when we tried to reopen it
+			err2 = s.ReopenShard(context.Background(), shId, false)
 			require.Error(t, err2, "no error opening bad shard")
 			require.True(t, errors.Is(err2, tsdb.ErrPreviousShardFail{}), "exp: ErrPreviousShardFail, got: %v", err2)
 			require.EqualError(t, err2, fmt.Errorf("not attempting to open shard %d; opening shard previously failed with: %w", shId, expErr).Error())
 
 			// This should succeed with the force (and because opening an open shard automatically succeeds)
-			require.NoError(t, s.OpenShard(context.Background(), sh.Shard, true), "forced re-opening previously failing shard")
-			require.NoError(t, sh.Close())
+			require.NoError(t, s.ReopenShard(context.Background(), shId, true), "forced re-opening previously failing shard")
 		}()
 	}
 }
@@ -2195,7 +2200,7 @@ func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := s.OpenShard(context.Background(), sh, false); err != nil {
+						if err := s.ReopenShard(context.Background(), sh.ID(), false); err != nil {
 							errC <- err
 							return
 						}
@@ -2280,7 +2285,7 @@ func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := s.OpenShard(context.Background(), sh, false); err != nil {
+						if err := s.ReopenShard(context.Background(), sh.ID(), false); err != nil {
 							errC <- err
 							return
 						}
@@ -2371,7 +2376,7 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 							return
 						}
 						time.Sleep(500 * time.Microsecond)
-						if err := s.OpenShard(context.Background(), sh, false); err != nil {
+						if err := s.ReopenShard(context.Background(), sh.ID(), false); err != nil {
 							errC <- err
 							return
 						}
@@ -2866,18 +2871,29 @@ func dirExists(path string) bool {
 }
 
 type mockStartupLogger struct {
-	shardTracker []string
-	mu           sync.Mutex
+	// mu protects all following members.
+	mu sync.Mutex
+
+	_shardTracker []string
 }
 
 func (m *mockStartupLogger) AddShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, "shard-add")
+	m._shardTracker = append(m._shardTracker, "shard-add")
 	m.mu.Unlock()
 }
 
 func (m *mockStartupLogger) CompletedShard() {
 	m.mu.Lock()
-	m.shardTracker = append(m.shardTracker, "shard-complete")
+	m._shardTracker = append(m._shardTracker, "shard-complete")
 	m.mu.Unlock()
+}
+
+func (m *mockStartupLogger) Tracked() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tracked := make([]string, len(m._shardTracker))
+	copy(tracked, m._shardTracker)
+	return tracked
 }
