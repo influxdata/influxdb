@@ -2954,8 +2954,10 @@ dependencies = [
  "influxdb3_id",
  "influxdb3_write",
  "object_store",
+ "pretty_assertions",
  "schema",
  "serde",
+ "serde_json",
  "xxhash-rust",
 ]
 

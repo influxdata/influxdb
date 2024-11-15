@@ -7,14 +7,12 @@ use hashbrown::HashMap;
 use influxdb3_id::ParquetFileId;
 use influxdb3_write::ParquetFile;
 use schema::TIME_COLUMN_NAME;
-use std::collections::HashSet;
 use std::sync::Arc;
 use xxhash_rust::xxh64::xxh64;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct FileIndex {
     index: HashMap<(u64, u64), Vec<ParquetFileMeta>>,
-    indexed_column_names: HashSet<String>,
     parquet_files: HashMap<ParquetFileId, Arc<ParquetFile>>,
 }
 
@@ -29,6 +27,23 @@ impl FileIndex {
     ) {
         let column = xxh64(column_name.as_bytes(), 0);
         let value = xxh64(value.as_bytes(), 0);
+        self.append_with_hashed_values(
+            column,
+            value,
+            gen_min_time_ns,
+            gen_max_time_ns,
+            parquet_file_ids,
+        )
+    }
+
+    pub fn append_with_hashed_values(
+        &mut self,
+        column: u64,
+        value: u64,
+        gen_min_time_ns: i64,
+        gen_max_time_ns: i64,
+        parquet_file_ids: &[ParquetFileId],
+    ) {
         let parquet_file_metas = self.index.entry((column, value)).or_default();
         for id in parquet_file_ids {
             parquet_file_metas.push(ParquetFileMeta {
@@ -38,10 +53,6 @@ impl FileIndex {
             });
         }
         parquet_file_metas.sort();
-
-        if !self.indexed_column_names.contains(column_name) {
-            self.indexed_column_names.insert(column_name.to_string());
-        }
     }
 
     pub fn add_files(&mut self, files: &[Arc<ParquetFile>]) {
@@ -94,26 +105,32 @@ impl FileIndex {
         filtered_ids
     }
 
+    fn contains_value(&self, col: &str, val: &str) -> bool {
+        self.index
+            .contains_key(&(xxh64(col.as_bytes(), 0), xxh64(val.as_bytes(), 0)))
+    }
+
     fn walk_expr(&self, expr: &Expr, min_time: i64, max_time: i64) -> Option<Vec<ParquetFileId>> {
         if let Expr::BinaryExpr(b) = expr {
             if let Expr::Column(c) = b.left.as_ref() {
-                if self.indexed_column_names.contains(&c.name) {
-                    match b.right.as_ref() {
-                        Expr::Literal(ScalarValue::Utf8(Some(val))) => {
-                            if b.op == datafusion::logical_expr::Operator::Eq {
+                match b.right.as_ref() {
+                    Expr::Literal(ScalarValue::Utf8(Some(val))) => {
+                        if self.contains_value(&c.name, val)
+                            && b.op == datafusion::logical_expr::Operator::Eq
+                        {
+                            return self.ids_for_column_value(&c.name, val, min_time, max_time);
+                        }
+                    }
+                    Expr::Literal(ScalarValue::Dictionary(_, val)) => {
+                        if let ScalarValue::Utf8(Some(val)) = val.as_ref() {
+                            if self.contains_value(&c.name, val)
+                                && b.op == datafusion::logical_expr::Operator::Eq
+                            {
                                 return self.ids_for_column_value(&c.name, val, min_time, max_time);
                             }
                         }
-                        Expr::Literal(ScalarValue::Dictionary(_, val)) => {
-                            if let ScalarValue::Utf8(Some(val)) = val.as_ref() {
-                                if b.op == datafusion::logical_expr::Operator::Eq {
-                                    return self
-                                        .ids_for_column_value(&c.name, val, min_time, max_time);
-                                }
-                            }
-                        }
-                        _ => {}
                     }
+                    _ => {}
                 }
             } else {
                 let left = self.walk_expr(&b.left, min_time, max_time);

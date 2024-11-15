@@ -1,8 +1,8 @@
 pub mod memory;
 
-use hashbrown::HashMap;
-use influxdb3_id::ParquetFileId;
+use influxdb3_id::{ParquetFileId, SerdeVecMap};
 use serde::{Deserialize, Serialize};
+use xxhash_rust::xxh64::xxh64;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 /// The `FileIndex` is an index of Column/Values to an `object_store::Path`. It's expected that
@@ -15,25 +15,27 @@ use serde::{Deserialize, Serialize};
 /// doesn't have to scan and read parquet files only to toss them out of what's queryable.
 pub struct FileIndex {
     /// A map of column name to column value to parquet file ids that contain that column value
-    pub index: HashMap<String, HashMap<String, Vec<ParquetFileId>>>,
+    pub index: SerdeVecMap<u64, SerdeVecMap<u64, Vec<ParquetFileId>>>,
 }
 
 impl FileIndex {
     /// Create a new empty `FileIndex`
     pub fn new() -> Self {
         Self {
-            index: HashMap::new(),
+            index: SerdeVecMap::new(),
         }
     }
 
     /// Inserts an id for a given value and column or creates the entry if it does not yet exist
     pub fn insert(&mut self, column: &str, value: &str, file_id: &ParquetFileId) {
+        let column = xxh64(column.as_bytes(), 0);
+        let value = xxh64(value.as_bytes(), 0);
         let ids = self
             .index
-            .entry_ref(column)
+            .entry(column)
             .or_default()
-            .entry_ref(value)
-            .or_insert_with(Vec::new);
+            .entry(value)
+            .or_default();
         if !ids.contains(file_id) {
             ids.push(*file_id);
         }
@@ -41,9 +43,11 @@ impl FileIndex {
 
     /// Get all `object_store::Path`s for a given column and value if they exist
     pub fn lookup(&self, column: &str, value: &str) -> &[ParquetFileId] {
+        let column = xxh64(column.as_bytes(), 0);
+        let value = xxh64(value.as_bytes(), 0);
         self.index
-            .get(column)
-            .and_then(|m| m.get(value))
+            .get(&column)
+            .and_then(|m| m.get(&value))
             .map(|v| v.as_slice())
             .unwrap_or_default()
     }
@@ -55,19 +59,48 @@ impl Default for FileIndex {
     }
 }
 
-#[test]
-/// Test that `new`, `remove`, `insert`, and `lookup` work as expected
-fn file_index() {
-    let mut index = FileIndex::new();
-    let id = "id";
-    let value = "1";
+#[cfg(test)]
+mod test {
+    use super::*;
+    use pretty_assertions::assert_eq;
 
-    // Test that insertion works as expected
-    index.insert(id, value, &ParquetFileId::from(9000));
-    index.insert(id, value, &ParquetFileId::from(9001));
-    // We want to make sure extra insertions of the same one aren't included
-    index.insert(id, value, &ParquetFileId::from(9000));
+    #[test]
+    /// Test that `new`, `remove`, `insert`, and `lookup` work as expected
+    fn file_index() {
+        let mut index = FileIndex::new();
+        let id = "id";
+        let value = "1";
 
-    // Test that lookup works as expected
-    assert_eq!(index.lookup(id, value), &[9000.into(), 9001.into()]);
+        // Test that insertion works as expected
+        index.insert(id, value, &ParquetFileId::from(9000));
+        index.insert(id, value, &ParquetFileId::from(9001));
+        // We want to make sure extra insertions of the same one aren't included
+        index.insert(id, value, &ParquetFileId::from(9000));
+
+        // Test that lookup works as expected
+        assert_eq!(index.lookup(id, value), &[9000.into(), 9001.into()]);
+    }
+
+    #[test]
+    /// Test that the output looks like we'd expect and we get back the same
+    /// data
+    fn file_index_json() {
+        let mut index = FileIndex::new();
+        let id = "id";
+        let value = "1";
+
+        // Test that insertion works as expected
+        index.insert(id, value, &ParquetFileId::from(9000));
+        index.insert(id, value, &ParquetFileId::from(9001));
+        // We want to make sure extra insertions of the same one aren't included
+        index.insert(id, value, &ParquetFileId::from(9000));
+
+        let string = serde_json::to_string(&index).unwrap();
+        assert_eq!(
+            "{\"index\":[[6524628971699625766,[[13237225503670494420,[9000,9001]]]]]}",
+            string
+        );
+        let index: FileIndex = serde_json::from_str(&string).unwrap();
+        assert_eq!(index.lookup(id, value), &[9000.into(), 9001.into()]);
+    }
 }

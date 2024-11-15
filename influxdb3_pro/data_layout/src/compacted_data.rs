@@ -668,9 +668,9 @@ impl CompactedTable {
 
         for (col, valfiles) in generation_detail.file_index.index {
             for (val, file_ids) in valfiles {
-                self.file_index.append(
-                    &col,
-                    &val,
+                self.file_index.append_with_hashed_values(
+                    col,
+                    val,
                     generation_detail.start_time_s * 1_000_000_000,
                     generation_detail.max_time_ns,
                     &file_ids,
