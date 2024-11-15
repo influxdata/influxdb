@@ -12,7 +12,7 @@ pub(crate) enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Parser)]
-#[clap(visible_alias = "c", trailing_var_arg = true)]
+#[clap(visible_alias = "f", trailing_var_arg = true)]
 pub struct Config {
     #[clap(subcommand)]
     /// The command
@@ -21,15 +21,7 @@ pub struct Config {
 
 #[derive(Debug, clap::Parser)]
 pub enum Command {
-    #[clap(subcommand)]
-    Create(CreateConfig),
-    #[clap(subcommand)]
-    Delete(DeleteConfig),
-}
-
-#[derive(Debug, clap::Parser)]
-pub enum CreateConfig {
-    FileIndex {
+    Create {
         /// Common InfluxDB 3.0 config
         #[clap(flatten)]
         influxdb3_config: InfluxDb3Config,
@@ -39,11 +31,7 @@ pub enum CreateConfig {
         #[arg(required = true)]
         columns: Vec<String>,
     },
-}
-
-#[derive(Debug, clap::Parser)]
-pub enum DeleteConfig {
-    FileIndex {
+    Delete {
         /// Common InfluxDB 3.0 config
         #[clap(flatten)]
         influxdb3_config: InfluxDb3Config,
@@ -54,11 +42,11 @@ pub enum DeleteConfig {
 
 pub(crate) async fn command(config: Config) -> Result<()> {
     match config.command {
-        Command::Create(CreateConfig::FileIndex {
+        Command::Create {
             influxdb3_config,
             table,
             columns,
-        }) => {
+        } => {
             let mut client = influxdb3_client::Client::new(influxdb3_config.host_url)?;
             if let Some(t) = influxdb3_config.auth_token {
                 client = client.with_auth_token(t.expose_secret());
@@ -71,10 +59,10 @@ pub(crate) async fn command(config: Config) -> Result<()> {
                 )
                 .await?
         }
-        Command::Delete(DeleteConfig::FileIndex {
+        Command::Delete {
             influxdb3_config,
             table,
-        }) => {
+        } => {
             let mut client = influxdb3_client::Client::new(influxdb3_config.host_url)?;
             if let Some(t) = influxdb3_config.auth_token {
                 client = client.with_auth_token(t.expose_secret());

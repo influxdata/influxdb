@@ -50,9 +50,8 @@ async fn configure_file_index() {
         ])
     };
     CLI::run(&[
-        "configure",
-        "create",
         "file-index",
+        "create",
         "-h",
         addr.as_str(),
         "-d",
@@ -65,17 +64,16 @@ async fn configure_file_index() {
 
     assert_eq!(
         "\
-         +---------------+------------+---------------+\n\
-         | database_name | table_name | index_columns |\n\
-         +---------------+------------+---------------+\n\
-         | gundam        | unicorn    | id,health     |\n\
-         +---------------+------------+---------------+",
+         +---------------+------------+---------------+------------------+\n\
+         | database_name | table_name | index_columns | index_column_ids |\n\
+         +---------------+------------+---------------+------------------+\n\
+         | gundam        | unicorn    | [id, health]  | [1, 2]           |\n\
+         +---------------+------------+---------------+------------------+",
         query()
     );
     CLI::run(&[
-        "configure",
-        "create",
         "file-index",
+        "create",
         "-h",
         addr.as_str(),
         "-d",
@@ -84,19 +82,18 @@ async fn configure_file_index() {
     ]);
     assert_eq!(
         "\
-         +---------------+------------+------------------+\n\
-         | database_name | table_name | index_columns    |\n\
-         +---------------+------------+------------------+\n\
-         | gundam        |            | height           |\n\
-         | gundam        | unicorn    | height,id,health |\n\
-         +---------------+------------+------------------+",
+         +---------------+------------+----------------------+------------------+\n\
+         | database_name | table_name | index_columns        | index_column_ids |\n\
+         +---------------+------------+----------------------+------------------+\n\
+         | gundam        |            | [height]             | []               |\n\
+         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
+         +---------------+------------+----------------------+------------------+",
         query()
     );
 
     CLI::run(&[
-        "configure",
-        "create",
         "file-index",
+        "create",
         "-h",
         addr.as_str(),
         "-d",
@@ -107,19 +104,18 @@ async fn configure_file_index() {
     ]);
     assert_eq!(
         "\
-         +---------------+------------+------------------+\n\
-         | database_name | table_name | index_columns    |\n\
-         +---------------+------------+------------------+\n\
-         | gundam        |            | height           |\n\
-         | gundam        | unicorn    | height,id,health |\n\
-         | gundam        | mercury    | height,time      |\n\
-         +---------------+------------+------------------+",
+         +---------------+------------+----------------------+------------------+\n\
+         | database_name | table_name | index_columns        | index_column_ids |\n\
+         +---------------+------------+----------------------+------------------+\n\
+         | gundam        |            | [height]             | []               |\n\
+         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
+         | gundam        | mercury    | [height, time]       | [4, 7]           |\n\
+         +---------------+------------+----------------------+------------------+",
         query()
     );
     CLI::run(&[
-        "configure",
-        "delete",
         "file-index",
+        "delete",
         "-h",
         addr.as_str(),
         "-d",
@@ -129,23 +125,15 @@ async fn configure_file_index() {
     ]);
     assert_eq!(
         "\
-         +---------------+------------+---------------+\n\
-         | database_name | table_name | index_columns |\n\
-         +---------------+------------+---------------+\n\
-         | gundam        |            | height        |\n\
-         | gundam        | mercury    | height,time   |\n\
-         +---------------+------------+---------------+",
+         +---------------+------------+----------------+------------------+\n\
+         | database_name | table_name | index_columns  | index_column_ids |\n\
+         +---------------+------------+----------------+------------------+\n\
+         | gundam        |            | [height]       | []               |\n\
+         | gundam        | mercury    | [height, time] | [4, 7]           |\n\
+         +---------------+------------+----------------+------------------+",
         query()
     );
-    CLI::run(&[
-        "configure",
-        "delete",
-        "file-index",
-        "-h",
-        addr.as_str(),
-        "-d",
-        "gundam",
-    ]);
+    CLI::run(&["file-index", "delete", "-h", addr.as_str(), "-d", "gundam"]);
     assert_eq!(
         "\
          ++\n\

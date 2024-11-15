@@ -44,11 +44,11 @@ async fn file_index_config() {
 
     assert_eq!(
         "\
-         +---------------+------------+---------------+\n\
-         | database_name | table_name | index_columns |\n\
-         +---------------+------------+---------------+\n\
-         | gundam        | unicorn    | id,health     |\n\
-         +---------------+------------+---------------+",
+         +---------------+------------+---------------+------------------+\n\
+         | database_name | table_name | index_columns | index_column_ids |\n\
+         +---------------+------------+---------------+------------------+\n\
+         | gundam        | unicorn    | [id, health]  | [1, 2]           |\n\
+         +---------------+------------+---------------+------------------+",
         query().await
     );
 
@@ -62,12 +62,12 @@ async fn file_index_config() {
         .await;
     assert_eq!(
         "\
-         +---------------+------------+------------------+\n\
-         | database_name | table_name | index_columns    |\n\
-         +---------------+------------+------------------+\n\
-         | gundam        |            | height           |\n\
-         | gundam        | unicorn    | height,id,health |\n\
-         +---------------+------------+------------------+",
+         +---------------+------------+----------------------+------------------+\n\
+         | database_name | table_name | index_columns        | index_column_ids |\n\
+         +---------------+------------+----------------------+------------------+\n\
+         | gundam        |            | [height]             | []               |\n\
+         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
+         +---------------+------------+----------------------+------------------+",
         query().await
     );
 
@@ -81,13 +81,13 @@ async fn file_index_config() {
         .await;
     assert_eq!(
         "\
-         +---------------+------------+------------------+\n\
-         | database_name | table_name | index_columns    |\n\
-         +---------------+------------+------------------+\n\
-         | gundam        |            | height           |\n\
-         | gundam        | unicorn    | height,id,health |\n\
-         | gundam        | mercury    | height,time      |\n\
-         +---------------+------------+------------------+",
+         +---------------+------------+----------------------+------------------+\n\
+         | database_name | table_name | index_columns        | index_column_ids |\n\
+         +---------------+------------+----------------------+------------------+\n\
+         | gundam        |            | [height]             | []               |\n\
+         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
+         | gundam        | mercury    | [height, time]       | [4, 7]           |\n\
+         +---------------+------------+----------------------+------------------+",
         query().await
     );
     // Test that dropping a table from the index only drops that table
@@ -99,12 +99,12 @@ async fn file_index_config() {
         .await;
     assert_eq!(
         "\
-         +---------------+------------+---------------+\n\
-         | database_name | table_name | index_columns |\n\
-         +---------------+------------+---------------+\n\
-         | gundam        |            | height        |\n\
-         | gundam        | mercury    | height,time   |\n\
-         +---------------+------------+---------------+",
+         +---------------+------------+----------------+------------------+\n\
+         | database_name | table_name | index_columns  | index_column_ids |\n\
+         +---------------+------------+----------------+------------------+\n\
+         | gundam        |            | [height]       | []               |\n\
+         | gundam        | mercury    | [height, time] | [4, 7]           |\n\
+         +---------------+------------+----------------+------------------+",
         query().await
     );
     // Test that dropping the db from the index drops all tables under it

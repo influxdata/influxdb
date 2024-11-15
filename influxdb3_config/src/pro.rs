@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
@@ -15,7 +16,7 @@ pub struct ProConfig {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Index {
-    pub db_columns: Vec<String>,
+    pub db_columns: Vec<Arc<str>>,
     pub table_columns: BTreeMap<TableId, Vec<ColumnId>>,
 }
 

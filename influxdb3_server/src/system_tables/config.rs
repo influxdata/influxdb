@@ -1,3 +1,7 @@
+use arrow::array::GenericListBuilder;
+use arrow::array::StringViewBuilder;
+use arrow::array::UInt32Builder;
+use influxdb3_id::ColumnId;
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, RecordBatch, StringArray};
@@ -27,7 +31,16 @@ impl FileIndexTable {
         let columns = vec![
             Field::new("database_name", DataType::Utf8, false),
             Field::new("table_name", DataType::Utf8, true),
-            Field::new("index_columns", DataType::Utf8, false),
+            Field::new(
+                "index_columns",
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8View, true))),
+                false,
+            ),
+            Field::new(
+                "index_column_ids",
+                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                false,
+            ),
         ];
         Arc::new(Schema::new(columns))
     }
@@ -38,7 +51,8 @@ impl FileIndexTable {
         struct Line {
             db: Arc<str>,
             table: Option<Arc<str>>,
-            columns: String,
+            columns: Vec<Arc<str>>,
+            column_ids: Vec<ColumnId>,
         }
 
         let mut lines = Vec::new();
@@ -46,7 +60,9 @@ impl FileIndexTable {
             let line = Line {
                 db: self.catalog.db_id_to_name(db_id).unwrap(),
                 table: None,
-                columns: idx.db_columns.clone().join(","),
+                columns: idx.db_columns.clone(),
+                // We don't know the column ids for the db level so we leave this empty by default
+                column_ids: Vec::new(),
             };
 
             if !line.columns.is_empty() {
@@ -63,23 +79,16 @@ impl FileIndexTable {
                     .unwrap();
                 let table_name = Arc::clone(&table_def.table_name);
                 line.table = Some(table_name);
-                line.columns = if !line.columns.is_empty() {
-                    [
-                        line.columns,
-                        columns
-                            .iter()
-                            .map(|c| table_def.column_id_to_name(c).unwrap())
-                            .collect::<Vec<_>>()
-                            .join(","),
-                    ]
-                    .join(",")
-                } else {
+                for name in &line.columns {
+                    line.column_ids
+                        .push(table_def.column_name_to_id_unchecked(Arc::clone(name)));
+                }
+                line.column_ids.extend_from_slice(columns);
+                line.columns.extend(
                     columns
                         .iter()
-                        .map(|c| table_def.column_id_to_name(c).unwrap())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                };
+                        .map(|c| table_def.column_id_to_name_unchecked(c)),
+                );
                 lines.push(line);
             }
         }
@@ -96,12 +105,40 @@ impl FileIndexTable {
                     .map(|line| line.table.clone())
                     .collect::<StringArray>(),
             ),
-            Arc::new(
-                lines
-                    .into_iter()
-                    .map(|line| Some(line.columns))
-                    .collect::<StringArray>(),
-            ),
+            {
+                let string_builder = StringViewBuilder::new();
+                let mut list_builder = GenericListBuilder::<i32, StringViewBuilder>::with_capacity(
+                    string_builder,
+                    lines.len(),
+                );
+                for line in &lines {
+                    list_builder.append_value(
+                        line.columns
+                            .iter()
+                            .map(|s| Some(s.to_string()))
+                            .collect::<Vec<_>>(),
+                    );
+                }
+
+                Arc::new(list_builder.finish())
+            },
+            {
+                let uint_builder = UInt32Builder::new();
+                let mut list_builder = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+                    uint_builder,
+                    lines.len(),
+                );
+                for line in &lines {
+                    list_builder.append_value(
+                        line.column_ids
+                            .iter()
+                            .map(|id| Some(id.as_u32()))
+                            .collect::<Vec<_>>(),
+                    );
+                }
+
+                Arc::new(list_builder.finish())
+            },
         ];
 
         Ok(RecordBatch::try_new(Arc::clone(&self.schema), columns)?)

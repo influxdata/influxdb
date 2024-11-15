@@ -832,7 +832,6 @@ where
         match table.and_then(|name| db_schema.table_name_to_id(name)) {
             Some(table_id) => {
                 let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
-                let mut pro_config = self.common_state.pro_config.write().await;
                 let columns = columns
                     .into_iter()
                     .map(|c| {
@@ -845,7 +844,10 @@ where
                         })
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                pro_config
+                self.common_state
+                    .pro_config
+                    .write()
+                    .await
                     .file_index_columns
                     .entry(db_id)
                     // If the db entry exists try to add those columns to the
@@ -867,9 +869,6 @@ where
                         idx
                     });
 
-                // Drop the write lock and persist the new config back
-                // to object storage
-                drop(pro_config);
                 self.common_state
                     .pro_config
                     .read()
@@ -881,8 +880,10 @@ where
                     .await?;
             }
             None => {
-                let mut pro_config = self.common_state.pro_config.write().await;
-                pro_config
+                self.common_state
+                    .pro_config
+                    .write()
+                    .await
                     .file_index_columns
                     .entry(db_id)
                     // if the db entry does exist add these columns for the db
@@ -896,9 +897,6 @@ where
                         idx.db_columns = columns.clone().into_iter().map(Into::into).collect();
                         idx
                     });
-                // Drop the write lock and persist the new config back
-                // to object storage
-                drop(pro_config);
                 self.common_state
                     .pro_config
                     .read()
