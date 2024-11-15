@@ -113,20 +113,21 @@ func NewShardMapping(n int) *ShardMapping {
 }
 
 // MapPoint adds the point to the ShardMapping, associated with the given shardInfo.
-func (s *ShardMapping) MapPoint(rp *meta.RetentionPolicyInfo, shardInfo *meta.ShardInfo, p models.Point) (dropped bool) {
-	if (rp != nil) &&
-		(((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
-			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit)))) {
-		// Point is too far in the future or too far in the past
-		s.Dropped = append(s.Dropped, p)
-		return true
-	}
+func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	if cap(s.Points[shardInfo.ID]) < s.n {
 		s.Points[shardInfo.ID] = make([]models.Point, 0, s.n)
 	}
 	s.Points[shardInfo.ID] = append(s.Points[shardInfo.ID], p)
 	s.Shards[shardInfo.ID] = shardInfo
-	return false
+}
+
+func withinWriteWindow(rp *meta.RetentionPolicyInfo, p models.Point) bool {
+	if (rp != nil) &&
+		(((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
+			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit)))) {
+		return false
+	}
+	return true
 }
 
 // Open opens the communication channel with the point writer.
@@ -197,9 +198,10 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	}
 
 	for _, p := range wp.Points {
-		// Either the point is outside the scope of the RP, or we already have
-		// a suitable shard group for the point.
-		if p.Time().Before(min) || list.Covers(p.Time()) {
+		// Either the point is outside the scope of the RP, we already have
+		// a suitable shard group for the point, or it is outside the write window
+		// for the RP, and we don't want to unnecessarily create a shard for it
+		if p.Time().Before(min) || list.Covers(p.Time()) || !withinWriteWindow(rp, p) {
 			continue
 		}
 
@@ -219,20 +221,16 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	mapping := NewShardMapping(len(wp.Points))
 	for _, p := range wp.Points {
 		sg := list.ShardGroupAt(p.Time())
-		if sg == nil {
+		if sg == nil || !withinWriteWindow(rp, p) {
 			// We didn't create a shard group because the point was outside the
-			// scope of the RP.
+			// scope of the RP, or the point is outside the write window for the RP.
 			mapping.Dropped = append(mapping.Dropped, p)
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 			continue
 		}
 
 		sh := sg.ShardFor(p)
-		if dropped := mapping.MapPoint(rp, &sh, p); dropped {
-			// The point was dropped because it was outside the permissible
-			// write window.
-			atomic.AddInt64(&w.stats.WriteDropped, 1)
-		}
+		mapping.MapPoint(&sh, p)
 	}
 	return mapping, nil
 }
