@@ -121,6 +121,15 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
+func withinWriteWindow(rp *meta.RetentionPolicyInfo, p models.Point) bool {
+	if (rp != nil) &&
+		(((rp.FutureWriteLimit > 0) && p.Time().After(time.Now().Add(rp.FutureWriteLimit))) ||
+			((rp.PastWriteLimit > 0) && p.Time().Before(time.Now().Add(-rp.PastWriteLimit)))) {
+		return false
+	}
+	return true
+}
+
 // Open opens the communication channel with the point writer.
 func (w *PointsWriter) Open() error {
 	w.closing = make(chan struct{})
@@ -189,9 +198,10 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	}
 
 	for _, p := range wp.Points {
-		// Either the point is outside the scope of the RP, or we already have
-		// a suitable shard group for the point.
-		if p.Time().Before(min) || list.Covers(p.Time()) {
+		// Either the point is outside the scope of the RP, we already have
+		// a suitable shard group for the point, or it is outside the write window
+		// for the RP, and we don't want to unnecessarily create a shard for it
+		if p.Time().Before(min) || list.Covers(p.Time()) || !withinWriteWindow(rp, p) {
 			continue
 		}
 
@@ -211,9 +221,9 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	mapping := NewShardMapping(len(wp.Points))
 	for _, p := range wp.Points {
 		sg := list.ShardGroupAt(p.Time())
-		if sg == nil {
+		if sg == nil || !withinWriteWindow(rp, p) {
 			// We didn't create a shard group because the point was outside the
-			// scope of the RP.
+			// scope of the RP, or the point is outside the write window for the RP.
 			mapping.Dropped = append(mapping.Dropped, p)
 			atomic.AddInt64(&w.stats.WriteDropped, 1)
 			continue
@@ -354,13 +364,18 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 		return err
 	}
 
-	// Write each shard in it's own goroutine and return as soon as one fails.
+	// Write each shard in its own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(writeCtx tsdb.WriteContext, shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			err := w.writeToShard(writeCtx, shard, database, retentionPolicy, points)
 			if err == tsdb.ErrShardDeletion {
-				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID), Dropped: len(points)}
+
+				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID),
+					Dropped:         len(points),
+					Database:        database,
+					RetentionPolicy: retentionPolicy,
+				}
 			}
 			ch <- err
 		}(writeCtx, shardMappings.Shards[shardID], database, retentionPolicy, points)
@@ -375,7 +390,11 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 	atomic.AddInt64(&w.stats.SubWriteOK, 1)
 
 	if err == nil && len(shardMappings.Dropped) > 0 {
-		err = tsdb.PartialWriteError{Reason: "points beyond retention policy", Dropped: len(shardMappings.Dropped)}
+		err = tsdb.PartialWriteError{Reason: "points beyond retention policy or outside permissible write window",
+			Dropped:         len(shardMappings.Dropped),
+			Database:        database,
+			RetentionPolicy: retentionPolicy,
+		}
 	}
 
 	for range shardMappings.Points {

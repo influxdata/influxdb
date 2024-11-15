@@ -226,6 +226,8 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 		Duration:           stmt.Duration,
 		ReplicaN:           stmt.Replication,
 		ShardGroupDuration: stmt.ShardGroupDuration,
+		FutureWriteLimit:   stmt.FutureWriteLimit,
+		PastWriteLimit:     stmt.PastWriteLimit,
 	}
 
 	// Update the retention policy.
@@ -286,6 +288,8 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 		Duration:           stmt.RetentionPolicyDuration,
 		ReplicaN:           stmt.RetentionPolicyReplication,
 		ShardGroupDuration: stmt.RetentionPolicyShardGroupDuration,
+		FutureWriteLimit:   stmt.FutureWriteLimit,
+		PastWriteLimit:     stmt.PastWriteLimit,
 	}
 	_, err := e.MetaClient.CreateDatabaseWithRetentionPolicy(stmt.Name, &spec)
 	return err
@@ -303,6 +307,8 @@ func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql
 		Duration:           &stmt.Duration,
 		ReplicaN:           &stmt.Replication,
 		ShardGroupDuration: stmt.ShardGroupDuration,
+		FutureWriteLimit:   &stmt.FutureWriteLimit,
+		PastWriteLimit:     &stmt.PastWriteLimit,
 	}
 
 	// Create new retention policy.
@@ -853,9 +859,17 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 		return nil, influxdb.ErrDatabaseNotFound(q.Database)
 	}
 
-	row := &models.Row{Columns: []string{"name", "duration", "shardGroupDuration", "replicaN", "default"}}
+	row := &models.Row{Columns: []string{"name", "duration", "shardGroupDuration", "replicaN", "futureWriteLimit", "pastWriteLimit", "default"}}
 	for _, rpi := range di.RetentionPolicies {
-		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ShardGroupDuration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
+		row.Values = append(row.Values, []interface{}{
+			rpi.Name,
+			rpi.Duration.String(),
+			rpi.ShardGroupDuration.String(),
+			rpi.ReplicaN,
+			rpi.FutureWriteLimit.String(),
+			rpi.PastWriteLimit.String(),
+			di.DefaultRetentionPolicy == rpi.Name,
+		})
 	}
 	return []*models.Row{row}, nil
 }

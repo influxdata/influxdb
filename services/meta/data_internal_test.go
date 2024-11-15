@@ -4,6 +4,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardGroupSort(t *testing.T) {
@@ -60,4 +62,13 @@ func Test_Data_RetentionPolicy_MarshalBinary(t *testing.T) {
 	if got, exp := sgi.DeletedAt.UTC(), zeroTime.UTC(); got != exp {
 		t.Errorf("unexpected DeletedAt time.  got: %s, exp: %s", got, exp)
 	}
+	rpi := NewRetentionPolicyInfo("foop")
+	rpi.FutureWriteLimit = time.Hour * 25
+	rpi.PastWriteLimit = time.Hour * 23
+
+	buf, err := rpi.MarshalBinary()
+	require.NoError(t, err)
+	rpi2 := &RetentionPolicyInfo{}
+	require.NoError(t, rpi2.UnmarshalBinary(buf))
+	require.Equal(t, rpi, rpi2)
 }

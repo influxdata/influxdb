@@ -122,11 +122,20 @@ type PartialWriteError struct {
 	Dropped int
 
 	// A sorted slice of series keys that were dropped.
-	DroppedKeys [][]byte
+	DroppedKeys     [][]byte
+	Database        string
+	RetentionPolicy string
 }
 
 func (e PartialWriteError) Error() string {
-	return fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	message := fmt.Sprintf("partial write: %s dropped=%d", e.Reason, e.Dropped)
+	if len(e.Database) > 0 {
+		message = fmt.Sprintf("%s for database: %s", message, e.Database)
+	}
+	if len(e.RetentionPolicy) > 0 {
+		message = fmt.Sprintf("%s for retention policy: %s", message, e.RetentionPolicy)
+	}
+	return message
 }
 
 // Shard represents a self-contained time series database. An inverted index of
@@ -744,7 +753,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 	}
 
 	if dropped > 0 {
-		err = PartialWriteError{Reason: reason, Dropped: dropped}
+		err = PartialWriteError{Reason: reason, Dropped: dropped, Database: s.database, RetentionPolicy: s.retentionPolicy}
 	}
 
 	return points[:j], fieldsToCreate, err

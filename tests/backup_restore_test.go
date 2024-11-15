@@ -45,7 +45,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		s := OpenServer(config)
 		defer s.Close()
 
-		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0), true); err != nil {
+		if err := s.CreateDatabaseAndRetentionPolicy(db, NewRetentionPolicySpec(rp, 1, 0, 0, 0), true); err != nil {
 			t.Fatal(err)
 		}
 

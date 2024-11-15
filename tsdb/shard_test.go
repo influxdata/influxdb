@@ -212,7 +212,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	} else if exp, got :=
-		fmt.Sprintf(`partial write: max-series-per-database exceeded database=%s limit=1000 series=1000 keys=1 dropped=1`, index.Database()), err.Error(); exp != got {
+		fmt.Sprintf(`partial write: max-series-per-database exceeded database=%s limit=1000 series=1000 keys=1 dropped=1 for database: db for retention policy: rp`, index.Database()), err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	} else {
 		st := sh.Statistics(map[string]string{})
@@ -289,7 +289,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt}, tsdb.NoopStatsTracker())
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `partial write: max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `partial write: max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1 for database: db for retention policy: rp`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 

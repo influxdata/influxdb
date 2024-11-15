@@ -1729,7 +1729,10 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)))
 		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
 		// response code as well as the lines that failed to parse.
-		h.httpError(w, tsdb.PartialWriteError{Reason: parseError.Error()}.Error(), http.StatusBadRequest)
+		h.httpError(w, tsdb.PartialWriteError{Reason: parseError.Error(),
+			Database:        database,
+			RetentionPolicy: retentionPolicy,
+		}.Error(), http.StatusBadRequest)
 		return
 	}
 

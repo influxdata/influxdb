@@ -44,6 +44,8 @@ message RetentionPolicySpec {
 	optional int64  Duration           = 2;
 	optional int64  ShardGroupDuration = 3;
 	optional uint32 ReplicaN           = 4;
+	optional int64 FutureWriteLimit    = 5;
+	optional int64 PastWriteLimit      = 6;
 }
 
 message RetentionPolicyInfo {
@@ -53,6 +55,8 @@ message RetentionPolicyInfo {
 	required uint32 ReplicaN = 4;
 	repeated ShardGroupInfo ShardGroups = 5;
 	repeated SubscriptionInfo Subscriptions = 6;
+	optional int64 FutureWriteLimit = 7;
+	optional int64 PastWriteLimit = 8;
 }
 
 message ShardGroupInfo {
