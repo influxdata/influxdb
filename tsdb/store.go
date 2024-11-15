@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 )
 
 var (
+	// ErrIncompatibleWAL is returned if incompatible WAL files are detected.
+	ErrIncompatibleWAL = errors.New("incompatible WAL format")
 	// ErrShardNotFound is returned when trying to get a non existing shard.
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	// ErrStoreClosed is returned when trying to use a closed Store.
@@ -308,6 +311,76 @@ func (s *Store) Open(ctx context.Context) error {
 	return nil
 }
 
+const (
+	wrrFileExtension     = "wrr"
+	wrrPrefixVersioned   = "_v"
+	wrrSnapshotExtension = "snapshot"
+)
+
+// generateWRRSegmentFileGlob generates a glob to find all .wrr and related files in a
+// WAL directory.
+func generateWRRSegmentFileGlob() string {
+	return fmt.Sprintf("%s*.%s*", wrrPrefixVersioned, wrrFileExtension)
+}
+
+// checkUncommittedWRR determines if there are any uncommitted WRR files found in shardWALPath.
+// shardWALPath is the path to a single shard's WAL, not the overall WAL path.
+// If no uncommitted WRR files are found, then nil is returned. Otherwise, an error indicating
+// the names of uncommitted WRR files is returned. The error returned contains the full context
+// and does not require additional information.
+func checkUncommittedWRR(shardWALPath string) error {
+	// It is OK if there are .wrr files as long as they are committed. Committed .wrr files will
+	// have a .wrr.snapshot newer than the .wrr file. If there is no .wrr.snapshot file newer
+	// than a given .wrr file, then that .wrr file is uncommitted and we should return an error
+	// indicating possible data loss due to an in-place conversion of an incompatible WAL format.
+	// Note that newness for .wrr and .wrr.snapshot files is determined lexically by the name,
+	// and not the ctime or mtime of the files.
+
+	unfilteredNames, err := filepath.Glob(filepath.Join(shardWALPath, generateWRRSegmentFileGlob()))
+	if err != nil {
+		return fmt.Errorf("error finding WRR files in %q: %w", shardWALPath, err)
+	}
+	snapshotExt := fmt.Sprintf(".%s.%s", wrrFileExtension, wrrSnapshotExtension)
+
+	// Strip out files that are not .wal or .wal.snapshot, given the glob pattern
+	// could include false positives, such as foo.wally or foo.wal.snapshotted
+	names := make([]string, 0, len(unfilteredNames))
+	for _, name := range unfilteredNames {
+		if strings.HasSuffix(name, wrrFileExtension) || strings.HasSuffix(name, snapshotExt) {
+			names = append(names, name)
+		}
+	}
+
+	sort.Strings(names)
+
+	// Find the last snapshot and collect the files after it
+	for i := len(names) - 1; i >= 0; i-- {
+		if strings.HasSuffix(names[i], snapshotExt) {
+			names = names[i+1:]
+			break
+		}
+	}
+
+	// names now contains a list of uncommitted WRR files.
+	if len(names) > 0 {
+		return fmt.Errorf("%w: uncommitted WRR files found: %v", ErrIncompatibleWAL, names)
+	}
+
+	return nil
+}
+
+// checkWALCompatibility ensures that an uncommitted WAL segments in an incompatible
+// format are not present. shardWALPath is the path to a single shard's WAL, not the
+// overall WAL path. A ErrIncompatibleWAL error with further details is returned if
+// an incompatible WAL with unflushed segments is found, The error returned contains
+// the full context and does not require additional information.
+func checkWALCompatibility(shardWALPath string) error {
+	// There is one known incompatible WAL format, the .wrr format. Finding these is a problem
+	// if they are uncommitted. OSS can not read .wrr WAL files, so any uncommitted data in them
+	// will be lost.
+	return checkUncommittedWRR(shardWALPath)
+}
+
 // generateTrailingPath returns the last part of a shard path or WAL path
 // based on the shardID, db, and rp.
 func (s *Store) generateTrailingPath(shardID uint64, db, rp string) string {
@@ -504,6 +577,21 @@ func (s *Store) loadShards(ctx context.Context) error {
 	if s.startupProgressMetrics != nil {
 		for range shards {
 			s.startupProgressMetrics.AddShard()
+		}
+	}
+
+	// Verify no incompatible WAL files. Do this before starting to load shards to fail early if found.
+	// All shards are scanned instead of stopping at just the first one so that the admin will see
+	// all the problematic shards.
+	if s.EngineOptions.WALEnabled {
+		var errs []error
+		for _, sh := range shards {
+			if err := checkWALCompatibility(s.generateWALPath(sh.id, sh.db, sh.rp)); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if len(errs) > 0 {
+			return errors.Join(errs...)
 		}
 	}
 
