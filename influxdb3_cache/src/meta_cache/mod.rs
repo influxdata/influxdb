@@ -119,10 +119,9 @@ impl MetaCache {
         }
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
-            let col = table_def
-                .columns
-                .get(id)
-                .context("invalid column id encountered while creating metadata cache")?;
+            let col = table_def.columns.get(id).with_context(|| {
+                format!("invalid column id ({id}) encountered while creating metadata cache")
+            })?;
             let data_type = match col.data_type {
                 InfluxColumnType::Tag | InfluxColumnType::Field(InfluxFieldType::String) => {
                     DataType::Utf8View
@@ -167,7 +166,7 @@ impl MetaCache {
         while let (Some(value), peek) = (val_iter.next(), val_iter.peek()) {
             let (last_seen, node) = target.0.entry(value).or_insert_with(|| {
                 is_new = true;
-                (row.time, peek.as_ref().map(|_| Node::default()))
+                (row.time, peek.is_some().then(Node::default))
             });
             *last_seen = row.time;
             if let Some(node) = node {
@@ -187,11 +186,8 @@ impl MetaCache {
     /// there cannot be multiple predicates on a single column; the caller needs to validate/transform
     /// the incoming predicates from Datafusion before calling.
     ///
-    /// Uses a [`StringViewBuilder`] to compose the set of [`RecordBatch`]es. This is convenient for
-    /// the sake of nested caches, where a predicate on a higher branch in the cache will need to have
-    /// its value in the outputted batches duplicated.
-    // NOTE: this currently does not filter out records of entries that have exceeded the `max_age`
-    // for the cache...
+    /// Entries in the cache that have not been seen since before the `max_age` of the cache will be
+    /// filtered out of the result.
     pub fn to_record_batch(&self, predicates: &[Predicate]) -> Result<RecordBatch, ArrowError> {
         // predicates may not be provided for all columns in the cache, or not be provided in the
         // order of columns in the cache. This re-orders them to the correct order, and fills in any
@@ -202,11 +198,17 @@ impl MetaCache {
             .map(|id| predicates.iter().find(|p| &p.column_id == id))
             .collect();
 
+        // Uses a [`StringViewBuilder`] to compose the set of [`RecordBatch`]es. This is convenient for
+        // the sake of nested caches, where a predicate on a higher branch in the cache will need to have
+        // its value in the outputted batches duplicated.
         let mut builders: Vec<StringViewBuilder> = (0..self.column_ids.len())
             .map(|_| StringViewBuilder::new())
             .collect();
 
-        let _ = self.data.evaluate_predicates(&predicates, &mut builders);
+        let expired_time_ns = self.expired_time_ns();
+        let _ = self
+            .data
+            .evaluate_predicates(expired_time_ns, &predicates, &mut builders);
 
         RecordBatch::try_new(
             Arc::clone(&self.schema),
@@ -223,19 +225,24 @@ impl MetaCache {
     /// of the cache is still over its `max_cardinality`, it will do another pass to bring the cache
     /// size down.
     pub fn prune(&mut self) {
-        let before_time_ns = self
-            .time_provider
-            .now()
-            .checked_sub(self.max_age)
-            .expect("max age on cache should not cause an overflow")
-            .timestamp_nanos();
+        let before_time_ns = self.expired_time_ns();
         let _ = self.data.remove_before(before_time_ns);
-        self.state.cardinality = self.data.len();
+        self.state.cardinality = self.data.cardinality();
         if self.state.cardinality > self.max_cardinality {
             let n_to_remove = self.state.cardinality - self.max_cardinality;
             self.data.remove_n_oldest(n_to_remove);
-            self.state.cardinality = self.data.len();
+            self.state.cardinality = self.data.cardinality();
         }
+    }
+
+    /// Get the nanosecond timestamp as an `i64`, before which, entries that have not been seen
+    /// since are considered expired.
+    fn expired_time_ns(&self) -> i64 {
+        self.time_provider
+            .now()
+            .checked_sub(self.max_age)
+            .expect("max age on cache should not cause an overflow")
+            .timestamp_nanos()
     }
 }
 
@@ -288,11 +295,14 @@ impl Node {
             });
     }
 
-    /// Get the total count of elements nested under this node
-    fn len(&self) -> usize {
+    /// Get the total count of unique value combinations nested under this node
+    ///
+    /// Note that this includes expired elements, which still contribute to the total size of the
+    /// cache until they are pruned.
+    fn cardinality(&self) -> usize {
         self.0
             .values()
-            .map(|(_, node)| node.as_ref().map_or(1, |node| node.len()))
+            .map(|(_, node)| node.as_ref().map_or(1, |node| node.cardinality()))
             .sum()
     }
 
@@ -309,6 +319,7 @@ impl Node {
     /// the number of columns in the cache.
     fn evaluate_predicates(
         &self,
+        expired_time_ns: i64,
         predicates: &[Option<&Predicate>],
         builders: &mut [StringViewBuilder],
     ) -> usize {
@@ -318,21 +329,23 @@ impl Node {
             .expect("predicates should not be empty");
         // if there is a predicate, evaluate it, otherwise, just grab everything from the node:
         let values_and_nodes = if let Some(predicate) = predicate {
-            self.evaluate_predicate(predicate)
+            self.evaluate_predicate(expired_time_ns, predicate)
         } else {
             self.0
                 .iter()
+                .filter(|&(_, (t, _))| (t > &expired_time_ns))
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .collect()
         };
+        let (builder, next_builders) = builders
+            .split_first_mut()
+            .expect("builders should not be empty");
         // iterate over the resulting set of values and next nodes (if this is a branch), and add
         // the values to the arrow builders:
         for (value, node) in values_and_nodes {
-            let (builder, next_builders) = builders
-                .split_first_mut()
-                .expect("builders should not be empty");
             if let Some(node) = node {
-                let count = node.evaluate_predicates(next_predicates, next_builders);
+                let count =
+                    node.evaluate_predicates(expired_time_ns, next_predicates, next_builders);
                 if count > 0 {
                     // we are not on a terminal node in the cache, so create a block, as this value
                     // repeated `count` times, i.e., depending on how many values come out of
@@ -355,31 +368,37 @@ impl Node {
 
     /// Evaluate a predicate against a [`Node`], producing a list of [`Value`]s and, if this is a
     /// branch node in the cache tree, a reference to the next [`Node`].
-    fn evaluate_predicate(&self, predicate: &Predicate) -> Vec<(Value, Option<&Node>)> {
+    fn evaluate_predicate(
+        &self,
+        expired_time_ns: i64,
+        predicate: &Predicate,
+    ) -> Vec<(Value, Option<&Node>)> {
         match &predicate.kind {
             PredicateKind::Eq(rhs) => self
                 .0
                 .get_key_value(rhs)
-                .map(|(v, (_, n))| vec![(v.clone(), n.as_ref())])
+                .and_then(|(v, (t, n))| {
+                    (t > &expired_time_ns).then(|| vec![(v.clone(), n.as_ref())])
+                })
                 .unwrap_or_default(),
             PredicateKind::NotEq(rhs) => self
                 .0
                 .iter()
-                .filter(|(v, _)| *v != rhs)
+                .filter(|(v, (t, _))| t > &expired_time_ns && *v != rhs)
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .collect(),
             PredicateKind::In(in_list) => in_list
                 .iter()
                 .filter_map(|v| {
-                    self.0
-                        .get_key_value(v)
-                        .map(|(v, (_, n))| (v.clone(), n.as_ref()))
+                    self.0.get_key_value(v).and_then(|(v, (t, n))| {
+                        (t > &expired_time_ns).then(|| (v.clone(), n.as_ref()))
+                    })
                 })
                 .collect(),
             PredicateKind::NotIn(not_in_set) => self
                 .0
                 .iter()
-                .filter(|(v, (_, _))| !not_in_set.contains(v))
+                .filter(|(v, (t, _))| t > &expired_time_ns && !not_in_set.contains(v))
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
                 .collect(),
         }
@@ -784,38 +803,24 @@ mod tests {
             }
         });
         // check the cache before prune:
-        // NOTE: need to filter out elements that have exceeded the max age in query results...
+        // NOTE: this does not include entries that have surpassed the max_age of the cache, though,
+        // there are still more than the cache's max cardinality, as it has not yet been pruned.
         let records = cache.to_record_batch(&[]).unwrap();
         assert_batches_sorted_eq!(
             [
                 "+-----------+------+",
                 "| region    | host |",
                 "+-----------+------+",
-                "| us-cent-0 | c-0  |",
-                "| us-cent-1 | c-1  |",
-                "| us-cent-2 | c-2  |",
-                "| us-cent-3 | c-3  |",
-                "| us-cent-4 | c-4  |",
                 "| us-cent-5 | c-5  |",
                 "| us-cent-6 | c-6  |",
                 "| us-cent-7 | c-7  |",
                 "| us-cent-8 | c-8  |",
                 "| us-cent-9 | c-9  |",
-                "| us-east-0 | a-0  |",
-                "| us-east-1 | a-1  |",
-                "| us-east-2 | a-2  |",
-                "| us-east-3 | a-3  |",
-                "| us-east-4 | a-4  |",
                 "| us-east-5 | a-5  |",
                 "| us-east-6 | a-6  |",
                 "| us-east-7 | a-7  |",
                 "| us-east-8 | a-8  |",
                 "| us-east-9 | a-9  |",
-                "| us-west-0 | b-0  |",
-                "| us-west-1 | b-1  |",
-                "| us-west-2 | b-2  |",
-                "| us-west-3 | b-3  |",
-                "| us-west-4 | b-4  |",
                 "| us-west-5 | b-5  |",
                 "| us-west-6 | b-6  |",
                 "| us-west-7 | b-7  |",
