@@ -541,25 +541,20 @@ impl DatabaseManager for WriteBufferImpl {
             .ok_or_else(|| self::Error::DbDoesNotExist)?;
 
         let deletion_time = self.time_provider.now();
-        // delete last cache for db
-        self.last_cache_provider().delete_caches_for_db(&db_id);
-        // clear queryable buffer
-        self.buffer.clear_buffer_for_db(&db_id);
-        // soft delete db
-        self.catalog.delete_database(db_id, deletion_time);
-        // write to wal
-        self.wal
-            .write_ops(vec![WalOp::Catalog(CatalogBatch {
-                time_ns: deletion_time.timestamp_nanos(),
+        let catalog_batch = CatalogBatch {
+            time_ns: deletion_time.timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
                 database_id: db_id,
                 database_name: Arc::clone(&db_schema.name),
-                ops: vec![CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
-                    database_id: db_id,
-                    database_name: Arc::clone(&db_schema.name),
-                    deletion_time: deletion_time.timestamp_nanos(),
-                })],
-            })])
-            .await?;
+                deletion_time: deletion_time.timestamp_nanos(),
+            })],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
         Ok(())
     }
 }
@@ -1928,7 +1923,7 @@ mod tests {
         };
         let (write_buffer, _) =
             setup_cache_optional(start_time, test_store, wal_config, false).await;
-        write_buffer
+        let _ = write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",

@@ -378,6 +378,7 @@ impl BufferState {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),
                 WalOp::Catalog(catalog_batch) => {
                     self.catalog
+                        // just catalog level changes
                         .apply_catalog_batch(&catalog_batch)
                         .expect("catalog batch should apply");
 
@@ -386,6 +387,8 @@ impl BufferState {
                         .db_schema_by_id(&catalog_batch.database_id)
                         .expect("database should exist");
 
+                    // catalog changes that has external actions are applied here
+                    // eg. creating or deleting last cache itself
                     for op in catalog_batch.ops {
                         match op {
                             CatalogOp::CreateLastCache(definition) => {
@@ -409,7 +412,11 @@ impl BufferState {
                             CatalogOp::AddFields(_) => (),
                             CatalogOp::CreateTable(_) => (),
                             CatalogOp::CreateDatabase(_) => (),
-                            CatalogOp::DeleteDatabase(_) => (),
+                            CatalogOp::DeleteDatabase(db_definition) => {
+                                self.db_to_table.remove(&db_definition.database_id);
+                                last_cache_provider
+                                    .delete_caches_for_db(&db_definition.database_id);
+                            }
                         }
                     }
                 }

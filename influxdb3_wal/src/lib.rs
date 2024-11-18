@@ -244,10 +244,6 @@ pub enum CatalogOp {
     AddFields(FieldAdditions),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
-    // This holds the new name after the old one is marked as deleted
-    // todo: maybe we need to save old and new names?
-    // or, can this name be ignored and when wal is replayed, it just
-    // creates the name again?
     DeleteDatabase(DeleteDatabaseDefinition),
 }
 

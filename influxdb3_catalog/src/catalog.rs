@@ -10,7 +10,7 @@ use influxdb3_wal::{
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::info;
+use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
@@ -230,8 +230,7 @@ impl Catalog {
         table.add_last_cache(last_cache);
         db.tables.insert(table_id, Arc::new(table));
         inner.databases.insert(db_id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        inner.set_db_updated();
     }
 
     pub fn delete_last_cache(&self, db_id: DbId, table_id: TableId, name: &str) {
@@ -251,8 +250,7 @@ impl Catalog {
         table.remove_last_cache(name);
         db.tables.insert(table_id, Arc::new(table));
         inner.databases.insert(db_id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        inner.set_db_updated();
     }
 
     pub fn instance_id(&self) -> Arc<str> {
@@ -270,10 +268,7 @@ impl Catalog {
 
     pub fn insert_database(&self, db: DatabaseSchema) {
         let mut inner = self.inner.write();
-        inner.db_map.insert(db.id, Arc::clone(&db.name));
-        inner.databases.insert(db.id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        inner.upsert_db(db);
     }
 
     pub fn is_updated(&self) -> bool {
@@ -292,28 +287,6 @@ impl Catalog {
 
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
-    }
-
-    pub fn delete_database(&self, db_id: DbId, deletion_time: Time) {
-        let db_schema = self
-            .db_schema_by_id(&db_id)
-            .expect("db should exist")
-            .as_ref()
-            .clone();
-        self.do_delete_db(db_schema, db_id, deletion_time);
-    }
-
-    fn do_delete_db(&self, mut db_schema: DatabaseSchema, db_id: DbId, deletion_time: Time) {
-        db_schema.soft_delete_db(deletion_time);
-        self.do_insert_db(db_id, db_schema);
-    }
-
-    fn do_insert_db(&self, db_id: DbId, db_schema: DatabaseSchema) {
-        let mut inner = self.inner.write();
-        inner.db_map.insert(db_id, Arc::clone(&db_schema.name));
-        inner.databases.insert(db_id, Arc::new(db_schema));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
     }
 }
 
@@ -413,42 +386,62 @@ impl InnerCatalog {
         let table_count = self.table_count();
 
         if let Some(db) = self.databases.get(&catalog_batch.database_id) {
-            let existing_table_count = db.tables.len();
-
-            if let Some(new_db) = db.new_if_updated_from_batch(catalog_batch)? {
-                let new_table_count = new_db.tables.len() - existing_table_count;
-                if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
-                    return Err(Error::TooManyTables);
-                }
-                let new_db = Arc::new(new_db);
-                self.databases.insert(new_db.id, Arc::clone(&new_db));
-                self.sequence = self.sequence.next();
-                self.updated = true;
-                self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
+                check_overall_table_count(db, &new_db, table_count)?;
+                self.upsert_db(new_db);
             }
         } else {
-            if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
-                return Err(Error::TooManyDbs);
-            }
-
-            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
-            if table_count + new_db.tables.len() > Catalog::NUM_TABLES_LIMIT {
-                return Err(Error::TooManyTables);
-            }
-
-            let new_db = Arc::new(new_db);
-            self.databases.insert(new_db.id, Arc::clone(&new_db));
-            self.sequence = self.sequence.next();
-            self.updated = true;
-            self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+            let new_db = self.check_db_count(catalog_batch, table_count)?;
+            self.upsert_db(new_db);
         }
 
         Ok(())
     }
 
+    fn check_db_count(
+        &mut self,
+        catalog_batch: &CatalogBatch,
+        table_count: usize,
+    ) -> Result<DatabaseSchema, Error> {
+        if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
+            return Err(Error::TooManyDbs);
+        }
+        let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
+        if table_count + new_db.tables.len() > Catalog::NUM_TABLES_LIMIT {
+            return Err(Error::TooManyTables);
+        }
+        Ok(new_db)
+    }
+
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.contains_key(&db_id)
     }
+
+    pub fn upsert_db(&mut self, db: DatabaseSchema) {
+        let name = Arc::clone(&db.name);
+        let id = db.id;
+        self.databases.insert(id, Arc::new(db));
+        self.set_db_updated();
+        self.db_map.insert(id, name);
+    }
+
+    fn set_db_updated(&mut self) {
+        self.sequence = self.sequence.next();
+        self.updated = true;
+    }
+}
+
+fn check_overall_table_count(
+    existing_db: &Arc<DatabaseSchema>,
+    new_db: &DatabaseSchema,
+    table_count: usize,
+) -> Result<()> {
+    let existing_table_count = existing_db.tables.len();
+    let new_table_count = new_db.tables.len() - existing_table_count;
+    if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
+        return Err(Error::TooManyTables);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -475,10 +468,14 @@ impl DatabaseSchema {
     /// Validates the updates in the `CatalogBatch` are compatible with this schema. If
     /// everything is compatible and there are no updates to the existing schema, None will be
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
-    pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
+    pub fn new_if_updated_from_batch(
+        db_schema: &DatabaseSchema,
+        catalog_batch: &CatalogBatch,
+    ) -> Result<Option<Self>> {
+        debug!(name = ?db_schema.name, deleted = ?db_schema.deleted, full_batch = ?catalog_batch, "Updating / adding to catalog");
         let mut updated_or_new_tables = SerdeVecMap::new();
         let mut schema_deleted = false;
-        let mut schema_name = Arc::clone(&self.name);
+        let mut schema_name = Arc::clone(&db_schema.name);
 
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
@@ -486,7 +483,7 @@ impl DatabaseSchema {
                 CatalogOp::CreateTable(table_definition) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&table_definition.table_id)
-                        .or_else(|| self.tables.get(&table_definition.table_id));
+                        .or_else(|| db_schema.tables.get(&table_definition.table_id));
                     if let Some(existing_table) = new_or_existing_table {
                         if let Some(new_table) =
                             existing_table.new_if_definition_adds_new_fields(table_definition)?
@@ -501,7 +498,7 @@ impl DatabaseSchema {
                 CatalogOp::AddFields(field_additions) => {
                     let Some(new_or_existing_table) = updated_or_new_tables
                         .get(&field_additions.table_id)
-                        .or_else(|| self.tables.get(&field_additions.table_id))
+                        .or_else(|| db_schema.tables.get(&field_additions.table_id))
                     else {
                         return Err(Error::TableNotFound {
                             db_name: Arc::clone(&field_additions.database_name),
@@ -517,10 +514,10 @@ impl DatabaseSchema {
                 CatalogOp::CreateLastCache(last_cache_definition) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&last_cache_definition.table_id)
-                        .or_else(|| self.tables.get(&last_cache_definition.table_id));
+                        .or_else(|| db_schema.tables.get(&last_cache_definition.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: Arc::clone(&self.name),
+                        db_name: Arc::clone(&db_schema.name),
                         table_name: Arc::clone(&last_cache_definition.table),
                     })?;
 
@@ -533,10 +530,10 @@ impl DatabaseSchema {
                 CatalogOp::DeleteLastCache(last_cache_deletion) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&last_cache_deletion.table_id)
-                        .or_else(|| self.tables.get(&last_cache_deletion.table_id));
+                        .or_else(|| db_schema.tables.get(&last_cache_deletion.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: Arc::clone(&self.name),
+                        db_name: Arc::clone(&db_schema.name),
                         table_name: Arc::clone(&last_cache_deletion.table_name),
                     })?;
 
@@ -555,10 +552,10 @@ impl DatabaseSchema {
             }
         }
 
-        if updated_or_new_tables.is_empty() {
+        if updated_or_new_tables.is_empty() && !schema_deleted {
             Ok(None)
         } else {
-            for (table_id, table_def) in &self.tables {
+            for (table_id, table_def) in &db_schema.tables {
                 if !updated_or_new_tables.contains_key(table_id) {
                     updated_or_new_tables.insert(*table_id, Arc::clone(table_def));
                 }
@@ -571,7 +568,7 @@ impl DatabaseSchema {
                 .collect();
 
             Ok(Some(Self {
-                id: self.id,
+                id: db_schema.id,
                 name: schema_name,
                 tables: updated_or_new_tables,
                 table_map: new_table_maps,
@@ -585,8 +582,7 @@ impl DatabaseSchema {
             catalog_batch.database_id,
             Arc::clone(&catalog_batch.database_name),
         );
-        let new_db = db_schema
-            .new_if_updated_from_batch(catalog_batch)?
+        let new_db = DatabaseSchema::new_if_updated_from_batch(&db_schema, catalog_batch)?
             .expect("database must be new");
         Ok(new_db)
     }
@@ -1479,19 +1475,5 @@ mod tests {
             .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
-    }
-
-    #[test]
-    fn soft_delete_db() {
-        let deletion_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
-        let db_id = DbId::new();
-        catalog.insert_database(DatabaseSchema::new(db_id, Arc::from("foo")));
-
-        catalog.delete_database(db_id, deletion_time);
-
-        let db_schema = catalog.db_schema_by_id(&db_id).unwrap();
-        assert_contains!(&*db_schema.name, "foo-20241114T110000");
-        assert!(db_schema.deleted);
     }
 }

@@ -94,7 +94,7 @@ enum Command {
     LastCache(commands::last_cache::Config),
 
     /// Manage database (delete only for the moment)
-    Database(commands::common::InfluxDb3Config),
+    Database(commands::database::ManageDatabaseConfig),
 }
 
 fn main() -> Result<(), std::io::Error> {
