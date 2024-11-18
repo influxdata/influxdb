@@ -2755,13 +2755,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arrow",
- "arrow_util",
+ "async-trait",
+ "datafusion",
+ "indexmap 2.6.0",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_wal",
  "influxdb3_write",
  "iox_time",
+ "parking_lot",
  "schema",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]

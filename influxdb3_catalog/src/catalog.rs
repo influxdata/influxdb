@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
+    MetaCacheDefinition,
 };
 use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::info;
@@ -651,6 +652,7 @@ pub struct TableDefinition {
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Option<Vec<ColumnId>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
+    pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
 }
 
 impl TableDefinition {
@@ -705,6 +707,7 @@ impl TableDefinition {
             column_map,
             series_key,
             last_caches: HashMap::new(),
+            meta_caches: HashMap::new(),
         })
     }
 
@@ -929,6 +932,12 @@ impl TableDefinition {
 
     pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &LastCacheDefinition)> {
         self.last_caches
+            .iter()
+            .map(|(name, def)| (Arc::clone(name), def))
+    }
+
+    pub fn meta_caches(&self) -> impl Iterator<Item = (Arc<str>, &MetaCacheDefinition)> {
+        self.meta_caches
             .iter()
             .map(|(name, def)| (Arc::clone(name), def))
     }
