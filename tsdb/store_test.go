@@ -25,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
+	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 	"github.com/influxdata/influxdb/v2/predicate"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
@@ -882,6 +883,122 @@ func TestStore_FlushWALOnClose(t *testing.T) {
 			expPts = expPts[:len(expPts)-1]
 			checkPoints(expPts)
 			require.Empty(t, walFiles(t, s)) // also sanity checks that WAL directories have been recreated
+		})
+	}
+}
+
+func TestStore_WRRSegments(t *testing.T) {
+	// Check if uncommitted WRR segments are identified and cause opening the store to abort.
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run("TestStore_WRRSegments_"+index, func(t *testing.T) {
+			idGen := snowflake.New(0)
+			generateWRRSegmentName := func() string {
+				return fmt.Sprintf("_v01_%020d.wrr", idGen.Next())
+			}
+			createFile := func(t *testing.T, fn string) {
+				t.Helper()
+				require.NoError(t, os.WriteFile(fn, nil, 0666))
+			}
+			createWRR := func(t *testing.T, path string) string {
+				t.Helper()
+				fn := filepath.Join(path, generateWRRSegmentName())
+				createFile(t, fn)
+				return fn
+			}
+			generateWRRSnapshotName := func() string {
+				return generateWRRSegmentName() + ".snapshot"
+			}
+			createWRRSnapshot := func(t *testing.T, path string) string {
+				t.Helper()
+				fn := filepath.Join(path, generateWRRSnapshotName())
+				createFile(t, fn)
+				return fn
+			}
+			checkWRRError := func(t *testing.T, err error, wrrs ...[]string) {
+				t.Helper()
+				require.ErrorIs(t, err, tsdb.ErrIncompatibleWAL)
+				require.ErrorContains(t, err, "incompatible WAL format: uncommitted WRR files found")
+				// We don't know the exact order of the errors if there are multiple shards with
+				// uncommitted WRRs, but this will insure that all of them are included in the error
+				// message.
+				for _, w := range wrrs {
+					if len(w) > 0 {
+						require.ErrorContains(t, err, fmt.Sprintf("%v", w))
+					}
+				}
+			}
+
+			s := MustOpenStore(t, index, WithWALFlushOnShutdown(true))
+			defer s.Close()
+
+			// Create shard #0 with data.
+			s.MustCreateShardWithData("db0", "rp0", 0,
+				`cpu,host=serverA value=1  0`,
+				`cpu,host=serverA value=2 10`,
+				`cpu,host=serverB value=3 20`,
+			)
+
+			// Create shard #1 with data.
+			s.MustCreateShardWithData("db0", "rp0", 1,
+				`cpu,host=serverA value=1 30`,
+				`cpu,host=serverC value=3 60`,
+			)
+
+			sh0WALPath := filepath.Join(s.walPath, "db0", "rp0", "0")
+			require.DirExists(t, sh0WALPath)
+			sh1WALPath := filepath.Join(s.walPath, "db0", "rp0", "1")
+			require.DirExists(t, sh1WALPath)
+
+			// No WRR segments, no error
+			require.NoError(t, s.Reopen(t))
+
+			// 1 uncommitted WRR segment in shard 0
+			var sh0Uncommitted, sh1Uncommitted []string
+			checkReopen := func(t *testing.T) {
+				t.Helper()
+				allUncommitted := [][]string{sh0Uncommitted, sh1Uncommitted}
+				var hasUncommitted bool
+				for _, u := range allUncommitted {
+					if len(u) > 0 {
+						hasUncommitted = true
+					}
+				}
+
+				if hasUncommitted {
+					checkWRRError(t, s.Reopen(t), allUncommitted...)
+				} else {
+					require.NoError(t, s.Reopen(t))
+				}
+			}
+			sh0Uncommitted = append(sh0Uncommitted, createWRR(t, sh0WALPath))
+			checkReopen(t)
+
+			// 2 uncommitted WRR segments in shard 0
+			sh0Uncommitted = append(sh0Uncommitted, createWRR(t, sh0WALPath))
+			checkReopen(t)
+
+			// 2 uncommitted WR segments in shard 0, 1 in shard 1
+			sh1Uncommitted = append(sh1Uncommitted, createWRR(t, sh1WALPath))
+			checkReopen(t)
+
+			// No uncommitted WRR in shard 0, 1 in shard 1
+			createWRRSnapshot(t, sh0WALPath)
+			sh0Uncommitted = nil
+			checkReopen(t)
+
+			// No uncommitted WRR segments
+			createWRRSnapshot(t, sh1WALPath)
+			sh1Uncommitted = nil
+			checkReopen(t)
+
+			// Add 1 uncommitted to shard 1
+			sh1Uncommitted = append(sh1Uncommitted, createWRR(t, sh1WALPath))
+			checkReopen(t)
+
+			// No uncommitted WRR segments
+			createWRRSnapshot(t, sh1WALPath)
+			sh1Uncommitted = nil
+			checkReopen(t)
 		})
 	}
 }
