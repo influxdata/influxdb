@@ -2750,6 +2750,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_cache"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow_util",
+ "influxdb3_catalog",
+ "influxdb3_id",
+ "influxdb3_wal",
+ "influxdb3_write",
+ "iox_time",
+ "schema",
+]
+
+[[package]]
 name = "influxdb3_catalog"
 version = "0.1.0"
 dependencies = [
