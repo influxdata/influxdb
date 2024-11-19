@@ -260,14 +260,12 @@ impl Client {
     }
 
     /// Make a request to the `DELETE /api/v3/configure/database?db=foo` API
-    pub async fn api_v3_configure_db_delete(&self, db: impl Into<String> + Send) -> Result<()> {
+    pub async fn api_v3_configure_db_delete(&self, db: impl AsRef<str> + Send) -> Result<()> {
         let api_path = "/api/v3/configure/database";
-        let db_query_param = format!("db={}", db.into());
 
         let mut url = self.base_url.join(api_path)?;
-        url.set_query(Some(&db_query_param));
 
-        let mut req = self.http_client.delete(url);
+        let mut req = self.http_client.delete(url).query(&[("db", db.as_ref())]);
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
