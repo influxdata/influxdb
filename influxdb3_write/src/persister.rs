@@ -263,6 +263,31 @@ impl Persister {
         self.object_store
             .put(catalog_path.as_ref(), json.into())
             .await?;
+        // It's okay if this fails as it's just cleanup of the old catalog
+        // a new persist will come in and clean the old one up.
+        let prefix = self.host_identifier_prefix.clone();
+        let obj_store = Arc::clone(&self.object_store);
+        tokio::spawn(async move {
+            let mut items = Vec::new();
+            let mut stream = obj_store.list(Some(&format!("{}/catalogs", prefix).into()));
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(item) => items.push(item),
+                    Err(_) => return,
+                }
+            }
+
+            // We want to sort by the newest paths first
+            items.sort_by(|a, b| a.location.cmp(&b.location));
+
+            // We skip over the ten most recent catalogs and delete any leftovers
+            // In most cases this will just be one of them.
+            for item in items.iter().skip(10) {
+                if obj_store.delete(&item.location).await.is_err() {
+                    return;
+                }
+            }
+        });
         Ok(())
     }
 
@@ -399,10 +424,14 @@ mod tests {
     use crate::{DatabaseTables, ParquetFile, ParquetFileId};
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-    use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use influxdb3_wal::{
+        CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, SnapshotSequenceNumber,
+        TableDefinition, WalFileSequenceNumber,
+    };
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
+    use tokio::time::{sleep, Duration};
     use {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
         arrow::datatypes::Schema, chrono::Utc,
@@ -421,6 +450,124 @@ mod tests {
         let _ = catalog.db_or_create("my_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn persist_catalog_with_cleanup() {
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let prefix = test_helpers::tmp_dir().unwrap();
+        let local_disk = LocalFileSystem::new_with_prefix(prefix).unwrap();
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(local_disk);
+        let persister = Persister::new(Arc::clone(&obj_store), "test_host");
+        let catalog = Catalog::new(Arc::clone(&host_id), instance_id);
+        persister.persist_catalog(&catalog).await.unwrap();
+        let db_schema = catalog.db_or_create("my_db_1").unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
+        let _ = catalog.db_or_create("my_db_2").unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
+        let _ = catalog.db_or_create("my_db_3").unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
+        let _ = catalog.db_or_create("my_db_4").unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
+        let _ = catalog.db_or_create("my_db_5").unwrap();
+        persister.persist_catalog(&catalog).await.unwrap();
+
+        let batch = |name: &str, num: u32| {
+            let _ = catalog.apply_catalog_batch(&CatalogBatch {
+                database_id: db_schema.id,
+                database_name: Arc::clone(&db_schema.name),
+                time_ns: 5000,
+                ops: vec![CatalogOp::CreateTable(TableDefinition {
+                    database_id: db_schema.id,
+                    database_name: Arc::clone(&db_schema.name),
+                    table_name: name.into(),
+                    table_id: TableId::from(num),
+                    field_definitions: vec![FieldDefinition {
+                        name: "column".into(),
+                        id: ColumnId::from(num),
+                        data_type: FieldDataType::String,
+                    }],
+                    key: None,
+                })],
+            });
+        };
+
+        batch("table_zero", 0);
+        persister.persist_catalog(&catalog).await.unwrap();
+        batch("table_one", 1);
+        persister.persist_catalog(&catalog).await.unwrap();
+        batch("table_two", 2);
+        persister.persist_catalog(&catalog).await.unwrap();
+        batch("table_three", 3);
+        persister.persist_catalog(&catalog).await.unwrap();
+
+        // We've persisted the catalog 10 times and nothing has changed
+        // So now we need to persist the catalog two more times and we should
+        // see the first 2 catalogs be dropped.
+        batch("table_four", 4);
+        persister.persist_catalog(&catalog).await.unwrap();
+        batch("table_five", 5);
+        persister.persist_catalog(&catalog).await.unwrap();
+
+        // Make sure the deletions have all ocurred
+        sleep(Duration::from_secs(2)).await;
+
+        let mut stream = obj_store.list(None);
+        let mut items = Vec::new();
+        while let Some(item) = stream.next().await {
+            items.push(item.unwrap());
+        }
+
+        // Sort by oldest fisrt
+        items.sort_by(|a, b| b.location.cmp(&a.location));
+
+        assert_eq!(items.len(), 10);
+        // The first path should contain this number meaning we've
+        // eliminated the first two items
+        assert_eq!(18446744073709551613, u64::MAX - 2);
+
+        // Assert that we have 10 catalogs of decreasing number
+        assert_eq!(
+            items[0].location,
+            "test_host/catalogs/18446744073709551613.json".into()
+        );
+        assert_eq!(
+            items[1].location,
+            "test_host/catalogs/18446744073709551612.json".into()
+        );
+        assert_eq!(
+            items[2].location,
+            "test_host/catalogs/18446744073709551611.json".into()
+        );
+        assert_eq!(
+            items[3].location,
+            "test_host/catalogs/18446744073709551610.json".into()
+        );
+        assert_eq!(
+            items[4].location,
+            "test_host/catalogs/18446744073709551609.json".into()
+        );
+        assert_eq!(
+            items[5].location,
+            "test_host/catalogs/18446744073709551608.json".into()
+        );
+        assert_eq!(
+            items[6].location,
+            "test_host/catalogs/18446744073709551607.json".into()
+        );
+        assert_eq!(
+            items[7].location,
+            "test_host/catalogs/18446744073709551606.json".into()
+        );
+        assert_eq!(
+            items[8].location,
+            "test_host/catalogs/18446744073709551605.json".into()
+        );
+        assert_eq!(
+            items[9].location,
+            "test_host/catalogs/18446744073709551604.json".into()
+        );
     }
 
     #[tokio::test]
