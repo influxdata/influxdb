@@ -95,7 +95,8 @@ expression: catalog
               ]
             }
           ]
-        ]
+        ],
+        "deleted": false
       }
     ]
   ],

@@ -259,6 +259,30 @@ impl Client {
         }
     }
 
+    /// Make a request to the `DELETE /api/v3/configure/database?db=foo` API
+    pub async fn api_v3_configure_db_delete(&self, db: impl AsRef<str> + Send) -> Result<()> {
+        let api_path = "/api/v3/configure/database";
+
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self.http_client.delete(url).query(&[("db", db.as_ref())]);
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
     /// Send a `/ping` request to the target `influxdb3` server to check its
     /// status and gather `version` and `revision` information
     pub async fn ping(&self) -> Result<PingResponse> {
