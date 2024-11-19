@@ -38,6 +38,7 @@ struct DatabaseSnapshot {
     id: DbId,
     name: Arc<str>,
     tables: SerdeVecMap<TableId, TableSnapshot>,
+    deleted: bool,
 }
 
 impl From<&DatabaseSchema> for DatabaseSnapshot {
@@ -50,6 +51,7 @@ impl From<&DatabaseSchema> for DatabaseSnapshot {
                 .iter()
                 .map(|(table_id, table_def)| (*table_id, table_def.as_ref().into()))
                 .collect(),
+            deleted: db.deleted,
         }
     }
 }
@@ -70,9 +72,7 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
             name: snap.name,
             tables,
             table_map,
-            // todo: check if it's right to default to false here,
-            //       not sure where this is called
-            deleted: false,
+            deleted: snap.deleted,
         }
     }
 }

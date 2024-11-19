@@ -1154,7 +1154,8 @@ mod tests {
                             "id": 0,
                             "name": "db1",
                             "tables": [],
-                            "table_map": []
+                            "table_map": [],
+                            "deleted": false
                         }
                     ],
                     [
@@ -1163,7 +1164,8 @@ mod tests {
                             "id": 0,
                             "name": "db1",
                             "tables": [],
-                            "table_map": []
+                            "table_map": [],
+                            "deleted": false
                         }
                     ]
                 ],
@@ -1203,7 +1205,8 @@ mod tests {
                                         "next_column_id": 0
                                     }
                                 ]
-                            ]
+                            ],
+                            "deleted": false
                         }
                     ]
                 ],
@@ -1254,7 +1257,8 @@ mod tests {
                                         ]
                                     }
                                 ]
-                            ]
+                            ],
+                            "deleted": false
                         }
                     ]
                 ]

@@ -249,7 +249,8 @@ expression: catalog
               ]
             }
           ]
-        ]
+        ],
+        "deleted": false
       }
     ]
   ],
