@@ -227,6 +227,10 @@ impl Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound(_)) => Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
                 | CatalogError::TooManyColumns

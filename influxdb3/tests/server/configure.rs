@@ -1,5 +1,8 @@
 use hyper::StatusCode;
+use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
+use serde_json::{json, Value};
+use test_helpers::assert_contains;
 
 use crate::TestServer;
 
@@ -369,9 +372,9 @@ async fn api_v3_configure_last_cache_delete() {
     }
 }
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn api_v3_configure_db_delete() {
-    let db_name = "db";
+    let db_name = "foo";
     let tbl_name = "tbl";
     let server = TestServer::spawn().await;
     let client = reqwest::Client::new();
@@ -389,12 +392,86 @@ async fn api_v3_configure_db_delete() {
         .await
         .expect("write to db");
 
+    // check foo db is present
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    assert_eq!(json!([{ "iox::database": "foo" } ]), result);
+
     let resp = client
         .delete(&url)
         .send()
         .await
         .expect("delete database call succeed");
     assert_eq!(200, resp.status());
+
+    // check foo db is now foo-YYYYMMDD..
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    assert_eq!(1, array_result.len());
+    let first_db = array_result.first().unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "foo-"
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    // check there are 2 dbs now, foo and foo-*
+    assert_eq!(2, array_result.len());
+    let first_db = array_result.first().unwrap();
+    let second_db = array_result.get(1).unwrap();
+    assert_eq!(
+        "foo",
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+    );
+    assert_contains!(
+        second_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "foo-"
+    );
 }
 
 #[tokio::test]
@@ -412,7 +489,7 @@ async fn api_v3_configure_db_delete_no_db() {
         .send()
         .await
         .expect("delete database call succeed");
-    assert_eq!(StatusCode::INTERNAL_SERVER_ERROR, resp.status());
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
 }
 
 #[tokio::test]

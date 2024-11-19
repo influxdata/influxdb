@@ -34,9 +34,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("database not found {db_name}")]
-    DatabaseNotFound { db_name: String },
-
     #[error("object store path error: {0}")]
     ObjStorePath(#[from] object_store::path::Error),
 

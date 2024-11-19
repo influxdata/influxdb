@@ -94,5 +94,5 @@ async fn test_delete_missing_database() {
         &server_addr,
     ]);
     debug!(result = ?result, "delete missing database");
-    assert_contains!(&result, "Error");
+    assert_contains!(&result, "404");
 }

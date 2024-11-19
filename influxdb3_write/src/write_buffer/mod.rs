@@ -76,6 +76,9 @@ pub enum Error {
     #[error("error in last cache: {0}")]
     LastCacheError(#[from] last_cache::Error),
 
+    #[error("database not found {0}")]
+    DatabaseNotFound(String),
+
     #[error("tried accessing database and table that do not exist")]
     DbDoesNotExist,
 
@@ -538,7 +541,7 @@ impl DatabaseManager for WriteBufferImpl {
         let (db_id, db_schema) = self
             .catalog
             .db_id_and_schema(&name)
-            .ok_or_else(|| self::Error::DbDoesNotExist)?;
+            .ok_or_else(|| self::Error::DatabaseNotFound(name))?;
 
         let deletion_time = self.time_provider.now();
         let catalog_batch = CatalogBatch {

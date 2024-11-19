@@ -263,7 +263,7 @@ impl Client {
     pub async fn api_v3_configure_db_delete(&self, db: impl AsRef<str> + Send) -> Result<()> {
         let api_path = "/api/v3/configure/database";
 
-        let mut url = self.base_url.join(api_path)?;
+        let url = self.base_url.join(api_path)?;
 
         let mut req = self.http_client.delete(url).query(&[("db", db.as_ref())]);
         if let Some(token) = &self.auth_token {

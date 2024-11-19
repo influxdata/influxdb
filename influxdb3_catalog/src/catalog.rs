@@ -387,30 +387,19 @@ impl InnerCatalog {
 
         if let Some(db) = self.databases.get(&catalog_batch.database_id) {
             if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
-                check_overall_table_count(db, &new_db, table_count)?;
+                check_overall_table_count(Some(db), &new_db, table_count)?;
                 self.upsert_db(new_db);
             }
         } else {
-            let new_db = self.check_db_count(catalog_batch, table_count)?;
+            if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
+                return Err(Error::TooManyDbs);
+            }
+            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
+            check_overall_table_count(None, &new_db, table_count)?;
             self.upsert_db(new_db);
         }
 
         Ok(())
-    }
-
-    fn check_db_count(
-        &mut self,
-        catalog_batch: &CatalogBatch,
-        table_count: usize,
-    ) -> Result<DatabaseSchema, Error> {
-        if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
-            return Err(Error::TooManyDbs);
-        }
-        let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
-        if table_count + new_db.tables.len() > Catalog::NUM_TABLES_LIMIT {
-            return Err(Error::TooManyTables);
-        }
-        Ok(new_db)
     }
 
     pub fn db_exists(&self, db_id: DbId) -> bool {
@@ -432,13 +421,17 @@ impl InnerCatalog {
 }
 
 fn check_overall_table_count(
-    existing_db: &Arc<DatabaseSchema>,
+    existing_db: Option<&Arc<DatabaseSchema>>,
     new_db: &DatabaseSchema,
-    table_count: usize,
+    current_table_count: usize,
 ) -> Result<()> {
-    let existing_table_count = existing_db.tables.len();
-    let new_table_count = new_db.tables.len() - existing_table_count;
-    if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
+    let existing_table_count = if let Some(existing_db) = existing_db {
+        existing_db.tables.len()
+    } else {
+        0
+    };
+    let newly_added_table_count = new_db.tables.len() - existing_table_count;
+    if current_table_count + newly_added_table_count > Catalog::NUM_TABLES_LIMIT {
         return Err(Error::TooManyTables);
     }
     Ok(())
