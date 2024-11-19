@@ -149,26 +149,14 @@ impl WriteBufferImpl {
         let last_snapshot_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.snapshot_sequence_number);
-        // Set the next db id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_db_id.set_next_id())
-            .unwrap_or(());
-        // Set the next table id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_table_id.set_next_id())
-            .unwrap_or(());
-        // Set the next table id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_column_id.set_next_id())
-            .unwrap_or(());
-        // Set the next file id to use when persisting ParquetFiles
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_file_id.set_next_id())
-            .unwrap_or(());
+        // If we have any snapshots, set sequential IDs from the newest one.
+        if let Some(first_snapshot) = persisted_snapshots.first() {
+            first_snapshot.next_db_id.set_next_id();
+            first_snapshot.next_table_id.set_next_id();
+            first_snapshot.next_column_id.set_next_id();
+            first_snapshot.next_file_id.set_next_id();
+        }
+
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -1353,15 +1341,16 @@ mod tests {
     #[tokio::test]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let (wbuf, _) = setup(
+        let wal_config = WalConfig {
+            gen1_duration: influxdb3_wal::Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (mut wbuf, mut ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
-            WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 1,
-            },
+            wal_config,
         )
         .await;
 
@@ -1391,20 +1380,15 @@ mod tests {
 
         // wait for snapshot to be created:
         verify_snapshot_count(1, &wbuf.persister).await;
-
-        // Now drop the write buffer, and create a new one that replays:
-        drop(wbuf);
-        let (wbuf, ctx) = setup(
-            Time::from_timestamp_nanos(0),
-            Arc::clone(&obj_store),
-            WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 1,
-            },
-        )
-        .await;
+        // initialize twice
+        for _i in 0..2 {
+            (wbuf, ctx) = setup(
+                Time::from_timestamp_nanos(0),
+                Arc::clone(&obj_store),
+                wal_config,
+            )
+            .await;
+        }
 
         // Get the record batches from replayed buffer:
         let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
