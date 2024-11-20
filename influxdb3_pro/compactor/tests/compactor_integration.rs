@@ -1,5 +1,6 @@
 mod common;
 
+use crate::common::build_parquet_cache_prefetcher;
 use arrow_array::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
 use datafusion::execution::context::SessionContext;
@@ -10,8 +11,7 @@ use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::modes::read_write::ReadWriteArgs;
 use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
-use influxdb3_pro_compactor::Compactor;
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::last_cache::LastCacheProvider;
@@ -29,10 +29,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-use crate::common::build_parquet_cache_prefetcher;
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ignore = "flakey test as it depends on the timing of other writer to read"]
 async fn two_writers_gen1_compaction() {
     let metrics = Arc::new(metric::Registry::default());
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -85,11 +82,18 @@ async fn two_writers_gen1_compaction() {
 
     let compactor_id = "compact";
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
-    let compacted_data = CompactedData::load_compacted_data(
+    let obj_store = Arc::new(InMemory::new());
+    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
+
+    let compaction_producer = CompactedDataProducer::new(
         compactor_id,
+        vec!["writer1".to_string(), "writer2".to_string()],
         compaction_config,
+        Arc::new(RwLock::new(ProConfig::default())),
         Arc::clone(&object_store),
-        Arc::clone(&writer1_catalog),
+        writer1_persister.object_store_url().clone(),
+        Arc::clone(&exec),
+        parquet_cache_prefetcher,
     )
     .await
     .unwrap();
@@ -109,51 +113,49 @@ async fn two_writers_gen1_compaction() {
                 vec![writer2_id.to_string()],
             )),
             parquet_cache: None,
-            compacted_data: Some(Arc::clone(&compacted_data)),
+            compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
         })
         .await
         .unwrap(),
     );
-    let obj_store = Arc::new(InMemory::new());
-    let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
-    let compactor = Compactor::new(
-        Arc::clone(&compacted_data),
-        Arc::clone(&writer1_catalog),
-        writer1_persister.object_store_url().clone(),
-        Arc::clone(&exec),
-        parquet_cache_prefetcher,
-        Arc::new(RwLock::new(ProConfig::default())),
-    )
-    .await
-    .unwrap();
+    let compaction_producer = Arc::new(compaction_producer);
+    let compaction_producer_clone = Arc::clone(&compaction_producer);
 
     // run the compactor on the DataFusion executor, but don't drop it
-    let _t = exec.executor().spawn(compactor.compact()).boxed();
+    let _t = exec
+        .executor()
+        .spawn(async move {
+            compaction_producer_clone
+                .compact(Duration::from_millis(10))
+                .await;
+        })
+        .boxed();
 
-    let mut snapshot_notify = compacted_data.snapshot_notification_receiver();
     // each call to do_writes will force a snapshot. We want to do two for each writer,
     // which will then trigger a compaction. We also want to do one more snapshot each
     // so that we'll have non-compacted files show up in this query too.
     do_writes(read_write_mode.as_ref(), writer1_id, 0, 1).await;
-    let _ = snapshot_notify.recv().await;
     do_writes(&writer2_buffer, writer2_id, 0, 2).await;
-    let _ = snapshot_notify.recv().await;
     do_writes(read_write_mode.as_ref(), writer1_id, 1, 1).await;
-    let _ = snapshot_notify.recv().await;
     do_writes(&writer2_buffer, writer2_id, 1, 2).await;
-    let _ = snapshot_notify.recv().await;
     do_writes(read_write_mode.as_ref(), writer1_id, 2, 1).await;
-    let _ = snapshot_notify.recv().await;
     do_writes(&writer2_buffer, writer2_id, 2, 2).await;
-    let _ = snapshot_notify.recv().await;
 
-    // wait for a compaction to happen
+    // wait for two compactions to happen
     let mut count = 0;
     loop {
-        let (db_id, db_schema) = writer1_catalog.db_schema_and_id("test_db").unwrap();
+        let (db_id, db_schema) = compaction_producer
+            .compacted_data
+            .compacted_catalog
+            .catalog
+            .db_schema_and_id("test_db")
+            .unwrap();
         let table_id = db_schema.table_name_to_id("m1").unwrap();
-        if let Some(detail) = compacted_data.get_last_compaction_detail(db_id, table_id) {
+        if let Some(detail) = compaction_producer
+            .compacted_data
+            .compaction_detail(db_id, table_id)
+        {
             if detail.sequence_number.as_u64() > 1 {
                 // we should have a single compacted generation
                 assert_eq!(
@@ -162,7 +164,8 @@ async fn two_writers_gen1_compaction() {
                     "should have a single generation. compaction details: {:?}",
                     detail
                 );
-                // nothing should be leftover as it should all now exist in gen3
+                // we should have 1 leftover gen1 file from writer1, which is the trailing chunk
+                // from the 120 time block.
                 assert_eq!(
                     detail.leftover_gen1_files.len(),
                     1,
@@ -179,16 +182,18 @@ async fn two_writers_gen1_compaction() {
         }
     }
 
-    // we need to wait for the replica to read writer2's last writes to ensure they
-    // show up. Not the best way to handle this, but it'll work for now. Can fix up if
-    // it ends up being too flakey.
-    tokio::time::sleep(Duration::from_millis(1000)).await;
-
     // query and make sure all the data is there
     let ctx = exec.new_context();
     let chunks = read_write_mode
         .get_table_chunks("test_db", "m1", &[], None, &ctx.inner().state())
         .unwrap();
+
+    // I don't know why this test is flakey at this point. It has something to do with the last
+    // row that gets written from writer 2, which is this:
+    //             "| 208.0 | 1970-01-01T00:02:00.000000208Z | writer2 |",
+    // That row should be in the write buffer in the same buffer chunk as 206 and 207, but it's not.
+    // I think this may be something unrelated to compaction and more related to how the write
+    // buffer works. But this definitely deserves deeper investigation.
 
     let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
     assert_batches_sorted_eq!(

@@ -7,7 +7,7 @@ use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
 use influxdb3_write::{
@@ -64,7 +64,6 @@ impl ReadMode {
                 hosts,
                 parquet_cache,
                 catalog,
-                compacted_data: compacted_data.clone(),
             })
             .await
             .context("failed to initialize replicas")?,
@@ -121,15 +120,12 @@ impl ChunkContainer for ReadMode {
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let (db_id, db_schema) =
-            self.catalog()
-                .db_schema_and_id(database_name)
-                .ok_or_else(|| {
-                    DataFusionError::Execution(format!("Database {} not found", database_name))
-                })?;
+        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
+            DataFusionError::Execution(format!("Database {} not found", database_name))
+        })?;
 
-        let (table_id, table_schema) = db_schema
-            .table_schema_and_id(table_name)
+        let table_schema = db_schema
+            .table_schema(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
 
         let mut buffer_chunks = self
@@ -138,8 +134,11 @@ impl ChunkContainer for ReadMode {
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
         if let Some(compacted_data) = &self.compacted_data {
-            let (parquet_files, host_markers) =
-                compacted_data.get_parquet_files_and_host_markers(db_id, table_id, filters);
+            let (parquet_files, host_markers) = compacted_data.get_parquet_files_and_host_markers(
+                database_name,
+                table_name,
+                filters,
+            );
 
             buffer_chunks.extend(
                 parquet_files

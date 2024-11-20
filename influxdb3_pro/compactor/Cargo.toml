@@ -26,6 +26,7 @@ influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_write = { path = "../../influxdb3_write" }
 
 # Crates.io dependencies
+anyhow.workspace = true
 arrow.workspace = true
 arrow-schema.workspace = true
 async-trait.workspace = true
@@ -41,6 +42,9 @@ parking_lot.workspace = true
 parquet.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 arrow-array.workspace = true

@@ -1,11 +1,14 @@
 //! Planner contains logic for organizing compaction within a table and creating compaction plans.
 
+use crate::compacted_data::CompactedData;
+use crate::producer::Gen1FileMap;
 use hashbrown::HashMap;
-use influxdb3_id::{DbId, TableId};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
 use influxdb3_pro_data_layout::{
-    CompactionConfig, Generation, GenerationId, GenerationLevel, HostSnapshotMarker,
+    CompactionConfig, CompactionDetail, Gen1File, Generation, GenerationLevel,
 };
+use object_store::path::Path;
+use observability_deps::tracing::warn;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -18,123 +21,179 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
-pub(crate) struct SnapshotAdvancePlan {
-    /// The host snapshot markers that will be saved at the end of this advance plan being run
-    pub(crate) host_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
-    /// The compaction plans that must be run to advance the snapshot summary beyond these snapshots
-    pub(crate) compaction_plans: HashMap<DbId, Vec<CompactionPlan>>,
-}
-
-impl SnapshotAdvancePlan {
-    /// Evaluates the snapshots sitting in compacted data along with the existing
-    /// generations to determine if the snapshots should be advance. If so, it will
-    /// return a plan. After running all compactions, the compaction summary will
-    /// be updated to mark the new snapshot position per host.
-    pub(crate) fn should_advance(compacted_data: &CompactedData) -> Option<Self> {
-        let must_advance = compacted_data.should_compact_and_advance_snapshots();
-        let mut next_compaction_present = false;
-        let mut compaction_plans = HashMap::new();
-
-        let (gen1_tables, host_snapshot_markers) =
-            compacted_data.tables_with_gen1_awaiting_compaction_and_markers();
-
-        for (db_id, table_map) in gen1_tables {
-            let plans = compaction_plans.entry(db_id).or_insert_with(Vec::new);
-            for (table_id, generations) in table_map {
-                if let Some(plan) = create_next_plan(
-                    &compacted_data.compaction_config,
-                    db_id,
-                    table_id,
-                    &generations,
-                    GenerationLevel::two(),
-                    host_snapshot_markers.len(),
-                    must_advance,
-                ) {
-                    next_compaction_present = true;
-                    plans.push(CompactionPlan::Compaction(plan));
-                } else {
-                    let plan = CompactionPlan::LeftoverOnly(LeftoverPlan {
-                        db_id,
-                        table_id,
-                        leftover_gen1_ids: generations
-                            .iter()
-                            .filter_map(|g| {
-                                if g.level.is_under_two() {
-                                    Some(g.id)
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
-                    });
-                    plans.push(plan);
-                }
-            }
-        }
-
-        if must_advance || next_compaction_present {
-            Some(SnapshotAdvancePlan {
-                host_snapshot_markers,
-                compaction_plans,
-            })
-        } else {
-            None
-        }
-    }
-}
-
 /// This is a group of compaction plans, generally at the same level that can be run that will
 /// be used to output a new summary when complete
 #[derive(Debug)]
 pub(crate) struct CompactionPlanGroup {
     /// The compaction plans that must be run to advance the compaction summary
-    pub(crate) compaction_plans: Vec<NextCompactionPlan>,
+    pub(crate) next_compaction_plans: Vec<NextCompactionPlan>,
+    pub(crate) leftover_plans: Vec<LeftoverPlan>,
 }
 
 impl CompactionPlanGroup {
     pub(crate) fn plans_for_level(
+        compaction_config: &CompactionConfig,
         compacted_data: &CompactedData,
+        new_files_to_compact: &Gen1FileMap,
         output_level: GenerationLevel,
     ) -> Option<Self> {
-        let host_count = compacted_data.last_snapshot_marker_per_host().len();
-        let mut compaction_plans = Vec::new();
-        for db_id in compacted_data.databases() {
-            for table_id in compacted_data.tables(db_id) {
-                let generations = compacted_data.get_generations(db_id, table_id);
-                if let Some(plan) = create_next_plan(
-                    &compacted_data.compaction_config,
-                    db_id,
-                    table_id,
-                    &generations,
+        let mut next_compaction_plans = Vec::new();
+        let mut leftover_plans = Vec::new();
+
+        let mut db_ids = compacted_data.db_ids();
+        db_ids.extend(new_files_to_compact.keys());
+        db_ids.sort_unstable();
+        db_ids.dedup();
+
+        for db_id in db_ids {
+            let mut table_ids = compacted_data.table_ids(db_id);
+            if let Some(new_table_ids) = new_files_to_compact
+                .get(&db_id)
+                .map(|t| t.keys().copied().collect::<Vec<_>>())
+            {
+                table_ids.extend(new_table_ids);
+            }
+
+            table_ids.sort_unstable();
+            table_ids.dedup();
+
+            for table_id in table_ids {
+                let compaction_detail = compacted_data.compaction_detail(db_id, table_id);
+                let gen1_files = new_files_to_compact
+                    .get(&db_id)
+                    .and_then(|t| t.get(&table_id));
+                let db_schema = compacted_data
+                    .compacted_catalog
+                    .catalog
+                    .db_schema_by_id(&db_id)
+                    .expect("database schema should exist");
+                let table_definition = db_schema
+                    .table_definition_by_id(&table_id)
+                    .expect("table schema should exist");
+
+                let plan = create_next_plan(
+                    compacted_data,
+                    compaction_config,
+                    Arc::clone(&db_schema),
+                    Arc::clone(&table_definition),
                     output_level,
-                    host_count,
-                    false, // this plan is created in between snapshots, so it's not about advancing
-                ) {
-                    compaction_plans.push(plan);
+                    compaction_detail,
+                    gen1_files,
+                );
+
+                if let Some(plan) = plan {
+                    next_compaction_plans.push(plan);
+                } else if let Some(gen1_files) = gen1_files {
+                    leftover_plans.push(LeftoverPlan {
+                        db_schema: Arc::clone(&db_schema),
+                        table_definition: Arc::clone(&table_definition),
+                        leftover_gen1_files: gen1_files.to_vec(),
+                    });
                 }
             }
         }
 
-        if compaction_plans.is_empty() {
+        if next_compaction_plans.is_empty() {
             None
         } else {
-            Some(Self { compaction_plans })
+            Some(Self {
+                next_compaction_plans,
+                leftover_plans,
+            })
         }
     }
 }
 
 /// Given a list of generations, returns the next compaction plan of the passed in generation to
 /// run. If there are no compactions to run at that level, it will return None.
-pub(crate) fn create_next_plan(
+fn create_next_plan(
+    compacted_data: &CompactedData,
     compaction_config: &CompactionConfig,
-    db_id: DbId,
-    table_id: TableId,
+    db_schema: Arc<DatabaseSchema>,
+    table_definition: Arc<TableDefinition>,
+    output_level: GenerationLevel,
+    last_compaction_detail: Option<Arc<CompactionDetail>>,
+    new_gen1_files: Option<&Vec<Gen1File>>,
+) -> Option<NextCompactionPlan> {
+    let mut generations = last_compaction_detail
+        .as_ref()
+        .map(|d| {
+            let mut generations = d.compacted_generations.clone();
+            generations.extend(d.leftover_gen1_files.iter().map(|g| g.generation()));
+            generations
+        })
+        .unwrap_or_default();
+
+    if let Some(gen1_files) = new_gen1_files {
+        generations.extend(gen1_files.iter().map(|f| f.generation()));
+    }
+
+    generations.sort();
+
+    if let Some((output_generation, input_generations)) =
+        compaction_for_level(&generations, output_level, compaction_config)
+    {
+        let mut input_paths = vec![];
+        let mut leftover_gen1_files = vec![];
+
+        // put any gen1 files that aren't in the input ids into the leftover
+        if let Some(new_gen1_files) = new_gen1_files {
+            for f in new_gen1_files {
+                if !input_generations.iter().any(|g| g.id == f.id) {
+                    leftover_gen1_files.push(f.clone());
+                }
+            }
+        }
+        if let Some(last_compaction_detail) = last_compaction_detail.as_ref() {
+            for f in last_compaction_detail.leftover_gen1_files.iter() {
+                if !input_generations.iter().any(|g| g.id == f.id) {
+                    leftover_gen1_files.push(f.clone());
+                }
+            }
+        }
+
+        for gen in &input_generations {
+            if gen.level.is_one() {
+                let f = new_gen1_files.and_then(|files| files.iter().find(|f| f.id == gen.id));
+                if let Some(f) = f {
+                    input_paths.push(Path::from(f.file.path.as_str()));
+                } else if let Some(f) = last_compaction_detail
+                    .as_ref()
+                    .and_then(|d| d.leftover_gen1_files.iter().find(|f| f.id == gen.id))
+                {
+                    input_paths.push(Path::from(f.file.path.as_str()));
+                } else {
+                    warn!(id = gen.id.as_u64(), "gen1 file not found for compaction");
+                }
+            } else {
+                let gen_detail =
+                    compacted_data.parquet_files(db_schema.id, table_definition.table_id, gen.id);
+                for file in gen_detail {
+                    input_paths.push(Path::from(file.path.as_str()));
+                }
+            }
+        }
+
+        Some(NextCompactionPlan {
+            db_schema,
+            table_definition,
+            output_generation,
+            input_generations,
+            input_paths,
+            leftover_gen1_files,
+        })
+    } else {
+        None
+    }
+}
+
+/// If there is a compaction to be done with the input generations at the given level, the output
+/// generation and a vec of the generation ids to compact is returned.
+fn compaction_for_level(
     generations: &[Generation],
     output_level: GenerationLevel,
-    host_count: usize,
-    must_advance: bool,
-) -> Option<NextCompactionPlan> {
+    compaction_config: &CompactionConfig,
+) -> Option<(Generation, Vec<Generation>)> {
     // first, group the generations together into what their start time would be at the
     // chosen output level. Only include generations that are less than the output level.
     let mut new_block_times_to_gens = BTreeMap::new();
@@ -147,7 +206,7 @@ pub(crate) fn create_next_plan(
             let gens = new_block_times_to_gens
                 .entry(start_time)
                 .or_insert_with(Vec::new);
-            gens.push(gen);
+            gens.push(*gen);
         }
     }
 
@@ -183,66 +242,23 @@ pub(crate) fn create_next_plan(
         let has_one_newer = generations
             .iter()
             .any(|g| g.start_time_secs >= gen_end_time);
-        // only enforce this if we don't have to advance the snapshot
-        if !has_one_newer && !must_advance {
+        if !has_one_newer {
             continue;
         }
 
-        // check that all counts are at least equal to the host count
-        let all_over_host_count = prev_times_counts
-            .values()
-            .filter(|c| **c < host_count)
-            .count()
-            == 0;
-        // we relax this constraint if we have to advance the snapshot
-        let over_host_count_or_must_advance = all_over_host_count || must_advance;
-        if over_host_count_or_must_advance && prev_times_counts.len() >= target_count as usize {
+        // only do a compaction if we have enough generations to compact into the output level
+        if prev_times_counts.len() >= target_count as usize {
             let output_duration = compaction_config
                 .generation_duration(output_level)
                 .expect("output level should have a duration");
             let output_generation =
                 Generation::new_with_start(output_level, gen_time, output_duration);
-            let input_ids = gens.iter().map(|g| g.id).collect::<Vec<_>>();
-            let leftover_ids = generations
-                .iter()
-                .filter(|g| g.level.is_one() && !input_ids.contains(&g.id))
-                .map(|g| g.id)
-                .collect::<Vec<_>>();
-            let compaction_plan = NextCompactionPlan {
-                db_id,
-                table_id,
-                output_generation,
-                input_ids,
-                leftover_ids,
-            };
 
-            return Some(compaction_plan);
+            return Some((output_generation, gens));
         }
     }
 
     None
-}
-
-#[derive(Debug)]
-pub(crate) enum CompactionPlan {
-    LeftoverOnly(LeftoverPlan),
-    Compaction(NextCompactionPlan),
-}
-
-impl CompactionPlan {
-    pub(crate) fn db_id(&self) -> DbId {
-        match self {
-            Self::LeftoverOnly(plan) => plan.db_id,
-            Self::Compaction(plan) => plan.db_id,
-        }
-    }
-
-    pub(crate) fn table_id(&self) -> TableId {
-        match self {
-            Self::LeftoverOnly(plan) => plan.table_id,
-            Self::Compaction(plan) => plan.table_id,
-        }
-    }
 }
 
 /// This plan is what gets created when the only compaction to be done is with gen1 files
@@ -251,9 +267,9 @@ impl CompactionPlan {
 /// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 hosts.
 #[derive(Debug)]
 pub(crate) struct LeftoverPlan {
-    pub(crate) db_id: DbId,
-    pub(crate) table_id: TableId,
-    pub(crate) leftover_gen1_ids: Vec<GenerationId>,
+    pub(crate) db_schema: Arc<DatabaseSchema>,
+    pub(crate) table_definition: Arc<TableDefinition>,
+    pub(crate) leftover_gen1_files: Vec<Gen1File>,
 }
 
 /// When the planner gets called to plan a compaction on a table, this contains all the detail
@@ -262,20 +278,20 @@ pub(crate) struct LeftoverPlan {
 /// `CompactionDetail` file for the table.
 #[derive(Debug)]
 pub(crate) struct NextCompactionPlan {
-    pub db_id: DbId,
-    pub table_id: TableId,
+    pub db_schema: Arc<DatabaseSchema>,
+    pub table_definition: Arc<TableDefinition>,
     pub output_generation: Generation,
-    /// The input generations for this compaction. Could be empty if there are only gen1 files
-    /// getting compacted.
-    pub input_ids: Vec<GenerationId>,
-    /// The ids for the gen1 files that will be left over after this compaction plan runs
-    pub leftover_ids: Vec<GenerationId>,
+    pub input_generations: Vec<Generation>,
+    pub input_paths: Vec<Path>,
+    pub leftover_gen1_files: Vec<Gen1File>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use influxdb3_pro_data_layout::{gen_time_string, gen_time_string_to_start_time_secs};
+    use influxdb3_pro_data_layout::{
+        gen_time_string, gen_time_string_to_start_time_secs, GenerationId,
+    };
 
     #[test]
     fn next_plan_cases() {
@@ -290,8 +306,6 @@ mod tests {
             output_time: &'a str,
             // the expected ids from the input that will be used for the compaction
             compact_ids: Vec<u64>,
-            // the expected leftover gen1 ids after the compaction
-            leftover_gen1_ids: Vec<u64>,
         }
 
         let compaction_config = CompactionConfig::default();
@@ -306,7 +320,6 @@ mod tests {
                 output_level: 2,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![5, 6],
-                leftover_gen1_ids: vec![7],
             },
             TestCase {
                 description: "gen1 to 2 as a compaction into an existing gen2",
@@ -318,7 +331,6 @@ mod tests {
                 output_level: 2,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![6, 8],
-                leftover_gen1_ids: vec![7],
             },
             TestCase {
                 description: "level 2 to 3 compaction",
@@ -333,7 +345,6 @@ mod tests {
                 output_level: 3,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![3, 6, 9],
-                leftover_gen1_ids: vec![],
             },
             TestCase {
                 description: "level 2 to 3 with some gen1 blocks coming along for the ride",
@@ -350,7 +361,6 @@ mod tests {
                 output_level: 3,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![3, 6, 7, 9, 11],
-                leftover_gen1_ids: vec![],
             },
         ];
 
@@ -366,59 +376,42 @@ mod tests {
                 })
                 .collect();
             gens.sort();
-            let plan = create_next_plan(
-                &compaction_config,
-                DbId::new(),
-                TableId::new(),
+            if let Some((output_generation, input_generations)) = compaction_for_level(
                 &gens,
                 GenerationLevel::new(tc.output_level),
-                1,
-                false,
-            );
-            match plan {
-                Some(NextCompactionPlan {
-                    output_generation,
-                    input_ids,
-                    leftover_ids,
-                    ..
-                }) => {
-                    assert_eq!(
-                        output_generation.level,
-                        GenerationLevel::new(tc.output_level),
-                        "{}: expected level {} but got {}",
-                        tc.description,
-                        tc.output_level,
-                        output_generation.level,
-                    );
-                    assert_eq!(
-                        output_generation.start_time_secs,
-                        gen_time_string_to_start_time_secs(tc.output_time).unwrap(),
-                        "{}: expected gen time {} but got {}",
-                        tc.description,
-                        tc.output_time,
-                        gen_time_string(output_generation.start_time_secs)
-                    );
-                    let mut ids_to_compact =
-                        input_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
-                    ids_to_compact.sort();
-                    assert_eq!(
-                        tc.compact_ids, ids_to_compact,
-                        "{}: expected ids {:?} but got {:?}",
-                        tc.description, tc.compact_ids, ids_to_compact
-                    );
-                    let mut leftover_gen1_ids =
-                        leftover_ids.iter().map(|g| g.as_u64()).collect::<Vec<_>>();
-                    leftover_gen1_ids.sort();
-                    assert_eq!(
-                        tc.leftover_gen1_ids, leftover_gen1_ids,
-                        "{}: expected leftover gen1 ids {:?} but got {:?}",
-                        tc.description, tc.leftover_gen1_ids, leftover_gen1_ids
-                    );
-                }
-                _ => panic!(
+                &compaction_config,
+            ) {
+                assert_eq!(
+                    output_generation.level,
+                    GenerationLevel::new(tc.output_level),
+                    "{}: expected level {} but got {}",
+                    tc.description,
+                    tc.output_level,
+                    output_generation.level,
+                );
+                assert_eq!(
+                    output_generation.start_time_secs,
+                    gen_time_string_to_start_time_secs(tc.output_time).unwrap(),
+                    "{}: expected gen time {} but got {}",
+                    tc.description,
+                    tc.output_time,
+                    gen_time_string(output_generation.start_time_secs)
+                );
+                let mut ids_to_compact = input_generations
+                    .iter()
+                    .map(|g| g.id.as_u64())
+                    .collect::<Vec<_>>();
+                ids_to_compact.sort();
+                assert_eq!(
+                    tc.compact_ids, ids_to_compact,
+                    "{}: expected ids {:?} but got {:?}",
+                    tc.description, tc.compact_ids, ids_to_compact
+                );
+            } else {
+                panic!(
                     "expected a compaction plan for test case '{}'",
                     tc.description
-                ),
+                );
             }
         }
     }
@@ -500,14 +493,10 @@ mod tests {
                 })
                 .collect();
             gens.sort();
-            let plan = create_next_plan(
-                &compaction_config,
-                DbId::new(),
-                TableId::new(),
+            let plan = compaction_for_level(
                 &gens,
                 GenerationLevel::new(tc.output_level),
-                1,
-                false,
+                &compaction_config,
             );
 
             assert!(

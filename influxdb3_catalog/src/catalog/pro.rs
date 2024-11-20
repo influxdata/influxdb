@@ -300,7 +300,7 @@ impl ColumnDefinition {
 /// Holds a set of maps for mapping identifiers from another host's [`Catalog`] onto the one being
 /// used locally. This is generated via methods on the various catalog types, e.g., see
 /// [`DatabaseSchema::merge`], [`TableDefinition::merge`], etc.
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct CatalogIdMap {
     dbs: HashMap<DbId, DbId>,
     tables: HashMap<TableId, TableId>,

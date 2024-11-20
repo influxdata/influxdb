@@ -1,4 +1,16 @@
-use crate::planner::{CompactionPlanGroup, SnapshotAdvancePlan};
+//! The compactor crate contains code for compacting data and for downstream hosts to consume
+//! the compacted data. The compactor writes data into an object store location identified
+//! by the compactor_id, similar to hosts that write data. Hosts write generation 1 (gen1)
+//! files. The compactor picks up those files and rewrites them into larger gen2 blocks.
+//!
+//! The compactor also keeps its own catalog along with the compacted data. The catalog is the
+//! union of the catalog of all hosts that are getting compacted together. The compacted catalog
+//! also keeps a mapping of host ids to the compacted catalog id.
+//!
+//! This module is split between the producer (which produces the compacted data view), the
+//! consumer, which can poll object storage for updated compacted data views, the catalog, and
+//! the compacted data view itself.
+
 use arrow::array::as_largestring_array;
 use arrow::array::AsArray;
 use arrow::array::RecordBatch;
@@ -23,14 +35,11 @@ use datafusion::execution::SendableRecordBatchStream;
 use futures::{future::join_all, TryFutureExt};
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
-use influxdb3_config::ProConfig;
 use influxdb3_id::ColumnId;
 use influxdb3_id::ParquetFileId;
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
-use influxdb3_pro_data_layout::{CompactedFilePath, Generation, GenerationLevel};
+use influxdb3_pro_data_layout::{CompactedFilePath, Generation};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_write::ParquetFile;
 use influxdb3_write::{
@@ -50,7 +59,7 @@ use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{error, warn};
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
@@ -64,12 +73,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::time::Duration;
 use tokio::sync::oneshot::error::RecvError;
-use tokio::sync::RwLock;
 
+pub mod catalog;
+pub mod compacted_data;
+pub mod consumer;
 pub mod planner;
-mod runner;
+pub mod producer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CompactorError {
@@ -116,112 +126,6 @@ pub struct CompactorOutput {
     pub output_paths: Vec<ObjPath>,
     pub file_index: FileIndex,
     pub file_metadata: Vec<ParquetFile>,
-}
-
-#[derive(Debug)]
-pub struct Compactor {
-    compacted_data: Arc<CompactedData>,
-    catalog: Arc<Catalog>,
-    object_store_url: ObjectStoreUrl,
-    executor: Arc<Executor>,
-    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
-    pro_config: Arc<RwLock<ProConfig>>,
-}
-
-impl Compactor {
-    pub async fn new(
-        compacted_data: Arc<CompactedData>,
-        catalog: Arc<Catalog>,
-        object_store_url: ObjectStoreUrl,
-        executor: Arc<Executor>,
-        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
-        pro_config: Arc<RwLock<ProConfig>>,
-    ) -> Result<Self, influxdb3_pro_data_layout::compacted_data::Error> {
-        Ok(Self {
-            compacted_data,
-            catalog,
-            object_store_url,
-            executor,
-            parquet_cache_prefetcher,
-            pro_config,
-        })
-    }
-
-    pub async fn compact(self) {
-        info!("starting compaction loop");
-        let mut new_snapshot = self.compacted_data.snapshot_notification_receiver();
-        let generation_levels = self.compacted_data.compaction_config.compaction_levels();
-
-        loop {
-            let check_snapshot = tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(100)) => false,
-                v = new_snapshot.recv() => {
-                    match v {
-                        Ok(_) => true,
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                            // Ignore the lagged error and continue
-                            warn!("lagged snapshot notification, continuing");
-                            true
-                        }
-                        Err(e) => {
-                            error!(error = ?e, "error receiving snapshot, exiting compaction loop");
-                            break;
-                        }
-                    }
-                }
-            };
-
-            if check_snapshot {
-                let host = self
-                    .compacted_data
-                    .last_snapshot_host()
-                    .unwrap_or("unknown".to_string());
-                debug!(host = ?host, "received new snapshot");
-
-                if let Some(snapshot_plan) =
-                    SnapshotAdvancePlan::should_advance(&self.compacted_data)
-                {
-                    let compaction_summary = runner::run_snapshot_plan(
-                        snapshot_plan,
-                        Arc::clone(&self.compacted_data),
-                        Arc::clone(&self.catalog),
-                        self.object_store_url.clone(),
-                        Arc::clone(&self.executor),
-                        self.parquet_cache_prefetcher.clone(),
-                        Arc::clone(&self.pro_config),
-                    )
-                    .await;
-                    info!(?compaction_summary, "completed snapshot plan");
-                }
-            }
-
-            for level in &generation_levels {
-                // TODO: wire up later generation compactions
-                if *level > GenerationLevel::new(4) {
-                    break;
-                }
-
-                if let Some(plan_group) =
-                    CompactionPlanGroup::plans_for_level(&self.compacted_data, *level)
-                {
-                    let compaction_summary = runner::run_compaction_plan_group(
-                        plan_group,
-                        Arc::clone(&self.compacted_data),
-                        Arc::clone(&self.catalog),
-                        self.object_store_url.clone(),
-                        Arc::clone(&self.executor),
-                        self.parquet_cache_prefetcher.clone(),
-                        Arc::clone(&self.pro_config),
-                    )
-                    .await;
-                    info!(?compaction_summary, "completed compaction plan group");
-
-                    // only one run set of compactions, then go back to waiting for a snapshot
-                    break;
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

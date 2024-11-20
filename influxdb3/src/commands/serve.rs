@@ -17,9 +17,11 @@ use influxdb3_pro_buffer::{
     modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::{Compactor, ParquetCachePreFetcher};
+use influxdb3_pro_compactor::compacted_data::CompactedData;
+use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
+use influxdb3_pro_compactor::{producer::CompactedDataProducer, ParquetCachePreFetcher};
+use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_pro_data_layout::CompactionConfig;
-use influxdb3_pro_data_layout::{compacted_data::CompactedData, CompactedDataSystemTableView};
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -41,6 +43,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::time::Duration;
 use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
@@ -93,11 +96,14 @@ pub enum Error {
     #[error("Failed to execute job: {0}")]
     Job(#[source] executor::JobError),
 
-    #[error("Failed to load compactor: {0}")]
-    Compactor(#[from] influxdb3_pro_data_layout::compacted_data::Error),
-
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+
+    #[error("Error initializing compaction producer: {0}")]
+    CompactionProducer(#[from] influxdb3_pro_compactor::producer::CompactedDataProducerError),
+
+    #[error("Error initializing compaction consumer: {0}")]
+    CompactionConsumer(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -316,6 +322,10 @@ pub struct Config {
     pub last_cache_eviction_interval: humantime::Duration,
 }
 
+/// The interval to check for new snapshots from hosts to compact data from. This will do an S3
+/// GET for every host in the replica list every interval.
+const COMPACTION_CHECK_INTERVAL: Duration = Duration::from_secs(10);
+
 /// Specified size of the Parquet cache in megabytes (MB)
 #[derive(Debug, Clone, Copy)]
 pub struct ParquetCacheSizeMb(usize);
@@ -482,25 +492,75 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
-    let compacted_data = if let Some(compactor_id) = config.pro_config.compactor_id {
-        let compaction_config = CompactionConfig::new(
-            &config.pro_config.compaction_multipliers.0,
-            config.pro_config.compaction_gen2_duration.into(),
-            config.pro_config.compaction_row_limit,
-        );
 
-        let compacted_data = CompactedData::load_compacted_data(
-            &compactor_id,
-            compaction_config,
-            Arc::clone(&object_store),
-            Arc::clone(&catalog),
-        )
-        .await?;
+    let pro_config = match ProConfig::load(&object_store).await {
+        Ok(config) => Arc::new(RwLock::new(config)),
+        // If the config is not found we should create it
+        Err(object_store::Error::NotFound { .. }) => {
+            let config = ProConfig::default();
+            config.persist(catalog.host_id(), &object_store).await?;
+            Arc::new(RwLock::new(ProConfig::default()))
+        }
+        Err(err) => return Err(err.into()),
+    };
 
-        Some(compacted_data)
+    let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache.clone() {
+        Some(ParquetCachePreFetcher::new(
+            Arc::clone(&parquet_cache),
+            config.preemptive_cache_age,
+            Arc::<SystemProvider>::clone(&time_provider),
+        ))
     } else {
         None
     };
+
+    let mut compacted_data: Option<Arc<CompactedData>> = None;
+    let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
+
+    if let Some(compactor_id) = config.pro_config.compactor_id {
+        if config.pro_config.run_compactions {
+            let compaction_config = CompactionConfig::new(
+                &config.pro_config.compaction_multipliers.0,
+                config.pro_config.compaction_gen2_duration.into(),
+                config.pro_config.compaction_row_limit,
+            );
+
+            let mut hosts = vec![config.host_identifier_prefix.clone()];
+            if let Some(replicas) = &config.pro_config.replicas {
+                hosts.extend(replicas.iter().cloned());
+            }
+
+            let producer = CompactedDataProducer::new(
+                &compactor_id,
+                hosts,
+                compaction_config,
+                Arc::clone(&pro_config),
+                Arc::clone(&object_store),
+                persister.object_store_url().clone(),
+                Arc::clone(&exec),
+                parquet_cache_prefetcher,
+            )
+            .await?;
+
+            compacted_data = Some(Arc::clone(&producer.compacted_data));
+            compaction_producer = Some(Arc::new(producer));
+        } else {
+            let consumer = CompactedDataConsumer::new(
+                &compactor_id,
+                Arc::clone(&object_store),
+                parquet_cache_prefetcher,
+            )
+            .await
+            .context("Error initializing compaction consumer")
+            .map_err(Error::CompactionConsumer)?;
+
+            compacted_data = Some(Arc::clone(&consumer.compacted_data));
+
+            tokio::spawn(async move {
+                consumer.poll_in_background(COMPACTION_CHECK_INTERVAL).await;
+            });
+        }
+    }
 
     let time_provider = Arc::new(SystemProvider::new());
 
@@ -572,17 +632,6 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await;
 
-    let pro_config = match ProConfig::load(&object_store).await {
-        Ok(config) => Arc::new(RwLock::new(config)),
-        // If the config is not found we should create it
-        Err(object_store::Error::NotFound { .. }) => {
-            let config = ProConfig::default();
-            config.persist(catalog.host_id(), &object_store).await?;
-            Arc::new(RwLock::new(ProConfig::default()))
-        }
-        Err(err) => return Err(err.into()),
-    };
-
     let common_state = CommonServerState::new(
         Arc::clone(&metrics),
         trace_exporter,
@@ -634,44 +683,19 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut futures = Vec::new();
 
-    let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache {
-        Some(ParquetCachePreFetcher::new(
-            Arc::clone(&parquet_cache),
-            config.preemptive_cache_age,
-            Arc::<SystemProvider>::clone(&time_provider),
-        ))
-    } else {
-        None
-    };
-
-    if config.pro_config.run_compactions && compacted_data.is_some() {
-        let compactor = Compactor::new(
-            compacted_data.expect("compacted data must be present if compactions are enabled"),
-            Arc::clone(&write_buffer.catalog()),
-            persister.object_store_url().clone(),
-            Arc::clone(&exec),
-            parquet_cache_prefetcher,
-            pro_config,
-        )
-        .await
-        .map_err(Error::Compactor)?;
-
+    if let Some(compactor) = compaction_producer {
         // Run the compactor code on the DataFusion executor
 
         // Note that unlike tokio::spawn, if the handle to the task is
         // dropped, the task is cancelled, so it must be retained until the end
         let t = exec
             .executor()
-            .spawn(compactor.compact())
+            .spawn(async move {
+                compactor.compact(Duration::from_secs(10)).await;
+            })
             .map_err(Error::Job);
 
         futures.push(t.boxed());
-    } else if let Some(compacted_data) = compacted_data {
-        // We're not running compactions, so we need to poll in the background to keep
-        // refreshing the compacted data from whatever server is running them
-        tokio::spawn(async move {
-            compacted_data.poll_for_updates().await;
-        });
     }
 
     futures.push(

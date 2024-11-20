@@ -7,7 +7,7 @@ use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::{LastCacheDefinition, WalConfig};
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
@@ -79,22 +79,6 @@ impl ReadWriteMode {
         )
         .await?;
 
-        // if we're keeping track of compacted data, send the snapshots to it
-        if let Some(compacted_data) = &compacted_data {
-            let mut primary_persisted_snapshot_notify_rx = primary.watch_persisted_snapshots();
-            let compacted_data = Arc::clone(compacted_data);
-            tokio::spawn(async move {
-                while primary_persisted_snapshot_notify_rx.changed().await.is_ok() {
-                    if let Some(snapshot) = primary_persisted_snapshot_notify_rx
-                        .borrow_and_update()
-                        .clone()
-                    {
-                        compacted_data.add_snapshot(snapshot);
-                    }
-                }
-            });
-        }
-
         let replicas = if let Some(ReplicationConfig {
             interval: replication_interval,
             hosts,
@@ -107,7 +91,6 @@ impl ReadWriteMode {
                     metric_registry,
                     replication_interval,
                     hosts,
-                    compacted_data: compacted_data.clone(),
                     parquet_cache,
                     catalog,
                 })
@@ -193,18 +176,12 @@ impl ChunkContainer for ReadWriteMode {
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // Chunks are fetched from both primary and replicas
-        let (db_id, db_schema) =
-            self.catalog()
-                .db_schema_and_id(database_name)
-                .ok_or_else(|| {
-                    DataFusionError::Execution(format!(
-                        "Database {} not found in catalog",
-                        database_name
-                    ))
-                })?;
+        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
+            DataFusionError::Execution(format!("Database {} not found", database_name))
+        })?;
 
-        let (table_id, table_schema) = db_schema
-            .table_schema_and_id(table_name)
+        let table_schema = db_schema
+            .table_schema(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
 
         // first add in all the buffer chunks from primary and replicas. These chunks have the
@@ -227,29 +204,30 @@ impl ChunkContainer for ReadWriteMode {
 
         // now add in the compacted chunks so that they have the lowest chunk order precedence and
         // pull out the host markers to get gen1 chunks from primary and replicas
-        let host_markers = if let Some(compacted_data) = &self.compacted_data {
-            let (parquet_files, host_markers) =
-                compacted_data.get_parquet_files_and_host_markers(db_id, table_id, filters);
+        let host_markers =
+            if let Some(compacted_data) = &self.compacted_data {
+                let (parquet_files, host_markers) = compacted_data
+                    .get_parquet_files_and_host_markers(database_name, table_name, filters);
 
-            chunks.extend(
-                parquet_files
-                    .into_iter()
-                    .map(|file| {
-                        Arc::new(parquet_chunk_from_file(
-                            &file,
-                            &table_schema,
-                            self.object_store_url.clone(),
-                            Arc::clone(&self.object_store),
-                            chunks.len() as i64,
-                        )) as Arc<dyn QueryChunk>
-                    })
-                    .collect::<Vec<_>>(),
-            );
+                chunks.extend(
+                    parquet_files
+                        .into_iter()
+                        .map(|file| {
+                            Arc::new(parquet_chunk_from_file(
+                                &file,
+                                &table_schema,
+                                self.object_store_url.clone(),
+                                Arc::clone(&self.object_store),
+                                chunks.len() as i64,
+                            )) as Arc<dyn QueryChunk>
+                        })
+                        .collect::<Vec<_>>(),
+                );
 
-            Some(host_markers)
-        } else {
-            None
-        };
+                Some(host_markers)
+            } else {
+                None
+            };
 
         // add the gen1 persisted chunks from the replicas
         if let Some(replicas) = &self.replicas {
