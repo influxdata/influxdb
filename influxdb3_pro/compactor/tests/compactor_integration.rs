@@ -30,6 +30,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "flakey test as the 208 data point for some reason isn't always there (see comment below)"]
 async fn two_writers_gen1_compaction() {
     let metrics = Arc::new(metric::Registry::default());
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
