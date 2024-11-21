@@ -127,6 +127,7 @@ func (cmd *Command) run(dataDir, walDir string) error {
 		}
 	}
 
+	cmd.Logger.Info("TSI rebuild completed successfully!")
 	return nil
 }
 
