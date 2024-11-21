@@ -2,11 +2,11 @@
 //! persisted files that Pro has compacted into later generations, the snapshots of those
 //! generations, and file indexes.
 
-pub mod compacted_data;
 pub mod persist;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
-use influxdb3_id::{DbId, ParquetFileId, TableId};
+use influxdb3_catalog::catalog::CatalogSequenceNumber;
+use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::ParquetFile;
@@ -43,8 +43,8 @@ pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug 
     // TODO: rationalise Option<Vec<_>> vs Vec<_>
     fn query(
         &self,
-        db_id: DbId,
-        table_id: TableId,
+        db_name: &str,
+        table_name: &str,
     ) -> Option<Vec<CompactedDataSystemTableQueryResult>>;
 }
 
@@ -55,6 +55,8 @@ pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug 
 pub struct CompactionSummary {
     /// The compaction sequence number that created this summary.
     pub compaction_sequence_number: CompactionSequenceNumber,
+    /// The compaction catalog's sequence number
+    pub catalog_sequence_number: CatalogSequenceNumber,
     /// The last `ParquetFileId` that was used. This will be used to initialize the
     /// `ParquetFileId` on startup to ensure that we don't reuse file ids.
     pub last_file_id: ParquetFileId,
@@ -63,8 +65,9 @@ pub struct CompactionSummary {
     pub last_generation_id: GenerationId,
     /// The last `SnapshotSequenceNumber` for each host that is getting compacted.
     pub snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
-    /// The paths to the compaction details for each table.
-    pub compaction_details: Vec<CompactionDetailPath>,
+    /// The compactions sequence number that each table last had a compaction run. This can be used
+    /// to construct a path to read the `CompactionDetail`
+    pub compaction_details: SerdeVecMap<(DbId, TableId), CompactionSequenceNumber>,
 }
 
 /// The last snapshot sequence number for each host that is getting compacted.
@@ -114,68 +117,6 @@ pub struct CompactionDetail {
     /// at a later time. The location of these files will all be from the hosts that did the
     /// original persistence.
     pub leftover_gen1_files: Vec<Gen1File>,
-}
-
-impl CompactionDetail {
-    pub fn new_from_compaction(
-        &self,
-        sequence_number: CompactionSequenceNumber,
-        compacted_ids: &[GenerationId],
-        new_gen: Generation,
-        new_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
-        leftover_gen1_files: Vec<Gen1File>,
-    ) -> Self {
-        let mut filtered_compacted_generations: Vec<_> = self
-            .compacted_generations
-            .iter()
-            .filter(|g| !compacted_ids.contains(&g.id))
-            .cloned()
-            .collect();
-        filtered_compacted_generations.push(new_gen);
-        filtered_compacted_generations.sort();
-
-        let mut filtered_leftover_gen1_files: Vec<_> = self
-            .leftover_gen1_files
-            .iter()
-            .filter(|g| !compacted_ids.contains(&g.id))
-            .cloned()
-            .collect();
-        filtered_leftover_gen1_files.extend(leftover_gen1_files);
-        filtered_leftover_gen1_files.sort();
-
-        Self {
-            db_name: Arc::clone(&self.db_name),
-            db_id: self.db_id,
-            table_name: Arc::clone(&self.table_name),
-            table_id: self.table_id,
-            sequence_number,
-            snapshot_markers: new_snapshot_markers,
-            compacted_generations: filtered_compacted_generations,
-            leftover_gen1_files: filtered_leftover_gen1_files,
-        }
-    }
-
-    pub fn new_from_leftovers(
-        &self,
-        sequence_number: CompactionSequenceNumber,
-        new_snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
-        leftover_gen1_files: Vec<Gen1File>,
-    ) -> Self {
-        let mut filtered_leftover_gen1_files: Vec<_> = self.leftover_gen1_files.to_vec();
-        filtered_leftover_gen1_files.extend(leftover_gen1_files);
-        filtered_leftover_gen1_files.sort();
-
-        Self {
-            db_name: Arc::clone(&self.db_name),
-            db_id: self.db_id,
-            table_name: Arc::clone(&self.table_name),
-            table_id: self.table_id,
-            sequence_number,
-            snapshot_markers: new_snapshot_markers,
-            compacted_generations: self.compacted_generations.clone(),
-            leftover_gen1_files: filtered_leftover_gen1_files,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -450,7 +391,7 @@ impl From<u64> for GenerationId {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactionSequenceNumber(u64);
 
 impl CompactionSequenceNumber {
@@ -506,53 +447,39 @@ impl<'de> Deserialize<'de> for CompactionDetailPath {
 impl CompactionDetailPath {
     pub fn new(
         compactor_id: &str,
-        db_name: &str,
         db_id: DbId,
-        table_name: &str,
         table_id: TableId,
         compaction_sequence_number: CompactionSequenceNumber,
     ) -> Self {
         let path = ObjPath::from(format!(
-            "{compactor_id}/cd/{db_name}-{db_id}/{table_name}-{table_id}/{:020}.json",
+            "{compactor_id}/cd/{db_id}/{table_id}/{:020}.json",
             object_store_number_order(compaction_sequence_number.0),
         ));
         Self(path)
-    }
-
-    pub fn db_name(&self) -> String {
-        self.0
-            .parts()
-            .nth(2)
-            .and_then(|part| part.as_ref().split('-').next().map(|s| s.to_string()))
-            .expect("valid compaction detail path when extracting db name")
     }
 
     pub fn db_id(&self) -> DbId {
         self.0
             .parts()
             .nth(2)
-            .and_then(|part| part.as_ref().split('-').nth(1).map(|s| s.parse::<u32>()))
-            .expect("valid compaction detail path when extracting db id")
+            .map(|part| part.as_ref().parse::<u32>())
             .expect("valid u32 when extracting db id from compaction path")
+            .expect("valid compaction detail path when extracting db id")
             .into()
-    }
-
-    pub fn table_name(&self) -> String {
-        self.0
-            .parts()
-            .nth(3)
-            .and_then(|part| part.as_ref().split('-').next().map(|s| s.to_string()))
-            .expect("valid compaction detail path when extracting table name")
     }
 
     pub fn table_id(&self) -> TableId {
         self.0
             .parts()
             .nth(3)
-            .and_then(|part| part.as_ref().split('-').nth(1).map(|s| s.parse::<u32>()))
+            .map(|part| part.as_ref().parse::<u32>())
             .expect("valid compaction detail path when extracting table id")
             .expect("valid u32 when extracting table id from compaction path")
             .into()
+    }
+
+    pub fn as_path(&self) -> &ObjPath {
+        &self.0
     }
 }
 
@@ -588,6 +515,10 @@ impl GenerationDetailPath {
             &hash[5..],
             generation_id.0,
         )))
+    }
+
+    pub fn as_path(&self) -> &ObjPath {
+        &self.0
     }
 }
 

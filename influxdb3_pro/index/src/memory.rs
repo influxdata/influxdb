@@ -105,6 +105,13 @@ impl FileIndex {
         filtered_ids
     }
 
+    /// Removes the file id from the map of files, but doesn't remove it from postings lists
+    /// it appears in as it would be too costly. We will vacume the file index periodically
+    /// to clean up the postings lists of stale file ids.
+    pub fn remove_file(&mut self, file_id: ParquetFileId) {
+        self.parquet_files.remove(&file_id);
+    }
+
     fn contains_value(&self, col: &str, val: &str) -> bool {
         self.index
             .contains_key(&(xxh64(col.as_bytes(), 0), xxh64(val.as_bytes(), 0)))

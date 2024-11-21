@@ -650,8 +650,8 @@ mod tests {
     impl CompactedDataSystemTableView for MockCompactedDataSysTable {
         fn query(
             &self,
-            _db_id: influxdb3_id::DbId,
-            _table_id: influxdb3_id::TableId,
+            _db_name: &str,
+            _table_name: &str,
         ) -> Option<Vec<influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult>> {
             Some(vec![
                 CompactedDataSystemTableQueryResult {

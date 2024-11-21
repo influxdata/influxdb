@@ -92,12 +92,12 @@ impl IoxSystemTable for CompactedDataTable {
         let table_name = find_table_name_in_filter(filters)
             .ok_or_else(|| table_name_predicate_error(COMPACTED_DATA_TABLE_NAME))?;
 
-        let table_id = self
+        let _ = self
             .db_schema
             .table_name_to_id(table_name.as_str())
             .ok_or_else(table_not_found_error)?;
 
-        let results = data.query(self.db_schema.id, table_id);
+        let results = data.query(self.db_schema.name.as_ref(), &table_name);
         to_record_batch(&table_name, &self.compacted_table_schema, results)
     }
 }
@@ -170,24 +170,27 @@ mod tests {
 
     #[derive(Debug)]
     struct MockCompactedDataSystemTable {
-        db_id: DbId,
-        table_id: TableId,
+        db_name: String,
+        table_name: String,
     }
 
     impl MockCompactedDataSystemTable {
-        pub fn new(db_id: DbId, table_id: TableId) -> Self {
-            Self { db_id, table_id }
+        pub fn new(db_name: impl Into<String>, table_name: impl Into<String>) -> Self {
+            Self {
+                db_name: db_name.into(),
+                table_name: table_name.into(),
+            }
         }
     }
 
     impl CompactedDataSystemTableView for MockCompactedDataSystemTable {
         fn query(
             &self,
-            db_id: influxdb3_id::DbId,
-            table_id: influxdb3_id::TableId,
+            db_name: &str,
+            table_name: &str,
         ) -> Option<Vec<CompactedDataSystemTableQueryResult>> {
-            assert_eq!(self.db_id, db_id);
-            assert_eq!(self.table_id, table_id);
+            assert_eq!(self.db_name, db_name);
+            assert_eq!(self.table_name, table_name);
 
             Some(vec![CompactedDataSystemTableQueryResult {
                 generation_id: 1,
@@ -217,7 +220,10 @@ mod tests {
         db_schema.table_map.insert(table_id, Arc::from(table_name));
         let compacted_data_table = CompactedDataTable::new(
             Arc::new(db_schema),
-            Some(Arc::new(MockCompactedDataSystemTable::new(db_id, table_id))),
+            Some(Arc::new(MockCompactedDataSystemTable::new(
+                "foo",
+                "bar_table",
+            ))),
         );
         let expr = Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column("table_name".into())),
@@ -269,14 +275,16 @@ mod tests {
     async fn test_query_compacted_data_sys_table_missing_table_id() {
         let db_name = Arc::from("foo");
         let db_id = DbId::new();
-        let table_id = TableId::new();
         let table_name = "bar_table";
 
         // schema has no table populated so table id translation should fail
         let db_schema = DatabaseSchema::new(db_id, db_name);
         let compacted_data_table = CompactedDataTable::new(
             Arc::new(db_schema),
-            Some(Arc::new(MockCompactedDataSystemTable::new(db_id, table_id))),
+            Some(Arc::new(MockCompactedDataSystemTable::new(
+                "foo",
+                "bar_table",
+            ))),
         );
         let expr = Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column("table_name".into())),
@@ -305,7 +313,10 @@ mod tests {
         db_schema.table_map.insert(table_id, Arc::from(table_name));
         let compacted_data_table = CompactedDataTable::new(
             Arc::new(db_schema),
-            Some(Arc::new(MockCompactedDataSystemTable::new(db_id, table_id))),
+            Some(Arc::new(MockCompactedDataSystemTable::new(
+                "foo",
+                "bar_table",
+            ))),
         );
         let expr = Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column("table_name".into())),

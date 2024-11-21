@@ -5,7 +5,7 @@ use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
+use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::{
     last_cache::LastCacheProvider,

@@ -27,18 +27,14 @@ pub type Result<T, E = CompactedDataPersistenceError> = std::result::Result<T, E
 
 pub async fn persist_compaction_detail(
     compactor_id: &str,
-    db_name: Arc<str>,
     db_id: DbId,
-    table_name: Arc<str>,
     table_id: TableId,
     compaction_detail: &CompactionDetail,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<CompactionDetailPath> {
     let path = CompactionDetailPath::new(
         compactor_id,
-        db_name.as_ref(),
         db_id,
-        table_name.as_ref(),
         table_id,
         compaction_detail.sequence_number,
     );
@@ -221,7 +217,10 @@ pub async fn load_compaction_summary_for_sequence(
 }
 
 /// Get the bytes at the given path from the object store. Will retry forever until it gets the bytes.
-async fn get_bytes_at_path(path: &ObjPath, object_store: Arc<dyn ObjectStore>) -> Option<Bytes> {
+pub async fn get_bytes_at_path(
+    path: &ObjPath,
+    object_store: Arc<dyn ObjectStore>,
+) -> Option<Bytes> {
     // loop until we get it
     loop {
         match object_store.get(path).await {

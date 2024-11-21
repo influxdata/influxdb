@@ -11,7 +11,6 @@ use futures::future::try_join_all;
 use futures_util::StreamExt;
 use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog};
 use influxdb3_id::{DbId, ParquetFileId, TableId};
-use influxdb3_pro_data_layout::compacted_data::CompactedData;
 use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
     object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails,
@@ -83,7 +82,6 @@ pub(crate) struct CreateReplicasArgs {
     pub hosts: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
-    pub compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl Replicas {
@@ -96,7 +94,6 @@ impl Replicas {
             hosts,
             parquet_cache,
             catalog,
-            compacted_data,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicas = vec![];
@@ -106,7 +103,6 @@ impl Replicas {
             let metric_registry = Arc::clone(&metric_registry);
             let parquet_cache = parquet_cache.clone();
             let catalog = Arc::clone(&catalog);
-            let compacted_data = compacted_data.clone();
             info!(%host_identifier_prefix, "creating replicated buffer for host");
             replicas.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
@@ -116,7 +112,6 @@ impl Replicas {
                     last_cache,
                     replication_interval,
                     metric_registry,
-                    compacted_data,
                     parquet_cache,
                     catalog,
                 })
@@ -235,7 +230,6 @@ pub(crate) struct ReplicatedBuffer {
     catalog: Arc<ReplicatedCatalog>,
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
-    compacted_data: Option<Arc<CompactedData>>,
 }
 
 #[derive(Debug)]
@@ -319,7 +313,6 @@ pub(crate) struct CreateReplicatedBufferArgs {
     metric_registry: Arc<Registry>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     catalog: Arc<Catalog>,
-    compacted_data: Option<Arc<CompactedData>>,
 }
 
 impl ReplicatedBuffer {
@@ -333,7 +326,6 @@ impl ReplicatedBuffer {
             metric_registry,
             parquet_cache,
             catalog,
-            compacted_data,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
         let (persisted_catalog, persisted_files) = {
@@ -375,7 +367,6 @@ impl ReplicatedBuffer {
             metrics: ReplicatedBufferMetrics { replica_ttbr },
             parquet_cache,
             catalog: Arc::new(replica_catalog),
-            compacted_data,
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
@@ -628,7 +619,6 @@ impl ReplicatedBuffer {
         let persisted_files = Arc::clone(&self.persisted_files);
         let parquet_cache = self.parquet_cache.clone();
         let replica_catalog = Arc::clone(&self.catalog);
-        let compacted_data = self.compacted_data.clone();
 
         tokio::spawn(async move {
             // Update the persisted files:
@@ -682,10 +672,7 @@ impl ReplicatedBuffer {
                                 tbl_buf.clear_snapshots();
                             }
                         }
-                        persisted_files.add_persisted_snapshot_files(snapshot.clone());
-                        if let Some(compacted_data) = compacted_data {
-                            compacted_data.add_snapshot(snapshot);
-                        }
+                        persisted_files.add_persisted_snapshot_files(snapshot);
                         break;
                     }
                     Err(error) => {
@@ -858,7 +845,6 @@ mod tests {
                 "replica-host".into(),
                 "replica-instance".into(),
             )),
-            compacted_data: None,
         })
         .await
         .unwrap();
@@ -1004,7 +990,6 @@ mod tests {
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
-            compacted_data: None,
             parquet_cache: None,
             catalog: primaries["spock"].catalog(),
         })
@@ -1119,7 +1104,6 @@ mod tests {
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: None,
             catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
-            compacted_data: None,
         })
         .await
         .unwrap();
@@ -1280,7 +1264,6 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: Some(parquet_cache),
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
-                compacted_data: None,
             })
             .await
             .unwrap();
@@ -1349,7 +1332,6 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: None,
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
-                compacted_data: None,
             })
             .await
             .unwrap();
