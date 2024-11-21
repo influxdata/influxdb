@@ -7,6 +7,7 @@ expression: catalog_json
     [
       0,
       {
+        "deleted": false,
         "id": 0,
         "name": "db",
         "tables": [

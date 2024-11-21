@@ -5,13 +5,13 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub mod validator;
 
-use crate::chunk::ParquetChunk;
 use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
+use crate::{chunk::ParquetChunk, DatabaseManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
@@ -27,8 +27,8 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::object_store::WalObjectStore;
 use influxdb3_wal::CatalogOp::CreateLastCache;
+use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, Wal, WalConfig, WalFileNotifier,
     WalOp,
@@ -75,6 +75,9 @@ pub enum Error {
 
     #[error("error in last cache: {0}")]
     LastCacheError(#[from] last_cache::Error),
+
+    #[error("database not found {0}")]
+    DatabaseNotFound(String),
 
     #[error("tried accessing database and table that do not exist")]
     DbDoesNotExist,
@@ -146,26 +149,14 @@ impl WriteBufferImpl {
         let last_snapshot_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.snapshot_sequence_number);
-        // Set the next db id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_db_id.set_next_id())
-            .unwrap_or(());
-        // Set the next table id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_table_id.set_next_id())
-            .unwrap_or(());
-        // Set the next table id to use when adding a new database
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_column_id.set_next_id())
-            .unwrap_or(());
-        // Set the next file id to use when persisting ParquetFiles
-        persisted_snapshots
-            .first()
-            .map(|s| s.next_file_id.set_next_id())
-            .unwrap_or(());
+        // If we have any snapshots, set sequential IDs from the newest one.
+        if let Some(first_snapshot) = persisted_snapshots.first() {
+            first_snapshot.next_db_id.set_next_id();
+            first_snapshot.next_table_id.set_next_id();
+            first_snapshot.next_column_id.set_next_id();
+            first_snapshot.next_file_id.set_next_id();
+        }
+
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -528,6 +519,33 @@ impl LastCacheManager for WriteBufferImpl {
             })])
             .await?;
 
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl DatabaseManager for WriteBufferImpl {
+    async fn delete_database(&self, name: String) -> crate::Result<(), self::Error> {
+        let (db_id, db_schema) = self
+            .catalog
+            .db_id_and_schema(&name)
+            .ok_or_else(|| self::Error::DatabaseNotFound(name))?;
+
+        let deletion_time = self.time_provider.now();
+        let catalog_batch = CatalogBatch {
+            time_ns: deletion_time.timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
+                database_id: db_id,
+                database_name: Arc::clone(&db_schema.name),
+                deletion_time: deletion_time.timestamp_nanos(),
+            })],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
         Ok(())
     }
 }
@@ -1323,15 +1341,16 @@ mod tests {
     #[tokio::test]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let (wbuf, _) = setup(
+        let wal_config = WalConfig {
+            gen1_duration: influxdb3_wal::Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (mut wbuf, mut ctx) = setup(
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
-            WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 1,
-            },
+            wal_config,
         )
         .await;
 
@@ -1361,20 +1380,15 @@ mod tests {
 
         // wait for snapshot to be created:
         verify_snapshot_count(1, &wbuf.persister).await;
-
-        // Now drop the write buffer, and create a new one that replays:
-        drop(wbuf);
-        let (wbuf, ctx) = setup(
-            Time::from_timestamp_nanos(0),
-            Arc::clone(&obj_store),
-            WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 1,
-            },
-        )
-        .await;
+        // initialize twice
+        for _i in 0..2 {
+            (wbuf, ctx) = setup(
+                Time::from_timestamp_nanos(0),
+                Arc::clone(&obj_store),
+                wal_config,
+            )
+            .await;
+        }
 
         // Get the record batches from replayed buffer:
         let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
@@ -1882,6 +1896,34 @@ mod tests {
         assert_eq!(1, test_store.get_ranges_request_count(&path));
         assert_eq!(2, test_store.get_range_request_count(&path));
         assert_eq!(0, test_store.head_request_count(&path));
+    }
+
+    #[tokio::test]
+    async fn test_delete_database() {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let result = write_buffer.delete_database("foo".to_string()).await;
+
+        assert!(result.is_ok());
     }
 
     struct TestWrite<LP> {

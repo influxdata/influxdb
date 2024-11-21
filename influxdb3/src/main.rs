@@ -26,6 +26,7 @@ use trogging::{
 
 mod commands {
     pub(crate) mod common;
+    pub mod database;
     pub mod last_cache;
     pub mod query;
     pub mod serve;
@@ -91,6 +92,9 @@ enum Command {
 
     /// Manage last-n-value caches
     LastCache(commands::last_cache::Config),
+
+    /// Manage database (delete only for the moment)
+    Database(commands::database::ManageDatabaseConfig),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -145,6 +149,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::LastCache(config)) => {
                 if let Err(e) = commands::last_cache::command(config).await {
                     eprintln!("Last Cache command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Database(db_config)) => {
+                if let Err(e) = commands::database::delete_database(db_config).await {
+                    eprintln!("Database delete command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
