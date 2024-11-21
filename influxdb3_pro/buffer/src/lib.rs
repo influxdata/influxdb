@@ -18,6 +18,7 @@ use iox_query::QueryChunk;
 use iox_time::Time;
 use metric::Registry;
 use modes::{
+    compactor::CompactorMode,
     read::{CreateReadModeArgs, ReadMode},
     read_write::{ReadWriteArgs, ReadWriteMode},
 };
@@ -66,6 +67,11 @@ impl WriteBufferPro<NoMode> {
     ) -> Result<WriteBufferPro<ReadWriteMode>, anyhow::Error> {
         let mode = ReadWriteMode::new(args).await?;
         Ok(WriteBufferPro { mode })
+    }
+
+    pub fn compactor() -> WriteBufferPro<CompactorMode> {
+        let mode = CompactorMode::default();
+        WriteBufferPro { mode }
     }
 }
 

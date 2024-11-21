@@ -14,9 +14,12 @@ pub struct ProServeConfig {
     /// Each host in the list will have its buffer replicated by checking for new WAL files produced
     /// by that host on object storage on the interval specified by the `replication-interval` option.
     ///
+    /// If `run-compactions` is set to true, this replica list, if provided, will also serve as
+    /// the list of hosts to compact data from.
+    ///
     /// If the replica for any given host fails to initialize, the server will not start.
     #[clap(long = "replicas", env = "INFLUXDB3_PRO_REPLICAS", action)]
-    pub replicas: Option<ReplicaList>,
+    pub replicas: Option<HostList>,
 
     /// The interval at which each replica specified in the `replicas` option will be replicated
     #[clap(
@@ -35,6 +38,18 @@ pub struct ProServeConfig {
     /// It should have exclusive write access to this prefix in object storage.
     #[clap(long = "compactor-id", env = "INFLUXDB3_PRO_COMPACTOR_ID", action)]
     pub compactor_id: Option<String>,
+
+    /// Comma-separated list of host identifier prefixes to compact data from.
+    ///
+    /// The compactor will look for new snapshot files from each host in the list of
+    /// `compaction-hosts`. It will compact gen1 file from those hosts into a single compacted
+    /// view under the `compactor-id` prefix.
+    #[clap(
+        long = "compaction-hosts",
+        env = "INFLUXDB3_PRO_COMPACTION_HOSTS",
+        action
+    )]
+    pub compaction_hosts: Option<HostList>,
 
     /// This tells the server to run compactions. Only a single server should ever be running
     /// compactions for a given compactor_id. All other servers can read from that compactor id
@@ -94,6 +109,8 @@ pub enum BufferMode {
     /// Can accept writes and serve queries, also with the capability to replicate other buffers
     #[default]
     ReadWrite,
+    /// Will act as a compactor only, pulling snapshots from the host list and compacting them
+    Compactor,
 }
 
 impl std::fmt::Display for BufferMode {
@@ -101,20 +118,21 @@ impl std::fmt::Display for BufferMode {
         match self {
             BufferMode::Read => write!(f, "read"),
             BufferMode::ReadWrite => write!(f, "read_write"),
+            BufferMode::Compactor => write!(f, "compactor"),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ReplicaList(Vec<String>);
+pub struct HostList(Vec<String>);
 
-impl From<ReplicaList> for Vec<String> {
-    fn from(list: ReplicaList) -> Self {
+impl From<HostList> for Vec<String> {
+    fn from(list: HostList) -> Self {
         list.0
     }
 }
 
-impl Deref for ReplicaList {
+impl Deref for HostList {
     type Target = Vec<String>;
 
     fn deref(&self) -> &Self::Target {
@@ -122,7 +140,7 @@ impl Deref for ReplicaList {
     }
 }
 
-impl FromStr for ReplicaList {
+impl FromStr for HostList {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

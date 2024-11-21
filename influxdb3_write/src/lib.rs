@@ -45,6 +45,9 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
+
+    #[error("queries not supported in compactor only mode")]
+    CompactorOnly,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
