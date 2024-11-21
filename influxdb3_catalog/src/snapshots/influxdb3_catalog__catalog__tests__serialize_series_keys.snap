@@ -92,7 +92,8 @@ expression: catalog
                     "nullable": false
                   }
                 ]
-              ]
+              ],
+              "deleted": false
             }
           ]
         ],
