@@ -167,6 +167,7 @@ Are you sure you want to continue?`); !confirmed {
 		}
 	}
 
+	buildTSICmd.Logger.Info("TSI rebuild completed successfully!")
 	return nil
 
 }
