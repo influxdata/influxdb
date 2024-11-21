@@ -97,6 +97,9 @@ pub enum Error {
 
     #[error("cannot write to a read-only server")]
     NoWriteInReadOnly,
+
+    #[error("cannot write to a compactor-only server")]
+    NoWriteInCompactorOnly,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

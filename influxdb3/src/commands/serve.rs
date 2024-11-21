@@ -104,6 +104,9 @@ pub enum Error {
 
     #[error("Error initializing compaction consumer: {0}")]
     CompactionConsumer(#[from] anyhow::Error),
+
+    #[error("Must have `compaction-hosts` specfied if running in compactor mode")]
+    CompactorModeWithoutHosts,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -525,10 +528,19 @@ pub async fn command(config: Config) -> Result<()> {
                 config.pro_config.compaction_row_limit,
             );
 
-            let mut hosts = vec![config.host_identifier_prefix.clone()];
-            if let Some(replicas) = &config.pro_config.replicas {
-                hosts.extend(replicas.iter().cloned());
-            }
+            let hosts = if matches!(config.pro_config.mode, BufferMode::Compactor) {
+                if let Some(compaction_hosts) = &config.pro_config.compaction_hosts {
+                    compaction_hosts.to_vec()
+                } else {
+                    return Err(Error::CompactorModeWithoutHosts);
+                }
+            } else {
+                let mut hosts = vec![config.host_identifier_prefix.clone()];
+                if let Some(replicas) = &config.pro_config.replicas {
+                    hosts.extend(replicas.iter().cloned());
+                }
+                hosts
+            };
 
             let producer = CompactedDataProducer::new(
                 &compactor_id,
@@ -620,6 +632,10 @@ pub async fn command(config: Config) -> Result<()> {
                 );
                 let persisted_files = buf.persisted_files();
                 (buf, Some(persisted_files))
+            }
+            BufferMode::Compactor => {
+                let buf = Arc::new(WriteBufferPro::compactor());
+                (buf, None)
             }
         };
 
