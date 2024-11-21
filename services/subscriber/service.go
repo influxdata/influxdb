@@ -139,6 +139,7 @@ func NewService(c Config) *Service {
 // Open starts the subscription service.
 func (s *Service) Open() error {
 	if !s.conf.Enabled {
+		s.Logger.Info("Service is disabled")
 		return nil // Service disabled.
 	}
 
@@ -454,6 +455,7 @@ func (c *chanWriter) Write(wr WriteRequest) {
 	if limit > 0 && newSize > limit {
 		atomic.AddInt64(c.failures, 1)
 		atomic.AddInt64(&c.queueSize, -int64(sz))
+		c.logger.Warn("Write rejected, queue over byte limit")
 		return
 	}
 
@@ -462,6 +464,7 @@ func (c *chanWriter) Write(wr WriteRequest) {
 	case c.writeRequests <- wr:
 	default:
 		atomic.AddInt64(c.failures, 1)
+		c.logger.Warn("Write rejected, queue full")
 	}
 }
 
