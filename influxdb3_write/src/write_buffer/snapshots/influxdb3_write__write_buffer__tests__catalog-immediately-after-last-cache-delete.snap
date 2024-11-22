@@ -66,6 +66,7 @@ expression: catalog_json
                   }
                 ]
               ],
+              "deleted": false,
               "table_id": 0,
               "table_name": "table"
             }

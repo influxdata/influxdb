@@ -51,7 +51,12 @@ pub trait WriteBuffer: Bufferer + ChunkContainer + LastCacheManager + DatabaseMa
 /// Database manager - supports only delete operation
 #[async_trait::async_trait]
 pub trait DatabaseManager: Debug + Send + Sync + 'static {
-    async fn delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
+    async fn soft_delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
+    async fn soft_delete_table(
+        &self,
+        db_name: String,
+        table_name: String,
+    ) -> Result<(), write_buffer::Error>;
 }
 
 /// The buffer is for buffering data in memory and in the wal before it is persisted as parquet files in storage.

@@ -6,8 +6,8 @@ use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
-    MetaCacheDefinition,
+    CatalogBatch, CatalogOp, DeleteTableDefinition, FieldAdditions, LastCacheDefinition,
+    LastCacheDelete, MetaCacheDefinition,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use thiserror::Error;
 
-const SOFT_DB_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
+const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 #[derive(Debug, Error, Clone)]
 pub enum Error {
@@ -469,6 +469,8 @@ impl DatabaseSchema {
         debug!(name = ?db_schema.name, deleted = ?db_schema.deleted, full_batch = ?catalog_batch, "Updating / adding to catalog");
         let mut updated_or_new_tables = SerdeVecMap::new();
         let mut schema_deleted = false;
+        let mut table_deleted = false;
+        let mut deleted_table_defn = None;
         let mut schema_name = Arc::clone(&db_schema.name);
 
         for catalog_op in &catalog_batch.ops {
@@ -541,12 +543,16 @@ impl DatabaseSchema {
                     schema_deleted = true;
                     let deletion_time = Time::from_timestamp_nanos(params.deletion_time);
                     schema_name =
-                        DatabaseSchema::make_new_schema_name(&params.database_name, deletion_time);
+                        make_new_name_using_deleted_time(&params.database_name, deletion_time);
+                }
+                CatalogOp::DeleteTable(table_definition) => {
+                    table_deleted = true;
+                    deleted_table_defn = Some(table_definition);
                 }
             }
         }
 
-        if updated_or_new_tables.is_empty() && !schema_deleted {
+        if updated_or_new_tables.is_empty() && !schema_deleted && !table_deleted {
             Ok(None)
         } else {
             for (table_id, table_def) in &db_schema.tables {
@@ -554,6 +560,8 @@ impl DatabaseSchema {
                     updated_or_new_tables.insert(*table_id, Arc::clone(table_def));
                 }
             }
+
+            check_and_mark_table_as_deleted(deleted_table_defn, &mut updated_or_new_tables);
 
             // With the final list of updated/new tables update the current mapping
             let new_table_maps = updated_or_new_tables
@@ -593,7 +601,7 @@ impl DatabaseSchema {
     }
 
     pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
-        self.table_schema_and_id(table_name)
+        self.table_id_and_schema(table_name)
             .map(|(_, schema)| schema.clone())
     }
 
@@ -604,7 +612,7 @@ impl DatabaseSchema {
             .cloned()
     }
 
-    pub fn table_schema_and_id(
+    pub fn table_id_and_schema(
         &self,
         table_name: impl Into<Arc<str>>,
     ) -> Option<(TableId, Schema)> {
@@ -630,7 +638,7 @@ impl DatabaseSchema {
         self.tables.get(table_id).cloned()
     }
 
-    pub fn table_definition_and_id(
+    pub fn table_id_and_definition(
         &self,
         table_name: impl Into<Arc<str>>,
     ) -> Option<(TableId, Arc<TableDefinition>)> {
@@ -666,21 +674,30 @@ impl DatabaseSchema {
     pub fn table_id_to_name(&self, table_id: &TableId) -> Option<Arc<str>> {
         self.table_map.get_by_left(table_id).map(Arc::clone)
     }
+}
 
-    pub fn soft_delete_db(&mut self, deletion_time: Time) {
-        self.deleted = true;
-        self.name = DatabaseSchema::make_new_schema_name(&self.name, deletion_time);
+fn check_and_mark_table_as_deleted(
+    deleted_table_defn: Option<&DeleteTableDefinition>,
+    updated_or_new_tables: &mut SerdeVecMap<TableId, Arc<TableDefinition>>,
+) {
+    if let Some(deleted_table_defn) = deleted_table_defn {
+        if let Some(deleted_table) = updated_or_new_tables.get_mut(&deleted_table_defn.table_id) {
+            let deletion_time = Time::from_timestamp_nanos(deleted_table_defn.deletion_time);
+            let table_name =
+                make_new_name_using_deleted_time(&deleted_table_defn.table_name, deletion_time);
+            let new_table_def = Arc::make_mut(deleted_table);
+            new_table_def.deleted = true;
+            new_table_def.table_name = table_name;
+        }
     }
+}
 
-    pub fn make_new_schema_name(name: &str, deletion_time: Time) -> Arc<str> {
-        Arc::from(format!(
-            "{}-{}",
-            name,
-            deletion_time
-                .date_time()
-                .format(SOFT_DB_DELETION_TIME_FORMAT)
-        ))
-    }
+fn make_new_name_using_deleted_time(name: &str, deletion_time: Time) -> Arc<str> {
+    Arc::from(format!(
+        "{}-{}",
+        name,
+        deletion_time.date_time().format(SOFT_DELETION_TIME_FORMAT)
+    ))
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -693,6 +710,7 @@ pub struct TableDefinition {
     pub series_key: Option<Vec<ColumnId>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
     pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
+    pub deleted: bool,
 }
 
 impl TableDefinition {
@@ -748,6 +766,7 @@ impl TableDefinition {
             series_key,
             last_caches: HashMap::new(),
             meta_caches: HashMap::new(),
+            deleted: false,
         })
     }
 
@@ -1195,7 +1214,9 @@ mod tests {
                                         "table_id": 0,
                                         "table_name": "tbl1",
                                         "cols": [],
-                                        "next_column_id": 0
+                                        "next_column_id": 0,
+                                        "deleted": false
+
                                     }
                                 ],
                                 [
@@ -1204,7 +1225,9 @@ mod tests {
                                         "table_id": 0,
                                         "table_name": "tbl1",
                                         "cols": [],
-                                        "next_column_id": 0
+                                        "next_column_id": 0,
+                                        "deleted": false
+
                                     }
                                 ]
                             ],
@@ -1256,7 +1279,9 @@ mod tests {
                                                     "nullable": true
                                                 }
                                             ]
-                                        ]
+                                        ],
+                                        "deleted": false
+
                                     }
                                 ]
                             ],
@@ -1481,5 +1506,56 @@ mod tests {
             .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
+    }
+
+    #[test]
+    fn test_check_and_mark_table_as_deleted() {
+        let db_id = DbId::new();
+        let deleted_table_id = TableId::new();
+        let table_name = Arc::from("boo");
+        let deleted_table_defn = DeleteTableDefinition {
+            database_id: db_id,
+            database_name: Arc::from("foo"),
+            table_id: deleted_table_id,
+            table_name: Arc::clone(&table_name),
+            deletion_time: 0,
+        };
+        let mut map = IndexMap::new();
+        let table_defn = Arc::new(
+            TableDefinition::new(
+                deleted_table_id,
+                Arc::clone(&table_name),
+                vec![
+                    (ColumnId::from(0), "tag_1".into(), InfluxColumnType::Tag),
+                    (ColumnId::from(1), "tag_2".into(), InfluxColumnType::Tag),
+                    (ColumnId::from(2), "tag_3".into(), InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(3),
+                        "time".into(),
+                        InfluxColumnType::Timestamp,
+                    ),
+                    (
+                        ColumnId::from(4),
+                        "field".into(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ),
+                ],
+                SeriesKey::Some(vec![
+                    ColumnId::from(0),
+                    ColumnId::from(1),
+                    ColumnId::from(2),
+                ]),
+            )
+            .unwrap(),
+        );
+        map.insert(deleted_table_id, table_defn);
+        let mut updated_or_new_tables = SerdeVecMap::from(map);
+
+        check_and_mark_table_as_deleted(Some(&deleted_table_defn), &mut updated_or_new_tables);
+
+        let deleted_table = updated_or_new_tables.get(&deleted_table_id).unwrap();
+        assert_eq!(&*deleted_table.table_name, "boo-19700101T000000");
+        assert!(deleted_table.deleted);
+        assert!(deleted_table.series_key.is_some());
     }
 }

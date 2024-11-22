@@ -111,6 +111,7 @@ struct TableSnapshot {
     cols: SerdeVecMap<ColumnId, ColumnDefinitionSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
+    deleted: bool,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -255,6 +256,7 @@ impl From<&TableDefinition> for TableSnapshot {
                 })
                 .collect(),
             last_caches: def.last_caches.values().map(Into::into).collect(),
+            deleted: def.deleted,
         }
     }
 }

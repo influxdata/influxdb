@@ -84,7 +84,7 @@ impl QueryableBuffer {
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let (table_id, table_def) = db_schema
-            .table_definition_and_id(table_name)
+            .table_id_and_definition(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
 
         let influx_schema = table_def.influx_schema();
@@ -416,6 +416,17 @@ impl BufferState {
                                 self.db_to_table.remove(&db_definition.database_id);
                                 last_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
+                            }
+                            CatalogOp::DeleteTable(table_definition) => {
+                                last_cache_provider.delete_caches_for_table(
+                                    &table_definition.database_id,
+                                    &table_definition.table_id,
+                                );
+                                if let Some(table_buffer_map) =
+                                    self.db_to_table.get_mut(&table_definition.database_id)
+                                {
+                                    table_buffer_map.remove(&table_definition.table_id);
+                                }
                             }
                         }
                     }

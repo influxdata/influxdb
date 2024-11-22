@@ -498,6 +498,14 @@ impl LastCacheProvider {
         lock.remove(db_id);
     }
 
+    /// Delete all caches for table from the provider
+    pub fn delete_caches_for_table(&self, db_id: &DbId, table_id: &TableId) {
+        let mut write_guard = self.cache_map.write();
+        if let Some(tables) = write_guard.get_mut(db_id) {
+            tables.remove(table_id);
+        }
+    }
+
     /// Write the contents from a wal file into the cache by iterating over its database and table batches
     /// to find entries that belong in the cache.
     ///
@@ -1806,7 +1814,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema("foo").unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition("cpu").unwrap();
         let col_id = table_def.column_name_to_id("host").unwrap();
 
         // Create the last cache:
@@ -1915,7 +1923,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema("foo").unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
 
@@ -2152,7 +2160,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema("foo").unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
 
@@ -2334,7 +2342,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema("foo").unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id("cpu").unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
         let region_col_id = table_def.column_name_to_id("region").unwrap();
 
@@ -2480,7 +2488,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema("cassini_mission").unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id("temp").unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition("temp").unwrap();
         let component_id_col_id = table_def.column_name_to_id("component_id").unwrap();
         let active_col_id = table_def.column_name_to_id("active").unwrap();
         let type_col_id = table_def.column_name_to_id("type").unwrap();
@@ -2614,7 +2622,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema(db_name).unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition(tbl_name).unwrap();
         let state_col_id = table_def.column_name_to_id("state").unwrap();
         let county_col_id = table_def.column_name_to_id("county").unwrap();
         let farm_col_id = table_def.column_name_to_id("farm").unwrap();
@@ -2752,7 +2760,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema(db_name).unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition(tbl_name).unwrap();
         let state_col_id = table_def.column_name_to_id("state").unwrap();
         let county_col_id = table_def.column_name_to_id("county").unwrap();
         let farm_col_id = table_def.column_name_to_id("farm").unwrap();
@@ -2960,7 +2968,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema(db_name).unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition(tbl_name).unwrap();
         let game_id_col_id = table_def.column_name_to_id("game_id").unwrap();
 
         // Create the last cache using default tags as keys
@@ -3061,7 +3069,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema(db_name).unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition(tbl_name).unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
 
         // Create the last cache using the single `t1` tag column as key
@@ -3198,7 +3206,7 @@ mod tests {
         .unwrap();
 
         let (db_id, db_schema) = wbuf.catalog().db_id_and_schema(db_name).unwrap();
-        let (tbl_id, table_def) = db_schema.table_definition_and_id(tbl_name).unwrap();
+        let (tbl_id, table_def) = db_schema.table_id_and_definition(tbl_name).unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
         let t2_col_id = table_def.column_name_to_id("t2").unwrap();
         let f1_col_id = table_def.column_name_to_id("f1").unwrap();
