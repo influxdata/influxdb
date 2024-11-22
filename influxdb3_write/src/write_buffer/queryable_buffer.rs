@@ -17,6 +17,7 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
@@ -40,6 +41,7 @@ use tokio::sync::oneshot::Receiver;
 pub struct QueryableBuffer {
     pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
+    meta_cache_provider: Arc<MetaCacheProvider>,
     last_cache_provider: Arc<LastCacheProvider>,
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
@@ -50,14 +52,27 @@ pub struct QueryableBuffer {
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
 }
 
+pub struct QueryableBufferArgs {
+    pub executor: Arc<Executor>,
+    pub catalog: Arc<Catalog>,
+    pub persister: Arc<Persister>,
+    pub last_cache_provider: Arc<LastCacheProvider>,
+    pub meta_cache_provider: Arc<MetaCacheProvider>,
+    pub persisted_files: Arc<PersistedFiles>,
+    pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+}
+
 impl QueryableBuffer {
     pub fn new(
-        executor: Arc<Executor>,
-        catalog: Arc<Catalog>,
-        persister: Arc<Persister>,
-        last_cache_provider: Arc<LastCacheProvider>,
-        persisted_files: Arc<PersistedFiles>,
-        parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+        QueryableBufferArgs {
+            executor,
+            catalog,
+            persister,
+            last_cache_provider,
+            meta_cache_provider,
+            persisted_files,
+            parquet_cache,
+        }: QueryableBufferArgs,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
@@ -66,6 +81,7 @@ impl QueryableBuffer {
             executor,
             catalog,
             last_cache_provider,
+            meta_cache_provider,
             persister,
             persisted_files,
             buffer,
@@ -129,11 +145,22 @@ impl QueryableBuffer {
             .collect())
     }
 
-    /// Called when the wal has persisted a new file. Buffer the contents in memory and update the last cache so the data is queryable.
+    /// Update the caches managed by the database
+    fn write_wal_contents_to_caches(&self, write: &WalContents) {
+        self.last_cache_provider.write_wal_contents_to_cache(write);
+        self.meta_cache_provider.write_wal_contents_to_cache(write);
+    }
+
+    /// Called when the wal has persisted a new file. Buffer the contents in memory and update the
+    /// last cache so the data is queryable.
     fn buffer_contents(&self, write: WalContents) {
-        self.last_cache_provider.write_wal_contents_to_cache(&write);
+        self.write_wal_contents_to_caches(&write);
         let mut buffer = self.buffer.write();
-        buffer.buffer_ops(write.ops, &self.last_cache_provider);
+        buffer.buffer_ops(
+            write.ops,
+            &self.last_cache_provider,
+            &self.meta_cache_provider,
+        );
     }
 
     /// Called when the wal has written a new file and is attempting to snapshot. Kicks off persistence of
@@ -147,6 +174,7 @@ impl QueryableBuffer {
             ?snapshot_details,
             "Buffering contents and persisting snapshotted data"
         );
+        self.write_wal_contents_to_caches(&write);
         let persist_jobs = {
             let mut buffer = self.buffer.write();
 
@@ -191,7 +219,11 @@ impl QueryableBuffer {
 
             // we must buffer the ops after the snapshotting as this data should not be persisted
             // with this set of wal files
-            buffer.buffer_ops(write.ops, &self.last_cache_provider);
+            buffer.buffer_ops(
+                write.ops,
+                &self.last_cache_provider,
+                &self.meta_cache_provider,
+            );
 
             persisting_chunks
         };
@@ -372,7 +404,12 @@ impl BufferState {
         }
     }
 
-    pub fn buffer_ops(&mut self, ops: Vec<WalOp>, last_cache_provider: &LastCacheProvider) {
+    pub fn buffer_ops(
+        &mut self,
+        ops: Vec<WalOp>,
+        last_cache_provider: &LastCacheProvider,
+        meta_cache_provider: &MetaCacheProvider,
+    ) {
         for op in ops {
             match op {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),
@@ -391,6 +428,25 @@ impl BufferState {
                     // eg. creating or deleting last cache itself
                     for op in catalog_batch.ops {
                         match op {
+                            CatalogOp::CreateMetaCache(definition) => {
+                                let table_def = db_schema
+                                    .table_definition_by_id(&definition.table_id)
+                                    .expect("table should exist");
+                                meta_cache_provider.create_from_definition(
+                                    db_schema.id,
+                                    table_def,
+                                    &definition,
+                                );
+                            }
+                            CatalogOp::DeleteMetaCache(cache) => {
+                                // this only fails if the db/table/cache do not exist, so we ignore
+                                // the error if it happens.
+                                let _ = meta_cache_provider.delete_cache(
+                                    &db_schema.id,
+                                    &cache.table_id,
+                                    &cache.cache_name,
+                                );
+                            }
                             CatalogOp::CreateLastCache(definition) => {
                                 let table_def = db_schema
                                     .table_definition_by_id(&definition.table_id)
@@ -402,7 +458,8 @@ impl BufferState {
                                 );
                             }
                             CatalogOp::DeleteLastCache(cache) => {
-                                // we can ignore it if this doesn't exist for any reason
+                                // this only fails if the db/table/cache do not exist, so we ignore
+                                // the error if it happens.
                                 let _ = last_cache_provider.delete_cache(
                                     db_schema.id,
                                     cache.table_id,

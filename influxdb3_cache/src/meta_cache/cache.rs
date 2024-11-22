@@ -17,6 +17,7 @@ use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
 use iox_time::TimeProvider;
 use schema::{InfluxColumnType, InfluxFieldType};
+use serde::Deserialize;
 
 /// A metadata cache for storing distinct values for a set of columns in a table
 #[derive(Debug)]
@@ -52,7 +53,7 @@ pub struct CreateMetaCacheArgs {
     pub column_ids: Vec<ColumnId>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MaxCardinality(NonZeroUsize);
 
 impl TryFrom<usize> for MaxCardinality {
@@ -65,9 +66,11 @@ impl TryFrom<usize> for MaxCardinality {
     }
 }
 
+const DEFAULT_MAX_CARDINALITY: usize = 100_000;
+
 impl Default for MaxCardinality {
     fn default() -> Self {
-        Self(NonZeroUsize::new(100_000).unwrap())
+        Self(NonZeroUsize::new(DEFAULT_MAX_CARDINALITY).unwrap())
     }
 }
 
@@ -77,12 +80,14 @@ impl From<MaxCardinality> for usize {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+const DEFAULT_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MaxAge(Duration);
 
 impl Default for MaxAge {
     fn default() -> Self {
-        Self(Duration::from_secs(24 * 60 * 60))
+        Self(DEFAULT_MAX_AGE)
     }
 }
 
@@ -121,6 +126,7 @@ impl MetaCache {
         if column_ids.is_empty() {
             bail!("must pass a non-empty set of column ids");
         }
+        let _ = table_def.index_column_ids();
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get(id).with_context(|| {

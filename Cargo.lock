@@ -2709,6 +2709,7 @@ dependencies = [
  "hex",
  "humantime",
  "hyper 0.14.31",
+ "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
  "influxdb3_process",
@@ -2765,6 +2766,7 @@ dependencies = [
  "iox_time",
  "parking_lot",
  "schema",
+ "serde",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -2884,6 +2886,7 @@ dependencies = [
  "http 0.2.12",
  "hyper 0.14.31",
  "influxdb-line-protocol",
+ "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_process",
@@ -3015,6 +3018,7 @@ dependencies = [
  "hex",
  "indexmap 2.6.0",
  "influxdb-line-protocol",
+ "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_telemetry",
@@ -6552,9 +6556,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "url"
-version = "2.5.3"
+version = "2.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d157f1b96d14500ffdc1f10ba712e780825526c03d9a49b4d0324b0d9113ada"
+checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
  "idna",

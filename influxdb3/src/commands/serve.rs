@@ -8,6 +8,7 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -23,7 +24,7 @@ use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
     persister::Persister,
-    write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
+    write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
     WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -79,6 +80,9 @@ pub enum Error {
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+
+    #[error("failed to initialize meta cache: {0:#}")]
+    InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -277,10 +281,20 @@ pub struct Config {
     #[clap(
         long = "last-cache-eviction-interval",
         env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
-        default_value = "1m",
+        default_value = "10s",
         action
     )]
     pub last_cache_eviction_interval: humantime::Duration,
+
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
+    #[clap(
+        long = "meta-cache-eviction-interval",
+        env = "INFLUXDB3_META_CACHE_EVICTION_INTERVAL",
+        default_value = "10s",
+        action
+    )]
+    pub meta_cache_eviction_interval: humantime::Duration,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -445,24 +459,32 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
+    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
     let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&catalog) as _,
         config.last_cache_eviction_interval.into(),
     )
     .map_err(Error::InitializeLastCache)?;
-    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
+
+    let meta_cache = MetaCacheProvider::new_from_catalog_with_background_eviction(
+        Arc::clone(&time_provider) as _,
+        Arc::clone(&catalog),
+        config.meta_cache_eviction_interval.into(),
+    )
+    .map_err(Error::InitializeMetaCache)?;
 
     let write_buffer_impl = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
             last_cache,
-            Arc::<SystemProvider>::clone(&time_provider),
-            Arc::clone(&exec),
+            meta_cache,
+            time_provider: Arc::<SystemProvider>::clone(&time_provider),
+            executor: Arc::clone(&exec),
             wal_config,
             parquet_cache,
-        )
+        })
         .await
         .map_err(|e| Error::WriteBufferInit(e.into()))?,
     );

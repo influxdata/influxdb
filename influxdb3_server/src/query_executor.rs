@@ -596,6 +596,7 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
+    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -603,7 +604,7 @@ mod tests {
         last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
-        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl},
+        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -653,20 +654,25 @@ mod tests {
         let instance_id = Arc::from("instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
         let write_buffer_impl = Arc::new(
-            WriteBufferImpl::new(
-                Arc::clone(&persister),
-                Arc::clone(&catalog),
-                LastCacheProvider::new_from_catalog(catalog as _).unwrap(),
-                Arc::<MockProvider>::clone(&time_provider),
-                Arc::clone(&exec),
-                WalConfig {
+            WriteBufferImpl::new(WriteBufferImplArgs {
+                persister,
+                catalog: Arc::clone(&catalog),
+                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                meta_cache: MetaCacheProvider::new_from_catalog(
+                    Arc::<MockProvider>::clone(&time_provider),
+                    Arc::clone(&catalog),
+                )
+                .unwrap(),
+                time_provider: Arc::<MockProvider>::clone(&time_provider),
+                executor: Arc::clone(&exec),
+                wal_config: WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
                     max_write_buffer_size: 100,
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1,
                 },
-                Some(parquet_cache),
-            )
+                parquet_cache: Some(parquet_cache),
+            })
             .await
             .unwrap(),
         );

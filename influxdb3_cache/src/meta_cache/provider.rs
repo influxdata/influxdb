@@ -14,7 +14,7 @@ use super::cache::{CreateMetaCacheArgs, MetaCache};
 
 #[derive(Debug, thiserror::Error)]
 #[error("metadata cache provider error: {0:#}")]
-pub struct Error(#[from] anyhow::Error);
+pub struct ProviderError(#[from] anyhow::Error);
 
 /// Triple nested map for storing a multiple metadata caches per table.
 ///
@@ -35,7 +35,7 @@ impl MetaCacheProvider {
     pub fn new_from_catalog(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
-    ) -> Result<Arc<Self>, Error> {
+    ) -> Result<Arc<Self>, ProviderError> {
         let provider = Arc::new(MetaCacheProvider {
             time_provider,
             catalog: Arc::clone(&catalog),
@@ -77,7 +77,7 @@ impl MetaCacheProvider {
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
         eviction_interval: Duration,
-    ) -> Result<Arc<Self>, Error> {
+    ) -> Result<Arc<Self>, ProviderError> {
         let provider = Self::new_from_catalog(time_provider, catalog)?;
 
         background_eviction_process(Arc::clone(&provider), eviction_interval);
@@ -139,7 +139,7 @@ impl MetaCacheProvider {
             max_age,
             column_ids,
         }: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, Error> {
+    ) -> Result<Option<MetaCacheDefinition>, ProviderError> {
         let cache_name = if let Some(cache_name) = cache_name {
             cache_name
         } else {
@@ -233,19 +233,19 @@ impl MetaCacheProvider {
     /// table or its parent database empty, this will remove that branch.
     pub fn delete_cache(
         &self,
-        db_id: DbId,
-        table_id: TableId,
+        db_id: &DbId,
+        table_id: &TableId,
         cache_name: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ProviderError> {
         let mut lock = self.cache_map.write();
-        let db = lock.get_mut(&db_id).context("database does not exist")?;
-        let table = db.get_mut(&table_id).context("table does not exist")?;
+        let db = lock.get_mut(db_id).context("database does not exist")?;
+        let table = db.get_mut(table_id).context("table does not exist")?;
         table.remove(cache_name).context("cache does not exist")?;
         if table.is_empty() {
-            db.remove(&table_id);
+            db.remove(table_id);
         }
         if db.is_empty() {
-            lock.remove(&db_id);
+            lock.remove(db_id);
         }
         Ok(())
     }
