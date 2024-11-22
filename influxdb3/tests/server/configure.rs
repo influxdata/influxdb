@@ -508,3 +508,168 @@ async fn api_v3_configure_db_delete_missing_query_param() {
         .expect("delete database call succeed");
     assert_eq!(StatusCode::BAD_REQUEST, resp.status());
 }
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_table_delete() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(200, resp.status());
+
+    // check foo db has table with name in tbl-YYYYMMDD.. format
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW MEASUREMENTS on foo"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    assert_eq!(1, array_result.len());
+    let first_db = array_result.first().unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "tbl-"
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW MEASUREMENTS on foo"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    // check there are 2 tables now, tbl and tbl-*
+    assert_eq!(2, array_result.len());
+    let first_db = array_result.first().unwrap();
+    let second_db = array_result.get(1).unwrap();
+    assert_eq!(
+        "tbl",
+        first_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+    );
+    assert_contains!(
+        second_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "tbl-"
+    );
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_no_db() {
+    let db_name = "db";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table=foo",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_missing_query_param() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+}
+
+#[tokio::test]
+async fn try_deleting_table_after_db_is_deleted() {
+    let db_name = "db";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let delete_db_url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+    let delete_table_url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}",
+        base = server.client_addr()
+    );
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // db call should succeed
+    let resp = client
+        .delete(&delete_db_url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+
+    assert_eq!(StatusCode::OK, resp.status());
+
+    // but table delete call should fail with NOT_FOUND
+    let resp = client
+        .delete(&delete_table_url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}

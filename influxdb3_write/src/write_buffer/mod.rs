@@ -27,12 +27,12 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::CatalogOp::CreateLastCache;
 use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, Wal, WalConfig, WalFileNotifier,
     WalOp,
 };
+use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -76,8 +76,11 @@ pub enum Error {
     #[error("error in last cache: {0}")]
     LastCacheError(#[from] last_cache::Error),
 
-    #[error("database not found {0}")]
-    DatabaseNotFound(String),
+    #[error("database not found {db_name:?}")]
+    DatabaseNotFound { db_name: String },
+
+    #[error("table not found {table_name:?} in db {db_name:?}")]
+    TableNotFound { db_name: String, table_name: String },
 
     #[error("tried accessing database and table that do not exist")]
     DbDoesNotExist,
@@ -301,7 +304,7 @@ impl WriteBufferImpl {
         })?;
 
         let (table_id, table_schema) =
-            db_schema.table_schema_and_id(table_name).ok_or_else(|| {
+            db_schema.table_id_and_schema(table_name).ok_or_else(|| {
                 DataFusionError::Execution(format!(
                     "table {} not found in db {}",
                     table_name, database_name
@@ -525,11 +528,13 @@ impl LastCacheManager for WriteBufferImpl {
 
 #[async_trait::async_trait]
 impl DatabaseManager for WriteBufferImpl {
-    async fn delete_database(&self, name: String) -> crate::Result<(), self::Error> {
-        let (db_id, db_schema) = self
-            .catalog
-            .db_id_and_schema(&name)
-            .ok_or_else(|| self::Error::DatabaseNotFound(name))?;
+    async fn soft_delete_database(&self, name: String) -> crate::Result<(), self::Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(&name)
+                .ok_or_else(|| self::Error::DatabaseNotFound {
+                    db_name: name.to_owned(),
+                })?;
 
         let deletion_time = self.time_provider.now();
         let catalog_batch = CatalogBatch {
@@ -546,6 +551,49 @@ impl DatabaseManager for WriteBufferImpl {
         let wal_op = WalOp::Catalog(catalog_batch);
         self.wal.write_ops(vec![wal_op]).await?;
         debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        Ok(())
+    }
+
+    async fn soft_delete_table(
+        &self,
+        db_name: String,
+        table_name: String,
+    ) -> crate::Result<(), self::Error> {
+        let (db_id, db_schema) = self.catalog.db_id_and_schema(&db_name).ok_or_else(|| {
+            self::Error::DatabaseNotFound {
+                db_name: db_name.to_owned(),
+            }
+        })?;
+
+        let (table_id, table_defn) = db_schema
+            .table_id_and_definition(table_name.as_str())
+            .ok_or_else(|| self::Error::TableNotFound {
+                db_name: db_name.to_owned(),
+                table_name: table_name.to_owned(),
+            })?;
+        let deletion_time = self.time_provider.now();
+        let catalog_batch = CatalogBatch {
+            time_ns: deletion_time.timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::DeleteTable(DeleteTableDefinition {
+                database_id: db_id,
+                database_name: Arc::clone(&db_schema.name),
+                deletion_time: deletion_time.timestamp_nanos(),
+                table_id,
+                table_name: Arc::clone(&table_defn.table_name),
+            })],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+        debug!(
+            db_id = ?db_id,
+            db_name = ?&db_schema.name,
+            table_id = ?table_id,
+            table_name = ?table_defn.table_name,
+            "successfully deleted table"
+        );
         Ok(())
     }
 }
@@ -1921,7 +1969,37 @@ mod tests {
             .await
             .unwrap();
 
-        let result = write_buffer.delete_database("foo".to_string()).await;
+        let result = write_buffer.soft_delete_database("foo".to_string()).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_table() {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        let result = write_buffer
+            .soft_delete_table("foo".to_string(), "cpu".to_string())
+            .await;
 
         assert!(result.is_ok());
     }

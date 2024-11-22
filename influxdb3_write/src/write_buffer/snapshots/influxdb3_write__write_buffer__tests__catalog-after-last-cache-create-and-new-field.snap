@@ -66,6 +66,7 @@ expression: catalog_json
                   }
                 ]
               ],
+              "deleted": false,
               "last_caches": [
                 {
                   "keys": [

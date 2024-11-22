@@ -26,8 +26,8 @@ use trogging::{
 
 mod commands {
     pub(crate) mod common;
-    pub mod database;
     pub mod last_cache;
+    pub mod manage;
     pub mod query;
     pub mod serve;
     pub mod token;
@@ -94,7 +94,10 @@ enum Command {
     LastCache(commands::last_cache::Config),
 
     /// Manage database (delete only for the moment)
-    Database(commands::database::ManageDatabaseConfig),
+    Database(commands::manage::database::ManageDatabaseConfig),
+
+    /// Manage table (delete only for the moment)
+    Table(commands::manage::table::ManageTableConfig),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -152,9 +155,15 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Database(db_config)) => {
-                if let Err(e) = commands::database::delete_database(db_config).await {
+            Some(Command::Database(config)) => {
+                if let Err(e) = commands::manage::database::delete_database(config).await {
                     eprintln!("Database delete command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Table(config)) => {
+                if let Err(e) = commands::manage::table::delete_table(config).await {
+                    eprintln!("Table delete command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

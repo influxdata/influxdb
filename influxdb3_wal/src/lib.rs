@@ -245,6 +245,7 @@ pub enum CatalogOp {
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
+    DeleteTable(DeleteTableDefinition),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -257,6 +258,15 @@ pub struct DatabaseDefinition {
 pub struct DeleteDatabaseDefinition {
     pub database_id: DbId,
     pub database_name: Arc<str>,
+    pub deletion_time: i64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteTableDefinition {
+    pub database_id: DbId,
+    pub database_name: Arc<str>,
+    pub table_id: TableId,
+    pub table_name: Arc<str>,
     pub deletion_time: i64,
 }
 

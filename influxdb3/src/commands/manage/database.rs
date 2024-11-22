@@ -5,31 +5,30 @@ use secrecy::ExposeSecret;
 use crate::commands::common::InfluxDb3Config;
 
 #[derive(Debug, clap::Parser)]
-enum Command {
-    Delete(Config),
-}
-
-#[derive(Debug, clap::Parser)]
 pub(crate) struct ManageDatabaseConfig {
     #[clap(subcommand)]
     command: Command,
 }
 
 #[derive(Debug, clap::Parser)]
-pub struct Config {
+enum Command {
+    Delete(DatabaseConfig),
+}
+
+#[derive(Debug, clap::Parser)]
+pub struct DatabaseConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 }
 
-pub async fn delete_database(manage_db_config: ManageDatabaseConfig) -> Result<(), Box<dyn Error>> {
-    match manage_db_config.command {
+pub async fn delete_database(config: ManageDatabaseConfig) -> Result<(), Box<dyn Error>> {
+    match config.command {
         Command::Delete(config) => {
             let InfluxDb3Config {
                 host_url,
                 database_name,
                 auth_token,
             } = config.influxdb3_config;
-
             println!(
                 "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
                 database_name

@@ -96,3 +96,60 @@ async fn test_delete_missing_database() {
     debug!(result = ?result, "delete missing database");
     assert_contains!(&result, "404");
 }
+
+#[test_log::test(tokio::test)]
+async fn test_delete_table() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "cpu";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+    let result = run_with_confirmation(&[
+        "table",
+        "delete",
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--host",
+        &server_addr,
+    ]);
+    debug!(result = ?result, "delete table");
+    assert_contains!(&result, "Table \"foo\".\"cpu\" deleted successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_missing_table() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "mem";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = run_with_confirmation_and_err(&[
+        "table",
+        "delete",
+        "--dbname",
+        db_name,
+        "--table",
+        "cpu",
+        "--host",
+        &server_addr,
+    ]);
+    debug!(result = ?result, "delete missing table");
+    assert_contains!(&result, "404");
+}

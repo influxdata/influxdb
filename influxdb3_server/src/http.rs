@@ -227,7 +227,18 @@ impl Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
-            Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound(_)) => Response::builder()
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound { db_name: _ }) => {
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(err.to_string()))
+                    .unwrap()
+            }
+            Self::WriteBuffer(
+                err @ WriteBufferError::TableNotFound {
+                    db_name: _,
+                    table_name: _,
+                },
+            ) => Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
@@ -722,7 +733,7 @@ where
             .db_id_and_schema(&db)
             .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
         let (table_id, table_def) = db_schema
-            .table_definition_and_id(table.as_str())
+            .table_id_and_definition(table.as_str())
             .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
         let key_columns = key_columns
             .map(|names| {
@@ -809,8 +820,22 @@ where
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
-        let delete_req = serde_urlencoded::from_str::<DatabaseDeleteRequest>(query)?;
-        self.write_buffer.delete_database(delete_req.db).await?;
+        let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
+        self.write_buffer
+            .soft_delete_database(delete_req.db)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
+    async fn delete_table(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
+        self.write_buffer
+            .soft_delete_table(delete_req.db, delete_req.table)
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())
@@ -1131,8 +1156,14 @@ struct LastCacheDeleteRequest {
 }
 
 #[derive(Debug, Deserialize)]
-struct DatabaseDeleteRequest {
+struct DeleteDatabaseRequest {
     db: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeleteTableRequest {
+    db: String,
+    table: String,
 }
 
 pub(crate) async fn route_request<Q: QueryExecutor, T: TimeProvider>(
@@ -1214,6 +1245,8 @@ where
             http_server.configure_last_cache_delete(req).await
         }
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
+        // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
+        (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

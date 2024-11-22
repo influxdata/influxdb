@@ -127,7 +127,8 @@ expression: catalog
                     "nullable": true
                   }
                 ]
-              ]
+              ],
+              "deleted": false
             }
           ],
           [
@@ -246,7 +247,8 @@ expression: catalog
                     "nullable": true
                   }
                 ]
-              ]
+              ],
+              "deleted": false
             }
           ]
         ],

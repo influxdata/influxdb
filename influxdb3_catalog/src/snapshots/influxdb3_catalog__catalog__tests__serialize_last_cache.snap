@@ -103,7 +103,8 @@ expression: catalog
                   "n": 1,
                   "ttl": 600
                 }
-              ]
+              ],
+              "deleted": false
             }
           ]
         ],
