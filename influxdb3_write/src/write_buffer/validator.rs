@@ -723,7 +723,7 @@ fn validate_and_qualify_v1_line(
 /// Result of conversion from line protocol to valid chunked data
 /// for the buffer.
 #[derive(Debug)]
-pub(crate) struct ValidatedLines {
+pub struct ValidatedLines {
     /// Number of lines passed in
     pub(crate) line_count: usize,
     /// Number of fields passed in
@@ -736,6 +736,12 @@ pub(crate) struct ValidatedLines {
     pub(crate) valid_data: WriteBatch,
     /// If any catalog updates were made, they will be included here
     pub(crate) catalog_updates: Option<CatalogBatch>,
+}
+
+impl From<ValidatedLines> for WriteBatch {
+    fn from(value: ValidatedLines) -> Self {
+        value.valid_data
+    }
 }
 
 impl WriteValidator<LinesParsed> {
@@ -752,7 +758,7 @@ impl WriteValidator<LinesParsed> {
     /// This involves splitting out the writes into different batches for each chunk, which will
     /// map to the `Gen1Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
-    pub(crate) fn convert_lines_to_buffer(self, gen1_duration: Gen1Duration) -> ValidatedLines {
+    pub fn convert_lines_to_buffer(self, gen1_duration: Gen1Duration) -> ValidatedLines {
         let mut table_chunks = IndexMap::new();
         let line_count = self.state.lines.len();
         let mut field_count = 0;
