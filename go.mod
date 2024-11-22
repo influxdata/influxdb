@@ -1,8 +1,8 @@
 module github.com/influxdata/influxdb/v2
 
-go 1.21.0
+go 1.22.0
 
-toolchain go1.21.9
+toolchain go1.22.7
 
 require (
 	github.com/BurntSushi/toml v1.2.1
