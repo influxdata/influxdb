@@ -84,10 +84,10 @@ pub enum Error {
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
 
-    #[error("tried accessing database and table that do not exist")]
+    #[error("tried accessing database that does not exist")]
     DbDoesNotExist,
 
-    #[error("tried accessing database and table that do not exist")]
+    #[error("tried accessing table that do not exist")]
     TableDoesNotExist,
 
     #[error("tried accessing column with name ({0}) that does not exist")]

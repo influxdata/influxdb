@@ -18,6 +18,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
@@ -449,6 +450,13 @@ impl QueryNamespace for Database {
             Arc::new(LastCacheFunction::new(
                 self.db_schema.id,
                 self.write_buffer.last_cache_provider(),
+            )),
+        );
+        ctx.inner().register_udtf(
+            META_CACHE_UDTF_NAME,
+            Arc::new(MetaCacheFunction::new(
+                self.db_schema.id,
+                self.write_buffer.meta_cache_provider(),
             )),
         );
         ctx

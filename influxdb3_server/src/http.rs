@@ -20,7 +20,7 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MaxAge, MaxCardinality};
+use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_write::last_cache;
@@ -297,6 +297,28 @@ impl Error {
                 last_cache::Error::CacheDoesNotExist => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(self.to_string()))
+                    .unwrap(),
+            },
+            Self::WriteBuffer(WriteBufferError::MetaCacheError(ref mc_err)) => match mc_err {
+                meta_cache::ProviderError::Cache(ref cache_err) => match cache_err {
+                    meta_cache::CacheError::EmptyColumnSet
+                    | meta_cache::CacheError::NonTagOrStringColumn { .. }
+                    | meta_cache::CacheError::ConfigurationMismatch { .. } => Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(Body::from(mc_err.to_string()))
+                        .unwrap(),
+                    meta_cache::CacheError::Unexpected(_) => Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::from(mc_err.to_string()))
+                        .unwrap(),
+                },
+                meta_cache::ProviderError::CacheNotFound { .. } => Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(mc_err.to_string()))
+                    .unwrap(),
+                meta_cache::ProviderError::Unexpected(_) => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
             Self::DbName(e) => {
@@ -723,6 +745,8 @@ where
     /// will respond with a 204 NOT CREATED. If an existing cache would be overwritten with a
     /// different configuration, that is a 400 BAD REQUEST
     async fn configure_meta_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let args = self.read_body_json(req).await?;
+        info!(?args, "create metadata cache request");
         let MetaCacheCreateRequest {
             db,
             table,
@@ -730,16 +754,19 @@ where
             columns,
             max_cardinality,
             max_age,
-        } = self.read_body_json(req).await?;
+        } = args;
 
-        let db_schema = self
-            .write_buffer
-            .catalog()
-            .db_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_def = db_schema
-            .table_definition(table.as_str())
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+        let db_schema = self.write_buffer.catalog().db_schema(&db).ok_or_else(|| {
+            WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            }
+        })?;
+        let table_def = db_schema.table_definition(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            }
+        })?;
         let column_ids = columns
             .into_iter()
             .map(|name| {
@@ -748,6 +775,8 @@ where
                     .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
             })
             .collect::<Result<Vec<_>, WriteBufferError>>()?;
+        let max_age = max_age.map(MaxAge::from).unwrap_or_default();
+        let max_cardinality = max_cardinality.unwrap_or_default();
         match self
             .write_buffer
             .create_meta_cache(
@@ -788,10 +817,15 @@ where
             .write_buffer
             .catalog()
             .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = db_schema
-            .table_name_to_id(table.as_str())
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
+        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            }
+        })?;
         self.write_buffer
             .delete_meta_cache(&db_id, &table_id, &name)
             .await?;
@@ -816,10 +850,15 @@ where
             .write_buffer
             .catalog()
             .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
         let (table_id, table_def) = db_schema
             .table_id_and_definition(table.as_str())
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            })?;
         let key_columns = key_columns
             .map(|names| {
                 names
@@ -887,10 +926,15 @@ where
             .write_buffer
             .catalog()
             .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = db_schema
-            .table_name_to_id(table)
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
+        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db.to_string(),
+                table_name: table.to_string(),
+            }
+        })?;
         self.write_buffer
             .delete_last_cache(db_id, table_id, &name)
             .await?;
@@ -1231,11 +1275,9 @@ struct MetaCacheCreateRequest {
     // https://github.com/influxdata/influxdb/issues/25585
     columns: Vec<String>,
     /// The maximumn number of distinct value combinations to hold in the cache
-    #[serde(default)]
-    max_cardinality: MaxCardinality,
-    /// The duration that entries will be kept in the cache before being evicted
-    #[serde(default)]
-    max_age: MaxAge,
+    max_cardinality: Option<MaxCardinality>,
+    /// The duration in seconds that entries will be kept in the cache before being evicted
+    max_age: Option<u64>,
 }
 
 /// Request definition for the `DELETE /api/v3/configure/meta_cache` API

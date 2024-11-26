@@ -2884,6 +2884,7 @@ dependencies = [
  "futures",
  "hex",
  "http 0.2.12",
+ "humantime",
  "hyper 0.14.31",
  "influxdb-line-protocol",
  "influxdb3_cache",
