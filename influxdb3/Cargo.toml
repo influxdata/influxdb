@@ -32,6 +32,7 @@ influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
+influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 
 # Crates.io dependencies
 anyhow.workspace = true
@@ -57,6 +58,7 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+bevy_reflect = "0.14.2"
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]

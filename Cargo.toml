@@ -9,6 +9,7 @@ members = [
     "influxdb3_load_generator",
     "influxdb3_process",
     "influxdb3_server",
+    "influxdb3_sys_events",
     "influxdb3_telemetry",
     "influxdb3_test_helpers",
     "influxdb3_wal",
@@ -49,6 +50,7 @@ assert_cmd = "2.0.14"
 async-trait = "0.1"
 backtrace = "0.3"
 base64 = "0.22.0"
+bevy_reflect = "0.14.2"
 bimap = "0.6.3"
 byteorder = "1.3.4"
 bytes = "1.8"
