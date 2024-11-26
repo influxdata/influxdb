@@ -279,7 +279,7 @@ pub struct TableDefinition {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
-    pub key: Option<Vec<ColumnId>>,
+    pub key: Vec<ColumnId>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

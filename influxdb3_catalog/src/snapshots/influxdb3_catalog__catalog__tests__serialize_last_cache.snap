@@ -2,6 +2,7 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: catalog
+snapshot_kind: text
 ---
 {
   "databases": [
@@ -16,6 +17,11 @@ expression: catalog
             {
               "table_id": 0,
               "table_name": "test",
+              "key": [
+                0,
+                1,
+                2
+              ],
               "cols": [
                 [
                   4,
@@ -39,7 +45,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -54,7 +60,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -69,7 +75,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [

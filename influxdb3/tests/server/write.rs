@@ -395,8 +395,7 @@ async fn writes_with_different_schema_should_fail() {
             "foo",
             "\
             t0,t0_tag0=initTag t0_f0=0i 1715694000\n\
-            t0,t0_tag0=initTag t0_f0=1i 1715694001\n\
-            t0,t0_tag1=initTag t0_f0=0i 1715694000",
+            t0,t0_tag0=initTag t0_f0=1i 1715694001",
             Precision::Second,
         )
         .await
@@ -408,8 +407,7 @@ async fn writes_with_different_schema_should_fail() {
             "foo",
             "\
             t0,t0_tag0=initTag t0_f0=0u 1715694000\n\
-            t0,t0_tag0=initTag t0_f0=1u 1715694001\n\
-            t0,t0_tag1=initTag t0_f0=0u 1715694000",
+            t0,t0_tag0=initTag t0_f0=1u 1715694001",
             Precision::Second,
         )
         .await

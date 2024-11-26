@@ -59,6 +59,7 @@ pub fn create_table_op(
     table_id: TableId,
     table_name: impl Into<Arc<str>>,
     fields: impl IntoIterator<Item = FieldDefinition>,
+    key: impl IntoIterator<Item = ColumnId>,
 ) -> CatalogOp {
     CatalogOp::CreateTable(TableDefinition {
         database_id: db_id,
@@ -66,7 +67,7 @@ pub fn create_table_op(
         table_name: table_name.into(),
         table_id,
         field_definitions: fields.into_iter().collect(),
-        key: None,
+        key: key.into_iter().collect(),
     })
 }
 
