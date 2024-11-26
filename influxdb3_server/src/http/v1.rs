@@ -29,17 +29,13 @@ use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::QueryExecutor;
-
 use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
 
-impl<Q, T> HttpApi<Q, T>
+impl<T> HttpApi<T>
 where
-    Q: QueryExecutor,
     T: TimeProvider,
-    Error: From<<Q as QueryExecutor>::Error>,
 {
     /// Implements the v1 query API for InfluxDB
     ///

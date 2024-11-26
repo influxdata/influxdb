@@ -4,7 +4,10 @@ use authz::Authorizer;
 use influxdb3_write::{persister::Persister, WriteBuffer};
 use tokio::net::TcpListener;
 
-use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
+use crate::{
+    auth::DefaultAuthorizer, http::HttpApi, query_executor, CommonServerState, QueryExecutor,
+    Server,
+};
 
 #[derive(Debug)]
 pub struct ServerBuilder<W, Q, P, T, L> {
@@ -52,7 +55,7 @@ pub struct WithWriteBuf(Arc<dyn WriteBuffer>);
 #[derive(Debug)]
 pub struct NoQueryExec;
 #[derive(Debug)]
-pub struct WithQueryExec<Q>(Arc<Q>);
+pub struct WithQueryExec(Arc<dyn QueryExecutor<Error = query_executor::Error>>);
 #[derive(Debug)]
 pub struct NoPersister;
 #[derive(Debug)]
@@ -82,7 +85,10 @@ impl<Q, P, T, L> ServerBuilder<NoWriteBuf, Q, P, T, L> {
 }
 
 impl<W, P, T, L> ServerBuilder<W, NoQueryExec, P, T, L> {
-    pub fn query_executor<Q>(self, qe: Arc<Q>) -> ServerBuilder<W, WithQueryExec<Q>, P, T, L> {
+    pub fn query_executor(
+        self,
+        qe: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+    ) -> ServerBuilder<W, WithQueryExec, P, T, L> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: self.time_provider,
@@ -141,10 +147,10 @@ impl<W, Q, P, T> ServerBuilder<W, Q, P, T, NoListener> {
     }
 }
 
-impl<Q, T>
-    ServerBuilder<WithWriteBuf, WithQueryExec<Q>, WithPersister, WithTimeProvider<T>, WithListener>
+impl<T>
+    ServerBuilder<WithWriteBuf, WithQueryExec, WithPersister, WithTimeProvider<T>, WithListener>
 {
-    pub fn build(self) -> Server<Q, T> {
+    pub fn build(self) -> Server<T> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let http = Arc::new(HttpApi::new(

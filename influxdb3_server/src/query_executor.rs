@@ -47,7 +47,7 @@ use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryExecutorImpl {
     catalog: Arc<Catalog>,
     write_buffer: Arc<dyn WriteBuffer>,
@@ -226,6 +226,16 @@ impl QueryExecutor for QueryExecutorImpl {
 
         let batch = retention_policy_rows_to_batch(&rows);
         Ok(Box::pin(MemoryStream::new(vec![batch])))
+    }
+
+    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+        // NB: This clone is required to get compiler to be happy
+        //     to convert `self` to dyn QueryDatabase. This wasn't
+        //     possible without getting owned value of self.
+        //     TODO: see if this clone can be removed satisfying
+        //           grpc setup in `make_flight_server`
+        let cloned_self = (*self).clone();
+        Arc::new(cloned_self) as _
     }
 }
 
