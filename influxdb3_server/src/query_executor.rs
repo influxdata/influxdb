@@ -50,7 +50,7 @@ use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QueryExecutorImpl {
     catalog: Arc<Catalog>,
     write_buffer: Arc<dyn WriteBuffer>,
@@ -239,6 +239,16 @@ impl QueryExecutor for QueryExecutorImpl {
         let batch = retention_policy_rows_to_batch(&rows);
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
+
+    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+        // NB: This clone is required to get compiler to be happy
+        //     to convert `self` to dyn QueryDatabase. This wasn't
+        //     possible without getting owned value of self.
+        //     TODO: see if this clone can be removed satisfying
+        //           grpc setup in `make_flight_server`
+        let cloned_self = (*self).clone();
+        Arc::new(cloned_self) as _
+    }
 }
 
 #[derive(Debug)]
@@ -316,6 +326,8 @@ pub enum Error {
     DatabasesToRecordBatch(#[source] ArrowError),
     #[error("unable to compose record batches from retention policies: {0}")]
     RetentionPoliciesToRecordBatch(#[source] ArrowError),
+    #[error("method not implemented")]
+    MethodNotImplemented,
 }
 
 // This implementation is for the Flight service
@@ -606,6 +618,74 @@ impl TableProvider for QueryTable {
         provider.scan(ctx, projection, &filters, limit).await
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PlaceHolderQueryExecutorImpl;
+
+#[async_trait]
+impl QueryExecutor for PlaceHolderQueryExecutorImpl {
+    type Error = Error;
+
+    async fn query(
+        &self,
+        _database: &str,
+        _q: &str,
+        _params: Option<StatementParams>,
+        _kind: QueryKind,
+        _span_ctx: Option<SpanContext>,
+        _external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
+        Err(Error::MethodNotImplemented)
+    }
+
+    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
+        Err(Error::MethodNotImplemented)
+    }
+
+    async fn show_retention_policies(
+        &self,
+        _database: Option<&str>,
+        _span_ctx: Option<SpanContext>,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
+        Err(Error::MethodNotImplemented)
+    }
+
+    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+        let cloned_self = (*self).clone();
+        Arc::new(cloned_self)
+    }
+}
+
+#[async_trait]
+impl QueryDatabase for PlaceHolderQueryExecutorImpl {
+    /// Get namespace if it exists.
+    ///
+    /// System tables may contain debug information depending on `include_debug_info_tables`.
+    async fn namespace(
+        &self,
+        _name: &str,
+        _span: Option<Span>,
+        _include_debug_info_tables: bool,
+    ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
+        Err(DataFusionError::External(Box::new(
+            Error::MethodNotImplemented,
+        )))
+    }
+
+    /// Acquire concurrency-limiting semapahore
+    async fn acquire_semaphore(
+        &self,
+        _span: Option<Span>,
+    ) -> InstrumentedAsyncOwnedSemaphorePermit {
+        unimplemented!()
+    }
+
+    /// Return the query log entries
+    fn query_log(&self) -> QueryLogEntries {
+        unimplemented!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};

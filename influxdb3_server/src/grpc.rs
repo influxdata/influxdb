@@ -4,11 +4,13 @@ use arrow_flight::flight_service_server::{
     FlightService as Flight, FlightServiceServer as FlightServer,
 };
 use authz::Authorizer;
-use iox_query::QueryDatabase;
 
-pub(crate) fn make_flight_server<Q: QueryDatabase>(
-    server: Arc<Q>,
+use crate::{query_executor, QueryExecutor};
+
+pub(crate) fn make_flight_server(
+    server: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
     authz: Option<Arc<dyn Authorizer>>,
 ) -> FlightServer<impl Flight> {
-    service_grpc_flight::make_server(server, authz)
+    let query_db = server.upcast();
+    service_grpc_flight::make_server(query_db, authz)
 }

@@ -235,6 +235,10 @@ impl Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
+            Self::Query(err @ query_executor::Error::MethodNotImplemented) => Response::builder()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
                 | CatalogError::TooManyColumns
@@ -366,22 +370,22 @@ impl Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<Q, T> {
+pub(crate) struct HttpApi<T> {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
     time_provider: Arc<T>,
-    pub(crate) query_executor: Arc<Q>,
+    pub(crate) query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
-impl<Q, T> HttpApi<Q, T> {
+impl<T> HttpApi<T> {
     pub(crate) fn new(
         common_state: CommonServerState,
         time_provider: Arc<T>,
         write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<Q>,
+        query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
@@ -398,11 +402,9 @@ impl<Q, T> HttpApi<Q, T> {
     }
 }
 
-impl<Q, T> HttpApi<Q, T>
+impl<T> HttpApi<T>
 where
-    Q: QueryExecutor,
     T: TimeProvider,
-    Error: From<<Q as QueryExecutor>::Error>,
 {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
@@ -1300,13 +1302,10 @@ struct FileIndexDeleteRequest {
     table: Option<String>,
 }
 
-pub(crate) async fn route_request<Q: QueryExecutor, T: TimeProvider>(
-    http_server: Arc<HttpApi<Q, T>>,
+pub(crate) async fn route_request<T: TimeProvider>(
+    http_server: Arc<HttpApi<T>>,
     mut req: Request<Body>,
-) -> Result<Response<Body>, Infallible>
-where
-    Error: From<<Q as QueryExecutor>::Error>,
-{
+) -> Result<Response<Body>, Infallible> {
     if let Err(e) = http_server.authorize_request(&mut req).await {
         match e {
             AuthorizationError::Unauthorized => {

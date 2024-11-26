@@ -2,6 +2,7 @@ use influxdb3_pro_clap_blocks::serve::BufferMode;
 
 use crate::server::{ConfigProvider, TestServer};
 
+pub mod compactor;
 mod file_index;
 mod replicas;
 

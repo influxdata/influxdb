@@ -28,8 +28,10 @@ use influxdb3_process::{
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
-    query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
-    serve, CommonServerState,
+    query_executor::{
+        self, CreateQueryExecutorArgs, PlaceHolderQueryExecutorImpl, QueryExecutorImpl,
+    },
+    serve, CommonServerState, QueryExecutor,
 };
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -664,18 +666,22 @@ pub async fn command(config: Config) -> Result<()> {
             None
         };
 
-    let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-        catalog: write_buffer.catalog(),
-        write_buffer: Arc::clone(&write_buffer),
-        exec: Arc::clone(&exec),
-        metrics: Arc::clone(&metrics),
-        datafusion_config: Arc::new(config.datafusion_config),
-        concurrent_query_limit: 10,
-        query_log_size: config.query_log_size,
-        telemetry_store: Arc::clone(&telemetry_store),
-        compacted_data: sys_table_compacted_data,
-        pro_config: Arc::clone(&pro_config),
-    }));
+    let query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>> =
+        match config.pro_config.mode {
+            BufferMode::Compactor => Arc::new(PlaceHolderQueryExecutorImpl),
+            _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
+                catalog: write_buffer.catalog(),
+                write_buffer: Arc::clone(&write_buffer),
+                exec: Arc::clone(&exec),
+                metrics: Arc::clone(&metrics),
+                datafusion_config: Arc::new(config.datafusion_config),
+                concurrent_query_limit: 10,
+                query_log_size: config.query_log_size,
+                telemetry_store: Arc::clone(&telemetry_store),
+                compacted_data: sys_table_compacted_data,
+                pro_config: Arc::clone(&pro_config),
+            })),
+        };
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
