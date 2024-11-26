@@ -119,9 +119,9 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<Q, T> {
+pub struct Server<T> {
     common_state: CommonServerState,
-    http: Arc<HttpApi<Q, T>>,
+    http: Arc<HttpApi<T>>,
     persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
@@ -148,6 +148,8 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
         database: Option<&str>,
         span_ctx: Option<SpanContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
+
+    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
 }
 
 #[derive(Debug)]
@@ -155,16 +157,14 @@ pub enum QueryKind {
     Sql,
     InfluxQl,
 }
-impl<Q, T> Server<Q, T> {
+impl<T> Server<T> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<Q, T>(server: Server<Q, T>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<T>(server: Server<T>, shutdown: CancellationToken) -> Result<()>
 where
-    Q: QueryExecutor,
-    http::Error: From<<Q as QueryExecutor>::Error>,
     T: TimeProvider,
 {
     let req_metrics = RequestMetrics::new(
