@@ -13,8 +13,8 @@ use arrow::{
 };
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::TableDefinition;
-use influxdb3_id::ColumnId;
-use influxdb3_wal::{FieldData, Row};
+use influxdb3_id::{ColumnId, TableId};
+use influxdb3_wal::{FieldData, MetaCacheDefinition, Row};
 use iox_time::TimeProvider;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::Deserialize;
@@ -317,6 +317,23 @@ impl MetaCache {
         }
 
         Ok(())
+    }
+
+    /// Create a [`MetaCacheDefinition`] from this cache along with the given args
+    pub(super) fn to_definition(
+        &self,
+        table_id: TableId,
+        table_name: Arc<str>,
+        cache_name: Arc<str>,
+    ) -> MetaCacheDefinition {
+        MetaCacheDefinition {
+            table_id,
+            table_name,
+            cache_name,
+            column_ids: self.column_ids.to_vec(),
+            max_cardinality: self.max_cardinality,
+            max_age_seconds: self.max_age.as_secs(),
+        }
     }
 }
 
