@@ -248,6 +248,9 @@ fn compaction_for_level(
 
         // only do a compaction if we have enough generations to compact into the output level
         if prev_times_counts.len() >= target_count as usize {
+            // NOTE: we can expect an output duration here because the `output_level` passed in is
+            // based on the compaction configuration's set of generation durations, so we wouldn't
+            // pass an `output_level` that would yeild a `None` here...
             let output_duration = compaction_config
                 .generation_duration(output_level)
                 .expect("output level should have a duration");
@@ -296,15 +299,15 @@ mod tests {
     #[test]
     fn next_plan_cases() {
         struct TestCase<'a> {
-            // description of what the test case is for
+            /// description of what the test case is for
             description: &'a str,
-            // input is a list of (generation_id, level, gen_time)
+            /// input is a list of (generation_id, level, gen_time)
             input: Vec<(u64, u8, &'a str)>,
-            // the output level we're testing for
+            /// the output level we're testing for
             output_level: u8,
-            // the expected output gen_time of the compaction
+            /// the expected output gen_time of the compaction
             output_time: &'a str,
-            // the expected ids from the input that will be used for the compaction
+            /// the expected ids from the input that will be used for the compaction
             compact_ids: Vec<u64>,
         }
 
@@ -361,6 +364,54 @@ mod tests {
                 output_level: 3,
                 output_time: "2024-10-14/12-00",
                 compact_ids: vec![3, 6, 7, 9, 11],
+            },
+            TestCase {
+                description: "level 3 to 4 compaction, with some gen1's",
+                input: vec![
+                    (4, 3, "2024-10-14/12-00"),
+                    (5, 3, "2024-10-14/13-00"),
+                    (10, 1, "2024-10-14/13-30"),
+                    (6, 3, "2024-10-14/14-00"),
+                    (7, 3, "2024-10-14/15-00"),
+                    (9, 1, "2024-10-14/15-10"),
+                    (8, 3, "2024-10-14/16-00"),
+                ],
+                output_level: 4,
+                output_time: "2024-10-14/12-00",
+                compact_ids: vec![4, 5, 6, 7, 9, 10],
+            },
+            TestCase {
+                description: "level 4 to 5 compaction, with some gen1's",
+                input: vec![
+                    (4, 4, "2024-10-14/00-00"),
+                    (5, 4, "2024-10-14/04-00"),
+                    (6, 4, "2024-10-14/08-00"),
+                    (11, 1, "2024-10-14/09-20"),
+                    (7, 4, "2024-10-14/12-00"),
+                    (8, 4, "2024-10-14/16-00"),
+                    (12, 1, "2024-10-14/17-30"),
+                    (9, 4, "2024-10-14/20-00"),
+                    (10, 4, "2024-10-15/00-00"),
+                ],
+                output_level: 5,
+                output_time: "2024-10-14/00-00",
+                compact_ids: vec![4, 5, 6, 7, 8, 9, 11, 12],
+            },
+            TestCase {
+                description: "level 5 to 6 compaction, with some gen1's",
+                input: vec![
+                    (4, 5, "2024-10-14/00-00"),
+                    (5, 5, "2024-10-15/00-00"),
+                    (10, 1, "2024-10-15/12-20"),
+                    (6, 5, "2024-10-16/00-00"),
+                    (7, 5, "2024-10-17/00-00"),
+                    (11, 1, "2024-10-17/13-40"),
+                    (8, 5, "2024-10-18/00-00"),
+                    (9, 5, "2024-10-19/00-00"),
+                ],
+                output_level: 6,
+                output_time: "2024-10-14/00-00",
+                compact_ids: vec![4, 5, 6, 7, 8, 10, 11],
             },
         ];
 
@@ -419,11 +470,11 @@ mod tests {
     #[test]
     fn next_plan_no_cases() {
         struct TestCase<'a> {
-            // description of what the test case is for
+            /// description of what the test case is for
             description: &'a str,
-            // input is a list of (generation_id, level, gen_time)
+            /// input is a list of (generation_id, level, gen_time)
             input: Vec<(u64, u8, &'a str)>,
-            // the output level we're testing for
+            /// the output level we're testing for
             output_level: u8,
         }
 

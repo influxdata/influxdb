@@ -143,11 +143,6 @@ impl CompactedDataProducer {
             }
 
             for level in &generation_levels {
-                // TODO: wire up later generation compactions
-                if *level > GenerationLevel::new(4) {
-                    break;
-                }
-
                 if let Some(plan) = CompactionPlanGroup::plans_for_level(
                     &self.compaction_config,
                     &self.compacted_data,
