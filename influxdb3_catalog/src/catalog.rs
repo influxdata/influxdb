@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteTableDefinition, FieldAdditions, LastCacheDefinition,
-    LastCacheDelete, MetaCacheDefinition,
+    LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -214,6 +214,43 @@ impl Catalog {
         self.inner.read().clone()
     }
 
+    pub fn add_meta_cache(&self, db_id: DbId, table_id: TableId, meta_cache: MetaCacheDefinition) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(&db_id)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let mut table = db
+            .table_definition_by_id(&table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
+        table.add_meta_cache(meta_cache);
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
+    }
+
+    pub fn remove_meta_cache(&self, db_id: &DbId, table_id: &TableId, name: &str) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(db_id)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let mut table = db
+            .tables
+            .get(table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
+        table.remove_meta_cache(name);
+        db.insert_table(*table_id, Arc::new(table));
+        inner.upsert_db(db);
+    }
+
     pub fn add_last_cache(&self, db_id: DbId, table_id: TableId, last_cache: LastCacheDefinition) {
         let mut inner = self.inner.write();
         let mut db = inner
@@ -229,9 +266,8 @@ impl Catalog {
             .as_ref()
             .clone();
         table.add_last_cache(last_cache);
-        db.tables.insert(table_id, Arc::new(table));
-        inner.databases.insert(db_id, Arc::new(db));
-        inner.set_db_updated();
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
     }
 
     pub fn delete_last_cache(&self, db_id: DbId, table_id: TableId, name: &str) {
@@ -249,9 +285,8 @@ impl Catalog {
             .as_ref()
             .clone();
         table.remove_last_cache(name);
-        db.tables.insert(table_id, Arc::new(table));
-        inner.databases.insert(db_id, Arc::new(db));
-        inner.set_db_updated();
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
     }
 
     pub fn instance_id(&self) -> Arc<str> {
@@ -411,11 +446,11 @@ impl InnerCatalog {
         let name = Arc::clone(&db.name);
         let id = db.id;
         self.databases.insert(id, Arc::new(db));
-        self.set_db_updated();
+        self.set_updated_and_increment_sequence();
         self.db_map.insert(id, name);
     }
 
-    fn set_db_updated(&mut self) {
+    fn set_updated_and_increment_sequence(&mut self) {
         self.sequence = self.sequence.next();
         self.updated = true;
     }
@@ -503,6 +538,38 @@ impl DatabaseSchema {
                     };
                     if let Some(new_table) =
                         new_or_existing_table.new_if_field_additions_add_fields(field_additions)?
+                    {
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
+                    }
+                }
+                CatalogOp::CreateMetaCache(meta_cache_definition) => {
+                    let table = updated_or_new_tables
+                        .get(&meta_cache_definition.table_id)
+                        .cloned()
+                        .or_else(|| {
+                            db_schema.table_definition_by_id(&meta_cache_definition.table_id)
+                        })
+                        .ok_or(TableNotFound {
+                            db_name: Arc::clone(&db_schema.name),
+                            table_name: Arc::clone(&meta_cache_definition.table_name),
+                        })?;
+                    if let Some(new_table) =
+                        table.new_if_meta_cache_definition_is_new(meta_cache_definition)
+                    {
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
+                    }
+                }
+                CatalogOp::DeleteMetaCache(delete_meta_cache) => {
+                    let table = updated_or_new_tables
+                        .get(&delete_meta_cache.table_id)
+                        .cloned()
+                        .or_else(|| db_schema.table_definition_by_id(&delete_meta_cache.table_id))
+                        .ok_or(TableNotFound {
+                            db_name: Arc::clone(&db_schema.name),
+                            table_name: Arc::clone(&delete_meta_cache.table_name),
+                        })?;
+                    if let Some(new_table) =
+                        table.new_if_meta_cache_deletes_existing(delete_meta_cache)
                     {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
@@ -868,6 +935,35 @@ impl TableDefinition {
         }
     }
 
+    pub(crate) fn new_if_meta_cache_definition_is_new(
+        &self,
+        meta_cache_definition: &MetaCacheDefinition,
+    ) -> Option<Self> {
+        if self
+            .meta_caches
+            .contains_key(&meta_cache_definition.cache_name)
+        {
+            None
+        } else {
+            let mut new_table = self.clone();
+            new_table.add_meta_cache(meta_cache_definition.clone());
+            Some(new_table)
+        }
+    }
+
+    pub(crate) fn new_if_meta_cache_deletes_existing(
+        &self,
+        meta_cache_delete: &MetaCacheDelete,
+    ) -> Option<Self> {
+        if self.meta_caches.contains_key(&meta_cache_delete.cache_name) {
+            let mut new_table = self.clone();
+            new_table.remove_meta_cache(&meta_cache_delete.cache_name);
+            Some(new_table)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn new_if_last_cache_definition_is_new(
         &self,
         last_cache_definition: &LastCacheDefinition,
@@ -978,15 +1074,26 @@ impl TableDefinition {
         self.influx_schema().series_key().is_some()
     }
 
+    /// Add the given [`MetaCacheDefinition`] to this table
+    pub fn add_meta_cache(&mut self, meta_cache: MetaCacheDefinition) {
+        self.meta_caches
+            .insert(Arc::clone(&meta_cache.cache_name), meta_cache);
+    }
+
+    /// Remove the meta cache with the given name
+    pub fn remove_meta_cache(&mut self, cache_name: &str) {
+        self.meta_caches.remove(cache_name);
+    }
+
     /// Add a new last cache to this table definition
     pub fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
         self.last_caches
             .insert(Arc::clone(&last_cache.name), last_cache);
     }
 
-    /// Remove a last cache from the table definition
-    pub fn remove_last_cache(&mut self, name: &str) {
-        self.last_caches.remove(name);
+    /// Remove a last cache from the table definition by its name
+    pub fn remove_last_cache(&mut self, cache_name: &str) {
+        self.last_caches.remove(cache_name);
     }
 
     pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &LastCacheDefinition)> {
@@ -1024,7 +1131,7 @@ impl TableDefinition {
         )
     }
 
-    pub fn column_def_and_id(
+    pub fn column_id_and_definition(
         &self,
         name: impl Into<Arc<str>>,
     ) -> Option<(ColumnId, &ColumnDefinition)> {

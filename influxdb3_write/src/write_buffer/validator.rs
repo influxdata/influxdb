@@ -333,7 +333,8 @@ fn validate_and_qualify_v3_line(
 
         // qualify the fields:
         for (field_name, field_val) in line.field_set.iter() {
-            if let Some((col_id, col_def)) = table_def.column_def_and_id(field_name.as_str()) {
+            if let Some((col_id, col_def)) = table_def.column_id_and_definition(field_name.as_str())
+            {
                 let field_col_type = influx_column_type_from_field_value(field_val);
                 let existing_col_type = col_def.data_type;
                 if field_col_type != existing_col_type {
@@ -554,7 +555,8 @@ fn validate_and_qualify_v1_line(
         }
         for (field_name, field_val) in line.field_set.iter() {
             // This field already exists, so check the incoming type matches existing type:
-            if let Some((col_id, col_def)) = table_def.column_def_and_id(field_name.as_str()) {
+            if let Some((col_id, col_def)) = table_def.column_id_and_definition(field_name.as_str())
+            {
                 let field_col_type = influx_column_type_from_field_value(field_val);
                 let existing_col_type = col_def.data_type;
                 if field_col_type != existing_col_type {

@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use arrow::{
     array::{ArrayRef, RecordBatch, StringViewBuilder},
     datatypes::{DataType, Field, SchemaBuilder, SchemaRef},
@@ -17,6 +17,22 @@ use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
 use iox_time::TimeProvider;
 use schema::{InfluxColumnType, InfluxFieldType};
+use serde::Deserialize;
+
+#[derive(Debug, thiserror::Error)]
+pub enum CacheError {
+    #[error("must pass a non-empty set of column ids")]
+    EmptyColumnSet,
+    #[error(
+        "cannot use a column of type {attempted} in a metadata cache, only \
+                    tags and string fields can be used"
+    )]
+    NonTagOrStringColumn { attempted: InfluxColumnType },
+    #[error("cannot overwrite an an existing cache: {message}")]
+    ConfigurationMismatch { message: String },
+    #[error("unexpected error: {0}")]
+    Unexpected(#[from] anyhow::Error),
+}
 
 /// A metadata cache for storing distinct values for a set of columns in a table
 #[derive(Debug)]
@@ -52,7 +68,7 @@ pub struct CreateMetaCacheArgs {
     pub column_ids: Vec<ColumnId>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MaxCardinality(NonZeroUsize);
 
 impl TryFrom<usize> for MaxCardinality {
@@ -65,9 +81,11 @@ impl TryFrom<usize> for MaxCardinality {
     }
 }
 
+const DEFAULT_MAX_CARDINALITY: usize = 100_000;
+
 impl Default for MaxCardinality {
     fn default() -> Self {
-        Self(NonZeroUsize::new(100_000).unwrap())
+        Self(NonZeroUsize::new(DEFAULT_MAX_CARDINALITY).unwrap())
     }
 }
 
@@ -77,12 +95,14 @@ impl From<MaxCardinality> for usize {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+const DEFAULT_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
+
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct MaxAge(Duration);
 
 impl Default for MaxAge {
     fn default() -> Self {
-        Self(Duration::from_secs(24 * 60 * 60))
+        Self(DEFAULT_MAX_AGE)
     }
 }
 
@@ -95,6 +115,12 @@ impl From<MaxAge> for Duration {
 impl From<Duration> for MaxAge {
     fn from(duration: Duration) -> Self {
         Self(duration)
+    }
+}
+
+impl From<u64> for MaxAge {
+    fn from(seconds: u64) -> Self {
+        Self(Duration::new(seconds, 0))
     }
 }
 
@@ -117,10 +143,11 @@ impl MetaCache {
             max_age,
             column_ids,
         }: CreateMetaCacheArgs,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, CacheError> {
         if column_ids.is_empty() {
-            bail!("must pass a non-empty set of column ids");
+            return Err(CacheError::EmptyColumnSet);
         }
+        let _ = table_def.index_column_ids();
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get(id).with_context(|| {
@@ -130,10 +157,7 @@ impl MetaCache {
                 InfluxColumnType::Tag | InfluxColumnType::Field(InfluxFieldType::String) => {
                     DataType::Utf8View
                 }
-                other => bail!(
-                    "cannot use a column of type {other} in a metadata cache, only \
-                    tags and string fields can be used"
-                ),
+                attempted => return Err(CacheError::NonTagOrStringColumn { attempted }),
             };
 
             builder.push(Arc::new(Field::new(col.name.as_ref(), data_type, false)));
@@ -258,23 +282,24 @@ impl MetaCache {
     }
 
     /// Compare the configuration of a given cache, producing a helpful error message if they differ
-    pub(crate) fn compare_config(&self, other: &Self) -> Result<(), anyhow::Error> {
+    pub(crate) fn compare_config(&self, other: &Self) -> Result<(), CacheError> {
         if self.max_cardinality != other.max_cardinality {
-            bail!(
+            let message = format!(
                 "incompatible `max_cardinality`, expected {}, got {}",
-                self.max_cardinality,
-                other.max_cardinality
+                self.max_cardinality, other.max_cardinality
             );
+            return Err(CacheError::ConfigurationMismatch { message });
         }
         if self.max_age != other.max_age {
-            bail!(
+            let message = format!(
                 "incompatible `max_age`, expected {}, got {}",
                 self.max_age.as_secs(),
                 other.max_age.as_secs()
-            )
+            );
+            return Err(CacheError::ConfigurationMismatch { message });
         }
         if self.column_ids != other.column_ids {
-            bail!(
+            let message = format!(
                 "incompatible column id selection, expected {}, got {}",
                 self.column_ids
                     .iter()
@@ -287,7 +312,8 @@ impl MetaCache {
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(","),
-            )
+            );
+            return Err(CacheError::ConfigurationMismatch { message });
         }
 
         Ok(())

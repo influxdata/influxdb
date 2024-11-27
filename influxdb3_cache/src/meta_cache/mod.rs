@@ -1,8 +1,9 @@
 //! The Metadata Cache holds the distinct values for a column or set of columns on a table
 
 mod cache;
+pub use cache::{CacheError, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 mod provider;
-pub use provider::MetaCacheProvider;
+pub use provider::{MetaCacheProvider, ProviderError};
 mod table_function;
 pub use table_function::MetaCacheFunction;
 pub use table_function::META_CACHE_UDTF_NAME;

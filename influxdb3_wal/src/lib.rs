@@ -242,6 +242,8 @@ pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
     CreateTable(TableDefinition),
     AddFields(FieldAdditions),
+    CreateMetaCache(MetaCacheDefinition),
+    DeleteMetaCache(MetaCacheDelete),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
@@ -508,6 +510,13 @@ pub struct MetaCacheDefinition {
     pub max_cardinality: usize,
     /// The maximum age in seconds, similar to a time-to-live (TTL), for entries in the cache
     pub max_age_seconds: u64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MetaCacheDelete {
+    pub table_name: Arc<str>,
+    pub table_id: TableId,
+    pub cache_name: Arc<str>,
 }
 
 #[serde_as]

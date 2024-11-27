@@ -16,12 +16,16 @@ use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
+use influxdb3_cache::meta_cache::CreateMetaCacheArgs;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
+use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::ParquetFileId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
+use influxdb3_wal::MetaCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -46,7 +50,10 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer: Bufferer + ChunkContainer + LastCacheManager + DatabaseManager {}
+pub trait WriteBuffer:
+    Bufferer + ChunkContainer + MetaCacheManager + LastCacheManager + DatabaseManager
+{
+}
 
 /// Database manager - supports only delete operation
 #[async_trait::async_trait]
@@ -106,7 +113,29 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 
-/// [`LastCacheManager`] is used to manage ineraction with a last-n-value cache provider. This enables
+/// [`MetaCacheManager`] is used to manage interaction with a [`MetaCacheProvider`]. This enables
+/// cache creation, deletion, and getting access to existing
+#[async_trait::async_trait]
+pub trait MetaCacheManager: Debug + Send + Sync + 'static {
+    /// Get a reference to the metadata cache provider
+    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider>;
+
+    async fn create_meta_cache(
+        &self,
+        db_schema: Arc<DatabaseSchema>,
+        cache_name: Option<String>,
+        args: CreateMetaCacheArgs,
+    ) -> Result<Option<MetaCacheDefinition>, write_buffer::Error>;
+
+    async fn delete_meta_cache(
+        &self,
+        db_id: &DbId,
+        tbl_id: &TableId,
+        cache_name: &str,
+    ) -> Result<(), write_buffer::Error>;
+}
+
+/// [`LastCacheManager`] is used to manage interaction with a last-n-value cache provider. This enables
 /// cache creation, deletion, and getting access to existing caches in underlying [`LastCacheProvider`].
 /// It is important that the state of the cache is also maintained in the catalog.
 #[async_trait::async_trait]

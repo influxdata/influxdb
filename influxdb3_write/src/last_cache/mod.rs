@@ -1759,13 +1759,14 @@ mod tests {
         last_cache::{KeyValue, LastCacheProvider, Predicate, DEFAULT_CACHE_TTL},
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
-        write_buffer::WriteBufferImpl,
+        write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
         Bufferer, LastCacheManager, Precision,
     };
     use ::object_store::{memory::InMemory, ObjectStore};
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bimap::BiHashMap;
     use data_types::NamespaceName;
+    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{LastCacheDefinition, WalConfig};
@@ -1782,15 +1783,20 @@ mod tests {
         let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
-        WriteBufferImpl::new(
+        WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(catalog as _).unwrap(),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                catalog as _,
+            )
+            .unwrap(),
             time_provider,
-            crate::test_help::make_exec(),
-            WalConfig::test_config(),
-            Some(parquet_cache),
-        )
+            executor: crate::test_help::make_exec(),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: Some(parquet_cache),
+        })
         .await
         .unwrap()
     }

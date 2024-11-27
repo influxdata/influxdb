@@ -20,9 +20,9 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_wal::LastCacheDefinition;
 use influxdb3_write::last_cache;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -297,6 +297,28 @@ impl Error {
                 last_cache::Error::CacheDoesNotExist => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(self.to_string()))
+                    .unwrap(),
+            },
+            Self::WriteBuffer(WriteBufferError::MetaCacheError(ref mc_err)) => match mc_err {
+                meta_cache::ProviderError::Cache(ref cache_err) => match cache_err {
+                    meta_cache::CacheError::EmptyColumnSet
+                    | meta_cache::CacheError::NonTagOrStringColumn { .. }
+                    | meta_cache::CacheError::ConfigurationMismatch { .. } => Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(Body::from(mc_err.to_string()))
+                        .unwrap(),
+                    meta_cache::CacheError::Unexpected(_) => Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(Body::from(mc_err.to_string()))
+                        .unwrap(),
+                },
+                meta_cache::ProviderError::CacheNotFound { .. } => Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(mc_err.to_string()))
+                    .unwrap(),
+                meta_cache::ProviderError::Unexpected(_) => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
             Self::DbName(e) => {
@@ -714,6 +736,103 @@ where
         .map_err(Into::into)
     }
 
+    /// Create a new metadata cache given the [`MetaCacheCreateRequest`] arguments in the request
+    /// body.
+    ///
+    /// If the result is to create a cache that already exists, with the same configuration, this
+    /// will respond with a 204 NOT CREATED. If an existing cache would be overwritten with a
+    /// different configuration, that is a 400 BAD REQUEST
+    async fn configure_meta_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let args = self.read_body_json(req).await?;
+        info!(?args, "create metadata cache request");
+        let MetaCacheCreateRequest {
+            db,
+            table,
+            name,
+            columns,
+            max_cardinality,
+            max_age,
+        } = args;
+
+        let db_schema = self.write_buffer.catalog().db_schema(&db).ok_or_else(|| {
+            WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            }
+        })?;
+        let table_def = db_schema.table_definition(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            }
+        })?;
+        let column_ids = columns
+            .into_iter()
+            .map(|name| {
+                table_def
+                    .column_name_to_id(name.as_str())
+                    .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
+            })
+            .collect::<Result<Vec<_>, WriteBufferError>>()?;
+        let max_age = max_age.map(MaxAge::from).unwrap_or_default();
+        let max_cardinality = max_cardinality.unwrap_or_default();
+        match self
+            .write_buffer
+            .create_meta_cache(
+                db_schema,
+                name,
+                CreateMetaCacheArgs {
+                    table_def,
+                    max_cardinality,
+                    max_age,
+                    column_ids,
+                },
+            )
+            .await?
+        {
+            Some(def) => Response::builder()
+                .status(StatusCode::CREATED)
+                .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+                .body(Body::from(serde_json::to_string(&def).unwrap()))
+                .map_err(Into::into),
+            None => Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .map_err(Into::into),
+        }
+    }
+
+    /// Delete a metadata cache entry with the given [`MetaCacheDeleteRequest`] parameters
+    ///
+    /// The parameters must be passed in either the query string or the body of the request as JSON.
+    async fn configure_meta_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let MetaCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+
+        let (db_id, db_schema) = self
+            .write_buffer
+            .catalog()
+            .db_id_and_schema(&db)
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
+        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            }
+        })?;
+        self.write_buffer
+            .delete_meta_cache(&db_id, &table_id, &name)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
     async fn configure_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
         let LastCacheCreateRequest {
             db,
@@ -729,17 +848,22 @@ where
             .write_buffer
             .catalog()
             .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
         let (table_id, table_def) = db_schema
             .table_id_and_definition(table.as_str())
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::TableNotFound {
+                db_name: db,
+                table_name: table,
+            })?;
         let key_columns = key_columns
             .map(|names| {
                 names
                     .into_iter()
                     .map(|name| {
                         table_def
-                            .column_def_and_id(name.as_str())
+                            .column_id_and_definition(name.as_str())
                             .map(|(id, def)| (id, Arc::clone(&def.name)))
                             .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
                     })
@@ -752,7 +876,7 @@ where
                     .into_iter()
                     .map(|name| {
                         table_def
-                            .column_def_and_id(name.as_str())
+                            .column_id_and_definition(name.as_str())
                             .map(|(id, def)| (id, Arc::clone(&def.name)))
                             .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
                     })
@@ -776,9 +900,7 @@ where
             Some(def) => Response::builder()
                 .status(StatusCode::CREATED)
                 .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(
-                    serde_json::to_string(&LastCacheCreatedResponse(def)).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&def).unwrap()))
                 .map_err(Into::into),
             None => Response::builder()
                 .status(StatusCode::NO_CONTENT)
@@ -802,10 +924,15 @@ where
             .write_buffer
             .catalog()
             .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DbDoesNotExist)?;
-        let table_id = db_schema
-            .table_name_to_id(table)
-            .ok_or_else(|| WriteBufferError::TableDoesNotExist)?;
+            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
+                db_name: db.to_string(),
+            })?;
+        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
+            WriteBufferError::TableNotFound {
+                db_name: db.to_string(),
+                table_name: table.to_string(),
+            }
+        })?;
         self.write_buffer
             .delete_last_cache(db_id, table_id, &name)
             .await?;
@@ -1130,6 +1257,35 @@ impl From<iox_http::write::WriteParams> for WriteParams {
     }
 }
 
+/// Request definition for the `POST /api/v3/configure/meta_cache` API
+#[derive(Debug, Deserialize)]
+struct MetaCacheCreateRequest {
+    /// The name of the database associated with the cache
+    db: String,
+    /// The name of the table associated with the cache
+    table: String,
+    /// The name of the cache. If not provided, the cache name will be generated from the table
+    /// name and selected column names.
+    name: Option<String>,
+    /// The columns to create the cache on.
+    // TODO: this should eventually be made optional, so that if not provided, the columns used will
+    // correspond to the series key columns for the table, i.e., the tags. See:
+    // https://github.com/influxdata/influxdb/issues/25585
+    columns: Vec<String>,
+    /// The maximumn number of distinct value combinations to hold in the cache
+    max_cardinality: Option<MaxCardinality>,
+    /// The duration in seconds that entries will be kept in the cache before being evicted
+    max_age: Option<u64>,
+}
+
+/// Request definition for the `DELETE /api/v3/configure/meta_cache` API
+#[derive(Debug, Deserialize)]
+struct MetaCacheDeleteRequest {
+    db: String,
+    table: String,
+    name: String,
+}
+
 /// Request definition for the `POST /api/v3/configure/last_cache` API
 #[derive(Debug, Deserialize)]
 struct LastCacheCreateRequest {
@@ -1141,9 +1297,6 @@ struct LastCacheCreateRequest {
     count: Option<usize>,
     ttl: Option<u64>,
 }
-
-#[derive(Debug, Serialize)]
-struct LastCacheCreatedResponse(LastCacheDefinition);
 
 /// Request definition for the `DELETE /api/v3/configure/last_cache` API
 #[derive(Debug, Deserialize)]
@@ -1233,6 +1386,12 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
+        (Method::POST, "/api/v3/configure/meta_cache") => {
+            http_server.configure_meta_cache_create(req).await
+        }
+        (Method::DELETE, "/api/v3/configure/meta_cache") => {
+            http_server.configure_meta_cache_delete(req).await
+        }
         (Method::POST, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_create(req).await
         }
