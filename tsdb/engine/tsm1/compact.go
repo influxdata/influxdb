@@ -225,7 +225,7 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 	} else if gens.hasTombstones() {
 		return false, "not fully compacted and not idle because of tombstones"
 	} else {
-		return true, ""
+		return true, "shard is fully compacted because there is a single generation of TSM files"
 	}
 }
 

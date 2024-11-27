@@ -939,7 +939,7 @@ func (e *Engine) IsIdle() (state bool, reason string) {
 	} else if c, r := e.CompactionPlan.FullyCompacted(); !c {
 		return false, r
 	} else {
-		return true, ""
+		return true, r
 	}
 }
 
