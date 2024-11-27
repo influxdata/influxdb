@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fmt::Display, string::FromUtf8Error};
+use std::{
+    collections::HashMap, fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration,
+};
 
 use bytes::Bytes;
 use iox_query_params::StatementParam;
@@ -248,6 +250,71 @@ impl Client {
         }
         let resp = req.send().await.map_err(|src| {
             Error::request_send(Method::DELETE, "/api/v3/configure/last_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Compose a request to the `POST /api/v3/configure/meta_cache` API
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use influxdb3_client::Client;
+    /// # use std::num::NonZeroUsize;
+    /// # use std::time::Duration;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let client = Client::new("http://localhost:8181")?;
+    /// let resp = client
+    ///     .api_v3_configure_meta_cache_create("db_name", "table_name", ["col1", "col2"])
+    ///     .name("cache_name")
+    ///     .max_cardinality(NonZeroUsize::new(1_000).unwrap())
+    ///     .max_age(Duration::from_secs(3_600))
+    ///     .send()
+    ///     .await
+    ///     .expect("send create meta cache request");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn api_v3_configure_meta_cache_create(
+        &self,
+        db: impl Into<String>,
+        table: impl Into<String>,
+        columns: impl IntoIterator<Item: Into<String>>,
+    ) -> CreateMetaCacheRequestBuilder<'_> {
+        CreateMetaCacheRequestBuilder::new(self, db, table, columns)
+    }
+
+    /// Make a request to the `DELETE /api/v3/configure/meta_cache` API
+    pub async fn api_v3_configure_meta_cache_delete(
+        &self,
+        db: impl Into<String> + Send,
+        table: impl Into<String> + Send,
+        name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let url = self.base_url.join("/api/v3/configure/meta_cache")?;
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            table: String,
+            name: String,
+        }
+        let mut req = self.http_client.delete(url).json(&Req {
+            db: db.into(),
+            table: table.into(),
+            name: name.into(),
+        });
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::DELETE, "/api/v3/configure/meta_cache", src)
         })?;
         let status = resp.status();
         match status {
@@ -784,6 +851,103 @@ pub enum LastCacheValueColumnsDef {
     Explicit { columns: Vec<u32> },
     /// Stores all non-key columns
     AllNonKeyColumns,
+}
+
+/// Type for composing requests to the `POST /api/v3/configure/meta_cache` API created by the
+/// [`Client::api_v3_configure_meta_cache_create`] method
+#[derive(Debug, Serialize)]
+pub struct CreateMetaCacheRequestBuilder<'c> {
+    #[serde(skip_serializing)]
+    client: &'c Client,
+    db: String,
+    table: String,
+    columns: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_cardinality: Option<NonZeroUsize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_age: Option<Duration>,
+}
+
+impl<'c> CreateMetaCacheRequestBuilder<'c> {
+    fn new(
+        client: &'c Client,
+        db: impl Into<String>,
+        table: impl Into<String>,
+        columns: impl IntoIterator<Item: Into<String>>,
+    ) -> Self {
+        Self {
+            client,
+            db: db.into(),
+            table: table.into(),
+            columns: columns.into_iter().map(Into::into).collect(),
+            name: None,
+            max_cardinality: None,
+            max_age: None,
+        }
+    }
+
+    /// Specify the name of the cache to be created, `snake_case` names are encouraged
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// Specify the maximum cardinality for the cache as a non-zero unsigned integer
+    pub fn max_cardinality(mut self, max_cardinality: NonZeroUsize) -> Self {
+        self.max_cardinality = Some(max_cardinality);
+        self
+    }
+
+    /// Specify the maximum age for entries in the cache
+    pub fn max_age(mut self, max_age: Duration) -> Self {
+        self.max_age = Some(max_age);
+        self
+    }
+
+    /// Send the create cache request
+    pub async fn send(self) -> Result<Option<MetaCacheCreatedResponse>> {
+        let url = self.client.base_url.join("/api/v3/configure/meta_cache")?;
+        let mut req = self.client.http_client.post(url).json(&self);
+        if let Some(token) = &self.client.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req.send().await.map_err(|src| {
+            Error::request_send(Method::POST, "/api/v3/configure/meta_cache", src)
+        })?;
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED => {
+                let content = resp
+                    .json::<MetaCacheCreatedResponse>()
+                    .await
+                    .map_err(Error::Json)?;
+                Ok(Some(content))
+            }
+            StatusCode::NO_CONTENT => Ok(None),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MetaCacheCreatedResponse {
+    /// The id of the table the cache was created on
+    pub table_id: u32,
+    /// The name of the table the cache was created on
+    pub table_name: String,
+    /// The name of the created cache
+    pub cache_name: String,
+    /// The columns in the cache
+    pub column_ids: Vec<u32>,
+    /// The maximum number of unique value combinations the cache will hold
+    pub max_cardinality: usize,
+    /// The maximum age for entries in the cache
+    pub max_age_seconds: u64,
 }
 
 #[cfg(test)]

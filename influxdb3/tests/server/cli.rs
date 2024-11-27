@@ -10,6 +10,28 @@ use test_helpers::assert_contains;
 
 use crate::TestServer;
 
+pub fn run(args: &[&str]) -> String {
+    let process = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(args)
+        .stdout(Stdio::piped())
+        .output()
+        .unwrap();
+
+    String::from_utf8_lossy(&process.stdout).trim().into()
+}
+
+pub fn run_and_err(args: &[&str]) -> String {
+    let process = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(args)
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+
+    String::from_utf8_lossy(&process.stderr).trim().into()
+}
+
 pub fn run_with_confirmation(args: &[&str]) -> String {
     let mut child_process = Command::cargo_bin("influxdb3")
         .unwrap()
@@ -152,4 +174,84 @@ async fn test_delete_missing_table() {
     ]);
     debug!(result = ?result, "delete missing table");
     assert_contains!(&result, "404");
+}
+
+#[tokio::test]
+async fn test_create_delete_meta_cache() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "bar";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},t1=a,t2=aa,t3=aaa f1=true,f2=\"hello\",f3=42"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .unwrap();
+    let cache_name = "baz";
+    // first create the cache:
+    let result = run(&[
+        "meta-cache",
+        "create",
+        "--host",
+        &server_addr,
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--cache-name",
+        cache_name,
+        "--columns",
+        "t1,t2",
+    ]);
+    assert_contains!(&result, "new cache created");
+    // doing the same thing over again will be a no-op
+    let result = run(&[
+        "meta-cache",
+        "create",
+        "--host",
+        &server_addr,
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--cache-name",
+        cache_name,
+        "--columns",
+        "t1,t2",
+    ]);
+    assert_contains!(
+        &result,
+        "a cache already exists for the provided parameters"
+    );
+    // now delete it:
+    let result = run(&[
+        "meta-cache",
+        "delete",
+        "--host",
+        &server_addr,
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--cache-name",
+        cache_name,
+    ]);
+    assert_contains!(&result, "meta cache deleted successfully");
+    // trying to delete again should result in an error as the cache no longer exists:
+    let result = run_and_err(&[
+        "meta-cache",
+        "delete",
+        "--host",
+        &server_addr,
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--cache-name",
+        cache_name,
+    ]);
+    assert_contains!(&result, "[404 Not Found]: cache not found");
 }
