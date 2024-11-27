@@ -297,7 +297,7 @@ impl ReplicatedCatalog {
     }
 }
 
-pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr";
+pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr_ms";
 
 #[derive(Debug)]
 struct ReplicatedBufferMetrics {
@@ -350,7 +350,7 @@ impl ReplicatedBuffer {
         let replica_ttbr = metric_registry
             .register_metric::<U64Gauge>(
                 REPLICA_TTBR_METRIC,
-                "time to be readable for the data in each replicated host buffer",
+                "time to be readable in milliseconds for the data in each replicated host buffer",
             )
             .recorder(attributes);
         let replica_catalog = ReplicatedCatalog::new(Arc::clone(&catalog), persisted_catalog)?;
@@ -572,7 +572,7 @@ impl ReplicatedBuffer {
 
         match Utc::now().signed_duration_since(file_written_time).to_std() {
             Ok(ttbr) => self.metrics.replica_ttbr.set(ttbr.as_millis() as u64),
-            Err(message) => error!(%message, "unable to get duration since WAL file was created"),
+            Err(message) => info!(%message, "unable to get duration since WAL file was created"),
         }
 
         Ok(())
