@@ -1053,6 +1053,10 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 	var files []string
 
 	for {
+		// TODO(db): I'm wondering if we really want to just increment the sequence here during compaction
+		// Might be better to add some fine-grained logic around this in order to not get in to a state
+		// where we have multiple TSM files that are a single generation but have different compaction
+		// levels.
 		sequence++
 
 		// New TSM files are written to a temp file and renamed when fully completed.
