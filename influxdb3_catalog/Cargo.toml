@@ -10,6 +10,7 @@ license.workspace = true
 influxdb-line-protocol.workspace = true
 observability_deps.workspace = true
 schema = { workspace = true }
+iox_time.workspace = true
 
 # Local deps
 influxdb3_id = { path = "../influxdb3_id" }
@@ -19,6 +20,7 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 anyhow.workspace = true
 arrow.workspace = true
 bimap.workspace = true
+chrono.workspace = true
 hashbrown.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true

@@ -40,3 +40,5 @@ tables:
                 - str
             influx_type: tag
             nullable: true
+      deleted: false
+deleted: false

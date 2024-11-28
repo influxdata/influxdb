@@ -43,3 +43,5 @@ tables:
           vals: ~
           n: 1
           ttl: 3600
+      deleted: false
+deleted: false

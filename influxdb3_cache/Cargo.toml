@@ -1,0 +1,34 @@
+[package]
+name = "influxdb3_cache"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+iox_time.workspace = true
+schema.workspace = true
+
+# Local deps
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_wal = { path = "../influxdb3_wal" }
+
+# crates.io dependencies
+anyhow.workspace = true
+arrow.workspace = true
+async-trait.workspace = true
+datafusion.workspace = true
+indexmap.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+# Local deps
+influxdb3_write = { path = "../influxdb3_write" }
+
+[lints]
+workspace = true

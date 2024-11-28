@@ -5,7 +5,7 @@ use anyhow::Context;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog, CatalogSequenceNumber, InnerCatalog};
-use influxdb3_id::DbId;
+use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
@@ -305,13 +305,11 @@ fn map_snapshot_contents(
                                     files,
                                 ))
                             })
-                            .collect::<Result<hashbrown::HashMap<_, _>>>()?,
+                            .collect::<Result<SerdeVecMap<_, _>>>()?,
                     },
                 ))
             })
-            // TODO: it is a bit annoying that two HashMap types are used in influxdb3_write,
-            // so we should probably pick one there.
-            .collect::<Result<std::collections::HashMap<DbId, DatabaseTables>>>()?,
+            .collect::<Result<SerdeVecMap<DbId, DatabaseTables>>>()?,
         ..snapshot
     })
 }

@@ -90,6 +90,14 @@ impl WalObjectStore {
     pub async fn replay(&self) -> crate::Result<()> {
         let paths = self.load_existing_wal_file_paths().await?;
 
+        let last_snapshot_sequence_number = {
+            self.flush_buffer
+                .lock()
+                .await
+                .snapshot_tracker
+                .last_snapshot_sequence_number()
+        };
+
         for path in paths {
             let file_bytes = self.object_store.get(&path).await?.bytes().await?;
             let wal_contents = verify_file_type_and_deserialize(file_bytes)?;
@@ -116,18 +124,22 @@ impl WalObjectStore {
                             Some(info) => {
                                 let semaphore = Arc::clone(&buffer.snapshot_semaphore);
                                 let permit = semaphore.acquire_owned().await.unwrap();
-
                                 Some((info, permit))
                             }
                         }
                     };
-
-                    let snapshot_done = self
-                        .file_notifier
-                        .notify_and_snapshot(wal_contents, snapshot_details)
-                        .await;
-                    let details = snapshot_done.await.unwrap();
-                    assert_eq!(snapshot_details, details);
+                    if snapshot_details.snapshot_sequence_number <= last_snapshot_sequence_number {
+                        // Instead just notify about the WAL, as this snapshot has already been taken
+                        // and WAL files may have been cleared.
+                        self.file_notifier.notify(wal_contents);
+                    } else {
+                        let snapshot_done = self
+                            .file_notifier
+                            .notify_and_snapshot(wal_contents, snapshot_details)
+                            .await;
+                        let details = snapshot_done.await.unwrap();
+                        assert_eq!(snapshot_details, details);
+                    }
 
                     // if the info is there, we have wal files to delete
                     if let Some((snapshot_info, snapshot_permit)) = snapshot_info {
@@ -842,12 +854,7 @@ mod tests {
             Arc::clone(&object_store),
             "my_host",
             Arc::clone(&replay_notifier),
-            WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 10,
-                flush_interval: Duration::from_millis(10),
-                snapshot_size: 2,
-            },
+            wal_config,
             None,
             None,
         );

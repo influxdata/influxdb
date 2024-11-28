@@ -7,8 +7,9 @@ use datafusion::execution::context::SessionContext;
 use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures::FutureExt;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_config::ProConfig;
-use influxdb3_pro_buffer::modes::read_write::ReadWriteArgs;
+use influxdb3_pro_buffer::modes::read_write::CreateReadWriteModeArgs;
 use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
@@ -16,11 +17,11 @@ use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
-use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
 use influxdb3_write::{ChunkContainer, Precision, WriteBuffer};
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_query::QueryChunk;
-use iox_time::{SystemProvider, Time};
+use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
 use object_store::memory::InMemory;
 use object_store::ObjectStore;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -59,6 +60,8 @@ async fn two_writers_gen1_compaction() {
     ));
     let runtime_env = exec.new_context().inner().runtime_env();
     register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
     let writer1_id = "writer1";
     let writer2_id = "writer2";
@@ -66,18 +69,24 @@ async fn two_writers_gen1_compaction() {
     let writer1_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer1_id));
     let writer1_catalog = Arc::new(writer1_persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&writer1_catalog)).unwrap();
+    let meta_cache = MetaCacheProvider::new_from_catalog(
+        Arc::clone(&time_provider),
+        Arc::clone(&writer1_catalog),
+    )
+    .unwrap();
 
     let writer2_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer2_id));
     let writer2_catalog = writer2_persister.load_or_create_catalog().await.unwrap();
-    let writer2_buffer = WriteBufferImpl::new(
-        Arc::clone(&writer2_persister),
-        Arc::new(writer2_catalog),
-        Arc::clone(&last_cache),
-        Arc::new(SystemProvider::new()),
-        Arc::clone(&exec),
+    let writer2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
+        persister: Arc::clone(&writer2_persister),
+        catalog: Arc::new(writer2_catalog),
+        last_cache: Arc::clone(&last_cache),
+        meta_cache: Arc::clone(&meta_cache),
+        time_provider: Arc::clone(&time_provider),
+        executor: Arc::clone(&exec),
         wal_config,
-        None,
-    )
+        parquet_cache: None,
+    })
     .await
     .unwrap();
 
@@ -100,11 +109,12 @@ async fn two_writers_gen1_compaction() {
     .unwrap();
 
     let read_write_mode = Arc::new(
-        WriteBufferPro::read_write(ReadWriteArgs {
+        WriteBufferPro::read_write(CreateReadWriteModeArgs {
             host_id: writer1_id.into(),
             persister: Arc::clone(&writer1_persister),
             catalog: Arc::clone(&writer1_catalog),
             last_cache,
+            meta_cache,
             time_provider: Arc::new(SystemProvider::new()),
             executor: Arc::clone(&exec),
             wal_config,
@@ -150,7 +160,7 @@ async fn two_writers_gen1_compaction() {
             .compacted_data
             .compacted_catalog
             .catalog
-            .db_schema_and_id("test_db")
+            .db_id_and_schema("test_db")
             .unwrap();
         let table_id = db_schema.table_name_to_id("m1").unwrap();
         if let Some(detail) = compaction_producer

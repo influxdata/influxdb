@@ -11,10 +11,13 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
-    modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
+    modes::{read::CreateReadModeArgs, read_write::CreateReadWriteModeArgs},
+    replica::ReplicationConfig,
+    WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::compacted_data::CompactedData;
@@ -100,6 +103,9 @@ pub enum Error {
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+
+    #[error("failed to initialize meta cache: {0:#}")]
+    InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
 
     #[error("Error initializing compaction producer: {0}")]
     CompactionProducer(#[from] influxdb3_pro_compactor::producer::CompactedDataProducerError),
@@ -321,10 +327,20 @@ pub struct Config {
     #[clap(
         long = "last-cache-eviction-interval",
         env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
-        default_value = "1m",
+        default_value = "10s",
         action
     )]
     pub last_cache_eviction_interval: humantime::Duration,
+
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
+    #[clap(
+        long = "meta-cache-eviction-interval",
+        env = "INFLUXDB3_META_CACHE_EVICTION_INTERVAL",
+        default_value = "10s",
+        action
+    )]
+    pub meta_cache_eviction_interval: humantime::Duration,
 }
 
 /// The interval to check for new snapshots from hosts to compact data from. This will do an S3
@@ -497,6 +513,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
+    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
     let pro_config = match ProConfig::load(&object_store).await {
         Ok(config) => Arc::new(RwLock::new(config)),
@@ -584,6 +601,13 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeLastCache)?;
 
+    let meta_cache = MetaCacheProvider::new_from_catalog_with_background_eviction(
+        Arc::clone(&time_provider) as _,
+        Arc::clone(&catalog),
+        config.meta_cache_eviction_interval.into(),
+    )
+    .map_err(Error::InitializeMetaCache)?;
+
     let replica_config = config.pro_config.replicas.map(|replicas| {
         ReplicationConfig::new(
             config.pro_config.replication_interval.into(),
@@ -594,20 +618,22 @@ pub async fn command(config: Config) -> Result<()> {
     let (write_buffer, persisted_files): (Arc<dyn WriteBuffer>, Option<Arc<PersistedFiles>>) =
         match config.pro_config.mode {
             BufferMode::Read => {
-                let replica_config = replica_config
+                let ReplicationConfig { interval, hosts } = replica_config
                     .context("must supply a replicas list when starting in read-only mode")
                     .map_err(Error::WriteBufferInit)?;
                 (
                     Arc::new(
-                        WriteBufferPro::read(
+                        WriteBufferPro::read(CreateReadModeArgs {
                             last_cache,
-                            Arc::clone(&object_store),
-                            Arc::clone(&metrics),
-                            replica_config,
-                            parquet_cache.clone(),
-                            compacted_data.clone(),
-                            Arc::clone(&catalog),
-                        )
+                            meta_cache,
+                            object_store: Arc::clone(&object_store),
+                            catalog: Arc::clone(&catalog),
+                            metric_registry: Arc::clone(&metrics),
+                            replication_interval: interval,
+                            hosts,
+                            parquet_cache: parquet_cache.clone(),
+                            compacted_data: compacted_data.clone(),
+                        })
                         .await
                         .map_err(Error::WriteBufferInit)?,
                     ),
@@ -616,11 +642,12 @@ pub async fn command(config: Config) -> Result<()> {
             }
             BufferMode::ReadWrite => {
                 let buf = Arc::new(
-                    WriteBufferPro::read_write(ReadWriteArgs {
+                    WriteBufferPro::read_write(CreateReadWriteModeArgs {
                         host_id: persister.host_identifier_prefix().into(),
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
                         last_cache,
+                        meta_cache,
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
                         executor: Arc::clone(&exec),
                         wal_config,

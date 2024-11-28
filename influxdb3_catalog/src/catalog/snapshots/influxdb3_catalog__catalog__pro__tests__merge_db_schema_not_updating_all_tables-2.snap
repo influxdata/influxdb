@@ -52,7 +52,8 @@ expression: db
               "nullable": true
             }
           ]
-        ]
+        ],
+        "deleted": false
       }
     ],
     [
@@ -111,8 +112,10 @@ expression: db
               "nullable": true
             }
           ]
-        ]
+        ],
+        "deleted": false
       }
     ]
-  ]
+  ],
+  "deleted": false
 }

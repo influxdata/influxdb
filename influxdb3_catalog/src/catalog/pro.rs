@@ -3,8 +3,9 @@ use bimap::BiHashMap;
 use hashbrown::{HashMap, HashSet};
 use indexmap::IndexMap;
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DatabaseDefinition, Field, FieldAdditions, FieldDefinition,
-    LastCacheDefinition, LastCacheDelete, LastCacheValueColumnsDef, Row, TableChunk, TableChunks,
+    CatalogBatch, CatalogOp, DatabaseDefinition, DeleteDatabaseDefinition, DeleteTableDefinition,
+    Field, FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete,
+    LastCacheValueColumnsDef, MetaCacheDefinition, MetaCacheDelete, Row, TableChunk, TableChunks,
     TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
 use schema::InfluxColumnType;
@@ -118,6 +119,7 @@ impl DatabaseSchema {
                 name: Arc::clone(&self.name),
                 tables: tables.into(),
                 table_map,
+                deleted: self.deleted,
             })
         });
         Ok((id_map, updated_schema))
@@ -253,6 +255,15 @@ impl TableDefinition {
             );
         }
 
+        // map the ids from the meta cache definitions
+        let mut meta_caches = HashMap::new();
+        for (name, mc) in &other.meta_caches {
+            meta_caches.insert(
+                Arc::clone(name),
+                id_map.map_meta_cache_definition_column_ids(mc)?,
+            );
+        }
+
         Ok((
             id_map,
             Arc::new(TableDefinition {
@@ -263,6 +274,8 @@ impl TableDefinition {
                 column_map,
                 series_key,
                 last_caches,
+                meta_caches,
+                deleted: other.deleted,
             }),
         ))
     }
@@ -400,7 +413,7 @@ impl CatalogIdMap {
                 let local_tbl_def = local_catalog
                     .db_schema_by_id(&local_db_id)?
                     .table_definition_by_id(&local_table_id)?;
-                let (id, def) = local_tbl_def.column_def_and_id(other_column_name)?;
+                let (id, def) = local_tbl_def.column_id_and_definition(other_column_name)?;
                 if def.data_type != other_column_type {
                     return Some(Err(Error::FieldTypeMismatch {
                         table_name: local_table_name.to_string(),
@@ -606,7 +619,7 @@ impl CatalogIdMap {
                             )));
                     }
                 }
-                CatalogOp::CreateLastCache(self.map_last_cache_definition_column_ids(&def)?)
+                CatalogOp::CreateLastCache(mapped_def)
             }
             CatalogOp::DeleteLastCache(def) => CatalogOp::DeleteLastCache(LastCacheDelete {
                 table_name: Arc::clone(&def.table_name),
@@ -617,6 +630,57 @@ impl CatalogIdMap {
                 })?,
                 name: def.name,
             }),
+            CatalogOp::CreateMetaCache(def) => {
+                let mapped_def = self.map_meta_cache_definition_column_ids(&def)?;
+                let tbl_def = target_catalog
+                    .db_schema_by_id(&database_id)
+                    .and_then(|db| db.table_definition_by_id(&mapped_def.table_id))
+                    // unwrap is okay here because the call to map the meta cache definition would
+                    // have caught an invalid table id etc.
+                    .unwrap();
+                if let Some(local_def) = tbl_def.meta_caches.get(&def.cache_name) {
+                    if local_def != &mapped_def {
+                        return Err(Error::Other(anyhow!(
+                            "WAL contained a CreateMetaCache operation with a metadata cache \
+                            name that already exists in the local catalog, but is not compatible. \
+                            This means that the catalogs for these two hosts have diverged and the \
+                            meta cache named '{name}' needs to be removed on one of the hosts.",
+                            name = def.cache_name
+                        )));
+                    }
+                }
+                CatalogOp::CreateMetaCache(mapped_def)
+            }
+            CatalogOp::DeleteMetaCache(def) => CatalogOp::DeleteMetaCache(MetaCacheDelete {
+                table_name: Arc::clone(&def.table_name),
+                table_id: self.map_table_id(&def.table_id).ok_or_else(|| {
+                    Error::Other(anyhow!(
+                        "attempted to delete a metadata cache for a table that does not exist locally"
+                    ))
+                })?,
+                cache_name: def.cache_name,
+            }),
+            CatalogOp::DeleteDatabase(def) => {
+                CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
+                    database_id,
+                    database_name: Arc::clone(&def.database_name),
+                    deletion_time: def.deletion_time,
+                })
+            }
+            CatalogOp::DeleteTable(def) => {
+                CatalogOp::DeleteTable(DeleteTableDefinition {
+                    database_id,
+                    database_name: Arc::clone(&def.database_name),
+                    // NOTE: if the table doesn't exist locally, should we error here? or just ignore?
+                    table_id: self.map_table_id(&def.table_id).ok_or_else(|| {
+                        Error::Other(anyhow!(
+                            "attempted to delete a table that does not exist locally"
+                        ))
+                    })?,
+                    table_name: Arc::clone(&def.table_name),
+                    deletion_time: def.deletion_time,
+                })
+            }
         };
         Ok(mapped_op)
     }
@@ -696,6 +760,32 @@ impl CatalogIdMap {
             value_columns,
             count: def.count,
             ttl: def.ttl,
+        })
+    }
+
+    fn map_meta_cache_definition_column_ids(
+        &self,
+        def: &MetaCacheDefinition,
+    ) -> Result<MetaCacheDefinition> {
+        let table_id = self.tables.get(&def.table_id).copied().ok_or_else(|| {
+            Error::Other(anyhow!("meta cache definition contained invalid table id"))
+        })?;
+        let column_ids = def
+            .column_ids
+            .iter()
+            .map(|id| {
+                self.map_column_id(id).ok_or_else(|| {
+                    Error::Other(anyhow!("meta cache definition contained invalid column id"))
+                })
+            })
+            .collect::<Result<Vec<ColumnId>>>()?;
+        Ok(MetaCacheDefinition {
+            table_id,
+            table_name: Arc::clone(&def.table_name),
+            cache_name: Arc::clone(&def.cache_name),
+            column_ids,
+            max_cardinality: def.max_cardinality,
+            max_age_seconds: def.max_age_seconds,
         })
     }
 }
@@ -857,14 +947,14 @@ mod tests {
         b.insert_database(db);
         // check the db/table by name in b:
         {
-            let (db_id, db_schema) = b.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = b.db_id_and_schema("foo").unwrap();
             assert_eq!(DbId::from(1), db_id);
             assert_eq!(TableId::from(2), db_schema.table_name_to_id("doh").unwrap());
         }
         let b_to_a_map = a.merge(Arc::clone(&b)).unwrap();
         // check the db/table by name in a after merge:
         {
-            let (db_id, db_schema) = a.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = a.db_id_and_schema("foo").unwrap();
             assert_eq!(DbId::from(0), db_id);
             assert_eq!(TableId::from(3), db_schema.table_name_to_id("doh").unwrap());
         }
@@ -1061,7 +1151,7 @@ mod tests {
                 table_id: tbl.table_id,
                 table: Arc::clone(&tbl.table_name),
                 name: cache_name.into(),
-                key_columns: vec![tbl.column_name_to_id_unchecked("t1".into())],
+                key_columns: vec![tbl.column_name_to_id_unchecked("t1")],
                 value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
                 count: LastCacheSize::new(1).unwrap(),
                 ttl: 3600,

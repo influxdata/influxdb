@@ -12,6 +12,7 @@ use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use executor::register_current_runtime_for_io;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_pro_compactor::{compact_files, CompactFilesArgs, CompactorOutput};
 use influxdb3_pro_data_layout::{Generation, GenerationLevel};
@@ -19,12 +20,14 @@ use influxdb3_wal::WalConfig;
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::WriteBufferImpl;
+use influxdb3_write::write_buffer::WriteBufferImplArgs;
 use influxdb3_write::Bufferer;
 use iox_query::exec::DedicatedExecutor;
 use iox_query::exec::Executor;
 use iox_query::exec::ExecutorConfig;
 use iox_time::MockProvider;
 use iox_time::Time;
+use iox_time::TimeProvider;
 use object_store::memory::InMemory;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
@@ -48,16 +51,23 @@ async fn five_files_multiple_series_same_schema() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );
@@ -266,16 +276,23 @@ async fn two_files_two_series_and_same_schema() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );
@@ -416,16 +433,23 @@ async fn two_files_same_series_and_schema() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );
@@ -547,16 +571,23 @@ async fn two_files_similar_series_and_compatible_schema() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );
@@ -720,16 +751,23 @@ async fn deduplication_of_data() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );
@@ -845,16 +883,23 @@ async fn compactor_casting() {
         host_id,
     ));
     let catalog = Arc::new(Catalog::new(host_id.into(), "test-instance".into()));
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
-            Arc::clone(&catalog),
-            LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap(),
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            Arc::new(Executor::new_testing()),
-            WalConfig::test_config(),
-            None,
-        )
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister: Arc::clone(&persister),
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider,
+            executor: Arc::new(Executor::new_testing()),
+            wal_config: WalConfig::test_config(),
+            parquet_cache: None,
+        })
         .await
         .unwrap(),
     );

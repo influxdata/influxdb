@@ -14,6 +14,7 @@ use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
+use meta_caches::MetaCachesTable;
 use parquet_files::ParquetFilesTable;
 use tokio::sync::RwLock;
 use tonic::async_trait;
@@ -25,6 +26,7 @@ use self::{last_caches::LastCachesTable, queries::QueriesTable};
 mod compacted_data;
 mod config;
 mod last_caches;
+mod meta_caches;
 mod parquet_files;
 mod queries;
 
@@ -33,6 +35,7 @@ pub const TABLE_NAME_PREDICATE: &str = "table_name";
 
 pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
+pub(crate) const META_CACHES_TABLE_NAME: &str = "meta_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const COMPACTED_DATA_TABLE_NAME: &str = "compacted_data";
 pub(crate) const FILE_INDEX_TABLE_NAME: &str = "file_index";
@@ -70,6 +73,12 @@ impl SystemSchemaProvider {
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+        let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
+            Arc::clone(&db_schema),
+            buffer.meta_cache_provider(),
+        ))));
+        tables.insert(META_CACHES_TABLE_NAME, meta_caches);
+        // pro tables:
         tables.insert(
             FILE_INDEX_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
@@ -77,16 +86,15 @@ impl SystemSchemaProvider {
                 pro_config,
             )))),
         );
+        let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
+            CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
+        )));
+        tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
             buffer,
         ))));
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
-
-        let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
-            CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
-        )));
-        tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
         Self { tables }
     }
 }

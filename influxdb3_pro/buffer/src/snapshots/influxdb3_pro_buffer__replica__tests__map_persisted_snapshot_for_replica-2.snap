@@ -16,21 +16,27 @@ expression: mapped_snapshot
   "row_count": 0,
   "min_time": 0,
   "max_time": 0,
-  "databases": {
-    "0": {
-      "tables": {
-        "0": [
-          {
-            "id": 0,
-            "path": "",
-            "size_bytes": 0,
-            "row_count": 0,
-            "chunk_time": 0,
-            "min_time": 0,
-            "max_time": 0
-          }
+  "databases": [
+    [
+      0,
+      {
+        "tables": [
+          [
+            0,
+            [
+              {
+                "id": 0,
+                "path": "",
+                "size_bytes": 0,
+                "row_count": 0,
+                "chunk_time": 0,
+                "min_time": 0,
+                "max_time": 0
+              }
+            ]
+          ]
         ]
       }
-    }
-  }
+    ]
+  ]
 }

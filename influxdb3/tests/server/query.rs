@@ -1249,3 +1249,63 @@ async fn api_v1_query_data_conversion() {
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
 }
+
+#[tokio::test]
+async fn api_v3_query_sql_meta_cache() {
+    let server = TestServer::spawn().await;
+    server
+        .write_lp_to_db("foo", "cpu,region=us,host=a usage=99", Precision::Second)
+        .await
+        .unwrap();
+
+    server
+        .http_client
+        .post(format!(
+            "{base}/api/v3/configure/meta_cache",
+            base = server.client_addr()
+        ))
+        .json(&serde_json::json!({
+            "db": "foo",
+            "table": "cpu",
+            "columns": ["region", "host"],
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            cpu,region=us,host=a usage=99\n\
+            cpu,region=eu,host=b usage=99\n\
+            cpu,region=ca,host=c usage=99\n\
+            ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let resp = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("format", "pretty"),
+            ("q", "SELECT * FROM meta_cache('cpu')"),
+        ])
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+--------+------+\n\
+        | region | host |\n\
+        +--------+------+\n\
+        | ca     | c    |\n\
+        | eu     | b    |\n\
+        | us     | a    |\n\
+        +--------+------+\
+        ",
+        resp
+    );
+}

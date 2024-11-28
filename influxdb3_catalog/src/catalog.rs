@@ -6,10 +6,12 @@ use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, FieldAdditions, LastCacheDefinition, LastCacheDelete,
+    CatalogBatch, CatalogOp, DeleteTableDefinition, FieldAdditions, LastCacheDefinition,
+    LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
 };
 use influxdb_line_protocol::FieldValue;
-use observability_deps::tracing::info;
+use iox_time::Time;
+use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
@@ -18,6 +20,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod pro;
+
+const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -178,14 +182,14 @@ impl Catalog {
     }
 
     pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
-        self.db_schema_and_id(db_name).map(|(_, schema)| schema)
+        self.db_id_and_schema(db_name).map(|(_, schema)| schema)
     }
 
     pub fn db_schema_by_id(&self, db_id: &DbId) -> Option<Arc<DatabaseSchema>> {
         self.inner.read().databases.get(db_id).cloned()
     }
 
-    pub fn db_schema_and_id(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
+    pub fn db_id_and_schema(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
         let inner = self.inner.read();
         let db_id = inner.db_map.get_by_right(db_name)?;
         inner
@@ -215,6 +219,43 @@ impl Catalog {
         self.inner.read().clone()
     }
 
+    pub fn add_meta_cache(&self, db_id: DbId, table_id: TableId, meta_cache: MetaCacheDefinition) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(&db_id)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let mut table = db
+            .table_definition_by_id(&table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
+        table.add_meta_cache(meta_cache);
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
+    }
+
+    pub fn remove_meta_cache(&self, db_id: &DbId, table_id: &TableId, name: &str) {
+        let mut inner = self.inner.write();
+        let mut db = inner
+            .databases
+            .get(db_id)
+            .expect("db should exist")
+            .as_ref()
+            .clone();
+        let mut table = db
+            .tables
+            .get(table_id)
+            .expect("table should exist")
+            .as_ref()
+            .clone();
+        table.remove_meta_cache(name);
+        db.insert_table(*table_id, Arc::new(table));
+        inner.upsert_db(db);
+    }
+
     pub fn add_last_cache(&self, db_id: DbId, table_id: TableId, last_cache: LastCacheDefinition) {
         let mut inner = self.inner.write();
         let mut db = inner
@@ -230,10 +271,8 @@ impl Catalog {
             .as_ref()
             .clone();
         table.add_last_cache(last_cache);
-        db.tables.insert(table_id, Arc::new(table));
-        inner.databases.insert(db_id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
     }
 
     pub fn delete_last_cache(&self, db_id: DbId, table_id: TableId, name: &str) {
@@ -251,10 +290,8 @@ impl Catalog {
             .as_ref()
             .clone();
         table.remove_last_cache(name);
-        db.tables.insert(table_id, Arc::new(table));
-        inner.databases.insert(db_id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        db.insert_table(table_id, Arc::new(table));
+        inner.upsert_db(db);
     }
 
     pub fn instance_id(&self) -> Arc<str> {
@@ -272,10 +309,7 @@ impl Catalog {
 
     pub fn insert_database(&self, db: DatabaseSchema) {
         let mut inner = self.inner.write();
-        inner.db_map.insert(db.id, Arc::clone(&db.name));
-        inner.databases.insert(db.id, Arc::new(db));
-        inner.sequence = inner.sequence.next();
-        inner.updated = true;
+        inner.upsert_db(db);
     }
 
     pub fn is_updated(&self) -> bool {
@@ -393,34 +427,17 @@ impl InnerCatalog {
         let table_count = self.table_count();
 
         if let Some(db) = self.databases.get(&catalog_batch.database_id) {
-            let existing_table_count = db.tables.len();
-
-            if let Some(new_db) = db.new_if_updated_from_batch(catalog_batch)? {
-                let new_table_count = new_db.tables.len() - existing_table_count;
-                if table_count + new_table_count > Catalog::NUM_TABLES_LIMIT {
-                    return Err(Error::TooManyTables);
-                }
-                let new_db = Arc::new(new_db);
-                self.databases.insert(new_db.id, Arc::clone(&new_db));
-                self.sequence = self.sequence.next();
-                self.updated = true;
-                self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
+                check_overall_table_count(Some(db), &new_db, table_count)?;
+                self.upsert_db(new_db);
             }
         } else {
             if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
                 return Err(Error::TooManyDbs);
             }
-
             let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
-            if table_count + new_db.tables.len() > Catalog::NUM_TABLES_LIMIT {
-                return Err(Error::TooManyTables);
-            }
-
-            let new_db = Arc::new(new_db);
-            self.databases.insert(new_db.id, Arc::clone(&new_db));
-            self.sequence = self.sequence.next();
-            self.updated = true;
-            self.db_map.insert(new_db.id, Arc::clone(&new_db.name));
+            check_overall_table_count(None, &new_db, table_count)?;
+            self.upsert_db(new_db);
         }
 
         Ok(())
@@ -429,6 +446,36 @@ impl InnerCatalog {
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.contains_key(&db_id)
     }
+
+    pub fn upsert_db(&mut self, db: DatabaseSchema) {
+        let name = Arc::clone(&db.name);
+        let id = db.id;
+        self.databases.insert(id, Arc::new(db));
+        self.set_updated_and_increment_sequence();
+        self.db_map.insert(id, name);
+    }
+
+    fn set_updated_and_increment_sequence(&mut self) {
+        self.sequence = self.sequence.next();
+        self.updated = true;
+    }
+}
+
+fn check_overall_table_count(
+    existing_db: Option<&Arc<DatabaseSchema>>,
+    new_db: &DatabaseSchema,
+    current_table_count: usize,
+) -> Result<()> {
+    let existing_table_count = if let Some(existing_db) = existing_db {
+        existing_db.tables.len()
+    } else {
+        0
+    };
+    let newly_added_table_count = new_db.tables.len() - existing_table_count;
+    if current_table_count + newly_added_table_count > Catalog::NUM_TABLES_LIMIT {
+        return Err(Error::TooManyTables);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -438,6 +485,7 @@ pub struct DatabaseSchema {
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
+    pub deleted: bool,
 }
 
 impl DatabaseSchema {
@@ -447,14 +495,23 @@ impl DatabaseSchema {
             name,
             tables: Default::default(),
             table_map: BiHashMap::new(),
+            deleted: false,
         }
     }
 
     /// Validates the updates in the `CatalogBatch` are compatible with this schema. If
     /// everything is compatible and there are no updates to the existing schema, None will be
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
-    pub fn new_if_updated_from_batch(&self, catalog_batch: &CatalogBatch) -> Result<Option<Self>> {
+    pub fn new_if_updated_from_batch(
+        db_schema: &DatabaseSchema,
+        catalog_batch: &CatalogBatch,
+    ) -> Result<Option<Self>> {
+        debug!(name = ?db_schema.name, deleted = ?db_schema.deleted, full_batch = ?catalog_batch, "Updating / adding to catalog");
         let mut updated_or_new_tables = SerdeVecMap::new();
+        let mut schema_deleted = false;
+        let mut table_deleted = false;
+        let mut deleted_table_defn = None;
+        let mut schema_name = Arc::clone(&db_schema.name);
 
         for catalog_op in &catalog_batch.ops {
             match catalog_op {
@@ -462,7 +519,7 @@ impl DatabaseSchema {
                 CatalogOp::CreateTable(table_definition) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&table_definition.table_id)
-                        .or_else(|| self.tables.get(&table_definition.table_id));
+                        .or_else(|| db_schema.tables.get(&table_definition.table_id));
                     if let Some(existing_table) = new_or_existing_table {
                         if let Some(new_table) =
                             existing_table.new_if_definition_adds_new_fields(table_definition)?
@@ -477,7 +534,7 @@ impl DatabaseSchema {
                 CatalogOp::AddFields(field_additions) => {
                     let Some(new_or_existing_table) = updated_or_new_tables
                         .get(&field_additions.table_id)
-                        .or_else(|| self.tables.get(&field_additions.table_id))
+                        .or_else(|| db_schema.tables.get(&field_additions.table_id))
                     else {
                         return Err(Error::TableNotFound {
                             db_name: Arc::clone(&field_additions.database_name),
@@ -490,13 +547,45 @@ impl DatabaseSchema {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
+                CatalogOp::CreateMetaCache(meta_cache_definition) => {
+                    let table = updated_or_new_tables
+                        .get(&meta_cache_definition.table_id)
+                        .cloned()
+                        .or_else(|| {
+                            db_schema.table_definition_by_id(&meta_cache_definition.table_id)
+                        })
+                        .ok_or(TableNotFound {
+                            db_name: Arc::clone(&db_schema.name),
+                            table_name: Arc::clone(&meta_cache_definition.table_name),
+                        })?;
+                    if let Some(new_table) =
+                        table.new_if_meta_cache_definition_is_new(meta_cache_definition)
+                    {
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
+                    }
+                }
+                CatalogOp::DeleteMetaCache(delete_meta_cache) => {
+                    let table = updated_or_new_tables
+                        .get(&delete_meta_cache.table_id)
+                        .cloned()
+                        .or_else(|| db_schema.table_definition_by_id(&delete_meta_cache.table_id))
+                        .ok_or(TableNotFound {
+                            db_name: Arc::clone(&db_schema.name),
+                            table_name: Arc::clone(&delete_meta_cache.table_name),
+                        })?;
+                    if let Some(new_table) =
+                        table.new_if_meta_cache_deletes_existing(delete_meta_cache)
+                    {
+                        updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
+                    }
+                }
                 CatalogOp::CreateLastCache(last_cache_definition) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&last_cache_definition.table_id)
-                        .or_else(|| self.tables.get(&last_cache_definition.table_id));
+                        .or_else(|| db_schema.tables.get(&last_cache_definition.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: Arc::clone(&self.name),
+                        db_name: Arc::clone(&db_schema.name),
                         table_name: Arc::clone(&last_cache_definition.table),
                     })?;
 
@@ -509,10 +598,10 @@ impl DatabaseSchema {
                 CatalogOp::DeleteLastCache(last_cache_deletion) => {
                     let new_or_existing_table = updated_or_new_tables
                         .get(&last_cache_deletion.table_id)
-                        .or_else(|| self.tables.get(&last_cache_deletion.table_id));
+                        .or_else(|| db_schema.tables.get(&last_cache_deletion.table_id));
 
                     let table = new_or_existing_table.ok_or(TableNotFound {
-                        db_name: Arc::clone(&self.name),
+                        db_name: Arc::clone(&db_schema.name),
                         table_name: Arc::clone(&last_cache_deletion.table_name),
                     })?;
 
@@ -522,17 +611,29 @@ impl DatabaseSchema {
                         updated_or_new_tables.insert(new_table.table_id, Arc::new(new_table));
                     }
                 }
+                CatalogOp::DeleteDatabase(params) => {
+                    schema_deleted = true;
+                    let deletion_time = Time::from_timestamp_nanos(params.deletion_time);
+                    schema_name =
+                        make_new_name_using_deleted_time(&params.database_name, deletion_time);
+                }
+                CatalogOp::DeleteTable(table_definition) => {
+                    table_deleted = true;
+                    deleted_table_defn = Some(table_definition);
+                }
             }
         }
 
-        if updated_or_new_tables.is_empty() {
+        if updated_or_new_tables.is_empty() && !schema_deleted && !table_deleted {
             Ok(None)
         } else {
-            for (table_id, table_def) in &self.tables {
+            for (table_id, table_def) in &db_schema.tables {
                 if !updated_or_new_tables.contains_key(table_id) {
                     updated_or_new_tables.insert(*table_id, Arc::clone(table_def));
                 }
             }
+
+            check_and_mark_table_as_deleted(deleted_table_defn, &mut updated_or_new_tables);
 
             // With the final list of updated/new tables update the current mapping
             let new_table_maps = updated_or_new_tables
@@ -541,10 +642,11 @@ impl DatabaseSchema {
                 .collect();
 
             Ok(Some(Self {
-                id: self.id,
-                name: Arc::clone(&self.name),
+                id: db_schema.id,
+                name: schema_name,
                 tables: updated_or_new_tables,
                 table_map: new_table_maps,
+                deleted: schema_deleted,
             }))
         }
     }
@@ -554,8 +656,7 @@ impl DatabaseSchema {
             catalog_batch.database_id,
             Arc::clone(&catalog_batch.database_name),
         );
-        let new_db = db_schema
-            .new_if_updated_from_batch(catalog_batch)?
+        let new_db = DatabaseSchema::new_if_updated_from_batch(&db_schema, catalog_batch)?
             .expect("database must be new");
         Ok(new_db)
     }
@@ -572,7 +673,7 @@ impl DatabaseSchema {
     }
 
     pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
-        self.table_schema_and_id(table_name)
+        self.table_id_and_schema(table_name)
             .map(|(_, schema)| schema.clone())
     }
 
@@ -583,7 +684,7 @@ impl DatabaseSchema {
             .cloned()
     }
 
-    pub fn table_schema_and_id(
+    pub fn table_id_and_schema(
         &self,
         table_name: impl Into<Arc<str>>,
     ) -> Option<(TableId, Schema)> {
@@ -609,7 +710,7 @@ impl DatabaseSchema {
         self.tables.get(table_id).cloned()
     }
 
-    pub fn table_definition_and_id(
+    pub fn table_id_and_definition(
         &self,
         table_name: impl Into<Arc<str>>,
     ) -> Option<(TableId, Arc<TableDefinition>)> {
@@ -647,6 +748,30 @@ impl DatabaseSchema {
     }
 }
 
+fn check_and_mark_table_as_deleted(
+    deleted_table_defn: Option<&DeleteTableDefinition>,
+    updated_or_new_tables: &mut SerdeVecMap<TableId, Arc<TableDefinition>>,
+) {
+    if let Some(deleted_table_defn) = deleted_table_defn {
+        if let Some(deleted_table) = updated_or_new_tables.get_mut(&deleted_table_defn.table_id) {
+            let deletion_time = Time::from_timestamp_nanos(deleted_table_defn.deletion_time);
+            let table_name =
+                make_new_name_using_deleted_time(&deleted_table_defn.table_name, deletion_time);
+            let new_table_def = Arc::make_mut(deleted_table);
+            new_table_def.deleted = true;
+            new_table_def.table_name = table_name;
+        }
+    }
+}
+
+fn make_new_name_using_deleted_time(name: &str, deletion_time: Time) -> Arc<str> {
+    Arc::from(format!(
+        "{}-{}",
+        name,
+        deletion_time.date_time().format(SOFT_DELETION_TIME_FORMAT)
+    ))
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TableDefinition {
     pub table_id: TableId,
@@ -656,6 +781,8 @@ pub struct TableDefinition {
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Option<Vec<ColumnId>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
+    pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
+    pub deleted: bool,
 }
 
 impl TableDefinition {
@@ -710,6 +837,8 @@ impl TableDefinition {
             column_map,
             series_key,
             last_caches: HashMap::new(),
+            meta_caches: HashMap::new(),
+            deleted: false,
         })
     }
 
@@ -808,6 +937,35 @@ impl TableDefinition {
             let mut new_table = self.clone();
             new_table.add_columns(new_fields)?;
             Ok(Some(new_table))
+        }
+    }
+
+    pub(crate) fn new_if_meta_cache_definition_is_new(
+        &self,
+        meta_cache_definition: &MetaCacheDefinition,
+    ) -> Option<Self> {
+        if self
+            .meta_caches
+            .contains_key(&meta_cache_definition.cache_name)
+        {
+            None
+        } else {
+            let mut new_table = self.clone();
+            new_table.add_meta_cache(meta_cache_definition.clone());
+            Some(new_table)
+        }
+    }
+
+    pub(crate) fn new_if_meta_cache_deletes_existing(
+        &self,
+        meta_cache_delete: &MetaCacheDelete,
+    ) -> Option<Self> {
+        if self.meta_caches.contains_key(&meta_cache_delete.cache_name) {
+            let mut new_table = self.clone();
+            new_table.remove_meta_cache(&meta_cache_delete.cache_name);
+            Some(new_table)
+        } else {
+            None
         }
     }
 
@@ -921,19 +1079,36 @@ impl TableDefinition {
         self.influx_schema().series_key().is_some()
     }
 
+    /// Add the given [`MetaCacheDefinition`] to this table
+    pub fn add_meta_cache(&mut self, meta_cache: MetaCacheDefinition) {
+        self.meta_caches
+            .insert(Arc::clone(&meta_cache.cache_name), meta_cache);
+    }
+
+    /// Remove the meta cache with the given name
+    pub fn remove_meta_cache(&mut self, cache_name: &str) {
+        self.meta_caches.remove(cache_name);
+    }
+
     /// Add a new last cache to this table definition
     pub fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
         self.last_caches
             .insert(Arc::clone(&last_cache.name), last_cache);
     }
 
-    /// Remove a last cache from the table definition
-    pub fn remove_last_cache(&mut self, name: &str) {
-        self.last_caches.remove(name);
+    /// Remove a last cache from the table definition by its name
+    pub fn remove_last_cache(&mut self, cache_name: &str) {
+        self.last_caches.remove(cache_name);
     }
 
     pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &LastCacheDefinition)> {
         self.last_caches
+            .iter()
+            .map(|(name, def)| (Arc::clone(name), def))
+    }
+
+    pub fn meta_caches(&self) -> impl Iterator<Item = (Arc<str>, &MetaCacheDefinition)> {
+        self.meta_caches
             .iter()
             .map(|(name, def)| (Arc::clone(name), def))
     }
@@ -946,10 +1121,10 @@ impl TableDefinition {
         self.column_map.get_by_left(id).cloned()
     }
 
-    pub fn column_name_to_id_unchecked(&self, name: Arc<str>) -> ColumnId {
+    pub fn column_name_to_id_unchecked(&self, name: impl Into<Arc<str>>) -> ColumnId {
         *self
             .column_map
-            .get_by_right(&name)
+            .get_by_right(&name.into())
             .expect("Column exists in mapping")
     }
 
@@ -961,7 +1136,7 @@ impl TableDefinition {
         )
     }
 
-    pub fn column_def_and_id(
+    pub fn column_id_and_definition(
         &self,
         name: impl Into<Arc<str>>,
     ) -> Option<(ColumnId, &ColumnDefinition)> {
@@ -1031,6 +1206,7 @@ mod tests {
                 map.insert(TableId::from(2), "test_table_2".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1111,7 +1287,8 @@ mod tests {
                             "id": 0,
                             "name": "db1",
                             "tables": [],
-                            "table_map": []
+                            "table_map": [],
+                            "deleted": false
                         }
                     ],
                     [
@@ -1120,7 +1297,8 @@ mod tests {
                             "id": 0,
                             "name": "db1",
                             "tables": [],
-                            "table_map": []
+                            "table_map": [],
+                            "deleted": false
                         }
                     ]
                 ],
@@ -1148,7 +1326,9 @@ mod tests {
                                         "table_id": 0,
                                         "table_name": "tbl1",
                                         "cols": [],
-                                        "next_column_id": 0
+                                        "next_column_id": 0,
+                                        "deleted": false
+
                                     }
                                 ],
                                 [
@@ -1157,10 +1337,13 @@ mod tests {
                                         "table_id": 0,
                                         "table_name": "tbl1",
                                         "cols": [],
-                                        "next_column_id": 0
+                                        "next_column_id": 0,
+                                        "deleted": false
+
                                     }
                                 ]
-                            ]
+                            ],
+                            "deleted": false
                         }
                     ]
                 ],
@@ -1208,10 +1391,13 @@ mod tests {
                                                     "nullable": true
                                                 }
                                             ]
-                                        ]
+                                        ],
+                                        "deleted": false
+
                                     }
                                 ]
-                            ]
+                            ],
+                            "deleted": false
                         }
                     ]
                 ]
@@ -1228,6 +1414,7 @@ mod tests {
             name: "test".into(),
             tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
+            deleted: false,
         };
         database.tables.insert(
             TableId::from(0),
@@ -1267,7 +1454,7 @@ mod tests {
 
         println!("table: {table:#?}");
         assert_eq!(table.column_map.len(), 2);
-        assert_eq!(table.column_name_to_id_unchecked("test2".into()), 1.into());
+        assert_eq!(table.column_name_to_id_unchecked("test2"), 1.into());
     }
 
     #[test]
@@ -1284,6 +1471,7 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_1".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1342,6 +1530,7 @@ mod tests {
                 map.insert(TableId::from(0), "test".into());
                 map
             },
+            deleted: false,
         };
         use InfluxColumnType::*;
         use InfluxFieldType::*;
@@ -1429,5 +1618,56 @@ mod tests {
             .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
+    }
+
+    #[test]
+    fn test_check_and_mark_table_as_deleted() {
+        let db_id = DbId::new();
+        let deleted_table_id = TableId::new();
+        let table_name = Arc::from("boo");
+        let deleted_table_defn = DeleteTableDefinition {
+            database_id: db_id,
+            database_name: Arc::from("foo"),
+            table_id: deleted_table_id,
+            table_name: Arc::clone(&table_name),
+            deletion_time: 0,
+        };
+        let mut map = IndexMap::new();
+        let table_defn = Arc::new(
+            TableDefinition::new(
+                deleted_table_id,
+                Arc::clone(&table_name),
+                vec![
+                    (ColumnId::from(0), "tag_1".into(), InfluxColumnType::Tag),
+                    (ColumnId::from(1), "tag_2".into(), InfluxColumnType::Tag),
+                    (ColumnId::from(2), "tag_3".into(), InfluxColumnType::Tag),
+                    (
+                        ColumnId::from(3),
+                        "time".into(),
+                        InfluxColumnType::Timestamp,
+                    ),
+                    (
+                        ColumnId::from(4),
+                        "field".into(),
+                        InfluxColumnType::Field(InfluxFieldType::String),
+                    ),
+                ],
+                SeriesKey::Some(vec![
+                    ColumnId::from(0),
+                    ColumnId::from(1),
+                    ColumnId::from(2),
+                ]),
+            )
+            .unwrap(),
+        );
+        map.insert(deleted_table_id, table_defn);
+        let mut updated_or_new_tables = SerdeVecMap::from(map);
+
+        check_and_mark_table_as_deleted(Some(&deleted_table_defn), &mut updated_or_new_tables);
+
+        let deleted_table = updated_or_new_tables.get(&deleted_table_id).unwrap();
+        assert_eq!(&*deleted_table.table_name, "boo-19700101T000000");
+        assert!(deleted_table.deleted);
+        assert!(deleted_table.series_key.is_some());
     }
 }

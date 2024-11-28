@@ -244,6 +244,7 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_config::ProConfig;
     use influxdb3_id::{DbId, TableId};
@@ -790,13 +791,20 @@ mod tests {
         let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
         let write_buffer_impl = Arc::new(
             influxdb3_write::write_buffer::WriteBufferImpl::new(
-                Arc::clone(&persister),
-                Arc::clone(&catalog),
-                LastCacheProvider::new_from_catalog(catalog as _).unwrap(),
-                Arc::<MockProvider>::clone(&time_provider),
-                Arc::clone(&exec),
-                WalConfig::test_config(),
-                Some(parquet_cache),
+                influxdb3_write::write_buffer::WriteBufferImplArgs {
+                    persister: Arc::clone(&persister),
+                    catalog: Arc::clone(&catalog),
+                    last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                    meta_cache: MetaCacheProvider::new_from_catalog(
+                        Arc::clone(&time_provider) as _,
+                        Arc::clone(&catalog),
+                    )
+                    .unwrap(),
+                    time_provider: Arc::clone(&time_provider) as _,
+                    executor: Arc::clone(&exec),
+                    wal_config: WalConfig::test_config(),
+                    parquet_cache: Some(parquet_cache),
+                },
             )
             .await
             .unwrap(),

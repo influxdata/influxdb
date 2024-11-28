@@ -7,6 +7,7 @@ expression: catalog_json
     [
       0,
       {
+        "deleted": false,
         "id": 0,
         "name": "db",
         "tables": [
@@ -55,6 +56,7 @@ expression: catalog_json
                   }
                 ]
               ],
+              "deleted": false,
               "last_caches": [
                 {
                   "keys": [

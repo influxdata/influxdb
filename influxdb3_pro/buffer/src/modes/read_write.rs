@@ -5,13 +5,14 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
-use influxdb3_wal::{LastCacheDefinition, WalConfig};
+use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition, WalConfig};
 use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
-use influxdb3_write::write_buffer::parquet_chunk_from_file;
 use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
+use influxdb3_write::write_buffer::{parquet_chunk_from_file, WriteBufferImplArgs};
 use influxdb3_write::{
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
@@ -20,6 +21,7 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
+use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -37,11 +39,12 @@ pub struct ReadWriteMode {
 }
 
 #[derive(Debug)]
-pub struct ReadWriteArgs {
+pub struct CreateReadWriteModeArgs {
     pub host_id: Arc<str>,
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
+    pub meta_cache: Arc<MetaCacheProvider>,
     pub time_provider: Arc<dyn TimeProvider>,
     pub executor: Arc<iox_query::exec::Executor>,
     pub wal_config: WalConfig,
@@ -53,11 +56,12 @@ pub struct ReadWriteArgs {
 
 impl ReadWriteMode {
     pub(crate) async fn new(
-        ReadWriteArgs {
+        CreateReadWriteModeArgs {
             host_id,
             persister,
             catalog,
             last_cache,
+            meta_cache,
             time_provider,
             executor,
             wal_config,
@@ -65,18 +69,19 @@ impl ReadWriteMode {
             replication_config,
             parquet_cache,
             compacted_data,
-        }: ReadWriteArgs,
+        }: CreateReadWriteModeArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
-        let primary = WriteBufferImpl::new(
+        let primary = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
-            Arc::clone(&catalog),
-            Arc::clone(&last_cache),
+            catalog: Arc::clone(&catalog),
+            last_cache: Arc::clone(&last_cache),
+            meta_cache: Arc::clone(&meta_cache),
             time_provider,
             executor,
             wal_config,
-            parquet_cache.clone(),
-        )
+            parquet_cache: parquet_cache.clone(),
+        })
         .await?;
 
         let replicas = if let Some(ReplicationConfig {
@@ -87,6 +92,7 @@ impl ReadWriteMode {
             Some(
                 Replicas::new(CreateReplicasArgs {
                     last_cache,
+                    meta_cache,
                     object_store: Arc::clone(&object_store),
                     metric_registry,
                     replication_interval,
@@ -317,6 +323,50 @@ impl LastCacheManager for ReadWriteMode {
         self.primary
             .delete_last_cache(db_id, tbl_id, cache_name)
             .await
+    }
+}
+
+#[async_trait]
+impl MetaCacheManager for ReadWriteMode {
+    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
+        self.primary.meta_cache_provider()
+    }
+
+    async fn create_meta_cache(
+        &self,
+        db_schema: Arc<DatabaseSchema>,
+        cache_name: Option<String>,
+        args: CreateMetaCacheArgs,
+    ) -> write_buffer::Result<Option<MetaCacheDefinition>> {
+        self.primary
+            .create_meta_cache(db_schema, cache_name, args)
+            .await
+    }
+
+    async fn delete_meta_cache(
+        &self,
+        db_id: &DbId,
+        tbl_id: &TableId,
+        cache_name: &str,
+    ) -> write_buffer::Result<()> {
+        self.primary
+            .delete_meta_cache(db_id, tbl_id, cache_name)
+            .await
+    }
+}
+
+#[async_trait]
+impl DatabaseManager for ReadWriteMode {
+    async fn soft_delete_database(&self, name: String) -> write_buffer::Result<()> {
+        self.primary.soft_delete_database(name).await
+    }
+
+    async fn soft_delete_table(
+        &self,
+        db_name: String,
+        table_name: String,
+    ) -> write_buffer::Result<()> {
+        self.primary.soft_delete_table(db_name, table_name).await
     }
 }
 
