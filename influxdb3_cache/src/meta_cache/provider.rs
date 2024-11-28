@@ -126,6 +126,34 @@ impl MetaCacheProvider {
             })
     }
 
+    /// Get a list of [`MetaCacheDefinition`]s for the given database
+    pub fn get_cache_definitions_for_db(&self, db_id: &DbId) -> Vec<MetaCacheDefinition> {
+        let db_schema = self
+            .catalog
+            .db_schema_by_id(db_id)
+            .expect("database should exist");
+        let read = self.cache_map.read();
+        read.get(db_id)
+            .map(|table| {
+                table
+                    .iter()
+                    .flat_map(|(table_id, table_map)| {
+                        let table_name = db_schema
+                            .table_id_to_name(table_id)
+                            .expect("table should exist");
+                        table_map.iter().map(move |(cache_name, cache)| {
+                            cache.to_definition(
+                                *table_id,
+                                Arc::clone(&table_name),
+                                Arc::clone(cache_name),
+                            )
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Create a new entry in the metadata cache for a given database and parameters.
     ///
     /// If a new cache is created, this will return the [`MetaCacheDefinition`] for the created

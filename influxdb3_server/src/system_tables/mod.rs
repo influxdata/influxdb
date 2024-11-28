@@ -5,12 +5,14 @@ use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
+use meta_caches::MetaCachesTable;
 use parquet_files::ParquetFilesTable;
 use tonic::async_trait;
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 mod last_caches;
+mod meta_caches;
 mod parquet_files;
 #[cfg(test)]
 pub(crate) use parquet_files::table_name_predicate_error;
@@ -18,9 +20,10 @@ mod queries;
 
 pub const SYSTEM_SCHEMA_NAME: &str = "system";
 
-const QUERIES_TABLE_NAME: &str = "queries";
 const LAST_CACHES_TABLE_NAME: &str = "last_caches";
+const META_CACHES_TABLE_NAME: &str = "meta_caches";
 const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
+const QUERIES_TABLE_NAME: &str = "queries";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -53,6 +56,11 @@ impl SystemSchemaProvider {
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+        let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
+            Arc::clone(&db_schema),
+            buffer.meta_cache_provider(),
+        ))));
+        tables.insert(META_CACHES_TABLE_NAME, meta_caches);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
             buffer,
