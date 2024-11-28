@@ -86,8 +86,13 @@ impl TableProvider for MetaCacheFunctionProvider {
         } else {
             (vec![], None)
         };
-        let mut exec =
-            MetaCacheExec::try_new(predicates, &[batches], self.schema(), projection.cloned())?;
+        let mut exec = MetaCacheExec::try_new(
+            predicates,
+            Arc::clone(&self.table_def),
+            &[batches],
+            self.schema(),
+            projection.cloned(),
+        )?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
         exec = exec.with_show_sizes(show_sizes);
@@ -272,12 +277,14 @@ impl TableFunctionImpl for MetaCacheFunction {
 #[derive(Debug)]
 struct MetaCacheExec {
     inner: MemoryExec,
+    table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
 }
 
 impl MetaCacheExec {
     fn try_new(
         predicates: Option<IndexMap<ColumnId, Predicate>>,
+        table_def: Arc<TableDefinition>,
         partitions: &[Vec<RecordBatch>],
         schema: SchemaRef,
         projection: Option<Vec<usize>>,
@@ -285,6 +292,7 @@ impl MetaCacheExec {
         Ok(Self {
             inner: MemoryExec::try_new(partitions, schema, projection)?,
             predicates,
+            table_def,
         })
     }
 
@@ -305,7 +313,8 @@ impl DisplayAs for MetaCacheExec {
                     write!(f, " predicates=[")?;
                     let mut p_iter = predicates.iter();
                     while let Some((col_id, predicate)) = p_iter.next() {
-                        write!(f, "[{col_id} {predicate}]")?;
+                        let col_name = self.table_def.column_id_to_name(col_id).unwrap_or_default();
+                        write!(f, "[{col_name}@{col_id} {predicate}]")?;
                         if p_iter.size_hint().0 > 0 {
                             write!(f, ", ")?;
                         }

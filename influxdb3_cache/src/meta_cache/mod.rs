@@ -490,7 +490,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -504,7 +504,7 @@ mod tests {
                     "| us-east | a    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (us-east)], [1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -519,7 +519,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -533,7 +533,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (us-east)], [1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -552,7 +552,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -571,7 +571,7 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -587,7 +587,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -602,7 +602,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -632,7 +632,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -783,12 +783,20 @@ mod tests {
             // NOTE(hiltontj): this probably can be done a better way?
             // The EXPLAIN output will have two columns, the one we are interested in that contains
             // the details of the MetaCacheExec is called `plan`...
-            assert!(explain
-                .column_by_name("plan")
-                .unwrap()
-                .as_string::<i32>()
-                .iter()
-                .any(|plan| plan.is_some_and(|plan| plan.contains(tc.explain_contains))),);
+            assert!(
+                explain
+                    .column_by_name("plan")
+                    .unwrap()
+                    .as_string::<i32>()
+                    .iter()
+                    .any(|plan| plan.is_some_and(|plan| plan.contains(tc.explain_contains))),
+                "explain plan did not contain the expression:\n\n\
+                {expected}\n\n\
+                instead, the output was:\n\n\
+                {actual:#?}",
+                expected = tc.explain_contains,
+                actual = explain.column_by_name("plan").unwrap().as_string::<i32>(),
+            );
         }
     }
 }
