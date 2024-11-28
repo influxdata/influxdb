@@ -28,6 +28,7 @@ mod commands {
     pub(crate) mod common;
     pub mod last_cache;
     pub mod manage;
+    pub mod meta_cache;
     pub mod query;
     pub mod serve;
     pub mod token;
@@ -93,6 +94,9 @@ enum Command {
     /// Manage last-n-value caches
     LastCache(commands::last_cache::Config),
 
+    /// Manage metadata caches
+    MetaCache(commands::meta_cache::Config),
+
     /// Manage database (delete only for the moment)
     Database(commands::manage::database::ManageDatabaseConfig),
 
@@ -152,6 +156,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::LastCache(config)) => {
                 if let Err(e) = commands::last_cache::command(config).await {
                     eprintln!("Last Cache command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::MetaCache(config)) => {
+                if let Err(e) = commands::meta_cache::command(config).await {
+                    eprintln!("Metadata Cache command faild: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
