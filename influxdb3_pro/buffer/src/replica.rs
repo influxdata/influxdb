@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context};
 use chrono::Utc;
@@ -9,8 +9,9 @@ use data_types::{
 use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog};
-use influxdb3_id::{DbId, ParquetFileId, TableId};
+use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
     object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails,
@@ -52,8 +53,8 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct ReplicationConfig {
-    pub(crate) interval: Duration,
-    pub(crate) hosts: Vec<String>,
+    pub interval: Duration,
+    pub hosts: Vec<String>,
 }
 
 impl ReplicationConfig {
@@ -71,11 +72,13 @@ pub(crate) struct Replicas {
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     last_cache: Arc<LastCacheProvider>,
+    meta_cache: Arc<MetaCacheProvider>,
     replicas: Vec<Arc<ReplicatedBuffer>>,
 }
 
 pub(crate) struct CreateReplicasArgs {
     pub last_cache: Arc<LastCacheProvider>,
+    pub meta_cache: Arc<MetaCacheProvider>,
     pub object_store: Arc<dyn ObjectStore>,
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
@@ -88,6 +91,7 @@ impl Replicas {
     pub(crate) async fn new(
         CreateReplicasArgs {
             last_cache,
+            meta_cache,
             object_store,
             metric_registry,
             replication_interval,
@@ -100,6 +104,7 @@ impl Replicas {
         for (i, host_identifier_prefix) in hosts.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
+            let meta_cache = Arc::clone(&meta_cache);
             let metric_registry = Arc::clone(&metric_registry);
             let parquet_cache = parquet_cache.clone();
             let catalog = Arc::clone(&catalog);
@@ -110,6 +115,7 @@ impl Replicas {
                     object_store,
                     host_identifier_prefix,
                     last_cache,
+                    meta_cache,
                     replication_interval,
                     metric_registry,
                     parquet_cache,
@@ -122,6 +128,7 @@ impl Replicas {
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             last_cache,
+            meta_cache,
             replicas,
         })
     }
@@ -140,6 +147,10 @@ impl Replicas {
 
     pub(crate) fn last_cache(&self) -> Arc<LastCacheProvider> {
         Arc::clone(&self.last_cache)
+    }
+
+    pub(crate) fn meta_cache(&self) -> Arc<MetaCacheProvider> {
+        Arc::clone(&self.meta_cache)
     }
 
     pub(crate) fn parquet_files(&self, db_id: DbId, tbl_id: TableId) -> Vec<ParquetFile> {
@@ -227,6 +238,7 @@ pub(crate) struct ReplicatedBuffer {
     buffer: Arc<RwLock<BufferState>>,
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
+    meta_cache: Arc<MetaCacheProvider>,
     catalog: Arc<ReplicatedCatalog>,
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
@@ -285,13 +297,11 @@ impl ReplicatedCatalog {
                                         files,
                                     ))
                                 })
-                                .collect::<Result<hashbrown::HashMap<_, _>>>()?,
+                                .collect::<Result<SerdeVecMap<_, _>>>()?,
                         },
                     ))
                 })
-                // TODO: it is a bit annoying that two HashMap types are used in influxdb3_write,
-                // so we should probably pick one there.
-                .collect::<Result<HashMap<DbId, DatabaseTables>>>()?,
+                .collect::<Result<SerdeVecMap<DbId, DatabaseTables>>>()?,
             ..snapshot
         })
     }
@@ -309,6 +319,7 @@ pub(crate) struct CreateReplicatedBufferArgs {
     object_store: Arc<dyn ObjectStore>,
     host_identifier_prefix: String,
     last_cache: Arc<LastCacheProvider>,
+    meta_cache: Arc<MetaCacheProvider>,
     replication_interval: Duration,
     metric_registry: Arc<Registry>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
@@ -322,6 +333,7 @@ impl ReplicatedBuffer {
             object_store,
             host_identifier_prefix,
             last_cache,
+            meta_cache,
             replication_interval,
             metric_registry,
             parquet_cache,
@@ -364,6 +376,7 @@ impl ReplicatedBuffer {
             buffer,
             persisted_files,
             last_cache,
+            meta_cache,
             metrics: ReplicatedBufferMetrics { replica_ttbr },
             parquet_cache,
             catalog: Arc::new(replica_catalog),
@@ -402,7 +415,7 @@ impl ReplicatedBuffer {
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
         debug!(%database_name, %table_name, "getting persisted chunks for replicated buffer");
-        let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
+        let Some((db_id, db_schema)) = self.catalog().db_id_and_schema(database_name) else {
             return vec![];
         };
         let Some(table_id) = db_schema.table_name_to_id(table_name) else {
@@ -445,10 +458,10 @@ impl ReplicatedBuffer {
         table_name: &str,
         filters: &[Expr],
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        let Some((db_id, db_schema)) = self.catalog().db_schema_and_id(database_name) else {
+        let Some((db_id, db_schema)) = self.catalog().db_id_and_schema(database_name) else {
             return Ok(vec![]);
         };
-        let Some((table_id, table_def)) = db_schema.table_definition_and_id(table_name) else {
+        let Some((table_id, table_def)) = db_schema.table_id_and_definition(table_name) else {
             return Ok(vec![]);
         };
         let buffer = self.buffer.read();
@@ -580,8 +593,9 @@ impl ReplicatedBuffer {
 
     fn buffer_wal_contents(&self, wal_contents: WalContents) {
         self.last_cache.write_wal_contents_to_cache(&wal_contents);
+        self.meta_cache.write_wal_contents_to_cache(&wal_contents);
         let mut buffer = self.buffer.write();
-        buffer.buffer_ops(wal_contents.ops, &self.last_cache);
+        buffer.buffer_ops(wal_contents.ops, &self.last_cache, &self.meta_cache);
     }
 
     fn buffer_wal_contents_and_handle_snapshots(
@@ -590,6 +604,7 @@ impl ReplicatedBuffer {
         snapshot_details: SnapshotDetails,
     ) {
         self.last_cache.write_wal_contents_to_cache(&wal_contents);
+        self.meta_cache.write_wal_contents_to_cache(&wal_contents);
         let catalog = self.catalog();
         // Update the Buffer by invoking the snapshot, to separate data in the buffer that will
         // get cleared by the snapshot, before fetching the snapshot from object store:
@@ -607,7 +622,7 @@ impl ReplicatedBuffer {
                     tbl_buf.snapshot(table_def, snapshot_details.end_time_marker);
                 }
             }
-            buffer.buffer_ops(wal_contents.ops, &self.last_cache);
+            buffer.buffer_ops(wal_contents.ops, &self.last_cache, &self.meta_cache);
         }
 
         let snapshot_path = SnapshotInfoFilePath::new(
@@ -751,6 +766,7 @@ mod tests {
 
     use datafusion::{assert_batches_sorted_eq, common::assert_contains};
     use datafusion_util::config::register_iox_object_store;
+    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -759,9 +775,11 @@ mod tests {
         WalOp,
     };
     use influxdb3_write::{
-        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
-        persister::Persister, write_buffer::WriteBufferImpl, ChunkContainer, LastCacheManager,
-        ParquetFile, PersistedSnapshot,
+        last_cache::LastCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+        persister::Persister,
+        write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
+        ChunkContainer, LastCacheManager, MetaCacheManager, ParquetFile, PersistedSnapshot,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -791,6 +809,8 @@ mod tests {
         // only need one context
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
         let primary = setup_primary(
             primary_id,
@@ -801,7 +821,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            Time::from_timestamp_nanos(0),
+            time_provider,
         )
         .await;
 
@@ -838,6 +858,7 @@ mod tests {
             object_store: Arc::clone(&obj_store),
             host_identifier_prefix: primary_id.to_string(),
             last_cache: primary.last_cache_provider(),
+            meta_cache: primary.meta_cache_provider(),
             replication_interval: Duration::from_millis(10),
             metric_registry: Arc::new(Registry::new()),
             parquet_cache: None,
@@ -963,6 +984,8 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // Spin up two primary write buffers to do some writes and generate files in an object store:
         let primary_ids = ["spock", "tuvok"];
         let mut primaries = HashMap::new();
@@ -976,7 +999,7 @@ mod tests {
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1_000,
                 },
-                Time::from_timestamp_nanos(0),
+                Arc::clone(&time_provider),
             )
             .await;
             primaries.insert(p, primary);
@@ -985,7 +1008,11 @@ mod tests {
         // Spin up a set of replicated buffers:
         let replicas = Replicas::new(CreateReplicasArgs {
             last_cache: LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
-
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                time_provider,
+                primaries["spock"].catalog(),
+            )
+            .unwrap(),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
@@ -1074,6 +1101,8 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // Spin up two primary write buffers to do some writes and generate files in an object store:
         let primary_ids = ["newton", "faraday"];
         let mut primaries = HashMap::new();
@@ -1087,7 +1116,7 @@ mod tests {
                     flush_interval: Duration::from_millis(10),
                     snapshot_size: 1_000,
                 },
-                Time::from_timestamp_nanos(0),
+                Arc::clone(&time_provider),
             )
             .await;
             primaries.insert(p, primary);
@@ -1097,7 +1126,11 @@ mod tests {
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
             last_cache: LastCacheProvider::new_from_catalog(primaries["newton"].catalog()).unwrap(),
-
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                time_provider,
+                primaries["newton"].catalog(),
+            )
+            .unwrap(),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
@@ -1165,6 +1198,8 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn parquet_cache_with_read_replicas() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // spin up two primary write buffers:
         let primary_ids = ["skinner", "chalmers"];
         let mut primaries = HashMap::new();
@@ -1179,7 +1214,7 @@ mod tests {
                     // small snapshot size will have parquet written out after 3 WAL periods:
                     snapshot_size: 1,
                 },
-                Time::from_timestamp_nanos(0),
+                Arc::clone(&time_provider),
             )
             .await;
             primaries.insert(p, primary);
@@ -1257,7 +1292,11 @@ mod tests {
                 // skinner's:
                 last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
                     .unwrap(),
-
+                meta_cache: MetaCacheProvider::new_from_catalog(
+                    Arc::clone(&time_provider),
+                    primaries["skinner"].catalog(),
+                )
+                .unwrap(),
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
@@ -1325,7 +1364,11 @@ mod tests {
                 // like above, just re-use skinner's catalog for ease:
                 last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
                     .unwrap(),
-
+                meta_cache: MetaCacheProvider::new_from_catalog(
+                    Arc::clone(&time_provider),
+                    primaries["skinner"].catalog(),
+                )
+                .unwrap(),
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
@@ -1644,7 +1687,7 @@ mod tests {
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // there is a db called "foo" and a table called "bar" already, but get their IDs on the
         // replica's catalog, so we can use the ID map to map them onto the primary
-        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
         let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
@@ -1704,7 +1747,7 @@ mod tests {
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // perform a set of field additions on the primary, and then separately on the replica.
         let (primary_db_id, primary_table_id) = {
-            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -1731,7 +1774,7 @@ mod tests {
             (db_id, table_id)
         };
         let (replica_db_id, replica_table_id, replica_wal_content) = {
-            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -1806,8 +1849,8 @@ mod tests {
         let replicated_catalog =
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // create a last cache on the replica:
-        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
-        let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
+        let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
         let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
@@ -1890,8 +1933,8 @@ mod tests {
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // create the same last cache on both primary and replica:
         {
-            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
+            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -1913,8 +1956,8 @@ mod tests {
                 .expect("apply catalog batch to primary to create last cache");
         }
         let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
+            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -1973,8 +2016,8 @@ mod tests {
         //
         // First on the primary:
         {
-            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_definition_and_id("bar").unwrap();
+            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
+            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
             let t1_col_id = table_def.column_name_to_id("t1").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -1997,7 +2040,7 @@ mod tests {
         }
         // now on the replica:
         let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -2108,7 +2151,7 @@ mod tests {
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
         // add a field "f4" as a string column on the primary:
         {
-            let (db_id, db_schema) = primary.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -2135,7 +2178,7 @@ mod tests {
         }
         // now add the same "f4", but as a float, to the replica:
         let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
             let table_id = db_schema.table_name_to_id("bar").unwrap();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
@@ -2247,7 +2290,7 @@ mod tests {
         let replica = create::catalog("replica");
         let replicated_catalog =
             ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        let (db_id, db_schema) = replica.db_schema_and_id("foo").unwrap();
+        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
         let snapshot = create::persisted_snapshot("host-primary")
             .table(
@@ -2310,22 +2353,25 @@ mod tests {
         host_id: &str,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
-        start_time: Time,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> WriteBufferImpl {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
-        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start_time));
+        let meta_cache =
+            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+                .unwrap();
         let metric_registry = Arc::new(Registry::new());
-        WriteBufferImpl::new(
-            Arc::clone(&persister),
+        WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
             catalog,
             last_cache,
+            meta_cache,
             time_provider,
-            make_exec(object_store, metric_registry),
+            executor: make_exec(object_store, metric_registry),
             wal_config,
-            None,
-        )
+            parquet_cache: None,
+        })
         .await
         .unwrap()
     }
@@ -2337,7 +2383,7 @@ mod tests {
         tbl: &str,
         expected_file_count: usize,
     ) -> Vec<ParquetFile> {
-        let (db_id, db_schema) = replicas.catalog().db_schema_and_id(db).unwrap();
+        let (db_id, db_schema) = replicas.catalog().db_id_and_schema(db).unwrap();
         let table_id = db_schema.table_name_to_id(tbl).unwrap();
         for _ in 0..10 {
             let persisted_files = replicas.parquet_files(db_id, table_id);
@@ -2357,7 +2403,7 @@ mod tests {
         tbl: &str,
         expected_file_count: usize,
     ) -> Vec<ParquetFile> {
-        let (db_id, db_schema) = replica.catalog().db_schema_and_id(db).unwrap();
+        let (db_id, db_schema) = replica.catalog().db_id_and_schema(db).unwrap();
         let table_id = db_schema.table_name_to_id(tbl).unwrap();
         for _ in 0..10 {
             let persisted_files = replica.parquet_files(db_id, table_id);
@@ -2372,7 +2418,7 @@ mod tests {
 
     mod create {
         use influxdb3_catalog::catalog::CatalogSequenceNumber;
-        use influxdb3_id::{ColumnId, ParquetFileId};
+        use influxdb3_id::{ColumnId, ParquetFileId, SerdeVecMap};
         use influxdb3_wal::SnapshotSequenceNumber;
         use influxdb3_write::DatabaseTables;
 
@@ -2474,7 +2520,7 @@ mod tests {
             row_count: Option<u64>,
             min_time: Option<i64>,
             max_time: Option<i64>,
-            databases: HashMap<DbId, DatabaseTables>,
+            databases: SerdeVecMap<DbId, DatabaseTables>,
         }
 
         impl PersistedSnapshotBuilder {

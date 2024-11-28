@@ -23,7 +23,7 @@ pub mod pro;
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("catalog updated elsewhere")]
     CatalogUpdatedElsewhere,

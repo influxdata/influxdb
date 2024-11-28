@@ -78,11 +78,6 @@ impl SystemSchemaProvider {
             buffer.meta_cache_provider(),
         ))));
         tables.insert(META_CACHES_TABLE_NAME, meta_caches);
-        let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
-            db_schema.id,
-            buffer,
-        ))));
-        tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         // pro tables:
         tables.insert(
             FILE_INDEX_TABLE_NAME,
@@ -95,6 +90,11 @@ impl SystemSchemaProvider {
             CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
         )));
         tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
+        let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
+            db_schema.id,
+            buffer,
+        ))));
+        tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         Self { tables }
     }
 }

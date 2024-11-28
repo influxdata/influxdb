@@ -6,15 +6,17 @@ use data_types::NamespaceName;
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::LastCacheDefinition;
+use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
 use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
+use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use std::sync::Arc;
@@ -102,6 +104,46 @@ impl LastCacheManager for CompactorMode {
         _cache_name: &str,
     ) -> influxdb3_write::Result<(), WriteBufferError> {
         unimplemented!("delete_last_cache not implemented for CompactorMode")
+    }
+}
+
+#[async_trait]
+impl MetaCacheManager for CompactorMode {
+    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
+        unimplemented!("meta_cache_provider not implemented for CompactorMode")
+    }
+
+    async fn create_meta_cache(
+        &self,
+        _db_schema: Arc<DatabaseSchema>,
+        _cache_name: Option<String>,
+        _args: CreateMetaCacheArgs,
+    ) -> Result<Option<MetaCacheDefinition>, WriteBufferError> {
+        unimplemented!("create_meta_cache not implemented for CompactorMode")
+    }
+
+    async fn delete_meta_cache(
+        &self,
+        _db_id: &DbId,
+        _tbl_id: &TableId,
+        _cache_name: &str,
+    ) -> Result<(), WriteBufferError> {
+        unimplemented!("delete_meta_cache not implemented for CompactorMode")
+    }
+}
+
+#[async_trait]
+impl DatabaseManager for CompactorMode {
+    async fn soft_delete_database(&self, _name: String) -> Result<(), WriteBufferError> {
+        unimplemented!("soft_delete_database not implemented for CompactorMode")
+    }
+
+    async fn soft_delete_table(
+        &self,
+        _db_name: String,
+        _table_name: String,
+    ) -> Result<(), WriteBufferError> {
+        unimplemented!("soft_delete_table not implemented for CompactorMode")
     }
 }
 

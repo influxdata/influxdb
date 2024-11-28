@@ -15,6 +15,7 @@ observability_deps.workspace = true
 schema.workspace = true
 
 # Local Crates
+influxdb3_cache = { path = "../../influxdb3_cache" }
 influxdb3_catalog = { path = "../../influxdb3_catalog" }
 influxdb3_id = { path = "../../influxdb3_id" }
 influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }

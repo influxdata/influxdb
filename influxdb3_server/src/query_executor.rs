@@ -715,7 +715,7 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
-        WriteBuffer,
+        ParquetFile, WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};

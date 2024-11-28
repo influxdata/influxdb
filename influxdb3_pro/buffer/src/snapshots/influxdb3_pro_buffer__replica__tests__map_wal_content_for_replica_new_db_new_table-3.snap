@@ -34,3 +34,5 @@ tables:
                 - ~
             influx_type: time
             nullable: false
+      deleted: false
+deleted: false

@@ -15,7 +15,9 @@ use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
-    modes::read_write::ReadWriteArgs, replica::ReplicationConfig, WriteBufferPro,
+    modes::{read::CreateReadModeArgs, read_write::CreateReadWriteModeArgs},
+    replica::ReplicationConfig,
+    WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::compacted_data::CompactedData;
@@ -616,20 +618,22 @@ pub async fn command(config: Config) -> Result<()> {
     let (write_buffer, persisted_files): (Arc<dyn WriteBuffer>, Option<Arc<PersistedFiles>>) =
         match config.pro_config.mode {
             BufferMode::Read => {
-                let replica_config = replica_config
+                let ReplicationConfig { interval, hosts } = replica_config
                     .context("must supply a replicas list when starting in read-only mode")
                     .map_err(Error::WriteBufferInit)?;
                 (
                     Arc::new(
-                        WriteBufferPro::read(
+                        WriteBufferPro::read(CreateReadModeArgs {
                             last_cache,
-                            Arc::clone(&object_store),
-                            Arc::clone(&metrics),
-                            replica_config,
-                            parquet_cache.clone(),
-                            compacted_data.clone(),
-                            Arc::clone(&catalog),
-                        )
+                            meta_cache,
+                            object_store: Arc::clone(&object_store),
+                            catalog: Arc::clone(&catalog),
+                            metric_registry: Arc::clone(&metrics),
+                            replication_interval: interval,
+                            hosts,
+                            parquet_cache: parquet_cache.clone(),
+                            compacted_data: compacted_data.clone(),
+                        })
                         .await
                         .map_err(Error::WriteBufferInit)?,
                     ),
@@ -638,11 +642,12 @@ pub async fn command(config: Config) -> Result<()> {
             }
             BufferMode::ReadWrite => {
                 let buf = Arc::new(
-                    WriteBufferPro::read_write(ReadWriteArgs {
+                    WriteBufferPro::read_write(CreateReadWriteModeArgs {
                         host_id: persister.host_identifier_prefix().into(),
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
                         last_cache,
+                        meta_cache,
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
                         executor: Arc::clone(&exec),
                         wal_config,

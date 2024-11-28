@@ -8,7 +8,7 @@ use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
 use test_helpers::assert_contains;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 pub fn run(args: &[&str]) -> String {
     let process = Command::cargo_bin("influxdb3")

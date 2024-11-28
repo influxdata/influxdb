@@ -120,6 +120,7 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
                 "| public       | system             | compacted_data | BASE TABLE |",
                 "| public       | system             | file_index     | BASE TABLE |",
                 "| public       | system             | last_caches    | BASE TABLE |",
+                "| public       | system             | meta_caches    | BASE TABLE |",
                 "| public       | system             | parquet_files  | BASE TABLE |",
                 "| public       | system             | queries        | BASE TABLE |",
                 "+--------------+--------------------+----------------+------------+",

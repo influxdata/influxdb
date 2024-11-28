@@ -35,6 +35,8 @@ databases:
                       - str
                   influx_type: tag
                   nullable: true
+            deleted: false
+      deleted: false
 sequence: 1
 host_id: host-b
 instance_id: instance-b

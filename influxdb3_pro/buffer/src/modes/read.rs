@@ -5,10 +5,11 @@ use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
-use influxdb3_wal::LastCacheDefinition;
+use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
 use influxdb3_write::write_buffer::parquet_chunk_from_file;
 use influxdb3_write::{
     last_cache::LastCacheProvider,
@@ -17,6 +18,7 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
+use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use metric::Registry;
@@ -32,6 +34,7 @@ pub struct ReadMode {
 #[derive(Debug)]
 pub struct CreateReadModeArgs {
     pub last_cache: Arc<LastCacheProvider>,
+    pub meta_cache: Arc<MetaCacheProvider>,
     pub object_store: Arc<dyn ObjectStore>,
     pub catalog: Arc<Catalog>,
     pub metric_registry: Arc<Registry>,
@@ -46,6 +49,7 @@ impl ReadMode {
     pub(crate) async fn new(
         CreateReadModeArgs {
             last_cache,
+            meta_cache,
             object_store,
             catalog,
             metric_registry,
@@ -58,6 +62,7 @@ impl ReadMode {
         Ok(Self {
             replicas: Replicas::new(CreateReplicasArgs {
                 last_cache,
+                meta_cache,
                 object_store,
                 metric_registry,
                 replication_interval,
@@ -207,6 +212,46 @@ impl LastCacheManager for ReadMode {
         _tbl_id: TableId,
         _cache_name: &str,
     ) -> WriteBufferResult<()> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+}
+
+#[async_trait]
+impl MetaCacheManager for ReadMode {
+    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
+        self.replicas.meta_cache()
+    }
+
+    async fn create_meta_cache(
+        &self,
+        _db_schema: Arc<DatabaseSchema>,
+        _cache_name: Option<String>,
+        _args: CreateMetaCacheArgs,
+    ) -> Result<Option<MetaCacheDefinition>, WriteBufferError> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn delete_meta_cache(
+        &self,
+        _db_id: &DbId,
+        _tbl_id: &TableId,
+        _cache_name: &str,
+    ) -> Result<(), WriteBufferError> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+}
+
+#[async_trait]
+impl DatabaseManager for ReadMode {
+    async fn soft_delete_database(&self, _name: String) -> Result<(), WriteBufferError> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn soft_delete_table(
+        &self,
+        _db_name: String,
+        _table_name: String,
+    ) -> Result<(), WriteBufferError> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 }
