@@ -1,5 +1,5 @@
 [package]
-name = "influxdb3_catalog"
+name = "influxdb3_cache"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,32 +7,28 @@ license.workspace = true
 
 [dependencies]
 # Core Crates
-influxdb-line-protocol.workspace = true
-observability_deps.workspace = true
-schema = { workspace = true }
 iox_time.workspace = true
+schema.workspace = true
 
 # Local deps
+influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 
 # crates.io dependencies
 anyhow.workspace = true
 arrow.workspace = true
-bimap.workspace = true
-chrono.workspace = true
-hashbrown.workspace = true
+async-trait.workspace = true
+datafusion.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-serde_with.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
-pretty_assertions.workspace = true
-test_helpers.workspace = true
+# Local deps
+influxdb3_write = { path = "../influxdb3_write" }
 
 [lints]
 workspace = true

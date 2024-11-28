@@ -19,6 +19,10 @@ pub fn wal_contents(
     }
 }
 
+pub fn write_batch_op(write_batch: WriteBatch) -> WalOp {
+    WalOp::Write(write_batch)
+}
+
 pub fn catalog_batch_op(
     db_id: DbId,
     db_name: impl Into<Arc<str>>,

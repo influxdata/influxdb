@@ -20,7 +20,7 @@ use super::Error;
 
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
-pub(crate) struct WithCatalog {
+pub struct WithCatalog {
     catalog: Arc<Catalog>,
     db_schema: Arc<DatabaseSchema>,
     time_now_ns: i64,
@@ -28,23 +28,33 @@ pub(crate) struct WithCatalog {
 
 /// Type state for the [`WriteValidator`] after it has parsed v1 or v3
 /// line protocol.
-pub(crate) struct LinesParsed {
+pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
     catalog_batch: Option<CatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
+impl LinesParsed {
+    /// Convert this set of parsed and qualified lines into a set of rows
+    ///
+    /// This is useful for testing when you need to use the write validator to parse line protocol
+    /// and get the raw row data for the WAL.
+    pub fn to_rows(self) -> Vec<Row> {
+        self.lines.into_iter().map(|line| line.row).collect()
+    }
+}
+
 /// A state machine for validating v1 or v3 line protocol and updating
 /// the [`Catalog`] with new tables or schema changes.
-pub(crate) struct WriteValidator<State> {
+pub struct WriteValidator<State> {
     state: State,
 }
 
 impl WriteValidator<WithCatalog> {
     /// Initialize the [`WriteValidator`] by getting a handle to, or creating
     /// a handle to the [`DatabaseSchema`] for the given namespace name `db_name`.
-    pub(crate) fn initialize(
+    pub fn initialize(
         db_name: NamespaceName<'static>,
         catalog: Arc<Catalog>,
         time_now_ns: i64,
@@ -69,7 +79,7 @@ impl WriteValidator<WithCatalog> {
     ///
     /// If this function succeeds, then the catalog will receive an update, so
     /// steps following this should be infallible.
-    pub(crate) fn v3_parse_lines_and_update_schema(
+    pub fn v3_parse_lines_and_update_schema(
         self,
         lp: &str,
         accept_partial: bool,
@@ -150,7 +160,7 @@ impl WriteValidator<WithCatalog> {
     ///
     /// If this function succeeds, then the catalog will receive an update, so
     /// steps following this should be infallible.
-    pub(crate) fn v1_parse_lines_and_update_schema(
+    pub fn v1_parse_lines_and_update_schema(
         self,
         lp: &str,
         accept_partial: bool,
@@ -323,7 +333,8 @@ fn validate_and_qualify_v3_line(
 
         // qualify the fields:
         for (field_name, field_val) in line.field_set.iter() {
-            if let Some((col_id, col_def)) = table_def.column_def_and_id(field_name.as_str()) {
+            if let Some((col_id, col_def)) = table_def.column_id_and_definition(field_name.as_str())
+            {
                 let field_col_type = influx_column_type_from_field_value(field_val);
                 let existing_col_type = col_def.data_type;
                 if field_col_type != existing_col_type {
@@ -544,7 +555,8 @@ fn validate_and_qualify_v1_line(
         }
         for (field_name, field_val) in line.field_set.iter() {
             // This field already exists, so check the incoming type matches existing type:
-            if let Some((col_id, col_def)) = table_def.column_def_and_id(field_name.as_str()) {
+            if let Some((col_id, col_def)) = table_def.column_id_and_definition(field_name.as_str())
+            {
                 let field_col_type = influx_column_type_from_field_value(field_val);
                 let existing_col_type = col_def.data_type;
                 if field_col_type != existing_col_type {
@@ -713,7 +725,7 @@ fn validate_and_qualify_v1_line(
 /// Result of conversion from line protocol to valid chunked data
 /// for the buffer.
 #[derive(Debug)]
-pub(crate) struct ValidatedLines {
+pub struct ValidatedLines {
     /// Number of lines passed in
     pub(crate) line_count: usize,
     /// Number of fields passed in
@@ -728,14 +740,27 @@ pub(crate) struct ValidatedLines {
     pub(crate) catalog_updates: Option<CatalogBatch>,
 }
 
+impl From<ValidatedLines> for WriteBatch {
+    fn from(value: ValidatedLines) -> Self {
+        value.valid_data
+    }
+}
+
 impl WriteValidator<LinesParsed> {
+    /// Convert this into the inner [`LinesParsed`]
+    ///
+    /// This is mainly used for testing
+    pub fn into_inner(self) -> LinesParsed {
+        self.state
+    }
+
     /// Convert a set of valid parsed `v3` lines to a [`ValidatedLines`] which will
     /// be buffered and written to the WAL, if configured.
     ///
     /// This involves splitting out the writes into different batches for each chunk, which will
     /// map to the `Gen1Duration`. This function should be infallible, because
     /// the schema for incoming writes has been fully validated.
-    pub(crate) fn convert_lines_to_buffer(self, gen1_duration: Gen1Duration) -> ValidatedLines {
+    pub fn convert_lines_to_buffer(self, gen1_duration: Gen1Duration) -> ValidatedLines {
         let mut table_chunks = IndexMap::new();
         let line_count = self.state.lines.len();
         let mut field_count = 0;

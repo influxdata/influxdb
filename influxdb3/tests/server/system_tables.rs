@@ -278,3 +278,159 @@ async fn last_caches_table() {
         );
     }
 }
+
+#[tokio::test]
+async fn meta_caches_table() {
+    let server = TestServer::spawn().await;
+    let db_1_name = "foo";
+    let db_2_name = "bar";
+    // write some lp to both db's to initialize the catalog:
+    server
+        .write_lp_to_db(
+            db_1_name,
+            "\
+        cpu,region=us-east,host=a usage=90\n\
+        mem,region=us-east,host=a usage=90\n\
+        ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+    server
+        .write_lp_to_db(
+            db_2_name,
+            "\
+        cpu,region=us-east,host=a usage=90\n\
+        mem,region=us-east,host=a usage=90\n\
+        ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    // check that there are no meta caches:
+    for db_name in [db_1_name, db_2_name] {
+        let response_stream = server
+            .flight_sql_client(db_name)
+            .await
+            .query("SELECT * FROM system.meta_caches")
+            .await
+            .unwrap();
+        let batches = collect_stream(response_stream).await;
+        assert_batches_sorted_eq!(["++", "++",], &batches);
+    }
+
+    // create some metadata caches on the two databases:
+    assert!(server
+        .api_v3_configure_meta_cache_create(&json!({
+            "db": db_1_name,
+            "table": "cpu",
+            "columns": ["region", "host"],
+        }))
+        .await
+        .status()
+        .is_success());
+    assert!(server
+        .api_v3_configure_meta_cache_create(&json!({
+            "db": db_1_name,
+            "table": "mem",
+            "columns": ["region", "host"],
+            "max_cardinality": 1_000,
+        }))
+        .await
+        .status()
+        .is_success());
+    assert!(server
+        .api_v3_configure_meta_cache_create(&json!({
+            "db": db_2_name,
+            "table": "cpu",
+            "columns": ["host"],
+            "max_age": 1_000,
+        }))
+        .await
+        .status()
+        .is_success());
+
+    // check the system table query for each db:
+    {
+        let response_stream = server
+            .flight_sql_client(db_1_name)
+            .await
+            .query("SELECT * FROM system.meta_caches")
+            .await
+            .unwrap();
+        let batches = collect_stream(response_stream).await;
+        assert_batches_sorted_eq!([
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+            "| table | name                       | column_ids | column_names   | max_cardinality | max_age_seconds |",
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+            "| cpu   | cpu_region_host_meta_cache | [0, 1]     | [region, host] | 100000          | 86400           |",
+            "| mem   | mem_region_host_meta_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+        ], &batches);
+    }
+    {
+        let response_stream = server
+            .flight_sql_client(db_2_name)
+            .await
+            .query("SELECT * FROM system.meta_caches")
+            .await
+            .unwrap();
+        let batches = collect_stream(response_stream).await;
+        assert_batches_sorted_eq!([
+            "+-------+---------------------+------------+--------------+-----------------+-----------------+",
+            "| table | name                | column_ids | column_names | max_cardinality | max_age_seconds |",
+            "+-------+---------------------+------------+--------------+-----------------+-----------------+",
+            "| cpu   | cpu_host_meta_cache | [9]        | [host]       | 100000          | 1000            |",
+            "+-------+---------------------+------------+--------------+-----------------+-----------------+",
+        ], &batches);
+    }
+
+    // delete caches and check that the system tables reflect those changes:
+    assert!(server
+        .api_v3_configure_meta_cache_delete(&json!({
+            "db": db_1_name,
+            "table": "cpu",
+            "name": "cpu_region_host_meta_cache",
+        }))
+        .await
+        .status()
+        .is_success());
+    assert!(server
+        .api_v3_configure_meta_cache_delete(&json!({
+            "db": db_2_name,
+            "table": "cpu",
+            "name": "cpu_host_meta_cache",
+        }))
+        .await
+        .status()
+        .is_success());
+
+    // check the system tables again:
+    {
+        let response_stream = server
+            .flight_sql_client(db_1_name)
+            .await
+            .query("SELECT * FROM system.meta_caches")
+            .await
+            .unwrap();
+        let batches = collect_stream(response_stream).await;
+        assert_batches_sorted_eq!([
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+            "| table | name                       | column_ids | column_names   | max_cardinality | max_age_seconds |",
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+            "| mem   | mem_region_host_meta_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
+            "+-------+----------------------------+------------+----------------+-----------------+-----------------+",
+        ], &batches);
+    }
+    {
+        let response_stream = server
+            .flight_sql_client(db_2_name)
+            .await
+            .query("SELECT * FROM system.meta_caches")
+            .await
+            .unwrap();
+        let batches = collect_stream(response_stream).await;
+        assert_batches_sorted_eq!(["++", "++",], &batches);
+    }
+}

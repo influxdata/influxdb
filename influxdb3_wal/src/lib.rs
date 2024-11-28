@@ -242,14 +242,34 @@ pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
     CreateTable(TableDefinition),
     AddFields(FieldAdditions),
+    CreateMetaCache(MetaCacheDefinition),
+    DeleteMetaCache(MetaCacheDelete),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
+    DeleteDatabase(DeleteDatabaseDefinition),
+    DeleteTable(DeleteTableDefinition),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DatabaseDefinition {
     pub database_id: DbId,
     pub database_name: Arc<str>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteDatabaseDefinition {
+    pub database_id: DbId,
+    pub database_name: Arc<str>,
+    pub deletion_time: i64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteTableDefinition {
+    pub database_id: DbId,
+    pub database_name: Arc<str>,
+    pub table_id: TableId,
+    pub table_name: Arc<str>,
+    pub deletion_time: i64,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -473,6 +493,30 @@ pub struct LastCacheDelete {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub name: Arc<str>,
+}
+
+/// Defines a metadata cache in a given table and database
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct MetaCacheDefinition {
+    /// The id of the associated table
+    pub table_id: TableId,
+    /// The name of the associated table
+    pub table_name: Arc<str>,
+    /// The name of the cache, is unique within the associated table
+    pub cache_name: Arc<str>,
+    /// The ids of columns tracked by this metadata cache, in the defined order
+    pub column_ids: Vec<ColumnId>,
+    /// The maximum number of distinct value combintions the cache will hold
+    pub max_cardinality: usize,
+    /// The maximum age in seconds, similar to a time-to-live (TTL), for entries in the cache
+    pub max_age_seconds: u64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MetaCacheDelete {
+    pub table_name: Arc<str>,
+    pub table_id: TableId,
+    pub cache_name: Arc<str>,
 }
 
 #[serde_as]

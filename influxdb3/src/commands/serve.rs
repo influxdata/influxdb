@@ -11,6 +11,7 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
+use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
@@ -100,6 +101,9 @@ pub enum Error {
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+
+    #[error("failed to initialize meta cache: {0:#}")]
+    InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
 
     #[error("Error initializing compaction producer: {0}")]
     CompactionProducer(#[from] influxdb3_pro_compactor::producer::CompactedDataProducerError),
@@ -321,10 +325,20 @@ pub struct Config {
     #[clap(
         long = "last-cache-eviction-interval",
         env = "INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL",
-        default_value = "1m",
+        default_value = "10s",
         action
     )]
     pub last_cache_eviction_interval: humantime::Duration,
+
+    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// human-readable time, e.g., "20s", "1m", "1h".
+    #[clap(
+        long = "meta-cache-eviction-interval",
+        env = "INFLUXDB3_META_CACHE_EVICTION_INTERVAL",
+        default_value = "10s",
+        action
+    )]
+    pub meta_cache_eviction_interval: humantime::Duration,
 }
 
 /// The interval to check for new snapshots from hosts to compact data from. This will do an S3
@@ -497,6 +511,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
+    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
 
     let pro_config = match ProConfig::load(&object_store).await {
         Ok(config) => Arc::new(RwLock::new(config)),
@@ -583,6 +598,13 @@ pub async fn command(config: Config) -> Result<()> {
         config.last_cache_eviction_interval.into(),
     )
     .map_err(Error::InitializeLastCache)?;
+
+    let meta_cache = MetaCacheProvider::new_from_catalog_with_background_eviction(
+        Arc::clone(&time_provider) as _,
+        Arc::clone(&catalog),
+        config.meta_cache_eviction_interval.into(),
+    )
+    .map_err(Error::InitializeMetaCache)?;
 
     let replica_config = config.pro_config.replicas.map(|replicas| {
         ReplicationConfig::new(

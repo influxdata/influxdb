@@ -31,6 +31,7 @@ trace_http.workspace = true
 tracker.workspace = true
 
 # Local Deps
+influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_config = { path = "../influxdb3_config" }
 influxdb3_id = { path = "../influxdb3_id" }
@@ -61,6 +62,7 @@ flate2.workspace = true
 futures.workspace = true
 hex.workspace = true
 hyper.workspace = true
+humantime.workspace = true
 mime.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true

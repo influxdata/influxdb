@@ -1,6 +1,386 @@
 use hyper::StatusCode;
+use observability_deps::tracing::debug;
+use pretty_assertions::assert_eq;
+use serde_json::{json, Value};
+use test_helpers::assert_contains;
 
 use crate::server::TestServer;
+
+#[tokio::test]
+async fn api_v3_configure_meta_cache_create() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/meta_cache",
+        base = server.client_addr()
+    );
+
+    // Write some LP to the database to initialize the catalog
+    let db_name = "foo";
+    let tbl_name = "bar";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=aa,t3=aaa f1=\"potato\",f2=true,f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    #[derive(Default)]
+    struct TestCase {
+        description: &'static str,
+        db: Option<&'static str>,
+        table: Option<&'static str>,
+        cache_name: Option<&'static str>,
+        max_cardinality: Option<usize>,
+        max_age: Option<u64>,
+        columns: &'static [&'static str],
+        expected: StatusCode,
+    }
+
+    let test_cases = [
+        TestCase {
+            description: "no parameters specified",
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "missing database name",
+            table: Some("bar"),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "invalid database name",
+            db: Some("carrot"),
+            table: Some("bar"),
+            expected: StatusCode::NOT_FOUND,
+            ..Default::default()
+        },
+        TestCase {
+            description: "invalid table name",
+            db: Some("foo"),
+            table: Some("celery"),
+            expected: StatusCode::NOT_FOUND,
+            ..Default::default()
+        },
+        TestCase {
+            description: "no columns specified",
+            db: Some("foo"),
+            table: Some("bar"),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "invalid column specified, that does not exist",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["leek"],
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "invalid column specified, that is not tag or string",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["f2"],
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "valid request, creates cache",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1", "t2"],
+            expected: StatusCode::CREATED,
+            ..Default::default()
+        },
+        TestCase {
+            description:
+                "identical to previous request, still success, but results in no 204 content",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1", "t2"],
+            expected: StatusCode::NO_CONTENT,
+            ..Default::default()
+        },
+        TestCase {
+            description: "same as previous, but with incompatible configuratin, max cardinality",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1", "t2"],
+            max_cardinality: Some(1),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "same as previous, but with incompatible configuratin, max age",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1", "t2"],
+            max_age: Some(1),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+        TestCase {
+            description: "valid request, creates cache",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1"],
+            cache_name: Some("my_cache"),
+            expected: StatusCode::CREATED,
+            ..Default::default()
+        },
+        TestCase {
+            description: "same as previous, but with incompatible configuratino, column set",
+            db: Some("foo"),
+            table: Some("bar"),
+            columns: &["t1", "t2"],
+            cache_name: Some("my_cache"),
+            expected: StatusCode::BAD_REQUEST,
+            ..Default::default()
+        },
+    ];
+
+    for tc in test_cases {
+        let body = serde_json::json!({
+            "db": tc.db,
+            "table": tc.table,
+            "name": tc.cache_name,
+            "columns": tc.columns,
+            "max_cardinality": tc.max_cardinality,
+            "max_age": tc.max_age
+        });
+        let resp = client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("send request to create meta cache");
+        let status = resp.status();
+        assert_eq!(
+            tc.expected,
+            status,
+            "test case failed: {description}",
+            description = tc.description
+        );
+    }
+}
+
+#[tokio::test]
+async fn api_v3_configure_meta_cache_delete() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/meta_cache",
+        base = server.client_addr()
+    );
+
+    let db_name = "foo";
+    let tbl_name = "bar";
+    let cache_name = "test_cache";
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=aa f1=true 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write lp to db");
+
+    struct TestCase {
+        description: &'static str,
+        request: Request,
+        expected: StatusCode,
+    }
+
+    enum Request {
+        Create(serde_json::Value),
+        Delete(DeleteRequest),
+    }
+
+    #[derive(Default)]
+    struct DeleteRequest {
+        db: Option<&'static str>,
+        table: Option<&'static str>,
+        name: Option<&'static str>,
+    }
+
+    use Request::*;
+    let mut test_cases = [
+        TestCase {
+            description: "create a metadata cache",
+            request: Create(serde_json::json!({
+                "db": db_name,
+                "table": tbl_name,
+                "name": cache_name,
+                "columns": ["t1", "t2"],
+            })),
+            expected: StatusCode::CREATED,
+        },
+        TestCase {
+            description: "delete with no parameters fails",
+            request: Delete(DeleteRequest {
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing table, name params",
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing name param",
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing table param",
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                name: Some(cache_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing db param",
+            request: Delete(DeleteRequest {
+                table: Some(tbl_name),
+                name: Some(cache_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing db, table param",
+            request: Delete(DeleteRequest {
+                name: Some(cache_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "missing db, name param",
+            request: Delete(DeleteRequest {
+                table: Some(tbl_name),
+                ..Default::default()
+            }),
+            expected: StatusCode::BAD_REQUEST,
+        },
+        TestCase {
+            description: "valid request, will delete",
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                name: Some(cache_name),
+            }),
+            expected: StatusCode::OK,
+        },
+        TestCase {
+            description: "same as previous, but gets 404 as the cache was already deleted",
+            request: Delete(DeleteRequest {
+                db: Some(db_name),
+                table: Some(tbl_name),
+                name: Some(cache_name),
+            }),
+            expected: StatusCode::NOT_FOUND,
+        },
+    ];
+
+    // do a pass through the test cases deleting via JSON in the body:
+    for tc in &test_cases {
+        match &tc.request {
+            Create(body) => assert_eq!(
+                tc.expected,
+                client
+                    .post(&url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .expect("create request sends")
+                    .status(),
+                "creation test case failed: {description}",
+                description = tc.description
+            ),
+            Delete(DeleteRequest { db, table, name }) => {
+                let body = serde_json::json!({
+                    "db": db,
+                    "table": table,
+                    "name": name,
+                });
+                assert_eq!(
+                    tc.expected,
+                    client
+                        .delete(&url)
+                        .json(&body)
+                        .send()
+                        .await
+                        .expect("delete request send")
+                        .status(),
+                    "deletion test case using JSON body failed: {description}",
+                    description = tc.description
+                );
+            }
+        }
+    }
+
+    // do another pass through the test cases, this time deleting via parameters in the URI:
+
+    // on this pass, need to switch the status code that does not provide any params to a 415
+    // UNSUPPORTED MEDIA TYPE error, as the handler sees no URI parameters, and attempts to parse
+    // the body as JSON, thus resulting in the 415.
+    test_cases[1].expected = StatusCode::UNSUPPORTED_MEDIA_TYPE;
+    for tc in &test_cases {
+        match &tc.request {
+            Create(body) => assert_eq!(
+                tc.expected,
+                client
+                    .post(&url)
+                    .json(&body)
+                    .send()
+                    .await
+                    .expect("create request sends")
+                    .status(),
+                "creation test case failed: {description}",
+                description = tc.description
+            ),
+            Delete(DeleteRequest { db, table, name }) => {
+                let mut params = vec![];
+                if let Some(db) = db {
+                    params.push(("db", db));
+                }
+                if let Some(table) = table {
+                    params.push(("table", table));
+                }
+                if let Some(name) = name {
+                    params.push(("name", name));
+                }
+                assert_eq!(
+                    tc.expected,
+                    client
+                        .delete(&url)
+                        .query(&params)
+                        .send()
+                        .await
+                        .expect("delete request send")
+                        .status(),
+                    "deletion test case using URI parameters failed: {description}",
+                    description = tc.description
+                );
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn api_v3_configure_last_cache_create() {
@@ -366,4 +746,306 @@ async fn api_v3_configure_last_cache_delete() {
             }
         }
     }
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_db_delete() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // check foo db is present
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    assert_eq!(json!([{ "iox::database": "foo" } ]), result);
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(200, resp.status());
+
+    // check foo db is now foo-YYYYMMDD..
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    assert_eq!(1, array_result.len());
+    let first_db = array_result.first().unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "foo-"
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW DATABASES"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    // check there are 2 dbs now, foo and foo-*
+    assert_eq!(2, array_result.len());
+    let first_db = array_result.first().unwrap();
+    let second_db = array_result.get(1).unwrap();
+    assert_eq!(
+        "foo",
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+    );
+    assert_contains!(
+        second_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "foo-"
+    );
+}
+
+#[tokio::test]
+async fn api_v3_configure_db_delete_no_db() {
+    let db_name = "db";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_db_delete_missing_query_param() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_table_delete() {
+    let db_name = "foo";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}",
+        base = server.client_addr()
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(200, resp.status());
+
+    // check foo db has table with name in tbl-YYYYMMDD.. format
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW MEASUREMENTS on foo"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    assert_eq!(1, array_result.len());
+    let first_db = array_result.first().unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "tbl-"
+    );
+
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = server
+        .api_v3_query_influxql(&[("q", "SHOW MEASUREMENTS on foo"), ("format", "json")])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    debug!(result = ?result, ">> RESULT");
+    let array_result = result.as_array().unwrap();
+    // check there are 2 tables now, tbl and tbl-*
+    assert_eq!(2, array_result.len());
+    let first_db = array_result.first().unwrap();
+    let second_db = array_result.get(1).unwrap();
+    assert_eq!(
+        "tbl",
+        first_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+    );
+    assert_contains!(
+        second_db
+            .as_object()
+            .unwrap()
+            .get("name")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "tbl-"
+    );
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_no_db() {
+    let db_name = "db";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table=foo",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}
+
+#[tokio::test]
+async fn api_v3_configure_table_delete_missing_query_param() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .delete(&url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+}
+
+#[tokio::test]
+async fn try_deleting_table_after_db_is_deleted() {
+    let db_name = "db";
+    let tbl_name = "tbl";
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let delete_db_url = format!(
+        "{base}/api/v3/configure/database?db={db_name}",
+        base = server.client_addr()
+    );
+    let delete_table_url = format!(
+        "{base}/api/v3/configure/table?db={db_name}&table={tbl_name}",
+        base = server.client_addr()
+    );
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{tbl_name},t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // db call should succeed
+    let resp = client
+        .delete(&delete_db_url)
+        .send()
+        .await
+        .expect("delete database call succeed");
+
+    assert_eq!(StatusCode::OK, resp.status());
+
+    // but table delete call should fail with NOT_FOUND
+    let resp = client
+        .delete(&delete_table_url)
+        .send()
+        .await
+        .expect("delete table call succeed");
+    assert_eq!(StatusCode::NOT_FOUND, resp.status());
 }

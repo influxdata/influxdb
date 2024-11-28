@@ -2,6 +2,7 @@
 # In alphabetical order
 members = [
     "influxdb3",
+    "influxdb3_cache",
     "influxdb3_catalog",
     "influxdb3_client", "influxdb3_config",
     "influxdb3_id",
