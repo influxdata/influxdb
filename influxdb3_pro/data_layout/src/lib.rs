@@ -269,11 +269,19 @@ impl CompactionConfig {
     }
 }
 
+const DEFAULT_GENERATION_MULTIPLIERS: &[u8] = &[3, 4, 6, 5];
+const DEFAULT_GEN_2_DURATION: std::time::Duration = std::time::Duration::from_secs(1_200);
+const DEFAULT_PER_FILE_ROW_LIMIT: usize = 1_000_000;
+
 /// Default compaction configuration. This is a 20 minute gen2 duration and then 1 hour for gen3,
 /// 4 hours for gen4, 1 day for gen5, and 5 days for gen6.
 impl Default for CompactionConfig {
     fn default() -> Self {
-        Self::new(&[3, 4, 6, 5], time::Duration::from_secs(1200), 1_000_000)
+        Self::new(
+            DEFAULT_GENERATION_MULTIPLIERS,
+            DEFAULT_GEN_2_DURATION,
+            DEFAULT_PER_FILE_ROW_LIMIT,
+        )
     }
 }
 
