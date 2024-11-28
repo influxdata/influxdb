@@ -289,6 +289,23 @@ impl MetaCacheProvider {
         Ok(())
     }
 
+    /// Delete all caches for a given database
+    pub fn delete_caches_for_db(&self, db_id: &DbId) {
+        self.cache_map.write().remove(db_id);
+    }
+
+    /// Delete all caches for a given database and table
+    pub fn delete_caches_for_db_and_table(&self, db_id: &DbId, table_id: &TableId) {
+        let mut lock = self.cache_map.write();
+        let Some(db) = lock.get_mut(db_id) else {
+            return;
+        };
+        db.remove(table_id);
+        if db.is_empty() {
+            lock.remove(db_id);
+        }
+    }
+
     /// Write the contents of a WAL file to the cache by iterating over its database and table
     /// batches to find entries that belong in the cache.
     pub fn write_wal_contents_to_cache(&self, wal_contents: &WalContents) {

@@ -473,9 +473,15 @@ impl BufferState {
                                 self.db_to_table.remove(&db_definition.database_id);
                                 last_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
+                                meta_cache_provider
+                                    .delete_caches_for_db(&db_definition.database_id);
                             }
                             CatalogOp::DeleteTable(table_definition) => {
                                 last_cache_provider.delete_caches_for_table(
+                                    &table_definition.database_id,
+                                    &table_definition.table_id,
+                                );
+                                meta_cache_provider.delete_caches_for_db_and_table(
                                     &table_definition.database_id,
                                     &table_definition.table_id,
                                 );
