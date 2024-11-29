@@ -467,7 +467,7 @@ pub struct WriteRequestBuilder<'c, B> {
     body: B,
 }
 
-impl<'c, B> WriteRequestBuilder<'c, B> {
+impl<B> WriteRequestBuilder<'_, B> {
     /// Set the precision
     pub fn precision(mut self, set_to: Precision) -> Self {
         self.precision = Some(set_to);
