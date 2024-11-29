@@ -18,6 +18,7 @@ use influxdb3_server::{
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve, CommonServerState,
 };
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
@@ -381,9 +382,10 @@ pub async fn command(config: Config) -> Result<()> {
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
 
+    let time_provider = Arc::new(SystemProvider::new());
+    let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
     let object_store: Arc<dyn ObjectStore> =
         make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
-    let time_provider = Arc::new(SystemProvider::new());
 
     let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
@@ -516,6 +518,7 @@ pub async fn command(config: Config) -> Result<()> {
         concurrent_query_limit: 10,
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
+        sys_events_store: Arc::clone(&sys_events_store),
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)

@@ -237,6 +237,7 @@ mod tests {
     use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::{DbId, TableId};
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
@@ -798,6 +799,9 @@ mod tests {
             .unwrap(),
         );
 
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
@@ -819,6 +823,7 @@ mod tests {
             concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
+            sys_events_store: Arc::clone(&sys_events_store),
         });
 
         // bind to port 0 will assign a random available port:
