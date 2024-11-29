@@ -583,9 +583,12 @@ impl ReplicatedBuffer {
             }
         }
 
-        match Utc::now().signed_duration_since(file_written_time).to_std() {
+        let now_time = Utc::now();
+        match now_time.signed_duration_since(file_written_time).to_std() {
             Ok(ttbr) => self.metrics.replica_ttbr.set(ttbr.as_millis() as u64),
-            Err(message) => info!(%message, "unable to get duration since WAL file was created"),
+            Err(error) => {
+                info!(%error, %now_time, %file_written_time, "unable to get duration since WAL file was created")
+            }
         }
 
         Ok(())
