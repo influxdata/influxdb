@@ -16,6 +16,7 @@ pub mod builder;
 mod grpc;
 mod http;
 pub mod query_executor;
+mod query_planner;
 mod service;
 mod system_tables;
 
@@ -161,11 +162,21 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
     fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum QueryKind {
     Sql,
     InfluxQl,
 }
+
+impl QueryKind {
+    pub(crate) fn query_type(&self) -> &'static str {
+        match self {
+            Self::Sql => "sql",
+            Self::InfluxQl => "influxql",
+        }
+    }
+}
+
 impl<T> Server<T> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
