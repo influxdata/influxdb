@@ -1,4 +1,5 @@
 //! module for query executor
+use crate::query_planner::Planner;
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
@@ -24,7 +25,6 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
-use iox_query::frontend::sql::SqlQueryPlanner;
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
@@ -32,7 +32,6 @@ use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
 use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
-use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
@@ -131,28 +130,31 @@ impl QueryExecutor for QueryExecutorImpl {
                 db_name: database.to_string(),
             })?;
 
-        // TODO - configure query here?
-        let ctx = db.new_query_context(span_ctx, Default::default());
-
         let params = params.unwrap_or_default();
 
-        debug!("create query plan");
-        let (plan, query_type) = match kind {
-            QueryKind::Sql => {
-                let planner = SqlQueryPlanner::new();
-                (planner.query(query, params.clone(), &ctx).await, "sql")
-            }
-            QueryKind::InfluxQl => (
-                InfluxQLQueryPlanner::query(query, params.clone(), &ctx).await,
-                "influxql",
-            ),
-        };
         let token = db.record_query(
             external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            query_type,
+            kind.query_type(),
             Box::new(query.to_string()),
-            params,
+            params.clone(),
         );
+
+        // NOTE - we use the default query configuration on the IOxSessionContext here:
+        let ctx = db.new_query_context(span_ctx, Default::default());
+        let planner = Planner::new(&ctx);
+        let query = query.to_string();
+
+        // Perform query planning on a separate threadpool than the IO runtime that is servicing
+        // this request by using `IOxSessionContext::run`.
+        let plan = ctx
+            .run(async move {
+                match kind {
+                    QueryKind::Sql => planner.sql(query, params).await,
+                    QueryKind::InfluxQl => planner.influxql(query, params).await,
+                }
+            })
+            .await;
+
         let plan = match plan.map_err(Error::QueryPlanning) {
             Ok(plan) => plan,
             Err(e) => {
@@ -165,7 +167,6 @@ impl QueryExecutor for QueryExecutorImpl {
         // TODO: Enforce concurrency limit here
         let token = token.permit();
 
-        debug!("execute stream of query results");
         self.telemetry_store.update_num_queries();
 
         match ctx.execute_stream(Arc::clone(&plan)).await {
