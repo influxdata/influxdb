@@ -78,6 +78,13 @@ impl CompactedData {
         self.inner_compacted_data.write().compaction_summary = Arc::new(compaction_summary);
     }
 
+    pub(crate) fn current_compaction_sequence_number(&self) -> CompactionSequenceNumber {
+        self.inner_compacted_data
+            .read()
+            .compaction_summary
+            .compaction_sequence_number
+    }
+
     pub(crate) fn next_compaction_sequence_number(&self) -> CompactionSequenceNumber {
         self.inner_compacted_data
             .read()

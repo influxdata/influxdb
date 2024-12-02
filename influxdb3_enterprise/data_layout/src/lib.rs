@@ -439,10 +439,20 @@ impl CompactionSummaryPath {
             object_store_number_order(compaction_sequence_number.0)
         )))
     }
+
+    pub fn into_inner(self) -> ObjPath {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompactionDetailPath(ObjPath);
+
+impl CompactionDetailPath {
+    pub fn into_inner(self) -> ObjPath {
+        self.0
+    }
+}
 
 /// Serde serialization for `CompactionDetailPath` that serializes it to a string.
 impl Serialize for CompactionDetailPath {
@@ -535,6 +545,10 @@ impl GenerationDetailPath {
             &hash[5..],
             generation_id.0,
         )))
+    }
+
+    pub fn into_inner(self) -> ObjPath {
+        self.0
     }
 
     pub fn as_path(&self) -> &ObjPath {

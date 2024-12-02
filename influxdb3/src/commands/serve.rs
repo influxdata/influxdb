@@ -623,7 +623,7 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let mut compacted_data: Option<Arc<CompactedData>> = None;
-    let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
+    let mut compaction_producer: Option<CompactedDataProducer> = None;
     let compaction_event_store = Arc::clone(&sys_events_store) as Arc<dyn CompactionEventStore>;
 
     // The compactor disables cached parquet loader so it can stream row groups and does not
@@ -679,7 +679,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await?;
 
             compacted_data = Some(Arc::clone(&producer.compacted_data));
-            compaction_producer = Some(Arc::new(producer));
+            compaction_producer = Some(producer);
         } else {
             let consumer = CompactedDataConsumer::new(
                 compactor_id,
@@ -891,7 +891,9 @@ pub async fn command(config: Config) -> Result<()> {
         let t = exec
             .executor()
             .spawn(async move {
-                compactor.run_compaction_loop(Duration::from_secs(10)).await;
+                compactor
+                    .run_compaction_loop(Duration::from_secs(10), Duration::from_secs(600))
+                    .await;
             })
             .map_err(Error::Job);
 

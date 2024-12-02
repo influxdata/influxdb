@@ -17,6 +17,8 @@ use datafusion::{common::instant::Instant, datasource::object_store::ObjectStore
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_config::EnterpriseConfig;
+use influxdb3_enterprise_data_layout::persist::get_generation_detail;
+use influxdb3_enterprise_data_layout::CompactionSummaryPath;
 use influxdb3_enterprise_data_layout::{
     persist::{
         get_bytes_at_path, load_compaction_summary, persist_compaction_detail,
@@ -28,14 +30,17 @@ use influxdb3_enterprise_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, WriterSnapshotMarker,
 };
+use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::SnapshotInfoFilePath;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::PersistedSnapshot;
 use iox_query::exec::Executor;
+use object_store::path::Path;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
+use parking_lot::Mutex;
 use std::collections::HashMap as StdHashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -76,6 +81,9 @@ pub struct CompactedDataProducer {
     /// tokio Mutex so we can hold it across await points to object storage.
     compaction_state: tokio::sync::Mutex<CompactionState>,
     sys_events_store: Arc<dyn CompactionEventStore>,
+    // Public only for tests
+    #[doc(hidden)]
+    pub to_delete: Mutex<Vec<Path>>,
 }
 
 impl Debug for CompactedDataProducer {
@@ -146,11 +154,16 @@ impl CompactedDataProducer {
             compaction_state: tokio::sync::Mutex::new(compaction_state),
             sys_events_store,
             datafusion_config,
+            to_delete: Mutex::new(Vec::new()),
         })
     }
 
     /// The background loop that periodically checks for new snapshots and run compaction plans
-    pub async fn run_compaction_loop(&self, check_interval: Duration) {
+    pub async fn run_compaction_loop(
+        mut self,
+        check_interval: Duration,
+        wait_time_to_delete: Duration,
+    ) {
         let generation_levels = self.compaction_config.compaction_levels();
         let mut ticker = tokio::time::interval(check_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -160,14 +173,25 @@ impl CompactedDataProducer {
                 .plan_and_run_compaction(&generation_levels, Arc::clone(&self.sys_events_store))
                 .await
             {
+                // Clear out the vec for files to delete as compaction has failed
+                *self.to_delete.lock() = Vec::new();
                 warn!(error = %e, "error running compaction");
-            }
-
+            } else {
+                // In the case where compaction was successful spawn a CompactionCleaner to clean up
+                // the `to_delete` files
+                self.spawn_compaction_deletion(wait_time_to_delete);
+            };
             ticker.tick().await;
         }
     }
 
-    async fn plan_and_run_compaction(
+    fn spawn_compaction_deletion(&mut self, wait_time: Duration) {
+        let mut locked = self.to_delete.lock();
+        let to_delete = std::mem::take(&mut *locked);
+        CompactionCleaner::spawn_new(Arc::clone(&self.object_store), to_delete, wait_time);
+    }
+
+    pub async fn plan_and_run_compaction(
         &self,
         generation_levels: &[GenerationLevel],
         sys_events_store: Arc<dyn CompactionEventStore>,
@@ -300,7 +324,8 @@ impl CompactedDataProducer {
         compaction_state: &mut CompactionState,
         sys_events_store: &Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
-        let sequence_number = self.compacted_data.next_compaction_sequence_number();
+        let sequence_number = self.compacted_data.current_compaction_sequence_number();
+        let next_sequence_number = self.compacted_data.next_compaction_sequence_number();
         let snapshot_markers = compaction_state.last_markers();
 
         let mut compaction_details = SerdeVecMap::new();
@@ -322,7 +347,7 @@ impl CompactedDataProducer {
             let output_generation = plan.output_generation.level.as_u8();
             let left_over_gen1_files = plan.leftover_gen1_files.len() as u64;
             if let Err(e) = self
-                .run_plan(plan, sequence_number, snapshot_markers.clone())
+                .run_plan(plan, next_sequence_number, snapshot_markers.clone())
                 .await
             {
                 warn!(error = %e, "error running compaction plan");
@@ -345,7 +370,7 @@ impl CompactedDataProducer {
                 left_over_gen1_files,
             };
             sys_events_store.record_compaction_plan_run_success(event);
-            compaction_details.insert(key, sequence_number);
+            compaction_details.insert(key, next_sequence_number);
         }
 
         // write new compaction details for plans that only contain leftover gen1 files
@@ -357,7 +382,7 @@ impl CompactedDataProducer {
                 db_id: plan.db_schema.id,
                 table_name: Arc::clone(&plan.table_definition.table_name),
                 table_id: plan.table_definition.table_id,
-                sequence_number,
+                sequence_number: next_sequence_number,
                 snapshot_markers: snapshot_markers.clone(),
                 compacted_generations: vec![],
                 leftover_gen1_files: plan.leftover_gen1_files,
@@ -381,7 +406,7 @@ impl CompactedDataProducer {
             .await
             .expect("error persisting compaction detail");
 
-            compaction_details.insert(key, sequence_number);
+            compaction_details.insert(key, next_sequence_number);
             self.compacted_data.update_compaction_detail(detail);
         }
 
@@ -395,7 +420,7 @@ impl CompactedDataProducer {
         }
 
         let compaction_summary = CompactionSummary {
-            compaction_sequence_number: sequence_number,
+            compaction_sequence_number: next_sequence_number,
             catalog_sequence_number: self.compacted_data.compacted_catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
@@ -411,6 +436,12 @@ impl CompactedDataProducer {
         )
         .await
         .expect("error persisting compaction summary");
+
+        // Push the path to the compaction summary we wish to delete
+        self.to_delete.lock().push(
+            CompactionSummaryPath::new(Arc::clone(&self.compactor_id), sequence_number)
+                .into_inner(),
+        );
 
         self.compacted_data
             .update_compaction_summary(compaction_summary);
@@ -521,6 +552,37 @@ impl CompactedDataProducer {
         .expect("error persisting compaction detail");
 
         debug!(compaction_detail = ?compaction_detail, "Compaction detail written");
+
+        // Remove all the generation details and parquet files used as inputs for this generation
+        for generation in plan.input_generations.iter() {
+            if generation.level == GenerationLevel::one() {
+                // Skip every input that is Gen 1
+                continue;
+            }
+            let path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), generation.id);
+            let Some(gen_detail) =
+                get_generation_detail(&path, Arc::clone(&self.object_store)).await
+            else {
+                continue;
+            };
+            let mut lock = self.to_delete.lock();
+            for file in gen_detail.files {
+                lock.push(Path::from(file.path.clone()));
+            }
+            lock.push(path.into_inner());
+        }
+
+        // Push the old compaction detail path into our deletion vec which we
+        // will delete after compaction is completed
+        self.to_delete.lock().push(
+            CompactionDetailPath::new(
+                Arc::clone(&self.compactor_id),
+                plan.db_schema.id,
+                plan.table_definition.table_id,
+                self.compacted_data.current_compaction_sequence_number(),
+            )
+            .into_inner(),
+        );
 
         self.compacted_data.update_detail_with_generations(
             compaction_detail,
@@ -943,6 +1005,56 @@ async fn load_all_snapshots(
     );
     sys_events_store.record_snapshot_success(success_event);
     Ok(writer_snapshots)
+}
+
+#[derive(Debug)]
+pub struct CompactionCleaner {
+    object_store: Arc<dyn ObjectStore>,
+    to_delete: Vec<Path>,
+    wait_time: Duration,
+}
+
+impl CompactionCleaner {
+    pub fn new(
+        object_store: Arc<dyn ObjectStore>,
+        to_delete: Vec<Path>,
+        wait_time: Duration,
+    ) -> Self {
+        Self {
+            object_store,
+            to_delete,
+            wait_time,
+        }
+    }
+    pub async fn data_deletion(mut self) {
+        tokio::time::sleep(self.wait_time).await;
+        'outer: for location in self.to_delete.drain(0..) {
+            let mut retry_count = 0;
+            while let Err(e) = self.object_store.delete(&location).await {
+                if let object_store::Error::NotFound { path, .. } = e {
+                    debug!("{path} does not exist, continuing to next one in compaction cleanup");
+                    continue 'outer;
+                }
+                crate::error!("{e}");
+                retry_count += 1;
+                if retry_count > 10 {
+                    crate::error!(
+                            "Unable to delete {location}. Will attempt deletion during next compaction."
+                        );
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+
+    pub fn spawn_new(
+        object_store: Arc<dyn ObjectStore>,
+        to_delete: Vec<Path>,
+        wait_time: Duration,
+    ) {
+        tokio::spawn(Self::new(object_store, to_delete, wait_time).data_deletion());
+    }
 }
 
 #[cfg(test)]
