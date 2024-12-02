@@ -265,7 +265,7 @@ fn validate_and_qualify_v3_line(
     let qualified = if let Some(table_def) = db_schema.table_definition(table_name) {
         let table_id = table_def.table_id;
         // TODO: may be faster to compare using table def/column IDs than comparing with schema:
-        match dbg!((table_def.series_key(), &line.series.series_key)) {
+        match (table_def.series_key(), &line.series.series_key) {
             (s, Some(l)) => {
                 let l = l.iter().map(|sk| sk.0.as_str()).collect::<Vec<&str>>();
                 if s != l {

@@ -504,8 +504,6 @@ impl BufferState {
                 let table_def = db_schema
                     .table_definition_by_id(&table_id)
                     .expect("table should exist");
-                // TODO: can we have the primary key stored on the table definition (we already have
-                // the series key, so that doesn't seem like too much of a stretch).
                 let sort_key = table_def
                     .series_key
                     .iter()

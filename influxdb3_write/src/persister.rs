@@ -298,11 +298,9 @@ impl Persister {
             persisted_snapshot.snapshot_sequence_number,
         );
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
-        dbg!(
-            self.object_store
-                .put(snapshot_file_path.as_ref(), json.into())
-                .await
-        )?;
+        self.object_store
+            .put(snapshot_file_path.as_ref(), json.into())
+            .await?;
         Ok(())
     }
 
