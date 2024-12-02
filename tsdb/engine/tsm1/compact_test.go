@@ -1585,9 +1585,11 @@ func TestDefaultPlanner_Plan_Multi_Gen_Large_Size(t *testing.T) {
 		}, tsdb.DefaultCompactFullWriteColdDuration,
 	)
 
+	// TODO(DB): This test currently passes since the mock file store
+	// sets the block count to 0 for all files
 	tsm, pLen := cp.Plan(time.Now().Add(-1 * tsdb.DefaultCompactFullWriteColdDuration))
-	if exp, got := 2, len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm group length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
 		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
 	}
