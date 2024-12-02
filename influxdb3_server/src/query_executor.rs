@@ -23,6 +23,7 @@ use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_config::ProConfig;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
@@ -61,6 +62,7 @@ pub struct QueryExecutorImpl {
     telemetry_store: Arc<TelemetryStore>,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     pro_config: Arc<RwLock<ProConfig>>,
+    sys_events_store: Arc<SysEventStore>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -76,6 +78,7 @@ pub struct CreateQueryExecutorArgs {
     pub telemetry_store: Arc<TelemetryStore>,
     pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     pub pro_config: Arc<RwLock<ProConfig>>,
+    pub sys_events_store: Arc<SysEventStore>,
 }
 
 impl QueryExecutorImpl {
@@ -91,6 +94,7 @@ impl QueryExecutorImpl {
             telemetry_store,
             compacted_data,
             pro_config,
+            sys_events_store,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -113,6 +117,7 @@ impl QueryExecutorImpl {
             telemetry_store,
             compacted_data,
             pro_config,
+            sys_events_store,
         }
     }
 }
@@ -349,15 +354,16 @@ impl QueryDatabase for QueryExecutorImpl {
                 db_name: name.into(),
             }))
         })?;
-        Ok(Some(Arc::new(Database::new(
+        Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
             db_schema,
-            Arc::clone(&self.write_buffer),
-            Arc::clone(&self.exec),
-            Arc::clone(&self.datafusion_config),
-            Arc::clone(&self.query_log),
-            self.compacted_data.clone(),
-            Arc::clone(&self.pro_config),
-        ))))
+            write_buffer: Arc::clone(&self.write_buffer),
+            exec: Arc::clone(&self.exec),
+            datafusion_config: Arc::clone(&self.datafusion_config),
+            query_log: Arc::clone(&self.query_log),
+            compacted_data: self.compacted_data.clone(),
+            pro_config: Arc::clone(&self.pro_config),
+            sys_events_store: Arc::clone(&self.sys_events_store),
+        }))))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
@@ -372,6 +378,19 @@ impl QueryDatabase for QueryExecutorImpl {
     }
 }
 
+/// Arguments for [`Database::new`]
+#[derive(Debug)]
+pub struct CreateDatabaseArgs {
+    db_schema: Arc<DatabaseSchema>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    exec: Arc<Executor>,
+    datafusion_config: Arc<HashMap<String, String>>,
+    query_log: Arc<QueryLog>,
+    compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    pro_config: Arc<RwLock<ProConfig>>,
+    sys_events_store: Arc<SysEventStore>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Database {
     db_schema: Arc<DatabaseSchema>,
@@ -384,13 +403,16 @@ pub struct Database {
 
 impl Database {
     pub fn new(
-        db_schema: Arc<DatabaseSchema>,
-        write_buffer: Arc<dyn WriteBuffer>,
-        exec: Arc<Executor>,
-        datafusion_config: Arc<HashMap<String, String>>,
-        query_log: Arc<QueryLog>,
-        compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-        pro_config: Arc<RwLock<ProConfig>>,
+        CreateDatabaseArgs {
+            db_schema,
+            write_buffer,
+            exec,
+            datafusion_config,
+            query_log,
+            compacted_data,
+            pro_config,
+            sys_events_store,
+        }: CreateDatabaseArgs,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
             Arc::clone(&db_schema),
@@ -398,6 +420,7 @@ impl Database {
             Arc::clone(&write_buffer),
             compacted_data.clone(),
             Arc::clone(&pro_config),
+            Arc::clone(&sys_events_store),
         ));
         Self {
             db_schema,
@@ -709,6 +732,7 @@ mod tests {
     use influxdb3_pro_data_layout::{
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -836,6 +860,9 @@ mod tests {
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
         let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
@@ -851,6 +878,7 @@ mod tests {
             telemetry_store,
             compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
             pro_config,
+            sys_events_store,
         });
 
         (write_buffer, query_executor, time_provider)

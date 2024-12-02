@@ -11,6 +11,7 @@ use datafusion::{
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
@@ -62,6 +63,7 @@ impl SystemSchemaProvider {
         buffer: Arc<dyn WriteBuffer>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
         pro_config: Arc<RwLock<ProConfig>>,
+        _sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(

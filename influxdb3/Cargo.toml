@@ -35,6 +35,7 @@ influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
+influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 
 # Pro Crates
 influxdb3_pro_buffer = { path = "../influxdb3_pro/buffer" }
