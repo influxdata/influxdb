@@ -575,6 +575,7 @@ pub async fn command(config: Config) -> Result<()> {
                 persister.object_store_url().clone(),
                 Arc::clone(&exec),
                 parquet_cache_prefetcher,
+                Arc::clone(&sys_events_store),
             )
             .await?;
 
@@ -747,7 +748,9 @@ pub async fn command(config: Config) -> Result<()> {
         let t = exec
             .executor()
             .spawn(async move {
-                compactor.compact(Duration::from_secs(10)).await;
+                compactor
+                    .compact(Duration::from_secs(10), Arc::clone(&sys_events_store))
+                    .await;
             })
             .map_err(Error::Job);
 

@@ -194,7 +194,7 @@ mod tests {
         CompactionDetail, CompactionSequenceNumber, CompactionSummary, Generation,
         GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
     };
-    use influxdb3_wal::SnapshotSequenceNumber;
+    use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
     use influxdb3_write::ParquetFile;
     use object_store::memory::InMemory;
 
@@ -210,10 +210,22 @@ mod tests {
         let host1 = "host1";
         let host2 = "host2";
 
-        let _catalog1 =
-            create_host_catalog_with_table(host1, "db1", "table1", Arc::clone(&object_store)).await;
-        let _catalog2 =
-            create_host_catalog_with_table(host2, "db1", "table2", Arc::clone(&object_store)).await;
+        let _catalog1 = create_host_catalog_with_table(
+            host1,
+            "db1",
+            "table1",
+            FieldDataType::Tag,
+            Arc::clone(&object_store),
+        )
+        .await;
+        let _catalog2 = create_host_catalog_with_table(
+            host2,
+            "db1",
+            "table2",
+            FieldDataType::Tag,
+            Arc::clone(&object_store),
+        )
+        .await;
 
         let catalog = CompactedCatalog::load_merged_from_hosts(
             compactor_id,

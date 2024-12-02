@@ -242,7 +242,6 @@ impl Persister {
             // the list call to the object store.
             offset = Some(list[end - 1].location.clone());
         }
-
         Ok(output)
     }
 

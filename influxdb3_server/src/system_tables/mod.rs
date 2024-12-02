@@ -20,7 +20,9 @@ use parquet_files::ParquetFilesTable;
 use tokio::sync::RwLock;
 use tonic::async_trait;
 
-use crate::system_tables::compacted_data::CompactedDataTable;
+use crate::system_tables::{
+    compacted_data::CompactedDataTable, snapshot_fetched::SnapshotFetchedEventSysTable,
+};
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
@@ -30,6 +32,7 @@ mod last_caches;
 mod meta_caches;
 mod parquet_files;
 mod queries;
+mod snapshot_fetched;
 
 pub const SYSTEM_SCHEMA_NAME: &str = "system";
 pub const TABLE_NAME_PREDICATE: &str = "table_name";
@@ -40,6 +43,7 @@ pub(crate) const META_CACHES_TABLE_NAME: &str = "meta_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const COMPACTED_DATA_TABLE_NAME: &str = "compacted_data";
 pub(crate) const FILE_INDEX_TABLE_NAME: &str = "file_index";
+pub(crate) const SYS_EVENT_SNAPSHOT_FETCHED_TABLE_NAME: &str = "snapshot_fetched";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -63,7 +67,7 @@ impl SystemSchemaProvider {
         buffer: Arc<dyn WriteBuffer>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
         pro_config: Arc<RwLock<ProConfig>>,
-        _sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -97,6 +101,12 @@ impl SystemSchemaProvider {
             buffer,
         ))));
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
+        tables.insert(
+            SYS_EVENT_SNAPSHOT_FETCHED_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                SnapshotFetchedEventSysTable::new(Arc::clone(&sys_events_store)),
+            ))),
+        );
         Self { tables }
     }
 }

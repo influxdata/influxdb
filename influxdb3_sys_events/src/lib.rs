@@ -8,7 +8,8 @@ use std::{
 use arrow::{datatypes::Schema, error::ArrowError};
 use arrow_array::RecordBatch;
 use dashmap::DashMap;
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
+pub mod events;
 
 const MAX_CAPACITY: usize = 1000;
 
@@ -147,6 +148,12 @@ pub struct Event<D> {
 impl<D> Event<D> {
     pub fn new(time: i64, data: D) -> Self {
         Self { time, data }
+    }
+
+    pub fn format_event_time(&self) -> String {
+        Time::from_timestamp_nanos(self.time)
+            .date_time()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
     }
 }
 

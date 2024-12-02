@@ -5,7 +5,7 @@ use crate::{
     CompactionSummaryPath, GenerationDetail, GenerationDetailPath, GenerationId,
 };
 use bytes::Bytes;
-use futures_util::stream::StreamExt;
+use futures_util::{stream::StreamExt, TryFutureExt};
 use influxdb3_id::{DbId, TableId};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
@@ -221,30 +221,46 @@ pub async fn get_bytes_at_path(
     path: &ObjPath,
     object_store: Arc<dyn ObjectStore>,
 ) -> Option<Bytes> {
-    // loop until we get it
     loop {
-        match object_store.get(path).await {
-            Ok(get_result) => match get_result.bytes().await {
-                Ok(bytes) => return Some(bytes),
-                Err(e) => {
-                    error!(
-                        "Error reading file from object store: {}, retrying in 1 second",
-                        e
-                    );
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let maybe_bytes = object_store
+            .get(path)
+            .and_then(|result| result.bytes())
+            .await;
+
+        match maybe_bytes {
+            Ok(bytes) => return Some(bytes),
+            Err(err) => {
+                if let object_store::Error::NotFound { .. } = err {
+                    warn!("File not found in object store: {}", path);
+                    return None;
                 }
-            },
-            Err(object_store::Error::NotFound { .. }) => {
-                warn!("File not found in object store: {}", path);
-                return None;
-            }
-            Err(e) => {
-                error!(
-                    "Error reading file from object store: {}, retrying in 1 second",
-                    e
-                );
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-        }
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload};
+
+    use crate::persist::get_bytes_at_path;
+
+    #[tokio::test]
+    async fn test_get_bytes_at_path_not_found() {
+        let res = get_bytes_at_path(&Path::from("/foo"), Arc::new(InMemory::new())).await;
+        assert!(res.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_bytes_at_path_success() {
+        let store = InMemory::new();
+        let res = store.put(&Path::from("/foo"), PutPayload::new()).await;
+        assert!(res.is_ok());
+
+        let res = get_bytes_at_path(&Path::from("/foo"), Arc::new(store)).await;
+        assert!(res.is_some());
     }
 }

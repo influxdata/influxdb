@@ -7,6 +7,11 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog, CatalogSequenceNumber, InnerCatalog};
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
+use influxdb3_sys_events::{
+    events::{FailedInfo, SnapshotFetchedEvent},
+    SysEventStore,
+};
+use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::{DatabaseTables, PersistedSnapshot};
@@ -141,24 +146,21 @@ impl CompactedCatalog {
         &self,
         catalog_snapshot_markers: Vec<CatalogSnapshotMarker>,
         object_store: Arc<dyn ObjectStore>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Result<()> {
-        // get the paths of any catalogs we need to update because they have a higher sequence number
+        // get the catalog snapshot markers we need to update because they have a higher sequence number
         let catalogs_to_update = {
-            let mut paths = vec![];
-
             let host_maps = self.host_maps.read();
-            for marker in catalog_snapshot_markers {
-                let last_sequence_number = host_maps
-                    .get(&marker.host)
-                    .map(|h| h.last_catalog_sequence_number)
-                    .unwrap_or(CatalogSequenceNumber::new(0));
-                if marker.sequence_number > last_sequence_number {
-                    let catalog_path = CatalogFilePath::new(&marker.host, marker.sequence_number);
-                    paths.push(catalog_path);
-                }
-            }
-
-            paths
+            catalog_snapshot_markers
+                .iter()
+                .filter(|marker| {
+                    let last_sequence_number = host_maps
+                        .get(&marker.host)
+                        .map(|h| h.last_catalog_sequence_number)
+                        .unwrap_or(CatalogSequenceNumber::new(0));
+                    marker.catalog_sequence_number > last_sequence_number
+                })
+                .collect::<Vec<_>>()
         };
 
         if catalogs_to_update.is_empty() {
@@ -168,7 +170,8 @@ impl CompactedCatalog {
         // now fetch all the catalogs while we're not holding any locks
         let mut updated_host_maps = HashMap::new();
 
-        for catalog_path in catalogs_to_update {
+        for marker in catalogs_to_update {
+            let catalog_path = CatalogFilePath::new(&marker.host, marker.catalog_sequence_number);
             let Some(updated_catalog) =
                 get_bytes_at_path(catalog_path.as_ref(), Arc::clone(&object_store)).await
             else {
@@ -179,7 +182,8 @@ impl CompactedCatalog {
                 &updated_catalog,
             )?));
 
-            let catalog_id_map = self.catalog.merge(Arc::clone(&catalog))?;
+            let catalog_id_map =
+                self.merge_catalog_and_record_error(&catalog, marker, &sys_events_store)?;
             updated_host_maps.insert(
                 catalog.host_id(),
                 HostCatalog {
@@ -197,6 +201,30 @@ impl CompactedCatalog {
         }
 
         Ok(())
+    }
+
+    fn merge_catalog_and_record_error(
+        &self,
+        catalog: &Arc<Catalog>,
+        marker: &CatalogSnapshotMarker,
+        sys_events_store: &Arc<SysEventStore>,
+    ) -> Result<CatalogIdMap, Error> {
+        let catalog_id_map = self
+            .catalog
+            .merge(Arc::clone(catalog))
+            .map_err(crate::catalog::Error::MergeError)
+            .inspect_err(|err| {
+                if let crate::catalog::Error::MergeError(error) = err {
+                    let error_msg = error.to_string();
+                    let failed_event = SnapshotFetchedEvent::Failed(FailedInfo {
+                        host: Arc::from(marker.host.as_str()),
+                        sequence_number: marker.snapshot_sequence_number.as_u64(),
+                        error: error_msg,
+                    });
+                    sys_events_store.record(failed_event);
+                }
+            })?;
+        Ok(catalog_id_map)
     }
 
     /// Loads the most recently persisted catalog from each of the hosts. Returns a new catalog
@@ -256,7 +284,8 @@ struct HostCatalog {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CatalogSnapshotMarker {
-    pub sequence_number: CatalogSequenceNumber,
+    pub snapshot_sequence_number: SnapshotSequenceNumber,
+    pub catalog_sequence_number: CatalogSequenceNumber,
     pub host: String,
 }
 
@@ -330,6 +359,7 @@ pub(crate) mod test_helpers {
         host_id: &str,
         db_name: &str,
         table_name: &str,
+        tag_column_type: FieldDataType,
         object_store: Arc<dyn ObjectStore>,
     ) -> Arc<Catalog> {
         let catalog = Catalog::new(host_id.into(), host_id.into());
@@ -355,7 +385,9 @@ pub(crate) mod test_helpers {
                         FieldDefinition {
                             name: "tag1".into(),
                             id: tag_id,
-                            data_type: FieldDataType::Tag,
+                            // data_type here is parameterised to simulate column
+                            // mismatch errors
+                            data_type: tag_column_type,
                         },
                         FieldDefinition {
                             name: "field1".into(),
@@ -384,7 +416,11 @@ pub(crate) mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use influxdb3_wal::FieldDataType;
+    use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
+    use observability_deps::tracing::debug;
+    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn loads_merged_from_hosts() {
@@ -397,6 +433,7 @@ mod tests {
             host1,
             "db1",
             "table1",
+            FieldDataType::Tag,
             Arc::clone(&object_store),
         )
         .await;
@@ -404,6 +441,7 @@ mod tests {
             host2,
             "db1",
             "table2",
+            FieldDataType::Tag,
             Arc::clone(&object_store),
         )
         .await;
@@ -473,5 +511,119 @@ mod tests {
                 .unwrap(),
             db.table_name_to_id("table2").unwrap()
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_merge_catalog_and_record_error_success() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let compactor_id = "compactor_id";
+        let host1 = "host1";
+        let host2 = "host2";
+
+        let _ = test_helpers::create_host_catalog_with_table(
+            host1,
+            "db1",
+            "table1",
+            FieldDataType::Tag,
+            Arc::clone(&object_store),
+        )
+        .await;
+        let catalog2 = test_helpers::create_host_catalog_with_table(
+            host2,
+            "db1",
+            "table2",
+            FieldDataType::Tag,
+            Arc::clone(&object_store),
+        )
+        .await;
+
+        let catalog = CompactedCatalog::load_merged_from_hosts(
+            compactor_id,
+            vec![host1.into()],
+            Arc::clone(&object_store),
+        )
+        .await
+        .expect("failed to load merged catalog");
+
+        let marker = CatalogSnapshotMarker {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(123),
+            catalog_sequence_number: CatalogSequenceNumber::new(345),
+            host: "host-id".to_string(),
+        };
+
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
+        let failed_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        assert!(res.is_ok());
+        debug!(catalogidmap = ?res.unwrap(), "Result from merging other catalog");
+        debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");
+        assert!(failed_events.is_empty());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_merge_catalog_and_record_error_returns_error() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let compactor_id = "compactor_id";
+        let host1 = "host1";
+        let host2 = "host2";
+
+        let _ = test_helpers::create_host_catalog_with_table(
+            host1,
+            "db1",
+            "table1",
+            FieldDataType::Tag,
+            Arc::clone(&object_store),
+        )
+        .await;
+        let catalog2 = test_helpers::create_host_catalog_with_table(
+            host2,
+            "db1",
+            "table1",
+            FieldDataType::Integer,
+            Arc::clone(&object_store),
+        )
+        .await;
+
+        let catalog = CompactedCatalog::load_merged_from_hosts(
+            compactor_id,
+            vec![host1.into()],
+            Arc::clone(&object_store),
+        )
+        .await
+        .expect("failed to load merged catalog");
+
+        let marker = CatalogSnapshotMarker {
+            snapshot_sequence_number: SnapshotSequenceNumber::new(123),
+            catalog_sequence_number: CatalogSequenceNumber::new(345),
+            host: "host-id".to_string(),
+        };
+
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
+        let failed_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        assert!(res.is_err());
+        debug!(result = ?res, "Result from merging other catalog with column type mismatch");
+        debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");
+        assert_eq!(1, failed_events.len());
+        let failed_event = failed_events.first().unwrap();
+        assert!(matches!(
+            failed_event.data,
+            SnapshotFetchedEvent::Failed(..)
+        ));
+        match &failed_event.data {
+            SnapshotFetchedEvent::Success(_) => panic!("cannot be success"),
+            SnapshotFetchedEvent::Failed(failed_event_info) => {
+                assert_eq!(Arc::from("host-id"), failed_event_info.host);
+                assert_eq!(123, failed_event_info.sequence_number);
+                assert_eq!("Field type mismatch on table table1 column tag1. Existing column is iox::column_type::tag but attempted to add iox::column_type::field::integer".to_string(),
+                    failed_event_info.error);
+            }
+        }
     }
 }

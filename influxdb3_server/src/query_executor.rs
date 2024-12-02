@@ -730,7 +730,10 @@ mod tests {
     use influxdb3_pro_data_layout::{
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
-    use influxdb3_sys_events::SysEventStore;
+    use influxdb3_sys_events::{
+        events::{FailedInfo, SnapshotFetchedEvent, SuccessInfo},
+        SysEventStore,
+    };
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -743,6 +746,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{local::LocalFileSystem, ObjectStore};
+    use observability_deps::tracing::debug;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
     use tokio::sync::RwLock;
@@ -819,7 +823,12 @@ mod tests {
         ))
     }
 
-    async fn setup() -> (Arc<dyn WriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
+    async fn setup() -> (
+        Arc<dyn WriteBuffer>,
+        QueryExecutorImpl,
+        Arc<MockProvider>,
+        Arc<SysEventStore>,
+    ) {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -875,15 +884,20 @@ mod tests {
             telemetry_store,
             compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
             pro_config,
-            sys_events_store,
+            sys_events_store: Arc::clone(&sys_events_store),
         });
 
-        (write_buffer, query_executor, time_provider)
+        (
+            write_buffer,
+            query_executor,
+            time_provider,
+            sys_events_store,
+        )
     }
 
     #[test_log::test(tokio::test)]
     async fn system_parquet_files_success() {
-        let (write_buffer, query_executor, time_provider) = setup().await;
+        let (write_buffer, query_executor, time_provider, _) = setup().await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -957,7 +971,7 @@ mod tests {
 
     #[tokio::test]
     async fn system_parquet_files_predicate_error() {
-        let (write_buffer, query_executor, time_provider) = setup().await;
+        let (write_buffer, query_executor, time_provider, _) = setup().await;
         // make some writes, so that we have a database that we can query against:
         let db_name = "test_db";
         let _ = write_buffer
@@ -989,7 +1003,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn system_table_compacted_data_success() {
-        let (write_buffer, query_executor, _) = setup().await;
+        let (write_buffer, query_executor, _, _) = setup().await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -1040,5 +1054,96 @@ mod tests {
                 "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
             ],
             &batches);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_sys_table_snapshot_fetched_success() {
+        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let host = "sample-host";
+        let db_name = "foo";
+        let event = SnapshotFetchedEvent::Success(SuccessInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            fetch_duration_ms: 1234,
+            db_count: 2,
+            table_count: 1000,
+            file_count: 100_000,
+        });
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+            cpu,host=a,region=us-east usage=250\n\
+            mem,host=a,region=us-east usage=150000\n\
+            ",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        sys_events_store.record(event);
+
+        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_data FROM system.snapshot_fetched";
+        let batch_stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
+        debug!(batches = ?batches, "result from collecting batch stream");
+        assert_batches_sorted_eq!(
+            [
+                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type | event_data                                                                                                                      |",
+                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | Success    | {host: sample-host, sequence_number: 123, fetch_duration_ms: 1234, db_count: 2, table_count: 1000, file_count: 100000, error: } |",
+                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
+            ],
+            &batches.unwrap());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_sys_table_snapshot_fetched_error() {
+        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let host = "sample-host";
+        let db_name = "foo";
+        let event = SnapshotFetchedEvent::Failed(FailedInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            error: "Foo failed".to_string(),
+        });
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+            cpu,host=a,region=us-east usage=250\n\
+            mem,host=a,region=us-east usage=150000\n\
+            ",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        sys_events_store.record(event);
+
+        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_data FROM system.snapshot_fetched";
+        let batch_stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
+        debug!(batches = ?batches, "result from collecting batch stream");
+        assert_batches_sorted_eq!(
+            [
+                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type | event_data                                                                                                                 |",
+                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | Failed     | {host: sample-host, sequence_number: 123, fetch_duration_ms: , db_count: , table_count: , file_count: , error: Foo failed} |",
+                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
+            ],
+            &batches.unwrap());
     }
 }

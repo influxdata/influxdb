@@ -15,6 +15,7 @@ use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_data_layout::CompactionConfig;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
@@ -77,6 +78,7 @@ async fn two_writers_gen1_compaction() {
 
     let writer2_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer2_id));
     let writer2_catalog = writer2_persister.load_or_create_catalog().await.unwrap();
+    let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let writer2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&writer2_persister),
         catalog: Arc::new(writer2_catalog),
@@ -104,6 +106,7 @@ async fn two_writers_gen1_compaction() {
         writer1_persister.object_store_url().clone(),
         Arc::clone(&exec),
         parquet_cache_prefetcher,
+        Arc::clone(&sys_events_store),
     )
     .await
     .unwrap();
@@ -138,7 +141,7 @@ async fn two_writers_gen1_compaction() {
         .executor()
         .spawn(async move {
             compaction_producer_clone
-                .compact(Duration::from_millis(10))
+                .compact(Duration::from_millis(10), Arc::clone(&sys_events_store))
                 .await;
         })
         .boxed();

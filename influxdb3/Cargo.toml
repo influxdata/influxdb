@@ -93,6 +93,7 @@ arrow.workspace = true
 arrow-array.workspace = true
 arrow-flight.workspace = true
 assert_cmd.workspace = true
+chrono.workspace = true
 futures.workspace = true
 hyper.workspace = true
 pretty_assertions.workspace = true

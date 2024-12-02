@@ -434,3 +434,28 @@ async fn meta_caches_table() {
         assert_batches_sorted_eq!(["++", "++",], &batches);
     }
 }
+
+#[tokio::test]
+async fn snapshot_fetched_sys_table_empty_does_not_error() {
+    let server = TestServer::spawn().await;
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+        cpu,region=us-east,host=a usage=90\n\
+        mem,region=us-east,host=a usage=90\n\
+        ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let resp = server
+        .flight_sql_client("foo")
+        .await
+        .query("SELECT split_part(event_time, 'T', 1) as event_time, event_data FROM system.snapshot_fetched")
+        .await
+        .unwrap();
+    let batches = collect_stream(resp).await;
+    assert_batches_sorted_eq!(["++", "++",], &batches);
+}

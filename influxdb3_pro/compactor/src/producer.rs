@@ -5,7 +5,7 @@ use crate::catalog::{CatalogSnapshotMarker, CompactedCatalog};
 use crate::compacted_data::CompactedData;
 use crate::planner::{CompactionPlanGroup, NextCompactionPlan};
 use crate::{compact_files, CompactFilesArgs, ParquetCachePreFetcher};
-use datafusion::datasource::object_store::ObjectStoreUrl;
+use datafusion::{common::instant::Instant, datasource::object_store::ObjectStoreUrl};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_config::ProConfig;
@@ -17,6 +17,10 @@ use influxdb3_pro_data_layout::persist::{
 use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
+};
+use influxdb3_sys_events::{
+    events::{SnapshotFetchedEvent, SuccessInfo},
+    SysEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::SnapshotInfoFilePath;
@@ -86,12 +90,13 @@ impl CompactedDataProducer {
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) =
             CompactionState::load_or_initialize(compactor_id, hosts, Arc::clone(&object_store))
                 .await?;
         compaction_state
-            .load_snapshots(&compacted_data, Arc::clone(&object_store))
+            .load_snapshots(&compacted_data, Arc::clone(&object_store), sys_events_store)
             .await?;
 
         Ok(Self {
@@ -108,7 +113,7 @@ impl CompactedDataProducer {
     }
 
     /// The background loop that periodically checks for new snapshots and run compaction plans
-    pub async fn compact(&self, check_interval: Duration) {
+    pub async fn compact(&self, check_interval: Duration, sys_events_store: Arc<SysEventStore>) {
         let generation_levels = self.compaction_config.compaction_levels();
         let mut ticker = tokio::time::interval(check_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -118,7 +123,11 @@ impl CompactedDataProducer {
 
             // load any new snapshots and catalog changes since the last time we checked
             if let Err(e) = compaction_state
-                .load_snapshots(&self.compacted_data, Arc::clone(&self.object_store))
+                .load_snapshots(
+                    &self.compacted_data,
+                    Arc::clone(&self.object_store),
+                    Arc::clone(&sys_events_store),
+                )
                 .await
             {
                 warn!(error = %e, "error loading snapshots");
@@ -495,6 +504,7 @@ impl CompactionState {
         &mut self,
         compacted_data: &CompactedData,
         object_store: Arc<dyn ObjectStore>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Result<()> {
         let mut snapshots = vec![];
 
@@ -503,19 +513,18 @@ impl CompactionState {
                 // if the snapshot sequence number is zero, we need to load all snapshots for this
                 // host up to the most recent 1,000
                 let persister = Persister::new(Arc::clone(&object_store), host);
-                let host_snapshots = persister.load_snapshots(1_000).await?;
-                info!(host = %host, snapshot_count = host_snapshots.len(), "loaded snapshots");
+                let host_snapshots =
+                    load_all_snapshots(persister, host, marker, &sys_events_store).await?;
                 snapshots.extend(host_snapshots);
             } else {
-                let next_snapshot_path =
-                    SnapshotInfoFilePath::new(host, marker.snapshot_sequence_number.next());
-                if let Some(data) =
-                    get_bytes_at_path(next_snapshot_path.as_ref(), Arc::clone(&object_store)).await
-                {
-                    let snapshot: PersistedSnapshot = serde_json::from_slice(&data)?;
-                    info!(host = %host, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
-                    snapshots.push(snapshot);
-                }
+                load_next_snapshot(
+                    marker,
+                    host,
+                    &object_store,
+                    &sys_events_store,
+                    &mut snapshots,
+                )
+                .await?;
             }
         }
 
@@ -525,12 +534,13 @@ impl CompactionState {
             let marker = host_catalog_markers
                 .entry(&snapshot.host_id)
                 .or_insert_with(|| CatalogSnapshotMarker {
-                    sequence_number: snapshot.catalog_sequence_number,
+                    snapshot_sequence_number: snapshot.snapshot_sequence_number,
+                    catalog_sequence_number: snapshot.catalog_sequence_number,
                     host: snapshot.host_id.clone(),
                 });
 
-            if snapshot.catalog_sequence_number > marker.sequence_number {
-                marker.sequence_number = snapshot.catalog_sequence_number;
+            if snapshot.catalog_sequence_number > marker.catalog_sequence_number {
+                marker.catalog_sequence_number = snapshot.catalog_sequence_number;
             }
         }
         let host_catalog_markers = host_catalog_markers.into_values().collect::<Vec<_>>();
@@ -539,7 +549,11 @@ impl CompactionState {
         if !host_catalog_markers.is_empty() {
             if let Err(e) = compacted_data
                 .compacted_catalog
-                .update_from_markers(host_catalog_markers, Arc::clone(&object_store))
+                .update_from_markers(
+                    host_catalog_markers,
+                    Arc::clone(&object_store),
+                    Arc::clone(&sys_events_store),
+                )
                 .await
             {
                 warn!(error = %e, "error updating compacted catalog from markers");
@@ -610,8 +624,73 @@ impl CompactionState {
     }
 }
 
+async fn load_next_snapshot(
+    marker: &Arc<HostSnapshotMarker>,
+    host: &str,
+    object_store: &Arc<dyn ObjectStore>,
+    sys_events_store: &Arc<SysEventStore>,
+    snapshots: &mut Vec<PersistedSnapshot>,
+) -> Result<(), CompactedDataProducerError> {
+    let next_snapshot_sequence_number = marker.snapshot_sequence_number.next();
+    let next_snapshot_path = SnapshotInfoFilePath::new(host, next_snapshot_sequence_number);
+    let start = Instant::now();
+    if let Some(data) =
+        get_bytes_at_path(next_snapshot_path.as_ref(), Arc::clone(object_store)).await
+    {
+        let snapshot: PersistedSnapshot = serde_json::from_slice(&data)?;
+        let time_taken = start.elapsed();
+        info!(host = %host, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
+        let overall_counts = snapshot.db_table_and_file_count();
+        let success_event = SnapshotFetchedEvent::Success(SuccessInfo::new(
+            host,
+            next_snapshot_sequence_number.as_u64(),
+            time_taken.as_millis() as i64,
+            overall_counts,
+        ));
+        sys_events_store.record(success_event);
+        snapshots.push(snapshot);
+    };
+    Ok(())
+}
+
+async fn load_all_snapshots(
+    persister: Persister,
+    host: &str,
+    marker: &Arc<HostSnapshotMarker>,
+    sys_events_store: &Arc<SysEventStore>,
+) -> Result<Vec<PersistedSnapshot>> {
+    let start = Instant::now();
+    let host_snapshots = persister.load_snapshots(1_000).await?;
+    let time_taken = start.elapsed();
+    info!(host = %host, snapshot_count = host_snapshots.len(), "loaded snapshots");
+    let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&host_snapshots);
+    let success_event = SnapshotFetchedEvent::Success(SuccessInfo::new(
+        host,
+        marker.snapshot_sequence_number.as_u64(),
+        time_taken.as_millis() as i64,
+        overall_counts,
+    ));
+    sys_events_store.record(success_event);
+    Ok(host_snapshots)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_pro_data_layout::HostSnapshotMarker;
+    use influxdb3_sys_events::{events::SnapshotFetchedEvent, SysEventStore};
+    use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use influxdb3_write::{persister::Persister, ParquetFile, PersistedSnapshot};
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
+    use observability_deps::tracing::debug;
+    use pretty_assertions::assert_eq;
+
+    use crate::producer::{load_all_snapshots, load_next_snapshot};
+
     use super::*;
     use datafusion_util::config::register_iox_object_store;
     use executor::{register_current_runtime_for_io, DedicatedExecutor};
@@ -621,16 +700,14 @@ mod tests {
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{CompactionDetailPath, Generation, GenerationDetailPath};
     use influxdb3_wal::{
-        Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp,
-        WriteBatch,
+        Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch,
     };
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::write_buffer::queryable_buffer::{QueryableBuffer, QueryableBufferArgs};
     use influxdb3_write::write_buffer::validator::WriteValidator;
-    use influxdb3_write::{ParquetFile, Precision};
+    use influxdb3_write::Precision;
     use iox_query::exec::{Executor, ExecutorConfig};
-    use iox_time::{MockProvider, Time, TimeProvider};
-    use object_store::memory::InMemory;
+    use iox_time::TimeProvider;
     use object_store::path::Path;
     use object_store::ObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
@@ -672,6 +749,10 @@ mod tests {
             SnapshotSequenceNumber::new(3)
         );
         assert_eq!(writer.get_files("cpu").len(), 3);
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
 
         let compactor = CompactedDataProducer::new(
             "compactor-1",
@@ -682,6 +763,7 @@ mod tests {
             writer.persister.object_store_url().clone(),
             Arc::clone(&writer.exec),
             None,
+            sys_events_store,
         )
         .await
         .unwrap();
@@ -910,6 +992,129 @@ mod tests {
                 .add_persisted_snapshot_files(persisted_snapshot.clone());
 
             persisted_snapshot
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_load_all_snapshots() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        let host = "host_id";
+        let obj_store = Arc::new(InMemory::new());
+        let persister = Persister::new(obj_store, host);
+
+        let persisted_snapshot = PersistedSnapshot {
+            host_id: host.to_string(),
+            next_file_id: ParquetFileId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
+            next_column_id: ColumnId::from(1),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(124),
+            wal_file_sequence_number: WalFileSequenceNumber::new(100),
+            catalog_sequence_number: CatalogSequenceNumber::new(100),
+            databases: SerdeVecMap::new(),
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
+        };
+        persister
+            .persist_snapshot(&persisted_snapshot)
+            .await
+            .expect("snaphost to be persisted");
+
+        let marker = Arc::new(HostSnapshotMarker {
+            host_id: host.to_string(),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(123),
+            next_file_id: ParquetFileId::new(),
+        });
+        let res = load_all_snapshots(persister, host, &marker, &sys_events_store).await;
+        debug!(result = ?res, "load all snapshots for compactor");
+        let success_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        debug!(events = ?success_events, "events stored after bulk loading all snapshots");
+        let first_success_event = success_events.first().unwrap();
+        assert!(matches!(
+            first_success_event.data,
+            SnapshotFetchedEvent::Success(..)
+        ));
+        match &first_success_event.data {
+            SnapshotFetchedEvent::Success(success_info) => {
+                assert_eq!(Arc::from(host), success_info.host);
+                assert_eq!(123, success_info.sequence_number);
+                assert_eq!(0, success_info.fetch_duration_ms);
+                assert_eq!(0, success_info.db_count);
+                assert_eq!(0, success_info.table_count);
+                assert_eq!(0, success_info.file_count);
+            }
+            SnapshotFetchedEvent::Failed(_) => panic!("should not fail"),
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_load_next_snapshot() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        let host = "host_id";
+        let obj_store = Arc::new(InMemory::new()) as _;
+        let persister = Persister::new(Arc::clone(&obj_store), host);
+
+        let persisted_snapshot = PersistedSnapshot {
+            host_id: host.to_string(),
+            next_file_id: ParquetFileId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
+            next_column_id: ColumnId::from(1),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(124),
+            wal_file_sequence_number: WalFileSequenceNumber::new(100),
+            catalog_sequence_number: CatalogSequenceNumber::new(100),
+            databases: SerdeVecMap::new(),
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
+        };
+        persister
+            .persist_snapshot(&persisted_snapshot)
+            .await
+            .expect("snaphost to be persisted");
+
+        let marker = Arc::new(HostSnapshotMarker {
+            host_id: host.to_string(),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(123),
+            next_file_id: ParquetFileId::new(),
+        });
+        let mut snapshots_loaded = Vec::new();
+        let res = load_next_snapshot(
+            &marker,
+            host,
+            &obj_store,
+            &sys_events_store,
+            &mut snapshots_loaded,
+        )
+        .await;
+
+        debug!(result = ?res, "load all snapshots for compactor");
+        let success_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        debug!(events = ?success_events, "events stored after bulk loading all snapshots");
+        let first_success_event = success_events.first().unwrap();
+        assert!(matches!(
+            first_success_event.data,
+            SnapshotFetchedEvent::Success(..)
+        ));
+        match &first_success_event.data {
+            SnapshotFetchedEvent::Success(success_info) => {
+                assert_eq!(Arc::from(host), success_info.host);
+                assert_eq!(124, success_info.sequence_number);
+                assert_eq!(0, success_info.fetch_duration_ms);
+                assert_eq!(0, success_info.db_count);
+                assert_eq!(0, success_info.table_count);
+                assert_eq!(0, success_info.file_count);
+            }
+            SnapshotFetchedEvent::Failed(_) => panic!("should not fail"),
         }
     }
 }

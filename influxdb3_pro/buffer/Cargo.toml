@@ -23,6 +23,7 @@ influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_write = { path = "../../influxdb3_write" }
 influxdb3_pro_compactor = { path = "../compactor" }
 influxdb3_pro_data_layout = { path = "../data_layout" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
 
 # Crates.io Crates
 anyhow.workspace = true

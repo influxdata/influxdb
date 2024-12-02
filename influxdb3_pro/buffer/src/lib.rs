@@ -246,6 +246,7 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
         register_iox_object_store(rt, "influxdb3", Arc::clone(&non_cached_obj_store) as _);
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferPro::read_write(CreateReadWriteModeArgs {
             host_id: "picard".into(),
@@ -353,6 +354,7 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
         register_iox_object_store(rt, "influxdb3", Arc::clone(&cached_obj_store) as _);
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferPro::read_write(CreateReadWriteModeArgs {
             host_id: "picard".into(),
