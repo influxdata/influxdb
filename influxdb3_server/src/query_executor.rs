@@ -21,6 +21,7 @@ use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
@@ -56,6 +57,7 @@ pub struct QueryExecutorImpl {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
+    sys_events_store: Arc<SysEventStore>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -69,6 +71,7 @@ pub struct CreateQueryExecutorArgs {
     pub concurrent_query_limit: usize,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
+    pub sys_events_store: Arc<SysEventStore>,
 }
 
 impl QueryExecutorImpl {
@@ -82,6 +85,7 @@ impl QueryExecutorImpl {
             concurrent_query_limit,
             query_log_size,
             telemetry_store,
+            sys_events_store,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -102,6 +106,7 @@ impl QueryExecutorImpl {
             query_execution_semaphore,
             query_log,
             telemetry_store,
+            sys_events_store,
         }
     }
 }
@@ -341,6 +346,7 @@ impl QueryDatabase for QueryExecutorImpl {
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
+            Arc::clone(&self.sys_events_store),
         ))))
     }
 
@@ -373,11 +379,13 @@ impl Database {
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::new(
             Arc::clone(&db_schema),
             Arc::clone(&query_log),
             Arc::clone(&write_buffer),
+            Arc::clone(&sys_events_store),
         ));
         Self {
             db_schema,
@@ -617,6 +625,7 @@ mod tests {
     use futures::TryStreamExt;
     use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -698,6 +707,9 @@ mod tests {
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
         let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
@@ -710,6 +722,7 @@ mod tests {
             concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store,
+            sys_events_store,
         });
 
         (write_buffer, query_executor, time_provider)

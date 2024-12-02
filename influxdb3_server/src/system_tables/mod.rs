@@ -2,6 +2,7 @@ use std::{any::Any, collections::HashMap, sync::Arc};
 
 use datafusion::{catalog::SchemaProvider, datasource::TableProvider, error::DataFusionError};
 use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
@@ -45,6 +46,7 @@ impl SystemSchemaProvider {
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
+        _sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(

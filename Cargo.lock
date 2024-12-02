@@ -2714,6 +2714,7 @@ dependencies = [
  "influxdb3_client",
  "influxdb3_process",
  "influxdb3_server",
+ "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_wal",
  "influxdb3_write",
@@ -2891,6 +2892,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_process",
+ "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_wal",
  "influxdb3_write",
@@ -2933,6 +2935,23 @@ dependencies = [
  "tracker",
  "unicode-segmentation",
  "urlencoding",
+]
+
+[[package]]
+name = "influxdb3_sys_events"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-array",
+ "async-trait",
+ "chrono",
+ "dashmap",
+ "datafusion",
+ "iox_system_tables",
+ "iox_time",
+ "observability_deps",
+ "proptest",
+ "test-log",
 ]
 
 [[package]]
