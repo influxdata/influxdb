@@ -120,6 +120,7 @@ mod tests {
         table_chunks.insert(table_id, chunks);
 
         let contents = WalContents {
+            persist_timestamp_ms: 10,
             min_timestamp_ns: 0,
             max_timestamp_ns: 10,
             wal_file_number: WalFileSequenceNumber::new(1),
