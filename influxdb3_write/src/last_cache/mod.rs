@@ -349,7 +349,7 @@ impl LastCacheProvider {
 
         let last_cache_value_columns_def = LastCacheValueColumnsDef::from(&value_columns);
 
-        let series_key = table_def.series_key.as_deref();
+        let series_key = &table_def.series_key;
 
         // create the actual last cache:
         let count = count
@@ -436,7 +436,7 @@ impl LastCacheProvider {
                 )
             }
         };
-        let series_key = table_def.series_key.as_deref();
+        let series_key = &table_def.series_key;
 
         let last_cache = LastCache::new(
             definition.count,
@@ -695,12 +695,9 @@ pub(crate) struct LastCache {
     pub(crate) value_columns: ValueColumnType,
     /// The Arrow Schema for the table that this cache is associated with
     pub(crate) schema: ArrowSchemaRef,
-    /// Optionally store the series key for tables that use it for ensuring non-nullability in the
-    /// column buffer for series key columns
-    ///
-    /// We only use this to check for columns that are part of the series key, so we don't care
-    /// about the order, and a HashSet is sufficient.
-    series_key: Option<HashSet<ColumnId>>,
+    /// Stores the series key for tables for ensuring non-nullability in the column buffer for
+    /// series key columns
+    series_key: HashSet<ColumnId>,
     /// The internal state of the cache
     state: LastCacheState,
 }
@@ -730,7 +727,7 @@ impl LastCache {
         key_columns: Vec<(ColumnId, Arc<str>)>,
         value_columns: ValueColumnType,
         schema: ArrowSchemaRef,
-        series_key: Option<&[ColumnId]>,
+        series_key: &[ColumnId],
     ) -> Self {
         let mut key_column_ids = IndexSet::new();
         let mut key_column_name_to_ids = HashMap::new();
@@ -745,7 +742,7 @@ impl LastCache {
             key_column_name_to_ids: Arc::new(key_column_name_to_ids),
             value_columns,
             schema,
-            series_key: series_key.map(|sk| sk.iter().copied().collect()),
+            series_key: series_key.iter().copied().collect(),
             state: LastCacheState::Init,
         }
     }
@@ -836,7 +833,7 @@ impl LastCache {
                         self.ttl,
                         Arc::clone(&table_def),
                         Arc::clone(&self.key_column_ids),
-                        self.series_key.as_ref(),
+                        &self.series_key,
                         accept_new_fields,
                     ))
                 }
@@ -849,7 +846,7 @@ impl LastCache {
                 self.ttl,
                 Arc::clone(&table_def),
                 Arc::clone(&self.key_column_ids),
-                self.series_key.as_ref(),
+                &self.series_key,
                 accept_new_fields,
             ));
         }
@@ -1334,7 +1331,7 @@ impl LastCacheStore {
         ttl: Duration,
         table_def: Arc<TableDefinition>,
         key_column_ids: Arc<IndexSet<ColumnId>>,
-        series_keys: Option<&HashSet<ColumnId>>,
+        series_keys: &HashSet<ColumnId>,
         accept_new_fields: bool,
     ) -> Self {
         let cache = table_def
@@ -1344,11 +1341,7 @@ impl LastCacheStore {
             .map(|(col_id, col_def)| {
                 (
                     *col_id,
-                    CacheColumn::new(
-                        col_def.data_type,
-                        count,
-                        series_keys.is_some_and(|sk| sk.contains(col_id)),
-                    ),
+                    CacheColumn::new(col_def.data_type, count, series_keys.contains(col_id)),
                 )
             })
             .collect();
@@ -1624,6 +1617,7 @@ impl CacheColumnData {
         match (field_data, self) {
             (FieldData::Timestamp(val), CacheColumnData::Time(buf)) => buf.push_front(*val),
             (FieldData::Key(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
+            (FieldData::Tag(val), CacheColumnData::Key(buf)) => buf.push_front(val.to_owned()),
             (FieldData::Tag(val), CacheColumnData::Tag(buf)) => {
                 buf.push_front(Some(val.to_owned()))
             }
@@ -1634,7 +1628,7 @@ impl CacheColumnData {
             (FieldData::UInteger(val), CacheColumnData::U64(buf)) => buf.push_front(Some(*val)),
             (FieldData::Float(val), CacheColumnData::F64(buf)) => buf.push_front(Some(*val)),
             (FieldData::Boolean(val), CacheColumnData::Bool(buf)) => buf.push_front(Some(*val)),
-            _ => panic!("invalid field data for cache column"),
+            data => panic!("invalid field data for cache column: {data:#?}"),
         }
     }
 
@@ -2807,55 +2801,55 @@ mod tests {
             TestCase {
                 predicates: &[],
                 expected: &[
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| county | farm  | state | speed | time                        |",
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| napa   | 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| napa   | 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| nevada | 40-01 | ca    | 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-01 | ca    | 40.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-02 | ca    | 33.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| yolo   | 30-01 | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new_eq(state_col_id, KeyValue::string("ca"))],
                 expected: &[
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| county | farm  | state | speed | time                        |",
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| napa   | 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| napa   | 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| nevada | 40-01 | ca    | 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-01 | ca    | 40.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| orange | 20-02 | ca    | 33.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| yolo   | 30-01 | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-01 | 40.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | orange | 20-02 | 33.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new_eq(county_col_id, KeyValue::string("napa"))],
                 expected: &[
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| county | farm  | state | speed | time                        |",
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| napa   | 10-01 | ca    | 50.0  | 1970-01-01T00:00:00.000001Z |",
-                    "| napa   | 10-02 | ca    | 49.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | napa   | 10-01 | 50.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca    | napa   | 10-02 | 49.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
                 predicates: &[Predicate::new_eq(farm_col_id, KeyValue::string("30-01"))],
                 expected: &[
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| county | farm  | state | speed | time                        |",
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| yolo   | 30-01 | ca    | 62.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | yolo   | 30-01 | 62.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
             // Predicate on all series key columns:
@@ -2866,11 +2860,11 @@ mod tests {
                     Predicate::new_eq(farm_col_id, KeyValue::string("40-01")),
                 ],
                 expected: &[
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| county | farm  | state | speed | time                        |",
-                    "+--------+-------+-------+-------+-----------------------------+",
-                    "| nevada | 40-01 | ca    | 66.0  | 1970-01-01T00:00:00.000001Z |",
-                    "+--------+-------+-------+-------+-----------------------------+",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| state | county | farm  | speed | time                        |",
+                    "+-------+--------+-------+-------+-----------------------------+",
+                    "| ca    | nevada | 40-01 | 66.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+-------+--------+-------+-------+-----------------------------+",
                 ],
             },
         ];
@@ -2941,16 +2935,16 @@ mod tests {
 
         assert_batches_sorted_eq!(
             [
-                "+-----------+----------+------------+------+------+------+-----------------------------+",
-                "| county    | province | township   | avg  | hi   | lo   | time                        |",
-                "+-----------+----------+------------+------+------+------+-----------------------------+",
-                "| bruce     | on       | culrock    | 15.0 |      | 13.0 | 1970-01-01T00:00:00.000001Z |",
-                "| bruce     | on       | kincardine | 18.0 | 21.0 |      | 1970-01-01T00:00:00.000001Z |",
-                "| huron     | on       | goderich   |      | 22.0 | 16.0 | 1970-01-01T00:00:00.000001Z |",
-                "| welland   | on       | bertie     | 20.0 |      |      | 1970-01-01T00:00:00.000001Z |",
-                "| wentworth | on       | ancaster   | 20.0 | 23.0 | 18.0 | 1970-01-01T00:00:00.000001Z |",
-                "| york      | on       | york       |      |      | 20.0 | 1970-01-01T00:00:00.000001Z |",
-                "+-----------+----------+------------+------+------+------+-----------------------------+",
+                "+----------+-----------+------------+------+------+------+-----------------------------+",
+                "| province | county    | township   | avg  | hi   | lo   | time                        |",
+                "+----------+-----------+------------+------+------+------+-----------------------------+",
+                "| on       | bruce     | culrock    | 15.0 |      | 13.0 | 1970-01-01T00:00:00.000001Z |",
+                "| on       | bruce     | kincardine | 18.0 | 21.0 |      | 1970-01-01T00:00:00.000001Z |",
+                "| on       | huron     | goderich   |      | 22.0 | 16.0 | 1970-01-01T00:00:00.000001Z |",
+                "| on       | welland   | bertie     | 20.0 |      |      | 1970-01-01T00:00:00.000001Z |",
+                "| on       | wentworth | ancaster   | 20.0 | 23.0 | 18.0 | 1970-01-01T00:00:00.000001Z |",
+                "| on       | york      | york       |      |      | 20.0 | 1970-01-01T00:00:00.000001Z |",
+                "+----------+-----------+------------+------+------+------+-----------------------------+",
             ],
             &batches
         );
@@ -3314,8 +3308,6 @@ mod tests {
         assert_eq!(wbuf.last_cache_provider().size(), 2);
     }
 
-    type SeriesKey = Option<Vec<ColumnId>>;
-
     #[test_log::test]
     fn catalog_initialization() {
         // Set up a database in the catalog:
@@ -3347,7 +3339,7 @@ mod tests {
                 (ColumnId::from(4), "f1".into(), Field(String)),
                 (ColumnId::from(5), "f2".into(), Field(Float)),
             ],
-            SeriesKey::None,
+            vec![0.into(), 1.into(), 2.into()],
         )
         .unwrap();
         // Give that table a last cache:
@@ -3376,7 +3368,7 @@ mod tests {
                 (ColumnId::from(8), "f1".into(), Field(String)),
                 (ColumnId::from(9), "f2".into(), Field(Float)),
             ],
-            SeriesKey::None,
+            vec![6.into()],
         )
         .unwrap();
         // Give that table a last cache:

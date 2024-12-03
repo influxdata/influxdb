@@ -488,7 +488,7 @@ mod tests {
                         id: ColumnId::from(num),
                         data_type: FieldDataType::String,
                     }],
-                    key: None,
+                    key: vec![num.into()],
                 })],
             });
         };

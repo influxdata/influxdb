@@ -106,8 +106,7 @@ impl<'de> Deserialize<'de> for TableDefinition {
 struct TableSnapshot {
     table_id: TableId,
     table_name: Arc<str>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    key: Option<Vec<ColumnId>>,
+    key: Vec<ColumnId>,
     cols: SerdeVecMap<ColumnId, ColumnDefinitionSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,

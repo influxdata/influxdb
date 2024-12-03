@@ -2,6 +2,7 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: catalog
+snapshot_kind: text
 ---
 {
   "databases": [
@@ -16,6 +17,11 @@ expression: catalog
             {
               "table_id": 1,
               "table_name": "test_table_1",
+              "key": [
+                0,
+                1,
+                2
+              ],
               "cols": [
                 [
                   5,
@@ -69,7 +75,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -84,7 +90,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -99,7 +105,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -136,6 +142,11 @@ expression: catalog
             {
               "table_id": 2,
               "table_name": "test_table_2",
+              "key": [
+                9,
+                10,
+                11
+              ],
               "cols": [
                 [
                   14,
@@ -189,7 +200,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -204,7 +215,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [
@@ -219,7 +230,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": true
+                    "nullable": false
                   }
                 ],
                 [

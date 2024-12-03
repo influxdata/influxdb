@@ -510,13 +510,10 @@ impl BufferState {
                 let table_def = db_schema
                     .table_definition_by_id(&table_id)
                     .expect("table should exist");
-                // TODO: can we have the primary key stored on the table definition (we already have
-                // the series key, so that doesn't seem like too much of a stretch).
                 let sort_key = table_def
-                    .influx_schema()
-                    .primary_key()
+                    .series_key
                     .iter()
-                    .map(|c| c.to_string())
+                    .map(|c| table_def.column_id_to_name_unchecked(c).to_string())
                     .collect::<Vec<_>>();
                 let index_columns = table_def.index_column_ids();
 
