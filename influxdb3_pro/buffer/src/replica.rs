@@ -1443,6 +1443,7 @@ mod tests {
         let db_id = replica.db_name_to_id("foo").unwrap();
         // fabricate some WalContents that would originate from the "b" replica host that contain
         // a single CreateTable operation for the table "pow" that does not exist locally:
+        let t1_col_id = ColumnId::new();
         let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
             [influxdb3_wal::create::catalog_batch_op(
@@ -1455,13 +1456,14 @@ mod tests {
                     TableId::new(),
                     "pow",
                     [
-                        influxdb3_wal::create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
                         influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f1",
                             FieldDataType::Boolean,
                         ),
                     ],
+                    [t1_col_id],
                 )],
             )],
         );
@@ -1512,6 +1514,7 @@ mod tests {
         // create a new db and table id as if they were on the replica:
         let db_id = DbId::new();
         let table_id = TableId::new();
+        let t1_col_id = ColumnId::new();
         let wal_content = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
             [influxdb3_wal::create::catalog_batch_op(
@@ -1524,7 +1527,7 @@ mod tests {
                     table_id,
                     "dog",
                     [
-                        influxdb3_wal::create::field_def(ColumnId::new(), "t1", FieldDataType::Tag),
+                        influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
                         influxdb3_wal::create::field_def(
                             ColumnId::new(),
                             "f1",
@@ -1536,6 +1539,7 @@ mod tests {
                             FieldDataType::Timestamp,
                         ),
                     ],
+                    [t1_col_id],
                 )],
             )],
         );
@@ -1579,6 +1583,7 @@ mod tests {
         let (primary_db_id, primary_table_id) = {
             let db_id = DbId::new();
             let table_id = TableId::new();
+            let t1_col_id = ColumnId::new();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
                 [influxdb3_wal::create::catalog_batch_op(
@@ -1591,11 +1596,7 @@ mod tests {
                         table_id,
                         "buzz",
                         [
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "t1",
-                                FieldDataType::Tag,
-                            ),
+                            influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
                             influxdb3_wal::create::field_def(
                                 ColumnId::new(),
                                 "f1",
@@ -1607,6 +1608,7 @@ mod tests {
                                 FieldDataType::Timestamp,
                             ),
                         ],
+                        [t1_col_id],
                     )],
                 )],
             );
@@ -1619,6 +1621,7 @@ mod tests {
         let (replica_db_id, replica_table_id, replica_wal_content) = {
             let db_id = DbId::new();
             let table_id = TableId::new();
+            let t1_col_id = ColumnId::new();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
                 [influxdb3_wal::create::catalog_batch_op(
@@ -1631,11 +1634,7 @@ mod tests {
                         table_id,
                         "buzz",
                         [
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "t1",
-                                FieldDataType::Tag,
-                            ),
+                            influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
                             influxdb3_wal::create::field_def(
                                 ColumnId::new(),
                                 "f1",
@@ -1647,6 +1646,7 @@ mod tests {
                                 FieldDataType::Timestamp,
                             ),
                         ],
+                        [t1_col_id],
                     )],
                 )],
             );
@@ -2088,6 +2088,7 @@ mod tests {
         let mut replica_wal_content = {
             let db_id = replica.db_name_to_id("foo").unwrap();
             let table_id = TableId::new();
+            let fruits_col_id = ColumnId::new();
             let wal_content = influxdb3_wal::create::wal_contents(
                 (0, 1, 0),
                 [influxdb3_wal::create::catalog_batch_op(
@@ -2101,10 +2102,11 @@ mod tests {
                             table_id,
                             "baz",
                             [influxdb3_wal::create::field_def(
-                                ColumnId::new(),
+                                fruits_col_id,
                                 "fruits",
                                 FieldDataType::Tag,
                             )],
+                            [fruits_col_id],
                         ),
                         influxdb3_wal::create::create_last_cache_op_builder(
                             table_id,
@@ -2241,6 +2243,7 @@ mod tests {
                                 "zeta",
                                 FieldDataType::Integer,
                             )],
+                            [],
                         ),
                         influxdb3_wal::create::add_fields_op(
                             db_id,
@@ -2426,13 +2429,8 @@ mod tests {
         use influxdb3_write::DatabaseTables;
 
         use super::*;
-        type SeriesKey = Option<Vec<ColumnId>>;
 
-        pub(super) fn table<C, N, SK>(
-            name: &str,
-            cols: C,
-            series_key: Option<SK>,
-        ) -> TableDefinition
+        pub(super) fn table<C, N, SK>(name: &str, cols: C, series_key: SK) -> TableDefinition
         where
             C: IntoIterator<Item = (ColumnId, N, InfluxColumnType)>,
             N: Into<Arc<str>>,
@@ -2444,7 +2442,7 @@ mod tests {
                 cols.into_iter()
                     .map(|(id, name, ty)| (id, name.into(), ty))
                     .collect(),
-                series_key.map(|sk| sk.into_iter().collect()),
+                series_key.into_iter().collect(),
             )
             .expect("create table definition")
         }
@@ -2453,18 +2451,20 @@ mod tests {
             let host_name = format!("host-{name}").as_str().into();
             let instance_name = format!("instance-{name}").as_str().into();
             let cat = Catalog::new(host_name, instance_name);
+            let t1_col_id = ColumnId::new();
+            let t2_col_id = ColumnId::new();
             let tbl = table(
                 "bar",
                 [
-                    (ColumnId::new(), "t1", InfluxColumnType::Tag),
-                    (ColumnId::new(), "t2", InfluxColumnType::Tag),
+                    (t1_col_id, "t1", InfluxColumnType::Tag),
+                    (t2_col_id, "t2", InfluxColumnType::Tag),
                     (
                         ColumnId::new(),
                         "f1",
                         InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
                     ),
                 ],
-                SeriesKey::None,
+                [t1_col_id, t2_col_id],
             );
             let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
             db.table_map

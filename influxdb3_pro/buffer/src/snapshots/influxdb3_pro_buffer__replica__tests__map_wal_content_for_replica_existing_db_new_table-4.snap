@@ -5,6 +5,8 @@ expression: tbl
 ---
 table_id: 3
 table_name: pow
+key:
+  - 8
 cols:
   - - 9
     - name: f1
@@ -20,5 +22,5 @@ cols:
           - i32
           - str
       influx_type: tag
-      nullable: true
+      nullable: false
 deleted: false

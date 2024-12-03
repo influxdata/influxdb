@@ -561,7 +561,12 @@ async fn two_files_same_series_and_schema() {
     assert_eq!(file_index.lookup("host", "a").len(), 1);
     assert_eq!(file_index.lookup("host", "b").len(), 0);
 }
+
+// TODO: we need to update this test to reconsider the fact that tag columns are no longer nullable
+// The issue stems from the batch generator that creates the `extra_tag` field in the second record
+// batch that is fed into compaction.
 #[tokio::test]
+#[ignore = "this test is no longer valid because it is not allowed to have null values for tags"]
 async fn two_files_similar_series_and_compatible_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());

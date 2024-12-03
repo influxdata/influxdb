@@ -739,7 +739,7 @@ mod tests {
                         InfluxColumnType::Timestamp,
                     ),
                 ],
-                None,
+                vec![0.into()],
             )
             .unwrap(),
         );
@@ -840,7 +840,7 @@ mod tests {
                         InfluxColumnType::Timestamp,
                     ),
                 ],
-                None,
+                vec![0.into()],
             )
             .unwrap(),
         );

@@ -279,7 +279,7 @@ pub struct TableDefinition {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub field_definitions: Vec<FieldDefinition>,
-    pub key: Option<Vec<ColumnId>>,
+    pub key: Vec<ColumnId>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -701,11 +701,15 @@ impl<'a> From<&FieldValue<'a>> for FieldData {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct WalContents {
+    /// The time at which this WAL file is being persisted
+    pub persist_timestamp_ms: i64,
     /// The min timestamp from any writes in the WAL file
     pub min_timestamp_ns: i64,
     /// The max timestamp from any writes in the WAL file
     pub max_timestamp_ns: i64,
+    /// A number that increments for every generated WAL file
     pub wal_file_number: WalFileSequenceNumber,
+    /// The operations contained in the WAL file
     pub ops: Vec<WalOp>,
     /// If present, the buffer should be snapshot after the contents of this file are loaded.
     pub snapshot: Option<SnapshotDetails>,

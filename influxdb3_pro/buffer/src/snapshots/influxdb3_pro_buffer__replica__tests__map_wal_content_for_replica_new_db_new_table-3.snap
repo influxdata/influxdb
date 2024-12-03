@@ -9,6 +9,8 @@ tables:
   - - 3
     - table_id: 3
       table_name: dog
+      key:
+        - 9
       cols:
         - - 10
           - name: f1
@@ -24,7 +26,7 @@ tables:
                 - i32
                 - str
             influx_type: tag
-            nullable: true
+            nullable: false
         - - 11
           - name: time
             id: 11

@@ -264,20 +264,9 @@ fn validate_and_qualify_v3_line(
     let mut field_count = 0;
     let qualified = if let Some(table_def) = db_schema.table_definition(table_name) {
         let table_id = table_def.table_id;
-        if !table_def.is_v3() {
-            return Err(WriteLineError {
-                original_line: raw_line.to_string(),
-                line_number,
-                error_message: "received v3 write protocol for a table that uses the v1 data model"
-                    .to_string(),
-            });
-        }
         // TODO: may be faster to compare using table def/column IDs than comparing with schema:
-        match (
-            table_def.influx_schema().series_key(),
-            &line.series.series_key,
-        ) {
-            (Some(s), Some(l)) => {
+        match (table_def.series_key(), &line.series.series_key) {
+            (s, Some(l)) => {
                 let l = l.iter().map(|sk| sk.0.as_str()).collect::<Vec<&str>>();
                 if s != l {
                     return Err(WriteLineError {
@@ -293,7 +282,7 @@ fn validate_and_qualify_v3_line(
                     });
                 }
             }
-            (Some(s), None) => {
+            (s, None) => {
                 if !s.is_empty() {
                     return Err(WriteLineError {
                         original_line: raw_line.to_string(),
@@ -307,7 +296,6 @@ fn validate_and_qualify_v3_line(
                     });
                 }
             }
-            (None, _) => unreachable!(),
         }
 
         let mut columns = ColumnTracker::with_capacity(line.column_count() + 1);
@@ -469,13 +457,8 @@ fn validate_and_qualify_v3_line(
             field_definitions.push(FieldDefinition::new(*id, Arc::clone(name), influx_type));
         }
 
-        let table = TableDefinition::new(
-            table_id,
-            Arc::clone(&table_name),
-            columns,
-            Some(key.clone()),
-        )
-        .map_err(|e| WriteLineError {
+        let table = TableDefinition::new(table_id, Arc::clone(&table_name), columns, key.clone())
+            .map_err(|e| WriteLineError {
             original_line: raw_line.to_string(),
             line_number: line_number + 1,
             error_message: e.to_string(),
@@ -487,7 +470,7 @@ fn validate_and_qualify_v3_line(
             database_name: Arc::clone(&db_schema.name),
             table_name: Arc::clone(&table_name),
             field_definitions,
-            key: Some(key),
+            key,
         });
         catalog_op = Some(table_definition_op);
 
@@ -531,14 +514,6 @@ fn validate_and_qualify_v1_line(
     let mut index_count = 0;
     let mut field_count = 0;
     let qualified = if let Some(table_def) = db_schema.table_definition(table_name) {
-        if table_def.is_v3() {
-            return Err(WriteLineError {
-                original_line: line.to_string(),
-                line_number,
-                error_message: "received v1 write protocol for a table that uses the v3 data model"
-                    .to_string(),
-            });
-        }
         // This table already exists, so update with any new columns if present:
         let mut columns = ColumnTracker::with_capacity(line.column_count() + 1);
         if let Some(tag_set) = &line.series.tag_set {
@@ -546,9 +521,13 @@ fn validate_and_qualify_v1_line(
                 if let Some(col_id) = table_def.column_name_to_id(tag_key.as_str()) {
                     fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
                 } else {
-                    let col_id = ColumnId::new();
-                    columns.push((col_id, Arc::from(tag_key.as_str()), InfluxColumnType::Tag));
-                    fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
+                    return Err(WriteLineError {
+                        original_line: line.to_string(),
+                        line_number: line_number + 1,
+                        error_message: format!(
+                            "Detected a new tag '{tag_key}' in write. The tag set is immutable on first write to the table."
+                        ),
+                    });
                 }
                 index_count += 1;
             }
@@ -655,11 +634,14 @@ fn validate_and_qualify_v1_line(
         let table_id = TableId::new();
         // This is a new table, so build up its columns:
         let mut columns = Vec::new();
+        let mut key = Vec::new();
         if let Some(tag_set) = &line.series.tag_set {
             for (tag_key, tag_val) in tag_set {
                 let col_id = ColumnId::new();
                 fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
                 columns.push((col_id, Arc::from(tag_key.as_str()), InfluxColumnType::Tag));
+                // Build up the series key from the tags
+                key.push(col_id);
                 index_count += 1;
             }
         }
@@ -698,10 +680,10 @@ fn validate_and_qualify_v1_line(
             database_name: Arc::clone(&db_schema.name),
             table_name: Arc::clone(&table_name),
             field_definitions,
-            key: None,
+            key: key.clone(),
         }));
 
-        let table = TableDefinition::new(table_id, Arc::clone(&table_name), columns, None).unwrap();
+        let table = TableDefinition::new(table_id, Arc::clone(&table_name), columns, key).unwrap();
 
         let db_schema = db_schema.to_mut();
         assert!(
@@ -832,7 +814,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::WriteValidator;
-    use crate::{write_buffer::Error, Precision};
+    use crate::{write_buffer::Error, Precision, WriteLineError};
+
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::TableId;
@@ -845,13 +828,15 @@ mod tests {
         let instance_id = Arc::from("sample-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
-        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)?
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
             .v1_parse_lines_and_update_schema(
                 "cpu,tag1=foo val1=\"bar\" 1234",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )?
+            )
+            .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         assert_eq!(result.line_count, 1);
@@ -870,13 +855,15 @@ mod tests {
 
         // Validate another write, the result should be very similar, but now the catalog
         // has the table/columns added, so it will excercise a different code path:
-        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)?
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
             .v1_parse_lines_and_update_schema(
                 "cpu,tag1=foo val1=\"bar\" 1235",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )?
+            )
+            .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         println!("result: {result:?}");
@@ -886,13 +873,15 @@ mod tests {
         assert!(result.errors.is_empty());
 
         // Validate another write, this time adding a new field:
-        let result = WriteValidator::initialize(namespace.clone(), catalog, 0)?
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
             .v1_parse_lines_and_update_schema(
                 "cpu,tag1=foo val1=\"bar\",val2=false 1236",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )?
+            )
+            .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         println!("result: {result:?}");
@@ -901,6 +890,101 @@ mod tests {
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
 
+        // Validate another write, this time failing when adding a new tag:
+        match WriteValidator::initialize(namespace.clone(), catalog, 0)
+            .unwrap()
+            .v1_parse_lines_and_update_schema(
+                "cpu,tag1=foo,tag2=baz val1=\"bar\",val2=false 1236",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            ) {
+            Err(Error::ParseError(WriteLineError { error_message, .. })) => {
+                assert_eq!("Detected a new tag 'tag2' in write. The tag set is immutable on first write to the table.", error_message);
+            }
+            Ok(_) | Err(_) => panic!("Validator should have failed on new tag"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn write_validator_v3() -> Result<(), Error> {
+        let host_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let namespace = NamespaceName::new("test").unwrap();
+        let catalog = Arc::new(Catalog::new(host_id, instance_id));
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
+            .v3_parse_lines_and_update_schema(
+                "cpu,tag_a/foo val1=\"bar\" 1234",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
+        assert_eq!(result.line_count, 1);
+        assert_eq!(result.field_count, 1);
+        assert_eq!(result.index_count, 1);
+        assert!(result.errors.is_empty());
+        assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
+        // cpu table
+        let batch = result
+            .valid_data
+            .table_chunks
+            .get(&TableId::from(0))
+            .unwrap();
+        assert_eq!(batch.row_count(), 1);
+        // Validate another write, the result should be very similar, but now the catalog
+        // has the table/columns added, so it will excercise a different code path:
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
+            .v3_parse_lines_and_update_schema(
+                "cpu,tag_a/foo val1=\"bar\" 1235",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
+        println!("result: {result:?}");
+        assert_eq!(result.line_count, 1);
+        assert_eq!(result.field_count, 1);
+        assert_eq!(result.index_count, 1);
+        assert!(result.errors.is_empty());
+        // Validate another write, this time adding a new field:
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
+            .v3_parse_lines_and_update_schema(
+                "cpu,tag_a/foo val1=\"bar\",val2=false 1236",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
+
+        println!("result: {result:?}");
+        assert_eq!(result.line_count, 1);
+        assert_eq!(result.field_count, 2);
+        assert_eq!(result.index_count, 1);
+        assert!(result.errors.is_empty());
+
+        // Validate another write, this time failing when adding a new tag:
+        match WriteValidator::initialize(namespace.clone(), catalog, 0)
+            .unwrap()
+            .v3_parse_lines_and_update_schema(
+                "cpu,tag_a/foo/tag_b/baz val1=\"bar\",val2=false 1236",
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Auto,
+            ) {
+            Err(Error::ParseError(WriteLineError { error_message, .. })) => {
+                assert_eq!("write to table cpu had the incorrect series key, expected: [tag_a], received: [tag_a, tag_b]", error_message);
+            }
+            Ok(_) | Err(_) => panic!("Validator should have failed on new tag"),
+        }
         Ok(())
     }
 }
