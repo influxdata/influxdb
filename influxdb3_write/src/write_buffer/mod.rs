@@ -197,6 +197,7 @@ impl WriteBufferImpl {
         // create the wal instance, which will replay into the queryable buffer and start
         // the background flush task.
         let wal = WalObjectStore::new(
+            Arc::clone(&time_provider),
             persister.object_store(),
             persister.host_identifier_prefix(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
