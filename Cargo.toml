@@ -56,6 +56,7 @@ chrono = "0.4"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clru = "0.6.2"
 crc32fast = "1.2.0"
+criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-channel = "0.5.11"
 csv = "1.3.0"
 datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "c27d5f2356a21ee6224c149ee971c89c2cc13e18" }

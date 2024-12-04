@@ -21,5 +21,11 @@ dashmap.workspace = true
 datafusion.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 test-log.workspace = true
 proptest.workspace = true
+rand.workspace = true
+
+[[bench]]
+name = "store_benchmark"
+harness = false
