@@ -77,7 +77,7 @@ impl ReadWriteMode {
             catalog: Arc::clone(&catalog),
             last_cache: Arc::clone(&last_cache),
             meta_cache: Arc::clone(&meta_cache),
-            time_provider,
+            time_provider: Arc::clone(&time_provider),
             executor,
             wal_config,
             parquet_cache: parquet_cache.clone(),
@@ -99,6 +99,7 @@ impl ReadWriteMode {
                     hosts,
                     parquet_cache,
                     catalog,
+                    time_provider,
                 })
                 .await?,
             )
