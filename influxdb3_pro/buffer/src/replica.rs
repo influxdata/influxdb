@@ -1,7 +1,6 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context};
-use chrono::Utc;
 use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId as IoxTableId,
     TransitionPartitionId,
@@ -33,7 +32,8 @@ use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
     QueryChunk,
 };
-use metric::{Attributes, Registry, U64Gauge};
+use iox_time::TimeProvider;
+use metric::{Attributes, DurationHistogram, Registry};
 use object_store::{path::Path, ObjectStore};
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
@@ -85,6 +85,7 @@ pub(crate) struct CreateReplicasArgs {
     pub hosts: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
+    pub time_provider: Arc<dyn TimeProvider>,
 }
 
 impl Replicas {
@@ -98,6 +99,7 @@ impl Replicas {
             hosts,
             parquet_cache,
             catalog,
+            time_provider,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicas = vec![];
@@ -120,6 +122,7 @@ impl Replicas {
                     metric_registry,
                     parquet_cache,
                     catalog,
+                    time_provider: Arc::clone(&time_provider),
                 })
                 .await?,
             )
@@ -242,6 +245,7 @@ pub(crate) struct ReplicatedBuffer {
     catalog: Arc<ReplicatedCatalog>,
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 #[derive(Debug)]
@@ -307,11 +311,11 @@ impl ReplicatedCatalog {
     }
 }
 
-pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr_ms";
+pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr_duration";
 
 #[derive(Debug)]
 struct ReplicatedBufferMetrics {
-    replica_ttbr: U64Gauge,
+    replica_ttbr: DurationHistogram,
 }
 
 pub(crate) struct CreateReplicatedBufferArgs {
@@ -324,6 +328,7 @@ pub(crate) struct CreateReplicatedBufferArgs {
     metric_registry: Arc<Registry>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     catalog: Arc<Catalog>,
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ReplicatedBuffer {
@@ -338,6 +343,7 @@ impl ReplicatedBuffer {
             metric_registry,
             parquet_cache,
             catalog,
+            time_provider,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
         let (persisted_catalog, persisted_files) = {
@@ -358,11 +364,11 @@ impl ReplicatedBuffer {
             (catalog, persisted_files)
         };
         let host: Cow<'static, str> = Cow::from(host_identifier_prefix.clone());
-        let attributes = Attributes::from([("host", host)]);
+        let attributes = Attributes::from([("from_host", host)]);
         let replica_ttbr = metric_registry
-            .register_metric::<U64Gauge>(
+            .register_metric::<DurationHistogram>(
                 REPLICA_TTBR_METRIC,
-                "time to be readable in milliseconds for the data in each replicated host buffer",
+                "time to be readable for the data in each replicated host buffer",
             )
             .recorder(attributes);
         let replica_catalog = ReplicatedCatalog::new(Arc::clone(&catalog), persisted_catalog)?;
@@ -380,6 +386,7 @@ impl ReplicatedBuffer {
             metrics: ReplicatedBufferMetrics { replica_ttbr },
             parquet_cache,
             catalog: Arc::new(replica_catalog),
+            time_provider,
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
@@ -515,9 +522,11 @@ impl ReplicatedBuffer {
     async fn replay(&self) -> Result<()> {
         let paths = self.load_existing_wal_paths().await?;
         info!(host = %self.host_identifier_prefix, num_wal_files = paths.len(), "replaying WAL files for replica");
+        // do not calculate ttbr during initial server startup:
+        let calculate_ttbr = false;
 
         for path in &paths {
-            self.replay_wal_file(path).await?;
+            self.replay_wal_file(path, calculate_ttbr).await?;
         }
 
         if let Some(path) = paths.last() {
@@ -559,15 +568,25 @@ impl ReplicatedBuffer {
         Ok(paths)
     }
 
-    async fn replay_wal_file(&self, path: &Path) -> Result<()> {
+    /// Replay the WAL file at the given `path`.
+    ///
+    /// This will fetch the contents of the WAL file from the object store, map identifiers within
+    /// the `WalContents` of the file from those on the replicated host to those of the local
+    /// catalog, then apply the `WalContents` to the local buffer, handling snapshots if present.
+    ///
+    /// The `calculate_ttbr` argument will determine if the time to be readable (TTBR) for the
+    /// contents of the replayed file is recorded in the metric registry. This is optional so that
+    /// we can avoid calculating TTBR when replaying WAL files on server startup, as the resulting
+    /// values would likely skew the metric distribution.
+    async fn replay_wal_file(&self, path: &Path, calculate_ttbr: bool) -> Result<()> {
         let obj = self.object_store.get(path).await?;
-        let file_written_time = obj.meta.last_modified;
         let file_bytes = obj
             .bytes()
             .await
             .context("failed to collect data for known file into bytes")?;
         let wal_contents = verify_file_type_and_deserialize(file_bytes)
             .context("failed to verify and deserialize wal file contents")?;
+        let persist_timestamp_ms = wal_contents.persist_timestamp_ms;
 
         debug!(host = %self.host_identifier_prefix, ?wal_contents, catalog = ?self.catalog, "replay wal file (pre-map)");
         // NOTE: if this call fails, then WAL replication will halt, logging errors on the
@@ -583,11 +602,19 @@ impl ReplicatedBuffer {
             }
         }
 
-        let now_time = Utc::now();
-        match now_time.signed_duration_since(file_written_time).to_std() {
-            Ok(ttbr) => self.metrics.replica_ttbr.set(ttbr.as_millis() as u64),
-            Err(error) => {
-                info!(%error, %now_time, %file_written_time, "unable to get duration since WAL file was created")
+        if calculate_ttbr {
+            // record the current time after the wal contents have been buffered:
+            let now_time_ms = self.time_provider.now().timestamp_millis();
+
+            // track TTBR:
+            match now_time_ms.checked_sub(persist_timestamp_ms) {
+                Some(ttbr_ms) => self
+                    .metrics
+                    .replica_ttbr
+                    .record(Duration::from_millis(ttbr_ms as u64)),
+                None => {
+                    info!(%now_time_ms, %persist_timestamp_ms, "unable to get duration since WAL file was created")
+                }
             }
         }
 
@@ -715,6 +742,9 @@ fn background_replication_interval(
         let mut interval = tokio::time::interval(interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+        // we do want to calculate ttbr in the replication loop:
+        let calculate_ttbr = true;
+
         loop {
             interval.tick().await;
 
@@ -725,7 +755,11 @@ fn background_replication_interval(
                 'inner: loop {
                     wal_number = wal_number.next();
                     let wal_path = wal_path(&replicated_buffer.host_identifier_prefix, wal_number);
-                    match replicated_buffer.replay_wal_file(&wal_path).await {
+
+                    match replicated_buffer
+                        .replay_wal_file(&wal_path, calculate_ttbr)
+                        .await
+                    {
                         Ok(_) => {
                             info!(
                                 host = %replicated_buffer.host_identifier_prefix,
@@ -786,8 +820,9 @@ mod tests {
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
-    use metric::{Attributes, Metric, Registry, U64Gauge};
+    use metric::{Attributes, DurationHistogram, Metric, Registry};
     use object_store::{memory::InMemory, path::Path, ObjectStore};
+    use observability_deps::tracing::debug;
     use schema::InfluxColumnType;
 
     use crate::{
@@ -824,7 +859,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1,
             },
-            time_provider,
+            Arc::clone(&time_provider),
         )
         .await;
 
@@ -869,6 +904,7 @@ mod tests {
                 "replica-host".into(),
                 "replica-instance".into(),
             )),
+            time_provider,
         })
         .await
         .unwrap();
@@ -1012,7 +1048,7 @@ mod tests {
         let replicas = Replicas::new(CreateReplicasArgs {
             last_cache: LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
             meta_cache: MetaCacheProvider::new_from_catalog(
-                time_provider,
+                Arc::clone(&time_provider),
                 primaries["spock"].catalog(),
             )
             .unwrap(),
@@ -1022,6 +1058,7 @@ mod tests {
             hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: None,
             catalog: primaries["spock"].catalog(),
+            time_provider,
         })
         .await
         .unwrap();
@@ -1095,7 +1132,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn replica_buffer_ttbr_metrics() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         // Create a session context:
@@ -1104,49 +1141,51 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
-        let time_provider: Arc<dyn TimeProvider> =
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        // Spin up two primary write buffers to do some writes and generate files in an object store:
-        let primary_ids = ["newton", "faraday"];
-        let mut primaries = HashMap::new();
-        for p in primary_ids {
-            let primary = setup_primary(
-                p,
-                Arc::clone(&obj_store),
-                WalConfig {
-                    gen1_duration: Gen1Duration::new_1m(),
-                    max_write_buffer_size: 100,
-                    flush_interval: Duration::from_millis(10),
-                    snapshot_size: 1_000,
-                },
-                Arc::clone(&time_provider),
-            )
-            .await;
-            primaries.insert(p, primary);
-        }
-        // Spin up a set of replicated buffers:
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        // Spin up a primary write buffer to do some writes and generate files in an object store:
+        let primary = setup_primary(
+            "newton",
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1_000,
+            },
+            Arc::<MockProvider>::clone(&time_provider),
+        )
+        .await;
+
+        // Spin up a replicated buffer:
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         Replicas::new(CreateReplicasArgs {
-            last_cache: LastCacheProvider::new_from_catalog(primaries["newton"].catalog()).unwrap(),
+            // just using the catalog from primary for caches since they aren't used:
+            last_cache: LastCacheProvider::new_from_catalog(primary.catalog()).unwrap(),
             meta_cache: MetaCacheProvider::new_from_catalog(
-                time_provider,
-                primaries["newton"].catalog(),
+                Arc::<MockProvider>::clone(&time_provider),
+                primary.catalog(),
             )
             .unwrap(),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
-            hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
+            hosts: vec!["newton".to_string()],
             parquet_cache: None,
             catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
+            time_provider: Arc::<MockProvider>::clone(&time_provider),
         })
         .await
         .unwrap();
+
+        // set the time provider before writing to primary... this will be the persist_time_ms in
+        // the WAL files created by the primary:
+        time_provider.set(Time::from_timestamp_millis(1_000).unwrap());
+
         // write to newton:
         do_writes(
             "foo",
-            &primaries["newton"],
+            &primary,
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1163,39 +1202,29 @@ mod tests {
             ],
         )
         .await;
-        // write to faraday:
-        do_writes(
-            "foo",
-            &primaries["faraday"],
-            &[
-                TestWrite {
-                    time_seconds: 1,
-                    lp: "bar,tag=b val=true",
-                },
-                TestWrite {
-                    time_seconds: 2,
-                    lp: "bar,tag=b val=true",
-                },
-                TestWrite {
-                    time_seconds: 3,
-                    lp: "bar,tag=b val=true",
-                },
-            ],
-        )
-        .await;
+
+        // set the time provider before doing replication so that the replica's "now" time is in
+        // advance of the persist time of the WAL files it is replaying:
+        time_provider.set(Time::from_timestamp_millis(1_100).unwrap());
+
         // sleep for replicas to replicate:
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Check the metric registry:
         let metric = metric_registry
-            .get_instrument::<Metric<U64Gauge>>(REPLICA_TTBR_METRIC)
+            .get_instrument::<Metric<DurationHistogram>>(REPLICA_TTBR_METRIC)
             .expect("get the metric");
-        for host in primary_ids {
-            let _ttbr_ms = metric
-                .get_observer(&Attributes::from(&[("host", host)]))
-                .expect("failed to get observer")
-                .fetch();
-        }
+        let ttbr_ms = metric
+            .get_observer(&Attributes::from(&[("from_host", "newton")]))
+            .expect("failed to get observer")
+            .fetch();
+        debug!(?ttbr_ms, "ttbr metric for host");
+        assert_eq!(ttbr_ms.sample_count(), 2);
+        assert_eq!(ttbr_ms.total, Duration::from_millis(200));
+        assert!(ttbr_ms
+            .buckets
+            .iter()
+            .any(|bucket| bucket.le == Duration::from_millis(100) && bucket.count == 2));
     }
 
     #[test_log::test(tokio::test)]
@@ -1306,6 +1335,7 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: Some(parquet_cache),
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
+                time_provider,
             })
             .await
             .unwrap();
@@ -1378,6 +1408,7 @@ mod tests {
                 hosts: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: None,
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
+                time_provider,
             })
             .await
             .unwrap();

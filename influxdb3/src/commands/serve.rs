@@ -635,6 +635,7 @@ pub async fn command(config: Config) -> Result<()> {
                             hosts,
                             parquet_cache: parquet_cache.clone(),
                             compacted_data: compacted_data.clone(),
+                            time_provider: Arc::<SystemProvider>::clone(&time_provider),
                         })
                         .await
                         .map_err(Error::WriteBufferInit)?,
