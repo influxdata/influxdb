@@ -9,6 +9,7 @@ use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_wal::MetaCacheDefinition;
 use iox_system_tables::IoxSystemTable;
 
+#[derive(Debug)]
 pub(super) struct MetaCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,

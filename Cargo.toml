@@ -52,15 +52,15 @@ backtrace = "0.3"
 base64 = "0.22.0"
 bimap = "0.6.3"
 byteorder = "1.3.4"
-bytes = "1.8"
+bytes = "1.9"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clru = "0.6.2"
 crc32fast = "1.2.0"
 crossbeam-channel = "0.5.11"
 csv = "1.3.0"
-datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "c27d5f2356a21ee6224c149ee971c89c2cc13e18" }
-datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "c27d5f2356a21ee6224c149ee971c89c2cc13e18" }
+datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "f78378fc21551cf1c324918537368d08c715ecb1" }
+datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "f78378fc21551cf1c324918537368d08c715ecb1" }
 dashmap = "6.1.0"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
@@ -120,37 +120,37 @@ uuid = { version = "1", features = ["v4"] }
 xxhash-rust = { version = "0.8", features = ["xxh32", "xxh64"] }
 
 # Core.git crates we depend on
-arrow_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-authz = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-data_types = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-executor = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696", features = ["v3"] }
-influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_catalog = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_query = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_system_tables = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-iox_time = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-metric = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696", features = ["v3"] }
-service_common = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-test_helpers = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-tokio_metrics_bridge = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-trace = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
-trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "6fcbb004232738d55655f32f4ad2385523d10696" }
+arrow_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+authz = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+data_types = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+executor = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160", features = ["v3"] }
+influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_catalog = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_query = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_query_params = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_query_influxql = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_system_tables = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+iox_time = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+metric = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+metric_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+observability_deps = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+panic_logging = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+parquet_file = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+schema = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160", features = ["v3"] }
+service_common = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+service_grpc_flight = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+test_helpers = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+tokio_metrics_bridge = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+trace = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+trace_exporters = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 
 # Core_internal.git crates we depend on
 # Internally core_internal depends on core and the revision (`rev`) for core crate here should
@@ -231,17 +231,17 @@ opt-level = 3
 ## until we have upgraded hyper: https://github.com/influxdata/influxdb_iox/issues/9340
 ## see https://github.com/influxdata/arrow-rs/pull/3
 [patch.crates-io]
-arrow = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-array = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-buffer = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-cast = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-csv = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-data = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-ipc = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-json = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-schema = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-select = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-string = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-ord = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-arrow-flight = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
-parquet = { git = "https://github.com/influxdata/arrow-rs.git", rev = "e38787d2177f2ebfa481bfac62d208eef8ea82fb" }
+arrow = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-array = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-buffer = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-cast = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-csv = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-data = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-ipc = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-json = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-schema = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-select = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-string = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-ord = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+arrow-flight = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }
+parquet = { git = "https://github.com/influxdata/arrow-rs.git", rev = "eae176c21b1ef915227294e8a8a201b6f266031a" }

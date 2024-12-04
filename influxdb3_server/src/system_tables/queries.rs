@@ -9,6 +9,7 @@ use datafusion::{error::DataFusionError, logical_expr::Expr};
 use iox_query::query_log::{QueryLog, QueryLogEntryState, QueryPhase};
 use iox_system_tables::IoxSystemTable;
 
+#[derive(Debug)]
 pub(super) struct QueriesTable {
     schema: SchemaRef,
     query_log: Arc<QueryLog>,

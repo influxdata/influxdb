@@ -26,6 +26,7 @@ use super::{cache::Predicate, MetaCacheProvider};
 pub const META_CACHE_UDTF_NAME: &str = "meta_cache";
 
 /// Implementor of the [`TableProvider`] trait that is produced a call to the [`MetaCacheFunction`]
+#[derive(Debug)]
 struct MetaCacheFunctionProvider {
     /// Reference to the [`MetaCache`][super::cache::MetaCache] being queried's schema
     schema: SchemaRef,
