@@ -15,6 +15,7 @@ use influxdb3_id::DbId;
 
 use super::LastCacheProvider;
 
+#[derive(Debug)]
 struct LastCacheFunctionProvider {
     db_id: DbId,
     table_def: Arc<TableDefinition>,
@@ -73,6 +74,7 @@ impl TableProvider for LastCacheFunctionProvider {
     }
 }
 
+#[derive(Debug)]
 pub struct LastCacheFunction {
     db_id: DbId,
     provider: Arc<LastCacheProvider>,

@@ -14,6 +14,7 @@ use iox_system_tables::IoxSystemTable;
 
 use super::{PARQUET_FILES_TABLE_NAME, SYSTEM_SCHEMA_NAME};
 
+#[derive(Debug)]
 pub(super) struct ParquetFilesTable {
     db_id: DbId,
     schema: SchemaRef,
