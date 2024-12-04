@@ -9,6 +9,7 @@ use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use influxdb3_write::last_cache::LastCacheProvider;
 use iox_system_tables::IoxSystemTable;
 
+#[derive(Debug)]
 pub(super) struct LastCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,
