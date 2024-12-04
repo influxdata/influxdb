@@ -94,7 +94,7 @@ impl SysEventStore {
     /// [`ToRecordBatch`] trait
     pub fn as_record_batch<E>(&self) -> Option<Result<RecordBatch, ArrowError>>
     where
-        E: 'static + Clone + Debug + Sync + Send + ToRecordBatch<E>,
+        E: 'static + Debug + Sync + Send + ToRecordBatch<E>,
     {
         let map_ref = self.events.get(&TypeId::of::<RingBuffer<Event<E>>>());
         let buf_ref = map_ref
@@ -105,37 +105,34 @@ impl SysEventStore {
     }
 }
 
-pub struct RingBuffer<T> {
-    buf: Vec<T>,
+pub type RingBuffer<T> = RingBufferArray<T, MAX_CAPACITY>;
+
+pub struct RingBufferArray<T, const N: usize> {
+    buf: [Option<T>; N],
     max: usize,
     write_index: usize,
 }
 
-impl<T> RingBuffer<T> {
+impl<T, const N: usize> RingBufferArray<T, N> {
     fn new(capacity: usize) -> Self {
+        let buf_array: [Option<T>; N] = [const { None }; N];
         Self {
-            buf: Vec::with_capacity(capacity),
+            buf: buf_array,
             max: capacity,
             write_index: 0,
         }
     }
 
     fn push(&mut self, val: T) {
-        if !self.reached_max() {
-            self.buf.push(val);
-        } else {
-            let _ = replace(&mut self.buf[self.write_index], val);
-        }
+        let _ = replace(&mut self.buf[self.write_index], Some(val));
         self.write_index = (self.write_index + 1) % self.max;
     }
 
-    pub fn in_order(&self) -> impl Iterator<Item = &'_ T> {
+    pub fn in_order(&self) -> impl Iterator<Item = &T> {
         let (head, tail) = self.buf.split_at(self.write_index);
-        tail.iter().chain(head.iter())
-    }
-
-    fn reached_max(&mut self) -> bool {
-        self.buf.len() >= self.max
+        tail.iter()
+            .chain(head.iter())
+            .filter_map(|item| item.as_ref())
     }
 }
 
@@ -144,7 +141,7 @@ impl<T> RingBuffer<T> {
 #[derive(Default, Clone, Debug)]
 pub struct Event<D> {
     time: i64,
-    data: D,
+    pub data: D,
 }
 
 impl<D> Event<D> {
