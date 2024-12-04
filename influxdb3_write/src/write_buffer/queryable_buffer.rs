@@ -1,5 +1,4 @@
 use crate::chunk::BufferChunk;
-use crate::last_cache::LastCacheProvider;
 use crate::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
@@ -17,6 +16,7 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
+use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};

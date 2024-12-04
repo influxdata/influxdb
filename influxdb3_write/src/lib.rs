@@ -5,7 +5,6 @@
 //! metadata of the parquet files that were written in that snapshot.
 
 pub mod chunk;
-pub mod last_cache;
 pub mod parquet_cache;
 pub mod paths;
 pub mod persister;
@@ -16,6 +15,7 @@ use data_types::{NamespaceName, TimestampMinMax};
 use datafusion::catalog::Session;
 use datafusion::error::DataFusionError;
 use datafusion::prelude::Expr;
+use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::CreateMetaCacheArgs;
 use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
@@ -29,7 +29,6 @@ use influxdb3_wal::MetaCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
-use last_cache::LastCacheProvider;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -154,8 +153,8 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
-        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        key_columns: Option<Vec<ColumnId>>,
+        value_columns: Option<Vec<ColumnId>>,
     ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
     /// Delete a last-n-value cache
     ///

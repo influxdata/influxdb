@@ -5,7 +5,6 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub mod validator;
 
-use crate::last_cache::{self, CreateCacheArguments, LastCacheProvider};
 use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
@@ -25,13 +24,14 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
+use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, MetaCacheDefinition,
-    MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
+    CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
+    MetaCacheDefinition, MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
@@ -545,8 +545,8 @@ impl LastCacheManager for WriteBufferImpl {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
-        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        key_columns: Option<Vec<ColumnId>>,
+        value_columns: Option<Vec<ColumnId>>,
     ) -> Result<Option<LastCacheDefinition>, Error> {
         let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
@@ -556,16 +556,26 @@ impl LastCacheManager for WriteBufferImpl {
         let table_def = db_schema
             .table_definition_by_id(&table_id)
             .ok_or(Error::TableDoesNotExist)?;
+        let count = count
+            .map(LastCacheSize::new)
+            .transpose()
+            .map_err(|_| last_cache::Error::InvalidCacheSize)?
+            .unwrap_or_default();
+        let ttl = ttl.map(Into::into).unwrap_or_default();
+        let key_columns = key_columns.into();
+        let value_columns = value_columns.into();
 
-        if let Some(info) = self.last_cache.create_cache(CreateCacheArguments {
+        if let Some(info) = self.last_cache.create_cache(
             db_id,
-            table_def,
             cache_name,
-            count,
-            ttl,
-            key_columns,
-            value_columns,
-        })? {
+            last_cache::CreateLastCacheArgs {
+                table_def,
+                count,
+                ttl,
+                key_columns,
+                value_columns,
+            },
+        )? {
             self.catalog.add_last_cache(db_id, table_id, info.clone());
             let add_cache_catalog_batch = WalOp::Catalog(CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),

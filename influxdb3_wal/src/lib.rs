@@ -453,6 +453,12 @@ impl LastCacheSize {
     }
 }
 
+impl Default for LastCacheSize {
+    fn default() -> Self {
+        Self(1)
+    }
+}
+
 impl TryFrom<usize> for LastCacheSize {
     type Error = Error;
 
