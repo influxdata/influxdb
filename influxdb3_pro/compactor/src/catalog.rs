@@ -368,7 +368,7 @@ pub(crate) mod test_helpers {
                             data_type: FieldDataType::Timestamp,
                         },
                     ],
-                    key: Some(vec![tag_id]),
+                    key: vec![tag_id],
                 }),
             ],
         };

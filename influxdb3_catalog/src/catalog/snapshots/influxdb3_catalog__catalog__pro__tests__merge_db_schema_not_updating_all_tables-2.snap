@@ -11,6 +11,10 @@ expression: db
       {
         "table_id": 0,
         "table_name": "bar",
+        "key": [
+          0,
+          1
+        ],
         "cols": [
           [
             2,
@@ -34,7 +38,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             }
           ],
           [
@@ -49,7 +53,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             }
           ]
         ],
@@ -61,6 +65,10 @@ expression: db
       {
         "table_id": 2,
         "table_name": "doh",
+        "key": [
+          10,
+          20
+        ],
         "cols": [
           [
             30,
@@ -94,7 +102,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             }
           ],
           [
@@ -109,7 +117,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": true
+              "nullable": false
             }
           ]
         ],

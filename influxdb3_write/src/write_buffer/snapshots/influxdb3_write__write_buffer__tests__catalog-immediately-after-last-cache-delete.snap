@@ -1,6 +1,7 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
+snapshot_kind: text
 ---
 {
   "databases": [
@@ -41,7 +42,7 @@ expression: catalog_json
                     "id": 0,
                     "influx_type": "tag",
                     "name": "t1",
-                    "nullable": true,
+                    "nullable": false,
                     "type": {
                       "dict": [
                         "i32",
@@ -67,6 +68,9 @@ expression: catalog_json
                 ]
               ],
               "deleted": false,
+              "key": [
+                0
+              ],
               "table_id": 0,
               "table_name": "table"
             }

@@ -779,7 +779,7 @@ pub struct TableDefinition {
     pub schema: Schema,
     pub columns: IndexMap<ColumnId, ColumnDefinition>,
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
-    pub series_key: Option<Vec<ColumnId>>,
+    pub series_key: Vec<ColumnId>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
     pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
     pub deleted: bool,
@@ -793,7 +793,7 @@ impl TableDefinition {
         table_id: TableId,
         table_name: Arc<str>,
         columns: Vec<(ColumnId, Arc<str>, InfluxColumnType)>,
-        series_key: Option<Vec<ColumnId>>,
+        series_key: Vec<ColumnId>,
     ) -> Result<Self> {
         // ensure we're under the column limit
         if columns.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
@@ -811,22 +811,20 @@ impl TableDefinition {
         let mut column_map = BiHashMap::with_capacity(ordered_columns.len());
         for (name, (col_id, column_type)) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
-            let not_nullable = matches!(column_type, InfluxColumnType::Timestamp)
-                || series_key.as_ref().is_some_and(|sk| sk.contains(col_id));
+            let not_nullable =
+                matches!(column_type, InfluxColumnType::Timestamp) || series_key.contains(col_id);
             columns.insert(
                 *col_id,
                 ColumnDefinition::new(*col_id, name, *column_type, !not_nullable),
             );
             column_map.insert(*col_id, name.into());
         }
-        if let Some(sk) = series_key.clone() {
-            schema_builder.with_series_key(sk.into_iter().map(|id| {
-                column_map
-                    .get_by_left(&id)
-                    // NOTE: should this be an error instead of panic?
-                    .expect("invalid column id in series key definition")
-            }));
-        }
+        schema_builder.with_series_key(series_key.clone().into_iter().map(|id| {
+            column_map
+                .get_by_left(&id)
+                // NOTE: should this be an error instead of panic?
+                .expect("invalid column id in series key definition")
+        }));
         let schema = schema_builder.build().expect("schema should be valid");
 
         Ok(Self {
@@ -1075,10 +1073,6 @@ impl TableDefinition {
             .map(|def| def.data_type)
     }
 
-    pub fn is_v3(&self) -> bool {
-        self.influx_schema().series_key().is_some()
-    }
-
     /// Add the given [`MetaCacheDefinition`] to this table
     pub fn add_meta_cache(&mut self, meta_cache: MetaCacheDefinition) {
         self.meta_caches
@@ -1144,6 +1138,13 @@ impl TableDefinition {
             .get_by_right(&name.into())
             .and_then(|id| self.columns.get(id).map(|def| (*id, def)))
     }
+
+    pub fn series_key(&self) -> Vec<String> {
+        self.series_key
+            .iter()
+            .map(|k| self.column_id_to_name_unchecked(k).to_string())
+            .collect()
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -1188,8 +1189,6 @@ mod tests {
 
     use super::*;
 
-    type SeriesKey = Option<Vec<ColumnId>>;
-
     #[test]
     fn catalog_serialization() {
         let host_id = Arc::from("sample-host-id");
@@ -1227,7 +1226,7 @@ mod tests {
                         (ColumnId::new(), "u64_field".into(), Field(UInteger)),
                         (ColumnId::new(), "f64_field".into(), Field(Float)),
                     ],
-                    SeriesKey::None,
+                    vec![0.into(), 1.into(), 2.into()],
                 )
                 .unwrap(),
             ),
@@ -1249,7 +1248,7 @@ mod tests {
                         (ColumnId::new(), "u64_field".into(), Field(UInteger)),
                         (ColumnId::new(), "f64_field".into(), Field(Float)),
                     ],
-                    SeriesKey::None,
+                    vec![9.into(), 10.into(), 11.into()],
                 )
                 .unwrap(),
             ),
@@ -1327,7 +1326,8 @@ mod tests {
                                         "table_name": "tbl1",
                                         "cols": [],
                                         "next_column_id": 0,
-                                        "deleted": false
+                                        "deleted": false,
+                                        "key": []
 
                                     }
                                 ],
@@ -1338,8 +1338,8 @@ mod tests {
                                         "table_name": "tbl1",
                                         "cols": [],
                                         "next_column_id": 0,
-                                        "deleted": false
-
+                                        "deleted": false,
+                                        "key": []
                                     }
                                 ]
                             ],
@@ -1427,7 +1427,7 @@ mod tests {
                         "test".into(),
                         InfluxColumnType::Field(InfluxFieldType::String),
                     )],
-                    SeriesKey::None,
+                    vec![],
                 )
                 .unwrap(),
             ),
@@ -1488,11 +1488,7 @@ mod tests {
                         (ColumnId::from(3), "time".into(), Timestamp),
                         (ColumnId::from(4), "field".into(), Field(String)),
                     ],
-                    SeriesKey::Some(vec![
-                        ColumnId::from(0),
-                        ColumnId::from(1),
-                        ColumnId::from(2),
-                    ]),
+                    vec![ColumnId::from(0), ColumnId::from(1), ColumnId::from(2)],
                 )
                 .unwrap(),
             ),
@@ -1544,7 +1540,7 @@ mod tests {
                 (ColumnId::from(3), "time".into(), Timestamp),
                 (ColumnId::from(4), "field".into(), Field(String)),
             ],
-            SeriesKey::None,
+            vec![0.into(), 1.into(), 2.into()],
         )
         .unwrap();
         table_def.add_last_cache(
@@ -1652,11 +1648,7 @@ mod tests {
                         InfluxColumnType::Field(InfluxFieldType::String),
                     ),
                 ],
-                SeriesKey::Some(vec![
-                    ColumnId::from(0),
-                    ColumnId::from(1),
-                    ColumnId::from(2),
-                ]),
+                vec![ColumnId::from(0), ColumnId::from(1), ColumnId::from(2)],
             )
             .unwrap(),
         );
@@ -1668,6 +1660,6 @@ mod tests {
         let deleted_table = updated_or_new_tables.get(&deleted_table_id).unwrap();
         assert_eq!(&*deleted_table.table_name, "boo-19700101T000000");
         assert!(deleted_table.deleted);
-        assert!(deleted_table.series_key.is_some());
+        assert!(!deleted_table.series_key.is_empty());
     }
 }

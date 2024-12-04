@@ -158,17 +158,13 @@ impl TableDefinition {
         // validate the series keys match for existing tables:
         let mapped_series_key = other
             .series_key
-            .as_ref()
-            .map(|sk| {
-                sk.iter()
-                    .map(|id| {
-                        id_map.map_column_id(id).ok_or(Error::Other(anyhow!(
-                            "other table series key contained invalid id"
-                        )))
-                    })
-                    .collect::<Result<Vec<ColumnId>>>()
+            .iter()
+            .map(|id| {
+                id_map.map_column_id(id).ok_or(Error::Other(anyhow!(
+                    "other table series key contained invalid id"
+                )))
             })
-            .transpose()?;
+            .collect::<Result<Vec<ColumnId>>>()?;
         if mapped_series_key != self.series_key {
             return Err(Error::Other(anyhow!("the series key from the other catalog's table does not match that of the local catalog")));
         }
@@ -234,8 +230,6 @@ impl TableDefinition {
         // map the column ids in the series key:
         let series_key = other
             .series_key
-            .as_ref()
-            .map(|sk| sk
                 .iter()
                 .map(|other_id| id_map
                     .map_column_id(other_id)
@@ -243,8 +237,7 @@ impl TableDefinition {
                         anyhow!("the table from the other catalog contained an invalid column in its series key (id: {other_id})")
                     ))
                 )
-                .collect::<Result<Vec<ColumnId>>>()
-            ).transpose()?;
+                .collect::<Result<Vec<ColumnId>>>()?;
 
         // map the ids from last cache definitions
         let mut last_caches = HashMap::new();
@@ -440,6 +433,7 @@ impl CatalogIdMap {
         wal_contents: WalContents,
     ) -> Result<WalContents> {
         Ok(WalContents {
+            persist_timestamp_ms: wal_contents.persist_timestamp_ms,
             min_timestamp_ns: wal_contents.min_timestamp_ns,
             max_timestamp_ns: wal_contents.max_timestamp_ns,
             wal_file_number: wal_contents.wal_file_number,
@@ -560,19 +554,30 @@ impl CatalogIdMap {
                     &def.table_name,
                     def.table_id,
                 );
-                CatalogOp::CreateTable(WalTableDefinition {
-                    database_id,
-                    database_name: def.database_name,
-                    table_name: Arc::clone(&def.table_name),
-                    table_id,
-                    field_definitions: self.map_field_definitions(
+                let field_definitions = self.map_field_definitions(
                         target_catalog,
                         database_id,
                         table_id,
                         Arc::clone(&def.table_name),
                         def.field_definitions,
-                    )?,
-                    key: def.key,
+                    )?;
+                let key = def
+                    .key
+                    .into_iter()
+                    .map(|column_id| self
+                        .map_column_id(&column_id)
+                        .ok_or_else(|| Error::Other(
+                            anyhow!("invalid column id in series key: {column_id}")
+                        ))
+                    )
+                    .collect::<Result<Vec<_>>>()?;
+                CatalogOp::CreateTable(WalTableDefinition {
+                    database_id,
+                    database_name: def.database_name,
+                    table_name: Arc::clone(&def.table_name),
+                    table_id,
+                    field_definitions,
+                    key,
                 })
             }
             CatalogOp::AddFields(def) => {
@@ -802,27 +807,7 @@ mod tests {
 
     use crate::catalog::{Catalog, DatabaseSchema, Error, TableDefinition};
 
-    fn create_table<C, N>(name: &str, cols: C) -> TableDefinition
-    where
-        C: IntoIterator<Item = (ColumnId, N, InfluxColumnType)>,
-        N: Into<Arc<str>>,
-    {
-        TableDefinition::new(
-            TableId::new(),
-            name.into(),
-            cols.into_iter()
-                .map(|(id, name, ty)| (id, name.into(), ty))
-                .collect(),
-            None,
-        )
-        .expect("create a TableDefinition")
-    }
-
-    fn create_table_with_series_key<C, N, SK>(
-        name: &str,
-        cols: C,
-        series_key: SK,
-    ) -> TableDefinition
+    fn create_table<C, N, SK>(name: &str, cols: C, series_key: SK) -> TableDefinition
     where
         C: IntoIterator<Item = (ColumnId, N, InfluxColumnType)>,
         N: Into<Arc<str>>,
@@ -834,7 +819,7 @@ mod tests {
             cols.into_iter()
                 .map(|(id, name, ty)| (id, name.into(), ty))
                 .collect(),
-            Some(series_key.into_iter().collect()),
+            series_key.into_iter().collect(),
         )
         .expect("create a TableDefinition with a series key")
     }
@@ -843,17 +828,20 @@ mod tests {
         let host_name = format!("host-{name}").as_str().into();
         let instance_name = format!("instance-{name}").as_str().into();
         let cat = Catalog::new(host_name, instance_name);
+        let t1_col_id = ColumnId::new();
+        let t2_col_id = ColumnId::new();
         let tbl = create_table(
             "bar",
             [
-                (ColumnId::new(), "t1", InfluxColumnType::Tag),
-                (ColumnId::new(), "t2", InfluxColumnType::Tag),
+                (t1_col_id, "t1", InfluxColumnType::Tag),
+                (t2_col_id, "t2", InfluxColumnType::Tag),
                 (
                     ColumnId::new(),
                     "f1",
                     InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
                 ),
             ],
+            [t1_col_id, t2_col_id],
         );
         let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
         db.table_map
@@ -931,16 +919,18 @@ mod tests {
     fn merge_catalog_with_new_table() {
         let a = create_catalog("a");
         let b = create_catalog("b");
+        let t3_col_id = ColumnId::new();
         let new_tbl = create_table(
             "doh",
             [
-                (ColumnId::new(), "t3", InfluxColumnType::Tag),
+                (t3_col_id, "t3", InfluxColumnType::Tag),
                 (
                     ColumnId::new(),
                     "f2",
                     InfluxColumnType::Field(schema::InfluxFieldType::Integer),
                 ),
             ],
+            [t3_col_id],
         );
         let mut db = b.db_schema("foo").unwrap().deref().clone();
         db.insert_table(new_tbl.table_id, Arc::new(new_tbl));
@@ -976,13 +966,14 @@ mod tests {
             let new_tbl = create_table(
                 "doh",
                 [
-                    (ColumnId::new(), "t3", InfluxColumnType::Tag),
+                    (ColumnId::from(0), "t3", InfluxColumnType::Tag),
                     (
-                        ColumnId::new(),
+                        ColumnId::from(1),
                         "f2",
                         InfluxColumnType::Field(schema::InfluxFieldType::UInteger),
                     ),
                 ],
+                [ColumnId::from(0)],
             );
             let mut db = a.db_schema("foo").unwrap().deref().clone();
             db.table_map
@@ -995,13 +986,14 @@ mod tests {
             let new_tbl = create_table(
                 "doh",
                 [
-                    (ColumnId::new(), "t3", InfluxColumnType::Tag),
+                    (ColumnId::from(2), "t3", InfluxColumnType::Tag),
                     (
-                        ColumnId::new(),
+                        ColumnId::from(3),
                         "f2",
                         InfluxColumnType::Field(schema::InfluxFieldType::Integer),
                     ),
                 ],
+                [ColumnId::from(2)],
             );
             let mut db = b.db_schema("foo").unwrap().deref().clone();
             db.table_map
@@ -1021,7 +1013,7 @@ mod tests {
         let b = create_catalog("b");
         // Add a new table to a:
         {
-            let new_tbl = create_table_with_series_key(
+            let new_tbl = create_table(
                 "doh",
                 [
                     (ColumnId::from(10), "t1", InfluxColumnType::Tag),
@@ -1042,7 +1034,7 @@ mod tests {
         }
         // Add a similar table to b, but in this case, the f2 field is an Integer, not UInteger
         {
-            let new_tbl = create_table_with_series_key(
+            let new_tbl = create_table(
                 "doh",
                 [
                     (ColumnId::from(100), "t1", InfluxColumnType::Tag),
@@ -1094,6 +1086,7 @@ mod tests {
                         InfluxColumnType::Field(InfluxFieldType::Boolean),
                     ),
                 ],
+                [ColumnId::from(10), ColumnId::from(20)],
             );
             let mut db = a.db_schema("foo").unwrap().deref().clone();
             db.table_map
@@ -1120,6 +1113,7 @@ mod tests {
                         InfluxColumnType::Field(InfluxFieldType::String),
                     ),
                 ],
+                [ColumnId::from(100), ColumnId::from(200)],
             );
             let mut db = b.db_schema("foo").unwrap().deref().clone();
             db.table_map

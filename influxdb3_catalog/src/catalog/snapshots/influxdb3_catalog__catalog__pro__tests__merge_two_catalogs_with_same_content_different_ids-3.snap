@@ -10,6 +10,9 @@ databases:
         - - 1
           - table_id: 1
             table_name: bar
+            key:
+              - 3
+              - 4
             cols:
               - - 5
                 - name: f1
@@ -25,7 +28,7 @@ databases:
                       - i32
                       - str
                   influx_type: tag
-                  nullable: true
+                  nullable: false
               - - 4
                 - name: t2
                   id: 4
@@ -34,7 +37,7 @@ databases:
                       - i32
                       - str
                   influx_type: tag
-                  nullable: true
+                  nullable: false
             deleted: false
       deleted: false
 sequence: 1
