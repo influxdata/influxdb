@@ -974,7 +974,7 @@ mod tests {
         ];
         let actual = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_id, tbl_id, None, &[])
+            .get_cache_record_batches(db_id, tbl_id, None)
             .unwrap()
             .unwrap();
         assert_batches_eq!(&expected, &actual);

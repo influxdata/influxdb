@@ -9,7 +9,7 @@ use observability_deps::tracing::debug;
 use parking_lot::RwLock;
 
 use super::{
-    cache::{LastCache, LastCacheValueColumnsArg, Predicate},
+    cache::{LastCache, LastCacheValueColumnsArg},
     CreateLastCacheArgs, Error,
 };
 
@@ -341,7 +341,6 @@ impl LastCacheProvider {
         db_id: DbId,
         table_id: TableId,
         cache_name: Option<&str>,
-        predicates: &[Predicate],
     ) -> Option<Result<Vec<RecordBatch>, ArrowError>> {
         let table_def = self
             .catalog
@@ -362,7 +361,7 @@ impl LastCacheProvider {
                     None
                 }
             })
-            .map(|lc| lc.to_record_batches(table_def, predicates))
+            .map(|lc| lc.to_record_batches(table_def, &Default::default()))
     }
 
     /// Returns the total number of caches contained in the provider

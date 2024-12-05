@@ -8,7 +8,7 @@ mod provider;
 pub use provider::LastCacheProvider;
 mod table_function;
 use schema::InfluxColumnType;
-pub use table_function::LastCacheFunction;
+pub use table_function::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,8 +44,11 @@ impl Error {
 mod tests {
     use std::{cmp::Ordering, sync::Arc, thread, time::Duration};
 
+    use arrow::array::AsArray;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bimap::BiHashMap;
+    use datafusion::prelude::SessionContext;
+    use indexmap::IndexMap;
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{LastCacheDefinition, LastCacheSize};
@@ -56,12 +59,18 @@ mod tests {
                 KeyValue, LastCache, LastCacheKeyColumnsArg, LastCacheValueColumnsArg, Predicate,
                 DEFAULT_CACHE_TTL,
             },
-            CreateLastCacheArgs, LastCacheProvider,
+            CreateLastCacheArgs, LastCacheFunction, LastCacheProvider, LAST_CACHE_UDTF_NAME,
         },
         test_helpers::{column_ids_for_names, TestWriter},
     };
 
     use super::LastCacheTtl;
+
+    fn predicates(
+        preds: impl IntoIterator<Item = (ColumnId, Predicate)>,
+    ) -> IndexMap<ColumnId, Predicate> {
+        preds.into_iter().collect()
+    }
 
     #[test]
     fn pick_up_latest_write() {
@@ -88,11 +97,11 @@ mod tests {
             cache.push(row, Arc::clone(&table_def));
         }
 
-        let predicates = &[Predicate::new_eq(col_id, KeyValue::string("a"))];
+        let predicates = predicates([(col_id, Predicate::new_in([KeyValue::string("a")]))]);
 
         // Check what is in the last cache:
         let batch = cache
-            .to_record_batches(Arc::clone(&table_def), predicates)
+            .to_record_batches(Arc::clone(&table_def), &predicates)
             .unwrap();
 
         assert_batches_eq!(
@@ -112,7 +121,7 @@ mod tests {
             cache.push(row, Arc::clone(&table_def));
         }
 
-        let batch = cache.to_record_batches(table_def, predicates).unwrap();
+        let batch = cache.to_record_batches(table_def, &predicates).unwrap();
 
         assert_batches_eq!(
             [
@@ -177,17 +186,17 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             // Predicate including both key columns only produces value columns from the cache
             TestCase {
-                predicates: &[
-                    Predicate::new_eq(region_col_id, KeyValue::string("us")),
-                    Predicate::new_eq(host_col_id, KeyValue::string("c")),
-                ],
+                predicates: predicates([
+                    (region_col_id, Predicate::new_in([KeyValue::string("us")])),
+                    (host_col_id, Predicate::new_in([KeyValue::string("c")])),
+                ]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -199,7 +208,10 @@ mod tests {
             // Predicate on only region key column will have host column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("us"))],
+                predicates: predicates([(
+                    region_col_id,
+                    Predicate::new_in([KeyValue::string("us")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -212,7 +224,10 @@ mod tests {
             },
             // Similar to previous, with a different region predicate:
             TestCase {
-                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("ca"))],
+                predicates: predicates([(
+                    region_col_id,
+                    Predicate::new_in([KeyValue::string("ca")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -226,7 +241,7 @@ mod tests {
             // Predicate on only host key column will have region column outputted in addition to
             // the value columns:
             TestCase {
-                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("a"))],
+                predicates: predicates([(host_col_id, Predicate::new_in([KeyValue::string("a")]))]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -238,7 +253,7 @@ mod tests {
             // Omitting all key columns from the predicate will have all key columns included in
             // the query result:
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -255,10 +270,10 @@ mod tests {
             // Using a non-existent key column as a predicate has no effect:
             // TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new_eq(
+                predicates: predicates([(
                     ColumnId::new(),
-                    KeyValue::string("12345"),
-                )],
+                    Predicate::new_in([KeyValue::string("12345")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -274,31 +289,37 @@ mod tests {
             },
             // Using a non existent key column value yields empty result set:
             TestCase {
-                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("eu"))],
+                predicates: predicates([(
+                    region_col_id,
+                    Predicate::new_in([KeyValue::string("eu")]),
+                )]),
                 expected: &["++", "++"],
             },
             // Using an invalid combination of key column values yields an empty result set:
             TestCase {
-                predicates: &[
-                    Predicate::new_eq(region_col_id, KeyValue::string("ca")),
-                    Predicate::new_eq(host_col_id, KeyValue::string("a")),
-                ],
+                predicates: predicates([
+                    (region_col_id, Predicate::new_in([KeyValue::string("ca")])),
+                    (host_col_id, Predicate::new_in([KeyValue::string("a")])),
+                ]),
                 expected: &["++", "++"],
             },
             // Using a non-existent key column value (for host column) also yields empty result set:
             TestCase {
-                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("g"))],
+                predicates: predicates([(host_col_id, Predicate::new_in([KeyValue::string("g")]))]),
                 expected: &["++", "++"],
             },
             // Using an incorrect type for a key column value in predicate also yields empty result
             // set. TODO: should this be an error?
             TestCase {
-                predicates: &[Predicate::new_eq(host_col_id, KeyValue::Bool(true))],
+                predicates: predicates([(host_col_id, Predicate::new_in([KeyValue::Bool(true)]))]),
                 expected: &["++", "++"],
             },
-            // Using a != predicate
+            // Using a NOT IN predicate
             TestCase {
-                predicates: &[Predicate::new_not_eq(region_col_id, KeyValue::string("us"))],
+                predicates: predicates([(
+                    region_col_id,
+                    Predicate::new_not_in([KeyValue::string("us")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -311,10 +332,10 @@ mod tests {
             },
             // Using an IN predicate:
             TestCase {
-                predicates: &[Predicate::new_in(
+                predicates: predicates([(
                     host_col_id,
-                    vec![KeyValue::string("a"), KeyValue::string("b")],
-                )],
+                    Predicate::new_in([KeyValue::string("a"), KeyValue::string("b")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -326,10 +347,10 @@ mod tests {
             },
             // Using a NOT IN predicate:
             TestCase {
-                predicates: &[Predicate::new_not_in(
+                predicates: predicates([(
                     host_col_id,
-                    vec![KeyValue::string("a"), KeyValue::string("b")],
-                )],
+                    Predicate::new_not_in([KeyValue::string("a"), KeyValue::string("b")]),
+                )]),
                 expected: &[
                     "+--------+------+-----------------------------+-------+",
                     "| region | host | time                        | usage |",
@@ -345,7 +366,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
 
             assert_batches_sorted_eq!(t.expected, &batches);
@@ -408,16 +429,16 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             TestCase {
-                predicates: &[
-                    Predicate::new_eq(region_col_id, KeyValue::string("us")),
-                    Predicate::new_eq(host_col_id, KeyValue::string("a")),
-                ],
+                predicates: predicates([
+                    (region_col_id, Predicate::new_in([KeyValue::string("us")])),
+                    (host_col_id, Predicate::new_in([KeyValue::string("a")])),
+                ]),
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -430,7 +451,10 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq(region_col_id, KeyValue::string("us"))],
+                predicates: predicates([(
+                    region_col_id,
+                    Predicate::new_in([KeyValue::string("us")]),
+                )]),
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -447,7 +471,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("a"))],
+                predicates: predicates([(host_col_id, Predicate::new_in([KeyValue::string("a")]))]),
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -460,7 +484,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq(host_col_id, KeyValue::string("b"))],
+                predicates: predicates([(host_col_id, Predicate::new_in([KeyValue::string("b")]))]),
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -473,7 +497,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+--------+------+--------------------------------+-------+",
                     "| region | host | time                           | usage |",
@@ -493,7 +517,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
             assert_batches_sorted_eq!(t.expected, &batches);
         }
@@ -536,15 +560,13 @@ mod tests {
         }
 
         // Check the cache for values:
-        let predicates = &[
-            Predicate::new_eq(region_col_id, KeyValue::string("us")),
-            Predicate::new_eq(host_col_id, KeyValue::string("a")),
-        ];
+        let p = predicates([
+            (region_col_id, Predicate::new_in([KeyValue::string("us")])),
+            (host_col_id, Predicate::new_in([KeyValue::string("a")])),
+        ]);
 
         // Check what is in the last cache:
-        let batches = cache
-            .to_record_batches(Arc::clone(&table_def), predicates)
-            .unwrap();
+        let batches = cache.to_record_batches(Arc::clone(&table_def), &p).unwrap();
 
         assert_batches_sorted_eq!(
             [
@@ -561,9 +583,7 @@ mod tests {
         thread::sleep(Duration::from_millis(1000));
 
         // Check what is in the last cache:
-        let batches = cache
-            .to_record_batches(Arc::clone(&table_def), predicates)
-            .unwrap();
+        let batches = cache.to_record_batches(Arc::clone(&table_def), &p).unwrap();
 
         // The cache is completely empty after the TTL evicted data, so it will give back nothing:
         assert_batches_sorted_eq!(
@@ -583,12 +603,10 @@ mod tests {
         }
 
         // Check the cache for values:
-        let predicates = &[Predicate::new_eq(host_col_id, KeyValue::string("a"))];
+        let p = predicates([(host_col_id, Predicate::new_in([KeyValue::string("a")]))]);
 
         // Check what is in the last cache:
-        let batches = cache
-            .to_record_batches(Arc::clone(&table_def), predicates)
-            .unwrap();
+        let batches = cache.to_record_batches(Arc::clone(&table_def), &p).unwrap();
 
         assert_batches_sorted_eq!(
             [
@@ -645,14 +663,14 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             // No predicates gives everything:
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+--------------+--------+-------------+-----------+---------+-----------------------------+",
                     "| component_id | active | type        | loc       | reading | time                        |",
@@ -668,7 +686,9 @@ mod tests {
             },
             // Predicates on tag key column work as expected:
             TestCase {
-                predicates: &[Predicate::new_eq(component_id_col_id, KeyValue::string("333"))],
+                predicates: predicates([
+                    (component_id_col_id, Predicate::new_in([KeyValue::string("333")]))
+                ]),
                 expected: &[
                     "+--------------+--------+--------+------+---------+-----------------------------+",
                     "| component_id | active | type   | loc  | reading | time                        |",
@@ -679,7 +699,9 @@ mod tests {
             },
             // Predicate on a non-string field key:
             TestCase {
-                predicates: &[Predicate::new_eq(active_col_id, KeyValue::Bool(false))],
+                predicates: predicates([
+                    (active_col_id, Predicate::new_in([KeyValue::Bool(false)]))
+                ]),
                 expected: &[
                     "+--------------+--------+-------------+---------+---------+-----------------------------+",
                     "| component_id | active | type        | loc     | reading | time                        |",
@@ -691,7 +713,9 @@ mod tests {
             },
             // Predicate on a string field key:
             TestCase {
-                predicates: &[Predicate::new_eq(type_col_id, KeyValue::string("camera"))],
+                predicates: predicates([
+                    (type_col_id, Predicate::new_in([KeyValue::string("camera")]))
+                ]),
                 expected: &[
                     "+--------------+--------+--------+-----------+---------+-----------------------------+",
                     "| component_id | active | type   | loc       | reading | time                        |",
@@ -706,7 +730,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
             assert_batches_sorted_eq!(t.expected, &batches);
         }
@@ -748,14 +772,14 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             // No predicates yields everything in the cache
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -771,7 +795,10 @@ mod tests {
             },
             // Predicate on state column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq(state_col_id, KeyValue::string("ca"))],
+                predicates: predicates([(
+                    state_col_id,
+                    Predicate::new_in([KeyValue::string("ca")]),
+                )]),
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -787,7 +814,10 @@ mod tests {
             },
             // Predicate on county column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq(county_col_id, KeyValue::string("napa"))],
+                predicates: predicates([(
+                    county_col_id,
+                    Predicate::new_in([KeyValue::string("napa")]),
+                )]),
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -799,7 +829,10 @@ mod tests {
             },
             // Predicate on farm column, which is part of the series key:
             TestCase {
-                predicates: &[Predicate::new_eq(farm_col_id, KeyValue::string("30-01"))],
+                predicates: predicates([(
+                    farm_col_id,
+                    Predicate::new_in([KeyValue::string("30-01")]),
+                )]),
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -810,11 +843,14 @@ mod tests {
             },
             // Predicate on all series key columns:
             TestCase {
-                predicates: &[
-                    Predicate::new_eq(state_col_id, KeyValue::string("ca")),
-                    Predicate::new_eq(county_col_id, KeyValue::string("nevada")),
-                    Predicate::new_eq(farm_col_id, KeyValue::string("40-01")),
-                ],
+                predicates: predicates([
+                    (state_col_id, Predicate::new_in([KeyValue::string("ca")])),
+                    (
+                        county_col_id,
+                        Predicate::new_in([KeyValue::string("nevada")]),
+                    ),
+                    (farm_col_id, Predicate::new_in([KeyValue::string("40-01")])),
+                ]),
                 expected: &[
                     "+-------+--------+-------+-------+-----------------------------+",
                     "| state | county | farm  | speed | time                        |",
@@ -827,7 +863,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
 
             assert_batches_sorted_eq!(t.expected, &batches);
@@ -870,7 +906,7 @@ mod tests {
             cache.push(row, Arc::clone(&table_def));
         }
 
-        let batches = cache.to_record_batches(table_def, &[]).unwrap();
+        let batches = cache.to_record_batches(table_def, &predicates([])).unwrap();
 
         assert_batches_sorted_eq!(
             [
@@ -925,14 +961,17 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             // Cache that has values in the zone columns should produce them:
             TestCase {
-                predicates: &[Predicate::new_eq(game_id_col_id, KeyValue::string("4"))],
+                predicates: predicates([(
+                    game_id_col_id,
+                    Predicate::new_in([KeyValue::string("4")]),
+                )]),
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -943,7 +982,10 @@ mod tests {
             },
             // Cache that does not have a zone column will produce it with nulls:
             TestCase {
-                predicates: &[Predicate::new_eq(game_id_col_id, KeyValue::string("1"))],
+                predicates: predicates([(
+                    game_id_col_id,
+                    Predicate::new_in([KeyValue::string("1")]),
+                )]),
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -954,7 +996,7 @@ mod tests {
             },
             // Pulling from multiple caches will fill in with nulls:
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+---------+-----------+-----------------------------+------+------+",
                     "| game_id | player    | time                        | type | zone |",
@@ -970,7 +1012,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
 
             assert_batches_sorted_eq!(t.expected, &batches);
@@ -1028,14 +1070,14 @@ mod tests {
         }
 
         struct TestCase<'a> {
-            predicates: &'a [Predicate],
+            predicates: IndexMap<ColumnId, Predicate>,
             expected: &'a [&'a str],
         }
 
         let test_cases = [
             // Can query on specific key column values:
             TestCase {
-                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("a"))],
+                predicates: predicates([(t1_col_id, Predicate::new_in([KeyValue::string("a")]))]),
                 expected: &[
                     "+----+-----+-----+-----+-----+--------------------------------+",
                     "| t1 | f1  | f2  | f3  | f4  | time                           |",
@@ -1045,7 +1087,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("b"))],
+                predicates: predicates([(t1_col_id, Predicate::new_in([KeyValue::string("b")]))]),
                 expected: &[
                     "+----+------+----+------+------+--------------------------------+",
                     "| t1 | f1   | f2 | f3   | f4   | time                           |",
@@ -1055,7 +1097,7 @@ mod tests {
                 ],
             },
             TestCase {
-                predicates: &[Predicate::new_eq(t1_col_id, KeyValue::string("c"))],
+                predicates: predicates([(t1_col_id, Predicate::new_in([KeyValue::string("c")]))]),
                 expected: &[
                     "+----+-------+-------+-------+----+--------------------------------+",
                     "| t1 | f1    | f2    | f3    | f4 | time                           |",
@@ -1066,7 +1108,7 @@ mod tests {
             },
             // Can query accross key column values:
             TestCase {
-                predicates: &[],
+                predicates: predicates([]),
                 expected: &[
                     "+----+-------+-------+-------+------+--------------------------------+",
                     "| t1 | f1    | f2    | f3    | f4   | time                           |",
@@ -1081,7 +1123,7 @@ mod tests {
 
         for t in test_cases {
             let batches = cache
-                .to_record_batches(Arc::clone(&table_def), t.predicates)
+                .to_record_batches(Arc::clone(&table_def), &t.predicates)
                 .unwrap();
 
             assert_batches_sorted_eq!(t.expected, &batches);
@@ -1324,5 +1366,268 @@ mod tests {
             Ordering::Equal => a.name.partial_cmp(&b.name).unwrap(),
         });
         insta::assert_json_snapshot!(caches);
+    }
+
+    /// This test sets up a [`LastCacheProvider`], creates a [`LastCache`] using the `region` and
+    /// `host` columns as keys, and then writes row data containing several unique combinations of
+    /// the key columns to the cache. It then sets up a DataFusion [`SessionContext`], registers
+    /// the [`LastCacheFunction`] as a UDTF, and runs a series of test cases to verify queries made
+    /// using the function.
+    ///
+    /// The purpose of this is to verify that the predicate pushdown by the UDTF [`TableProvider`]
+    /// is working.
+    ///
+    /// Each test case verifies both the `RecordBatch` output, as well as the output of the `EXPLAIN`
+    /// for a given query. The `EXPLAIN` contains a line for the `LastCacheExec`, which will list
+    /// out any predicates that were pushed down from the provided SQL query to the cache.
+    #[tokio::test]
+    async fn datafusion_udtf_predicate_conversion() {
+        let writer = TestWriter::new();
+        let _ = writer.write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0);
+
+        // create a last cache provider so we can use it to create our UDTF provider:
+        let db_schema = writer.db_schema();
+        let table_def = db_schema.table_definition("cpu").unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        provider
+            .create_cache(
+                db_schema.id,
+                None,
+                CreateLastCacheArgs {
+                    table_def,
+                    count: LastCacheSize::default(),
+                    ttl: LastCacheTtl::default(),
+                    key_columns: LastCacheKeyColumnsArg::SeriesKey,
+                    value_columns: LastCacheValueColumnsArg::AcceptNew,
+                },
+            )
+            .unwrap();
+
+        // make some writes into the cache:
+        let write_batch = writer.write_lp_to_write_batch(
+            "\
+            cpu,region=us-east,host=a usage=77,temp=66\n\
+            cpu,region=us-east,host=b usage=77,temp=66\n\
+            cpu,region=us-west,host=c usage=77,temp=66\n\
+            cpu,region=us-west,host=d usage=77,temp=66\n\
+            cpu,region=ca-east,host=e usage=77,temp=66\n\
+            cpu,region=ca-cent,host=f usage=77,temp=66\n\
+            cpu,region=ca-west,host=g usage=77,temp=66\n\
+            cpu,region=ca-west,host=h usage=77,temp=66\n\
+            cpu,region=eu-cent,host=i usage=77,temp=66\n\
+            cpu,region=eu-cent,host=j usage=77,temp=66\n\
+            cpu,region=eu-west,host=k usage=77,temp=66\n\
+            cpu,region=eu-west,host=l usage=77,temp=66\n\
+            ",
+            1_000,
+        );
+        let wal_contents = influxdb3_wal::create::wal_contents(
+            (0, 1, 0),
+            [influxdb3_wal::create::write_batch_op(write_batch)],
+        );
+        provider.write_wal_contents_to_cache(&wal_contents);
+
+        let ctx = SessionContext::new();
+        let last_cache_fn = LastCacheFunction::new(db_schema.id, Arc::clone(&provider));
+        ctx.register_udtf(LAST_CACHE_UDTF_NAME, Arc::new(last_cache_fn));
+
+        struct TestCase<'a> {
+            /// A short description of the test
+            _desc: &'a str,
+            /// A SQL expression to evaluate using the datafusion session context, should be of
+            /// the form:
+            /// ```sql
+            /// SELECT * FROM last_cache('cpu') ...
+            /// ```
+            sql: &'a str,
+            /// Expected record batch output
+            expected: &'a [&'a str],
+            /// Expected EXPLAIN output contains this.
+            ///
+            /// For checking the `LastCacheExec` portion of the EXPLAIN output for the given `sql`
+            /// query. A "contains" is used instead of matching the whole EXPLAIN output to prevent
+            /// flakyness from upstream changes to other parts of the query plan.
+            explain_contains: &'a str,
+        }
+
+        let test_cases = [
+            TestCase {
+                _desc: "no predicates",
+                sql: "SELECT * FROM last_cache('cpu')",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| ca-cent | f    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-east | e    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | g    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | h    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | i    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | j    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | k    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | l    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains:
+                    "LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]",
+            },
+            TestCase {
+                _desc: "eq predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') WHERE region = 'us-east'",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east')]] inner=MemoryExec: partitions=1, partition_sizes=[2]",
+            },
+            TestCase {
+                _desc: "not eq predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') WHERE region != 'us-east'",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| ca-cent | f    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-east | e    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | g    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | h    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | i    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | j    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | k    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | l    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('us-east')]] inner=MemoryExec: partitions=1, partition_sizes=[10]",
+            },
+            TestCase {
+                _desc: "double eq predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') \
+                    WHERE region = 'us-east' \
+                    OR region = 'us-west'",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')]] inner=MemoryExec: partitions=1, partition_sizes=[4]",
+            },
+            TestCase {
+                _desc: "triple eq predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') \
+                    WHERE region = 'us-east' \
+                    OR region = 'us-west' \
+                    OR region = 'ca-west'",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| ca-west | g    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | h    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-west','us-east','us-west')]] inner=MemoryExec: partitions=1, partition_sizes=[6]",
+            },
+            TestCase {
+                _desc: "eq predicate on region AND eq predicate on host",
+                sql: "SELECT * FROM last_cache('cpu') \
+                    WHERE (region = 'us-east' OR region = 'us-west') \
+                    AND (host = 'a' OR host = 'c')",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('us-east','us-west')], [host@1 IN ('a','c')]] inner=MemoryExec: partitions=1, partition_sizes=[2]",
+            },
+            TestCase {
+                _desc: "in predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') \
+                    WHERE region IN ('ca-east', 'ca-west')",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| ca-east | e    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | g    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| ca-west | h    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 IN ('ca-east','ca-west')]] inner=MemoryExec: partitions=1, partition_sizes=[3]",
+            },
+            TestCase {
+                _desc: "not in predicate on region",
+                sql: "SELECT * FROM last_cache('cpu') \
+                    WHERE region NOT IN ('ca-east', 'ca-west')",
+                expected: &[
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| region  | host | temp | time                        | usage |",
+                    "+---------+------+------+-----------------------------+-------+",
+                    "| ca-cent | f    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | i    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-cent | j    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | k    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| eu-west | l    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | a    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-east | b    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | c    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
+                    "+---------+------+------+-----------------------------+-------+",
+                ],
+                explain_contains: "LastCacheExec: predicates=[[region@0 NOT IN ('ca-east','ca-west')]] inner=MemoryExec: partitions=1, partition_sizes=[9]",
+            },
+        ];
+
+        for tc in test_cases {
+            // do the query:
+            let results = ctx.sql(tc.sql).await.unwrap().collect().await.unwrap();
+            println!("test case: {}", tc._desc);
+            // check the result:
+            assert_batches_sorted_eq!(tc.expected, &results);
+            let explain = ctx
+                .sql(format!("EXPLAIN {sql}", sql = tc.sql).as_str())
+                .await
+                .unwrap()
+                .collect()
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+            assert!(
+                explain
+                    .column_by_name("plan")
+                    .unwrap()
+                    .as_string::<i32>()
+                    .iter()
+                    .any(|plan| plan.is_some_and(|plan| plan.contains(tc.explain_contains))),
+                "explain plan did not contain the expression:\n\n\
+                {expected}\n\n\
+                instead, the output was:\n\n\
+                {actual:#?}",
+                expected = tc.explain_contains,
+                actual = explain.column_by_name("plan").unwrap().as_string::<i32>(),
+            );
+        }
     }
 }
