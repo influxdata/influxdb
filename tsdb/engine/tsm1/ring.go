@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/influxdata/influxdb/v2/pkg/bytesutil"
 )
 
@@ -80,6 +80,12 @@ func (r *ring) getPartition(key []byte) *partition {
 	return r.partitions[int(xxhash.Sum64(key)%uint64(len(r.partitions)))]
 }
 
+// getPartition retrieves the hash ring partition associated with the provided
+// key, as a string, which can be faster if you already have a string as this is read only
+func (r *ring) getPartitionStringKey(key string) *partition {
+	return r.partitions[int(xxhash.Sum64String(key)%uint64(len(r.partitions)))]
+}
+
 // entry returns the entry for the given key.
 // entry is safe for use by multiple goroutines.
 func (r *ring) entry(key []byte) *entry {
@@ -89,8 +95,8 @@ func (r *ring) entry(key []byte) *entry {
 // write writes values to the entry in the ring's partition associated with key.
 // If no entry exists for the key then one will be created.
 // write is safe for use by multiple goroutines.
-func (r *ring) write(key []byte, values Values) (bool, error) {
-	return r.getPartition(key).write(key, values)
+func (r *ring) write(key string, values Values) (bool, error) {
+	return r.getPartitionStringKey(key).write(key, values)
 }
 
 // remove deletes the entry for the given key.
@@ -218,9 +224,9 @@ func (p *partition) entry(key []byte) *entry {
 // write writes the values to the entry in the partition, creating the entry
 // if it does not exist.
 // write is safe for use by multiple goroutines.
-func (p *partition) write(key []byte, values Values) (bool, error) {
+func (p *partition) write(key string, values Values) (bool, error) {
 	p.mu.RLock()
-	e := p.store[string(key)]
+	e := p.store[key]
 	p.mu.RUnlock()
 	if e != nil {
 		// Hot path.
@@ -231,7 +237,7 @@ func (p *partition) write(key []byte, values Values) (bool, error) {
 	defer p.mu.Unlock()
 
 	// Check again.
-	if e = p.store[string(key)]; e != nil {
+	if e = p.store[key]; e != nil {
 		return false, e.add(values)
 	}
 
@@ -241,7 +247,7 @@ func (p *partition) write(key []byte, values Values) (bool, error) {
 		return false, err
 	}
 
-	p.store[string(key)] = e
+	p.store[key] = e
 	return true, nil
 }
 
