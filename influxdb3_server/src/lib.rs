@@ -245,6 +245,7 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::{DbId, TableId};
@@ -253,10 +254,8 @@ mod tests {
     use influxdb3_wal::WalConfig;
     use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
+    use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::WriteBuffer;
-    use influxdb3_write::{
-        last_cache::LastCacheProvider, write_buffer::persisted_files::PersistedFiles,
-    };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;

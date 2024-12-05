@@ -1125,6 +1125,16 @@ impl TableDefinition {
         )
     }
 
+    pub fn column_definition(&self, name: impl Into<Arc<str>>) -> Option<&ColumnDefinition> {
+        self.column_map
+            .get_by_right(&name.into())
+            .and_then(|id| self.columns.get(id))
+    }
+
+    pub fn column_definition_by_id(&self, id: &ColumnId) -> Option<&ColumnDefinition> {
+        self.columns.get(id)
+    }
+
     pub fn column_id_and_definition(
         &self,
         name: impl Into<Arc<str>>,

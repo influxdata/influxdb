@@ -8,7 +8,10 @@ use clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
+use influxdb3_cache::{
+    last_cache::{self, LastCacheProvider},
+    meta_cache::MetaCacheProvider,
+};
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -22,7 +25,6 @@ use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    last_cache::LastCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
     persister::Persister,
     write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
@@ -80,7 +82,7 @@ pub enum Error {
     InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
 
     #[error("failed to initialize last cache: {0}")]
-    InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+    InitializeLastCache(#[source] last_cache::Error),
 
     #[error("failed to initialize meta cache: {0:#}")]
     InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),

@@ -3,11 +3,13 @@ use std::{any::Any, sync::Arc};
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use datafusion::{
-    catalog::Session,
-    common::{plan_err, Result},
-    datasource::{function::TableFunctionImpl, TableProvider, TableType},
-    logical_expr::{Expr, TableProviderFilterPushDown},
+    catalog::{Session, TableProvider},
+    common::plan_err,
+    datasource::{function::TableFunctionImpl, TableType},
+    error::DataFusionError,
+    logical_expr::TableProviderFilterPushDown,
     physical_plan::{memory::MemoryExec, ExecutionPlan},
+    prelude::Expr,
     scalar::ScalarValue,
 };
 use influxdb3_catalog::catalog::TableDefinition;
@@ -41,7 +43,7 @@ impl TableProvider for LastCacheFunctionProvider {
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],
-    ) -> Result<Vec<TableProviderFilterPushDown>> {
+    ) -> Result<Vec<TableProviderFilterPushDown>, DataFusionError> {
         Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 
@@ -51,7 +53,7 @@ impl TableProvider for LastCacheFunctionProvider {
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
         _limit: Option<usize>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         let read = self.provider.cache_map.read();
         let batches = if let Some(cache) = read
             .get(&self.db_id)
@@ -87,7 +89,7 @@ impl LastCacheFunction {
 }
 
 impl TableFunctionImpl for LastCacheFunction {
-    fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
+    fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>, DataFusionError> {
         let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
         };

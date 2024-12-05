@@ -1,5 +1,5 @@
 ---
-source: influxdb3_write/src/last_cache/mod.rs
+source: influxdb3_cache/src/last_cache/mod.rs
 expression: caches
 ---
 [

@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 # Core Crates
 iox_time.workspace = true
+observability_deps.workspace = true
 schema.workspace = true
 
 # Local deps
@@ -27,8 +28,18 @@ thiserror.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+# core deps
+arrow_util.workspace = true
+data_types.workspace = true
+
 # Local deps
 influxdb3_write = { path = "../influxdb3_write" }
+
+# crates.io deps
+bimap.workspace = true
+insta.workspace = true
+object_store.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true
