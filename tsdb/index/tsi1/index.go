@@ -13,7 +13,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
@@ -141,7 +141,7 @@ type Index struct {
 	path               string        // Root directory of the index partitions.
 	disableCompactions bool          // Initially disables compactions on the index.
 	maxLogFileSize     int64         // Maximum size of a LogFile before it's compacted.
-	maxLogFileAge      time.Duration // Maximum age of a LogFile before it's compacted
+	maxLogFileAge      time.Duration // Maximum age of a LogFile before it's compacted.
 	logfileBufferSize  int           // The size of the buffer used by the LogFile.
 	disableFsync       bool          // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger   // Index's logger.
@@ -398,9 +398,9 @@ func (i *Index) updateMeasurementSketches() error {
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
 			return err
-		} else if i.mSketch.Merge(s); err != nil {
+		} else if err := i.mSketch.Merge(s); err != nil {
 			return err
-		} else if i.mTSketch.Merge(t); err != nil {
+		} else if err := i.mTSketch.Merge(t); err != nil {
 			return err
 		}
 	}
@@ -412,9 +412,9 @@ func (i *Index) updateSeriesSketches() error {
 	for j := 0; j < int(i.PartitionN); j++ {
 		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
 			return err
-		} else if i.sSketch.Merge(s); err != nil {
+		} else if err := i.sSketch.Merge(s); err != nil {
 			return err
-		} else if i.sTSketch.Merge(t); err != nil {
+		} else if err := i.sTSketch.Merge(t); err != nil {
 			return err
 		}
 	}
@@ -898,7 +898,7 @@ func (i *Index) DropSeriesList(seriesIDs []uint64, keys [][]byte, _ bool) error 
 func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
 
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
-// series for the measurment.
+// series for the measurement.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {

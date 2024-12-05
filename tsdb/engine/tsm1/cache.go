@@ -165,7 +165,7 @@ const (
 // storer is the interface that descibes a cache's store.
 type storer interface {
 	entry(key []byte) *entry                        // Get an entry by its key.
-	write(key []byte, values Values) (bool, error)  // Write an entry to the store.
+	write(key string, values Values) (bool, error)  // Write an entry to the store.
 	remove(key []byte)                              // Remove an entry from the store.
 	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
 	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
@@ -294,7 +294,7 @@ func (c *Cache) Write(key []byte, values []Value) error {
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
-	newKey, err := c.store.write(key, values)
+	newKey, err := c.store.write(string(key), values)
 	if err != nil {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return err
@@ -339,7 +339,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// We'll optimistially set size here, and then decrement it for write errors.
 	c.increaseSize(addedSize)
 	for k, v := range values {
-		newKey, err := store.write([]byte(k), v)
+		newKey, err := store.write(k, v)
 		if err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
 			werr = err
@@ -820,7 +820,7 @@ func (c *Cache) updateSnapshots() {
 type emptyStore struct{}
 
 func (e emptyStore) entry(key []byte) *entry                        { return nil }
-func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
+func (e emptyStore) write(key string, values Values) (bool, error)  { return false, nil }
 func (e emptyStore) remove(key []byte)                              {}
 func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }
 func (e emptyStore) apply(f func([]byte, *entry) error) error       { return nil }
