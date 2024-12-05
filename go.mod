@@ -14,7 +14,7 @@ require (
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/buger/jsonparser v1.1.1
-	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/dustin/go-humanize v1.0.1
@@ -130,7 +130,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bonitoo-io/go-sql-bigquery v0.3.4-1.4.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/containerd v1.6.18 // indirect
 	github.com/danieljoos/wincred v1.2.1 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
