@@ -13,6 +13,7 @@ use influxdb3_config::ProConfig;
 use iox_system_tables::IoxSystemTable;
 use tokio::sync::RwLock;
 
+#[derive(Debug)]
 pub(super) struct FileIndexTable {
     catalog: Arc<Catalog>,
     config: Arc<RwLock<ProConfig>>,

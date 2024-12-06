@@ -4,11 +4,12 @@ use arrow::array::{GenericListBuilder, StringViewBuilder, UInt32Builder, UInt64B
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
+use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
-use influxdb3_write::last_cache::LastCacheProvider;
 use iox_system_tables::IoxSystemTable;
 
+#[derive(Debug)]
 pub(super) struct LastCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,

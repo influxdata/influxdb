@@ -11,7 +11,10 @@ use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
+use influxdb3_cache::{
+    last_cache::{self, LastCacheProvider},
+    meta_cache::MetaCacheProvider,
+};
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
@@ -40,8 +43,8 @@ use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    last_cache::LastCacheProvider, parquet_cache::create_cached_obj_store_and_oracle,
-    persister::Persister, write_buffer::persisted_files::PersistedFiles, WriteBuffer,
+    parquet_cache::create_cached_obj_store_and_oracle, persister::Persister,
+    write_buffer::persisted_files::PersistedFiles, WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -103,7 +106,7 @@ pub enum Error {
     Job(#[source] executor::JobError),
 
     #[error("failed to initialize last cache: {0}")]
-    InitializeLastCache(#[source] influxdb3_write::last_cache::Error),
+    InitializeLastCache(#[source] last_cache::Error),
 
     #[error("failed to initialize meta cache: {0:#}")]
     InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),

@@ -9,7 +9,7 @@ use data_types::{
 use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
 use futures::future::try_join_all;
 use futures_util::StreamExt;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
+use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
 use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_pro_data_layout::HostSnapshotMarker;
@@ -19,7 +19,6 @@ use influxdb3_wal::{
 };
 use influxdb3_write::{
     chunk::BufferChunk,
-    last_cache::LastCacheProvider,
     parquet_cache::{CacheRequest, ParquetCacheOracle},
     paths::SnapshotInfoFilePath,
     persister::{Persister, DEFAULT_OBJECT_STORE_URL},
@@ -769,7 +768,7 @@ mod tests {
 
     use datafusion::{assert_batches_sorted_eq, common::assert_contains};
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
+    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -778,7 +777,6 @@ mod tests {
         WalOp,
     };
     use influxdb3_write::{
-        last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs},

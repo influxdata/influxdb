@@ -20,11 +20,11 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_cache::last_cache;
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_config::{Config, Index};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_write::last_cache;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -305,7 +305,7 @@ impl Error {
                 | last_cache::Error::ColumnDoesNotExistById { .. }
                 | last_cache::Error::KeyColumnDoesNotExist { .. }
                 | last_cache::Error::KeyColumnDoesNotExistByName { .. }
-                | last_cache::Error::InvalidKeyColumn
+                | last_cache::Error::InvalidKeyColumn { .. }
                 | last_cache::Error::ValueColumnDoesNotExist { .. } => Response::builder()
                     .status(StatusCode::BAD_REQUEST)
                     .body(Body::from(lc_err.to_string()))
@@ -887,8 +887,7 @@ where
                     .into_iter()
                     .map(|name| {
                         table_def
-                            .column_id_and_definition(name.as_str())
-                            .map(|(id, def)| (id, Arc::clone(&def.name)))
+                            .column_name_to_id(name.as_str())
                             .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
                     })
                     .collect::<Result<Vec<_>, WriteBufferError>>()
@@ -900,8 +899,7 @@ where
                     .into_iter()
                     .map(|name| {
                         table_def
-                            .column_id_and_definition(name.as_str())
-                            .map(|(id, def)| (id, Arc::clone(&def.name)))
+                            .column_name_to_id(name.as_str())
                             .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
                     })
                     .collect::<Result<Vec<_>, WriteBufferError>>()

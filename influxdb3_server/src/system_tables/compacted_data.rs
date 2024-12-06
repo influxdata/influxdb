@@ -16,6 +16,7 @@ use crate::system_tables::{
     find_table_name_in_filter, table_name_predicate_error, COMPACTED_DATA_TABLE_NAME,
 };
 
+#[derive(Debug)]
 pub(crate) struct CompactedDataTable {
     db_schema: Arc<DatabaseSchema>,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,

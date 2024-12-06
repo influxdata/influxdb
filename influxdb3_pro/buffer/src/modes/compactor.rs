@@ -6,11 +6,13 @@ use data_types::NamespaceName;
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
-use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_cache::{
+    last_cache::LastCacheProvider,
+    meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
+};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
-use influxdb3_write::last_cache::LastCacheProvider;
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -91,8 +93,8 @@ impl LastCacheManager for CompactorMode {
         _cache_name: Option<&str>,
         _count: Option<usize>,
         _ttl: Option<Duration>,
-        _key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
-        _value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        _key_columns: Option<Vec<ColumnId>>,
+        _value_columns: Option<Vec<ColumnId>>,
     ) -> influxdb3_write::Result<Option<LastCacheDefinition>, WriteBufferError> {
         unimplemented!("create_last_cache not implemented for CompactorMode")
     }

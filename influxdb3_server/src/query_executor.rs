@@ -19,13 +19,13 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_config::ProConfig;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb3_write::last_cache::LastCacheFunction;
 use influxdb3_write::WriteBuffer;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::provider::ProviderBuilder;
@@ -526,8 +526,6 @@ impl QueryNamespace for Database {
     }
 }
 
-const LAST_CACHE_UDTF_NAME: &str = "last_cache";
-
 impl CatalogProvider for Database {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
@@ -726,7 +724,7 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
+    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::ParquetFileId;
     use influxdb3_pro_data_layout::{
@@ -736,7 +734,6 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
@@ -926,10 +923,10 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 1940       | 2         | 0        | 10       |",
-                    "| cpu        | 1940       | 2         | 20       | 30       |",
-                    "| cpu        | 1940       | 2         | 40       | 50       |",
-                    "| cpu        | 1940       | 2         | 60       | 70       |",
+                    "| cpu        | 1956       | 2         | 0        | 10       |",
+                    "| cpu        | 1956       | 2         | 20       | 30       |",
+                    "| cpu        | 1956       | 2         | 40       | 50       |",
+                    "| cpu        | 1956       | 2         | 60       | 70       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -939,10 +936,10 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| mem        | 1940       | 2         | 0        | 10       |",
-                    "| mem        | 1940       | 2         | 20       | 30       |",
-                    "| mem        | 1940       | 2         | 40       | 50       |",
-                    "| mem        | 1940       | 2         | 60       | 70       |",
+                    "| mem        | 1956       | 2         | 0        | 10       |",
+                    "| mem        | 1956       | 2         | 20       | 30       |",
+                    "| mem        | 1956       | 2         | 40       | 50       |",
+                    "| mem        | 1956       | 2         | 60       | 70       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
