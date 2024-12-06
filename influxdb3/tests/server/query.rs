@@ -1308,4 +1308,18 @@ async fn api_v3_query_sql_meta_cache() {
         ",
         resp
     );
+
+    // do the query using JSON format:
+    let resp = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("format", "json"),
+            ("q", "SELECT * FROM meta_cache('cpu')"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+
+    insta::assert_json_snapshot!(resp);
 }

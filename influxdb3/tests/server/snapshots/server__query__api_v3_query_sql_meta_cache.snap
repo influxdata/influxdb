@@ -1,0 +1,18 @@
+---
+source: influxdb3/tests/server/query.rs
+expression: resp
+---
+[
+  {
+    "host": "c",
+    "region": "ca"
+  },
+  {
+    "host": "b",
+    "region": "eu"
+  },
+  {
+    "host": "a",
+    "region": "us"
+  }
+]
