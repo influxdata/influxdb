@@ -19,7 +19,7 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
-use influxdb3_cache::last_cache::LastCacheFunction;
+use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_sys_events::SysEventStore;
@@ -490,8 +490,6 @@ impl QueryNamespace for Database {
         unimplemented!();
     }
 }
-
-const LAST_CACHE_UDTF_NAME: &str = "last_cache";
 
 impl CatalogProvider for Database {
     fn as_any(&self) -> &dyn Any {
