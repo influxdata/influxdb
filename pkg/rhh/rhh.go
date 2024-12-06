@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"sort"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 // HashMap represents a hash map that implements Robin Hood Hashing.

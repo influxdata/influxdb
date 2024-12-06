@@ -11,7 +11,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
 	"github.com/influxdata/influxdb/pkg/limiter"
@@ -401,7 +401,7 @@ func ParseSeriesKey(data []byte) (name []byte, tags models.Tags) {
 }
 
 // ParseSeriesKeyInto extracts the name and tags for data, parsing the tags into
-// dstTags, which is then returened.
+// dstTags, which is then returned.
 //
 // The returned dstTags may have a different length and capacity.
 func ParseSeriesKeyInto(data []byte, dstTags models.Tags) ([]byte, models.Tags) {

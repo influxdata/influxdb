@@ -8,7 +8,7 @@ require (
 	github.com/apache/arrow/go/arrow v0.0.0-20211112161151-bc219186db40
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
-	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/go-chi/chi v4.1.0+incompatible
@@ -98,7 +98,6 @@ require (
 	github.com/benbjohnson/immutable v0.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bonitoo-io/go-sql-bigquery v0.3.4-1.4.0 // indirect
-	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/deepmap/oapi-codegen v1.6.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
 	github.com/dimchansky/utfbom v1.1.0 // indirect
