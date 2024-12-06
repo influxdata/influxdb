@@ -153,15 +153,6 @@ trace_http = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eef
 tracker = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 trogging = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 
-# Core_internal.git crates we depend on
-# Internally core_internal depends on core and the revision (`rev`) for core crate here should
-# match core_internal deps, https://github.com/influxdata/influxdb3_core_internal/blob/main/Cargo.toml
-# NB: Because optional is not allowed here, this is always included in the build even though it
-#     can be feature gated
-licensing = { git = "ssh://git@github.com/influxdata/influxdb3_core_internal.git", rev = "6619a067eb15df3ea34498a31aa808236bb66ab3", default-features = false }
-# If git fails for you, you can checkout the relevant code and use the local path
-#licensing = { path = "/Users/andrewlamb/Software/influxdb3_core_internal/licensing",  default-features = false }
-
 [workspace.lints.rust]
 missing_copy_implementations = "deny"
 missing_debug_implementations = "deny"
