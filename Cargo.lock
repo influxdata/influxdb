@@ -151,26 +151,6 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "arrow"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-arith 53.0.0",
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-cast 53.0.0",
- "arrow-csv 53.0.0",
- "arrow-data 53.0.0",
- "arrow-ipc 53.0.0",
- "arrow-json 53.0.0",
- "arrow-ord 53.0.0",
- "arrow-row 53.0.0",
- "arrow-schema 53.0.0",
- "arrow-select 53.0.0",
- "arrow-string 53.0.0",
-]
-
-[[package]]
-name = "arrow"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -211,20 +191,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-arith"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "chrono",
- "half",
- "num",
-]
-
-[[package]]
-name = "arrow-arith"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -253,22 +219,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-array"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "ahash",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "chrono",
- "chrono-tz 0.9.0",
- "half",
- "hashbrown 0.14.5",
- "num",
-]
-
-[[package]]
-name = "arrow-array"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -277,7 +227,7 @@ dependencies = [
  "arrow-data 53.2.0",
  "arrow-schema 53.2.0",
  "chrono",
- "chrono-tz 0.10.0",
+ "chrono-tz",
  "half",
  "hashbrown 0.14.5",
  "num",
@@ -293,19 +243,9 @@ dependencies = [
  "arrow-data 53.3.0",
  "arrow-schema 53.3.0",
  "chrono",
- "chrono-tz 0.10.0",
+ "chrono-tz",
  "half",
  "hashbrown 0.15.2",
- "num",
-]
-
-[[package]]
-name = "arrow-buffer"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "bytes",
- "half",
  "num",
 ]
 
@@ -327,26 +267,6 @@ dependencies = [
  "bytes",
  "half",
  "num",
-]
-
-[[package]]
-name = "arrow-cast"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "arrow-select 53.0.0",
- "atoi",
- "base64 0.22.1",
- "chrono",
- "comfy-table",
- "half",
- "lexical-core 0.8.5",
- "num",
- "ryu",
 ]
 
 [[package]]
@@ -364,7 +284,7 @@ dependencies = [
  "chrono",
  "comfy-table",
  "half",
- "lexical-core 1.0.3",
+ "lexical-core",
  "num",
  "ryu",
 ]
@@ -384,27 +304,9 @@ dependencies = [
  "chrono",
  "comfy-table",
  "half",
- "lexical-core 1.0.3",
+ "lexical-core",
  "num",
  "ryu",
-]
-
-[[package]]
-name = "arrow-csv"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-cast 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "chrono",
- "csv",
- "csv-core",
- "lazy_static",
- "lexical-core 0.8.5",
- "regex",
 ]
 
 [[package]]
@@ -421,7 +323,7 @@ dependencies = [
  "csv",
  "csv-core",
  "lazy_static",
- "lexical-core 1.0.3",
+ "lexical-core",
  "regex",
 ]
 
@@ -439,19 +341,8 @@ dependencies = [
  "csv",
  "csv-core",
  "lazy_static",
- "lexical-core 1.0.3",
+ "lexical-core",
  "regex",
-]
-
-[[package]]
-name = "arrow-data"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-buffer 53.0.0",
- "arrow-schema 53.0.0",
- "half",
- "num",
 ]
 
 [[package]]
@@ -505,20 +396,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-ipc"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-cast 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "flatbuffers",
- "lz4_flex",
-]
-
-[[package]]
-name = "arrow-ipc"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -547,25 +424,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-json"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-cast 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "chrono",
- "half",
- "indexmap 2.7.0",
- "lexical-core 0.8.5",
- "num",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "arrow-json"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -577,7 +435,7 @@ dependencies = [
  "chrono",
  "half",
  "indexmap 2.7.0",
- "lexical-core 1.0.3",
+ "lexical-core",
  "num",
  "serde",
  "serde_json",
@@ -596,24 +454,10 @@ dependencies = [
  "chrono",
  "half",
  "indexmap 2.7.0",
- "lexical-core 1.0.3",
+ "lexical-core",
  "num",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "arrow-ord"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "arrow-select 53.0.0",
- "half",
- "num",
 ]
 
 [[package]]
@@ -646,19 +490,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-row"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "ahash",
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "half",
-]
-
-[[package]]
-name = "arrow-row"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 dependencies = [
@@ -685,11 +516,6 @@ dependencies = [
 
 [[package]]
 name = "arrow-schema"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-
-[[package]]
-name = "arrow-schema"
 version = "53.2.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2099dd4e5095e967f0ca03#aa8c04807d85be763c2099dd4e5095e967f0ca03"
 
@@ -697,19 +523,6 @@ source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2
 name = "arrow-schema"
 version = "53.3.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=eae176c21b1ef915227294e8a8a201b6f266031a#eae176c21b1ef915227294e8a8a201b6f266031a"
-
-[[package]]
-name = "arrow-select"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "ahash",
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "num",
-]
 
 [[package]]
 name = "arrow-select"
@@ -735,22 +548,6 @@ dependencies = [
  "arrow-data 53.3.0",
  "arrow-schema 53.3.0",
  "num",
-]
-
-[[package]]
-name = "arrow-string"
-version = "53.0.0"
-source = "git+https://github.com/influxdata/arrow-rs.git?rev=e38787d2177f2ebfa481bfac62d208eef8ea82fb#e38787d2177f2ebfa481bfac62d208eef8ea82fb"
-dependencies = [
- "arrow-array 53.0.0",
- "arrow-buffer 53.0.0",
- "arrow-data 53.0.0",
- "arrow-schema 53.0.0",
- "arrow-select 53.0.0",
- "memchr",
- "num",
- "regex",
- "regex-syntax 0.8.5",
 ]
 
 [[package]]
@@ -802,7 +599,7 @@ dependencies = [
  "regex",
  "snafu",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -913,12 +710,12 @@ dependencies = [
  "base64 0.22.1",
  "generated_types",
  "http 0.2.12",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "observability_deps",
  "snafu",
  "tonic 0.11.0",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1028,7 +825,7 @@ dependencies = [
  "rand",
  "snafu",
  "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1234,7 +1031,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1277,35 +1074,13 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93698b29de5e97ad0ae26447b344c482a7284c737d9ddc5f9e52b74a336671bb"
-dependencies = [
- "chrono",
- "chrono-tz-build 0.3.0",
- "phf",
-]
-
-[[package]]
-name = "chrono-tz"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd6dd8046d00723a59a2f8c5f295c515b9bb9a331ee4f8f3d4dd49e428acd3b6"
 dependencies = [
  "chrono",
- "chrono-tz-build 0.4.0",
+ "chrono-tz-build",
  "phf",
-]
-
-[[package]]
-name = "chrono-tz-build"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c088aee841df9c3041febbb73934cfc39708749bf96dc827e3359cd39ef11b1"
-dependencies = [
- "parse-zoneinfo",
- "phf",
- "phf_codegen",
 ]
 
 [[package]]
@@ -1367,7 +1142,7 @@ dependencies = [
  "http 1.2.0",
  "humantime",
  "iox_catalog",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "itertools 0.13.0",
  "libc",
  "metric",
@@ -1381,7 +1156,7 @@ dependencies = [
  "trace_exporters",
  "trogging",
  "url",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1424,7 +1199,7 @@ dependencies = [
  "thiserror 2.0.4",
  "tonic 0.11.0",
  "tower 0.4.13",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -1815,7 +1590,7 @@ dependencies = [
  "croaring",
  "generated_types",
  "influxdb-line-protocol",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "murmur3",
  "observability_deps",
  "ordered-float 4.5.0",
@@ -1829,7 +1604,7 @@ dependencies = [
  "sqlx",
  "thiserror 2.0.4",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2229,7 +2004,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "url",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2407,7 +2182,7 @@ name = "error_reporting"
 version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160#7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160"
 dependencies = [
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2445,7 +2220,7 @@ dependencies = [
  "tokio",
  "tokio_metrics_bridge",
  "tokio_watchdog",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2504,7 +2279,7 @@ dependencies = [
  "prost 0.12.6",
  "snafu",
  "tonic 0.11.0",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -2661,7 +2436,7 @@ dependencies = [
  "tonic 0.11.0",
  "tonic-build",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3294,9 +3069,8 @@ dependencies = [
  "influxdb3_write",
  "influxdb_iox_client",
  "iox_query",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "libc",
- "licensing",
  "metric",
  "num_cpus",
  "object_store",
@@ -3343,7 +3117,7 @@ dependencies = [
  "influxdb3_wal",
  "influxdb3_write",
  "insta",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "object_store",
  "observability_deps",
  "parking_lot",
@@ -3368,7 +3142,7 @@ dependencies = [
  "influxdb3_id",
  "influxdb3_wal",
  "insta",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "observability_deps",
  "parking_lot",
  "pretty_assertions",
@@ -3466,7 +3240,7 @@ dependencies = [
  "influxdb3_write",
  "insta",
  "iox_query",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "object_store",
  "observability_deps",
@@ -3520,7 +3294,7 @@ dependencies = [
  "influxdb3_write",
  "insta",
  "iox_query",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "object_store",
  "observability_deps",
@@ -3587,7 +3361,7 @@ dependencies = [
 name = "influxdb3_process"
 version = "0.1.0"
 dependencies = [
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
@@ -3640,8 +3414,7 @@ dependencies = [
  "iox_query_influxql_rewrite",
  "iox_query_params",
  "iox_system_tables",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
- "licensing",
+ "iox_time",
  "metric",
  "metric_exporters",
  "mime",
@@ -3687,7 +3460,7 @@ dependencies = [
  "dashmap",
  "datafusion",
  "iox_system_tables",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "observability_deps",
  "proptest",
  "rand",
@@ -3742,7 +3515,7 @@ dependencies = [
  "indexmap 2.7.0",
  "influxdb-line-protocol",
  "influxdb3_id",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "object_store",
  "observability_deps",
  "parking_lot",
@@ -3788,7 +3561,7 @@ dependencies = [
  "iox_catalog",
  "iox_http",
  "iox_query",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "object_store",
  "observability_deps",
@@ -3816,13 +3589,13 @@ version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160#7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160"
 dependencies = [
  "chrono",
- "chrono-tz 0.10.0",
+ "chrono-tz",
  "iox_query_params",
  "nom",
  "num-integer",
  "num-traits",
  "thiserror 2.0.4",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3903,7 +3676,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.14.5",
  "http 0.2.12",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "log",
  "metric",
  "observability_deps",
@@ -3920,7 +3693,7 @@ dependencies = [
  "trace",
  "trace_http",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3936,7 +3709,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "thiserror 2.0.4",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3957,7 +3730,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "indexmap 2.7.0",
  "iox_query_params",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "itertools 0.13.0",
  "meta_data_cache",
  "metric",
@@ -3973,7 +3746,7 @@ dependencies = [
  "trace",
  "tracker",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -3983,7 +3756,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6f
 dependencies = [
  "arrow 53.3.0",
  "assert_matches",
- "chrono-tz 0.10.0",
+ "chrono-tz",
  "datafusion",
  "datafusion_util",
  "generated_types",
@@ -3998,7 +3771,7 @@ dependencies = [
  "schema",
  "serde_json",
  "thiserror 2.0.4",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4021,7 +3794,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.4",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4033,7 +3806,7 @@ dependencies = [
  "async-trait",
  "datafusion",
  "futures",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4044,18 +3817,7 @@ dependencies = [
  "chrono",
  "parking_lot",
  "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
-]
-
-[[package]]
-name = "iox_time"
-version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=c3da9bf8b522d74e213310e18e2a935fd0327894#c3da9bf8b522d74e213310e18e2a935fd0327894"
-dependencies = [
- "chrono",
- "parking_lot",
- "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=c3da9bf8b522d74e213310e18e2a935fd0327894)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4143,21 +3905,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonwebtoken"
-version = "9.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9ae10193d25051e74945f1ea2d0b42e03cc3b890f7e4cc5faa44997d808193f"
-dependencies = [
- "base64 0.21.7",
- "js-sys",
- "pem",
- "ring",
- "serde",
- "serde_json",
- "simple_asn1",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4168,39 +3915,15 @@ dependencies = [
 
 [[package]]
 name = "lexical-core"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cde5de06e8d4c2faabc400238f9ae1c74d5412d03a7bd067645ccbc47070e46"
-dependencies = [
- "lexical-parse-float 0.8.5",
- "lexical-parse-integer 0.8.6",
- "lexical-util 0.8.5",
- "lexical-write-float 0.8.5",
- "lexical-write-integer 0.8.5",
-]
-
-[[package]]
-name = "lexical-core"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06d7a061b7feb8a4b233a4d90280d13e0965c4e0181566e9ad61af98e210ca9d"
 dependencies = [
- "lexical-parse-float 1.0.3",
- "lexical-parse-integer 1.0.3",
- "lexical-util 1.0.4",
- "lexical-write-float 1.0.3",
- "lexical-write-integer 1.0.3",
-]
-
-[[package]]
-name = "lexical-parse-float"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "683b3a5ebd0130b8fb52ba0bdc718cc56815b6a097e28ae5a6997d0ad17dc05f"
-dependencies = [
- "lexical-parse-integer 0.8.6",
- "lexical-util 0.8.5",
- "static_assertions",
+ "lexical-parse-float",
+ "lexical-parse-integer",
+ "lexical-util",
+ "lexical-write-float",
+ "lexical-write-integer",
 ]
 
 [[package]]
@@ -4209,18 +3932,8 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0029bdee2a94a6c4393a86f7e6921c90f234218fa4f2154bc001c92bc51e8bf5"
 dependencies = [
- "lexical-parse-integer 1.0.3",
- "lexical-util 1.0.4",
- "static_assertions",
-]
-
-[[package]]
-name = "lexical-parse-integer"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d0994485ed0c312f6d965766754ea177d07f9c00c9b82a5ee62ed5b47945ee9"
-dependencies = [
- "lexical-util 0.8.5",
+ "lexical-parse-integer",
+ "lexical-util",
  "static_assertions",
 ]
 
@@ -4230,16 +3943,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "440a2398a08def518ff962b69e7146246c53bad8090e2b75d95fd5a469338958"
 dependencies = [
- "lexical-util 1.0.4",
- "static_assertions",
-]
-
-[[package]]
-name = "lexical-util"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5255b9ff16ff898710eb9eb63cb39248ea8a5bb036bea8085b1a767ff6c4e3fc"
-dependencies = [
+ "lexical-util",
  "static_assertions",
 ]
 
@@ -4254,33 +3958,12 @@ dependencies = [
 
 [[package]]
 name = "lexical-write-float"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accabaa1c4581f05a3923d1b4cfd124c329352288b7b9da09e766b0668116862"
-dependencies = [
- "lexical-util 0.8.5",
- "lexical-write-integer 0.8.5",
- "static_assertions",
-]
-
-[[package]]
-name = "lexical-write-float"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27adf08e2f91ff44ab54bbac0c4579303f0865730870f91b58c044df821f114c"
 dependencies = [
- "lexical-util 1.0.4",
- "lexical-write-integer 1.0.3",
- "static_assertions",
-]
-
-[[package]]
-name = "lexical-write-integer"
-version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1b6f3d1f4422866b68192d62f77bc5c700bee84f3069f2469d7bc8c77852446"
-dependencies = [
- "lexical-util 0.8.5",
+ "lexical-util",
+ "lexical-write-integer",
  "static_assertions",
 ]
 
@@ -4290,7 +3973,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b4e5d27d742da13f013765f849efc0c4b6173e0e64404546475eb5ee0931e2c"
 dependencies = [
- "lexical-util 1.0.4",
+ "lexical-util",
  "static_assertions",
 ]
 
@@ -4315,20 +3998,6 @@ dependencies = [
  "cc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "licensing"
-version = "0.1.0"
-source = "git+ssh://git@github.com/influxdata/influxdb3_core_internal.git?rev=6619a067eb15df3ea34498a31aa808236bb66ab3#6619a067eb15df3ea34498a31aa808236bb66ab3"
-dependencies = [
- "chrono",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=c3da9bf8b522d74e213310e18e2a935fd0327894)",
- "jsonwebtoken",
- "serde",
- "serde_json",
- "thiserror 2.0.4",
- "uuid",
 ]
 
 [[package]]
@@ -4373,7 +4042,7 @@ dependencies = [
  "humantime",
  "observability_deps",
  "tracing-subscriber",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4446,12 +4115,12 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "object_store_mem_cache",
  "observability_deps",
  "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4460,7 +4129,7 @@ version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160#7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160"
 dependencies = [
  "parking_lot",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4471,7 +4140,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "prometheus",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4786,14 +4455,14 @@ dependencies = [
  "dashmap",
  "futures",
  "indexmap 2.7.0",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "metric",
  "object_store",
  "observability_deps",
  "paste",
  "tokio",
  "tracker",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4802,7 +4471,7 @@ version = "0.1.0"
 source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160#7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160"
 dependencies = [
  "tracing",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4854,7 +4523,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6f
 dependencies = [
  "metric",
  "observability_deps",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -4936,7 +4605,7 @@ dependencies = [
  "futures",
  "generated_types",
  "hex",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "object_store",
  "observability_deps",
  "parquet",
@@ -4948,7 +4617,7 @@ dependencies = [
  "thrift",
  "tokio",
  "uuid",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
  "zstd",
 ]
 
@@ -5001,16 +4670,6 @@ dependencies = [
  "pbjson-build",
  "prost 0.12.6",
  "prost-build",
- "serde",
-]
-
-[[package]]
-name = "pem"
-version = "3.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e459365e590736a54c3fa561947c84837534b8e9af6fc5bf781307e82658fae"
-dependencies = [
- "base64 0.22.1",
  "serde",
 ]
 
@@ -5239,7 +4898,7 @@ dependencies = [
  "observability_deps",
  "query_functions",
  "schema",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -5464,7 +5123,7 @@ dependencies = [
  "regex-syntax 0.8.5",
  "schema",
  "snafu",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -5995,7 +5654,7 @@ dependencies = [
  "indexmap 2.7.0",
  "observability_deps",
  "snafu",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -6156,7 +5815,7 @@ dependencies = [
  "executor",
  "object_store",
  "tonic 0.11.0",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -6189,7 +5848,7 @@ dependencies = [
  "trace",
  "trace_http",
  "tracker",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -6253,18 +5912,6 @@ name = "similar"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1de1d4f81173b03af4c0cbed3c898f6bff5b870e4a7f5d6f4057d62a7a4b686e"
-
-[[package]]
-name = "simple_asn1"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc4e5204eb1910f40f9cfa375f6f05b68c3abac4b6fd879c8ff5e7ae8a0a085"
-dependencies = [
- "num-bigint",
- "num-traits",
- "thiserror 1.0.69",
- "time",
-]
 
 [[package]]
 name = "siphasher"
@@ -6449,7 +6096,7 @@ dependencies = [
  "either",
  "futures",
  "sqlx",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -6810,7 +6457,7 @@ dependencies = [
  "tokio",
  "tracing-log",
  "tracing-subscriber",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7033,18 +6680,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-metrics"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eace09241d62c98b7eeb1107d4c5c64ca3bd7da92e8c218c153ab3a78f9be112"
-dependencies = [
- "futures-util",
- "pin-project-lite",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
-name = "tokio-metrics"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb2bb07a8451c4c6fa8b3497ad198510d8b8dffa5df5cfb97a64102a58b113c8"
@@ -7119,7 +6754,7 @@ dependencies = [
  "metric",
  "parking_lot",
  "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7130,7 +6765,7 @@ dependencies = [
  "metric",
  "observability_deps",
  "tokio",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7308,7 +6943,7 @@ dependencies = [
  "parking_lot",
  "pin-project",
  "tower 0.4.13",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7320,7 +6955,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "rand",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7331,14 +6966,14 @@ dependencies = [
  "async-trait",
  "clap",
  "futures",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "observability_deps",
  "snafu",
  "socket2",
  "thrift",
  "tokio",
  "trace",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7359,7 +6994,7 @@ dependencies = [
  "snafu",
  "tower 0.4.13",
  "trace",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -7445,7 +7080,7 @@ source = "git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6f
 dependencies = [
  "futures",
  "hashbrown 0.14.5",
- "iox_time 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "iox_time",
  "lock_api",
  "metric",
  "observability_deps",
@@ -7455,7 +7090,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "trace",
- "workspace-hack 0.1.0 (git+https://github.com/influxdata/influxdb3_core?rev=7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160)",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -8176,124 +7811,11 @@ dependencies = [
  "syn 2.0.90",
  "thrift",
  "tokio",
- "tokio-metrics 0.4.0",
+ "tokio-metrics",
  "tokio-rustls 0.26.1",
  "tokio-stream",
  "tokio-util",
  "tonic 0.12.3",
- "tower 0.4.13",
- "tracing",
- "tracing-core",
- "tracing-log",
- "tracing-subscriber",
- "url",
- "uuid",
- "winapi",
- "windows-sys 0.48.0",
- "windows-sys 0.52.0",
- "windows-sys 0.59.0",
- "xz2",
- "zerocopy",
- "zeroize",
-]
-
-[[package]]
-name = "workspace-hack"
-version = "0.1.0"
-source = "git+https://github.com/influxdata/influxdb3_core?rev=c3da9bf8b522d74e213310e18e2a935fd0327894#c3da9bf8b522d74e213310e18e2a935fd0327894"
-dependencies = [
- "ahash",
- "arrow 53.0.0",
- "arrow-ipc 53.0.0",
- "async-compression",
- "base64 0.22.1",
- "bitflags 2.6.0",
- "bloom2",
- "byteorder",
- "bytes",
- "cc",
- "chrono",
- "clap",
- "clap_builder",
- "crossbeam-utils",
- "crypto-common",
- "digest",
- "either",
- "fixedbitset",
- "flatbuffers",
- "flate2",
- "form_urlencoded",
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
- "generic-array",
- "getrandom",
- "hashbrown 0.14.5",
- "hyper 0.14.31",
- "hyper 1.5.1",
- "hyper-rustls 0.27.3",
- "hyper-util",
- "idna",
- "indexmap 2.7.0",
- "itertools 0.12.1",
- "libc",
- "lock_api",
- "log",
- "lzma-sys",
- "md-5",
- "memchr",
- "nix",
- "nom",
- "num-bigint",
- "num-integer",
- "num-traits",
- "object_store",
- "parking_lot",
- "percent-encoding",
- "petgraph",
- "phf_shared",
- "proptest",
- "prost 0.12.6",
- "prost 0.13.4",
- "prost-types 0.12.6",
- "rand",
- "rand_core",
- "regex",
- "regex-automata 0.4.9",
- "regex-syntax 0.8.5",
- "reqwest 0.11.27",
- "reqwest 0.12.9",
- "ring",
- "rustls 0.23.19",
- "serde",
- "serde_json",
- "sha2",
- "signature",
- "similar",
- "smallvec",
- "snafu",
- "socket2",
- "spin",
- "sqlx",
- "sqlx-core",
- "sqlx-macros",
- "sqlx-macros-core",
- "sqlx-postgres",
- "sqlx-sqlite",
- "strum",
- "subtle",
- "syn 2.0.90",
- "thrift",
- "tokio",
- "tokio-metrics 0.3.1",
- "tokio-rustls 0.26.1",
- "tokio-stream",
- "tokio-util",
- "tonic 0.11.0",
  "tower 0.4.13",
  "tracing",
  "tracing-core",

@@ -20,7 +20,7 @@ use influxdb3_write::{
 };
 use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use object_store::ObjectStore;
 use tokio::sync::watch::Receiver;
@@ -42,6 +42,7 @@ pub struct CreateReadModeArgs {
     pub hosts: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
+    pub time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ReadMode {
@@ -57,6 +58,7 @@ impl ReadMode {
             hosts,
             parquet_cache,
             compacted_data,
+            time_provider,
         }: CreateReadModeArgs,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
@@ -69,6 +71,7 @@ impl ReadMode {
                 hosts,
                 parquet_cache,
                 catalog,
+                time_provider,
             })
             .await
             .context("failed to initialize replicas")?,
