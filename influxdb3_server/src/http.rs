@@ -429,12 +429,6 @@ where
         self.write_lp_inner(params, req, false, false).await
     }
 
-    async fn write_v3(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
-        let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false, true).await
-    }
-
     async fn write_lp_inner(
         &self,
         params: WriteParams,
@@ -1374,7 +1368,6 @@ pub(crate) async fn route_request<T: TimeProvider>(
 
             http_server.write_lp_inner(params, req, false, false).await
         }
-        (Method::POST, "/api/v3/write") => http_server.write_v3(req).await,
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
