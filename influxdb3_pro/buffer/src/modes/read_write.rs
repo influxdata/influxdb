@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
@@ -14,7 +15,6 @@ use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use influxdb3_write::write_buffer::{parquet_chunk_from_file, WriteBufferImplArgs};
 use influxdb3_write::{
-    last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
     persister::Persister,
     write_buffer::{self, WriteBufferImpl},
@@ -299,8 +299,8 @@ impl LastCacheManager for ReadWriteMode {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
-        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        key_columns: Option<Vec<ColumnId>>,
+        value_columns: Option<Vec<ColumnId>>,
     ) -> write_buffer::Result<Option<LastCacheDefinition>> {
         self.primary
             .create_last_cache(

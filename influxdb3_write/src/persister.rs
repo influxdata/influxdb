@@ -1,7 +1,6 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
-use crate::last_cache;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
@@ -19,6 +18,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
 use futures_util::stream::StreamExt;
 use futures_util::stream::TryStreamExt;
+use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
 use object_store::path::Path as ObjPath;

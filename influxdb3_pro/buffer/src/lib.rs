@@ -3,12 +3,14 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_cache::{
+    last_cache::LastCacheProvider,
+    meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
+};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
 use influxdb3_write::{
-    last_cache::LastCacheProvider,
     write_buffer::{persisted_files::PersistedFiles, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, LastCacheManager,
     MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
@@ -128,8 +130,8 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferPro<Mode> {
         cache_name: Option<&str>,
         count: Option<usize>,
         ttl: Option<Duration>,
-        key_columns: Option<Vec<(ColumnId, Arc<str>)>>,
-        value_columns: Option<Vec<(ColumnId, Arc<str>)>>,
+        key_columns: Option<Vec<ColumnId>>,
+        value_columns: Option<Vec<ColumnId>>,
     ) -> WriteBufferResult<Option<LastCacheDefinition>> {
         self.mode
             .create_last_cache(
@@ -204,12 +206,12 @@ mod tests {
 
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
+    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
-        persister::Persister, Bufferer, ChunkContainer,
+        parquet_cache::test_cached_obj_store_and_oracle, persister::Persister, Bufferer,
+        ChunkContainer,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};

@@ -13,77 +13,17 @@ mod tests {
     use arrow::array::AsArray;
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, prelude::SessionContext};
     use indexmap::IndexMap;
-    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
     use influxdb3_id::ColumnId;
-    use influxdb3_wal::{Gen1Duration, Row, WriteBatch};
-    use influxdb3_write::write_buffer::validator::WriteValidator;
     use iox_time::{MockProvider, Time, TimeProvider};
     use std::{sync::Arc, time::Duration};
 
-    use crate::meta_cache::{
-        cache::{CreateMetaCacheArgs, MaxAge, MaxCardinality, MetaCache, Predicate},
-        MetaCacheFunction, MetaCacheProvider, META_CACHE_UDTF_NAME,
+    use crate::{
+        meta_cache::{
+            cache::{CreateMetaCacheArgs, MaxAge, MaxCardinality, MetaCache, Predicate},
+            MetaCacheFunction, MetaCacheProvider, META_CACHE_UDTF_NAME,
+        },
+        test_helpers::TestWriter,
     };
-
-    struct TestWriter {
-        catalog: Arc<Catalog>,
-    }
-
-    impl TestWriter {
-        const DB_NAME: &str = "test_db";
-
-        fn new() -> Self {
-            Self {
-                catalog: Arc::new(Catalog::new("test-host".into(), "test-instance".into())),
-            }
-        }
-
-        fn write_lp_to_rows(&self, lp: impl AsRef<str>, time_ns: i64) -> Vec<Row> {
-            let lines_parsed = WriteValidator::initialize(
-                Self::DB_NAME.try_into().unwrap(),
-                Arc::clone(&self.catalog),
-                time_ns,
-            )
-            .expect("initialize write validator")
-            .v1_parse_lines_and_update_schema(
-                lp.as_ref(),
-                false,
-                Time::from_timestamp_nanos(time_ns),
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .expect("parse and validate v1 line protocol");
-
-            lines_parsed.into_inner().to_rows()
-        }
-
-        fn write_lp_to_write_batch(&self, lp: impl AsRef<str>, time_ns: i64) -> WriteBatch {
-            WriteValidator::initialize(
-                Self::DB_NAME.try_into().unwrap(),
-                Arc::clone(&self.catalog),
-                time_ns,
-            )
-            .expect("initialize write validator")
-            .v1_parse_lines_and_update_schema(
-                lp.as_ref(),
-                false,
-                Time::from_timestamp_nanos(time_ns),
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .expect("parse and validate v1 line protocol")
-            .convert_lines_to_buffer(Gen1Duration::new_1m())
-            .into()
-        }
-
-        fn catalog(&self) -> Arc<Catalog> {
-            Arc::clone(&self.catalog)
-        }
-
-        fn db_schema(&self) -> Arc<DatabaseSchema> {
-            self.catalog
-                .db_schema(Self::DB_NAME)
-                .expect("db schema should be initialized")
-        }
-    }
 
     #[test]
     fn evaluate_predicates() {
