@@ -35,7 +35,7 @@ const (
 
 	// DefaultCompactFullWriteColdDuration is the duration at which the engine
 	// will compact all TSM files in a shard if it hasn't received a write or delete
-	DefaultCompactFullWriteColdDuration = time.Duration(4 * time.Hour)
+	DefaultCompactFullWriteColdDuration = time.Duration(5 * time.Minute)
 
 	// DefaultCompactThroughput is the rate limit in bytes per second that we
 	// will allow TSM compactions to write to disk. Not that short bursts are allowed

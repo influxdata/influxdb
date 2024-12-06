@@ -220,12 +220,27 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 	gens := c.findGenerations(false)
+
+	var bCounts []int
+	genFiles := 0
+	var groupSize uint64
+	for _, gen := range gens {
+		groupSize += gen.size()
+		for _, f := range gen.files {
+			genFiles++
+			if c.FileStore.BlockCount(f.Path, 1) != tsdb.DefaultMaxPointsPerBlock {
+				bCounts = append(bCounts, c.FileStore.BlockCount(f.Path, 1))
+			}
+		}
+	}
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
 		return false, "not fully compacted and not idle because of tombstones"
+	} else if genFiles > 1 && groupSize < uint64(maxTSMFileSize) {
+		return false, "not fully compacted and not idle because of tombstones"
 	} else {
-		return true, ""
+		return true, "shard is fully compacted because there is a single generation of TSM files"
 	}
 }
 
@@ -349,10 +364,16 @@ func (c *DefaultPlanner) PlanOptimize() ([]CompactionGroup, int64) {
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
+	genFiles := 0
+
+	// Need to check generation is 1 as to avoid nil array access
+	if len(generations) == 1 {
+		genFiles = len(generations[0].files)
+	}
 
 	// If there is only one generation and no tombstones, then there's nothing to
 	// do.
-	if len(generations) <= 1 && !generations.hasTombstones() {
+	if len(generations) <= 1 && !generations.hasTombstones() && genFiles <= 1 {
 		return nil, 0
 	}
 
@@ -434,7 +455,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 	c.mu.RUnlock()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration && len(generations) > 1 {
+	if forceFull || c.compactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.compactFullWriteColdDuration {
 
 		// Reset the full schedule if we planned because of it.
 		if forceFull {
@@ -445,11 +466,22 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 
 		var tsmFiles []string
 		var genCount int
+		var bCounts []int
 		for i, group := range generations {
 			var skip bool
 
+			genFiles := 0
+			var groupSize uint64
+			groupSize += group.size()
+			for _, f := range group.files {
+				genFiles++
+				if c.FileStore.BlockCount(f.Path, 1) != tsdb.DefaultMaxPointsPerBlock {
+					bCounts = append(bCounts, c.FileStore.BlockCount(f.Path, 1))
+				}
+			}
+
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && groupSize > uint64(maxTSMFileSize) && len(bCounts) == 0 && !group.hasTombstones() {
 				skip = true
 			}
 
@@ -464,6 +496,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			}
 
 			if skip {
+				// Reset the block counter
+				bCounts = make([]int, 0)
 				continue
 			}
 
@@ -471,11 +505,14 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 				tsmFiles = append(tsmFiles, f.Path)
 			}
 			genCount += 1
+
+			// Reset the block counter
+			bCounts = make([]int, 0)
 		}
 		sort.Strings(tsmFiles)
 
 		// Make sure we have more than 1 file and more than 1 generation
-		if len(tsmFiles) <= 1 || genCount <= 1 {
+		if len(tsmFiles) <= 1 && genCount <= 1 {
 			return nil, 0
 		}
 
@@ -1053,6 +1090,10 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 	var files []string
 
 	for {
+		// TODO(db): I'm wondering if we really want to just increment the sequence here during compaction
+		// Might be better to add some fine-grained logic around this in order to not get in to a state
+		// where we have multiple TSM files that are a single generation but have different compaction
+		// levels.
 		sequence++
 
 		// New TSM files are written to a temp file and renamed when fully completed.
@@ -1103,6 +1144,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *zap.Logger) (err error) {
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
+		// TODO(db): We throw compaction in progress error ever with bad write permissions
 		return errCompactionInProgress{err: err}
 	}
 

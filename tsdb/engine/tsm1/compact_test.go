@@ -1551,6 +1551,88 @@ func TestDefaultPlanner_Plan_Min(t *testing.T) {
 	}
 }
 
+// This test should not skip the generation when a single file is
+// of MAX TSM file size of 2GB.
+func TestDefaultPlanner_Plan_Multi_Gen_Large_Size(t *testing.T) {
+	const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					{
+						Path: "01-05.tsm1",
+						Size: maxTSMFileSize,
+					},
+					{
+						Path: "01-06.tsm1",
+						Size: 1 * 1024 * 1024,
+					},
+					{
+						Path: "01-07.tsm1",
+						Size: 1 * 1024 * 1024,
+					},
+					{
+						Path: "02-4.tsm1",
+						Size: 251 * 1024 * 1024,
+					},
+					{
+						Path: "02-5.tsm1",
+						Size: 1 * 1024 * 1024,
+					},
+				}
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	// TODO(DB): This test currently passes since the mock file store
+	// sets the block count to 0 for all files
+	tsm, pLen := cp.Plan(time.Now().Add(-1 * tsdb.DefaultCompactFullWriteColdDuration))
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm group length mismatch: got %v, exp %v", got, exp)
+	} else if pLen != int64(len(tsm)) {
+		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
+	}
+}
+
+// TODO(DB): Implement test to ensure FullyCompacted generations are not planned
+// in the default planner.
+
+// This test will ensure that our FullyCompacted() test does not skip
+// single generation TSM files that can further be compacted
+func Test_Fully_Compacted_Planning(t *testing.T) {
+	const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					{
+						Path: "01-01.tsm1",
+						Size: maxTSMFileSize,
+					},
+					{
+						Path: "01-02.tsm1",
+						Size: 1 * 1024 * 1024,
+					},
+					{
+						Path: "01-03.tsm1",
+						Size: 1 * 1024 * 1024,
+					},
+				}
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	fullyCompacted, _ := cp.FullyCompacted()
+	if exp, got := false, fullyCompacted; got != exp {
+		t.Fatalf("FullyCompacted mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// TODO(DB): Implement test for single generation files to pass FullyCompacted test
+// IF they are actually fully compacted.
+
 // Ensure that if there are older files that can be compacted together but a newer
 // file that is in a larger step, the older ones will get compacted.
 func TestDefaultPlanner_Plan_CombineSequence(t *testing.T) {
