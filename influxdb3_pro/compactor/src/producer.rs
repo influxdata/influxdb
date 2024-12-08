@@ -391,7 +391,7 @@ pub(crate) type Gen1FileMap = HashMap<DbId, HashMap<TableId, Vec<Gen1File>>>;
 
 impl CompactionState {
     /// Loads or initializes the compacted catalog, the last compaction summary, and the snapshots
-    /// from
+    /// from the target hosts.
     pub(crate) async fn load_or_initialize(
         compactor_id: &str,
         hosts: Vec<String>,
@@ -607,5 +607,309 @@ impl CompactionState {
     fn clear(&mut self) {
         self.host_markers.clear();
         self.files_to_compact.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion_util::config::register_iox_object_store;
+    use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use influxdb3_cache::meta_cache::MetaCacheProvider;
+    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
+    use influxdb3_pro_data_layout::{CompactionDetailPath, Generation, GenerationDetailPath};
+    use influxdb3_wal::{
+        Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp,
+        WriteBatch,
+    };
+    use influxdb3_write::last_cache::LastCacheProvider;
+    use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
+    use influxdb3_write::write_buffer::queryable_buffer::{QueryableBuffer, QueryableBufferArgs};
+    use influxdb3_write::write_buffer::validator::WriteValidator;
+    use influxdb3_write::{ParquetFile, Precision};
+    use iox_query::exec::{Executor, ExecutorConfig};
+    use iox_time::{MockProvider, Time, TimeProvider};
+    use object_store::memory::InMemory;
+    use object_store::path::Path;
+    use object_store::ObjectStore;
+    use parquet_file::storage::{ParquetStorage, StorageId};
+    use std::num::NonZeroUsize;
+    use tokio::sync::RwLock;
+
+    #[tokio::test]
+    async fn test_run_compaction() {
+        let host_id = "test_host";
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let mut writer = TestWriter::new(host_id, Arc::clone(&object_store));
+
+        let lp = r#"
+            cpu,host=foo usage=1 1
+            cpu,host=foo usage=2 2
+            cpu,host=foo usage=3 3
+        "#;
+        let snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
+        assert_eq!(
+            snapshot.snapshot_sequence_number,
+            SnapshotSequenceNumber::new(1)
+        );
+        assert_eq!(writer.get_files("cpu").len(), 1);
+
+        let snapshot = writer
+            .persist_lp_and_snapshot("cpu,host=foo usage=4 60000000000", 0)
+            .await;
+        assert_eq!(
+            snapshot.snapshot_sequence_number,
+            SnapshotSequenceNumber::new(2)
+        );
+        assert_eq!(writer.get_files("cpu").len(), 2);
+
+        let snapshot = writer
+            .persist_lp_and_snapshot("cpu,host=foo usage=5 120000000000", 0)
+            .await;
+        assert_eq!(
+            snapshot.snapshot_sequence_number,
+            SnapshotSequenceNumber::new(3)
+        );
+        assert_eq!(writer.get_files("cpu").len(), 3);
+
+        let compactor = CompactedDataProducer::new(
+            "compactor-1",
+            vec![host_id.into()],
+            CompactionConfig::default(),
+            Arc::new(RwLock::new(ProConfig::default())),
+            Arc::clone(&object_store),
+            writer.persister.object_store_url().clone(),
+            Arc::clone(&writer.exec),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let compactor_db_schema = compactor
+            .compacted_data
+            .compacted_catalog
+            .catalog
+            .db_schema("testdb")
+            .unwrap();
+        let table_definition = compactor_db_schema.table_definition("cpu").unwrap();
+        let output_generation = Generation {
+            id: GenerationId::new(),
+            level: GenerationLevel::two(),
+            start_time_secs: 0,
+            max_time: 0,
+        };
+        let mut gen1_files = compactor
+            .compaction_state
+            .lock()
+            .await
+            .files_to_compact
+            .get(&compactor_db_schema.id)
+            .unwrap()
+            .get(&table_definition.table_id)
+            .unwrap()
+            .clone();
+        // sort the files by generation id so we can pick the first two to compact
+        gen1_files.sort_by(|a, b| b.generation().id.cmp(&a.generation().id));
+        assert_eq!(gen1_files.len(), 3);
+        let input_generations = gen1_files[0..2].iter().map(|f| f.generation()).collect();
+        let input_paths = gen1_files[0..2]
+            .iter()
+            .map(|f| Path::from(f.file.path.clone()))
+            .collect();
+
+        compactor
+            .run_plan(
+                NextCompactionPlan {
+                    db_schema: Arc::clone(&compactor_db_schema),
+                    table_definition: Arc::clone(&table_definition),
+                    output_generation,
+                    input_generations,
+                    input_paths,
+                    leftover_gen1_files: vec![gen1_files[2].clone()],
+                },
+                CompactionSequenceNumber::new(1),
+                compactor.compaction_state.lock().await.host_markers.clone(),
+            )
+            .await
+            .unwrap();
+
+        // ensure the generation detail was persisted
+        let generation_detail_path = GenerationDetailPath::new("compactor-1", output_generation.id);
+        let generation_detail =
+            get_generation_detail(&generation_detail_path, Arc::clone(&object_store))
+                .await
+                .unwrap();
+        assert_eq!(generation_detail.id, output_generation.id);
+
+        // ensure the compaction detail was persisted
+        let compaction_detail = compactor
+            .compacted_data
+            .compaction_detail(compactor_db_schema.id, table_definition.table_id)
+            .unwrap();
+        assert_eq!(compaction_detail.compacted_generations.len(), 1);
+        let compaction_detail_path = CompactionDetailPath::new(
+            "compactor-1",
+            compactor_db_schema.id,
+            table_definition.table_id,
+            CompactionSequenceNumber::new(1),
+        );
+        let persisted_compaction_detail =
+            get_compaction_detail(&compaction_detail_path, Arc::clone(&object_store))
+                .await
+                .unwrap();
+        assert_eq!(compaction_detail.as_ref(), &persisted_compaction_detail);
+
+        // ensure the compacted data structure was updated
+        let parquet_files = compactor.compacted_data.parquet_files(
+            compactor_db_schema.id,
+            table_definition.table_id,
+            output_generation.id,
+        );
+        assert_eq!(parquet_files.len(), 1);
+        assert_eq!(parquet_files[0].row_count, 4);
+    }
+
+    struct TestWriter {
+        exec: Arc<Executor>,
+        catalog: Arc<Catalog>,
+        persister: Arc<Persister>,
+        persisted_files: Arc<PersistedFiles>,
+        wal_file_sequence_number: WalFileSequenceNumber,
+        snapshot_sequence_number: SnapshotSequenceNumber,
+        time_provider: Arc<dyn TimeProvider>,
+    }
+
+    impl TestWriter {
+        fn new(host_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
+            let metrics = Arc::new(metric::Registry::default());
+
+            let parquet_store =
+                ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+            let exec = Arc::new(Executor::new_with_config_and_executor(
+                ExecutorConfig {
+                    target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                    object_stores: [&parquet_store]
+                        .into_iter()
+                        .map(|store| (store.id(), Arc::clone(store.object_store())))
+                        .collect(),
+                    metric_registry: Arc::clone(&metrics),
+                    // Default to 1gb
+                    mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+                },
+                DedicatedExecutor::new_testing(),
+            ));
+            let runtime_env = exec.new_context().inner().runtime_env();
+            register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+            register_current_runtime_for_io();
+
+            let catalog = Arc::new(Catalog::new(host_id.into(), "foo".into()));
+            let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+            let time_provider: Arc<dyn TimeProvider> =
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+            Self {
+                exec,
+                catalog,
+                persister,
+                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(vec![])),
+                wal_file_sequence_number: WalFileSequenceNumber::new(0),
+                snapshot_sequence_number: SnapshotSequenceNumber::new(0),
+                time_provider,
+            }
+        }
+
+        fn get_files(&self, table_name: &str) -> Vec<ParquetFile> {
+            let db = self.catalog.db_schema("testdb").unwrap();
+            let table = db.table_definition(table_name).unwrap();
+            self.persisted_files.get_files(db.id, table.table_id)
+        }
+
+        async fn persist_lp_and_snapshot(
+            &mut self,
+            lp: &str,
+            default_time: i64,
+        ) -> PersistedSnapshot {
+            let db = data_types::NamespaceName::new("testdb").unwrap();
+            let val =
+                WriteValidator::initialize(db, Arc::clone(&self.catalog), default_time).unwrap();
+            let lines = val
+                .v1_parse_lines_and_update_schema(
+                    lp,
+                    false,
+                    self.time_provider.now(),
+                    Precision::Nanosecond,
+                )
+                .unwrap()
+                .convert_lines_to_buffer(Gen1Duration::new_1m());
+            let batch: WriteBatch = lines.into();
+            let wal_contents = WalContents {
+                persist_timestamp_ms: 0,
+                min_timestamp_ns: batch.min_time_ns,
+                max_timestamp_ns: batch.max_time_ns,
+                wal_file_number: self.wal_file_sequence_number.next(),
+                ops: vec![WalOp::Write(batch)],
+                snapshot: None,
+            };
+            let end_time = wal_contents.max_timestamp_ns
+                + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
+
+            let queryable_buffer_args = QueryableBufferArgs {
+                executor: Arc::clone(&self.exec),
+                catalog: Arc::clone(&self.catalog),
+                persister: Arc::clone(&self.persister),
+                last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&self.catalog))
+                    .unwrap(),
+                meta_cache_provider: MetaCacheProvider::new_from_catalog(
+                    Arc::clone(&self.time_provider),
+                    Arc::clone(&self.catalog),
+                )
+                .unwrap(),
+                persisted_files: Arc::new(Default::default()),
+                parquet_cache: None,
+            };
+            let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
+
+            // write the lp into the buffer
+            queryable_buffer.notify(wal_contents);
+            self.snapshot_sequence_number = self.snapshot_sequence_number.next();
+            let snapshot_details = SnapshotDetails {
+                snapshot_sequence_number: self.snapshot_sequence_number,
+                end_time_marker: end_time,
+                last_wal_sequence_number: self.wal_file_sequence_number,
+            };
+
+            // now force a snapshot, persisting the data to parquet files and writing a persisted snapshot file
+            let details = queryable_buffer
+                .notify_and_snapshot(
+                    WalContents {
+                        persist_timestamp_ms: 0,
+                        min_timestamp_ns: 0,
+                        max_timestamp_ns: 0,
+                        wal_file_number: self.wal_file_sequence_number,
+                        ops: vec![],
+                        snapshot: Some(snapshot_details),
+                    },
+                    snapshot_details,
+                )
+                .await;
+            let details = details.await.unwrap();
+
+            let persisted_snapshot = self
+                .persister
+                .load_snapshots(1)
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
+            assert_eq!(
+                persisted_snapshot.snapshot_sequence_number,
+                details.snapshot_sequence_number
+            );
+            self.persisted_files
+                .add_persisted_snapshot_files(persisted_snapshot.clone());
+
+            persisted_snapshot
+        }
     }
 }
