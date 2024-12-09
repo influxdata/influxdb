@@ -620,13 +620,15 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
-    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
+    use influxdb3_cache::{
+        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+    };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         WriteBuffer,
