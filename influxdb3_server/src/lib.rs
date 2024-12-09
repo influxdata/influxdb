@@ -35,12 +35,14 @@ use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
+use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace::ctx::SpanContext;
@@ -174,7 +176,11 @@ impl<T> Server<T> {
     }
 }
 
-pub async fn serve<T>(server: Server<T>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<T>(
+    server: Server<T>,
+    shutdown: CancellationToken,
+    startup_timer: Instant,
+) -> Result<()>
 where
     T: TimeProvider,
 {
@@ -206,6 +212,9 @@ where
     let hybrid_make_service = hybrid(rest_service, grpc_service);
 
     let addr = AddrIncoming::from_listener(server.listener)?;
+    let timer_end = Instant::now();
+    let startup_time = timer_end.duration_since(startup_timer);
+    info!("Server Startup Time: {}ms", startup_time.as_millis());
     hyper::server::Builder::new(addr, Http::new())
         .tcp_nodelay(true)
         .serve(hybrid_make_service)

@@ -182,6 +182,7 @@ inherits = "release"
 codegen-units = 16
 lto = false
 incremental = true
+debug = 1
 
 # This profile extends the `quick-release` profile with debuginfo turned on in order to
 # produce more human friendly symbols for profiling tools
