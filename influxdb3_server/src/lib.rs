@@ -830,7 +830,6 @@ mod tests {
             exec: Arc::clone(&exec),
             metrics: Arc::clone(&metrics),
             datafusion_config: Default::default(),
-            concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             sys_events_store: Arc::clone(&sys_events_store),

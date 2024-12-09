@@ -41,6 +41,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
@@ -68,7 +69,6 @@ pub struct CreateQueryExecutorArgs {
     pub exec: Arc<Executor>,
     pub metrics: Arc<Registry>,
     pub datafusion_config: Arc<HashMap<String, String>>,
-    pub concurrent_query_limit: usize,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
@@ -82,7 +82,6 @@ impl QueryExecutorImpl {
             exec,
             metrics,
             datafusion_config,
-            concurrent_query_limit,
             query_log_size,
             telemetry_store,
             sys_events_store,
@@ -93,7 +92,7 @@ impl QueryExecutorImpl {
             &[("semaphore", "query_execution")],
         ));
         let query_execution_semaphore =
-            Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
+            Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
         let query_log = Arc::new(QueryLog::new(
             query_log_size,
             Arc::new(iox_time::SystemProvider::new()),
@@ -716,7 +715,6 @@ mod tests {
             exec,
             metrics,
             datafusion_config,
-            concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store,
             sys_events_store,
