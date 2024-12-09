@@ -7,7 +7,7 @@ pub(super) struct AccessMetrics {
     cache_misses_while_fetching: U64Counter,
 }
 
-const CACHE_ACCESS_NAME: &str = "parquet_cache_access";
+pub(super) const CACHE_ACCESS_NAME: &str = "influxdb3_parquet_cache_access";
 
 impl AccessMetrics {
     pub(super) fn new(metric_registry: &Registry) -> Self {
@@ -44,8 +44,8 @@ pub(super) struct SizeMetrics {
     cache_size_n_files: U64Gauge,
 }
 
-const CACHE_SIZE_MB_NAME: &str = "parquet_cache_size_bytes";
-const CACHE_SIZE_N_FILES_NAME: &str = "parquet_cache_size_number_of_files";
+pub(super) const CACHE_SIZE_MB_NAME: &str = "influxdb3_parquet_cache_size_bytes";
+pub(super) const CACHE_SIZE_N_FILES_NAME: &str = "influxdb3_parquet_cache_size_number_of_files";
 
 impl SizeMetrics {
     pub(super) fn new(metric_registry: &Registry) -> Self {
