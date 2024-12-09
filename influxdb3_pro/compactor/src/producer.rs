@@ -615,6 +615,7 @@ mod tests {
     use super::*;
     use datafusion_util::config::register_iox_object_store;
     use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
@@ -623,7 +624,6 @@ mod tests {
         Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp,
         WriteBatch,
     };
-    use influxdb3_write::last_cache::LastCacheProvider;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::write_buffer::queryable_buffer::{QueryableBuffer, QueryableBufferArgs};
     use influxdb3_write::write_buffer::validator::WriteValidator;
