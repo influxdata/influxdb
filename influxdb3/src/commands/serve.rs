@@ -517,7 +517,6 @@ pub async fn command(config: Config) -> Result<()> {
         exec: Arc::clone(&exec),
         metrics: Arc::clone(&metrics),
         datafusion_config: Arc::new(config.datafusion_config),
-        concurrent_query_limit: 10,
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
         sys_events_store: Arc::clone(&sys_events_store),
