@@ -393,6 +393,7 @@ pub async fn command(config: Config) -> Result<()> {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
+            Arc::clone(&metrics),
             config.parquet_mem_cache_size.as_num_bytes(),
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),

@@ -20,6 +20,8 @@ use futures::{
     FutureExt, StreamExt, TryStreamExt,
 };
 use iox_time::TimeProvider;
+use metric::Registry;
+use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
@@ -29,6 +31,8 @@ use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot, watch,
 };
+
+mod metrics;
 
 /// Shared future type for cache values that are being fetched
 type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, DynError>>>;
@@ -119,16 +123,18 @@ impl ParquetCacheOracle for MemCacheOracle {
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
     cache_capacity: usize,
     prune_percent: f64,
     prune_interval: Duration,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    let store = Arc::new(MemCachedObjectStore::new(
-        object_store,
-        cache_capacity,
+    let store = Arc::new(MemCachedObjectStore::new(MemCachedObjectStoreArgs {
         time_provider,
+        metric_registry,
+        inner: object_store,
+        memory_capacity: cache_capacity,
         prune_percent,
-    ));
+    }));
     let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store), prune_interval));
     (store, oracle)
 }
@@ -137,10 +143,12 @@ pub fn create_cached_obj_store_and_oracle(
 pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
     create_cached_obj_store_and_oracle(
         object_store,
         time_provider,
+        metric_registry,
         1024 * 1024 * 1024,
         0.1,
         Duration::from_millis(10),
@@ -259,17 +267,28 @@ struct Cache {
     map: DashMap<Path, CacheEntry>,
     /// Provides timestamps for updating the hit time of each cache entry
     time_provider: Arc<dyn TimeProvider>,
+    /// Track metrics for observing accesses to the cache
+    access_metrics: AccessMetrics,
+    /// Track metrics for observing the size of the cache
+    size_metrics: SizeMetrics,
 }
 
 impl Cache {
     /// Create a new cache with a given capacity and prune percent
-    fn new(capacity: usize, prune_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
+    fn new(
+        capacity: usize,
+        prune_percent: f64,
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
+    ) -> Self {
         Self {
             capacity,
             used: AtomicUsize::new(0),
             prune_percent,
             map: DashMap::new(),
             time_provider,
+            access_metrics: AccessMetrics::new(&metric_registry),
+            size_metrics: SizeMetrics::new(&metric_registry),
         }
     }
 
@@ -278,11 +297,19 @@ impl Cache {
     /// This updates the hit time of the entry and returns a cloned copy of the entry state so that
     /// the reference into the map is dropped
     fn get(&self, path: &Path) -> Option<CacheEntryState> {
-        let entry = self.map.get(path)?;
+        let Some(entry) = self.map.get(path) else {
+            self.access_metrics.record_cache_miss();
+            return None;
+        };
         if entry.is_success() {
             entry
                 .hit_time
                 .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
+        }
+        if entry.is_fetching() {
+            self.access_metrics.record_cache_miss_while_fetching();
+        } else {
+            self.access_metrics.record_cache_hit();
         }
         Some(entry.state.clone())
     }
@@ -323,8 +350,10 @@ impl Cache {
                     .hit_time
                     .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
                 // TODO(trevor): what if size is greater than cache capacity?
-                let additional = entry.size();
-                self.used.fetch_add(additional, Ordering::SeqCst);
+                let additional_bytes = entry.size();
+                self.size_metrics
+                    .record_file_addition(additional_bytes as u64);
+                self.used.fetch_add(additional_bytes, Ordering::SeqCst);
                 Ok(())
             }
             Entry::Vacant(_) => bail!("attempted to set success state on an empty cache entry"),
@@ -332,11 +361,16 @@ impl Cache {
     }
 
     /// Remove an entry from the cache, as well as its associated size from the used capacity
-    fn remove(&self, path: &Path) {
+    fn remove(&self, path: &Path, track_metrics: bool) {
         let Some((_, entry)) = self.map.remove(path) else {
             return;
         };
-        self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
+        let removed_bytes = entry.state.size();
+        if track_metrics {
+            self.size_metrics
+                .record_file_deletions(removed_bytes as u64, 1);
+        }
+        self.used.fetch_sub(removed_bytes, Ordering::SeqCst);
     }
 
     /// Prune least recently hit entries from the cache
@@ -378,11 +412,14 @@ impl Cache {
 
         // track the total size of entries that get freed:
         let mut freed = 0;
+        let n_files = prune_heap.len() as u64;
         // drop entries with hit times before the cut-off:
         for item in prune_heap {
             self.map.remove(&Path::from(item.path_ref.as_ref()));
             freed += item.size;
         }
+        self.size_metrics
+            .record_file_deletions(freed as u64, n_files);
         // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::SeqCst);
 
@@ -430,17 +467,34 @@ pub struct MemCachedObjectStore {
     cache: Arc<Cache>,
 }
 
+#[derive(Debug)]
+pub struct MemCachedObjectStoreArgs {
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub metric_registry: Arc<Registry>,
+    pub inner: Arc<dyn ObjectStore>,
+    pub memory_capacity: usize,
+    pub prune_percent: f64,
+}
+
 impl MemCachedObjectStore {
     /// Create a new [`MemCachedObjectStore`]
     fn new(
-        inner: Arc<dyn ObjectStore>,
-        memory_capacity: usize,
-        time_provider: Arc<dyn TimeProvider>,
-        prune_percent: f64,
+        MemCachedObjectStoreArgs {
+            time_provider,
+            metric_registry,
+            inner,
+            memory_capacity,
+            prune_percent,
+        }: MemCachedObjectStoreArgs,
     ) -> Self {
         Self {
             inner,
-            cache: Arc::new(Cache::new(memory_capacity, prune_percent, time_provider)),
+            cache: Arc::new(Cache::new(
+                memory_capacity,
+                prune_percent,
+                time_provider,
+                metric_registry,
+            )),
         }
     }
 }
@@ -578,7 +632,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Delete an object on object store, but also remove it from the cache.
     async fn delete(&self, location: &Path) -> object_store::Result<()> {
         let result = self.inner.delete(location).await?;
-        self.cache.remove(location);
+        self.cache.remove(location, true);
         Ok(result)
     }
 
@@ -669,7 +723,7 @@ fn background_cache_request_handler(
                     }
                     Err(error) => {
                         error!(%error, "failed to fulfill cache request with object store");
-                        mem_store_captured.cache.remove(&path);
+                        mem_store_captured.cache.remove(&path, false);
                     }
                 };
                 // notify that the cache request has been fulfilled:
@@ -741,6 +795,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = test_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider),
+            Default::default(),
         );
         // PUT a paylaod into the object store through the outer mem cached store:
         let path = Path::from("0.parquet");
@@ -783,6 +838,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
+            Default::default(),
             cache_capacity_bytes,
             cache_prune_percent,
             cache_prune_interval,
@@ -906,6 +962,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = test_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
+            Default::default(),
         );
 
         // PUT an entry into the store:
