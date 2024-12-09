@@ -40,6 +40,7 @@ use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
@@ -359,6 +360,7 @@ fn ensure_directory_exists(p: &Path) {
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    let startup_timer = Instant::now();
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
@@ -542,7 +544,7 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build()
     };
-    serve(server, frontend_shutdown).await?;
+    serve(server, frontend_shutdown, startup_timer).await?;
 
     Ok(())
 }
