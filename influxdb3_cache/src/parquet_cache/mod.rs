@@ -40,6 +40,7 @@ type DynError = Arc<dyn std::error::Error + Send + Sync>;
 ///
 /// Contains a notifier to notify the caller that registers the cache request when the item
 /// has been cached successfully (or if the cache request failed in some way)
+#[derive(Debug)]
 pub struct CacheRequest {
     path: Path,
     notifier: oneshot::Sender<()>,

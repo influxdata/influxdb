@@ -5,7 +5,6 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub mod validator;
 
-use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
@@ -26,6 +25,7 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
@@ -699,7 +699,6 @@ impl WriteBuffer for WriteBufferImpl {}
 #[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
-    use crate::parquet_cache::test_cached_obj_store_and_oracle;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -708,6 +707,7 @@ mod tests {
     use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
+    use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
