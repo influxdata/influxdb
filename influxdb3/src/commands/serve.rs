@@ -14,6 +14,7 @@ use futures::TryFutureExt;
 use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     meta_cache::MetaCacheProvider,
+    parquet_cache::create_cached_obj_store_and_oracle,
 };
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
@@ -43,8 +44,7 @@ use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    parquet_cache::create_cached_obj_store_and_oracle, persister::Persister,
-    write_buffer::persisted_files::PersistedFiles, WriteBuffer,
+    persister::Persister, write_buffer::persisted_files::PersistedFiles, WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -444,6 +444,7 @@ pub async fn command(config: Config) -> Result<()> {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
+            Arc::clone(&metrics),
             config.parquet_mem_cache_size.as_num_bytes(),
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),
@@ -709,7 +710,6 @@ pub async fn command(config: Config) -> Result<()> {
                 exec: Arc::clone(&exec),
                 metrics: Arc::clone(&metrics),
                 datafusion_config: Arc::new(config.datafusion_config),
-                concurrent_query_limit: 10,
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
                 compacted_data: sys_table_compacted_data,

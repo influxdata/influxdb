@@ -43,7 +43,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Semaphore};
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
@@ -73,7 +73,6 @@ pub struct CreateQueryExecutorArgs {
     pub exec: Arc<Executor>,
     pub metrics: Arc<Registry>,
     pub datafusion_config: Arc<HashMap<String, String>>,
-    pub concurrent_query_limit: usize,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
     pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
@@ -89,7 +88,6 @@ impl QueryExecutorImpl {
             exec,
             metrics,
             datafusion_config,
-            concurrent_query_limit,
             query_log_size,
             telemetry_store,
             compacted_data,
@@ -102,7 +100,7 @@ impl QueryExecutorImpl {
             &[("semaphore", "query_execution")],
         ));
         let query_execution_semaphore =
-            Arc::new(semaphore_metrics.new_semaphore(concurrent_query_limit));
+            Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
         let query_log = Arc::new(QueryLog::new(
             query_log_size,
             Arc::new(iox_time::SystemProvider::new()),
@@ -724,7 +722,10 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
-    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
+    use influxdb3_cache::{
+        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+    };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::ParquetFileId;
     use influxdb3_pro_data_layout::{
@@ -737,7 +738,6 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        parquet_cache::test_cached_obj_store_and_oracle,
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         ParquetFile, WriteBuffer,
@@ -833,8 +833,11 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let exec = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("sample-host-id");
@@ -879,7 +882,6 @@ mod tests {
             exec,
             metrics,
             datafusion_config,
-            concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store,
             compacted_data: Some(Arc::new(MockCompactedDataSysTable)),

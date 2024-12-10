@@ -96,6 +96,7 @@ assert_cmd.workspace = true
 chrono.workspace = true
 futures.workspace = true
 hyper.workspace = true
+insta.workspace = true
 pretty_assertions.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true

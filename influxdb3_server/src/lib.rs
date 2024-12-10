@@ -257,13 +257,13 @@ mod tests {
     use hyper::{body, Body, Client, Request, Response, StatusCode};
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::meta_cache::MetaCacheProvider;
+    use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_config::ProConfig;
     use influxdb3_id::{DbId, TableId};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
     use influxdb3_write::WriteBuffer;
@@ -780,8 +780,11 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(
@@ -845,7 +848,6 @@ mod tests {
             exec: Arc::clone(&exec),
             metrics: Arc::clone(&metrics),
             datafusion_config: Default::default(),
-            concurrent_query_limit: 10,
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             compacted_data: None,
