@@ -1321,5 +1321,12 @@ async fn api_v3_query_sql_meta_cache() {
         .await
         .unwrap();
 
-    insta::assert_json_snapshot!(resp);
+    assert_eq!(
+        json!([
+            {"region": "ca", "host": "c"},
+            {"region": "eu", "host": "b"},
+            {"region": "us", "host": "a"},
+        ]),
+        resp
+    );
 }
