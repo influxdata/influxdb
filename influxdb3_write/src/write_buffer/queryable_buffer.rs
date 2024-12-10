@@ -14,12 +14,14 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
+use influxdb3_processing_engine::processing_engine_plugins::TriggerSpecification;
+use influxdb3_py_api::PyWriteBatch;
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
@@ -36,6 +38,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
+use TriggerSpecification::SingleTableWalWrite;
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -491,6 +494,8 @@ impl BufferState {
                                     table_buffer_map.remove(&table_definition.table_id);
                                 }
                             }
+                            CatalogOp::CreatePlugin(_) => {}
+                            CatalogOp::CreateTrigger(_) => {}
                         }
                     }
                 }
@@ -503,6 +508,61 @@ impl BufferState {
             .catalog
             .db_schema_by_id(&write_batch.database_id)
             .expect("database should exist");
+
+        let write_tables: HashSet<_> = write_batch
+            .table_chunks
+            .keys()
+            .map(|key| {
+                let table_name = db_schema.table_map.get_by_left(key).unwrap();
+                table_name.to_string()
+            })
+            .collect();
+
+        let triggers: Vec<_> = db_schema
+            .processing_engine_triggers
+            .values()
+            .filter_map(|trigger| match &trigger.trigger {
+                SingleTableWalWrite { table_name } => {
+                    if write_tables.contains(table_name.as_str()) {
+                        Some((trigger, vec![table_name.clone()]))
+                    } else {
+                        None
+                    }
+                }
+                TriggerSpecification::AllTablesWalWrite => {
+                    if !write_tables.is_empty() {
+                        Some((
+                            trigger,
+                            write_tables.iter().map(ToString::to_string).collect(),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect();
+        if !triggers.is_empty() {
+            // Create PyWriteBatch instance
+            let py_write_batch = PyWriteBatch {
+                write_batch: write_batch.clone(),
+                schema: db_schema.clone(),
+            };
+            for (trigger, write_tables) in triggers {
+                for table in &write_tables {
+                    if let Err(err) = py_write_batch.call_against_table(
+                        table,
+                        trigger.plugin.code.as_str(),
+                        trigger.plugin.function_name.as_str(),
+                    ) {
+                        error!(
+                            "failed to call trigger {} with error {}",
+                            trigger.trigger_name, err
+                        )
+                    }
+                }
+            }
+        }
+
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
         for (table_id, table_chunks) in write_batch.table_chunks {

@@ -263,6 +263,8 @@ snapshot_kind: text
             }
           ]
         ],
+        "processing_engine_plugins": [],
+        "processing_engine_triggers": [],
         "deleted": false
       }
     ]

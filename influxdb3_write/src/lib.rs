@@ -24,6 +24,7 @@ use influxdb3_id::ParquetFileId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
+use influxdb3_processing_engine::processing_engine_plugins::{PluginType, TriggerSpecification};
 use influxdb3_wal::MetaCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
 use iox_query::QueryChunk;
@@ -49,7 +50,12 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub trait WriteBuffer:
-    Bufferer + ChunkContainer + MetaCacheManager + LastCacheManager + DatabaseManager
+    Bufferer
+    + ChunkContainer
+    + MetaCacheManager
+    + LastCacheManager
+    + DatabaseManager
+    + ProcessingEngineManager
 {
 }
 
@@ -163,6 +169,30 @@ pub trait LastCacheManager: Debug + Send + Sync + 'static {
         db_id: DbId,
         tbl_id: TableId,
         cache_name: &str,
+    ) -> Result<(), write_buffer::Error>;
+}
+
+/// `[ProcessingEngineManager]` is used to interact with the processing engine,
+/// in particular plugins and triggers.
+///
+#[async_trait::async_trait]
+pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
+    /// Inserts a plugin
+    async fn insert_plugin(
+        &self,
+        db: &str,
+        plugin_name: String,
+        code: String,
+        function_name: String,
+        plugin_type: PluginType,
+    ) -> Result<(), write_buffer::Error>;
+
+    async fn insert_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: String,
+        plugin_name: String,
+        trigger_specification: TriggerSpecification,
     ) -> Result<(), write_buffer::Error>;
 }
 

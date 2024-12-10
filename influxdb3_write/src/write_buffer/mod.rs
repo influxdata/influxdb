@@ -9,7 +9,7 @@ use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
-use crate::{chunk::ParquetChunk, DatabaseManager};
+use crate::{chunk::ParquetChunk, DatabaseManager, ProcessingEngineManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
@@ -28,7 +28,10 @@ use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
+use influxdb3_processing_engine::processing_engine_plugins::{PluginType, TriggerSpecification};
+use influxdb3_wal::{
+    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, TriggerDefinition,
+};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
     MetaCacheDefinition, MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
@@ -689,6 +692,75 @@ impl DatabaseManager for WriteBufferImpl {
             table_name = ?table_defn.table_name,
             "successfully deleted table"
         );
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ProcessingEngineManager for WriteBufferImpl {
+    async fn insert_plugin(
+        &self,
+        db: &str,
+        plugin_name: String,
+        code: String,
+        function_name: String,
+        plugin_type: PluginType,
+    ) -> crate::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db)
+                .ok_or_else(|| self::Error::DatabaseNotFound {
+                    db_name: db.to_owned(),
+                })?;
+
+        let catalog_op = CatalogOp::CreatePlugin(PluginDefinition {
+            plugin_name,
+            code,
+            function_name,
+            plugin_type: serde_json::to_string(&plugin_type)
+                .expect("plugin type to_string() should work"),
+        });
+
+        let creation_time = self.time_provider.now();
+        let catalog_batch = CatalogBatch {
+            time_ns: creation_time.timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+        Ok(())
+    }
+
+    async fn insert_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: String,
+        plugin_name: String,
+        trigger_specification: TriggerSpecification,
+    ) -> crate::Result<(), Error> {
+        let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
+            return Err(Error::DatabaseNotFound {
+                db_name: db_name.to_owned(),
+            });
+        };
+        let catalog_op = CatalogOp::CreateTrigger(TriggerDefinition {
+            trigger_name,
+            plugin_name,
+            trigger: trigger_specification.into(),
+        });
+        let creation_time = self.time_provider.now();
+        let catalog_batch = CatalogBatch {
+            time_ns: creation_time.timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
         Ok(())
     }
 }
