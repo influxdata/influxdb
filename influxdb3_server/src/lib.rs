@@ -773,6 +773,7 @@ mod tests {
     }
 
     async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
+        let server_start_time = tokio::time::Instant::now();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
@@ -865,7 +866,7 @@ mod tests {
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(async move { serve(server, frontend_shutdown).await });
+        tokio::spawn(async move { serve(server, frontend_shutdown, server_start_time).await });
 
         (format!("http://{addr}"), shutdown, write_buffer)
     }

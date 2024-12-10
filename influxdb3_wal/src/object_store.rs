@@ -104,9 +104,22 @@ impl WalObjectStore {
                 .last_snapshot_sequence_number()
         };
 
+        async fn get_contents(
+            object_store: Arc<dyn ObjectStore>,
+            path: Path,
+        ) -> Result<WalContents, crate::Error> {
+            let file_bytes = object_store.get(&path).await?.bytes().await?;
+            Ok(verify_file_type_and_deserialize(file_bytes)?)
+        }
+
+        let mut replay_tasks = Vec::new();
         for path in paths {
-            let file_bytes = self.object_store.get(&path).await?.bytes().await?;
-            let wal_contents = verify_file_type_and_deserialize(file_bytes)?;
+            let object_store = Arc::clone(&self.object_store);
+            replay_tasks.push(tokio::spawn(get_contents(object_store, path)));
+        }
+
+        for wal_contents in replay_tasks {
+            let wal_contents = wal_contents.await??;
 
             // add this to the snapshot tracker, so we know what to clear out later if the replay
             // was a wal file that had a snapshot
@@ -120,6 +133,7 @@ impl WalObjectStore {
                 ));
 
             match wal_contents.snapshot {
+                // This branch uses so much time
                 None => self.file_notifier.notify(wal_contents),
                 Some(snapshot_details) => {
                     let snapshot_info = {

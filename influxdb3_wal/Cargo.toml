@@ -18,6 +18,7 @@ influxdb3_id = { path = "../influxdb3_id" }
 
 # crates.io dependencies
 async-trait.workspace = true
+bitcode.workspace = true
 bytes.workspace = true
 byteorder.workspace = true
 crc32fast.workspace  = true
@@ -27,7 +28,6 @@ indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
