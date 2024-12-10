@@ -768,8 +768,11 @@ mod tests {
         let metrics = Arc::new(metric::Registry::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(start_time)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
         let parquet_store =
             ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
         let exec = Arc::new(Executor::new_with_config_and_executor(

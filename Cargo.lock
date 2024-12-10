@@ -3105,6 +3105,7 @@ dependencies = [
  "influxdb3_write",
  "insta",
  "iox_time",
+ "metric",
  "object_store",
  "observability_deps",
  "parking_lot",

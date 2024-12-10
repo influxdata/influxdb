@@ -672,8 +672,11 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider) as _);
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let exec = make_exec(Arc::clone(&object_store));
         let host_id = Arc::from("sample-host-id");

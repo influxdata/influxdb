@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 # Core Crates
 iox_time.workspace = true
+metric.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
 
