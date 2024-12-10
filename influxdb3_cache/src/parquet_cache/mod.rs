@@ -20,6 +20,8 @@ use futures::{
     FutureExt, StreamExt, TryStreamExt,
 };
 use iox_time::TimeProvider;
+use metric::Registry;
+use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
@@ -29,6 +31,8 @@ use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot, watch,
 };
+
+mod metrics;
 
 /// Shared future type for cache values that are being fetched
 type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, DynError>>>;
@@ -119,16 +123,18 @@ impl ParquetCacheOracle for MemCacheOracle {
 pub fn create_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
     cache_capacity: usize,
     prune_percent: f64,
     prune_interval: Duration,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
-    let store = Arc::new(MemCachedObjectStore::new(
-        object_store,
-        cache_capacity,
+    let store = Arc::new(MemCachedObjectStore::new(MemCachedObjectStoreArgs {
         time_provider,
+        metric_registry,
+        inner: object_store,
+        memory_capacity: cache_capacity,
         prune_percent,
-    ));
+    }));
     let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store), prune_interval));
     (store, oracle)
 }
@@ -137,10 +143,12 @@ pub fn create_cached_obj_store_and_oracle(
 pub fn test_cached_obj_store_and_oracle(
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
+    metric_registry: Arc<Registry>,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
     create_cached_obj_store_and_oracle(
         object_store,
         time_provider,
+        metric_registry,
         1024 * 1024 * 1024,
         0.1,
         Duration::from_millis(10),
@@ -259,17 +267,28 @@ struct Cache {
     map: DashMap<Path, CacheEntry>,
     /// Provides timestamps for updating the hit time of each cache entry
     time_provider: Arc<dyn TimeProvider>,
+    /// Track metrics for observing accesses to the cache
+    access_metrics: AccessMetrics,
+    /// Track metrics for observing the size of the cache
+    size_metrics: SizeMetrics,
 }
 
 impl Cache {
     /// Create a new cache with a given capacity and prune percent
-    fn new(capacity: usize, prune_percent: f64, time_provider: Arc<dyn TimeProvider>) -> Self {
+    fn new(
+        capacity: usize,
+        prune_percent: f64,
+        time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
+    ) -> Self {
         Self {
             capacity,
             used: AtomicUsize::new(0),
             prune_percent,
             map: DashMap::new(),
             time_provider,
+            access_metrics: AccessMetrics::new(&metric_registry),
+            size_metrics: SizeMetrics::new(&metric_registry),
         }
     }
 
@@ -278,11 +297,17 @@ impl Cache {
     /// This updates the hit time of the entry and returns a cloned copy of the entry state so that
     /// the reference into the map is dropped
     fn get(&self, path: &Path) -> Option<CacheEntryState> {
-        let entry = self.map.get(path)?;
+        let Some(entry) = self.map.get(path) else {
+            self.access_metrics.record_cache_miss();
+            return None;
+        };
         if entry.is_success() {
+            self.access_metrics.record_cache_hit();
             entry
                 .hit_time
                 .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
+        } else if entry.is_fetching() {
+            self.access_metrics.record_cache_miss_while_fetching();
         }
         Some(entry.state.clone())
     }
@@ -303,6 +328,8 @@ impl Cache {
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
+        self.size_metrics
+            .record_file_additions(additional as u64, 1);
         self.map.insert(path.clone(), entry);
         self.used.fetch_add(additional, Ordering::SeqCst);
     }
@@ -318,13 +345,16 @@ impl Cache {
                     // treated as immutable, this should be okay.
                     bail!("attempted to store value in non-fetching cache entry");
                 }
+                let current_size = entry.size();
                 entry.state = CacheEntryState::Success(value);
                 entry
                     .hit_time
                     .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
                 // TODO(trevor): what if size is greater than cache capacity?
-                let additional = entry.size();
-                self.used.fetch_add(additional, Ordering::SeqCst);
+                let additional_bytes = entry.size() - current_size;
+                self.size_metrics
+                    .record_file_additions(additional_bytes as u64, 0);
+                self.used.fetch_add(additional_bytes, Ordering::SeqCst);
                 Ok(())
             }
             Entry::Vacant(_) => bail!("attempted to set success state on an empty cache entry"),
@@ -336,7 +366,10 @@ impl Cache {
         let Some((_, entry)) = self.map.remove(path) else {
             return;
         };
-        self.used.fetch_sub(entry.state.size(), Ordering::SeqCst);
+        let removed_bytes = entry.size();
+        self.size_metrics
+            .record_file_deletions(removed_bytes as u64, 1);
+        self.used.fetch_sub(removed_bytes, Ordering::SeqCst);
     }
 
     /// Prune least recently hit entries from the cache
@@ -378,11 +411,14 @@ impl Cache {
 
         // track the total size of entries that get freed:
         let mut freed = 0;
+        let n_files = prune_heap.len() as u64;
         // drop entries with hit times before the cut-off:
         for item in prune_heap {
             self.map.remove(&Path::from(item.path_ref.as_ref()));
             freed += item.size;
         }
+        self.size_metrics
+            .record_file_deletions(freed as u64, n_files);
         // update used mem size with freed amount:
         self.used.fetch_sub(freed, Ordering::SeqCst);
 
@@ -430,17 +466,34 @@ pub struct MemCachedObjectStore {
     cache: Arc<Cache>,
 }
 
+#[derive(Debug)]
+pub struct MemCachedObjectStoreArgs {
+    pub time_provider: Arc<dyn TimeProvider>,
+    pub metric_registry: Arc<Registry>,
+    pub inner: Arc<dyn ObjectStore>,
+    pub memory_capacity: usize,
+    pub prune_percent: f64,
+}
+
 impl MemCachedObjectStore {
     /// Create a new [`MemCachedObjectStore`]
     fn new(
-        inner: Arc<dyn ObjectStore>,
-        memory_capacity: usize,
-        time_provider: Arc<dyn TimeProvider>,
-        prune_percent: f64,
+        MemCachedObjectStoreArgs {
+            time_provider,
+            metric_registry,
+            inner,
+            memory_capacity,
+            prune_percent,
+        }: MemCachedObjectStoreArgs,
     ) -> Self {
         Self {
             inner,
-            cache: Arc::new(Cache::new(memory_capacity, prune_percent, time_provider)),
+            cache: Arc::new(Cache::new(
+                memory_capacity,
+                prune_percent,
+                time_provider,
+                metric_registry,
+            )),
         }
     }
 }
@@ -707,13 +760,16 @@ pub(crate) mod tests {
         RequestCountedObjectStore, SynchronizedObjectStore,
     };
     use iox_time::{MockProvider, Time, TimeProvider};
+    use metric::{Attributes, Metric, Registry, U64Counter, U64Gauge};
     use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload};
 
     use pretty_assertions::assert_eq;
     use tokio::sync::Notify;
 
     use crate::parquet_cache::{
-        create_cached_obj_store_and_oracle, test_cached_obj_store_and_oracle, CacheRequest,
+        create_cached_obj_store_and_oracle,
+        metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_BYTES_NAME, CACHE_SIZE_N_FILES_NAME},
+        test_cached_obj_store_and_oracle, CacheRequest,
     };
 
     macro_rules! assert_payload_at_equals {
@@ -741,6 +797,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = test_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider),
+            Default::default(),
         );
         // PUT a paylaod into the object store through the outer mem cached store:
         let path = Path::from("0.parquet");
@@ -783,6 +840,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
+            Default::default(),
             cache_capacity_bytes,
             cache_prune_percent,
             cache_prune_interval,
@@ -906,6 +964,7 @@ pub(crate) mod tests {
         let (cached_store, oracle) = test_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
+            Default::default(),
         );
 
         // PUT an entry into the store:
@@ -945,5 +1004,183 @@ pub(crate) mod tests {
         // make another request to the store, to be sure that it is in the cache:
         assert_payload_at_equals!(cached_store, payload, path);
         assert_eq!(1, counter.total_read_request_count(&path));
+    }
+
+    struct MetricVerifier {
+        access_metrics: Metric<U64Counter>,
+        size_mb_metrics: Metric<U64Gauge>,
+        size_n_files_metrics: Metric<U64Gauge>,
+    }
+
+    impl MetricVerifier {
+        fn new(metric_registry: Arc<Registry>) -> Self {
+            let access_metrics = metric_registry
+                .get_instrument::<Metric<U64Counter>>(CACHE_ACCESS_NAME)
+                .unwrap();
+            let size_mb_metrics = metric_registry
+                .get_instrument::<Metric<U64Gauge>>(CACHE_SIZE_BYTES_NAME)
+                .unwrap();
+            let size_n_files_metrics = metric_registry
+                .get_instrument::<Metric<U64Gauge>>(CACHE_SIZE_N_FILES_NAME)
+                .unwrap();
+            Self {
+                access_metrics,
+                size_mb_metrics,
+                size_n_files_metrics,
+            }
+        }
+
+        fn assert_access(
+            &self,
+            hits_expected: u64,
+            misses_expected: u64,
+            misses_while_fetching_expected: u64,
+        ) {
+            let hits_actual = self
+                .access_metrics
+                .get_observer(&Attributes::from(&[("status", "cached")]))
+                .unwrap()
+                .fetch();
+            let misses_actual = self
+                .access_metrics
+                .get_observer(&Attributes::from(&[("status", "miss")]))
+                .unwrap()
+                .fetch();
+            let misses_while_fetching_actual = self
+                .access_metrics
+                .get_observer(&Attributes::from(&[("status", "miss_while_fetching")]))
+                .unwrap()
+                .fetch();
+            assert_eq!(
+                hits_actual, hits_expected,
+                "cache hits did not match expectation"
+            );
+            assert_eq!(
+                misses_actual, misses_expected,
+                "cache misses did not match expectation"
+            );
+            assert_eq!(
+                misses_while_fetching_actual, misses_while_fetching_expected,
+                "cache misses while fetching did not match expectation"
+            );
+        }
+
+        fn assert_size(&self, size_bytes_expected: u64, size_n_files_expected: u64) {
+            let size_bytes_actual = self
+                .size_mb_metrics
+                .get_observer(&Attributes::from(&[]))
+                .unwrap()
+                .fetch();
+            let size_n_files_actual = self
+                .size_n_files_metrics
+                .get_observer(&Attributes::from(&[]))
+                .unwrap()
+                .fetch();
+            assert_eq!(
+                size_bytes_actual, size_bytes_expected,
+                "cache size in bytes did not match actual"
+            );
+            assert_eq!(
+                size_n_files_actual, size_n_files_expected,
+                "cache size in number of files did not match actual"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn cache_metrics() {
+        // test setup
+        let to_store_notify = Arc::new(Notify::new());
+        let from_store_notify = Arc::new(Notify::new());
+        let counted_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+        let inner_store = Arc::new(
+            SynchronizedObjectStore::new(Arc::clone(&counted_store) as _)
+                .with_get_notifies(Arc::clone(&to_store_notify), Arc::clone(&from_store_notify)),
+        );
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let metric_registry = Arc::new(Registry::new());
+        let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&metric_registry),
+        );
+        let metric_verifier = MetricVerifier::new(metric_registry);
+
+        // put something in the object store:
+        let path = Path::from("0.parquet");
+        let payload = b"Janeway";
+        cached_store
+            .put(&path, PutPayload::from_static(payload))
+            .await
+            .unwrap();
+
+        // spin off a task to make a request to the object store on a separate thread. We will drive
+        // the notifiers from here, as we just need the request to go through to register a cache
+        // miss.
+        let cached_store_cloned = Arc::clone(&cached_store);
+        let path_cloned = path.clone();
+        let h = tokio::spawn(async move {
+            assert_payload_at_equals!(cached_store_cloned, payload, path_cloned);
+        });
+
+        // drive the synchronized store using the notifiers:
+        from_store_notify.notified().await;
+        to_store_notify.notify_one();
+        h.await.unwrap();
+
+        // check that there is a single cache miss:
+        metric_verifier.assert_access(0, 1, 0);
+        // nothing in the cache so sizes are 0
+        metric_verifier.assert_size(0, 0);
+
+        // there should be a single request made to the inner counted store from above:
+        assert_eq!(1, counted_store.total_read_request_count(&path));
+
+        // have the cache oracle cache the object:
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        oracle.register(cache_request);
+
+        // we are in the middle of a get request, i.e., the cache entry is "fetching" once this
+        // call to notified wakes:
+        let _ = from_store_notify.notified().await;
+        // just a fetching entry in the cache, so it will have n files of 1 and 8 bytes for the atomic
+        // i64
+        metric_verifier.assert_size(8, 1);
+
+        // spawn a thread to wake the in-flight get request initiated by the cache oracle after we
+        // have started a get request below, such that the get request below hits the cache while
+        // the entry is still in the "fetching" state:
+        let h = tokio::spawn(async move {
+            to_store_notify.notify_one();
+            let _ = notifier_rx.await;
+        });
+
+        // make the request to the store, which hits the cache in the "fetching" state since we
+        // haven't made the call to notify the store to continue yet:
+        assert_payload_at_equals!(cached_store, payload, path);
+
+        // check that there is a single miss while fetching, note, the metrics are cumulative, so
+        // the original miss is still there:
+        metric_verifier.assert_access(0, 1, 1);
+
+        // drive the task to completion to ensure that the cache request has been fulfilled:
+        h.await.unwrap();
+
+        // there should only have been two requests made, i.e., one from the request before the
+        // object was cached, and one from the cache oracle:
+        assert_eq!(2, counted_store.total_read_request_count(&path));
+
+        // make another request, this time, it should use the cache:
+        assert_payload_at_equals!(cached_store, payload, path);
+
+        // there have now been one of each access metric:
+        metric_verifier.assert_access(1, 1, 1);
+        // now the cache has a the full entry, which includes the atomic i64, the metadata, and
+        // the payload itself:
+        metric_verifier.assert_size(25, 1);
+
+        cached_store.delete(&path).await.unwrap();
+        // removing the entry should bring the cache sizes back to zero:
+        metric_verifier.assert_size(0, 0);
     }
 }

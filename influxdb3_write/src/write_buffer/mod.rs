@@ -750,8 +750,11 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
@@ -2183,8 +2186,11 @@ mod tests {
     ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let (object_store, parquet_cache) = if use_cache {
-            let (object_store, parquet_cache) =
-                test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+            let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+                object_store,
+                Arc::clone(&time_provider),
+                Default::default(),
+            );
             (object_store, Some(parquet_cache))
         } else {
             (object_store, None)
