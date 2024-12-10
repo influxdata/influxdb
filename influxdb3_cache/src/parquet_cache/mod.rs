@@ -302,14 +302,12 @@ impl Cache {
             return None;
         };
         if entry.is_success() {
+            self.access_metrics.record_cache_hit();
             entry
                 .hit_time
                 .store(self.time_provider.now().timestamp_nanos(), Ordering::SeqCst);
-        }
-        if entry.is_fetching() {
+        } else if entry.is_fetching() {
             self.access_metrics.record_cache_miss_while_fetching();
-        } else {
-            self.access_metrics.record_cache_hit();
         }
         Some(entry.state.clone())
     }
@@ -330,6 +328,8 @@ impl Cache {
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
+        self.size_metrics
+            .record_file_additions(additional as u64, 1);
         self.map.insert(path.clone(), entry);
         self.used.fetch_add(additional, Ordering::SeqCst);
     }
@@ -353,7 +353,7 @@ impl Cache {
                 // TODO(trevor): what if size is greater than cache capacity?
                 let additional_bytes = entry.size() - current_size;
                 self.size_metrics
-                    .record_file_addition(additional_bytes as u64);
+                    .record_file_additions(additional_bytes as u64, 0);
                 self.used.fetch_add(additional_bytes, Ordering::SeqCst);
                 Ok(())
             }
@@ -362,15 +362,13 @@ impl Cache {
     }
 
     /// Remove an entry from the cache, as well as its associated size from the used capacity
-    fn remove(&self, path: &Path, track_metrics: bool) {
+    fn remove(&self, path: &Path) {
         let Some((_, entry)) = self.map.remove(path) else {
             return;
         };
-        let removed_bytes = entry.state.size();
-        if track_metrics {
-            self.size_metrics
-                .record_file_deletions(removed_bytes as u64, 1);
-        }
+        let removed_bytes = entry.size();
+        self.size_metrics
+            .record_file_deletions(removed_bytes as u64, 1);
         self.used.fetch_sub(removed_bytes, Ordering::SeqCst);
     }
 
@@ -633,7 +631,7 @@ impl ObjectStore for MemCachedObjectStore {
     /// Delete an object on object store, but also remove it from the cache.
     async fn delete(&self, location: &Path) -> object_store::Result<()> {
         let result = self.inner.delete(location).await?;
-        self.cache.remove(location, true);
+        self.cache.remove(location);
         Ok(result)
     }
 
@@ -724,7 +722,7 @@ fn background_cache_request_handler(
                     }
                     Err(error) => {
                         error!(%error, "failed to fulfill cache request with object store");
-                        mem_store_captured.cache.remove(&path, false);
+                        mem_store_captured.cache.remove(&path);
                     }
                 };
                 // notify that the cache request has been fulfilled:
@@ -770,7 +768,7 @@ pub(crate) mod tests {
 
     use crate::parquet_cache::{
         create_cached_obj_store_and_oracle,
-        metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_MB_NAME, CACHE_SIZE_N_FILES_NAME},
+        metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_BYTES_NAME, CACHE_SIZE_N_FILES_NAME},
         test_cached_obj_store_and_oracle, CacheRequest,
     };
 
@@ -1020,7 +1018,7 @@ pub(crate) mod tests {
                 .get_instrument::<Metric<U64Counter>>(CACHE_ACCESS_NAME)
                 .unwrap();
             let size_mb_metrics = metric_registry
-                .get_instrument::<Metric<U64Gauge>>(CACHE_SIZE_MB_NAME)
+                .get_instrument::<Metric<U64Gauge>>(CACHE_SIZE_BYTES_NAME)
                 .unwrap();
             let size_n_files_metrics = metric_registry
                 .get_instrument::<Metric<U64Gauge>>(CACHE_SIZE_N_FILES_NAME)
@@ -1132,6 +1130,7 @@ pub(crate) mod tests {
 
         // check that there is a single cache miss:
         metric_verifier.assert_access(0, 1, 0);
+        // nothing in the cache so sizes are 0
         metric_verifier.assert_size(0, 0);
 
         // there should be a single request made to the inner counted store from above:
@@ -1144,6 +1143,9 @@ pub(crate) mod tests {
         // we are in the middle of a get request, i.e., the cache entry is "fetching" once this
         // call to notified wakes:
         let _ = from_store_notify.notified().await;
+        // just a fetching entry in the cache, so it will have n files of 1 and 8 bytes for the atomic
+        // i64
+        metric_verifier.assert_size(8, 1);
 
         // spawn a thread to wake the in-flight get request initiated by the cache oracle after we
         // have started a get request below, such that the get request below hits the cache while
@@ -1171,10 +1173,14 @@ pub(crate) mod tests {
         // make another request, this time, it should use the cache:
         assert_payload_at_equals!(cached_store, payload, path);
 
+        // there have now been one of each access metric:
         metric_verifier.assert_access(1, 1, 1);
-        metric_verifier.assert_size(17, 1);
+        // now the cache has a the full entry, which includes the atomic i64, the metadata, and
+        // the payload itself:
+        metric_verifier.assert_size(25, 1);
 
         cached_store.delete(&path).await.unwrap();
+        // removing the entry should bring the cache sizes back to zero:
         metric_verifier.assert_size(0, 0);
     }
 }

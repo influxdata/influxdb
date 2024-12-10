@@ -44,14 +44,14 @@ pub(super) struct SizeMetrics {
     cache_size_n_files: U64Gauge,
 }
 
-pub(super) const CACHE_SIZE_MB_NAME: &str = "influxdb3_parquet_cache_size_bytes";
+pub(super) const CACHE_SIZE_BYTES_NAME: &str = "influxdb3_parquet_cache_size_bytes";
 pub(super) const CACHE_SIZE_N_FILES_NAME: &str = "influxdb3_parquet_cache_size_number_of_files";
 
 impl SizeMetrics {
     pub(super) fn new(metric_registry: &Registry) -> Self {
         let cache_size_bytes = metric_registry
             .register_metric::<U64Gauge>(
-                CACHE_SIZE_MB_NAME,
+                CACHE_SIZE_BYTES_NAME,
                 "track size of in-memory parquet cache",
             )
             .recorder(&[]);
@@ -67,9 +67,9 @@ impl SizeMetrics {
         }
     }
 
-    pub(super) fn record_file_addition(&self, size_bytes: u64) {
+    pub(super) fn record_file_additions(&self, size_bytes: u64, n_files: u64) {
         self.cache_size_bytes.inc(size_bytes);
-        self.cache_size_n_files.inc(1);
+        self.cache_size_n_files.inc(n_files);
     }
 
     pub(super) fn record_file_deletions(&self, total_size_bytes: u64, n_files: u64) {
