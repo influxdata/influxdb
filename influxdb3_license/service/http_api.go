@@ -119,5 +119,5 @@ func (h *HTTPHandler) handleGetLicenses(w http.ResponseWriter, r *http.Request, 
 	// TODO: Implement license retrieval
 	lic := "InfluxDB Pro 30 Day Trial License"
 
-	w.Write([]byte(lic))
+	_, _ = w.Write([]byte(lic))
 }
