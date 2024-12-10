@@ -683,35 +683,20 @@ mod tests {
     use influxdb3_pro_data_layout::HostSnapshotMarker;
     use influxdb3_sys_events::{events::SnapshotFetchedEvent, SysEventStore};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
-    use influxdb3_write::{persister::Persister, ParquetFile, PersistedSnapshot};
+    use influxdb3_write::{persister::Persister, PersistedSnapshot};
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use observability_deps::tracing::debug;
     use pretty_assertions::assert_eq;
 
     use crate::producer::{load_all_snapshots, load_next_snapshot};
+    use crate::test_helpers::TestWriter;
 
     use super::*;
-    use datafusion_util::config::register_iox_object_store;
-    use executor::{register_current_runtime_for_io, DedicatedExecutor};
-    use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
-    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
     use influxdb3_pro_data_layout::{CompactionDetailPath, Generation, GenerationDetailPath};
-    use influxdb3_wal::{
-        Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch,
-    };
-    use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
-    use influxdb3_write::write_buffer::queryable_buffer::{QueryableBuffer, QueryableBufferArgs};
-    use influxdb3_write::write_buffer::validator::WriteValidator;
-    use influxdb3_write::Precision;
-    use iox_query::exec::{Executor, ExecutorConfig};
-    use iox_time::TimeProvider;
     use object_store::path::Path;
     use object_store::ObjectStore;
-    use parquet_file::storage::{ParquetStorage, StorageId};
-    use std::num::NonZeroUsize;
     use tokio::sync::RwLock;
 
     #[tokio::test]
@@ -852,147 +837,102 @@ mod tests {
         assert_eq!(parquet_files[0].row_count, 4);
     }
 
-    struct TestWriter {
-        exec: Arc<Executor>,
-        catalog: Arc<Catalog>,
-        persister: Arc<Persister>,
-        persisted_files: Arc<PersistedFiles>,
-        wal_file_sequence_number: WalFileSequenceNumber,
-        snapshot_sequence_number: SnapshotSequenceNumber,
-        time_provider: Arc<dyn TimeProvider>,
-    }
+    #[tokio::test]
+    async fn load_snapshots_persists_compacted_catalog() {
+        let host_id = "test_host";
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let mut writer = TestWriter::new(host_id, Arc::clone(&object_store));
 
-    impl TestWriter {
-        fn new(host_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
-            let metrics = Arc::new(metric::Registry::default());
+        let lp = r#"
+            cpu,host=asdf usage=1 1
+        "#;
+        let _snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
 
-            let parquet_store =
-                ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
-            let exec = Arc::new(Executor::new_with_config_and_executor(
-                ExecutorConfig {
-                    target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                    object_stores: [&parquet_store]
-                        .into_iter()
-                        .map(|store| (store.id(), Arc::clone(store.object_store())))
-                        .collect(),
-                    metric_registry: Arc::clone(&metrics),
-                    // Default to 1gb
-                    mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
-                },
-                DedicatedExecutor::new_testing(),
-            ));
-            let runtime_env = exec.new_context().inner().runtime_env();
-            register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
-            register_current_runtime_for_io();
+        let (mut state, compacted_data) = CompactionState::load_or_initialize(
+            "compactor-1",
+            vec![host_id.into()],
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
+        let db_schema = compacted_data
+            .compacted_catalog
+            .catalog
+            .db_schema("testdb")
+            .unwrap();
+        let table_definition = db_schema.table_definition("cpu").unwrap();
 
-            let catalog = Arc::new(Catalog::new(host_id.into(), "foo".into()));
-            let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
-            let time_provider: Arc<dyn TimeProvider> =
-                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-
-            Self {
-                exec,
-                catalog,
-                persister,
-                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(vec![])),
-                wal_file_sequence_number: WalFileSequenceNumber::new(0),
-                snapshot_sequence_number: SnapshotSequenceNumber::new(0),
-                time_provider,
-            }
-        }
-
-        fn get_files(&self, table_name: &str) -> Vec<ParquetFile> {
-            let db = self.catalog.db_schema("testdb").unwrap();
-            let table = db.table_definition(table_name).unwrap();
-            self.persisted_files.get_files(db.id, table.table_id)
-        }
-
-        async fn persist_lp_and_snapshot(
-            &mut self,
-            lp: &str,
-            default_time: i64,
-        ) -> PersistedSnapshot {
-            let db = data_types::NamespaceName::new("testdb").unwrap();
-            let val =
-                WriteValidator::initialize(db, Arc::clone(&self.catalog), default_time).unwrap();
-            let lines = val
-                .v1_parse_lines_and_update_schema(
-                    lp,
-                    false,
-                    self.time_provider.now(),
-                    Precision::Nanosecond,
-                )
-                .unwrap()
-                .convert_lines_to_buffer(Gen1Duration::new_1m());
-            let batch: WriteBatch = lines.into();
-            let wal_contents = WalContents {
-                persist_timestamp_ms: 0,
-                min_timestamp_ns: batch.min_time_ns,
-                max_timestamp_ns: batch.max_time_ns,
-                wal_file_number: self.wal_file_sequence_number.next(),
-                ops: vec![WalOp::Write(batch)],
-                snapshot: None,
-            };
-            let end_time = wal_contents.max_timestamp_ns
-                + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
-
-            let queryable_buffer_args = QueryableBufferArgs {
-                executor: Arc::clone(&self.exec),
-                catalog: Arc::clone(&self.catalog),
-                persister: Arc::clone(&self.persister),
-                last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&self.catalog))
-                    .unwrap(),
-                meta_cache_provider: MetaCacheProvider::new_from_catalog(
-                    Arc::clone(&self.time_provider),
-                    Arc::clone(&self.catalog),
-                )
-                .unwrap(),
-                persisted_files: Arc::new(Default::default()),
-                parquet_cache: None,
-            };
-            let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
-
-            // write the lp into the buffer
-            queryable_buffer.notify(wal_contents);
-            self.snapshot_sequence_number = self.snapshot_sequence_number.next();
-            let snapshot_details = SnapshotDetails {
-                snapshot_sequence_number: self.snapshot_sequence_number,
-                end_time_marker: end_time,
-                last_wal_sequence_number: self.wal_file_sequence_number,
-            };
-
-            // now force a snapshot, persisting the data to parquet files and writing a persisted snapshot file
-            let details = queryable_buffer
-                .notify_and_snapshot(
-                    WalContents {
-                        persist_timestamp_ms: 0,
-                        min_timestamp_ns: 0,
-                        max_timestamp_ns: 0,
-                        wal_file_number: self.wal_file_sequence_number,
-                        ops: vec![],
-                        snapshot: Some(snapshot_details),
-                    },
-                    snapshot_details,
-                )
-                .await;
-            let details = details.await.unwrap();
-
-            let persisted_snapshot = self
-                .persister
-                .load_snapshots(1)
+        let loaded_compacted_catalog =
+            CompactedCatalog::load("compactor-1", Arc::clone(&object_store))
                 .await
                 .unwrap()
-                .pop()
                 .unwrap();
-            assert_eq!(
-                persisted_snapshot.snapshot_sequence_number,
-                details.snapshot_sequence_number
-            );
-            self.persisted_files
-                .add_persisted_snapshot_files(persisted_snapshot.clone());
+        let loaded_db_schema = loaded_compacted_catalog
+            .catalog
+            .db_schema("testdb")
+            .unwrap();
+        let loaded_table_definition = loaded_db_schema.table_definition("cpu").unwrap();
 
-            persisted_snapshot
-        }
+        assert_eq!(
+            compacted_data.compacted_catalog.catalog.sequence_number(),
+            CatalogSequenceNumber::new(1)
+        );
+        assert_eq!(
+            loaded_compacted_catalog.catalog.sequence_number(),
+            CatalogSequenceNumber::new(1)
+        );
+        assert_eq!(db_schema, loaded_db_schema);
+        assert_eq!(table_definition, loaded_table_definition);
+
+        // now write a new snapshot, load snapshots, and reload the compacted catalog to ensure it's updated
+        let snapshot = writer
+            .persist_lp_and_snapshot("mem,host=foo usage=4 60000000000", 0)
+            .await;
+        assert_eq!(
+            snapshot.snapshot_sequence_number,
+            SnapshotSequenceNumber::new(2)
+        );
+
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        state
+            .load_snapshots(
+                &compacted_data,
+                Arc::clone(&object_store),
+                Arc::clone(&sys_events_store),
+            )
+            .await
+            .unwrap();
+
+        // ensure the in-memory and a newly loaded compacted catalog have the new mem table
+        let db_schema = compacted_data
+            .compacted_catalog
+            .catalog
+            .db_schema("testdb")
+            .unwrap();
+        let table_definition = db_schema.table_definition("mem").unwrap();
+        let loaded_compacted_catalog = CompactedCatalog::load_from_id(
+            "compactor-1",
+            CatalogSequenceNumber::new(2),
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let loaded_db_schema = loaded_compacted_catalog
+            .catalog
+            .db_schema("testdb")
+            .unwrap();
+        let loaded_table_definition = loaded_db_schema.table_definition("mem").unwrap();
+
+        assert_eq!(db_schema, loaded_db_schema);
+        assert_eq!(table_definition, loaded_table_definition);
+
+        // and make sure the cpu table is there
+        assert!(db_schema.table_definition("cpu").is_some());
+        assert!(loaded_db_schema.table_definition("cpu").is_some());
     }
 
     #[test_log::test(tokio::test)]

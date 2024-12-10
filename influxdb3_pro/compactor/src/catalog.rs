@@ -17,8 +17,8 @@ use influxdb3_write::persister::Persister;
 use influxdb3_write::{DatabaseTables, PersistedSnapshot};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
-use observability_deps::tracing::info;
 use observability_deps::tracing::log::error;
+use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -131,6 +131,19 @@ impl CompactedCatalog {
         }
     }
 
+    /// Load the `CompactedCatalog` from the object store using the provided compactor id and sequence number.
+    pub async fn load_from_id(
+        compactor_id: &str,
+        sequence_number: CatalogSequenceNumber,
+        object_store: Arc<dyn ObjectStore>,
+    ) -> Result<Option<CompactedCatalog>> {
+        let path = CompactedCatalogPath::new(compactor_id, sequence_number);
+        let bytes = object_store.get(&path.0).await?.bytes().await?;
+        let catalog = serde_json::from_slice(&bytes)?;
+        debug!(catalog = ?catalog, "Loaded compacted catalog");
+        Ok(Some(catalog))
+    }
+
     pub async fn persist(&self, object_store: Arc<dyn ObjectStore>) -> Result<()> {
         let path =
             CompactedCatalogPath::new(self.comapctor_id.as_ref(), self.catalog.sequence_number());
@@ -194,11 +207,16 @@ impl CompactedCatalog {
             info!(host = %catalog.host_id(), sequence = %catalog.sequence_number().as_u32(), "Updated host catalog");
         }
 
-        // and update the host maps
-        let mut host_maps = self.host_maps.write();
-        for (host, updated_host_catalog) in updated_host_maps {
-            host_maps.insert(host.to_string(), updated_host_catalog);
+        {
+            // and update the host maps
+            let mut host_maps = self.host_maps.write();
+            for (host, updated_host_catalog) in updated_host_maps {
+                host_maps.insert(host.to_string(), updated_host_catalog);
+            }
         }
+
+        //  and persist
+        self.persist(Arc::clone(&object_store)).await?;
 
         Ok(())
     }
