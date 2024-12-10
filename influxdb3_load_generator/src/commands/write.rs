@@ -4,6 +4,8 @@ use crate::specification::DataSpec;
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use influxdb3_client::{Client, Precision};
 use std::ops::Add;
 use std::path::PathBuf;
@@ -185,7 +187,7 @@ pub(crate) async fn run_write_load(
     };
 
     // spawn tokio tasks for each writer
-    let mut tasks = Vec::new();
+    let mut tasks = FuturesUnordered::new();
     for generator in generators {
         let reporter = Arc::clone(&reporter);
         let sampling_interval = sampling_interval.into();
@@ -202,8 +204,8 @@ pub(crate) async fn run_write_load(
     }
 
     // wait for all tasks to complete
-    for task in tasks {
-        task.await?;
+    while let Some(result) = tasks.next().await {
+        result?;
     }
     println!("all writers finished");
 

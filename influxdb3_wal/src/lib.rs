@@ -248,6 +248,8 @@ pub enum CatalogOp {
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
     DeleteTable(DeleteTableDefinition),
+    CreatePlugin(PluginDefinition),
+    CreateTrigger(TriggerDefinition),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -523,6 +525,28 @@ pub struct MetaCacheDelete {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub cache_name: Arc<str>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct PluginDefinition {
+    pub plugin_name: String,
+    pub code: String,
+    pub function_name: String,
+    pub plugin_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct TriggerDefinition {
+    pub trigger_name: String,
+    pub plugin_name: String,
+    pub trigger: TriggerSpecificationDefinition,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum TriggerSpecificationDefinition {
+    SingleTableWalWrite { table_name: String },
+    AllTablesWalWrite,
 }
 
 #[serde_as]
@@ -816,7 +840,7 @@ pub fn background_wal_flush<W: Wal>(
                 let snapshot_wal = Arc::clone(&wal);
                 tokio::spawn(async move {
                     let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert!(snapshot_info.snapshot_details == snapshot_details);
+                    assert_eq!(snapshot_info.snapshot_details, snapshot_details);
 
                     snapshot_wal
                         .cleanup_snapshot(snapshot_info, snapshot_permit)
