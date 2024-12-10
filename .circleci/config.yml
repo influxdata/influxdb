@@ -66,6 +66,9 @@ nofork_filter: &nofork_filter
     branches:
       ignore: /pull\/[0-9]+/
 
+# Set the version of Go tools to use
+go_image: &go_image
+  image: cimg/go:1.23
 
 commands:
   rust_components:
@@ -513,7 +516,53 @@ jobs:
     steps:
       - run: |
           echo build executed successfully
-
+  go-fmt:
+    docker:
+      - *go_image
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
+      - checkout
+      - run:
+          name: Check Go Formatting
+          command: |
+            fmt_files=$(gofmt -l .)
+            if [ -n "$fmt_files" ]; then
+              echo "The following files need formatting:"
+              echo "$fmt_files"
+              echo "Please run 'go fmt ./...' locally and commit the changes."
+              exit 1
+            else
+              echo "All files are properly formatted."
+            fi
+  go-lint-license-service:
+    docker:
+      - *go_image
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
+      - checkout
+      - run:
+          name: Install golangci-lint
+          command: |
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+              | sh -s -- -b $(go env GOPATH)/bin
+      - run:
+          name: Run golangci-lint
+          command: cd influxdb3_license/service && golangci-lint run --timeout 5m ./...
+  go-test-license-service:
+    docker:
+      - *go_image
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
+      - checkout
+      - run:
+          name: Run Go tests
+          command: cd influxdb3_license/service && go test -v ./...
 
 workflows:
   version: 2
@@ -613,3 +662,8 @@ workflows:
           requires:
             - build-docker
             - publish-docker
+  go-ci:
+    jobs:
+      - go-fmt
+      - go-lint-license-service
+      - go-test-license-service
