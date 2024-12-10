@@ -35,17 +35,16 @@ use datafusion::execution::SendableRecordBatchStream;
 use futures::{future::join_all, TryFutureExt};
 use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
+use influxdb3_cache::parquet_cache::CacheRequest;
+use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
 use influxdb3_id::ColumnId;
 use influxdb3_id::ParquetFileId;
 use influxdb3_pro_data_layout::{CompactedFilePath, Generation};
 use influxdb3_pro_index::FileIndex;
+use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::ParquetFile;
-use influxdb3_write::{
-    chunk::ParquetChunk,
-    parquet_cache::{CacheRequest, ParquetCacheOracle},
-};
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
 use iox_query::exec::Executor;
@@ -839,12 +838,12 @@ mod tests {
 
     use chrono::Utc;
     use humantime::Duration;
+    use influxdb3_cache::parquet_cache::{
+        create_cached_obj_store_and_oracle, CacheRequest, ParquetCacheOracle,
+    };
     use influxdb3_id::ParquetFileId;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
-    use influxdb3_write::{
-        parquet_cache::{create_cached_obj_store_and_oracle, CacheRequest, ParquetCacheOracle},
-        ParquetFile,
-    };
+    use influxdb3_write::ParquetFile;
     use iox_time::{MockProvider, Time};
     use object_store::{memory::InMemory, path::Path as ObjPath, PutPayload};
     use observability_deps::tracing::debug;
@@ -945,6 +944,7 @@ mod tests {
         let (cached_store, oracle) = create_cached_obj_store_and_oracle(
             Arc::clone(&inner_store) as _,
             Arc::clone(&time_provider) as _,
+            Default::default(),
             cache_capacity_bytes,
             cache_prune_percent,
             cache_prune_interval,
