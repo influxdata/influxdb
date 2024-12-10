@@ -206,13 +206,13 @@ mod tests {
 
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
-    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
+    use influxdb3_cache::{
+        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
+    };
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::{
-        parquet_cache::test_cached_obj_store_and_oracle, persister::Persister, Bufferer,
-        ChunkContainer,
-    };
+    use influxdb3_write::{persister::Persister, Bufferer, ChunkContainer};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
@@ -342,6 +342,7 @@ mod tests {
         let (cached_obj_store, parquet_cache) = test_cached_obj_store_and_oracle(
             Arc::clone(&non_cached_obj_store) as _,
             Arc::clone(&time_provider),
+            Default::default(),
         );
         let host_id = "picard";
         let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, host_id));

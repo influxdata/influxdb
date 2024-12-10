@@ -6,7 +6,6 @@ pub mod queryable_buffer;
 mod table_buffer;
 pub mod validator;
 
-use crate::parquet_cache::ParquetCacheOracle;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
@@ -27,6 +26,7 @@ use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
+use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
@@ -703,7 +703,6 @@ impl WriteBuffer for WriteBufferImpl {}
 #[allow(clippy::await_holding_lock)]
 mod tests {
     use super::*;
-    use crate::parquet_cache::test_cached_obj_store_and_oracle;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::PersistedSnapshot;
@@ -712,6 +711,7 @@ mod tests {
     use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
     use futures_util::StreamExt;
+    use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -754,8 +754,11 @@ mod tests {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let (object_store, parquet_cache) =
-            test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
@@ -2187,8 +2190,11 @@ mod tests {
     ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let (object_store, parquet_cache) = if use_cache {
-            let (object_store, parquet_cache) =
-                test_cached_obj_store_and_oracle(object_store, Arc::clone(&time_provider));
+            let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+                object_store,
+                Arc::clone(&time_provider),
+                Default::default(),
+            );
             (object_store, Some(parquet_cache))
         } else {
             (object_store, None)

@@ -2,6 +2,7 @@
 
 pub mod last_cache;
 pub mod meta_cache;
+pub mod parquet_cache;
 
 #[cfg(test)]
 mod test_helpers;

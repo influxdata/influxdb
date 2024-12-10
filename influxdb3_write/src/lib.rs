@@ -5,7 +5,6 @@
 //! metadata of the parquet files that were written in that snapshot.
 
 pub mod chunk;
-pub mod parquet_cache;
 pub mod paths;
 pub mod persister;
 pub mod write_buffer;

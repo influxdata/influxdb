@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 # Core Crates
 iox_time.workspace = true
+metric.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
 
@@ -20,9 +21,13 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 anyhow.workspace = true
 arrow.workspace = true
 async-trait.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
 datafusion.workspace = true
+futures.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
+object_store.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -34,11 +39,13 @@ data_types.workspace = true
 
 # Local deps
 influxdb3_write = { path = "../influxdb3_write" }
+influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
 bimap.workspace = true
 insta.workspace = true
 object_store.workspace = true
+pretty_assertions.workspace = true
 test-log.workspace = true
 
 [lints]
