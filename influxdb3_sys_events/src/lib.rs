@@ -11,7 +11,7 @@ use dashmap::DashMap;
 use iox_time::{Time, TimeProvider};
 pub mod events;
 
-const MAX_CAPACITY: usize = 1000;
+const MAX_CAPACITY: usize = 10_000;
 
 /// This trait is not dyn compatible
 pub trait ToRecordBatch<E> {

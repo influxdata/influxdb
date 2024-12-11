@@ -3469,11 +3469,14 @@ dependencies = [
  "criterion",
  "dashmap",
  "datafusion",
+ "humantime",
  "iox_system_tables",
  "iox_time",
  "observability_deps",
  "proptest",
  "rand",
+ "serde",
+ "serde_json",
  "test-log",
 ]
 

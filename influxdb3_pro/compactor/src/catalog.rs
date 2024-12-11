@@ -8,7 +8,7 @@ use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog, CatalogSequenceNumb
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
 use influxdb3_sys_events::{
-    events::{FailedInfo, SnapshotFetchedEvent},
+    events::{CompactionEvent, FailedInfo},
     SysEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
@@ -234,7 +234,7 @@ impl CompactedCatalog {
             .inspect_err(|err| {
                 if let crate::catalog::Error::MergeError(error) = err {
                     let error_msg = error.to_string();
-                    let failed_event = SnapshotFetchedEvent::Failed(FailedInfo {
+                    let failed_event = CompactionEvent::snapshot_failed(FailedInfo {
                         host: Arc::from(marker.host.as_str()),
                         sequence_number: marker.snapshot_sequence_number.as_u64(),
                         error: error_msg,
@@ -434,6 +434,7 @@ pub(crate) mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use influxdb3_sys_events::events::SnapshotFetched;
     use influxdb3_wal::FieldDataType;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -574,7 +575,7 @@ mod tests {
             &time_provider,
         )));
         let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
-        let failed_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        let failed_events = sys_events_store.as_vec::<CompactionEvent>();
         assert!(res.is_ok());
         debug!(catalogidmap = ?res.unwrap(), "Result from merging other catalog");
         debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");
@@ -624,24 +625,22 @@ mod tests {
             &time_provider,
         )));
         let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
-        let failed_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        let failed_events = sys_events_store.as_vec::<CompactionEvent>();
         assert!(res.is_err());
         debug!(result = ?res, "Result from merging other catalog with column type mismatch");
         debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");
         assert_eq!(1, failed_events.len());
         let failed_event = failed_events.first().unwrap();
-        assert!(matches!(
-            failed_event.data,
-            SnapshotFetchedEvent::Failed(..)
-        ));
         match &failed_event.data {
-            SnapshotFetchedEvent::Success(_) => panic!("cannot be success"),
-            SnapshotFetchedEvent::Failed(failed_event_info) => {
-                assert_eq!(Arc::from("host-id"), failed_event_info.host);
-                assert_eq!(123, failed_event_info.sequence_number);
-                assert_eq!("Field type mismatch on table table1 column tag1. Existing column is iox::column_type::tag but attempted to add iox::column_type::field::integer".to_string(),
-                    failed_event_info.error);
-            }
+            CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
+                SnapshotFetched::Success(_) => panic!("cannot be success"),
+                SnapshotFetched::Failed(failed_event_info) => {
+                    assert_eq!(Arc::from("host-id"), failed_event_info.host);
+                    assert_eq!(123, failed_event_info.sequence_number);
+                    assert_eq!("Field type mismatch on table table1 column tag1. Existing column is iox::column_type::tag but attempted to add iox::column_type::field::integer".to_string(),
+                        failed_event_info.error);
+                }
+            },
         }
     }
 }

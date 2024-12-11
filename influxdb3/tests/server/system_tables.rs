@@ -453,7 +453,7 @@ async fn snapshot_fetched_sys_table_empty_does_not_error() {
     let resp = server
         .flight_sql_client("foo")
         .await
-        .query("SELECT split_part(event_time, 'T', 1) as event_time, event_data FROM system.snapshot_fetched")
+        .query("SELECT split_part(event_time, 'T', 1) as event_time, event_data FROM system.compaction_events")
         .await
         .unwrap();
     let batches = collect_stream(resp).await;

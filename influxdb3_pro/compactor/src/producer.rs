@@ -19,7 +19,7 @@ use influxdb3_pro_data_layout::{
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
 use influxdb3_sys_events::{
-    events::{SnapshotFetchedEvent, SuccessInfo},
+    events::{CompactionEvent, SuccessInfo},
     SysEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
@@ -641,10 +641,10 @@ async fn load_next_snapshot(
         let time_taken = start.elapsed();
         info!(host = %host, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
         let overall_counts = snapshot.db_table_and_file_count();
-        let success_event = SnapshotFetchedEvent::Success(SuccessInfo::new(
+        let success_event = CompactionEvent::snapshot_success(SuccessInfo::new(
             host,
             next_snapshot_sequence_number.as_u64(),
-            time_taken.as_millis() as i64,
+            time_taken,
             overall_counts,
         ));
         sys_events_store.record(success_event);
@@ -664,10 +664,10 @@ async fn load_all_snapshots(
     let time_taken = start.elapsed();
     info!(host = %host, snapshot_count = host_snapshots.len(), "loaded snapshots");
     let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&host_snapshots);
-    let success_event = SnapshotFetchedEvent::Success(SuccessInfo::new(
+    let success_event = CompactionEvent::snapshot_success(SuccessInfo::new(
         host,
         marker.snapshot_sequence_number.as_u64(),
-        time_taken.as_millis() as i64,
+        time_taken,
         overall_counts,
     ));
     sys_events_store.record(success_event);
@@ -681,7 +681,10 @@ mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_pro_data_layout::HostSnapshotMarker;
-    use influxdb3_sys_events::{events::SnapshotFetchedEvent, SysEventStore};
+    use influxdb3_sys_events::{
+        events::{CompactionEvent, SnapshotFetched},
+        SysEventStore,
+    };
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use influxdb3_write::{persister::Persister, PersistedSnapshot};
     use iox_time::{MockProvider, Time};
@@ -972,23 +975,20 @@ mod tests {
         });
         let res = load_all_snapshots(persister, host, &marker, &sys_events_store).await;
         debug!(result = ?res, "load all snapshots for compactor");
-        let success_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        let success_events = sys_events_store.as_vec::<CompactionEvent>();
         debug!(events = ?success_events, "events stored after bulk loading all snapshots");
         let first_success_event = success_events.first().unwrap();
-        assert!(matches!(
-            first_success_event.data,
-            SnapshotFetchedEvent::Success(..)
-        ));
         match &first_success_event.data {
-            SnapshotFetchedEvent::Success(success_info) => {
-                assert_eq!(Arc::from(host), success_info.host);
-                assert_eq!(123, success_info.sequence_number);
-                assert_eq!(0, success_info.fetch_duration_ms);
-                assert_eq!(0, success_info.db_count);
-                assert_eq!(0, success_info.table_count);
-                assert_eq!(0, success_info.file_count);
-            }
-            SnapshotFetchedEvent::Failed(_) => panic!("should not fail"),
+            CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
+                SnapshotFetched::Success(success_info) => {
+                    assert_eq!(Arc::from(host), success_info.host);
+                    assert_eq!(123, success_info.sequence_number);
+                    assert_eq!(0, success_info.db_count);
+                    assert_eq!(0, success_info.table_count);
+                    assert_eq!(0, success_info.file_count);
+                }
+                SnapshotFetched::Failed(_) => panic!("should not fail"),
+            },
         }
     }
 
@@ -1038,23 +1038,20 @@ mod tests {
         .await;
 
         debug!(result = ?res, "load all snapshots for compactor");
-        let success_events = sys_events_store.as_vec::<SnapshotFetchedEvent>();
+        let success_events = sys_events_store.as_vec::<CompactionEvent>();
         debug!(events = ?success_events, "events stored after bulk loading all snapshots");
         let first_success_event = success_events.first().unwrap();
-        assert!(matches!(
-            first_success_event.data,
-            SnapshotFetchedEvent::Success(..)
-        ));
         match &first_success_event.data {
-            SnapshotFetchedEvent::Success(success_info) => {
-                assert_eq!(Arc::from(host), success_info.host);
-                assert_eq!(124, success_info.sequence_number);
-                assert_eq!(0, success_info.fetch_duration_ms);
-                assert_eq!(0, success_info.db_count);
-                assert_eq!(0, success_info.table_count);
-                assert_eq!(0, success_info.file_count);
-            }
-            SnapshotFetchedEvent::Failed(_) => panic!("should not fail"),
+            CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
+                SnapshotFetched::Success(success_info) => {
+                    assert_eq!(Arc::from(host), success_info.host);
+                    assert_eq!(124, success_info.sequence_number);
+                    assert_eq!(0, success_info.db_count);
+                    assert_eq!(0, success_info.table_count);
+                    assert_eq!(0, success_info.file_count);
+                }
+                SnapshotFetched::Failed(_) => panic!("should not fail"),
+            },
         }
     }
 }

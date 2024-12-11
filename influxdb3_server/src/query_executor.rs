@@ -732,7 +732,7 @@ mod tests {
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
     use influxdb3_sys_events::{
-        events::{FailedInfo, SnapshotFetchedEvent, SuccessInfo},
+        events::{CompactionEvent, FailedInfo, SuccessInfo},
         SysEventStore,
     };
     use influxdb3_telemetry::store::TelemetryStore;
@@ -1063,10 +1063,10 @@ mod tests {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
         let host = "sample-host";
         let db_name = "foo";
-        let event = SnapshotFetchedEvent::Success(SuccessInfo {
+        let event = CompactionEvent::snapshot_success(SuccessInfo {
             host: Arc::from(host),
             sequence_number: 123,
-            fetch_duration_ms: 1234,
+            fetch_duration: Duration::from_millis(1234),
             db_count: 2,
             table_count: 1000,
             file_count: 100_000,
@@ -1087,7 +1087,7 @@ mod tests {
 
         sys_events_store.record(event);
 
-        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_data FROM system.snapshot_fetched";
+        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
             .query(db_name, query, None, crate::QueryKind::Sql, None, None)
             .await
@@ -1096,11 +1096,11 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_sorted_eq!(
             [
-                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type | event_data                                                                                                                      |",
-                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | Success    | {host: sample-host, sequence_number: 123, fetch_duration_ms: 1234, db_count: 2, table_count: 1000, file_count: 100000, error: } |",
-                "+------------+------------+---------------------------------------------------------------------------------------------------------------------------------+",
+                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                                                                                                     |",
+                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED | 1s 234ms       | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"fetch_duration\":{\"secs\":1,\"nanos\":234000000},\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
+                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }
@@ -1110,7 +1110,7 @@ mod tests {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
         let host = "sample-host";
         let db_name = "foo";
-        let event = SnapshotFetchedEvent::Failed(FailedInfo {
+        let event = CompactionEvent::snapshot_failed(FailedInfo {
             host: Arc::from(host),
             sequence_number: 123,
             error: "Foo failed".to_string(),
@@ -1131,7 +1131,7 @@ mod tests {
 
         sys_events_store.record(event);
 
-        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_data FROM system.snapshot_fetched";
+        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
             .query(db_name, query, None, crate::QueryKind::Sql, None, None)
             .await
@@ -1140,11 +1140,11 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_sorted_eq!(
             [
-                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type | event_data                                                                                                                 |",
-                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | Failed     | {host: sample-host, sequence_number: 123, fetch_duration_ms: , db_count: , table_count: , file_count: , error: Foo failed} |",
-                "+------------+------------+----------------------------------------------------------------------------------------------------------------------------+",
+                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                        |",
+                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED |                | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
+                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }
