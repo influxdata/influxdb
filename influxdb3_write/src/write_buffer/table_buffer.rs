@@ -13,7 +13,7 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error};
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::btree_map::Entry;
@@ -166,8 +166,8 @@ impl TableBuffer {
         let mut size = size_of::<Self>();
 
         for c in self.chunk_time_to_chunks.values() {
-            for biulder in c.data.values() {
-                size += size_of::<ColumnId>() + size_of::<String>() + biulder.size();
+            for builder in c.data.values() {
+                size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
             }
 
             size += c.index.size();
@@ -181,7 +181,6 @@ impl TableBuffer {
         table_def: Arc<TableDefinition>,
         older_than_chunk_time: i64,
     ) -> Vec<SnapshotChunk> {
-        info!(%older_than_chunk_time, "Snapshotting table buffer");
         let keys_to_remove = self
             .chunk_time_to_chunks
             .keys()
@@ -269,10 +268,7 @@ impl MutableTableChunk {
                             debug!("Creating new timestamp builder");
                             let mut time_builder = TimestampNanosecondBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                debug!("Appending null for timestamp");
-                                time_builder.append_null();
-                            }
+                            time_builder.append_nulls(row_index + self.row_count);
                             Builder::Time(time_builder)
                         });
                         if let Builder::Time(b) = b {
@@ -333,9 +329,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut int_builder = Int64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                int_builder.append_null();
-                            }
+                            int_builder.append_nulls(row_index + self.row_count);
                             Builder::I64(int_builder)
                         });
                         if let Builder::I64(b) = b {
@@ -348,9 +342,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut uint_builder = UInt64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                uint_builder.append_null();
-                            }
+                            uint_builder.append_nulls(row_index + self.row_count);
                             Builder::U64(uint_builder)
                         });
                         if let Builder::U64(b) = b {
@@ -363,9 +355,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut float_builder = Float64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                float_builder.append_null();
-                            }
+                            float_builder.append_nulls(row_index + self.row_count);
                             Builder::F64(float_builder)
                         });
                         if let Builder::F64(b) = b {
@@ -378,9 +368,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut bool_builder = BooleanBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                bool_builder.append_null();
-                            }
+                            bool_builder.append_nulls(row_index + self.row_count);
                             Builder::Bool(bool_builder)
                         });
                         if let Builder::Bool(b) = b {
@@ -1028,7 +1016,7 @@ mod tests {
         table_buffer.buffer_chunk(0, rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 18119);
+        assert_eq!(size, 18120);
     }
 
     #[test]

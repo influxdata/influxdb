@@ -15,8 +15,13 @@ use self::{last_caches::LastCachesTable, queries::QueriesTable};
 mod last_caches;
 mod meta_caches;
 mod parquet_files;
+use crate::system_tables::python_call::{
+    ProcessingEnginePluginTable, ProcessingEngineTriggerTable,
+};
 #[cfg(test)]
 pub(crate) use parquet_files::table_name_predicate_error;
+
+mod python_call;
 mod queries;
 
 pub const SYSTEM_SCHEMA_NAME: &str = "system";
@@ -25,6 +30,10 @@ const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 const META_CACHES_TABLE_NAME: &str = "meta_caches";
 const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 const QUERIES_TABLE_NAME: &str = "queries";
+
+const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
+
+const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
 pub(crate) struct SystemSchemaProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
@@ -67,6 +76,30 @@ impl SystemSchemaProvider {
             db_schema.id,
             buffer,
         ))));
+        tables.insert(
+            PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                ProcessingEnginePluginTable::new(
+                    db_schema
+                        .processing_engine_plugins
+                        .iter()
+                        .map(|(_name, call)| call.clone())
+                        .collect(),
+                ),
+            ))),
+        );
+        tables.insert(
+            PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                ProcessingEngineTriggerTable::new(
+                    db_schema
+                        .processing_engine_triggers
+                        .iter()
+                        .map(|(_name, trigger)| trigger.clone())
+                        .collect(),
+                ),
+            ))),
+        );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         Self { tables }
     }

@@ -1267,6 +1267,8 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_2".into());
                 map
             },
+            processing_engine_plugins: Default::default(),
+            processing_engine_triggers: Default::default(),
             deleted: false,
         };
         let table_id = TableId::from(0);
