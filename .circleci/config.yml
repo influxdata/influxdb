@@ -53,19 +53,19 @@ any_filter: &any_filter
 release_filter: &release_filter
   filters:
     tags:
-      # This regex matches what is found in 'scripts/get-version' with the
-      # '[[:digit:]]' transformed into '\d'. This also excludes release
-      # candidate detection, because this filter only matches against
-      # full releases.
       only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
     branches:
       ignore: /.*/
+
+main_filter: &main_filter
+  filters:
+    branches:
+      only: main
 
 nofork_filter: &nofork_filter
   filters:
     branches:
       ignore: /pull\/[0-9]+/
-
 
 commands:
   rust_components:
@@ -278,6 +278,9 @@ jobs:
     parameters:
       target:
         type: string
+      profile:
+        type: string
+        default: release
     steps:
       - checkout
       - run:
@@ -285,14 +288,14 @@ jobs:
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo release build
-          command: target-env cargo build --target=<< parameters.target >> --workspace --release
+          command: target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - run:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/release" influxdb3{,.exe}
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
@@ -473,9 +476,40 @@ jobs:
       - run: |
           echo build executed successfully
 
-
 workflows:
   version: 2
+  snapshot:
+    jobs:
+      - build-release:
+          <<: *main_filter
+          name: build-snapshot-<< matrix.target >>
+          matrix:
+            parameters:
+              profile:
+                - quick-release
+              target:
+                - aarch64-apple-darwin
+                - aarch64-unknown-linux-gnu
+                - aarch64-unknown-linux-musl
+                - x86_64-pc-windows-gnu
+                - x86_64-unknown-linux-gnu
+                - x86_64-unknown-linux-musl
+      - build-packages:
+          <<: *main_filter
+          requires:
+            - build-release
+      - sign-packages:
+          <<: *main_filter
+          requires:
+            - build-packages
+      - publish-packages:
+          <<: *main_filter
+          matrix:
+            parameters:
+              destination: [ snapshots ]
+          requires:
+            - build-release
+            - sign-packages
   ci:
     jobs:
       - fmt:
@@ -539,7 +573,6 @@ workflows:
               arch: [ x86_64, aarch64 ]
           requires:
             - build-packages
-
       - sign-packages:
           <<: *release_filter
           requires:
