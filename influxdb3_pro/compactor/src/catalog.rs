@@ -4,7 +4,9 @@
 use anyhow::Context;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
-use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog, CatalogSequenceNumber, InnerCatalog};
+use influxdb3_catalog::catalog::{
+    pro::CatalogIdMap, Catalog, CatalogSequenceNumber, DatabaseSchema, InnerCatalog,
+};
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
 use influxdb3_sys_events::{
@@ -45,10 +47,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct CompactedCatalog {
     pub comapctor_id: Arc<str>,
-    /// A unified catalog from all hosts getting compacted
-    pub catalog: Arc<Catalog>,
+    inner: RwLock<InnerCompactedCatalog>,
+}
+
+#[derive(Debug)]
+struct InnerCompactedCatalog {
+    /// The catalog that is the union of all the host catalogs
+    catalog: Catalog,
     /// map of host id to ids id map into this catalog
-    host_maps: RwLock<HashMap<String, HostCatalog>>,
+    host_maps: HashMap<String, HostCatalog>,
 }
 
 // First, create a helper struct for serialization
@@ -65,12 +72,14 @@ impl Serialize for CompactedCatalog {
     where
         S: serde::Serializer,
     {
+        let inner = self.inner.read();
+
         // Create the helper struct
         let helper = CompactedCatalogHelper {
             compactor_id: self.comapctor_id.to_string(),
-            catalog: self.catalog.clone_inner(),
+            catalog: inner.catalog.clone_inner(),
             // We need to block here to get the mutex contents
-            host_maps: self.host_maps.read().clone(),
+            host_maps: inner.host_maps.clone(),
         };
         helper.serialize(serializer)
     }
@@ -87,8 +96,10 @@ impl<'de> Deserialize<'de> for CompactedCatalog {
 
         Ok(CompactedCatalog {
             comapctor_id: helper.compactor_id.into(),
-            catalog: Arc::new(Catalog::from_inner(helper.catalog)),
-            host_maps: RwLock::new(helper.host_maps),
+            inner: RwLock::new(InnerCompactedCatalog {
+                catalog: Catalog::from_inner(helper.catalog),
+                host_maps: helper.host_maps,
+            }),
         })
     }
 }
@@ -98,8 +109,9 @@ impl CompactedCatalog {
         &self,
         persisted_snapshot: PersistedSnapshot,
     ) -> Result<PersistedSnapshot> {
-        let idmap = self.host_maps.read();
-        let hostmap = idmap
+        let inner = self.inner.read();
+        let hostmap = inner
+            .host_maps
             .get(&persisted_snapshot.host_id)
             .context("Host not found in catalog")?;
         map_snapshot_contents(&hostmap.catalog_id_map, persisted_snapshot)
@@ -131,6 +143,25 @@ impl CompactedCatalog {
         }
     }
 
+    /// Reloads the compacted catalog from object store if the passed in sequence number is greater
+    /// than the last sequence number for the compacted catalog.
+    pub async fn reload_if_needed(
+        &self,
+        sequence_number: CatalogSequenceNumber,
+        object_store: Arc<dyn ObjectStore>,
+    ) -> Result<()> {
+        let last_sequence_number = self.sequence_number();
+        if sequence_number > last_sequence_number {
+            let path = CompactedCatalogPath::new(self.comapctor_id.as_ref(), sequence_number);
+            let bytes = object_store.get(&path.0).await?.bytes().await?;
+            let helper: CompactedCatalogHelper = serde_json::from_slice(&bytes)?;
+            let mut inner = self.inner.write();
+            inner.catalog = Catalog::from_inner(helper.catalog);
+            inner.host_maps = helper.host_maps;
+        }
+        Ok(())
+    }
+
     /// Load the `CompactedCatalog` from the object store using the provided compactor id and sequence number.
     pub async fn load_from_id(
         compactor_id: &str,
@@ -145,12 +176,23 @@ impl CompactedCatalog {
     }
 
     pub async fn persist(&self, object_store: Arc<dyn ObjectStore>) -> Result<()> {
-        let path =
-            CompactedCatalogPath::new(self.comapctor_id.as_ref(), self.catalog.sequence_number());
+        let path = CompactedCatalogPath::new(self.comapctor_id.as_ref(), self.sequence_number());
         let bytes = serde_json::to_vec(&self)?;
         object_store.put(&path.0, bytes.into()).await?;
         info!(path = %path.0, "Persisted compacted catalog");
         Ok(())
+    }
+
+    pub fn sequence_number(&self) -> CatalogSequenceNumber {
+        self.inner.read().catalog.sequence_number()
+    }
+
+    pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().catalog.db_schema(db_name)
+    }
+
+    pub fn db_schema_by_id(&self, db_id: &DbId) -> Option<Arc<DatabaseSchema>> {
+        self.inner.read().catalog.db_schema_by_id(db_id)
     }
 
     /// Updates the catalog id maps and persists the new catalog if any of the passed in markers
@@ -163,11 +205,12 @@ impl CompactedCatalog {
     ) -> Result<()> {
         // get the catalog snapshot markers we need to update because they have a higher sequence number
         let catalogs_to_update = {
-            let host_maps = self.host_maps.read();
+            let inner = self.inner.read();
             catalog_snapshot_markers
                 .iter()
                 .filter(|marker| {
-                    let last_sequence_number = host_maps
+                    let last_sequence_number = inner
+                        .host_maps
                         .get(&marker.host)
                         .map(|h| h.last_catalog_sequence_number)
                         .unwrap_or(CatalogSequenceNumber::new(0));
@@ -209,9 +252,11 @@ impl CompactedCatalog {
 
         {
             // and update the host maps
-            let mut host_maps = self.host_maps.write();
+            let mut inner = self.inner.write();
             for (host, updated_host_catalog) in updated_host_maps {
-                host_maps.insert(host.to_string(), updated_host_catalog);
+                inner
+                    .host_maps
+                    .insert(host.to_string(), updated_host_catalog);
             }
         }
 
@@ -228,6 +273,8 @@ impl CompactedCatalog {
         sys_events_store: &Arc<SysEventStore>,
     ) -> Result<CatalogIdMap, Error> {
         let catalog_id_map = self
+            .inner
+            .read()
             .catalog
             .merge(Arc::clone(catalog))
             .map_err(crate::catalog::Error::MergeError)
@@ -288,8 +335,10 @@ impl CompactedCatalog {
 
         Ok(Self {
             comapctor_id: compactor_id.into(),
-            catalog: Arc::new(primary_catalog),
-            host_maps: RwLock::new(host_maps),
+            inner: RwLock::new(InnerCompactedCatalog {
+                catalog: primary_catalog,
+                host_maps,
+            }),
         })
     }
 }
@@ -473,17 +522,18 @@ mod tests {
         .expect("failed to load merged catalog");
 
         assert_eq!(catalog.comapctor_id.as_ref(), compactor_id);
-        assert_eq!(catalog.host_maps.read().len(), 2);
+        assert_eq!(catalog.inner.read().host_maps.len(), 2);
 
-        let db = catalog.catalog.db_schema("db1").expect("db not found");
+        let db = catalog.db_schema("db1").expect("db not found");
         assert!(db.table_definition("table1").is_some());
         assert!(db.table_definition("table2").is_some());
 
-        let host_maps = catalog.host_maps.read();
+        let inner = catalog.inner.read();
         let host1dbid = catalog1.db_name_to_id("db1").expect("db not found");
         let host2dbid = catalog2.db_name_to_id("db1").expect("db not found");
         assert_eq!(
-            host_maps
+            inner
+                .host_maps
                 .get(host1)
                 .unwrap()
                 .catalog_id_map
@@ -492,7 +542,8 @@ mod tests {
             db.id
         );
         assert_eq!(
-            host_maps
+            inner
+                .host_maps
                 .get(host2)
                 .unwrap()
                 .catalog_id_map
@@ -512,7 +563,8 @@ mod tests {
             .table_name_to_id("table2")
             .expect("table not found");
         assert_eq!(
-            host_maps
+            inner
+                .host_maps
                 .get(host1)
                 .unwrap()
                 .catalog_id_map
@@ -521,7 +573,8 @@ mod tests {
             db.table_name_to_id("table1").unwrap()
         );
         assert_eq!(
-            host_maps
+            inner
+                .host_maps
                 .get(host2)
                 .unwrap()
                 .catalog_id_map
