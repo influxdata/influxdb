@@ -523,12 +523,17 @@ impl ReplicatedBuffer {
 
     async fn replay(&self) -> Result<()> {
         let paths = self.load_existing_wal_paths().await?;
-        info!(host = %self.host_identifier_prefix, num_wal_files = paths.len(), "replaying WAL files for replica");
-        // do not calculate ttbr during initial server startup:
-        let calculate_ttbr = false;
+        // track some information about the paths loaded for this replicated host
+        info!(
+            from_host = self.host_identifier_prefix,
+            number_of_wal_files = paths.len(),
+            first_wal_file_path = ?paths.first(),
+            last_wal_file_path = ?paths.last(),
+            "loaded existing wal paths from object store"
+        );
 
         for path in &paths {
-            self.replay_wal_file(path, calculate_ttbr).await?;
+            self.replay_wal_file(path).await?;
         }
 
         if let Some(path) = paths.last() {
@@ -580,7 +585,12 @@ impl ReplicatedBuffer {
     /// contents of the replayed file is recorded in the metric registry. This is optional so that
     /// we can avoid calculating TTBR when replaying WAL files on server startup, as the resulting
     /// values would likely skew the metric distribution.
-    async fn replay_wal_file(&self, path: &Path, calculate_ttbr: bool) -> Result<()> {
+    async fn replay_wal_file(&self, path: &Path) -> Result<()> {
+        info!(
+            from_host = self.host_identifier_prefix,
+            wal_file_path = %path,
+            "replaying wal file"
+        );
         let obj = self.object_store.get(path).await?;
         let file_bytes = obj
             .bytes()
@@ -604,19 +614,22 @@ impl ReplicatedBuffer {
             }
         }
 
-        if calculate_ttbr {
-            // record the current time after the wal contents have been buffered:
-            let now_time_ms = self.time_provider.now().timestamp_millis();
+        // record the current time after the wal contents have been buffered:
+        let now_time_ms = self.time_provider.now().timestamp_millis();
 
-            // track TTBR:
-            match now_time_ms.checked_sub(persist_timestamp_ms) {
-                Some(ttbr_ms) => self
-                    .metrics
-                    .replica_ttbr
-                    .record(Duration::from_millis(ttbr_ms as u64)),
-                None => {
-                    info!(%now_time_ms, %persist_timestamp_ms, "unable to get duration since WAL file was created")
-                }
+        // track TTBR:
+        match now_time_ms.checked_sub(persist_timestamp_ms) {
+            Some(ttbr_ms) => self
+                .metrics
+                .replica_ttbr
+                .record(Duration::from_millis(ttbr_ms as u64)),
+            None => {
+                info!(
+                    from_host = self.host_identifier_prefix,
+                    %now_time_ms,
+                    %persist_timestamp_ms,
+                    "unable to get duration since WAL file was created"
+                );
             }
         }
 
@@ -744,9 +757,6 @@ fn background_replication_interval(
         let mut interval = tokio::time::interval(interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        // we do want to calculate ttbr in the replication loop:
-        let calculate_ttbr = true;
-
         loop {
             interval.tick().await;
 
@@ -758,16 +768,8 @@ fn background_replication_interval(
                     wal_number = wal_number.next();
                     let wal_path = wal_path(&replicated_buffer.host_identifier_prefix, wal_number);
 
-                    match replicated_buffer
-                        .replay_wal_file(&wal_path, calculate_ttbr)
-                        .await
-                    {
+                    match replicated_buffer.replay_wal_file(&wal_path).await {
                         Ok(_) => {
-                            info!(
-                                host = %replicated_buffer.host_identifier_prefix,
-                                path = %wal_path,
-                                "replayed WAL file"
-                            );
                             last_wal_number.replace(wal_number);
                             // Don't break the inner loop here, since we want to try for more
                             // WAL files if they exist...
@@ -1222,7 +1224,7 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
         debug!(?ttbr_ms, "ttbr metric for host");
-        assert_eq!(ttbr_ms.sample_count(), 2);
+        assert_eq!(ttbr_ms.sample_count(), 3);
         assert_eq!(ttbr_ms.total, Duration::from_millis(200));
         assert!(ttbr_ms
             .buckets

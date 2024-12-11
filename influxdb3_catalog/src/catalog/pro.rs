@@ -465,10 +465,13 @@ impl CatalogIdMap {
                 .into_iter()
                 .map(|(table_id, chunks)| {
                     (
-                        self.tables
-                            .get(&table_id)
-                            .copied()
-                            .expect("write batch encountered for unseen table"),
+                        self.tables.get(&table_id).copied().unwrap_or_else(|| {
+                            panic!(
+                                "write batch encountered for unseen table, \
+                                table id: {table_id}, existing table map: {table_map:?}",
+                                table_map = self.tables
+                            )
+                        }),
                         self.map_table_chunks(chunks),
                     )
                 })
