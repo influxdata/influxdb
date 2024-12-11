@@ -116,7 +116,7 @@ impl CompactedData {
         table_name: &str,
         filters: &[Expr],
     ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<HostSnapshotMarker>>) {
-        let Some(db) = self.compacted_catalog.catalog.db_schema(db_name) else {
+        let Some(db) = self.compacted_catalog.db_schema(db_name) else {
             return (vec![], vec![]);
         };
         let Some(table_id) = db.table_name_to_id(table_name) else {
@@ -259,7 +259,7 @@ impl CompactedDataSystemTableView for CompactedData {
         db_name: &str,
         table_name: &str,
     ) -> Option<Vec<CompactedDataSystemTableQueryResult>> {
-        let db = self.compacted_catalog.catalog.db_schema(db_name)?;
+        let db = self.compacted_catalog.db_schema(db_name)?;
         let table_id = db.table_name_to_id(table_name)?;
 
         let inner_data = self.inner_compacted_data.read();

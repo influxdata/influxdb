@@ -141,7 +141,7 @@ async fn two_writers_gen1_compaction() {
         .executor()
         .spawn(async move {
             compaction_producer_clone
-                .compact(Duration::from_millis(10), Arc::clone(&sys_events_store))
+                .run_compaction_loop(Duration::from_millis(10), Arc::clone(&sys_events_store))
                 .await;
         })
         .boxed();
@@ -159,16 +159,15 @@ async fn two_writers_gen1_compaction() {
     // wait for two compactions to happen
     let mut count = 0;
     loop {
-        let (db_id, db_schema) = compaction_producer
+        let db_schema = compaction_producer
             .compacted_data
             .compacted_catalog
-            .catalog
-            .db_id_and_schema("test_db")
+            .db_schema("test_db")
             .unwrap();
         let table_id = db_schema.table_name_to_id("m1").unwrap();
         if let Some(detail) = compaction_producer
             .compacted_data
-            .compaction_detail(db_id, table_id)
+            .compaction_detail(db_schema.id, table_id)
         {
             if detail.sequence_number.as_u64() > 1 {
                 // we should have a single compacted generation

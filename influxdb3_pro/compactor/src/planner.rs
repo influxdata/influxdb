@@ -64,7 +64,6 @@ impl CompactionPlanGroup {
                     .and_then(|t| t.get(&table_id));
                 let db_schema = compacted_data
                     .compacted_catalog
-                    .catalog
                     .db_schema_by_id(&db_id)
                     .expect("database schema should exist");
                 let table_definition = db_schema

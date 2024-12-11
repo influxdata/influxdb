@@ -749,7 +749,7 @@ pub async fn command(config: Config) -> Result<()> {
             .executor()
             .spawn(async move {
                 compactor
-                    .compact(Duration::from_secs(10), Arc::clone(&sys_events_store))
+                    .run_compaction_loop(Duration::from_secs(10), Arc::clone(&sys_events_store))
                     .await;
             })
             .map_err(Error::Job);

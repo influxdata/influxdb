@@ -113,65 +113,68 @@ impl CompactedDataProducer {
     }
 
     /// The background loop that periodically checks for new snapshots and run compaction plans
-    pub async fn compact(&self, check_interval: Duration, sys_events_store: Arc<SysEventStore>) {
+    pub async fn run_compaction_loop(
+        &self,
+        check_interval: Duration,
+        sys_events_store: Arc<SysEventStore>,
+    ) {
         let generation_levels = self.compaction_config.compaction_levels();
         let mut ticker = tokio::time::interval(check_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
-            let mut compaction_state = self.compaction_state.lock().await;
-
-            // load any new snapshots and catalog changes since the last time we checked
-            if let Err(e) = compaction_state
-                .load_snapshots(
-                    &self.compacted_data,
-                    Arc::clone(&self.object_store),
-                    Arc::clone(&sys_events_store),
-                )
+            if let Err(e) = self
+                .plan_and_run_compaction(&generation_levels, Arc::clone(&sys_events_store))
                 .await
             {
-                warn!(error = %e, "error loading snapshots");
-                continue;
-            };
+                warn!(error = %e, "error running compaction");
+            }
 
-            // handle the first level of compaction to move files from the host snapshots to the
-            // compacted data
+            ticker.tick().await;
+        }
+    }
+
+    async fn plan_and_run_compaction(
+        &self,
+        generation_levels: &[GenerationLevel],
+        sys_events_store: Arc<SysEventStore>,
+    ) -> Result<()> {
+        let mut compaction_state = self.compaction_state.lock().await;
+
+        // load any new snapshots and catalog changes since the last time we checked
+        compaction_state
+            .load_snapshots(
+                &self.compacted_data,
+                Arc::clone(&self.object_store),
+                Arc::clone(&sys_events_store),
+            )
+            .await?;
+
+        // handle the first level of compaction to move files from the host snapshots to the
+        // compacted data
+        if let Some(plan) = CompactionPlanGroup::plans_for_level(
+            &self.compaction_config,
+            &self.compacted_data,
+            &compaction_state.files_to_compact,
+            GenerationLevel::two(),
+        ) {
+            self.run_compaction_plan_group(plan, &mut compaction_state)
+                .await?;
+        }
+
+        for level in generation_levels {
             if let Some(plan) = CompactionPlanGroup::plans_for_level(
                 &self.compaction_config,
                 &self.compacted_data,
                 &compaction_state.files_to_compact,
-                GenerationLevel::two(),
+                *level,
             ) {
-                if let Err(e) = self
-                    .run_compaction_plan_group(plan, &mut compaction_state)
-                    .await
-                {
-                    warn!(error = %e, "error running compaction plan group");
-                    continue;
-                }
+                self.run_compaction_plan_group(plan, &mut compaction_state)
+                    .await?;
             }
-
-            for level in &generation_levels {
-                if let Some(plan) = CompactionPlanGroup::plans_for_level(
-                    &self.compaction_config,
-                    &self.compacted_data,
-                    &compaction_state.files_to_compact,
-                    *level,
-                ) {
-                    if let Err(e) = self
-                        .run_compaction_plan_group(plan, &mut compaction_state)
-                        .await
-                    {
-                        warn!(error = %e, "error running compaction plan group");
-                        continue;
-                    }
-                }
-            }
-
-            drop(compaction_state);
-
-            ticker.tick().await;
         }
+
+        Ok(())
     }
 
     async fn run_compaction_plan_group(
@@ -246,11 +249,7 @@ impl CompactedDataProducer {
 
         let compaction_summary = CompactionSummary {
             compaction_sequence_number: sequence_number,
-            catalog_sequence_number: self
-                .compacted_data
-                .compacted_catalog
-                .catalog
-                .sequence_number(),
+            catalog_sequence_number: self.compacted_data.compacted_catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
             snapshot_markers,
@@ -692,6 +691,7 @@ mod tests {
     use observability_deps::tracing::debug;
     use pretty_assertions::assert_eq;
 
+    use crate::consumer::CompactedDataConsumer;
     use crate::producer::{load_all_snapshots, load_next_snapshot};
     use crate::test_helpers::TestWriter;
 
@@ -759,7 +759,6 @@ mod tests {
         let compactor_db_schema = compactor
             .compacted_data
             .compacted_catalog
-            .catalog
             .db_schema("testdb")
             .unwrap();
         let table_definition = compactor_db_schema.table_definition("cpu").unwrap();
@@ -860,7 +859,6 @@ mod tests {
         .unwrap();
         let db_schema = compacted_data
             .compacted_catalog
-            .catalog
             .db_schema("testdb")
             .unwrap();
         let table_definition = db_schema.table_definition("cpu").unwrap();
@@ -870,18 +868,15 @@ mod tests {
                 .await
                 .unwrap()
                 .unwrap();
-        let loaded_db_schema = loaded_compacted_catalog
-            .catalog
-            .db_schema("testdb")
-            .unwrap();
+        let loaded_db_schema = loaded_compacted_catalog.db_schema("testdb").unwrap();
         let loaded_table_definition = loaded_db_schema.table_definition("cpu").unwrap();
 
         assert_eq!(
-            compacted_data.compacted_catalog.catalog.sequence_number(),
+            compacted_data.compacted_catalog.sequence_number(),
             CatalogSequenceNumber::new(1)
         );
         assert_eq!(
-            loaded_compacted_catalog.catalog.sequence_number(),
+            loaded_compacted_catalog.sequence_number(),
             CatalogSequenceNumber::new(1)
         );
         assert_eq!(db_schema, loaded_db_schema);
@@ -912,7 +907,6 @@ mod tests {
         // ensure the in-memory and a newly loaded compacted catalog have the new mem table
         let db_schema = compacted_data
             .compacted_catalog
-            .catalog
             .db_schema("testdb")
             .unwrap();
         let table_definition = db_schema.table_definition("mem").unwrap();
@@ -924,10 +918,7 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        let loaded_db_schema = loaded_compacted_catalog
-            .catalog
-            .db_schema("testdb")
-            .unwrap();
+        let loaded_db_schema = loaded_compacted_catalog.db_schema("testdb").unwrap();
         let loaded_table_definition = loaded_db_schema.table_definition("mem").unwrap();
 
         assert_eq!(db_schema, loaded_db_schema);
@@ -936,6 +927,114 @@ mod tests {
         // and make sure the cpu table is there
         assert!(db_schema.table_definition("cpu").is_some());
         assert!(loaded_db_schema.table_definition("cpu").is_some());
+    }
+
+    #[tokio::test]
+    async fn producer_updates_compacted_catalog_and_consumer_picks_up() {
+        let host_id = "test_host";
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let mut writer = TestWriter::new(host_id, Arc::clone(&object_store));
+
+        // create 3 snapshots so we have enough to compact
+        let _snapshot = writer.persist_lp_and_snapshot("cpu,t=a usage=1 1", 0).await;
+        let _snapshot = writer
+            .persist_lp_and_snapshot("cpu,t=a usage=6 60000000000", 0)
+            .await;
+        let _snapshot = writer
+            .persist_lp_and_snapshot("cpu,t=a usage=12 120000000000", 0)
+            .await;
+
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+
+        let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+        let compactor = CompactedDataProducer::new(
+            "compactor-1",
+            vec![host_id.into()],
+            compaction_config,
+            Arc::new(RwLock::new(ProConfig::default())),
+            Arc::clone(&object_store),
+            writer.persister.object_store_url().clone(),
+            Arc::clone(&writer.exec),
+            None,
+            Arc::clone(&sys_events_store),
+        )
+        .await
+        .unwrap();
+
+        // run compaction and verify
+        compactor
+            .plan_and_run_compaction(&[], Arc::clone(&sys_events_store))
+            .await
+            .unwrap();
+
+        // create the consumer and verify it has the catalog and data
+        let consumer = CompactedDataConsumer::new("compactor-1", Arc::clone(&object_store), None)
+            .await
+            .unwrap();
+        let consumer_db = consumer
+            .compacted_data
+            .compacted_catalog
+            .db_schema("testdb")
+            .unwrap();
+        let consumer_table = consumer_db.table_definition("cpu").unwrap();
+        let parquet_files = consumer.compacted_data.parquet_files(
+            consumer_db.id,
+            consumer_table.table_id,
+            GenerationId::from(3),
+        );
+        assert_eq!(parquet_files.len(), 1);
+
+        // write 2 new snapshots with write to a new table to have a catalog update
+        let _snapshot = writer
+            .persist_lp_and_snapshot("mem,t=a usage=24 240000000000", 0)
+            .await;
+        let _snapshot = writer
+            .persist_lp_and_snapshot("mem,t=a usage=30 300000000000", 0)
+            .await;
+        let _snapshot = writer
+            .persist_lp_and_snapshot("mem,t=a usage=36 360000000000", 0)
+            .await;
+
+        // run the compaction plan 3 times to pick up the 3 snapshots. On the last one it will run
+        // an actual compaction.
+        compactor
+            .plan_and_run_compaction(&[], Arc::clone(&sys_events_store))
+            .await
+            .unwrap();
+        compactor
+            .plan_and_run_compaction(&[], Arc::clone(&sys_events_store))
+            .await
+            .unwrap();
+        compactor
+            .plan_and_run_compaction(&[], Arc::clone(&sys_events_store))
+            .await
+            .unwrap();
+
+        // refresh the consumer and verify that it has the updated catalog and the new compacted data
+        consumer.refresh().await.unwrap();
+        let consumer_db = consumer
+            .compacted_data
+            .compacted_catalog
+            .db_schema("testdb")
+            .unwrap();
+        let consumer_table = consumer_db.table_definition("cpu").unwrap();
+        let parquet_files = consumer.compacted_data.parquet_files(
+            consumer_db.id,
+            consumer_table.table_id,
+            GenerationId::from(3),
+        );
+        assert_eq!(parquet_files.len(), 1);
+
+        let consumer_table = consumer_db.table_definition("mem").unwrap();
+        let parquet_files = consumer.compacted_data.parquet_files(
+            consumer_db.id,
+            consumer_table.table_id,
+            GenerationId::from(7),
+        );
+        assert_eq!(parquet_files.len(), 1);
     }
 
     #[test_log::test(tokio::test)]

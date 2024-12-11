@@ -90,7 +90,7 @@ impl CompactedDataConsumer {
         }
     }
 
-    async fn refresh(&self) -> anyhow::Result<()> {
+    pub(crate) async fn refresh(&self) -> anyhow::Result<()> {
         let last_summary = self.compacted_data.compaction_summary();
         let next_sequence_number = last_summary.compaction_sequence_number.next();
 
@@ -110,6 +110,14 @@ impl CompactedDataConsumer {
                 return Ok(());
             }
         };
+
+        self.compacted_data
+            .compacted_catalog
+            .reload_if_needed(
+                summary.catalog_sequence_number,
+                Arc::clone(&self.object_store),
+            )
+            .await?;
 
         // load new compaction details, new generations and remove old generations
         for ((db_id, table_id), sequence_number) in &summary.compaction_details {
@@ -236,7 +244,7 @@ mod tests {
         .expect("failed to load merged catalog");
 
         catalog.persist(Arc::clone(&object_store)).await.unwrap();
-        let db = catalog.catalog.db_schema("db1").unwrap();
+        let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
 
         let compaction_sequence_number = CompactionSequenceNumber::new(1);
@@ -254,7 +262,7 @@ mod tests {
         ];
         let summary = CompactionSummary {
             compaction_sequence_number,
-            catalog_sequence_number: catalog.catalog.sequence_number(),
+            catalog_sequence_number: catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
             snapshot_markers: snapshot_markers.clone(),
@@ -325,7 +333,7 @@ mod tests {
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
         let compactor_id = "compactor_id";
-        let db = catalog.catalog.db_schema("db1").unwrap();
+        let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
 
         let consumer = CompactedDataConsumer::new(compactor_id, Arc::clone(&object_store), None)
@@ -337,7 +345,6 @@ mod tests {
         let consumer_db = consumer
             .compacted_data
             .compacted_catalog
-            .catalog
             .db_schema("db1")
             .unwrap();
         let consumer_table = consumer_db.table_definition("table1").unwrap();
