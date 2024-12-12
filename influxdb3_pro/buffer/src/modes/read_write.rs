@@ -100,6 +100,7 @@ impl ReadWriteMode {
                     parquet_cache,
                     catalog,
                     time_provider,
+                    wal: Some(primary.wal()),
                 })
                 .await?,
             )

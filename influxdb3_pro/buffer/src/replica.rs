@@ -17,8 +17,8 @@ use influxdb3_catalog::catalog::{pro::CatalogIdMap, Catalog};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_pro_data_layout::HostSnapshotMarker;
 use influxdb3_wal::{
-    object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails,
-    WalContents, WalFileSequenceNumber,
+    object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails, Wal,
+    WalContents, WalFileSequenceNumber, WalOp,
 };
 use influxdb3_write::{
     chunk::BufferChunk,
@@ -88,6 +88,7 @@ pub(crate) struct CreateReplicasArgs {
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
     pub time_provider: Arc<dyn TimeProvider>,
+    pub wal: Option<Arc<dyn Wal>>,
 }
 
 impl Replicas {
@@ -102,6 +103,7 @@ impl Replicas {
             parquet_cache,
             catalog,
             time_provider,
+            wal,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicas = vec![];
@@ -112,6 +114,8 @@ impl Replicas {
             let metric_registry = Arc::clone(&metric_registry);
             let parquet_cache = parquet_cache.clone();
             let catalog = Arc::clone(&catalog);
+            let time_provider = Arc::clone(&time_provider);
+            let wal = wal.clone();
             info!(%host_identifier_prefix, "creating replicated buffer for host");
             replicas.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
@@ -124,7 +128,8 @@ impl Replicas {
                     metric_registry,
                     parquet_cache,
                     catalog,
-                    time_provider: Arc::clone(&time_provider),
+                    time_provider,
+                    wal,
                 })
                 .await?,
             )
@@ -248,6 +253,7 @@ pub(crate) struct ReplicatedBuffer {
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     time_provider: Arc<dyn TimeProvider>,
+    wal: Option<Arc<dyn Wal>>,
 }
 
 #[derive(Debug)]
@@ -333,6 +339,7 @@ pub(crate) struct CreateReplicatedBufferArgs {
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     catalog: Arc<Catalog>,
     time_provider: Arc<dyn TimeProvider>,
+    wal: Option<Arc<dyn Wal>>,
 }
 
 impl ReplicatedBuffer {
@@ -348,6 +355,7 @@ impl ReplicatedBuffer {
             parquet_cache,
             catalog,
             time_provider,
+            wal,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
         let (persisted_catalog, persisted_files) = {
@@ -422,6 +430,7 @@ impl ReplicatedBuffer {
             parquet_cache,
             catalog: Arc::new(replica_catalog),
             time_provider,
+            wal,
         };
         replicated_buffer.replay().await?;
         let replicated_buffer = Arc::new(replicated_buffer);
@@ -633,12 +642,24 @@ impl ReplicatedBuffer {
             .context("failed to verify and deserialize wal file contents")?;
         let persist_timestamp_ms = wal_contents.persist_timestamp_ms;
 
-        debug!(host = %self.host_identifier_prefix, ?wal_contents, catalog = ?self.catalog, "replay wal file (pre-map)");
-        // NOTE: if this call fails, then WAL replication will halt, logging errors on the
-        // replication interval until the problem is remedied. See this issue for enabling `DROP
-        // TABLE`: https://github.com/influxdata/influxdb_pro/issues/34
         let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
-        debug!(host = %self.host_identifier_prefix, ?wal_contents, "replay wal file (post-map)");
+        if let Some(wal) = self.wal.as_ref() {
+            let catalog_ops: Vec<WalOp> = wal_contents
+                .ops
+                .iter()
+                .filter(|op| op.as_catalog().is_some())
+                .cloned()
+                .collect();
+            if !catalog_ops.is_empty() {
+                info!(
+                    from_host = self.host_identifier_prefix,
+                    "writing catalog ops from replicated host to local WAL"
+                );
+                wal.write_ops(catalog_ops)
+                    .await
+                    .context("failed to write replicated catalog ops to local WAL")?;
+            }
+        }
 
         match wal_contents.snapshot {
             None => self.buffer_wal_contents(wal_contents),
@@ -943,6 +964,7 @@ mod tests {
                 "replica-instance".into(),
             )),
             time_provider,
+            wal: None,
         })
         .await
         .unwrap();
@@ -1097,6 +1119,7 @@ mod tests {
             parquet_cache: None,
             catalog: primaries["spock"].catalog(),
             time_provider,
+            wal: None,
         })
         .await
         .unwrap();
@@ -1212,6 +1235,7 @@ mod tests {
             parquet_cache: None,
             catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
             time_provider: Arc::<MockProvider>::clone(&time_provider),
+            wal: None,
         })
         .await
         .unwrap();
@@ -1375,6 +1399,7 @@ mod tests {
                 parquet_cache: Some(parquet_cache),
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
                 time_provider,
+                wal: None,
             })
             .await
             .unwrap();
@@ -1448,6 +1473,7 @@ mod tests {
                 parquet_cache: None,
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
                 time_provider,
+                wal: None,
             })
             .await
             .unwrap();
@@ -1735,6 +1761,8 @@ mod tests {
         let mapped_wal_content = replicated_catalog
             .map_wal_contents(replica_wal_content)
             .unwrap();
+        // the replicated catalog ops would not result in changes, so they are ignored:
+        assert!(mapped_wal_content.ops.is_empty());
         let id_map = replicated_catalog.id_map.lock().clone();
         assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
@@ -1747,9 +1775,6 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
-            .expect("mapped batch should still apply successfully to primary");
     }
 
     #[test]
@@ -1886,24 +1911,20 @@ mod tests {
         let mapped_wal_content = replicated_catalog
             .map_wal_contents(replica_wal_content)
             .unwrap();
+        // the catalog op would not result in changes, so it is ignored:
+        assert!(mapped_wal_content.ops.is_empty());
         let id_map = replicated_catalog.id_map.lock().clone();
         assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
         assert_eq!(
             primary_table_id,
             id_map.map_table_id(&replica_table_id).unwrap()
         );
-        // TODO: should assert on column IDs when those are present
-        // NOTE: the following snapshot wont change since no new tables/dbs were added, but including
-        // column IDs into the mix should cause this snapshot to fail, and we can fix it then!
         insta::with_settings!({
             sort_maps => true,
             description => "id map after mapping replica WAL content"
         }, {
             insta::assert_yaml_snapshot!(id_map);
         });
-        primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
-            .expect("mapped batch should still apply successfully to primary");
         // check the structure of the db schema in primary to ensure only one "f4" column is there:
         let db = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -2055,6 +2076,8 @@ mod tests {
         let mapped_wal_content = replicated_catalog
             .map_wal_contents(replica_wal_content)
             .unwrap();
+        // the replicated catalog op would not result in a change, so it is ignored:
+        assert!(mapped_wal_content.ops.is_empty());
         // check the structure of the primary db schema to ensure it has only a single last cache:
         let db_before_applying = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -2064,9 +2087,6 @@ mod tests {
         }, {
             insta::assert_yaml_snapshot!(db_before_applying);
         });
-        primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
-            .expect("apply mapped catalog batch with last cache create from replica");
         // check structure of the db schema on primary to ensure only a single last cache:
         let db_after_applying = primary.db_schema("foo").unwrap();
         insta::with_settings!({

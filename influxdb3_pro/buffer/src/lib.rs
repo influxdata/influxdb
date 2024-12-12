@@ -204,7 +204,7 @@ impl<Mode: WriteBuffer> WriteBuffer for WriteBufferPro<Mode> {}
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use datafusion::{assert_batches_sorted_eq, catalog::Session};
+    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use futures::future::try_join_all;
     use influxdb3_cache::{
@@ -712,7 +712,7 @@ mod test_helpers {
             hosts: replicas.iter().map(|s| s.to_string()).collect(),
         });
         WriteBufferPro::read_write(CreateReadWriteModeArgs {
-            host_id: "worker-0".into(),
+            host_id: host_id.into(),
             persister,
             catalog,
             last_cache,
