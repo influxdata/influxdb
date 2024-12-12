@@ -9,10 +9,8 @@ use influxdb3_catalog::catalog::{
 };
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
-use influxdb3_sys_events::{
-    events::{CompactionEvent, FailedInfo},
-    SysEventStore,
-};
+use influxdb3_sys_events::events::{catalog_fetched, CompactionEvent};
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
@@ -23,7 +21,7 @@ use observability_deps::tracing::log::error;
 use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -227,6 +225,7 @@ impl CompactedCatalog {
         let mut updated_host_maps = HashMap::new();
 
         for marker in catalogs_to_update {
+            let start = Instant::now();
             let catalog_path = CatalogFilePath::new(&marker.host, marker.catalog_sequence_number);
             let Some(updated_catalog) =
                 get_bytes_at_path(catalog_path.as_ref(), Arc::clone(&object_store)).await
@@ -248,6 +247,12 @@ impl CompactedCatalog {
                 },
             );
             info!(host = %catalog.host_id(), sequence = %catalog.sequence_number().as_u32(), "Updated host catalog");
+            let event = CompactionEvent::catalog_success(catalog_fetched::SuccessInfo {
+                host: catalog.host_id(),
+                catalog_sequence_number: catalog.sequence_number().as_u32(),
+                duration: start.elapsed(),
+            });
+            sys_events_store.record(event);
         }
 
         {
@@ -272,6 +277,7 @@ impl CompactedCatalog {
         marker: &CatalogSnapshotMarker,
         sys_events_store: &Arc<SysEventStore>,
     ) -> Result<CatalogIdMap, Error> {
+        let start = Instant::now();
         let catalog_id_map = self
             .inner
             .read()
@@ -281,11 +287,13 @@ impl CompactedCatalog {
             .inspect_err(|err| {
                 if let crate::catalog::Error::MergeError(error) = err {
                     let error_msg = error.to_string();
-                    let failed_event = CompactionEvent::snapshot_failed(FailedInfo {
-                        host: Arc::from(marker.host.as_str()),
-                        sequence_number: marker.snapshot_sequence_number.as_u64(),
-                        error: error_msg,
-                    });
+                    let failed_event =
+                        CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
+                            host: Arc::from(marker.host.as_str()),
+                            sequence_number: marker.snapshot_sequence_number.as_u64(),
+                            error: error_msg,
+                            duration: start.elapsed(),
+                        });
                     sys_events_store.record(failed_event);
                 }
             })?;
@@ -483,7 +491,7 @@ pub(crate) mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use influxdb3_sys_events::events::SnapshotFetched;
+    use influxdb3_sys_events::events::catalog_fetched::CatalogFetched;
     use influxdb3_wal::FieldDataType;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -685,15 +693,16 @@ mod tests {
         assert_eq!(1, failed_events.len());
         let failed_event = failed_events.first().unwrap();
         match &failed_event.data {
-            CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
-                SnapshotFetched::Success(_) => panic!("cannot be success"),
-                SnapshotFetched::Failed(failed_event_info) => {
+            CompactionEvent::CatalogFetched(catalog_info) => match catalog_info {
+                CatalogFetched::Success(_) => panic!("cannot be success"),
+                CatalogFetched::Failed(failed_event_info) => {
                     assert_eq!(Arc::from("host-id"), failed_event_info.host);
                     assert_eq!(123, failed_event_info.sequence_number);
                     assert_eq!("Field type mismatch on table table1 column tag1. Existing column is iox::column_type::tag but attempted to add iox::column_type::field::integer".to_string(),
                         failed_event_info.error);
                 }
             },
+            _ => panic!("no other event type expected"),
         }
     }
 }

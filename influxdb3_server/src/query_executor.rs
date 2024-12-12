@@ -720,7 +720,7 @@ mod tests {
 
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
-    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
+    use datafusion::{assert_batches_eq, assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_cache::{
         last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
@@ -731,8 +731,9 @@ mod tests {
     use influxdb3_pro_data_layout::{
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
+    use influxdb3_sys_events::events::{catalog_fetched, CompactionEvent};
     use influxdb3_sys_events::{
-        events::{CompactionEvent, FailedInfo, SuccessInfo},
+        events::snapshot_fetched::{FailedInfo, SuccessInfo},
         SysEventStore,
     };
     use influxdb3_telemetry::store::TelemetryStore;
@@ -1059,7 +1060,7 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn test_sys_table_snapshot_fetched_success() {
+    async fn test_sys_table_compaction_events_snapshot_success() {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
         let host = "sample-host";
         let db_name = "foo";
@@ -1096,23 +1097,24 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_sorted_eq!(
             [
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                                                                                                     |",
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | SNAPSHOT_FETCHED | 1s 234ms       | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"fetch_duration\":{\"secs\":1,\"nanos\":234000000},\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                                                       |",
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }
 
     #[test_log::test(tokio::test)]
-    async fn test_sys_table_snapshot_fetched_error() {
+    async fn test_sys_table_compaction_events_snapshot_error() {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
         let host = "sample-host";
         let db_name = "foo";
         let event = CompactionEvent::snapshot_failed(FailedInfo {
             host: Arc::from(host),
             sequence_number: 123,
+            duration: Duration::from_millis(10),
             error: "Foo failed".to_string(),
         });
         let _ = write_buffer
@@ -1143,8 +1145,95 @@ mod tests {
                 "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
                 "| event_time | event_type       | event_duration | event_status | event_data                                                        |",
                 "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
-                "| 1970-01-01 | SNAPSHOT_FETCHED |                | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
+                "| 1970-01-01 | SNAPSHOT_FETCHED | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
                 "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
+            ],
+            &batches.unwrap());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_sys_table_compaction_events_multiple_types() {
+        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let host = "sample-host";
+        let db_name = "foo";
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+            cpu,host=a,region=us-east usage=250\n\
+            mem,host=a,region=us-east usage=150000\n\
+            ",
+                Time::from_timestamp_nanos(0),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        // success event - snapshot
+        let snapshot_success_event = CompactionEvent::snapshot_success(SuccessInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            fetch_duration: Duration::from_millis(1234),
+            db_count: 2,
+            table_count: 1000,
+            file_count: 100_000,
+        });
+        sys_events_store.record(snapshot_success_event);
+
+        // failed event - snapshot
+        let snapshot_failed_event = CompactionEvent::snapshot_failed(FailedInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            duration: Duration::from_millis(10),
+            error: "Foo failed".to_string(),
+        });
+        sys_events_store.record(snapshot_failed_event);
+
+        // success event - catalog
+        let catalog_success_event =
+            CompactionEvent::catalog_success(catalog_fetched::SuccessInfo {
+                host: Arc::from(host),
+                catalog_sequence_number: 123,
+                duration: Duration::from_millis(10),
+            });
+        sys_events_store.record(catalog_success_event);
+
+        // failed events (x 2) - catalog
+        let catalog_failed_event = CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            duration: Duration::from_millis(10),
+            error: "catalog failed".to_string(),
+        });
+        sys_events_store.record(catalog_failed_event);
+
+        let catalog_failed_event = CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
+            host: Arc::from(host),
+            sequence_number: 124,
+            duration: Duration::from_millis(100),
+            error: "catalog failed 2".to_string(),
+        });
+        sys_events_store.record(catalog_failed_event);
+
+        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
+        let batch_stream = query_executor
+            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .await
+            .unwrap();
+        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
+        debug!(batches = ?batches, "result from collecting batch stream");
+        assert_batches_eq!(
+            [
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                                                       |",
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
+                "| 1970-01-01 | SNAPSHOT_FETCHED | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                |",
+                "| 1970-01-01 | CATALOG_FETCHED  | 10             | Success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                             |",
+                "| 1970-01-01 | CATALOG_FETCHED  | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                            |",
+                "| 1970-01-01 | CATALOG_FETCHED  | 100            | Failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                          |",
+                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }

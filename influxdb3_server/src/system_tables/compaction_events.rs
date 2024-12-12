@@ -3,7 +3,8 @@ use std::sync::Arc;
 use arrow_array::RecordBatch;
 use arrow_schema::{Schema, SchemaRef};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use influxdb3_sys_events::{events::CompactionEvent, SysEventStore, ToRecordBatch};
+use influxdb3_sys_events::events::CompactionEvent;
+use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
 use iox_system_tables::IoxSystemTable;
 use observability_deps::tracing::debug;
 

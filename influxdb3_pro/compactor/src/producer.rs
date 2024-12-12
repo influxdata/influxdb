@@ -18,8 +18,9 @@ use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
+use influxdb3_sys_events::events::CompactionEvent;
 use influxdb3_sys_events::{
-    events::{CompactionEvent, SuccessInfo},
+    events::snapshot_fetched::{FailedInfo, SuccessInfo},
     SysEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
@@ -506,14 +507,23 @@ impl CompactionState {
         sys_events_store: Arc<SysEventStore>,
     ) -> Result<()> {
         let mut snapshots = vec![];
-
         for (host, marker) in &self.host_to_last_marker {
+            let start = Instant::now();
             if marker.snapshot_sequence_number == SnapshotSequenceNumber::new(0) {
                 // if the snapshot sequence number is zero, we need to load all snapshots for this
                 // host up to the most recent 1,000
                 let persister = Persister::new(Arc::clone(&object_store), host);
-                let host_snapshots =
-                    load_all_snapshots(persister, host, marker, &sys_events_store).await?;
+                let host_snapshots = load_all_snapshots(persister, host, marker, &sys_events_store)
+                    .await
+                    .inspect_err(|err| {
+                        let failed_event = snapshot_failed_event(
+                            host,
+                            marker.snapshot_sequence_number,
+                            err.to_string(),
+                            start.elapsed(),
+                        );
+                        sys_events_store.record(failed_event);
+                    })?;
                 snapshots.extend(host_snapshots);
             } else {
                 load_next_snapshot(
@@ -523,7 +533,16 @@ impl CompactionState {
                     &sys_events_store,
                     &mut snapshots,
                 )
-                .await?;
+                .await
+                .inspect_err(|err| {
+                    let failed_event = snapshot_failed_event(
+                        host,
+                        marker.snapshot_sequence_number,
+                        err.to_string(),
+                        start.elapsed(),
+                    );
+                    sys_events_store.record(failed_event);
+                })?;
             }
         }
 
@@ -561,10 +580,22 @@ impl CompactionState {
 
         // now map all the snapshot ids before adding them in
         let mut mapped_snapshots = Vec::with_capacity(snapshots.len());
+        let start = Instant::now();
         for snapshot in snapshots {
+            let host_id = snapshot.host_id.to_owned();
+            let sequence_num = snapshot.snapshot_sequence_number;
             let s = compacted_data
                 .compacted_catalog
-                .map_persisted_snapshot_contents(snapshot)?;
+                .map_persisted_snapshot_contents(snapshot)
+                .inspect_err(|err| {
+                    let event = snapshot_failed_event(
+                        &host_id,
+                        sequence_num,
+                        err.to_string(),
+                        start.elapsed(),
+                    );
+                    sys_events_store.record(event);
+                })?;
             mapped_snapshots.push(s);
         }
 
@@ -621,6 +652,20 @@ impl CompactionState {
         self.host_markers.clear();
         self.files_to_compact.clear();
     }
+}
+
+fn snapshot_failed_event(
+    host: &str,
+    sequence_number: SnapshotSequenceNumber,
+    err: String,
+    duration: Duration,
+) -> CompactionEvent {
+    CompactionEvent::snapshot_failed(FailedInfo {
+        host: Arc::from(host),
+        duration,
+        sequence_number: sequence_number.as_u64(),
+        error: err,
+    })
 }
 
 async fn load_next_snapshot(
@@ -680,10 +725,8 @@ mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_pro_data_layout::HostSnapshotMarker;
-    use influxdb3_sys_events::{
-        events::{CompactionEvent, SnapshotFetched},
-        SysEventStore,
-    };
+    use influxdb3_sys_events::events::CompactionEvent;
+    use influxdb3_sys_events::{events::snapshot_fetched::SnapshotFetched, SysEventStore};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use influxdb3_write::{persister::Persister, PersistedSnapshot};
     use iox_time::{MockProvider, Time};
@@ -1088,6 +1131,7 @@ mod tests {
                 }
                 SnapshotFetched::Failed(_) => panic!("should not fail"),
             },
+            _ => panic!("no other event type expected"),
         }
     }
 
@@ -1151,6 +1195,7 @@ mod tests {
                 }
                 SnapshotFetched::Failed(_) => panic!("should not fail"),
             },
+            _ => panic!("no other event type expected"),
         }
     }
 }
