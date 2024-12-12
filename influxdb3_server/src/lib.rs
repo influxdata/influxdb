@@ -35,12 +35,14 @@ use iox_query::QueryDatabase;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
+use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
 use trace::ctx::SpanContext;
@@ -174,7 +176,11 @@ impl<T> Server<T> {
     }
 }
 
-pub async fn serve<T>(server: Server<T>, shutdown: CancellationToken) -> Result<()>
+pub async fn serve<T>(
+    server: Server<T>,
+    shutdown: CancellationToken,
+    startup_timer: Instant,
+) -> Result<()>
 where
     T: TimeProvider,
 {
@@ -206,6 +212,9 @@ where
     let hybrid_make_service = hybrid(rest_service, grpc_service);
 
     let addr = AddrIncoming::from_listener(server.listener)?;
+    let timer_end = Instant::now();
+    let startup_time = timer_end.duration_since(startup_timer);
+    info!("Server Startup Time: {}ms", startup_time.as_millis());
     hyper::server::Builder::new(addr, Http::new())
         .tcp_nodelay(true)
         .serve(hybrid_make_service)
@@ -764,6 +773,7 @@ mod tests {
     }
 
     async fn setup_server(start_time: i64) -> (String, CancellationToken, Arc<dyn WriteBuffer>) {
+        let server_start_time = tokio::time::Instant::now();
         let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
         let metrics = Arc::new(metric::Registry::new());
         let object_store: Arc<DynObjectStore> = Arc::new(object_store::memory::InMemory::new());
@@ -856,7 +866,7 @@ mod tests {
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(async move { serve(server, frontend_shutdown).await });
+        tokio::spawn(async move { serve(server, frontend_shutdown, server_start_time).await });
 
         (format!("http://{addr}"), shutdown, write_buffer)
     }
