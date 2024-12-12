@@ -269,10 +269,8 @@ impl MutableTableChunk {
                             debug!("Creating new timestamp builder");
                             let mut time_builder = TimestampNanosecondBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                debug!("Appending null for timestamp");
-                                time_builder.append_null();
-                            }
+                            debug!("Appending null for timestamp");
+                            time_builder.append_nulls(row_index + self.row_count);
                             Builder::Time(time_builder)
                         });
                         if let Builder::Time(b) = b {
@@ -285,9 +283,7 @@ impl MutableTableChunk {
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_null();
-                            }
+                            tag_builder.append_nulls(row_index + self.row_count);
                             e.insert(Builder::Tag(tag_builder));
                         }
                         let b = self.data.get_mut(&f.id).expect("tag builder should exist");
@@ -318,9 +314,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut string_builder = StringBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                string_builder.append_null();
-                            }
+                            string_builder.append_nulls(row_index + self.row_count);
                             Builder::String(string_builder)
                         });
                         if let Builder::String(b) = b {
@@ -333,9 +327,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut int_builder = Int64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                int_builder.append_null();
-                            }
+                            int_builder.append_nulls(row_index + self.row_count);
                             Builder::I64(int_builder)
                         });
                         if let Builder::I64(b) = b {
@@ -348,9 +340,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut uint_builder = UInt64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                uint_builder.append_null();
-                            }
+                            uint_builder.append_nulls(row_index + self.row_count);
                             Builder::U64(uint_builder)
                         });
                         if let Builder::U64(b) = b {
@@ -363,9 +353,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut float_builder = Float64Builder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                float_builder.append_null();
-                            }
+                            float_builder.append_nulls(row_index + self.row_count);
                             Builder::F64(float_builder)
                         });
                         if let Builder::F64(b) = b {
@@ -378,9 +366,7 @@ impl MutableTableChunk {
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             let mut bool_builder = BooleanBuilder::new();
                             // append nulls for all previous rows
-                            for _ in 0..(row_index + self.row_count) {
-                                bool_builder.append_null();
-                            }
+                            bool_builder.append_nulls(row_index + self.row_count);
                             Builder::Bool(bool_builder)
                         });
                         if let Builder::Bool(b) = b {
