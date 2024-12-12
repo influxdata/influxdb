@@ -430,6 +430,12 @@ jobs:
           aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from:                  /tmp/workspace/artifacts
           to:                    s3://dl.influxdata.com/influxdb/<< parameters.destination >>
+      - run:
+          command: |
+            export AWS_REGION="${RELEASE_AWS_REGION}"
+            export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
+            export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
+            aws cloudfront create-invalidation --distribution-id "${RELEASE_ARTIFACTS_CLOUDFRONT}" --paths '/influxdb/<< parameters.destination >>/*'
   build-docker:
     # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
     # kinda small node)
