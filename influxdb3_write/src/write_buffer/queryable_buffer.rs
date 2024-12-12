@@ -513,11 +513,10 @@ impl BufferState {
                 let sort_key = table_def
                     .series_key
                     .iter()
-                    .map(|c| table_def.column_id_to_name_unchecked(c).to_string())
-                    .collect::<Vec<_>>();
+                    .map(|c| Arc::clone(&table_def.column_id_to_name_unchecked(c)));
                 let index_columns = table_def.index_column_ids();
 
-                TableBuffer::new(index_columns, SortKey::from(sort_key))
+                TableBuffer::new(index_columns, SortKey::from_columns(sort_key))
             });
             for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
                 table_buffer.buffer_chunk(chunk_time, chunk.rows);

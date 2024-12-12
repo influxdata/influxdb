@@ -40,6 +40,9 @@ pub enum Error {
     #[error("deserialize error: {0}")]
     Serialize(#[from] crate::serialize::Error),
 
+    #[error("join error: {0}")]
+    Join(#[from] tokio::task::JoinError),
+
     #[error("object store error: {0}")]
     ObjectStoreError(#[from] ::object_store::Error),
 
@@ -426,7 +429,7 @@ impl LastCacheDefinition {
 /// A last cache will either store values for an explicit set of columns, or will accept all
 /// non-key columns
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
     Explicit { columns: Vec<ColumnId> },
