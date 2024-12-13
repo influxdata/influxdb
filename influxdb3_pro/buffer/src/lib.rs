@@ -206,6 +206,7 @@ mod tests {
 
     use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
+    use futures::future::try_join_all;
     use influxdb3_cache::{
         last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
@@ -219,9 +220,10 @@ mod tests {
     use object_store::{memory::InMemory, path::Path};
 
     use crate::{
-        modes::read_write::CreateReadWriteModeArgs,
+        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
         test_helpers::{
-            chunks_to_record_batches, do_writes, make_exec, verify_snapshot_count, TestWrite,
+            chunks_to_record_batches, do_writes, make_exec, setup_read_write,
+            verify_snapshot_count, TestWrite,
         },
         WriteBufferPro,
     };
@@ -437,6 +439,148 @@ mod tests {
             non_cached_obj_store.total_read_request_count(&Path::from(path.as_str()));
         assert_eq!(1, request_count);
     }
+
+    /// Reproducer for <https://github.com/influxdata/influxdb_pro/issues/269>
+    #[test_log::test(tokio::test)]
+    async fn ha_configuration_simultaneous_start_with_writes() {
+        // setup globals:
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let object_store = Arc::new(InMemory::new());
+
+        // create two read_write nodes simultaneously:
+        struct WorkerConfig {
+            host_id: &'static str,
+            replicas: &'static [&'static str],
+        }
+        let mut handles = vec![];
+        for WorkerConfig { host_id, replicas } in [
+            WorkerConfig {
+                host_id: "worker-0",
+                replicas: &["worker-1"],
+            },
+            WorkerConfig {
+                host_id: "worker-1",
+                replicas: &["worker-0"],
+            },
+        ] {
+            let tp = Arc::clone(&time_provider);
+            let os = Arc::clone(&object_store);
+            let h = tokio::spawn(setup_read_write(tp, os, host_id, replicas.into()));
+            handles.push(h);
+        }
+        let workers: Vec<Arc<WriteBufferPro<ReadWriteMode>>> = try_join_all(handles)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+
+        // write to the first worker:
+        do_writes(
+            "test_db",
+            workers[0].as_ref(),
+            &[
+                TestWrite {
+                    lp: "cpu,worker=0 usage=99",
+                    time_seconds: 1,
+                },
+                TestWrite {
+                    lp: "cpu,worker=0 usage=88",
+                    time_seconds: 2,
+                },
+                TestWrite {
+                    lp: "cpu,worker=0 usage=77",
+                    time_seconds: 3,
+                },
+            ],
+        )
+        .await;
+
+        // allow second worker to replicate first worker:
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // now write to each node simultaneously:
+        let mut handles = vec![];
+        for (i, worker) in workers.iter().enumerate() {
+            let w = Arc::clone(worker);
+            let h = tokio::spawn(async move {
+                do_writes(
+                    "test_db",
+                    w.as_ref(),
+                    &[
+                        TestWrite {
+                            lp: format!("cpu,worker={i} usage=99"),
+                            time_seconds: 4,
+                        },
+                        TestWrite {
+                            lp: format!("cpu,worker={i} usage=88"),
+                            time_seconds: 5,
+                        },
+                        TestWrite {
+                            lp: format!("cpu,worker={i} usage=77"),
+                            time_seconds: 6,
+                        },
+                    ],
+                )
+                .await
+            });
+            handles.push(h);
+        }
+        try_join_all(handles).await.unwrap();
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let ctx = IOxSessionContext::with_testing();
+
+        // worker 1 has writes from both hosts:
+        let chunks = workers[1]
+            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
+            .unwrap();
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+---------------------+-------+--------+",
+                "| time                | usage | worker |",
+                "+---------------------+-------+--------+",
+                "| 1970-01-01T00:00:01 | 99.0  | 0      |",
+                "| 1970-01-01T00:00:02 | 88.0  | 0      |",
+                "| 1970-01-01T00:00:03 | 77.0  | 0      |",
+                "| 1970-01-01T00:00:04 | 99.0  | 0      |",
+                "| 1970-01-01T00:00:04 | 99.0  | 1      |",
+                "| 1970-01-01T00:00:05 | 88.0  | 0      |",
+                "| 1970-01-01T00:00:05 | 88.0  | 1      |",
+                "| 1970-01-01T00:00:06 | 77.0  | 0      |",
+                "| 1970-01-01T00:00:06 | 77.0  | 1      |",
+                "+---------------------+-------+--------+",
+            ],
+            &batches
+        );
+
+        // worker 0 also has writes from both hosts (this is done second because this fails in
+        // the reproducer scenario):
+        let chunks = workers[0]
+            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
+            .unwrap();
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+---------------------+-------+--------+",
+                "| time                | usage | worker |",
+                "+---------------------+-------+--------+",
+                "| 1970-01-01T00:00:01 | 99.0  | 0      |",
+                "| 1970-01-01T00:00:02 | 88.0  | 0      |",
+                "| 1970-01-01T00:00:03 | 77.0  | 0      |",
+                "| 1970-01-01T00:00:04 | 99.0  | 0      |",
+                "| 1970-01-01T00:00:04 | 99.0  | 1      |",
+                "| 1970-01-01T00:00:05 | 88.0  | 0      |",
+                "| 1970-01-01T00:00:05 | 88.0  | 1      |",
+                "| 1970-01-01T00:00:06 | 77.0  | 0      |",
+                "| 1970-01-01T00:00:06 | 77.0  | 1      |",
+                "+---------------------+-------+--------+",
+            ],
+            &batches
+        );
+    }
 }
 
 #[cfg(test)]
@@ -445,15 +589,23 @@ mod test_helpers {
 
     use data_types::NamespaceName;
     use datafusion::{arrow::array::RecordBatch, execution::context::SessionContext};
+    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
+    use influxdb3_wal::WalConfig;
     use influxdb3_write::{persister::Persister, Precision, WriteBuffer};
     use iox_query::{
         exec::{DedicatedExecutor, Executor, ExecutorConfig},
         QueryChunk,
     };
-    use iox_time::Time;
+    use iox_time::{Time, TimeProvider};
     use metric::Registry;
     use object_store::ObjectStore;
     use parquet_file::storage::{ParquetStorage, StorageId};
+
+    use crate::{
+        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
+        replica::ReplicationConfig,
+        WriteBufferPro,
+    };
 
     pub(crate) fn make_exec(
         object_store: Arc<dyn ObjectStore>,
@@ -539,5 +691,41 @@ mod test_helpers {
             batches.append(&mut chunk.data().read_to_batches(chunk.schema(), ctx).await);
         }
         batches
+    }
+
+    pub(crate) async fn setup_read_write(
+        time_provider: Arc<dyn TimeProvider>,
+        object_store: Arc<dyn ObjectStore>,
+        host_id: &str,
+        replicas: Vec<&str>,
+    ) -> WriteBufferPro<ReadWriteMode> {
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+        let meta_cache =
+            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+                .unwrap();
+        let metric_registry = Arc::new(metric::Registry::new());
+        let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
+        let replication_config = Some(ReplicationConfig {
+            interval: Duration::from_millis(250),
+            hosts: replicas.iter().map(|s| s.to_string()).collect(),
+        });
+        WriteBufferPro::read_write(CreateReadWriteModeArgs {
+            host_id: host_id.into(),
+            persister,
+            catalog,
+            last_cache,
+            meta_cache,
+            time_provider,
+            executor,
+            wal_config: WalConfig::test_config(),
+            metric_registry,
+            replication_config,
+            parquet_cache: None,
+            compacted_data: None,
+        })
+        .await
+        .unwrap()
     }
 }

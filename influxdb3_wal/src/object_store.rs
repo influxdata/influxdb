@@ -231,6 +231,7 @@ impl WalObjectStore {
                 .await
         };
         info!(
+            host = self.host_identifier_prefix,
             n_ops = %wal_contents.ops.len(),
             min_timestamp_ns = %wal_contents.min_timestamp_ns,
             max_timestamp_ns = %wal_contents.max_timestamp_ns,

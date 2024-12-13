@@ -229,6 +229,10 @@ impl WriteBufferImpl {
         Arc::clone(&self.catalog)
     }
 
+    pub fn wal(&self) -> Arc<dyn Wal> {
+        Arc::clone(&self.wal)
+    }
+
     pub fn persisted_files(&self) -> Arc<PersistedFiles> {
         Arc::clone(&self.persisted_files)
     }

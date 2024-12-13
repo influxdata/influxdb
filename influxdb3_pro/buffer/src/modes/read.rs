@@ -72,6 +72,7 @@ impl ReadMode {
                 parquet_cache,
                 catalog,
                 time_provider,
+                wal: None,
             })
             .await
             .context("failed to initialize replicas")?,

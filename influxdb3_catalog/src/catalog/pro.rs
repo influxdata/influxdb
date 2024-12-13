@@ -10,7 +10,10 @@ use influxdb3_wal::{
 };
 use schema::InfluxColumnType;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use influxdb3_id::{ColumnId, DbId, TableId};
 
@@ -340,22 +343,23 @@ impl CatalogIdMap {
     /// does not exist locally, create a new [`DbId`]. This first checks the internal ID map, then
     /// checks to see if `other_db_name` exists in the local catalog to find a match before generating
     /// a new [`DbId`].
-    pub fn map_db_or_new(
+    fn map_db_or_new(
         &mut self,
         local_catalog: &Catalog,
         other_db_name: &str,
         other_db_id: DbId,
-    ) -> DbId {
+    ) -> Mapped<DbId> {
         self.map_db_id(&other_db_id)
             .or_else(|| {
                 let id = local_catalog.db_name_to_id(other_db_name)?;
                 self.dbs.insert(other_db_id, id);
                 Some(id)
             })
+            .map(Mapped::Ignore)
             .unwrap_or_else(|| {
                 let new_id = DbId::new();
                 self.dbs.insert(other_db_id, new_id);
-                new_id
+                Mapped::Replay(new_id)
             })
     }
 
@@ -363,13 +367,13 @@ impl CatalogIdMap {
     /// does not exist locally, create a new [`TableId`]. This first checks the internal ID map, then
     /// checks to see if `other_table_name` exists in the local catalog to find a match before generating
     /// a new [`TableId`].
-    pub fn map_table_or_new(
+    fn map_table_or_new(
         &mut self,
         local_catalog: &Catalog,
         local_db_id: DbId,
         other_table_name: &str,
         other_table_id: TableId,
-    ) -> TableId {
+    ) -> Mapped<TableId> {
         self.map_table_id(&other_table_id)
             .or_else(|| {
                 let id = local_catalog
@@ -378,10 +382,11 @@ impl CatalogIdMap {
                 self.tables.insert(other_table_id, id);
                 Some(id)
             })
+            .map(Mapped::Ignore)
             .unwrap_or_else(|| {
                 let new_id = TableId::new();
                 self.tables.insert(other_table_id, new_id);
-                new_id
+                Mapped::Replay(new_id)
             })
     }
 
@@ -390,7 +395,7 @@ impl CatalogIdMap {
     /// checks to see if `other_column_name` exists in the local catalog to find a match before generating
     /// a new [`ColumnId`].
     #[allow(clippy::too_many_arguments)]
-    pub fn map_column_or_new(
+    fn map_column_or_new(
         &mut self,
         local_catalog: &Catalog,
         local_db_id: DbId,
@@ -399,8 +404,9 @@ impl CatalogIdMap {
         other_column_name: &str,
         other_column_id: ColumnId,
         other_column_type: InfluxColumnType,
-    ) -> Result<ColumnId> {
+    ) -> Result<Mapped<ColumnId>> {
         self.map_column_id(&other_column_id)
+            .map(Mapped::Ignore)
             .map(Ok)
             .or_else(|| {
                 let local_tbl_def = local_catalog
@@ -416,12 +422,12 @@ impl CatalogIdMap {
                     }));
                 }
                 self.columns.insert(other_column_id, id);
-                Some(Ok(id))
+                Some(Ok(Mapped::Ignore(id)))
             })
             .unwrap_or_else(|| {
                 let new_id = ColumnId::new();
                 self.columns.insert(other_column_id, new_id);
-                Ok(new_id)
+                Ok(Mapped::Replay(new_id))
             })
     }
 
@@ -432,32 +438,122 @@ impl CatalogIdMap {
         target_catalog: &Catalog,
         wal_contents: WalContents,
     ) -> Result<WalContents> {
+        let ops = wal_contents
+            .ops
+            .into_iter()
+            .filter_map(|op| {
+                self.map_wal_op(target_catalog, op)
+                    .map(Mapped::into_replay)
+                    .transpose()
+            })
+            .collect::<Result<Vec<WalOp>>>()?;
         Ok(WalContents {
             persist_timestamp_ms: wal_contents.persist_timestamp_ms,
             min_timestamp_ns: wal_contents.min_timestamp_ns,
             max_timestamp_ns: wal_contents.max_timestamp_ns,
             wal_file_number: wal_contents.wal_file_number,
-            ops: wal_contents
-                .ops
-                .into_iter()
-                .map(|op| {
-                    Ok(match op {
-                        WalOp::Write(write_batch) => {
-                            WalOp::Write(self.map_write_batch(target_catalog, write_batch))
-                        }
-                        WalOp::Catalog(catalog_batch) => {
-                            WalOp::Catalog(self.map_catalog_batch(target_catalog, catalog_batch)?)
-                        }
-                    })
-                })
-                .collect::<Result<Vec<WalOp>>>()?,
+            ops,
             snapshot: wal_contents.snapshot,
         })
     }
 
-    fn map_write_batch(&mut self, target_catalog: &Catalog, from: WriteBatch) -> WriteBatch {
-        let database_id = self.map_db_or_new(target_catalog, &from.database_name, from.database_id);
-        WriteBatch {
+    /// Map a [`WalOp`] from a replicated host to the local host
+    ///
+    /// This leverages the [`Mapped`] type to determine [`CatalogOp`]s that need to be replayed or
+    /// ignored. In general, if a `CatalogOp` results in something new being created on the local
+    /// host, then we want to apply the `CatalogOp`, while those that would result in a no-op should
+    /// be ignored.
+    ///
+    /// Although `CatalogOp`s are handled idempotently, we need to make this distinction for high
+    /// availability configurations where more than one host is accepting writes and replicating
+    /// the WAL from another write-enabled host. Consider the following scenario:
+    ///
+    /// * Host `A` is accepting writes and replicating the WAL of host `B`
+    /// * Host `B` is accepting writes and replicating the WAL of host `A`
+    ///
+    /// When `A` receives a write that alters the catalog, e.g., one that creates a table, its WAL
+    /// will look like so:
+    ///
+    /// ```text
+    ///            Host `A` WAL
+    /// ╔═════════════════════════════════╗
+    /// ║ CreateTable{id: 0, name: 'foo'} ║
+    /// ║ Write{table_id: 0, data: ...}   ║
+    /// ╚═════════════════════════════════╝
+    /// ```
+    ///
+    /// When `B` then replays `A`'s WAL, it will see the `CreateTable{id: 0, name: 'foo'}`, and map
+    /// it to the local equivalent, i.e., by creating a new [`TableId`] for the 'foo' table:
+    ///
+    /// ```text
+    ///            Host `A` WAL                                       Host `B` WAL
+    /// ╔═════════════════════════════════╗   Map/Replay   ╔═════════════════════════════════╗
+    /// ║ CreateTable{id: 0, name: 'foo'} ║ ━━━━━━━━━━━━━▶ ║ CreateTable{id: 1, name: 'foo'} ║
+    /// ║ Write{table_id: 0, data: ...}   ║                ╚═════════════════════════════════╝
+    /// ╚═════════════════════════════════╝                ╔═════════════════════════════════╗
+    ///                                                    ║   Host `B` ⏐ {                  ║
+    ///                                                    ║ Catalog ID ⏐   tables: {0 ━▶ 1} ║
+    ///                                                    ║     Map    ⏐ }                  ║
+    ///                                                    ╚═════════════════════════════════╝
+    /// ```
+    ///
+    /// The mapped `CreateTable` operation will be wrapped in `Mapped::Replay`, so that it gets sent
+    /// and persisted to the local WAL on `B`. Hence why `B`'s WAL now contains a `CreateTable` op.
+    ///
+    /// `B` does not insert the `Write` operation to its WAL; instead, it only maps the write op
+    /// and buffers its contents to its in-memory buffer.
+    ///
+    /// Now, when `A` is replaying `B`'s WAL, it will see the `CreateTable` operation, and will use
+    /// that to extend its internal [`CatalogIdMap`]; however, `A` does not need to send the op to
+    /// its WAL. Doing so would lead to an infinite loop between `A` and `B` inserting the same op
+    /// repeatedly to their respective WAL. Instead, `A` will map the `CreateTable` operation, thus
+    /// updating its `CatalogIdMap`, but then wrap it in `Mapped::Ignore`.
+    ///
+    /// ```text
+    ///            Host `A` WAL                                       
+    /// ╔═════════════════════════════════╗               
+    /// ║ CreateTable{id: 0, name: 'foo'} ║                           Host `B` WAL
+    /// ║ Write{table_id: 0, data: ... }  ║   Map/Replay  ╔═════════════════════════════════╗
+    /// ║                                 ║ ◀━━━━━━━━━━━━ ║ CreateTable{id: 1, name: 'foo'} ║
+    /// ╚═════════════════════════════════╝               ╚═════════════════════════════════╝
+    /// ╔═════════════════════════════════╗
+    /// ║   Host `A` ⏐ {                  ║
+    /// ║ Catalog ID ⏐   tables: {1 ━▶ 0} ║
+    /// ║     Map    ⏐ }                  ║
+    /// ╚═════════════════════════════════╝
+    /// ```
+    ///
+    /// `A` can now replay writes to the 'foo' table that were made to `B` and buffer them to its
+    /// in-memory replicated buffer:
+    ///
+    /// ```text
+    ///            Host `A` WAL                                       Host `B` WAL
+    /// ╔═════════════════════════════════╗               ╔═════════════════════════════════╗
+    /// ║ CreateTable{id: 0, name: 'foo'} ║               ║ CreateTable{id: 1, name: 'foo'} ║
+    /// ║ Write{table_id: 0, data: ... }  ║   Map/Replay  ║             ...                 ║
+    /// ║                                 ║ ◀━━━━━━━━━━━━ ║ Write{table_id: 1, data: ... }  ║
+    /// ╚═════════════════════════════════╝               ╚═════════════════════════════════╝
+    /// ```
+    fn map_wal_op(&mut self, target_catalog: &Catalog, op: WalOp) -> Result<Mapped<WalOp>> {
+        Ok(match op {
+            WalOp::Write(write_batch) => self
+                .map_write_batch(target_catalog, write_batch)
+                .map(WalOp::Write),
+            WalOp::Catalog(catalog_batch) => self
+                .map_catalog_batch(target_catalog, catalog_batch)?
+                .map(WalOp::Catalog),
+        })
+    }
+
+    fn map_write_batch(
+        &mut self,
+        target_catalog: &Catalog,
+        from: WriteBatch,
+    ) -> Mapped<WriteBatch> {
+        let database_id =
+            *self.map_db_or_new(target_catalog, &from.database_name, from.database_id);
+        // we always want to replay write operations:
+        Mapped::Replay(WriteBatch {
             database_id,
             database_name: Arc::clone(&from.database_name),
             table_chunks: from
@@ -478,7 +574,7 @@ impl CatalogIdMap {
                 .collect(),
             min_time_ns: from.min_time_ns,
             max_time_ns: from.max_time_ns,
-        }
+        })
     }
 
     fn map_table_chunks(&mut self, from: TableChunks) -> TableChunks {
@@ -525,32 +621,52 @@ impl CatalogIdMap {
         &mut self,
         target_catalog: &Catalog,
         from: CatalogBatch,
-    ) -> Result<CatalogBatch> {
+    ) -> Result<Mapped<CatalogBatch>> {
         let database_id = self.map_db_or_new(target_catalog, &from.database_name, from.database_id);
-        Ok(CatalogBatch {
-            database_id,
-            database_name: Arc::clone(&from.database_name),
-            time_ns: from.time_ns,
-            ops: from
-                .ops
-                .into_iter()
-                .map(|op| self.map_catalog_op(target_catalog, database_id, op))
-                .collect::<Result<Vec<CatalogOp>>>()?,
-        })
+        Ok(from
+            .ops
+            .into_iter()
+            .map(|op| self.map_catalog_op(target_catalog, database_id.copied(), op))
+            .collect::<Result<Mapped<Vec<CatalogOp>>>>()?
+            .map(|ops| CatalogBatch {
+                database_id: *database_id,
+                database_name: Arc::clone(&from.database_name),
+                time_ns: from.time_ns,
+                ops,
+            }))
     }
 
     fn map_catalog_op(
         &mut self,
         target_catalog: &Catalog,
-        database_id: DbId,
+        database_id: Mapped<DbId>,
         op: CatalogOp,
-    ) -> Result<CatalogOp> {
+    ) -> Result<Mapped<CatalogOp>> {
         let mapped_op = match op {
-            CatalogOp::CreateDatabase(def) => CatalogOp::CreateDatabase(DatabaseDefinition {
-                database_id,
-                database_name: def.database_name,
+            CatalogOp::CreateDatabase(def) => database_id.map(|database_id| {
+                CatalogOp::CreateDatabase(DatabaseDefinition {
+                    database_id,
+                    database_name: def.database_name,
+                })
             }),
+            CatalogOp::DeleteDatabase(def) => {
+                let database_id = *database_id;
+                let mapped_op = CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
+                    database_id,
+                    database_name: Arc::clone(&def.database_name),
+                    deletion_time: def.deletion_time,
+                });
+                if target_catalog
+                    .db_schema_by_id(&database_id)
+                    .is_some_and(|db| db.deleted)
+                {
+                    Mapped::Ignore(mapped_op)
+                } else {
+                    Mapped::Replay(mapped_op)
+                }
+            }
             CatalogOp::CreateTable(def) => {
+                let database_id = *database_id;
                 let table_id = self.map_table_or_new(
                     target_catalog,
                     database_id,
@@ -558,30 +674,62 @@ impl CatalogIdMap {
                     def.table_id,
                 );
                 let field_definitions = self.map_field_definitions(
-                        target_catalog,
-                        database_id,
-                        table_id,
-                        Arc::clone(&def.table_name),
-                        def.field_definitions,
-                    )?;
+                    target_catalog,
+                    database_id,
+                    *table_id,
+                    Arc::clone(&def.table_name),
+                    def.field_definitions,
+                )?;
                 let key = def
                     .key
                     .into_iter()
-                    .map(|column_id| self
-                        .map_column_id(&column_id)
-                        .ok_or_else(|| Error::Other(
-                            anyhow!("invalid column id in series key: {column_id}")
-                        ))
-                    )
+                    .map(|column_id| {
+                        self.map_column_id(&column_id).ok_or_else(|| {
+                            Error::Other(anyhow!("invalid column id in series key: {column_id}"))
+                        })
+                    })
                     .collect::<Result<Vec<_>>>()?;
-                CatalogOp::CreateTable(WalTableDefinition {
+                let is_new = table_id.is_replay() || field_definitions.is_replay();
+                let op = CatalogOp::CreateTable(WalTableDefinition {
                     database_id,
                     database_name: def.database_name,
                     table_name: Arc::clone(&def.table_name),
-                    table_id,
-                    field_definitions,
+                    table_id: table_id.into_inner(),
+                    field_definitions: field_definitions.into_inner(),
                     key,
-                })
+                });
+                if is_new {
+                    Mapped::Replay(op)
+                } else {
+                    Mapped::Ignore(op)
+                }
+            }
+            CatalogOp::DeleteTable(def) => {
+                let database_id = *database_id;
+                let table_id = self.map_table_id(&def.table_id).ok_or_else(|| {
+                    Error::Other(anyhow!(
+                        "attempted to delete a table that does not exist locally"
+                    ))
+                })?;
+                let tbl_def = target_catalog
+                    .db_schema_by_id(&database_id)
+                    .and_then(|db| db.table_definition_by_id(&table_id))
+                    // this unwrap is okay because the table_id has been determined valid when
+                    // mapped above:
+                    .unwrap();
+                let mapped_op = CatalogOp::DeleteTable(DeleteTableDefinition {
+                    database_id,
+                    database_name: Arc::clone(&def.database_name),
+                    table_id,
+                    table_name: Arc::clone(&def.table_name),
+                    deletion_time: def.deletion_time,
+                });
+                // if the table is already deleted then we can ignore this operation
+                if tbl_def.deleted {
+                    Mapped::Ignore(mapped_op)
+                } else {
+                    Mapped::Replay(mapped_op)
+                }
             }
             CatalogOp::AddFields(def) => {
                 let table_id =
@@ -590,18 +738,22 @@ impl CatalogIdMap {
                             db_name: Arc::clone(&def.database_name),
                             table_name: Arc::clone(&def.table_name),
                         })?;
-                CatalogOp::AddFields(FieldAdditions {
-                    database_name: def.database_name,
+                let database_id = *database_id;
+                self.map_field_definitions(
+                    target_catalog,
                     database_id,
-                    table_name: Arc::clone(&def.table_name),
                     table_id,
-                    field_definitions: self.map_field_definitions(
-                        target_catalog,
+                    Arc::clone(&def.table_name),
+                    def.field_definitions,
+                )?
+                .map(|field_definitions| {
+                    CatalogOp::AddFields(FieldAdditions {
+                        database_name: def.database_name,
                         database_id,
+                        table_name: Arc::clone(&def.table_name),
                         table_id,
-                        Arc::clone(&def.table_name),
-                        def.field_definitions,
-                    )?,
+                        field_definitions,
+                    })
                 })
             }
             // The following last cache ops will throw an error if they are for a table that does
@@ -626,18 +778,32 @@ impl CatalogIdMap {
                                 name = def.name
                             )));
                     }
+                    Mapped::Ignore(CatalogOp::CreateLastCache(mapped_def))
+                } else {
+                    Mapped::Replay(CatalogOp::CreateLastCache(mapped_def))
                 }
-                CatalogOp::CreateLastCache(mapped_def)
             }
-            CatalogOp::DeleteLastCache(def) => CatalogOp::DeleteLastCache(LastCacheDelete {
-                table_name: Arc::clone(&def.table_name),
-                table_id: self.map_table_id(&def.table_id).ok_or_else(|| {
+            CatalogOp::DeleteLastCache(def) => {
+                let table_id = self.map_table_id(&def.table_id).ok_or_else(|| {
                     Error::Other(anyhow!(
                         "attempted to delete a last cache for a table that does not exist locally"
                     ))
-                })?,
-                name: def.name,
-            }),
+                })?;
+                let tbl_def = target_catalog
+                    .db_schema_by_id(&database_id)
+                    .and_then(|db| db.table_definition_by_id(&table_id))
+                    .unwrap();
+                let mapped_op = CatalogOp::DeleteLastCache(LastCacheDelete {
+                    table_name: Arc::clone(&def.table_name),
+                    table_id,
+                    name: Arc::clone(&def.name),
+                });
+                if tbl_def.last_caches.get(&def.name).is_some() {
+                    Mapped::Replay(mapped_op)
+                } else {
+                    Mapped::Ignore(mapped_op)
+                }
+            }
             CatalogOp::CreateMetaCache(def) => {
                 let mapped_def = self.map_meta_cache_definition_column_ids(&def)?;
                 let tbl_def = target_catalog
@@ -656,38 +822,31 @@ impl CatalogIdMap {
                             name = def.cache_name
                         )));
                     }
+                    Mapped::Ignore(CatalogOp::CreateMetaCache(mapped_def))
+                } else {
+                    Mapped::Replay(CatalogOp::CreateMetaCache(mapped_def))
                 }
-                CatalogOp::CreateMetaCache(mapped_def)
             }
-            CatalogOp::DeleteMetaCache(def) => CatalogOp::DeleteMetaCache(MetaCacheDelete {
-                table_name: Arc::clone(&def.table_name),
-                table_id: self.map_table_id(&def.table_id).ok_or_else(|| {
-                    Error::Other(anyhow!(
-                        "attempted to delete a metadata cache for a table that does not exist locally"
-                    ))
-                })?,
-                cache_name: def.cache_name,
-            }),
-            CatalogOp::DeleteDatabase(def) => {
-                CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
-                    database_id,
-                    database_name: Arc::clone(&def.database_name),
-                    deletion_time: def.deletion_time,
-                })
-            }
-            CatalogOp::DeleteTable(def) => {
-                CatalogOp::DeleteTable(DeleteTableDefinition {
-                    database_id,
-                    database_name: Arc::clone(&def.database_name),
-                    // NOTE: if the table doesn't exist locally, should we error here? or just ignore?
-                    table_id: self.map_table_id(&def.table_id).ok_or_else(|| {
+            CatalogOp::DeleteMetaCache(def) => {
+                let table_id = self.map_table_id(&def.table_id).ok_or_else(|| {
                         Error::Other(anyhow!(
-                            "attempted to delete a table that does not exist locally"
+                            "attempted to delete a metadata cache for a table that does not exist locally"
                         ))
-                    })?,
+                    })?;
+                let tbl_def = target_catalog
+                    .db_schema_by_id(&database_id)
+                    .and_then(|db| db.table_definition_by_id(&table_id))
+                    .unwrap();
+                let mapped_op = CatalogOp::DeleteMetaCache(MetaCacheDelete {
                     table_name: Arc::clone(&def.table_name),
-                    deletion_time: def.deletion_time,
-                })
+                    table_id,
+                    cache_name: Arc::clone(&def.cache_name),
+                });
+                if tbl_def.meta_caches.get(&def.cache_name).is_some() {
+                    Mapped::Replay(mapped_op)
+                } else {
+                    Mapped::Ignore(mapped_op)
+                }
             }
         };
         Ok(mapped_op)
@@ -700,13 +859,12 @@ impl CatalogIdMap {
         table_id: TableId,
         table_name: Arc<str>,
         field_definitions: Vec<FieldDefinition>,
-    ) -> Result<Vec<FieldDefinition>> {
+    ) -> Result<Mapped<Vec<FieldDefinition>>> {
         field_definitions
             .into_iter()
             .map(|def| {
-                Ok(FieldDefinition {
-                    name: Arc::clone(&def.name),
-                    id: self.map_column_or_new(
+                Ok(self
+                    .map_column_or_new(
                         target_catalog,
                         database_id,
                         table_id,
@@ -714,9 +872,12 @@ impl CatalogIdMap {
                         def.name.as_ref(),
                         def.id,
                         def.data_type.into(),
-                    )?,
-                    data_type: def.data_type,
-                })
+                    )?
+                    .map(|id| FieldDefinition {
+                        name: Arc::clone(&def.name),
+                        id,
+                        data_type: def.data_type,
+                    }))
             })
             .collect()
     }
@@ -795,6 +956,96 @@ impl CatalogIdMap {
             max_cardinality: def.max_cardinality,
             max_age_seconds: def.max_age_seconds,
         })
+    }
+}
+
+#[derive(Debug)]
+enum Mapped<T> {
+    Replay(T),
+    Ignore(T),
+}
+
+impl<T> Deref for Mapped<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Mapped::Replay(t) => t,
+            Mapped::Ignore(t) => t,
+        }
+    }
+}
+
+impl<T> DerefMut for Mapped<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Mapped::Replay(t) => t,
+            Mapped::Ignore(t) => t,
+        }
+    }
+}
+
+impl<A, T: FromIterator<A>> FromIterator<Mapped<A>> for Mapped<T> {
+    fn from_iter<I: IntoIterator<Item = Mapped<A>>>(iter: I) -> Self {
+        let mut is_new = false;
+        let vals = iter
+            .into_iter()
+            .map(|val| match val {
+                Mapped::Replay(v) => {
+                    is_new = true;
+                    v
+                }
+                Mapped::Ignore(v) => v,
+            })
+            .collect();
+        if is_new {
+            Mapped::Replay(vals)
+        } else {
+            Mapped::Ignore(vals)
+        }
+    }
+}
+
+impl<T> Mapped<T> {
+    fn map<U, F>(self, f: F) -> Mapped<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Mapped::Replay(t) => Mapped::Replay(f(t)),
+            Mapped::Ignore(t) => Mapped::Ignore(f(t)),
+        }
+    }
+
+    fn copied(&self) -> Mapped<T>
+    where
+        T: Copy,
+    {
+        match self {
+            Mapped::Replay(t) => Mapped::Replay(*t),
+            Mapped::Ignore(t) => Mapped::Ignore(*t),
+        }
+    }
+
+    fn into_inner(self) -> T {
+        match self {
+            Mapped::Replay(v) => v,
+            Mapped::Ignore(v) => v,
+        }
+    }
+
+    fn into_replay(self) -> Option<T> {
+        match self {
+            Mapped::Replay(t) => Some(t),
+            Mapped::Ignore(_) => None,
+        }
+    }
+
+    fn is_replay(&self) -> bool {
+        match self {
+            Mapped::Replay(_) => true,
+            Mapped::Ignore(_) => false,
+        }
     }
 }
 
