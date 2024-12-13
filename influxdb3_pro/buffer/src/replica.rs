@@ -576,6 +576,11 @@ impl ReplicatedBuffer {
 
         for path in &paths {
             self.replay_wal_file(path).await?;
+            info!(
+                from_host = self.host_identifier_prefix,
+                wal_file_path = %path,
+                "replayed wal file"
+            );
         }
 
         if let Some(path) = paths.last() {
@@ -628,11 +633,6 @@ impl ReplicatedBuffer {
     /// we can avoid calculating TTBR when replaying WAL files on server startup, as the resulting
     /// values would likely skew the metric distribution.
     async fn replay_wal_file(&self, path: &Path) -> Result<()> {
-        info!(
-            from_host = self.host_identifier_prefix,
-            wal_file_path = %path,
-            "replaying wal file"
-        );
         let obj = self.object_store.get(path).await?;
         let file_bytes = obj
             .bytes()
@@ -824,6 +824,11 @@ fn background_replication_interval(
 
                     match replicated_buffer.replay_wal_file(&wal_path).await {
                         Ok(_) => {
+                            info!(
+                                from_host = replicated_buffer.host_identifier_prefix,
+                                wal_file_path = %wal_path,
+                                "replayed wal file"
+                            );
                             last_wal_number.replace(wal_number);
                             // Don't break the inner loop here, since we want to try for more
                             // WAL files if they exist...
