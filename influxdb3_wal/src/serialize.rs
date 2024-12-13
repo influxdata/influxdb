@@ -17,8 +17,8 @@ pub enum Error {
     #[error("crc32 checksum mismatch")]
     Crc32Mismatch,
 
-    #[error("Serde error: {0}")]
-    Serde(#[from] serde_json::Error),
+    #[error("bitcode error: {0}")]
+    Bitcode(#[from] bitcode::Error),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -32,6 +32,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 /// The first bytes written into a wal file to identify it and its version.
 const FILE_TYPE_IDENTIFIER: &[u8] = b"idb3.001";
 
+#[inline(always)]
 pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     let contents = b.to_vec();
 
@@ -61,7 +62,7 @@ pub fn verify_file_type_and_deserialize(b: Bytes) -> Result<WalContents> {
     }
 
     // Deserialize the data into a WalContents
-    let contents: WalContents = serde_json::from_slice(data)?;
+    let contents: WalContents = bitcode::deserialize(data)?;
 
     Ok(contents)
 }
@@ -70,8 +71,8 @@ pub(crate) fn serialize_to_file_bytes(contents: &WalContents) -> Result<Vec<u8>>
     let mut buf = Vec::new();
     buf.extend_from_slice(FILE_TYPE_IDENTIFIER);
 
-    // serialize the contents into json bytes
-    let data = serde_json::to_vec(contents)?;
+    // serialize the contents into bitcode bytes
+    let data = bitcode::serialize(contents)?;
 
     // calculate the crc32 checksum
     let mut hasher = crc32fast::Hasher::new();
