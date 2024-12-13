@@ -8,11 +8,15 @@ use arrow::{
 use arrow_array::{ArrayRef, RecordBatch};
 
 use crate::{
-    events::{catalog_fetched::CatalogFetched, snapshot_fetched::SnapshotFetched},
+    events::{
+        catalog_fetched::CatalogFetched, compaction_planned::CompactionPlanned,
+        snapshot_fetched::SnapshotFetched,
+    },
     Event, RingBuffer, ToRecordBatch,
 };
 
 pub mod catalog_fetched;
+pub mod compaction_planned;
 pub mod snapshot_fetched;
 
 /// This is the root of all compaction related events. Compaction itself has
@@ -31,6 +35,7 @@ pub mod snapshot_fetched;
 pub enum CompactionEvent {
     SnapshotFetched(SnapshotFetched),
     CatalogFetched(CatalogFetched),
+    CompactionPlanned(CompactionPlanned),
 }
 
 impl CompactionEvent {
@@ -48,6 +53,14 @@ impl CompactionEvent {
 
     pub fn catalog_failed(failed_info: catalog_fetched::FailedInfo) -> Self {
         CompactionEvent::CatalogFetched(CatalogFetched::Failed(failed_info))
+    }
+
+    pub fn compaction_planned_success(success_info: compaction_planned::SuccessInfo) -> Self {
+        CompactionEvent::CompactionPlanned(CompactionPlanned::SuccessInfo(success_info))
+    }
+
+    pub fn compaction_planned_failed(failed_info: compaction_planned::FailedInfo) -> Self {
+        CompactionEvent::CompactionPlanned(CompactionPlanned::FailedInfo(failed_info))
     }
 }
 
@@ -106,6 +119,27 @@ impl ToRecordBatch<CompactionEvent> for CompactionEvent {
                                     .append_value(failed_info.duration.as_millis() as u64);
                                 event_data_arr
                                     .append_value(serde_json::to_string(failed_info).unwrap());
+                            }
+                        }
+                    }
+                    CompactionEvent::CompactionPlanned(planned_event_info) => {
+                        event_type_arr.append_value("COMPACTION_PLANNED");
+                        match planned_event_info {
+                            CompactionPlanned::SuccessInfo(success_info) => {
+                                event_status_arr.append_value("Success");
+                                event_duration_arr
+                                    .append_value(success_info.duration.as_millis() as u64);
+                                event_data_arr.append_value(
+                                    serde_json::to_string(planned_event_info).unwrap(),
+                                );
+                            }
+                            CompactionPlanned::FailedInfo(failed_info) => {
+                                event_status_arr.append_value("Failed");
+                                event_duration_arr
+                                    .append_value(failed_info.duration.as_millis() as u64);
+                                event_data_arr.append_value(
+                                    serde_json::to_string(planned_event_info).unwrap(),
+                                );
                             }
                         }
                     }

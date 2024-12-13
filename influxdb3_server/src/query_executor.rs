@@ -731,7 +731,7 @@ mod tests {
     use influxdb3_pro_data_layout::{
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
-    use influxdb3_sys_events::events::{catalog_fetched, CompactionEvent};
+    use influxdb3_sys_events::events::{catalog_fetched, compaction_planned, CompactionEvent};
     use influxdb3_sys_events::{
         events::snapshot_fetched::{FailedInfo, SuccessInfo},
         SysEventStore,
@@ -1216,6 +1216,26 @@ mod tests {
         });
         sys_events_store.record(catalog_failed_event);
 
+        // success event - plan
+        let plan_success_event =
+            CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
+                num_input_generations: 2,
+                input_paths: vec![Arc::from("/path1")],
+                output_level: 1,
+                db_name: Arc::from("db"),
+                table_name: Arc::from("table"),
+                left_over_gen1_files: 10,
+                duration: Duration::from_millis(10),
+            });
+        sys_events_store.record(plan_success_event);
+        // failed event - plan
+        let plan_failed_event =
+            CompactionEvent::compaction_planned_failed(compaction_planned::FailedInfo {
+                duration: Duration::from_millis(10),
+                error: "db schema is missing".to_owned(),
+            });
+        sys_events_store.record(plan_failed_event);
+
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
             .query(db_name, query, None, crate::QueryKind::Sql, None, None)
@@ -1225,15 +1245,17 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_eq!(
             [
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                                                       |",
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | SNAPSHOT_FETCHED | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
-                "| 1970-01-01 | SNAPSHOT_FETCHED | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                |",
-                "| 1970-01-01 | CATALOG_FETCHED  | 10             | Success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                             |",
-                "| 1970-01-01 | CATALOG_FETCHED  | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                            |",
-                "| 1970-01-01 | CATALOG_FETCHED  | 100            | Failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                          |",
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
+                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type         | event_duration | event_status | event_data                                                                                                                                          |",
+                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED   | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                                                    |",
+                "| 1970-01-01 | SNAPSHOT_FETCHED   | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                                                   |",
+                "| 1970-01-01 | CATALOG_FETCHED    | 10             | Success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                                                                                |",
+                "| 1970-01-01 | CATALOG_FETCHED    | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                                               |",
+                "| 1970-01-01 | CATALOG_FETCHED    | 100            | Failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                                             |",
+                "| 1970-01-01 | COMPACTION_PLANNED | 10             | Success      | {\"SuccessInfo\":{\"num_input_generations\":2,\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10}} |",
+                "| 1970-01-01 | COMPACTION_PLANNED | 10             | Failed       | {\"FailedInfo\":{\"duration\":{\"secs\":0,\"nanos\":10000000},\"error\":\"db schema is missing\"}}                                                              |",
+                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }

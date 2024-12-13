@@ -36,7 +36,7 @@ impl CompactionPlanGroup {
         compacted_data: &CompactedData,
         new_files_to_compact: &Gen1FileMap,
         output_level: GenerationLevel,
-    ) -> Option<Self> {
+    ) -> Result<Option<Self>, String> {
         let mut next_compaction_plans = Vec::new();
         let mut leftover_plans = Vec::new();
 
@@ -62,13 +62,15 @@ impl CompactionPlanGroup {
                 let gen1_files = new_files_to_compact
                     .get(&db_id)
                     .and_then(|t| t.get(&table_id));
+
                 let db_schema = compacted_data
                     .compacted_catalog
                     .db_schema_by_id(&db_id)
-                    .expect("database schema should exist");
+                    .ok_or("database schema is missing")?;
+
                 let table_definition = db_schema
                     .table_definition_by_id(&table_id)
-                    .expect("table schema should exist");
+                    .ok_or("table definition is missing")?;
 
                 let plan = create_next_plan(
                     compacted_data,
@@ -93,12 +95,12 @@ impl CompactionPlanGroup {
         }
 
         if next_compaction_plans.is_empty() {
-            None
+            Ok(None)
         } else {
-            Some(Self {
+            Ok(Some(Self {
                 next_compaction_plans,
                 leftover_plans,
-            })
+            }))
         }
     }
 }

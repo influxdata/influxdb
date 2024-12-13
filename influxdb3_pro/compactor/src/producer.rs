@@ -18,7 +18,10 @@ use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
-use influxdb3_sys_events::events::CompactionEvent;
+use influxdb3_sys_events::events::{
+    compaction_planned::{self},
+    CompactionEvent,
+};
 use influxdb3_sys_events::{
     events::snapshot_fetched::{FailedInfo, SuccessInfo},
     SysEventStore,
@@ -158,25 +161,59 @@ impl CompactedDataProducer {
 
         // handle the first level of compaction to move files from the host snapshots to the
         // compacted data
-        if let Some(plan) = CompactionPlanGroup::plans_for_level(
+        let planning_timer = Instant::now();
+        match CompactionPlanGroup::plans_for_level(
             &self.compaction_config,
             &self.compacted_data,
             &compaction_state.files_to_compact,
             GenerationLevel::two(),
         ) {
-            self.run_compaction_plan_group(plan, &mut compaction_state)
-                .await?;
+            Ok(maybe_plan) => {
+                if let Some(plan) = maybe_plan {
+                    record_compaction_plans(
+                        &plan,
+                        planning_timer.elapsed(),
+                        Arc::clone(&sys_events_store),
+                    );
+                    self.run_compaction_plan_group(plan, &mut compaction_state)
+                        .await?;
+                }
+            }
+            Err(err_string) => {
+                record_error_compaction_plan(
+                    planning_timer.elapsed(),
+                    err_string,
+                    Arc::clone(&sys_events_store),
+                );
+            }
         }
 
+        let planning_timer = Instant::now();
         for level in generation_levels {
-            if let Some(plan) = CompactionPlanGroup::plans_for_level(
+            match CompactionPlanGroup::plans_for_level(
                 &self.compaction_config,
                 &self.compacted_data,
                 &compaction_state.files_to_compact,
                 *level,
             ) {
-                self.run_compaction_plan_group(plan, &mut compaction_state)
-                    .await?;
+                Ok(maybe_plan) => {
+                    if let Some(plan) = maybe_plan {
+                        record_compaction_plans(
+                            &plan,
+                            planning_timer.elapsed(),
+                            Arc::clone(&sys_events_store),
+                        );
+                        self.run_compaction_plan_group(plan, &mut compaction_state)
+                            .await?;
+                    }
+                }
+                Err(err_string) => {
+                    record_error_compaction_plan(
+                        planning_timer.elapsed(),
+                        err_string,
+                        Arc::clone(&sys_events_store),
+                    );
+                }
             }
         }
 
@@ -387,6 +424,42 @@ impl CompactedDataProducer {
         );
 
         Ok(())
+    }
+}
+
+fn record_error_compaction_plan(
+    duration: Duration,
+    error: String,
+    sys_events_store: Arc<SysEventStore>,
+) {
+    let event = CompactionEvent::compaction_planned_failed(compaction_planned::FailedInfo {
+        duration,
+        error,
+    });
+    sys_events_store.record(event);
+}
+
+fn record_compaction_plans(
+    plan_group: &CompactionPlanGroup,
+    duration: Duration,
+    sys_events_store: Arc<SysEventStore>,
+) {
+    let next_compaction_plans = &plan_group.next_compaction_plans;
+    for plan in next_compaction_plans {
+        let event = CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
+            num_input_generations: plan.input_generations.len() as u64,
+            input_paths: plan
+                .input_paths
+                .iter()
+                .map(|path| Arc::from(path.as_ref()))
+                .collect(),
+            output_level: GenerationLevel::two().as_u8(),
+            db_name: Arc::clone(&plan.db_schema.name),
+            table_name: Arc::clone(&plan.table_definition.table_name),
+            duration,
+            left_over_gen1_files: plan.leftover_gen1_files.len() as u64,
+        });
+        sys_events_store.record(event);
     }
 }
 
