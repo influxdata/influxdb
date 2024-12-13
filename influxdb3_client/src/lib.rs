@@ -910,7 +910,7 @@ pub struct LastCacheCreatedResponse {
 /// A last cache will either store values for an explicit set of columns, or will accept all
 /// non-key columns
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
     Explicit { columns: Vec<u32> },
@@ -1285,8 +1285,9 @@ mod tests {
                     "name": "cache_name",
                     "key_columns": [0, 1],
                     "value_columns": {
-                        "type": "explicit",
-                        "columns": [2, 3]
+                        "explicit": {
+                            "columns": [2, 3]
+                        }
                     },
                     "ttl": 120,
                     "count": 5
