@@ -11,6 +11,8 @@ snapshot_kind: text
         "deleted": false,
         "id": 0,
         "name": "db",
+        "processing_engine_plugins": [],
+        "processing_engine_triggers": [],
         "tables": [
           [
             0,
