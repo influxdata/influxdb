@@ -44,7 +44,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub struct CompactedCatalog {
-    pub comapctor_id: Arc<str>,
+    pub compactor_id: Arc<str>,
     inner: RwLock<InnerCompactedCatalog>,
 }
 
@@ -74,7 +74,7 @@ impl Serialize for CompactedCatalog {
 
         // Create the helper struct
         let helper = CompactedCatalogHelper {
-            compactor_id: self.comapctor_id.to_string(),
+            compactor_id: self.compactor_id.to_string(),
             catalog: inner.catalog.clone_inner(),
             // We need to block here to get the mutex contents
             host_maps: inner.host_maps.clone(),
@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for CompactedCatalog {
         let helper = CompactedCatalogHelper::deserialize(deserializer)?;
 
         Ok(CompactedCatalog {
-            comapctor_id: helper.compactor_id.into(),
+            compactor_id: helper.compactor_id.into(),
             inner: RwLock::new(InnerCompactedCatalog {
                 catalog: Catalog::from_inner(helper.catalog),
                 host_maps: helper.host_maps,
@@ -117,7 +117,7 @@ impl CompactedCatalog {
 
     /// Load the `CompactedCatalog` from the object store.
     pub async fn load(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<Option<CompactedCatalog>> {
         let path = ObjPath::from(format!("{}/catalog", compactor_id));
@@ -150,7 +150,7 @@ impl CompactedCatalog {
     ) -> Result<()> {
         let last_sequence_number = self.sequence_number();
         if sequence_number > last_sequence_number {
-            let path = CompactedCatalogPath::new(self.comapctor_id.as_ref(), sequence_number);
+            let path = CompactedCatalogPath::new(self.compactor_id.as_ref(), sequence_number);
             let bytes = object_store.get(&path.0).await?.bytes().await?;
             let helper: CompactedCatalogHelper = serde_json::from_slice(&bytes)?;
             let mut inner = self.inner.write();
@@ -174,7 +174,7 @@ impl CompactedCatalog {
     }
 
     pub async fn persist(&self, object_store: Arc<dyn ObjectStore>) -> Result<()> {
-        let path = CompactedCatalogPath::new(self.comapctor_id.as_ref(), self.sequence_number());
+        let path = CompactedCatalogPath::new(self.compactor_id.as_ref(), self.sequence_number());
         let bytes = serde_json::to_vec(&self)?;
         object_store.put(&path.0, bytes.into()).await?;
         info!(path = %path.0, "Persisted compacted catalog");
@@ -304,14 +304,14 @@ impl CompactedCatalog {
     /// that is the union of all the host catalogs. If none of the hosts has persisted a catalog,
     /// returns a newly initialized one.
     pub async fn load_merged_from_hosts(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         hosts: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<CompactedCatalog> {
         let uuid = Uuid::new_v4().to_string();
         let instance_id = Arc::from(uuid.as_str());
 
-        let primary_catalog = Catalog::new(compactor_id.into(), instance_id);
+        let primary_catalog = Catalog::new(Arc::clone(&compactor_id), instance_id);
         let mut host_maps = HashMap::new();
 
         for host in hosts {
@@ -342,7 +342,7 @@ impl CompactedCatalog {
         }
 
         Ok(Self {
-            comapctor_id: compactor_id.into(),
+            compactor_id,
             inner: RwLock::new(InnerCompactedCatalog {
                 catalog: primary_catalog,
                 host_maps,
@@ -501,7 +501,7 @@ mod tests {
     #[tokio::test]
     async fn loads_merged_from_hosts() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let compactor_id = "compactor_id";
+        let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
 
@@ -523,14 +523,14 @@ mod tests {
         .await;
 
         let catalog = CompactedCatalog::load_merged_from_hosts(
-            compactor_id,
+            Arc::clone(&compactor_id),
             vec![host1.into(), host2.into()],
             Arc::clone(&object_store),
         )
         .await
         .expect("failed to load merged catalog");
 
-        assert_eq!(catalog.comapctor_id.as_ref(), compactor_id);
+        assert_eq!(catalog.compactor_id, compactor_id);
         assert_eq!(catalog.inner.read().host_maps.len(), 2);
 
         let db = catalog.db_schema("db1").expect("db not found");
@@ -596,7 +596,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_merge_catalog_and_record_error_success() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let compactor_id = "compactor_id";
+        let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
 
@@ -646,7 +646,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_merge_catalog_and_record_error_returns_error() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let compactor_id = "compactor_id";
+        let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
 

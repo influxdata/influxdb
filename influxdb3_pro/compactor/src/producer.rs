@@ -47,6 +47,8 @@ pub enum CompactedDataProducerError {
     SnapshotLoadError(#[from] influxdb3_write::persister::Error),
     #[error("Error deserializeing snapshot: {0}")]
     SnapshotDeserializeError(#[from] serde_json::Error),
+    #[error("Error joining spawned task: {0}")]
+    TokioJoinError(#[from] tokio::task::JoinError),
 }
 
 /// Result type for functions in this module.
@@ -83,7 +85,7 @@ impl Debug for CompactedDataProducer {
 impl CompactedDataProducer {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         hosts: Vec<String>,
         compaction_config: CompactionConfig,
         pro_config: Arc<tokio::sync::RwLock<ProConfig>>,
@@ -93,15 +95,18 @@ impl CompactedDataProducer {
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
         sys_events_store: Arc<SysEventStore>,
     ) -> Result<Self> {
-        let (mut compaction_state, compacted_data) =
-            CompactionState::load_or_initialize(compactor_id, hosts, Arc::clone(&object_store))
-                .await?;
+        let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
+            Arc::clone(&compactor_id),
+            hosts,
+            Arc::clone(&object_store),
+        )
+        .await?;
         compaction_state
             .load_snapshots(&compacted_data, Arc::clone(&object_store), sys_events_store)
             .await?;
 
         Ok(Self {
-            compactor_id: Arc::from(compactor_id),
+            compactor_id,
             pro_config,
             object_store,
             compaction_config,
@@ -226,7 +231,7 @@ impl CompactedDataProducer {
 
             // TODO: handle this failure, which will only occur if we can't serialize the JSON
             persist_compaction_detail(
-                self.compactor_id.as_ref(),
+                Arc::clone(&self.compactor_id),
                 plan.db_schema.id,
                 plan.table_definition.table_id,
                 &detail,
@@ -259,7 +264,7 @@ impl CompactedDataProducer {
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_compaction_summary(
-            self.compactor_id.as_ref(),
+            Arc::clone(&self.compactor_id),
             &compaction_summary,
             Arc::clone(&self.object_store),
         )
@@ -327,7 +332,7 @@ impl CompactedDataProducer {
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_generation_detail(
-            self.compactor_id.as_ref(),
+            Arc::clone(&self.compactor_id),
             plan.output_generation.id,
             &generation_detail,
             Arc::clone(&self.object_store),
@@ -364,7 +369,7 @@ impl CompactedDataProducer {
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_compaction_detail(
-            self.compactor_id.as_ref(),
+            Arc::clone(&self.compactor_id),
             plan.db_schema.id,
             plan.table_definition.table_id,
             &compaction_detail,
@@ -402,81 +407,112 @@ impl CompactionState {
     /// Loads or initializes the compacted catalog, the last compaction summary, and the snapshots
     /// from the target hosts.
     pub(crate) async fn load_or_initialize(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         hosts: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<(Self, CompactedData)> {
         // load or initialize and persist a compacted catalog
-        let compacted_catalog =
-            match CompactedCatalog::load(compactor_id, Arc::clone(&object_store)).await? {
-                Some(catalog) => catalog,
+        async fn compacted_catalog(
+            compactor_id: Arc<str>,
+            hosts: Vec<String>,
+            obj_store: Arc<dyn ObjectStore>,
+        ) -> Result<CompactedCatalog> {
+            match CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&obj_store)).await? {
+                Some(catalog) => Ok(catalog),
                 None => {
                     let catalog = CompactedCatalog::load_merged_from_hosts(
                         compactor_id,
                         hosts.clone(),
-                        Arc::clone(&object_store),
+                        Arc::clone(&obj_store),
                     )
                     .await?;
 
-                    catalog.persist(Arc::clone(&object_store)).await?;
+                    catalog.persist(obj_store).await?;
 
-                    catalog
+                    Ok(catalog)
                 }
-            };
-
-        // load or initialize and persist the first compaction summary
-        let compaction_summary =
-            match load_compaction_summary(compactor_id, Arc::clone(&object_store)).await? {
-                Some(summary) => summary,
-                None => {
-                    // if there's no compaction summary, we initialize a new one with hosts that have
-                    // snapshot sequence numbers of zero, so that compaction can pick up all snapshots
-                    // from there
-                    let snapshot_markers = hosts
-                        .iter()
-                        .map(|host| {
-                            Arc::new(HostSnapshotMarker {
-                                host_id: host.clone(),
-                                snapshot_sequence_number: SnapshotSequenceNumber::new(0),
-                                next_file_id: ParquetFileId::from(0),
-                            })
-                        })
-                        .collect::<Vec<_>>();
-
-                    let summary = CompactionSummary {
-                        compaction_sequence_number: CompactionSequenceNumber::new(0),
-                        catalog_sequence_number: CatalogSequenceNumber::new(0),
-                        last_file_id: ParquetFileId::from(0),
-                        last_generation_id: GenerationId::from(0),
-                        snapshot_markers,
-                        compaction_details: SerdeVecMap::new(),
-                    };
-
-                    persist_compaction_summary(compactor_id, &summary, Arc::clone(&object_store))
-                        .await?;
-
-                    summary
-                }
-            };
-
-        // ensure that every host is in the last marker map
-        let mut host_to_last_marker = compaction_summary
-            .snapshot_markers
-            .iter()
-            .map(|marker| (marker.host_id.clone(), Arc::clone(marker)))
-            .collect::<HashMap<_, _>>();
-        for host in hosts {
-            if !host_to_last_marker.contains_key(&host) {
-                host_to_last_marker.insert(
-                    host.clone(),
-                    Arc::new(HostSnapshotMarker {
-                        host_id: host,
-                        snapshot_sequence_number: SnapshotSequenceNumber::new(0),
-                        next_file_id: ParquetFileId::from(0),
-                    }),
-                );
             }
         }
+
+        // load or initialize and persist the first compaction summary
+        async fn summary(
+            compactor_id: Arc<str>,
+            hosts: Vec<String>,
+            obj_store: Arc<dyn ObjectStore>,
+        ) -> Result<(CompactionSummary, HashMap<String, Arc<HostSnapshotMarker>>)> {
+            let compaction_summary =
+                match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&obj_store))
+                    .await?
+                {
+                    Some(summary) => summary,
+                    None => {
+                        // if there's no compaction summary, we initialize a new one with hosts that have
+                        // snapshot sequence numbers of zero, so that compaction can pick up all snapshots
+                        // from there
+                        let snapshot_markers = hosts
+                            .iter()
+                            .map(|host| {
+                                Arc::new(HostSnapshotMarker {
+                                    host_id: host.clone(),
+                                    snapshot_sequence_number: SnapshotSequenceNumber::new(0),
+                                    next_file_id: ParquetFileId::from(0),
+                                })
+                            })
+                            .collect::<Vec<_>>();
+
+                        let summary = CompactionSummary {
+                            compaction_sequence_number: CompactionSequenceNumber::new(0),
+                            catalog_sequence_number: CatalogSequenceNumber::new(0),
+                            last_file_id: ParquetFileId::from(0),
+                            last_generation_id: GenerationId::from(0),
+                            snapshot_markers,
+                            compaction_details: SerdeVecMap::new(),
+                        };
+
+                        persist_compaction_summary(compactor_id, &summary, Arc::clone(&obj_store))
+                            .await?;
+
+                        summary
+                    }
+                };
+
+            // ensure that every host is in the last marker map
+            let mut host_to_last_marker = compaction_summary
+                .snapshot_markers
+                .iter()
+                .map(|marker| (marker.host_id.clone(), Arc::clone(marker)))
+                .collect::<HashMap<_, _>>();
+            for host in hosts {
+                if !host_to_last_marker.contains_key(&host) {
+                    host_to_last_marker.insert(
+                        host.clone(),
+                        Arc::new(HostSnapshotMarker {
+                            host_id: host,
+                            snapshot_sequence_number: SnapshotSequenceNumber::new(0),
+                            next_file_id: ParquetFileId::from(0),
+                        }),
+                    );
+                }
+            }
+            Ok((compaction_summary, host_to_last_marker))
+        }
+
+        // Spawn tasks so they can run in parallel
+        let task_1 = tokio::spawn(compacted_catalog(
+            Arc::clone(&compactor_id),
+            hosts.clone(),
+            Arc::clone(&object_store),
+        ));
+        let task_2 = tokio::spawn(summary(
+            Arc::clone(&compactor_id),
+            hosts,
+            Arc::clone(&object_store),
+        ));
+
+        // Await both futures concurrently
+        let (compacted_catalog, summary_tuple) = tokio::try_join!(task_1, task_2)?;
+        let compacted_catalog = compacted_catalog?;
+        let (compaction_summary, host_to_last_marker) = summary_tuple?;
 
         // now load the compacted data
         let compacted_data = CompactedData::load_compacted_data(
@@ -786,7 +822,7 @@ mod tests {
         )));
 
         let compactor = CompactedDataProducer::new(
-            "compactor-1",
+            "compactor-1".into(),
             vec![host_id.into()],
             CompactionConfig::default(),
             Arc::new(RwLock::new(ProConfig::default())),
@@ -847,7 +883,8 @@ mod tests {
             .unwrap();
 
         // ensure the generation detail was persisted
-        let generation_detail_path = GenerationDetailPath::new("compactor-1", output_generation.id);
+        let generation_detail_path =
+            GenerationDetailPath::new("compactor-1".into(), output_generation.id);
         let generation_detail =
             get_generation_detail(&generation_detail_path, Arc::clone(&object_store))
                 .await
@@ -861,7 +898,7 @@ mod tests {
             .unwrap();
         assert_eq!(compaction_detail.compacted_generations.len(), 1);
         let compaction_detail_path = CompactionDetailPath::new(
-            "compactor-1",
+            "compactor-1".into(),
             compactor_db_schema.id,
             table_definition.table_id,
             CompactionSequenceNumber::new(1),
@@ -894,7 +931,7 @@ mod tests {
         let _snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
 
         let (mut state, compacted_data) = CompactionState::load_or_initialize(
-            "compactor-1",
+            "compactor-1".into(),
             vec![host_id.into()],
             Arc::clone(&object_store),
         )
@@ -907,7 +944,7 @@ mod tests {
         let table_definition = db_schema.table_definition("cpu").unwrap();
 
         let loaded_compacted_catalog =
-            CompactedCatalog::load("compactor-1", Arc::clone(&object_store))
+            CompactedCatalog::load("compactor-1".into(), Arc::clone(&object_store))
                 .await
                 .unwrap()
                 .unwrap();
@@ -993,8 +1030,9 @@ mod tests {
         )));
 
         let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+
         let compactor = CompactedDataProducer::new(
-            "compactor-1",
+            "compactor-1".into(),
             vec![host_id.into()],
             compaction_config,
             Arc::new(RwLock::new(ProConfig::default())),
@@ -1014,9 +1052,10 @@ mod tests {
             .unwrap();
 
         // create the consumer and verify it has the catalog and data
-        let consumer = CompactedDataConsumer::new("compactor-1", Arc::clone(&object_store), None)
-            .await
-            .unwrap();
+        let consumer =
+            CompactedDataConsumer::new("compactor-1".into(), Arc::clone(&object_store), None)
+                .await
+                .unwrap();
         let consumer_db = consumer
             .compacted_data
             .compacted_catalog

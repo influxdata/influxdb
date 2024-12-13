@@ -38,33 +38,35 @@ impl CompactedDataConsumer {
     /// summary from the object store. This means that the compactor must start up successfully
     /// before this will return.
     pub async fn new(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
     ) -> anyhow::Result<Self> {
         loop {
             // the producer writes the catalog first and then the summary. We loop until we find
             // the summary and then load the catalog and data.
-            let summary = match load_compaction_summary(compactor_id, Arc::clone(&object_store))
-                .await
-                .context("error decoding comapction summary json")?
-            {
-                Some(summary) => summary,
-                None => {
-                    warn!(
-                        "No compaction summary found for compactor id {}, retrying in 1 second",
-                        compactor_id
-                    );
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                    continue;
-                }
-            };
-            let catalog = CompactedCatalog::load(compactor_id, Arc::clone(&object_store))
-                .await
-                .context("error loading compacted catalog")?
-                .context("compacted catalog not found")?;
+            let summary =
+                match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&object_store))
+                    .await
+                    .context("error decoding comapction summary json")?
+                {
+                    Some(summary) => summary,
+                    None => {
+                        warn!(
+                            "No compaction summary found for compactor id {}, retrying in 1 second",
+                            compactor_id
+                        );
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        continue;
+                    }
+                };
+            let catalog =
+                CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&object_store))
+                    .await
+                    .context("error loading compacted catalog")?
+                    .context("compacted catalog not found")?;
             let compacted_data = CompactedData::load_compacted_data(
-                compactor_id,
+                Arc::clone(&compactor_id),
                 summary,
                 catalog,
                 Arc::clone(&object_store),
@@ -73,7 +75,7 @@ impl CompactedDataConsumer {
             .context("error loading compacted data")?;
 
             return Ok(Self {
-                compactor_id: compactor_id.into(),
+                compactor_id,
                 object_store,
                 compacted_data: Arc::new(compacted_data),
                 parquet_cache_prefetcher,
@@ -95,7 +97,7 @@ impl CompactedDataConsumer {
         let next_sequence_number = last_summary.compaction_sequence_number.next();
 
         let summary = match load_compaction_summary_for_sequence(
-            self.compactor_id.as_ref(),
+            Arc::clone(&self.compactor_id),
             next_sequence_number,
             Arc::clone(&self.object_store),
         )
@@ -132,7 +134,7 @@ impl CompactedDataConsumer {
             }
 
             let path = CompactionDetailPath::new(
-                self.compactor_id.as_ref(),
+                Arc::clone(&self.compactor_id),
                 *db_id,
                 *table_id,
                 *sequence_number,
@@ -163,7 +165,7 @@ impl CompactedDataConsumer {
 
             let mut generation_details = Vec::with_capacity(new_generations.len());
             for gen in new_generations {
-                let gen_path = GenerationDetailPath::new(self.compactor_id.as_ref(), gen.id);
+                let gen_path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), gen.id);
                 let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
                     .await
                     .context("generation detail not found")?;
@@ -214,7 +216,7 @@ mod tests {
         GenerationDetail,
     ) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let compactor_id = "compactor_id";
+        let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
 
@@ -236,7 +238,7 @@ mod tests {
         .await;
 
         let catalog = CompactedCatalog::load_merged_from_hosts(
-            compactor_id,
+            Arc::clone(&compactor_id),
             vec![host1.into(), host2.into()],
             Arc::clone(&object_store),
         )
@@ -306,7 +308,7 @@ mod tests {
         };
 
         persist_generation_detail(
-            compactor_id,
+            Arc::clone(&compactor_id),
             generation.id,
             &generation_detail,
             Arc::clone(&object_store),
@@ -314,7 +316,7 @@ mod tests {
         .await
         .unwrap();
         persist_compaction_detail(
-            compactor_id,
+            Arc::clone(&compactor_id),
             db.id,
             table1.table_id,
             &detail,
@@ -322,9 +324,13 @@ mod tests {
         )
         .await
         .unwrap();
-        persist_compaction_summary(compactor_id, &summary, Arc::clone(&object_store))
-            .await
-            .unwrap();
+        persist_compaction_summary(
+            Arc::clone(&compactor_id),
+            &summary,
+            Arc::clone(&object_store),
+        )
+        .await
+        .unwrap();
 
         (object_store, catalog, summary, detail, generation_detail)
     }
@@ -332,7 +338,7 @@ mod tests {
     #[tokio::test]
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
-        let compactor_id = "compactor_id";
+        let compactor_id = "compactor_id".into();
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
 

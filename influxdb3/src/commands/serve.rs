@@ -570,7 +570,7 @@ pub async fn command(config: Config) -> Result<()> {
             };
 
             let producer = CompactedDataProducer::new(
-                &compactor_id,
+                Arc::clone(&compactor_id),
                 hosts,
                 compaction_config,
                 Arc::clone(&pro_config),
@@ -586,7 +586,7 @@ pub async fn command(config: Config) -> Result<()> {
             compaction_producer = Some(Arc::new(producer));
         } else {
             let consumer = CompactedDataConsumer::new(
-                &compactor_id,
+                compactor_id,
                 Arc::clone(&object_store),
                 parquet_cache_prefetcher,
             )

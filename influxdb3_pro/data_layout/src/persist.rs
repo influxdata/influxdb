@@ -26,7 +26,7 @@ pub enum CompactedDataPersistenceError {
 pub type Result<T, E = CompactedDataPersistenceError> = std::result::Result<T, E>;
 
 pub async fn persist_compaction_detail(
-    compactor_id: &str,
+    compactor_id: Arc<str>,
     db_id: DbId,
     table_id: TableId,
     compaction_detail: &CompactionDetail,
@@ -84,7 +84,7 @@ pub async fn get_compaction_detail(
 }
 
 pub async fn persist_generation_detail(
-    compactor_id: &str,
+    compactor_id: Arc<str>,
     generation_id: GenerationId,
     generation_detail: &GenerationDetail,
     object_store: Arc<dyn ObjectStore>,
@@ -136,7 +136,7 @@ pub async fn get_generation_detail(
 }
 
 pub async fn persist_compaction_summary(
-    compactor_id: &str,
+    compactor_id: Arc<str>,
     compaction_summary: &CompactionSummary,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<()> {
@@ -167,7 +167,7 @@ pub async fn persist_compaction_summary(
 /// Load the latest compaction summary for the given compactor id. This does a LIST operation to
 /// find the latest compaction summary.
 pub async fn load_compaction_summary(
-    compactor_id: &str,
+    compactor_id: Arc<str>,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<Option<CompactionSummary>> {
     // do a list to find the latest compaction summary
@@ -191,7 +191,7 @@ pub async fn load_compaction_summary(
 
 /// Load the compaction summary for the given sequence number.
 pub async fn load_compaction_summary_for_sequence(
-    compactor_id: &str,
+    compactor_id: Arc<str>,
     compaction_sequence_number: CompactionSequenceNumber,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<Option<CompactionSummary>> {

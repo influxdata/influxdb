@@ -92,7 +92,7 @@ async fn two_writers_gen1_compaction() {
     .await
     .unwrap();
 
-    let compactor_id = "compact";
+    let compactor_id = "compact".into();
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
     let obj_store = Arc::new(InMemory::new());
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);

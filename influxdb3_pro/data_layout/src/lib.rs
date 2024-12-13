@@ -420,7 +420,10 @@ impl CompactionSequenceNumber {
 pub struct CompactionSummaryPath(ObjPath);
 
 impl CompactionSummaryPath {
-    pub fn new(compactor_id: &str, compaction_sequence_number: CompactionSequenceNumber) -> Self {
+    pub fn new(
+        compactor_id: Arc<str>,
+        compaction_sequence_number: CompactionSequenceNumber,
+    ) -> Self {
         Self(ObjPath::from(format!(
             "{}/cs/{:020}.json",
             compactor_id,
@@ -454,7 +457,7 @@ impl<'de> Deserialize<'de> for CompactionDetailPath {
 
 impl CompactionDetailPath {
     pub fn new(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         db_id: DbId,
         table_id: TableId,
         compaction_sequence_number: CompactionSequenceNumber,
@@ -507,7 +510,7 @@ pub struct GenerationDetail {
 pub struct GenerationDetailPath(ObjPath);
 
 impl GenerationDetailPath {
-    pub fn new(compactor_id: &str, generation_id: GenerationId) -> Self {
+    pub fn new(compactor_id: Arc<str>, generation_id: GenerationId) -> Self {
         // we use a hash of the id so that we don't create hotspots in the S3 keyspace from
         // using sequential ids
         let hash = xxhash_rust::xxh32::xxh32(&generation_id.0.to_be_bytes(), 0);

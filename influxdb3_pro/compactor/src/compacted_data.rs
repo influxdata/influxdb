@@ -17,6 +17,7 @@ use parking_lot::RwLock;
 use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::task::JoinSet;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -25,6 +26,9 @@ pub enum Error {
 
     #[error("Error loading generation detail: {0}")]
     GenerationDetailReadError(String),
+
+    #[error("Error while joining: {0}")]
+    TokioJoinError(#[from] tokio::task::JoinError),
 }
 
 /// Result type for functions in this module.
@@ -176,62 +180,74 @@ impl CompactedData {
     }
 
     pub(crate) async fn load_compacted_data(
-        compactor_id: &str,
+        compactor_id: Arc<str>,
         compaction_summary: CompactionSummary,
         compacted_catalog: CompactedCatalog,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         let mut databases = HashMap::new();
+        let mut join_set = JoinSet::new();
 
         // load all the compaction details
         for ((db_id, table_id), compaction_sequence_number) in
-            &compaction_summary.compaction_details
+            compaction_summary.compaction_details.clone()
         {
-            let path = CompactionDetailPath::new(
-                compactor_id,
-                *db_id,
-                *table_id,
-                *compaction_sequence_number,
-            );
-            let Some(compaction_detail) =
-                get_compaction_detail(&path, Arc::clone(&object_store)).await
-            else {
-                return Err(Error::CompactionDetailReadError(path.as_path().to_string()));
-            };
-
-            let db: &mut CompactedDatabase = databases.entry(compaction_detail.db_id).or_default();
-
-            // initialize the table and load all its generations and set up the file index
-            let mut table = CompactedTable {
-                compaction_detail: Arc::new(compaction_detail),
-                compacted_generations: HashMap::new(),
-                file_index: FileIndex::default(),
-            };
-
-            // load all the generation details
-            let mut gen_details =
-                Vec::with_capacity(table.compaction_detail.compacted_generations.len());
-            for gen in &table.compaction_detail.compacted_generations {
-                let gen_path = GenerationDetailPath::new(compactor_id, gen.id);
-                let Some(generation_detail) =
-                    get_generation_detail(&gen_path, Arc::clone(&object_store)).await
+            let compactor_id = Arc::clone(&compactor_id);
+            let object_store = Arc::clone(&object_store);
+            join_set.spawn(async move {
+                let path = CompactionDetailPath::new(
+                    Arc::clone(&compactor_id),
+                    db_id,
+                    table_id,
+                    compaction_sequence_number,
+                );
+                let Some(compaction_detail) =
+                    get_compaction_detail(&path, Arc::clone(&object_store)).await
                 else {
-                    return Err(Error::GenerationDetailReadError(
-                        gen_path.as_path().to_string(),
-                    ));
+                    return Err(Error::CompactionDetailReadError(path.as_path().to_string()));
                 };
 
-                gen_details.push(generation_detail);
-            }
-            for gen_detail in gen_details {
-                table.add_generation_detail(gen_detail);
-            }
+                let compaction_detail_db_id = compaction_detail.db_id;
 
+                // initialize the table and load all its generations and set up the file index
+                let mut table = CompactedTable {
+                    compaction_detail: Arc::new(compaction_detail),
+                    compacted_generations: HashMap::new(),
+                    file_index: FileIndex::default(),
+                };
+
+                // load all the generation details
+                let mut gen_details = JoinSet::new();
+                for gen in &table.compaction_detail.compacted_generations {
+                    let gen_path = GenerationDetailPath::new(Arc::clone(&compactor_id), gen.id);
+
+                    let obj_store = Arc::clone(&object_store);
+                    gen_details.spawn(async move {
+                        match get_generation_detail(&gen_path, obj_store).await {
+                            Some(gen) => Ok(gen),
+                            None => Err(Error::GenerationDetailReadError(
+                                gen_path.as_path().to_string(),
+                            )),
+                        }
+                    });
+                }
+
+                while let Some(gen_detail) = gen_details.join_next().await {
+                    table.add_generation_detail(gen_detail??);
+                }
+
+                Ok((compaction_detail_db_id, table))
+            });
+        }
+
+        while let Some(data) = join_set.join_next().await {
+            let (db_id, table) = data??;
+            let db: &mut CompactedDatabase = databases.entry(db_id).or_default();
             db.tables.insert(table.compaction_detail.table_id, table);
         }
 
         Ok(Self {
-            compactor_id: Arc::from(compactor_id),
+            compactor_id,
             compacted_catalog,
             inner_compacted_data: RwLock::new(InnerCompactedData {
                 databases,

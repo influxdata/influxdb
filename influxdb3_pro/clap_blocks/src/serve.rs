@@ -1,6 +1,6 @@
 //! Extend the `influxdb3 serve` command for InfluxDB Pro
 
-use std::{ops::Deref, str::FromStr};
+use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use anyhow::bail;
 #[derive(Debug, clap::Parser)]
@@ -37,7 +37,7 @@ pub struct ProServeConfig {
     /// Only a single server should be running at any time that has this option set with this value.
     /// It should have exclusive write access to this prefix in object storage.
     #[clap(long = "compactor-id", env = "INFLUXDB3_PRO_COMPACTOR_ID", action)]
-    pub compactor_id: Option<String>,
+    pub compactor_id: Option<Arc<str>>,
 
     /// Comma-separated list of host identifier prefixes to compact data from.
     ///
