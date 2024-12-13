@@ -8,10 +8,9 @@ use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
-use influxdb3_processing_engine::processing_engine_plugins::{
-    ProcessingEnginePlugin, ProcessingEngineTrigger,
+use influxdb3_wal::{
+    LastCacheDefinition, LastCacheValueColumnsDef, PluginDefinition, TriggerDefinition,
 };
-use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
@@ -95,14 +94,15 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
             .into_iter()
             .map(|(name, trigger)| {
                 // TODO: Decide whether to handle errors
-                let plugin = processing_engine_plugins
+                let plugin: PluginDefinition = processing_engine_plugins
                     .get(&trigger.plugin_name)
                     .cloned()
                     .expect("should have plugin");
                 (
                     name,
-                    ProcessingEngineTrigger {
+                    TriggerDefinition {
                         trigger_name: trigger.trigger_name,
+                        plugin_name: plugin.plugin_name.to_string(),
                         plugin,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
                     },
@@ -405,8 +405,8 @@ impl From<TableSnapshot> for TableDefinition {
     }
 }
 
-impl From<&ProcessingEnginePlugin> for ProcessingEnginePluginSnapshot {
-    fn from(plugin: &ProcessingEnginePlugin) -> Self {
+impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
+    fn from(plugin: &PluginDefinition) -> Self {
         Self {
             plugin_name: plugin.plugin_name.to_string(),
             code: plugin.code.to_string(),
@@ -416,7 +416,7 @@ impl From<&ProcessingEnginePlugin> for ProcessingEnginePluginSnapshot {
     }
 }
 
-impl From<ProcessingEnginePluginSnapshot> for ProcessingEnginePlugin {
+impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
     fn from(plugin: ProcessingEnginePluginSnapshot) -> Self {
         Self {
             plugin_name: plugin.plugin_type.to_string(),
@@ -427,11 +427,11 @@ impl From<ProcessingEnginePluginSnapshot> for ProcessingEnginePlugin {
     }
 }
 
-impl From<&ProcessingEngineTrigger> for ProcessingEngineTriggerSnapshot {
-    fn from(trigger: &ProcessingEngineTrigger) -> Self {
+impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
+    fn from(trigger: &TriggerDefinition) -> Self {
         ProcessingEngineTriggerSnapshot {
             trigger_name: trigger.trigger_name.to_string(),
-            plugin_name: trigger.plugin.plugin_name.to_string(),
+            plugin_name: trigger.plugin_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
         }

@@ -4,16 +4,14 @@ use async_trait::async_trait;
 use datafusion::common::Result;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
-use influxdb3_processing_engine::processing_engine_plugins::{
-    ProcessingEnginePlugin, ProcessingEngineTrigger,
-};
+use influxdb3_wal::{PluginDefinition, TriggerDefinition};
 use iox_system_tables::IoxSystemTable;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) struct ProcessingEnginePluginTable {
     schema: SchemaRef,
-    plugins: Vec<ProcessingEnginePlugin>,
+    plugins: Vec<PluginDefinition>,
 }
 
 fn plugin_schema() -> SchemaRef {
@@ -27,7 +25,7 @@ fn plugin_schema() -> SchemaRef {
 }
 
 impl ProcessingEnginePluginTable {
-    pub fn new(python_calls: Vec<ProcessingEnginePlugin>) -> Self {
+    pub fn new(python_calls: Vec<PluginDefinition>) -> Self {
         Self {
             schema: plugin_schema(),
             plugins: python_calls,
@@ -79,11 +77,11 @@ impl IoxSystemTable for ProcessingEnginePluginTable {
 #[derive(Debug)]
 pub(super) struct ProcessingEngineTriggerTable {
     schema: SchemaRef,
-    triggers: Vec<ProcessingEngineTrigger>,
+    triggers: Vec<TriggerDefinition>,
 }
 
 impl ProcessingEngineTriggerTable {
-    pub fn new(triggers: Vec<ProcessingEngineTrigger>) -> Self {
+    pub fn new(triggers: Vec<TriggerDefinition>) -> Self {
         Self {
             schema: trigger_schema(),
             triggers,

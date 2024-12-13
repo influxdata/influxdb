@@ -187,7 +187,6 @@ dependencies = [
  "arrow-schema 53.3.0",
  "arrow-select 53.3.0",
  "arrow-string 53.3.0",
- "pyo3",
 ]
 
 [[package]]
@@ -524,9 +523,6 @@ source = "git+https://github.com/influxdata/arrow-rs.git?rev=aa8c04807d85be763c2
 name = "arrow-schema"
 version = "53.3.0"
 source = "git+https://github.com/influxdata/arrow-rs.git?rev=eae176c21b1ef915227294e8a8a201b6f266031a#eae176c21b1ef915227294e8a8a201b6f266031a"
-dependencies = [
- "bitflags 2.6.0",
-]
 
 [[package]]
 name = "arrow-select"
@@ -3138,7 +3134,6 @@ dependencies = [
  "indexmap 2.7.0",
  "influxdb-line-protocol",
  "influxdb3_id",
- "influxdb3_processing_engine",
  "influxdb3_wal",
  "insta",
  "iox_time",
@@ -3219,19 +3214,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "influxdb3_processing_engine"
-version = "0.1.0"
-dependencies = [
- "influxdb3_wal",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
- "influxdb-line-protocol",
  "influxdb3_catalog",
  "influxdb3_wal",
  "pyo3",
@@ -3269,7 +3254,6 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_process",
- "influxdb3_processing_engine",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_wal",
@@ -3421,7 +3405,6 @@ dependencies = [
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_id",
- "influxdb3_processing_engine",
  "influxdb3_py_api",
  "influxdb3_telemetry",
  "influxdb3_test_helpers",

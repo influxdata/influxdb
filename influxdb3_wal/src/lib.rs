@@ -532,7 +532,13 @@ pub struct PluginDefinition {
     pub plugin_name: String,
     pub code: String,
     pub function_name: String,
-    pub plugin_type: String,
+    pub plugin_type: PluginType,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginType {
+    WalRows,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -540,6 +546,8 @@ pub struct TriggerDefinition {
     pub trigger_name: String,
     pub plugin_name: String,
     pub trigger: TriggerSpecificationDefinition,
+    // TODO: decide whether this should be populated from a reference rather than stored on its own.
+    pub plugin: PluginDefinition,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

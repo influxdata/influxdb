@@ -24,7 +24,7 @@ use influxdb3_cache::last_cache;
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_processing_engine::processing_engine_plugins::TriggerSpecification;
+use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -959,13 +959,7 @@ where
             self.read_body_json(req).await?
         };
         self.write_buffer
-            .insert_plugin(
-                &db,
-                plugin_name,
-                code,
-                function_name,
-                plugin_type.try_into()?,
-            )
+            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
             .await?;
 
         Ok(Response::builder()
@@ -1370,7 +1364,7 @@ struct ProcessingEnginePluginCreateRequest {
     plugin_name: String,
     code: String,
     function_name: String,
-    plugin_type: String,
+    plugin_type: PluginType,
 }
 
 /// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
@@ -1379,7 +1373,7 @@ struct ProcessEngineTriggerCreateRequest {
     db: String,
     plugin_name: String,
     trigger_name: String,
-    trigger_specification: TriggerSpecification,
+    trigger_specification: TriggerSpecificationDefinition,
 }
 
 #[derive(Debug, Deserialize)]

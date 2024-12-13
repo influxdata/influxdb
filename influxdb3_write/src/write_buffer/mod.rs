@@ -26,11 +26,12 @@ use datafusion::logical_expr::Expr;
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
+use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_processing_engine::processing_engine_plugins::{PluginType, TriggerSpecification};
 use influxdb3_wal::{
-    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, TriggerDefinition,
+    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
+    TriggerDefinition, TriggerSpecificationDefinition,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
@@ -717,8 +718,7 @@ impl ProcessingEngineManager for WriteBufferImpl {
             plugin_name,
             code,
             function_name,
-            plugin_type: serde_json::to_string(&plugin_type)
-                .expect("plugin type to_string() should work"),
+            plugin_type,
         });
 
         let creation_time = self.time_provider.now();
@@ -739,17 +739,25 @@ impl ProcessingEngineManager for WriteBufferImpl {
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
-        trigger_specification: TriggerSpecification,
+        trigger_specification: TriggerSpecificationDefinition,
     ) -> crate::Result<(), Error> {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
             return Err(Error::DatabaseNotFound {
                 db_name: db_name.to_owned(),
             });
         };
+        let plugin = db_schema
+            .processing_engine_plugins
+            .get(&plugin_name)
+            .ok_or_else(|| catalog::Error::ProcessingEnginePluginNotFound {
+                plugin_name: plugin_name.to_string(),
+                database_name: db_schema.name.to_string(),
+            })?;
         let catalog_op = CatalogOp::CreateTrigger(TriggerDefinition {
             trigger_name,
             plugin_name,
-            trigger: trigger_specification.into(),
+            plugin: plugin.clone(),
+            trigger: trigger_specification,
         });
         let creation_time = self.time_provider.now();
         let catalog_batch = CatalogBatch {

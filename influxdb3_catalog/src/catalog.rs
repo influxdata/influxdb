@@ -1,16 +1,12 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::{
-    ProcessingEngineCallExists, ProcessingEnginePluginNotFound, ProcessingEngineTriggerExists,
-    TableNotFound,
+    ProcessingEngineCallExists, ProcessingEngineTriggerExists, TableNotFound,
 };
 use bimap::BiHashMap;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-use influxdb3_processing_engine::processing_engine_plugins::{
-    ProcessingEnginePlugin, ProcessingEngineTrigger,
-};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition, FieldAdditions,
     FieldDefinition, LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
@@ -519,9 +515,9 @@ pub struct DatabaseSchema {
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
-    pub processing_engine_plugins: HashMap<String, ProcessingEnginePlugin>,
+    pub processing_engine_plugins: HashMap<String, PluginDefinition>,
     // TODO: care about performance of triggers
-    pub processing_engine_triggers: HashMap<String, ProcessingEngineTrigger>,
+    pub processing_engine_triggers: HashMap<String, TriggerDefinition>,
     pub deleted: bool,
 }
 
@@ -758,21 +754,19 @@ impl UpdateDatabaseSchema for PluginDefinition {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let plugin: ProcessingEnginePlugin = self.into();
-
         match schema.processing_engine_plugins.get(&self.plugin_name) {
-            Some(current) if plugin.eq(current) => {}
+            Some(current) if self.eq(current) => {}
             Some(_) => {
                 return Err(ProcessingEngineCallExists {
                     database_name: schema.name.to_string(),
-                    call_name: plugin.plugin_name.to_string(),
+                    call_name: self.plugin_name.to_string(),
                 })
             }
             None => {
                 schema
                     .to_mut()
                     .processing_engine_plugins
-                    .insert(self.plugin_name.to_string(), plugin);
+                    .insert(self.plugin_name.to_string(), self.clone());
             }
         }
 
@@ -785,35 +779,19 @@ impl UpdateDatabaseSchema for TriggerDefinition {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let trigger_name = self.trigger_name.to_string();
-        let Some(plugin) = schema
-            .processing_engine_plugins
-            .get(&self.plugin_name)
-            .cloned()
-        else {
-            return Err(ProcessingEnginePluginNotFound {
-                plugin_name: self.plugin_name.to_string(),
-                database_name: schema.name.to_string(),
-            });
-        };
-        let trigger = ProcessingEngineTrigger {
-            trigger_name: trigger_name.to_string(),
-            plugin,
-            trigger: (&self.trigger).into(),
-        };
-        if let Some(current) = schema.processing_engine_triggers.get(&trigger_name) {
-            if current == &trigger {
+        if let Some(current) = schema.processing_engine_triggers.get(&self.trigger_name) {
+            if current == self {
                 return Ok(schema);
             }
             return Err(ProcessingEngineTriggerExists {
                 database_name: schema.name.to_string(),
-                trigger_name,
+                trigger_name: self.trigger_name.to_string(),
             });
         }
         schema
             .to_mut()
             .processing_engine_triggers
-            .insert(trigger_name, trigger);
+            .insert(self.trigger_name.to_string(), self.clone());
         Ok(schema)
     }
 }

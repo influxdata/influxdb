@@ -24,9 +24,8 @@ use influxdb3_id::ParquetFileId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
-use influxdb3_processing_engine::processing_engine_plugins::{PluginType, TriggerSpecification};
-use influxdb3_wal::MetaCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
+use influxdb3_wal::{MetaCacheDefinition, PluginType, TriggerSpecificationDefinition};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use serde::{Deserialize, Serialize};
@@ -192,7 +191,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
-        trigger_specification: TriggerSpecification,
+        trigger_specification: TriggerSpecificationDefinition,
     ) -> Result<(), write_buffer::Error>;
 }
 

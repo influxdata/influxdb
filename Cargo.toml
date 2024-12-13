@@ -8,7 +8,6 @@ members = [
     "influxdb3_id",
     "influxdb3_load_generator",
     "influxdb3_process",
-    "influxdb3_processing_engine",
     "influxdb3_py_api",
     "influxdb3_server",
     "influxdb3_telemetry",
@@ -40,7 +39,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-arrow = { version = "53.0.0", features = ["prettyprint", "chrono-tz", "pyarrow"] }
+arrow = { version = "53.0.0", features = ["prettyprint", "chrono-tz"] }
 arrow-array = "53.0.0"
 arrow-buffer = "53.0.0"
 arrow-csv = "53.0.0"
