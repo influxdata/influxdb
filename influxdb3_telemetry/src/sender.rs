@@ -20,7 +20,7 @@ impl TelemetrySender {
         Self {
             client,
             full_url: base_url
-                .join("./v3")
+                .join("./telemetry")
                 .expect("Cannot set the telemetry request path"),
         }
     }
@@ -82,7 +82,7 @@ pub(crate) struct TelemetryPayload {
 /// This function runs in the background and if any call fails
 /// there is no retrying mechanism and it is ok to lose a few samples
 pub(crate) async fn send_telemetry_in_background(
-    full_url: String,
+    full_url: &'static str,
     store: Arc<TelemetryStore>,
     duration_secs: Duration,
 ) -> tokio::task::JoinHandle<()> {
@@ -123,7 +123,7 @@ mod tests {
         let client = reqwest::Client::new();
         let mut mock_server = Server::new_async().await;
         let mut sender = TelemetrySender::new(client, mock_server.url());
-        let mock = mock_server.mock("POST", "/v3").create_async().await;
+        let mock = mock_server.mock("POST", "/telemetry").create_async().await;
         let telem_payload = create_sample_payload();
 
         let result = sender.try_sending(&telem_payload).await;

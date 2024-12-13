@@ -53,6 +53,9 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
+pub const DEFAULT_TELMETRY_ENDPOINT: &str =
+    "https://brs5g5kad1.execute-api.us-east-1.amazonaws.com/v1/";
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Cannot parse object store config: {0}")]
@@ -270,15 +273,6 @@ pub struct Config {
         action
     )]
     pub disable_parquet_mem_cache: bool,
-
-    /// telemetry server endpoint
-    #[clap(
-        long = "telemetry-endpoint",
-        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
-        default_value = "http://127.0.0.1:9999",
-        action
-    )]
-    pub telemetry_endpoint: String,
 
     /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
@@ -501,7 +495,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         Some(Arc::clone(&write_buffer_impl.persisted_files())),
-        config.telemetry_endpoint,
+        DEFAULT_TELMETRY_ENDPOINT,
     )
     .await;
 
@@ -554,7 +548,7 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: String,
+    telemetry_endpoint: &'static str,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
