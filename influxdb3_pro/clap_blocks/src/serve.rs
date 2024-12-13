@@ -98,6 +98,17 @@ pub struct ProServeConfig {
         action
     )]
     pub compaction_multipliers: CompactionMultipliers,
+
+    /// The interval to prefetch into parquet cache when compacting.
+    ///
+    /// Enter as a human-readable time, e.g., "1d", etc.
+    #[clap(
+        long = "preemptive-cache-age",
+        env = "INFLUXDB3_PREEMPTIVE_CACHE_AGE",
+        default_value = "3d",
+        action
+    )]
+    pub preemptive_cache_age: humantime::Duration,
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer

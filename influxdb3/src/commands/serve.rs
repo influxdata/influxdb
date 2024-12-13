@@ -71,6 +71,9 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
+pub const DEFAULT_TELMETRY_ENDPOINT: &str =
+    "https://brs5g5kad1.execute-api.us-east-1.amazonaws.com/v1/";
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Cannot parse object store config: {0}")]
@@ -307,25 +310,6 @@ pub struct Config {
     )]
     pub disable_parquet_mem_cache: bool,
 
-    /// telemetry server endpoint
-    #[clap(
-        long = "telemetry-endpoint",
-        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
-        default_value = "http://127.0.0.1:9999",
-        action
-    )]
-    pub telemetry_endpoint: String,
-
-    /// The interval to prefetch into parquet cache when compacting.
-    ///
-    /// Enter as a human-readable time, e.g., "1d", etc.
-    #[clap(
-        long = "preemptive-cache-age",
-        env = "INFLUXDB3_PREEMPTIVE_CACHE_AGE",
-        default_value = "3d",
-        action
-    )]
-    pub preemptive_cache_age: humantime::Duration,
 
     /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
@@ -537,7 +521,7 @@ pub async fn command(config: Config) -> Result<()> {
     let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache.clone() {
         Some(ParquetCachePreFetcher::new(
             Arc::clone(&parquet_cache),
-            config.preemptive_cache_age,
+            config.pro_config.preemptive_cache_age,
             Arc::<SystemProvider>::clone(&time_provider),
         ))
     } else {
@@ -684,7 +668,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         persisted_files,
-        config.telemetry_endpoint,
+        DEFAULT_TELMETRY_ENDPOINT,
     )
     .await;
 
@@ -780,7 +764,7 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: String,
+    telemetry_endpoint: &'static str,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
