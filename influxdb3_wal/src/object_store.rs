@@ -456,7 +456,7 @@ impl FlushBuffer {
         Vec<oneshot::Sender<WriteResult>>,
         Option<(SnapshotInfo, OwnedSemaphorePermit)>,
     ) {
-        // convert into wal contents and resopnses and capture if a snapshot should be taken
+        // convert into wal contents and responses and capture if a snapshot should be taken
         let (mut wal_contents, responses) = self.flush_buffer_with_responses();
         self.snapshot_tracker.add_wal_period(WalPeriod {
             wal_file_number: wal_contents.wal_file_number,

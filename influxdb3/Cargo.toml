@@ -82,6 +82,7 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 
 # Use jemalloc as the default allocator.
 jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
+system-py = ["influxdb3_write/system-py"]
 
 [dev-dependencies]
 # Core Crates
