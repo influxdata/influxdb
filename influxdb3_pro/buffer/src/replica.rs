@@ -34,7 +34,7 @@ use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
     QueryChunk,
 };
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, Registry};
 use object_store::{path::Path, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
@@ -640,7 +640,7 @@ impl ReplicatedBuffer {
             .context("failed to collect data for known file into bytes")?;
         let wal_contents = verify_file_type_and_deserialize(file_bytes)
             .context("failed to verify and deserialize wal file contents")?;
-        let persist_timestamp_ms = wal_contents.persist_timestamp_ms;
+        let persist_time_ms = wal_contents.persist_timestamp_ms;
 
         let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
         if let Some(wal) = self.wal.as_ref() {
@@ -669,19 +669,25 @@ impl ReplicatedBuffer {
         }
 
         // record the current time after the wal contents have been buffered:
-        let now_time_ms = self.time_provider.now().timestamp_millis();
+        let now_time = self.time_provider.now();
+
+        let Some(persist_time) = Time::from_timestamp_millis(persist_time_ms) else {
+            warn!(
+                from_host = self.host_identifier_prefix,
+                %persist_time_ms,
+                "the millisecond persist timestamp in the replayed wal file was out-of-range or invalid"
+            );
+            return Ok(());
+        };
 
         // track TTBR:
-        match now_time_ms.checked_sub(persist_timestamp_ms) {
-            Some(ttbr_ms) => self
-                .metrics
-                .replica_ttbr
-                .record(Duration::from_millis(ttbr_ms as u64)),
+        match now_time.checked_duration_since(persist_time) {
+            Some(ttbr) => self.metrics.replica_ttbr.record(ttbr),
             None => {
                 info!(
                     from_host = self.host_identifier_prefix,
-                    %now_time_ms,
-                    %persist_timestamp_ms,
+                    %now_time,
+                    %persist_time,
                     "unable to get duration since WAL file was created"
                 );
             }
