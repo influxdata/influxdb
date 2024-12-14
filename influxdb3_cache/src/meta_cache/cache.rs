@@ -219,6 +219,7 @@ impl MetaCache {
     pub(crate) fn to_record_batch(
         &self,
         predicates: &IndexMap<ColumnId, Predicate>,
+        limit: Option<usize>,
     ) -> Result<RecordBatch, ArrowError> {
         // predicates may not be provided for all columns in the cache, or not be provided in the
         // order of columns in the cache. This re-orders them to the correct order, and fills in any
@@ -237,9 +238,14 @@ impl MetaCache {
             .collect();
 
         let expired_time_ns = self.expired_time_ns();
-        let _ =
-            self.data
-                .evaluate_predicates(expired_time_ns, predicates.as_slice(), &mut builders);
+        // a limit of usize::MAX would never be reached and therefore considered as no limit
+        let limit = limit.unwrap_or(usize::MAX);
+        let _ = self.data.evaluate_predicates(
+            expired_time_ns,
+            predicates.as_slice(),
+            limit,
+            &mut builders,
+        );
 
         RecordBatch::try_new(
             Arc::clone(&self.schema),
@@ -412,6 +418,7 @@ impl Node {
         &self,
         expired_time_ns: i64,
         predicates: &[Option<&Predicate>],
+        mut limit: usize,
         builders: &mut [StringViewBuilder],
     ) -> usize {
         let mut total_count = 0;
@@ -420,12 +427,13 @@ impl Node {
             .expect("predicates should not be empty");
         // if there is a predicate, evaluate it, otherwise, just grab everything from the node:
         let values_and_nodes = if let Some(predicate) = predicate {
-            self.evaluate_predicate(expired_time_ns, predicate)
+            self.evaluate_predicate(expired_time_ns, predicate, limit)
         } else {
             self.0
                 .iter()
                 .filter(|&(_, (t, _))| (t > &expired_time_ns))
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
+                .take(limit)
                 .collect()
         };
         let (builder, next_builders) = builders
@@ -435,8 +443,12 @@ impl Node {
         // the values to the arrow builders:
         for (value, node) in values_and_nodes {
             if let Some(node) = node {
-                let count =
-                    node.evaluate_predicates(expired_time_ns, next_predicates, next_builders);
+                let count = node.evaluate_predicates(
+                    expired_time_ns,
+                    next_predicates,
+                    limit,
+                    next_builders,
+                );
                 if count > 0 {
                     // we are not on a terminal node in the cache, so create a block, as this value
                     // repeated `count` times, i.e., depending on how many values come out of
@@ -448,6 +460,11 @@ impl Node {
                             .expect("append view for known valid block, offset and length");
                     }
                     total_count += count;
+                }
+                if let Some(new_limit) = limit.checked_sub(count) {
+                    limit = new_limit;
+                } else {
+                    break;
                 }
             } else {
                 builder.append_value(value.0);
@@ -463,6 +480,7 @@ impl Node {
         &self,
         expired_time_ns: i64,
         predicate: &Predicate,
+        limit: usize,
     ) -> Vec<(Value, Option<&Node>)> {
         match &predicate {
             Predicate::In(in_list) => in_list
@@ -472,12 +490,14 @@ impl Node {
                         (t > &expired_time_ns).then(|| (v.clone(), n.as_ref()))
                     })
                 })
+                .take(limit)
                 .collect(),
             Predicate::NotIn(not_in_set) => self
                 .0
                 .iter()
                 .filter(|(v, (t, _))| t > &expired_time_ns && !not_in_set.contains(v))
                 .map(|(v, (_, n))| (v.clone(), n.as_ref()))
+                .take(limit)
                 .collect(),
         }
     }

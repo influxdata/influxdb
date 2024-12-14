@@ -69,7 +69,7 @@ impl TableProvider for MetaCacheFunctionProvider {
         ctx: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let read = self.provider.cache_map.read();
         let (batches, predicates) = if let Some(cache) = read
@@ -80,7 +80,7 @@ impl TableProvider for MetaCacheFunctionProvider {
             let predicates = convert_filter_exprs(&self.table_def, self.schema(), filters)?;
             (
                 cache
-                    .to_record_batch(&predicates)
+                    .to_record_batch(&predicates, limit)
                     .map(|batch| vec![batch])?,
                 (!predicates.is_empty()).then_some(predicates),
             )
@@ -93,6 +93,7 @@ impl TableProvider for MetaCacheFunctionProvider {
             &[batches],
             self.schema(),
             projection.cloned(),
+            limit,
         )?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
@@ -280,6 +281,7 @@ struct MetaCacheExec {
     inner: MemoryExec,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
+    limit: Option<usize>,
 }
 
 impl MetaCacheExec {
@@ -289,11 +291,13 @@ impl MetaCacheExec {
         partitions: &[Vec<RecordBatch>],
         schema: SchemaRef,
         projection: Option<Vec<usize>>,
+        limit: Option<usize>,
     ) -> Result<Self> {
         Ok(Self {
             inner: MemoryExec::try_new(partitions, schema, projection)?,
             predicates,
             table_def,
+            limit,
         })
     }
 
@@ -310,6 +314,9 @@ impl DisplayAs for MetaCacheExec {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
                 write!(f, "MetaCacheExec:")?;
+                if let Some(limit) = self.limit {
+                    write!(f, " limit={limit}")?;
+                }
                 if let Some(predicates) = self.predicates.as_ref() {
                     write!(f, " predicates=[")?;
                     let mut p_iter = predicates.iter();
