@@ -3,11 +3,14 @@ use crate::catalog::DatabaseSchema;
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
+use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
-use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
+use influxdb3_wal::{
+    LastCacheDefinition, LastCacheValueColumnsDef, PluginDefinition, TriggerDefinition,
+};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
@@ -38,6 +41,10 @@ struct DatabaseSnapshot {
     id: DbId,
     name: Arc<str>,
     tables: SerdeVecMap<TableId, TableSnapshot>,
+    #[serde(default)]
+    processing_engine_plugins: SerdeVecMap<String, ProcessingEnginePluginSnapshot>,
+    #[serde(default)]
+    processing_engine_triggers: SerdeVecMap<String, ProcessingEngineTriggerSnapshot>,
     deleted: bool,
 }
 
@@ -50,6 +57,16 @@ impl From<&DatabaseSchema> for DatabaseSnapshot {
                 .tables
                 .iter()
                 .map(|(table_id, table_def)| (*table_id, table_def.as_ref().into()))
+                .collect(),
+            processing_engine_plugins: db
+                .processing_engine_plugins
+                .iter()
+                .map(|(name, call)| (name.clone(), call.into()))
+                .collect(),
+            processing_engine_triggers: db
+                .processing_engine_triggers
+                .iter()
+                .map(|(name, trigger)| (name.clone(), trigger.into()))
                 .collect(),
             deleted: db.deleted,
         }
@@ -67,11 +84,39 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                 (id, Arc::new(table.into()))
             })
             .collect();
+        let processing_engine_plugins: HashMap<_, _> = snap
+            .processing_engine_plugins
+            .into_iter()
+            .map(|(name, call)| (name, call.into()))
+            .collect();
+        let processing_engine_triggers = snap
+            .processing_engine_triggers
+            .into_iter()
+            .map(|(name, trigger)| {
+                // TODO: Decide whether to handle errors
+                let plugin: PluginDefinition = processing_engine_plugins
+                    .get(&trigger.plugin_name)
+                    .cloned()
+                    .expect("should have plugin");
+                (
+                    name,
+                    TriggerDefinition {
+                        trigger_name: trigger.trigger_name,
+                        plugin_name: plugin.plugin_name.to_string(),
+                        plugin,
+                        trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
+                    },
+                )
+            })
+            .collect();
+
         Self {
             id: snap.id,
             name: snap.name,
             tables,
             table_map,
+            processing_engine_plugins,
+            processing_engine_triggers,
             deleted: snap.deleted,
         }
     }
@@ -111,6 +156,21 @@ struct TableSnapshot {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
     deleted: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProcessingEnginePluginSnapshot {
+    pub plugin_name: String,
+    pub code: String,
+    pub function_name: String,
+    pub plugin_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProcessingEngineTriggerSnapshot {
+    pub trigger_name: String,
+    pub plugin_name: String,
+    pub trigger_specification: String,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -341,6 +401,39 @@ impl From<TableSnapshot> for TableDefinition {
                 .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
                 .collect(),
             ..table_def
+        }
+    }
+}
+
+impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
+    fn from(plugin: &PluginDefinition) -> Self {
+        Self {
+            plugin_name: plugin.plugin_name.to_string(),
+            code: plugin.code.to_string(),
+            function_name: plugin.function_name.to_string(),
+            plugin_type: serde_json::to_string(&plugin.plugin_type).unwrap(),
+        }
+    }
+}
+
+impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
+    fn from(plugin: ProcessingEnginePluginSnapshot) -> Self {
+        Self {
+            plugin_name: plugin.plugin_type.to_string(),
+            code: plugin.code.to_string(),
+            function_name: plugin.function_name.to_string(),
+            plugin_type: serde_json::from_str(&plugin.plugin_type).expect("serialized plugin type"),
+        }
+    }
+}
+
+impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
+    fn from(trigger: &TriggerDefinition) -> Self {
+        ProcessingEngineTriggerSnapshot {
+            trigger_name: trigger.trigger_name.to_string(),
+            plugin_name: trigger.plugin_name.to_string(),
+            trigger_specification: serde_json::to_string(&trigger.trigger)
+                .expect("should be able to serialize trigger specification"),
         }
     }
 }

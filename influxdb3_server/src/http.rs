@@ -24,6 +24,7 @@ use influxdb3_cache::last_cache;
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
+use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -202,6 +203,9 @@ pub enum Error {
 
     #[error("v1 query API error: {0}")]
     V1Query(#[from] v1::QueryError),
+
+    #[error(transparent)]
+    Catalog(#[from] CatalogError),
 }
 
 #[derive(Debug, Error)]
@@ -545,8 +549,7 @@ where
         let body = serde_json::to_string(&PingResponse {
             version: &INFLUXDB3_VERSION,
             revision: INFLUXDB3_GIT_HASH_SHORT,
-        })
-        .unwrap();
+        })?;
 
         Ok(Response::new(Body::from(body)))
     }
@@ -937,8 +940,58 @@ where
 
         Ok(Response::builder()
             .status(StatusCode::OK)
-            .body(Body::empty())
-            .unwrap())
+            .body(Body::empty())?)
+    }
+
+    async fn configure_processing_engine_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessingEnginePluginCreateRequest {
+            db,
+            plugin_name,
+            code,
+            function_name,
+            plugin_type,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
+            .await?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn configure_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessEngineTriggerCreateRequest {
+            db,
+            plugin_name,
+            trigger_name,
+            trigger_specification,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .insert_trigger(
+                db.as_str(),
+                trigger_name,
+                plugin_name,
+                trigger_specification,
+            )
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
     }
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -1304,6 +1357,25 @@ struct LastCacheDeleteRequest {
     name: String,
 }
 
+/// Request definition for `POST /api/v3/configure/processing_engine_plugin` API
+#[derive(Debug, Deserialize)]
+struct ProcessingEnginePluginCreateRequest {
+    db: String,
+    plugin_name: String,
+    code: String,
+    function_name: String,
+    plugin_type: PluginType,
+}
+
+/// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
+#[derive(Debug, Deserialize)]
+struct ProcessEngineTriggerCreateRequest {
+    db: String,
+    plugin_name: String,
+    trigger_name: String,
+    trigger_specification: TriggerSpecificationDefinition,
+}
+
 #[derive(Debug, Deserialize)]
 struct DeleteDatabaseRequest {
     db: String,
@@ -1395,6 +1467,12 @@ pub(crate) async fn route_request<T: TimeProvider>(
         }
         (Method::DELETE, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_delete(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_plugin") => {
+            http_server.configure_processing_engine_plugin(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
+            http_server.configure_processing_engine_trigger(req).await
         }
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
         // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
