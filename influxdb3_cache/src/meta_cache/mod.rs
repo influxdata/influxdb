@@ -184,7 +184,7 @@ mod tests {
 
         for tc in test_cases {
             let records = cache
-                .to_record_batch(&tc.predicates)
+                .to_record_batch(&tc.predicates, None)
                 .expect("get record batches");
             println!("{}", tc.desc);
             assert_batches_sorted_eq!(tc.expected, &[records]);
@@ -241,7 +241,7 @@ mod tests {
         // check the cache before prune:
         // NOTE: this does not include entries that have surpassed the max_age of the cache, though,
         // there are still more than the cache's max cardinality, as it has not yet been pruned.
-        let records = cache.to_record_batch(&Default::default()).unwrap();
+        let records = cache.to_record_batch(&Default::default(), None).unwrap();
         assert_batches_sorted_eq!(
             [
                 "+-----------+------+",
@@ -267,7 +267,7 @@ mod tests {
             &[records]
         );
         cache.prune();
-        let records = cache.to_record_batch(&Default::default()).unwrap();
+        let records = cache.to_record_batch(&Default::default(), None).unwrap();
         assert_batches_sorted_eq!(
             [
                 "+-----------+------+",
@@ -285,6 +285,89 @@ mod tests {
                 "+-----------+------+",
             ],
             &[records]
+        );
+    }
+
+    #[test]
+    fn meta_cache_limit() {
+        let writer = TestWriter::new();
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let rows = writer.write_lp_to_rows(
+            "\
+            cpu,region=us-east,host=a usage=100\n\
+            cpu,region=us-east,host=b usage=100\n\
+            cpu,region=us-west,host=c usage=100\n\
+            cpu,region=us-west,host=d usage=100\n\
+            cpu,region=ca-east,host=e usage=100\n\
+            cpu,region=ca-east,host=f usage=100\n\
+            cpu,region=ca-cent,host=g usage=100\n\
+            cpu,region=ca-cent,host=h usage=100\n\
+            cpu,region=eu-east,host=i usage=100\n\
+            cpu,region=eu-east,host=j usage=100\n\
+            cpu,region=eu-cent,host=k usage=100\n\
+            cpu,region=eu-cent,host=l usage=100\n\
+            ",
+            0,
+        );
+        let table_def = writer.db_schema().table_definition("cpu").unwrap();
+        let column_ids: Vec<ColumnId> = ["region", "host"]
+            .into_iter()
+            .map(|name| table_def.column_name_to_id_unchecked(name))
+            .collect();
+        let mut cache = MetaCache::new(
+            time_provider,
+            CreateMetaCacheArgs {
+                table_def,
+                max_cardinality: MaxCardinality::default(),
+                max_age: MaxAge::default(),
+                column_ids,
+            },
+        )
+        .unwrap();
+
+        for row in rows {
+            cache.push(&row);
+        }
+
+        // no limit produces all records in the cache:
+        let batches = cache.to_record_batch(&Default::default(), None).unwrap();
+        assert_batches_eq!(
+            [
+                "+---------+------+",
+                "| region  | host |",
+                "+---------+------+",
+                "| ca-cent | g    |",
+                "| ca-cent | h    |",
+                "| ca-east | e    |",
+                "| ca-east | f    |",
+                "| eu-cent | k    |",
+                "| eu-cent | l    |",
+                "| eu-east | i    |",
+                "| eu-east | j    |",
+                "| us-east | a    |",
+                "| us-east | b    |",
+                "| us-west | c    |",
+                "| us-west | d    |",
+                "+---------+------+",
+            ],
+            &[batches]
+        );
+
+        // applying a limit only returns that number of records from the cache:
+        let batches = cache.to_record_batch(&Default::default(), Some(5)).unwrap();
+        assert_batches_eq!(
+            [
+                "+---------+------+",
+                "| region  | host |",
+                "+---------+------+",
+                "| ca-cent | g    |",
+                "| ca-cent | h    |",
+                "| ca-east | e    |",
+                "| ca-east | f    |",
+                "| eu-cent | k    |",
+                "+---------+------+",
+            ],
+            &[batches]
         );
     }
 
@@ -663,7 +746,7 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -679,7 +762,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
