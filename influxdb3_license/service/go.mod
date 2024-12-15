@@ -5,10 +5,11 @@ go 1.23.3
 require (
 	cloud.google.com/go/kms v1.20.2
 	github.com/alecthomas/kong v1.6.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/uuid v1.6.0
 	github.com/influxdata/influxdb v1.11.8
 	github.com/jsternberg/zap-logfmt v1.3.0
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.20
 	go.uber.org/zap v1.27.0
 )

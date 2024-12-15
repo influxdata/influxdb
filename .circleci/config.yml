@@ -565,11 +565,31 @@ jobs:
   go-test-license-service:
     docker:
       - *go_image
+      - image: cimg/postgres:14.8
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: license_db
+          POSTGRES_HOST_AUTH_METHOD: trust
     steps:
       - add_ssh_keys:
           fingerprints:
             - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
+      - run:
+          name: Wait for Postgres to be ready
+          command: |
+            for i in {1..30}; do
+              if pg_isready -h localhost -p 5432; then
+                echo "Postgres is ready"
+                break
+              fi
+              sleep 1
+              if [ $i -eq 30 ]; then
+                echo "PostgreSQL did not become ready after 30 seconds."
+                exit 1
+              fi
+            done
       - run:
           name: Run Go tests
           command: cd influxdb3_license/service && go test -v ./...
