@@ -4,7 +4,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
-    pub num_input_generations: u64,
+    pub input_generations: Vec<u8>,
     pub input_paths: Vec<Arc<str>>,
     pub output_level: u8,
     pub db_name: Arc<str>,

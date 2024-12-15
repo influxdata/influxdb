@@ -9,13 +9,18 @@ use arrow_array::{ArrayRef, RecordBatch};
 
 use crate::{
     events::{
-        catalog_fetched::CatalogFetched, compaction_planned::CompactionPlanned,
+        catalog_fetched::CatalogFetched,
+        compaction_completed::{PlanCompactionCompleted, PlanGroupCompactionCompleted},
+        compaction_consumed::CompactionConsumed,
+        compaction_planned::CompactionPlanned,
         snapshot_fetched::SnapshotFetched,
     },
     Event, RingBuffer, ToRecordBatch,
 };
 
 pub mod catalog_fetched;
+pub mod compaction_completed;
+pub mod compaction_consumed;
 pub mod compaction_planned;
 pub mod snapshot_fetched;
 
@@ -36,6 +41,9 @@ pub enum CompactionEvent {
     SnapshotFetched(SnapshotFetched),
     CatalogFetched(CatalogFetched),
     CompactionPlanned(CompactionPlanned),
+    PlanCompactionCompleted(PlanCompactionCompleted),
+    PlanGroupCompactionPlanned(PlanGroupCompactionCompleted),
+    CompactionConsumed(CompactionConsumed),
 }
 
 impl CompactionEvent {
@@ -61,6 +69,46 @@ impl CompactionEvent {
 
     pub fn compaction_planned_failed(failed_info: compaction_planned::FailedInfo) -> Self {
         CompactionEvent::CompactionPlanned(CompactionPlanned::FailedInfo(failed_info))
+    }
+
+    pub fn compaction_plan_run_completed_success(
+        success_info: compaction_completed::PlanRunSuccessInfo,
+    ) -> Self {
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::PlanRunSuccessInfo(
+            success_info,
+        ))
+    }
+
+    pub fn compaction_plan_run_completed_failed(
+        failed_info: compaction_completed::PlanRunFailedInfo,
+    ) -> Self {
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::PlanRunFailedInfo(
+            failed_info,
+        ))
+    }
+
+    pub fn compaction_plan_group_run_completed_success(
+        success_info: compaction_completed::PlanGroupRunSuccessInfo,
+    ) -> Self {
+        CompactionEvent::PlanGroupCompactionPlanned(
+            PlanGroupCompactionCompleted::PlanGroupRunSuccessInfo(success_info),
+        )
+    }
+
+    pub fn compaction_plan_group_run_completed_failed(
+        failed_info: compaction_completed::PlanGroupRunFailedInfo,
+    ) -> Self {
+        CompactionEvent::PlanGroupCompactionPlanned(
+            PlanGroupCompactionCompleted::PlanGroupRunFailedInfo(failed_info),
+        )
+    }
+
+    pub fn compaction_consumed_success(success_info: compaction_consumed::SuccessInfo) -> Self {
+        CompactionEvent::CompactionConsumed(CompactionConsumed::Success(success_info))
+    }
+
+    pub fn compaction_consumed_failed(failed_info: compaction_consumed::FailedInfo) -> Self {
+        CompactionEvent::CompactionConsumed(CompactionConsumed::Failed(failed_info))
     }
 }
 
@@ -129,17 +177,72 @@ impl ToRecordBatch<CompactionEvent> for CompactionEvent {
                                 event_status_arr.append_value("Success");
                                 event_duration_arr
                                     .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr.append_value(
-                                    serde_json::to_string(planned_event_info).unwrap(),
-                                );
+                                event_data_arr
+                                    .append_value(serde_json::to_string(success_info).unwrap());
                             }
                             CompactionPlanned::FailedInfo(failed_info) => {
                                 event_status_arr.append_value("Failed");
                                 event_duration_arr
                                     .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr.append_value(
-                                    serde_json::to_string(planned_event_info).unwrap(),
-                                );
+                                event_data_arr
+                                    .append_value(serde_json::to_string(failed_info).unwrap());
+                            }
+                        }
+                    }
+                    CompactionEvent::PlanCompactionCompleted(plan_completed) => {
+                        event_type_arr.append_value("PLAN_RUN_COMPLETED");
+                        match plan_completed {
+                            PlanCompactionCompleted::PlanRunSuccessInfo(success_info) => {
+                                event_status_arr.append_value("Success");
+                                event_duration_arr
+                                    .append_value(success_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(success_info).unwrap());
+                            }
+                            PlanCompactionCompleted::PlanRunFailedInfo(failed_info) => {
+                                event_status_arr.append_value("Failed");
+                                event_duration_arr
+                                    .append_value(failed_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(failed_info).unwrap());
+                            }
+                        }
+                    }
+                    CompactionEvent::PlanGroupCompactionPlanned(plan_group_completed) => {
+                        event_type_arr.append_value("PLAN_GROUP_RUN_COMPLETED");
+                        match plan_group_completed {
+                            PlanGroupCompactionCompleted::PlanGroupRunSuccessInfo(success_info) => {
+                                event_status_arr.append_value("Success");
+                                event_duration_arr
+                                    .append_value(success_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(success_info).unwrap());
+                            }
+                            PlanGroupCompactionCompleted::PlanGroupRunFailedInfo(failed_info) => {
+                                event_status_arr.append_value("Failed");
+                                event_duration_arr
+                                    .append_value(failed_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(failed_info).unwrap());
+                            }
+                        }
+                    }
+                    CompactionEvent::CompactionConsumed(consumed_info) => {
+                        event_type_arr.append_value("COMPACTION_CONSUMED");
+                        match consumed_info {
+                            CompactionConsumed::Success(success_info) => {
+                                event_status_arr.append_value("Success");
+                                event_duration_arr
+                                    .append_value(success_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(success_info).unwrap());
+                            }
+                            CompactionConsumed::Failed(failed_info) => {
+                                event_status_arr.append_value("Failed");
+                                event_duration_arr
+                                    .append_value(failed_info.duration.as_millis() as u64);
+                                event_data_arr
+                                    .append_value(serde_json::to_string(failed_info).unwrap());
                             }
                         }
                     }

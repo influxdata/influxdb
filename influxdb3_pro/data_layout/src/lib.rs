@@ -150,6 +150,14 @@ impl Generation {
             max_time: (start_time_secs + duration.as_secs() as i64) * 1_000_000_000,
         }
     }
+
+    pub fn to_u8_level(&self) -> u8 {
+        self.level.as_u8()
+    }
+
+    pub fn to_vec_levels(gens: &[Generation]) -> Vec<u8> {
+        gens.iter().map(|gen| gen.to_u8_level()).collect()
+    }
 }
 
 // sort for generation where newer generations are greater than older generations

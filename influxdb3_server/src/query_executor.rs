@@ -731,7 +731,11 @@ mod tests {
     use influxdb3_pro_data_layout::{
         CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
     };
-    use influxdb3_sys_events::events::{catalog_fetched, compaction_planned, CompactionEvent};
+    use influxdb3_sys_events::events::{
+        catalog_fetched,
+        compaction_completed::{self, PlanIdentifier},
+        compaction_consumed, compaction_planned, CompactionEvent,
+    };
     use influxdb3_sys_events::{
         events::snapshot_fetched::{FailedInfo, SuccessInfo},
         SysEventStore,
@@ -1219,7 +1223,7 @@ mod tests {
         // success event - plan
         let plan_success_event =
             CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
-                num_input_generations: 2,
+                input_generations: vec![2],
                 input_paths: vec![Arc::from("/path1")],
                 output_level: 1,
                 db_name: Arc::from("db"),
@@ -1236,6 +1240,78 @@ mod tests {
             });
         sys_events_store.record(plan_failed_event);
 
+        let plan_run_success_event = CompactionEvent::compaction_plan_run_completed_success(
+            compaction_completed::PlanRunSuccessInfo {
+                input_generations: vec![2],
+                input_paths: vec![Arc::from("/path1")],
+                output_level: 1,
+                db_name: Arc::from("db"),
+                table_name: Arc::from("table"),
+                left_over_gen1_files: 10,
+                duration: Duration::from_millis(10),
+            },
+        );
+        sys_events_store.record(plan_run_success_event);
+
+        let plan_run_failed_event = CompactionEvent::compaction_plan_run_completed_failed(
+            compaction_completed::PlanRunFailedInfo {
+                duration: Duration::from_millis(100),
+                error: "db schema is missing".to_owned(),
+                identifier: PlanIdentifier {
+                    db_name: Arc::from("db"),
+                    table_name: Arc::from("table"),
+                    output_generation: 2,
+                },
+            },
+        );
+        sys_events_store.record(plan_run_failed_event);
+
+        let plan_group_run_success_event =
+            CompactionEvent::compaction_plan_group_run_completed_success(
+                compaction_completed::PlanGroupRunSuccessInfo {
+                    duration: Duration::from_millis(200),
+                    plans_ran: vec![PlanIdentifier {
+                        db_name: Arc::from("db"),
+                        table_name: Arc::from("table"),
+                        output_generation: 2,
+                    }],
+                },
+            );
+        sys_events_store.record(plan_group_run_success_event);
+
+        let plan_group_run_failed_event =
+            CompactionEvent::compaction_plan_group_run_completed_failed(
+                compaction_completed::PlanGroupRunFailedInfo {
+                    duration: Duration::from_millis(120),
+                    error: "plan group run failed".to_string(),
+                    plans_ran: vec![PlanIdentifier {
+                        db_name: Arc::from("db"),
+                        table_name: Arc::from("table"),
+                        output_generation: 2,
+                    }],
+                },
+            );
+        sys_events_store.record(plan_group_run_failed_event);
+
+        let consumer_success_event =
+            CompactionEvent::compaction_consumed_success(compaction_consumed::SuccessInfo {
+                duration: Duration::from_millis(200),
+                db_name: Arc::from("db"),
+                table_name: Arc::from("table"),
+                new_generations: vec![2, 3],
+                removed_generations: vec![1],
+                summary_sequence_number: 1,
+            });
+        sys_events_store.record(consumer_success_event);
+
+        let consumer_failed_event =
+            CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
+                duration: Duration::from_millis(200),
+                summary_sequence_number: 1,
+                error: "foo failed".to_owned(),
+            });
+        sys_events_store.record(consumer_failed_event);
+
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
             .query(db_name, query, None, crate::QueryKind::Sql, None, None)
@@ -1245,17 +1321,23 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_eq!(
             [
-                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type         | event_duration | event_status | event_data                                                                                                                                          |",
-                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | SNAPSHOT_FETCHED   | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                                                    |",
-                "| 1970-01-01 | SNAPSHOT_FETCHED   | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                                                   |",
-                "| 1970-01-01 | CATALOG_FETCHED    | 10             | Success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                                                                                |",
-                "| 1970-01-01 | CATALOG_FETCHED    | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                                               |",
-                "| 1970-01-01 | CATALOG_FETCHED    | 100            | Failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                                             |",
-                "| 1970-01-01 | COMPACTION_PLANNED | 10             | Success      | {\"SuccessInfo\":{\"num_input_generations\":2,\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10}} |",
-                "| 1970-01-01 | COMPACTION_PLANNED | 10             | Failed       | {\"FailedInfo\":{\"duration\":{\"secs\":0,\"nanos\":10000000},\"error\":\"db schema is missing\"}}                                                              |",
-                "+------------+--------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+",
+                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type               | event_duration | event_status | event_data                                                                                                                        |",
+                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | SNAPSHOT_FETCHED         | 1234           | Success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                                  |",
+                "| 1970-01-01 | SNAPSHOT_FETCHED         | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                                 |",
+                "| 1970-01-01 | CATALOG_FETCHED          | 10             | Success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                                                              |",
+                "| 1970-01-01 | CATALOG_FETCHED          | 10             | Failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                             |",
+                "| 1970-01-01 | CATALOG_FETCHED          | 100            | Failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                           |",
+                "| 1970-01-01 | COMPACTION_PLANNED       | 10             | Success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",
+                "| 1970-01-01 | COMPACTION_PLANNED       | 10             | Failed       | {\"duration\":{\"secs\":0,\"nanos\":10000000},\"error\":\"db schema is missing\"}                                                           |",
+                "| 1970-01-01 | PLAN_RUN_COMPLETED       | 10             | Success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",
+                "| 1970-01-01 | PLAN_RUN_COMPLETED       | 100            | Failed       | {\"error\":\"db schema is missing\",\"identifier\":{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}}                         |",
+                "| 1970-01-01 | PLAN_GROUP_RUN_COMPLETED | 200            | Success      | {\"plans_ran\":[{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}]}                                                       |",
+                "| 1970-01-01 | PLAN_GROUP_RUN_COMPLETED | 120            | Failed       | {\"error\":\"plan group run failed\",\"plans_ran\":[{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}]}                       |",
+                "| 1970-01-01 | COMPACTION_CONSUMED      | 200            | Success      | {\"db_name\":\"db\",\"table_name\":\"table\",\"new_generations\":[2,3],\"removed_generations\":[1],\"summary_sequence_number\":1}               |",
+                "| 1970-01-01 | COMPACTION_CONSUMED      | 200            | Failed       | {\"error\":\"foo failed\",\"summary_sequence_number\":1}                                                                                |",
+                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }

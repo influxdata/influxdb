@@ -589,6 +589,7 @@ pub async fn command(config: Config) -> Result<()> {
                 compactor_id,
                 Arc::clone(&object_store),
                 parquet_cache_prefetcher,
+                Arc::clone(&sys_events_store),
             )
             .await
             .context("Error initializing compaction consumer")

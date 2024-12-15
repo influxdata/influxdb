@@ -6,21 +6,29 @@ use crate::catalog::CompactedCatalog;
 use crate::compacted_data::CompactedData;
 use crate::ParquetCachePreFetcher;
 use anyhow::Context;
-use influxdb3_pro_data_layout::persist::{
-    get_compaction_detail, get_generation_detail, load_compaction_summary,
-    load_compaction_summary_for_sequence,
+use influxdb3_pro_data_layout::{
+    persist::{
+        get_compaction_detail, get_generation_detail, load_compaction_summary,
+        load_compaction_summary_for_sequence,
+    },
+    Generation,
 };
 use influxdb3_pro_data_layout::{CompactionDetailPath, GenerationDetailPath};
+use influxdb3_sys_events::{
+    events::{compaction_consumed, CompactionEvent},
+    SysEventStore,
+};
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
-use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt::Debug, time::Instant};
 
 pub struct CompactedDataConsumer {
     pub compactor_id: Arc<str>,
     pub object_store: Arc<dyn ObjectStore>,
     pub compacted_data: Arc<CompactedData>,
+    sys_events_store: Arc<SysEventStore>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 }
 
@@ -41,6 +49,7 @@ impl CompactedDataConsumer {
         compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> anyhow::Result<Self> {
         loop {
             // the producer writes the catalog first and then the summary. We loop until we find
@@ -79,6 +88,7 @@ impl CompactedDataConsumer {
                 object_store,
                 compacted_data: Arc::new(compacted_data),
                 parquet_cache_prefetcher,
+                sys_events_store,
             });
         }
     }
@@ -93,8 +103,10 @@ impl CompactedDataConsumer {
     }
 
     pub(crate) async fn refresh(&self) -> anyhow::Result<()> {
+        let start = Instant::now();
         let last_summary = self.compacted_data.compaction_summary();
         let next_sequence_number = last_summary.compaction_sequence_number.next();
+        let summary_sequence_number = next_sequence_number.as_u64();
 
         let summary = match load_compaction_summary_for_sequence(
             Arc::clone(&self.compactor_id),
@@ -105,7 +117,16 @@ impl CompactedDataConsumer {
         .context(format!(
             "error decoding compaction summary json {:?}",
             next_sequence_number
-        ))? {
+        ))
+        .inspect_err(|err| {
+            let event =
+                CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
+                    duration: start.elapsed(),
+                    error: err.to_string(),
+                    summary_sequence_number,
+                });
+            self.sys_events_store.record(event);
+        })? {
             Some(summary) => summary,
             None => {
                 // it's not there yet, we'll get it on the next poll
@@ -119,7 +140,16 @@ impl CompactedDataConsumer {
                 summary.catalog_sequence_number,
                 Arc::clone(&self.object_store),
             )
-            .await?;
+            .await
+            .inspect_err(|err| {
+                let event =
+                    CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
+                        duration: start.elapsed(),
+                        error: err.to_string(),
+                        summary_sequence_number,
+                    });
+                self.sys_events_store.record(event);
+            })?;
 
         // load new compaction details, new generations and remove old generations
         for ((db_id, table_id), sequence_number) in &summary.compaction_details {
@@ -164,6 +194,8 @@ impl CompactedDataConsumer {
             };
 
             let mut generation_details = Vec::with_capacity(new_generations.len());
+            let new_gens_u8 = Generation::to_vec_levels(&new_generations);
+            let removed_gens_u8 = Generation::to_vec_levels(&removed_generations);
             for gen in new_generations {
                 let gen_path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), gen.id);
                 let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
@@ -186,6 +218,24 @@ impl CompactedDataConsumer {
                 generation_details,
                 removed_generations,
             );
+
+            // TODO: db id and table id should be in catalog coming this far in the loop? If so
+            //       these can just be unwraps.
+            if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
+                let db_name = Arc::clone(&db_schema.name);
+                let table_defn = db_schema.table_definition_by_id(table_id);
+                let event = CompactionEvent::compaction_consumed_success(
+                    compaction_consumed::SuccessInfo {
+                        duration: start.elapsed(),
+                        db_name,
+                        table_name: Arc::clone(&table_defn.unwrap().table_name),
+                        new_generations: new_gens_u8,
+                        removed_generations: removed_gens_u8,
+                        summary_sequence_number,
+                    },
+                );
+                self.sys_events_store.record(event);
+            }
         }
 
         Ok(())
@@ -206,6 +256,7 @@ mod tests {
     };
     use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
     use influxdb3_write::ParquetFile;
+    use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
 
     async fn setup_compacted_data() -> (
@@ -341,10 +392,19 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
 
-        let consumer = CompactedDataConsumer::new(compactor_id, Arc::clone(&object_store), None)
-            .await
-            .unwrap();
+        let consumer = CompactedDataConsumer::new(
+            compactor_id,
+            Arc::clone(&object_store),
+            None,
+            sys_events_store,
+        )
+        .await
+        .unwrap();
         let consumer_summary = consumer.compacted_data.compaction_summary();
         assert_eq!(&summary, consumer_summary.as_ref());
 

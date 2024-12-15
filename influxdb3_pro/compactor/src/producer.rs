@@ -10,15 +10,19 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_config::ProConfig;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
-use influxdb3_pro_data_layout::persist::{
-    get_bytes_at_path, load_compaction_summary, persist_compaction_detail,
-    persist_compaction_summary, persist_generation_detail, CompactedDataPersistenceError,
+use influxdb3_pro_data_layout::{
+    persist::{
+        get_bytes_at_path, load_compaction_summary, persist_compaction_detail,
+        persist_compaction_summary, persist_generation_detail, CompactedDataPersistenceError,
+    },
+    Generation,
 };
 use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
 use influxdb3_sys_events::events::{
+    compaction_completed::{self, PlanIdentifier},
     compaction_planned::{self},
     CompactionEvent,
 };
@@ -175,8 +179,35 @@ impl CompactedDataProducer {
                         planning_timer.elapsed(),
                         Arc::clone(&sys_events_store),
                     );
-                    self.run_compaction_plan_group(plan, &mut compaction_state)
-                        .await?;
+                    let run_timer = Instant::now();
+                    let identifiers: Vec<PlanIdentifier> = plan
+                        .next_compaction_plans
+                        .iter()
+                        .map(|plan| PlanIdentifier {
+                            db_name: Arc::clone(&plan.db_schema.name),
+                            table_name: Arc::clone(&plan.table_definition.table_name),
+                            output_generation: plan.output_generation.level.as_u8(),
+                        })
+                        .collect();
+                    self.run_compaction_plan_group(plan, &mut compaction_state, &sys_events_store)
+                        .await
+                        .inspect_err(|err| {
+                            let event = CompactionEvent::compaction_plan_group_run_completed_failed(
+                                compaction_completed::PlanGroupRunFailedInfo {
+                                    duration: run_timer.elapsed(),
+                                    error: err.to_string(),
+                                    plans_ran: identifiers.clone(),
+                                },
+                            );
+                            sys_events_store.record(event);
+                        })?;
+                    let event = CompactionEvent::compaction_plan_group_run_completed_success(
+                        compaction_completed::PlanGroupRunSuccessInfo {
+                            duration: run_timer.elapsed(),
+                            plans_ran: identifiers,
+                        },
+                    );
+                    sys_events_store.record(event);
                 }
             }
             Err(err_string) => {
@@ -203,8 +234,39 @@ impl CompactedDataProducer {
                             planning_timer.elapsed(),
                             Arc::clone(&sys_events_store),
                         );
-                        self.run_compaction_plan_group(plan, &mut compaction_state)
-                            .await?;
+                        let run_timer = Instant::now();
+                        let identifiers: Vec<PlanIdentifier> = plan
+                            .next_compaction_plans
+                            .iter()
+                            .map(|plan| PlanIdentifier {
+                                db_name: Arc::clone(&plan.db_schema.name),
+                                table_name: Arc::clone(&plan.table_definition.table_name),
+                                output_generation: plan.output_generation.level.as_u8(),
+                            })
+                            .collect();
+                        self.run_compaction_plan_group(
+                            plan,
+                            &mut compaction_state,
+                            &sys_events_store,
+                        )
+                        .await
+                        .inspect_err(|err| {
+                            let event = CompactionEvent::compaction_plan_group_run_completed_failed(
+                                compaction_completed::PlanGroupRunFailedInfo {
+                                    duration: run_timer.elapsed(),
+                                    error: err.to_string(),
+                                    plans_ran: identifiers.clone(),
+                                },
+                            );
+                            sys_events_store.record(event);
+                        })?;
+                        let event = CompactionEvent::compaction_plan_group_run_completed_success(
+                            compaction_completed::PlanGroupRunSuccessInfo {
+                                duration: run_timer.elapsed(),
+                                plans_ran: identifiers,
+                            },
+                        );
+                        sys_events_store.record(event);
                     }
                 }
                 Err(err_string) => {
@@ -224,6 +286,7 @@ impl CompactedDataProducer {
         &self,
         compaction_plan_group: CompactionPlanGroup,
         compaction_state: &mut CompactionState,
+        sys_events_store: &Arc<SysEventStore>,
     ) -> Result<()> {
         let sequence_number = self.compacted_data.next_compaction_sequence_number();
         let snapshot_markers = compaction_state.last_markers();
@@ -232,15 +295,47 @@ impl CompactedDataProducer {
 
         // run all the compaction plans
         for plan in compaction_plan_group.next_compaction_plans {
+            let start = Instant::now();
             let key = (plan.db_schema.id, plan.table_definition.table_id);
 
+            let input_generations = Generation::to_vec_levels(&plan.input_generations);
+            let input_paths = plan
+                .input_paths
+                .iter()
+                .map(|path| Arc::from(path.as_ref()))
+                .collect();
+
+            let db_name = Arc::clone(&plan.db_schema.name);
+            let table_name = Arc::clone(&plan.table_definition.table_name);
+            let output_generation = plan.output_generation.level.as_u8();
+            let left_over_gen1_files = plan.leftover_gen1_files.len() as u64;
             if let Err(e) = self
                 .run_plan(plan, sequence_number, snapshot_markers.clone())
                 .await
             {
                 warn!(error = %e, "error running compaction plan");
+                let identifier = PlanIdentifier {
+                    db_name,
+                    table_name,
+                    output_generation,
+                };
+                record_plan_run_failed(e.to_string(), start, identifier, sys_events_store);
                 continue;
             }
+
+            let event = CompactionEvent::compaction_plan_run_completed_success(
+                compaction_completed::PlanRunSuccessInfo {
+                    input_generations,
+                    input_paths,
+                    output_level: output_generation,
+                    db_name,
+                    table_name,
+                    duration: start.elapsed(),
+                    left_over_gen1_files,
+                },
+            );
+            sys_events_store.record(event);
+
             compaction_details.insert(key, sequence_number);
         }
 
@@ -427,6 +522,22 @@ impl CompactedDataProducer {
     }
 }
 
+fn record_plan_run_failed(
+    error: String,
+    start: std::time::Instant,
+    identifier: PlanIdentifier,
+    sys_events_store: &Arc<SysEventStore>,
+) {
+    let event = CompactionEvent::compaction_plan_run_completed_failed(
+        compaction_completed::PlanRunFailedInfo {
+            duration: start.elapsed(),
+            error,
+            identifier,
+        },
+    );
+    sys_events_store.record(event);
+}
+
 fn record_error_compaction_plan(
     duration: Duration,
     error: String,
@@ -446,21 +557,29 @@ fn record_compaction_plans(
 ) {
     let next_compaction_plans = &plan_group.next_compaction_plans;
     for plan in next_compaction_plans {
-        let event = CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
-            num_input_generations: plan.input_generations.len() as u64,
-            input_paths: plan
-                .input_paths
-                .iter()
-                .map(|path| Arc::from(path.as_ref()))
-                .collect(),
-            output_level: GenerationLevel::two().as_u8(),
-            db_name: Arc::clone(&plan.db_schema.name),
-            table_name: Arc::clone(&plan.table_definition.table_name),
-            duration,
-            left_over_gen1_files: plan.leftover_gen1_files.len() as u64,
-        });
-        sys_events_store.record(event);
+        record_compaction_plan(plan, duration, &sys_events_store);
     }
+}
+
+fn record_compaction_plan(
+    plan: &NextCompactionPlan,
+    duration: Duration,
+    sys_events_store: &Arc<SysEventStore>,
+) {
+    let event = CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
+        input_generations: Generation::to_vec_levels(&plan.input_generations),
+        input_paths: plan
+            .input_paths
+            .iter()
+            .map(|path| Arc::from(path.as_ref()))
+            .collect(),
+        output_level: GenerationLevel::two().as_u8(),
+        db_name: Arc::clone(&plan.db_schema.name),
+        table_name: Arc::clone(&plan.table_definition.table_name),
+        duration,
+        left_over_gen1_files: plan.leftover_gen1_files.len() as u64,
+    });
+    sys_events_store.record(event);
 }
 
 /// CompactionState tracks the snapshot data and associated files from hosts that have yet to be
@@ -1125,10 +1244,14 @@ mod tests {
             .unwrap();
 
         // create the consumer and verify it has the catalog and data
-        let consumer =
-            CompactedDataConsumer::new("compactor-1".into(), Arc::clone(&object_store), None)
-                .await
-                .unwrap();
+        let consumer = CompactedDataConsumer::new(
+            Arc::from("compactor-1"),
+            Arc::clone(&object_store),
+            None,
+            Arc::clone(&sys_events_store),
+        )
+        .await
+        .unwrap();
         let consumer_db = consumer
             .compacted_data
             .compacted_catalog
