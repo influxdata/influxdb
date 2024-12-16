@@ -7,12 +7,14 @@ use datafusion::execution::context::SessionContext;
 use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures::FutureExt;
+use hashbrown::HashMap;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_config::ProConfig;
-use influxdb3_pro_buffer::modes::read_write::CreateReadWriteModeArgs;
+use influxdb3_pro_buffer::modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode};
 use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
+use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_sys_events::SysEventStore;
@@ -23,8 +25,10 @@ use influxdb3_write::{ChunkContainer, Precision, WriteBuffer};
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_query::QueryChunk;
 use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
+use metric::Registry;
 use object_store::memory::InMemory;
 use object_store::ObjectStore;
+use observability_deps::tracing::info;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -36,9 +40,14 @@ use tokio::sync::RwLock;
 async fn two_writers_gen1_compaction() {
     let metrics = Arc::new(metric::Registry::default());
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
-    let parquet_store =
-        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
+
+    let writer1_id = "writer1";
+    let writer2_id = "writer2";
+
     let wal_config = WalConfig {
         gen1_duration: Gen1Duration::new_1m(),
         max_write_buffer_size: 100,
@@ -46,26 +55,6 @@ async fn two_writers_gen1_compaction() {
         // small snapshot size will have parquet written out after 3 WAL periods:
         snapshot_size: 1,
     };
-    let exec = Arc::new(Executor::new_with_config_and_executor(
-        ExecutorConfig {
-            target_query_partitions: NonZeroUsize::new(1).unwrap(),
-            object_stores: [&parquet_store]
-                .into_iter()
-                .map(|store| (store.id(), Arc::clone(store.object_store())))
-                .collect(),
-            metric_registry: Arc::clone(&metrics),
-            // Default to 1gb
-            mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
-        },
-        DedicatedExecutor::new_testing(),
-    ));
-    let runtime_env = exec.new_context().inner().runtime_env();
-    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-
-    let writer1_id = "writer1";
-    let writer2_id = "writer2";
 
     let writer1_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer1_id));
     let writer1_catalog = Arc::new(writer1_persister.load_or_create_catalog().await.unwrap());
@@ -236,6 +225,198 @@ async fn two_writers_gen1_compaction() {
         ],
         &batches
     );
+}
+
+#[test_log::test(tokio::test)]
+async fn compact_consumer_picks_up_latest_summary() {
+    // setup
+    let metrics = Arc::new(metric::Registry::default());
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
+
+    // create two write buffers to write data that will be compacted:
+    let mut write_buffers = HashMap::new();
+    for host_id in ["spock", "tuvok"] {
+        let b = setup_write_buffer(
+            host_id,
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+            Arc::clone(&exec),
+            Arc::clone(&metrics),
+        )
+        .await;
+        write_buffers.insert(host_id, b);
+    }
+
+    // make a bnch of writes to them:
+    for i in 0..10 {
+        do_writes(&write_buffers["spock"], "spock", i, i).await;
+        do_writes(&write_buffers["tuvok"], "tuvok", i + 100, i).await;
+    }
+
+    // setup a compaction producer to do the compaciton:
+    let compactor_id = Arc::<str>::from("com");
+    let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+    let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+    let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
+    let compaction_producer = Arc::new(
+        CompactedDataProducer::new(
+            Arc::clone(&compactor_id),
+            vec!["spock".to_string(), "tuvok".to_string()],
+            compaction_config,
+            Arc::new(RwLock::new(ProConfig::default())),
+            Arc::clone(&object_store),
+            persister.object_store_url().clone(),
+            Arc::clone(&exec),
+            None,
+            Arc::clone(&sys_events_store),
+        )
+        .await
+        .unwrap(),
+    );
+
+    // run the compactor on the DataFusion executor, but don't drop the future:
+    let compaction_producer_cloned = Arc::clone(&compaction_producer);
+    let sys_events_cloned = Arc::clone(&sys_events_store);
+    let _t = exec
+        .executor()
+        .spawn(async move {
+            compaction_producer_cloned
+                .run_compaction_loop(Duration::from_millis(10), sys_events_cloned)
+                .await;
+        })
+        .boxed();
+
+    // setup a compaction consumer on which we want to check for updated summaries:
+    let consumer = Arc::new(
+        CompactedDataConsumer::new(
+            Arc::clone(&compactor_id),
+            Arc::clone(&object_store),
+            None,
+            Arc::clone(&sys_events_store),
+        )
+        .await
+        .unwrap(),
+    );
+
+    // spin off a task to refresh the compaction consumer:
+    let consumer_cloned = Arc::clone(&consumer);
+    tokio::spawn(async move {
+        consumer_cloned
+            .poll_in_background(Duration::from_millis(10))
+            .await
+    });
+
+    // wait for some compactions to happen by checking the producer:
+    let mut count = 0;
+    loop {
+        let db_schema = compaction_producer
+            .compacted_data
+            .compacted_catalog
+            .db_schema("test_db")
+            .unwrap();
+        let table_id = db_schema.table_name_to_id("m1").unwrap();
+        if let Some(detail) = compaction_producer
+            .compacted_data
+            .compaction_detail(db_schema.id, table_id)
+        {
+            if detail.sequence_number.as_u64() > 1 {
+                // we should have some compacted generations:
+                assert!(
+                    !detail.compacted_generations.is_empty(),
+                    "should have compacted generations. compaction details: {:?}",
+                    detail
+                );
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        count += 1;
+        if count > 30 {
+            panic!("compaction did not happen");
+        }
+    }
+
+    // now wait for the compactor consumer to update to a new summary:
+    // in the reproducer, this will panic, see:
+    // https://github.com/influxdata/influxdb_pro/issues/293
+    let mut count = 0;
+    loop {
+        let summary = consumer.compacted_data.compaction_summary();
+        info!(?summary, "compaction summary");
+        if summary.compaction_sequence_number.as_u64() > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        count += 1;
+        if count > 30 {
+            panic!("The compaction consumer's summary never incremented");
+        }
+    }
+}
+
+fn make_exec_and_register_runtime(
+    object_store: Arc<dyn ObjectStore>,
+    metrics: Arc<Registry>,
+) -> Arc<Executor> {
+    let parquet_store =
+        ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+    let exec = Arc::new(Executor::new_with_config_and_executor(
+        ExecutorConfig {
+            target_query_partitions: NonZeroUsize::new(1).unwrap(),
+            object_stores: [&parquet_store]
+                .into_iter()
+                .map(|store| (store.id(), Arc::clone(store.object_store())))
+                .collect(),
+            metric_registry: Arc::clone(&metrics),
+            // Default to 1gb
+            mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+        },
+        DedicatedExecutor::new_testing(),
+    ));
+    let runtime_env = exec.new_context().inner().runtime_env();
+    register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+    exec
+}
+
+async fn setup_write_buffer(
+    host_id: &str,
+    object_store: Arc<dyn ObjectStore>,
+    time_provider: Arc<dyn TimeProvider>,
+    executor: Arc<Executor>,
+    metric_registry: Arc<Registry>,
+) -> WriteBufferPro<ReadWriteMode> {
+    let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+    let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let meta_cache =
+        MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .unwrap();
+    let wal_config = WalConfig {
+        gen1_duration: Gen1Duration::new_1m(),
+        max_write_buffer_size: 100,
+        flush_interval: Duration::from_millis(10),
+        // small snapshot size will have parquet written out after 3 WAL periods:
+        snapshot_size: 1,
+    };
+    WriteBufferPro::read_write(CreateReadWriteModeArgs {
+        host_id: host_id.into(),
+        persister,
+        catalog,
+        last_cache,
+        meta_cache,
+        time_provider,
+        executor,
+        wal_config,
+        metric_registry,
+        replication_config: None,
+        parquet_cache: None,
+        compacted_data: None,
+    })
+    .await
+    .unwrap()
 }
 
 async fn do_writes(
