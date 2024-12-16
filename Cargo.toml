@@ -3,7 +3,7 @@
 members = [
     "influxdb3",
     "influxdb3_cache",
-    "influxdb3_catalog",
+    "influxdb3_catalog", "influxdb3_clap_blocks",
     "influxdb3_client",
     "influxdb3_id",
     "influxdb3_load_generator",
@@ -82,6 +82,7 @@ mockall = { version = "0.13.0" }
 num_cpus = "1.16.0"
 object_store = "0.11.1"
 parking_lot = "0.12.1"
+paste = "1.0.15"
 parquet = { version = "53.0.0", features = ["object_store"] }
 pbjson = "0.6.0"
 pbjson-build = "0.6.2"

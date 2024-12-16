@@ -5,7 +5,6 @@ use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
-    tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::{
@@ -13,6 +12,7 @@ use influxdb3_cache::{
     meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_clap_blocks::tokio::TokioDatafusionConfig;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };

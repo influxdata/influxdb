@@ -3084,6 +3084,7 @@ dependencies = [
  "hyper 0.14.31",
  "influxdb3_cache",
  "influxdb3_catalog",
+ "influxdb3_clap_blocks",
  "influxdb3_client",
  "influxdb3_process",
  "influxdb3_server",
@@ -3182,6 +3183,19 @@ dependencies = [
  "serde_with",
  "test_helpers",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "influxdb3_clap_blocks"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "futures",
+ "humantime",
+ "libc",
+ "observability_deps",
+ "paste",
+ "tokio",
 ]
 
 [[package]]
