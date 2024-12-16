@@ -51,21 +51,21 @@ clap::Arg::new("help")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3.0 Edge server and command line tools",
-long_about = r#"InfluxDB 3.0 Edge server and command line tools
+about = "InfluxDB 3.0 OSS server and command line tools",
+long_about = r#"InfluxDB 3.0 OSS server and command line tools
 
 Examples:
-    # Run the InfluxDB 3.0 Edge server
-    influxdb3 serve
+    # Run the InfluxDB 3.0 OSS server
+    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
     # Display all commands
     influxdb3 --help
 
-    # Run the InfluxDB 3.0 Edge server in all-in-one mode with extra verbose logging
-    influxdb3 serve -v
+    # Run the InfluxDB 3.0 OSS server with extra verbose logging
+    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
-    # Run InfluxDB 3.0 Edge with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb3 serve
+    # Run InfluxDB 3.0 OSS with full debug logging specified with LOG_FILTER
+    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 "#
 )]
 struct Config {

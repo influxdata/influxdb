@@ -1,4 +1,4 @@
-//! InfluxDB 3.0 Edge server implementation
+//! InfluxDB 3.0 OSS server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
