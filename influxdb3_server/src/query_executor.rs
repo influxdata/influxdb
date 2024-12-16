@@ -436,7 +436,7 @@ impl QueryNamespace for Database {
         query_params: StatementParams,
     ) -> QueryCompletedToken<StateReceived> {
         let trace_id = span_ctx.map(|ctx| ctx.trace_id);
-        let namespace_name: Arc<str> = Arc::from("influxdb3 edge");
+        let namespace_name: Arc<str> = Arc::from("influxdb3 oss");
         self.query_log.push(
             NamespaceId::new(0),
             namespace_name,

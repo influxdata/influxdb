@@ -33,7 +33,7 @@ exclude = [
 
 [workspace.package]
 version = "0.1.0"
-authors = ["influxdata Edge Developers"]
+authors = ["InfluxData OSS Developers"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 

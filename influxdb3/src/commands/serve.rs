@@ -1,4 +1,4 @@
-//! Entrypoint for InfluxDB 3.0 Edge Server
+//! Entrypoint for InfluxDB 3.0 OSS Server
 
 use anyhow::{bail, Context};
 use clap_blocks::{
@@ -363,7 +363,7 @@ pub async fn command(config: Config) -> Result<()> {
         uuid = %PROCESS_UUID.as_ref() as &str,
         num_cpus,
         %build_malloc_conf,
-        "InfluxDB3 Edge server starting",
+        "InfluxDB3 OSS server starting",
     );
 
     let metrics = setup_metric_registry();
