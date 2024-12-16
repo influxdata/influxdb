@@ -1,0 +1,21 @@
+[package]
+name = "influxdb3_clap_blocks"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+# crates.io dependencies
+clap.workspace = true
+humantime.workspace = true
+libc.workspace = true
+paste.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+futures.workspace = true
+
+[lints]
+workspace = true

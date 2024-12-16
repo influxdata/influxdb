@@ -11,13 +11,9 @@ clippy::future_not_send
 )]
 
 use dotenvy::dotenv;
+use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use tokio::runtime::Runtime;
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -69,6 +65,9 @@ Examples:
 "#
 )]
 struct Config {
+    #[clap(flatten)]
+    runtime_config: TokioIoConfig,
+
     #[clap(subcommand)]
     command: Option<Command>,
 }
@@ -113,7 +112,8 @@ fn main() -> Result<(), std::io::Error> {
 
     let config: Config = clap::Parser::parse();
 
-    let tokio_runtime = get_runtime(None)?;
+    let tokio_runtime = config.runtime_config.builder()?.build()?;
+
     tokio_runtime.block_on(async move {
         fn handle_init_logs(r: Result<TroggingGuard, trogging::Error>) -> TroggingGuard {
             match r {
@@ -181,43 +181,6 @@ fn main() -> Result<(), std::io::Error> {
     });
 
     Ok(())
-}
-
-/// Creates the tokio runtime for executing IOx
-///
-/// if nthreads is none, uses the default scheduler
-/// otherwise, creates a scheduler with the number of threads
-fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
-    // NOTE: no log macros will work here!
-    //
-    // That means use eprintln!() instead of error!() and so on. The log emitter
-    // requires a running tokio runtime and is initialised after this function.
-
-    use tokio::runtime::Builder;
-    let kind = std::io::ErrorKind::Other;
-    match num_threads {
-        None => Runtime::new(),
-        Some(num_threads) => {
-            println!("Setting number of threads to '{num_threads}' per command line request");
-
-            let thread_counter = Arc::new(AtomicUsize::new(1));
-            match num_threads {
-                0 => {
-                    let msg =
-                        format!("Invalid num-threads: '{num_threads}' must be greater than zero");
-                    Err(std::io::Error::new(kind, msg))
-                }
-                1 => Builder::new_current_thread().enable_all().build(),
-                _ => Builder::new_multi_thread()
-                    .enable_all()
-                    .thread_name_fn(move || {
-                        format!("IOx main {}", thread_counter.fetch_add(1, Ordering::SeqCst))
-                    })
-                    .worker_threads(num_threads)
-                    .build(),
-            }
-        }
-    }
 }
 
 /// Source the .env file before initialising the Config struct - this sets
