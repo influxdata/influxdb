@@ -310,7 +310,6 @@ pub struct Config {
     )]
     pub disable_parquet_mem_cache: bool,
 
-
     /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
     #[clap(

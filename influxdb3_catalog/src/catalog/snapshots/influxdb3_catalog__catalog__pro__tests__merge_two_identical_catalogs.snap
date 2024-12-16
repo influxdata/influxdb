@@ -39,6 +39,8 @@ databases:
                   influx_type: tag
                   nullable: false
             deleted: false
+      processing_engine_plugins: []
+      processing_engine_triggers: []
       deleted: false
 sequence: 1
 host_id: host-a

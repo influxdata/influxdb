@@ -123,6 +123,8 @@ impl DatabaseSchema {
                 tables: tables.into(),
                 table_map,
                 deleted: self.deleted,
+                processing_engine_plugins: self.processing_engine_plugins.clone(),
+                processing_engine_triggers: self.processing_engine_triggers.clone(),
             })
         });
         Ok((id_map, updated_schema))
@@ -510,8 +512,8 @@ impl CatalogIdMap {
     /// updating its `CatalogIdMap`, but then wrap it in `Mapped::Ignore`.
     ///
     /// ```text
-    ///            Host `A` WAL                                       
-    /// ╔═════════════════════════════════╗               
+    ///            Host `A` WAL
+    /// ╔═════════════════════════════════╗
     /// ║ CreateTable{id: 0, name: 'foo'} ║                           Host `B` WAL
     /// ║ Write{table_id: 0, data: ... }  ║   Map/Replay  ╔═════════════════════════════════╗
     /// ║                                 ║ ◀━━━━━━━━━━━━ ║ CreateTable{id: 1, name: 'foo'} ║
@@ -847,6 +849,12 @@ impl CatalogIdMap {
                 } else {
                     Mapped::Ignore(mapped_op)
                 }
+            }
+            CatalogOp::CreatePlugin(create_plugin) => {
+                Mapped::Ignore(CatalogOp::CreatePlugin(create_plugin))
+            }
+            CatalogOp::CreateTrigger(create_trigger) => {
+                Mapped::Ignore(CatalogOp::CreateTrigger(create_trigger))
             }
         };
         Ok(mapped_op)

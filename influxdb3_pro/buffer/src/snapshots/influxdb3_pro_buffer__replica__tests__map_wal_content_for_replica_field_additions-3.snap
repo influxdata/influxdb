@@ -44,4 +44,6 @@ tables:
             influx_type: tag
             nullable: false
       deleted: false
+processing_engine_plugins: []
+processing_engine_triggers: []
 deleted: false

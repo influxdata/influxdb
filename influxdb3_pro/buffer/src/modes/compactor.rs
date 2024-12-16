@@ -12,11 +12,13 @@ use influxdb3_cache::{
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
+use influxdb3_wal::{
+    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
+};
 use influxdb3_write::{
-    write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
+    write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
-    PersistedSnapshot, Precision, WriteBuffer,
+    PersistedSnapshot, Precision, ProcessingEngineManager, WriteBuffer,
 };
 use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
@@ -146,6 +148,30 @@ impl DatabaseManager for CompactorMode {
         _table_name: String,
     ) -> Result<(), WriteBufferError> {
         unimplemented!("soft_delete_table not implemented for CompactorMode")
+    }
+}
+
+#[async_trait]
+impl ProcessingEngineManager for CompactorMode {
+    async fn insert_plugin(
+        &self,
+        _db: &str,
+        _plugin_name: String,
+        _code: String,
+        _function_name: String,
+        _plugin_type: PluginType,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot insert processing engine plugin in CompactorMode")
+    }
+
+    async fn insert_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: String,
+        _plugin_name: String,
+        _trigger_specification: TriggerSpecificationDefinition,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot insert processing engine trigger in CompactorMode")
     }
 }
 

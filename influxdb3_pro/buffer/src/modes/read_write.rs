@@ -11,8 +11,9 @@ use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
-use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition, WalConfig};
-use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
+use influxdb3_wal::{
+    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition, WalConfig,
+};
 use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
 use influxdb3_write::write_buffer::{parquet_chunk_from_file, WriteBufferImplArgs};
 use influxdb3_write::{
@@ -21,6 +22,7 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
+use influxdb3_write::{persister::DEFAULT_OBJECT_STORE_URL, ProcessingEngineManager};
 use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -369,6 +371,34 @@ impl DatabaseManager for ReadWriteMode {
         table_name: String,
     ) -> write_buffer::Result<()> {
         self.primary.soft_delete_table(db_name, table_name).await
+    }
+}
+
+#[async_trait]
+impl ProcessingEngineManager for ReadWriteMode {
+    async fn insert_plugin(
+        &self,
+        db: &str,
+        plugin_name: String,
+        code: String,
+        function_name: String,
+        plugin_type: PluginType,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary
+            .insert_plugin(db, plugin_name, code, function_name, plugin_type)
+            .await
+    }
+
+    async fn insert_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: String,
+        plugin_name: String,
+        trigger_specification: TriggerSpecificationDefinition,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary
+            .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .await
     }
 }
 

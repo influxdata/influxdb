@@ -47,4 +47,6 @@ tables:
           n: 1
           ttl: 3600
       deleted: false
+processing_engine_plugins: []
+processing_engine_triggers: []
 deleted: false

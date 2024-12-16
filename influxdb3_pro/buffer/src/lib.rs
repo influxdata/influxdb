@@ -9,11 +9,14 @@ use influxdb3_cache::{
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
+use influxdb3_wal::{
+    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
+};
 use influxdb3_write::{
-    write_buffer::{persisted_files::PersistedFiles, Result as WriteBufferResult},
+    write_buffer::{self, persisted_files::PersistedFiles, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, LastCacheManager,
-    MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, ProcessingEngineManager,
+    WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -195,6 +198,34 @@ impl<Mode: DatabaseManager> DatabaseManager for WriteBufferPro<Mode> {
         table_name: String,
     ) -> WriteBufferResult<()> {
         self.mode.soft_delete_table(db_name, table_name).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferPro<Mode> {
+    async fn insert_plugin(
+        &self,
+        db: &str,
+        plugin_name: String,
+        code: String,
+        function_name: String,
+        plugin_type: PluginType,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode
+            .insert_plugin(db, plugin_name, code, function_name, plugin_type)
+            .await
+    }
+
+    async fn insert_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: String,
+        plugin_name: String,
+        trigger_specification: TriggerSpecificationDefinition,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode
+            .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .await
     }
 }
 

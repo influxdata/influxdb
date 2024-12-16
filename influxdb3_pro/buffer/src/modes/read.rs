@@ -11,8 +11,13 @@ use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
-use influxdb3_wal::{LastCacheDefinition, MetaCacheDefinition};
-use influxdb3_write::write_buffer::parquet_chunk_from_file;
+use influxdb3_wal::{
+    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
+};
+use influxdb3_write::{
+    write_buffer::{self, parquet_chunk_from_file},
+    ProcessingEngineManager,
+};
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -256,6 +261,30 @@ impl DatabaseManager for ReadMode {
         _db_name: String,
         _table_name: String,
     ) -> Result<(), WriteBufferError> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+}
+
+#[async_trait]
+impl ProcessingEngineManager for ReadMode {
+    async fn insert_plugin(
+        &self,
+        _db: &str,
+        _plugin_name: String,
+        _code: String,
+        _function_name: String,
+        _plugin_type: PluginType,
+    ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn insert_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: String,
+        _plugin_name: String,
+        _trigger_specification: TriggerSpecificationDefinition,
+    ) -> Result<(), write_buffer::Error> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 }
