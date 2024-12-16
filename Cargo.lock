@@ -3193,6 +3193,7 @@ dependencies = [
  "futures",
  "humantime",
  "libc",
+ "observability_deps",
  "paste",
  "tokio",
 ]

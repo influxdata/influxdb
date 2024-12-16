@@ -6,6 +6,8 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# core crate dependencies
+observability_deps.workspace = true
 
 # crates.io dependencies
 clap.workspace = true
