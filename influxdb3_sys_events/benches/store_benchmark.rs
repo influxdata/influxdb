@@ -12,7 +12,7 @@ use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::debug;
 use rand::Rng;
 
-const MAX_WRITE_ITERATIONS: u32 = 5000;
+const MAX_WRITE_ITERATIONS: u32 = 100_000;
 
 #[allow(dead_code)]
 #[derive(Debug)]
