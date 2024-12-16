@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use arrow::{
     array::{StringViewBuilder, UInt64Builder},
@@ -6,6 +6,7 @@ use arrow::{
     error::ArrowError,
 };
 use arrow_array::{ArrayRef, RecordBatch};
+use serde::Serialize;
 
 use crate::{
     events::{
@@ -122,34 +123,23 @@ impl ToRecordBatch<CompactionEvent> for CompactionEvent {
         buffer: Option<&RingBuffer<Event<CompactionEvent>>>,
     ) -> Option<Result<RecordBatch, ArrowError>> {
         buffer.map(|buf| {
-            let capacity = buf.in_order().count();
-            let mut event_time_arr = StringViewBuilder::with_capacity(capacity);
-            let mut event_type_arr = StringViewBuilder::with_capacity(capacity);
-            let mut event_duration_arr = UInt64Builder::with_capacity(capacity);
-            let mut event_status_arr = StringViewBuilder::with_capacity(capacity);
-            let mut event_data_arr = StringViewBuilder::with_capacity(capacity);
+            let mut event_time_arr = StringViewBuilder::with_capacity(buf.len());
+            let mut event_type_arr = StringViewBuilder::with_capacity(buf.len());
+            let mut event_duration_arr = UInt64Builder::with_capacity(buf.len());
+            let mut event_status_arr = StringViewBuilder::with_capacity(buf.len());
+            let mut event_data_arr = StringViewBuilder::with_capacity(buf.len());
 
             for event in buf.in_order() {
                 event_time_arr.append_value(event.format_event_time());
                 match &event.data {
                     CompactionEvent::SnapshotFetched(snapshot_ev_info) => {
                         event_type_arr.append_value("SNAPSHOT_FETCHED");
-                        match snapshot_ev_info {
-                            SnapshotFetched::Success(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.fetch_duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            SnapshotFetched::Failed(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
+                        build_event_data(
+                            snapshot_ev_info,
+                            &mut event_status_arr,
+                            &mut event_duration_arr,
+                            &mut event_data_arr,
+                        );
                     }
                     CompactionEvent::CatalogFetched(catalog_ev_info) => {
                         event_type_arr.append_value("CATALOG_FETCHED");
@@ -259,6 +249,54 @@ impl ToRecordBatch<CompactionEvent> for CompactionEvent {
             RecordBatch::try_new(Arc::new(Self::schema()), columns)
         })
     }
+}
+
+pub(crate) enum EventOutcome {
+    Success,
+    Failed,
+}
+
+impl Display for EventOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EventOutcome::Success => write!(f, "Success"),
+            EventOutcome::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
+pub(crate) trait EventData {
+    fn outcome(&self) -> EventOutcome;
+    fn duration(&self) -> Duration;
+    fn data(&self) -> String
+    where
+        Self: Serialize,
+    {
+        serde_json::to_string(&self).unwrap()
+    }
+}
+
+impl<T: EventData> EventData for &T {
+    fn outcome(&self) -> EventOutcome {
+        (**self).outcome()
+    }
+
+    fn duration(&self) -> Duration {
+        (**self).duration()
+    }
+}
+
+fn build_event_data<T>(
+    info: T,
+    event_status_arr: &mut StringViewBuilder,
+    event_duration_arr: &mut UInt64Builder,
+    event_data_arr: &mut StringViewBuilder,
+) where
+    T: EventData + Serialize,
+{
+    event_status_arr.append_value(info.outcome().to_string());
+    event_duration_arr.append_value(info.duration().as_millis() as u64);
+    event_data_arr.append_value(info.data());
 }
 
 fn struct_fields() -> Vec<Field> {

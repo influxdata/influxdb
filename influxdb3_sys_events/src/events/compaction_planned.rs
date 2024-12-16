@@ -25,3 +25,19 @@ pub enum CompactionPlanned {
     SuccessInfo(SuccessInfo),
     FailedInfo(FailedInfo),
 }
+
+// impl EventData for CompactionPlanned {
+//     fn outcome(&self) -> EventOutcome {
+//         match self {
+//             CompactionPlanned::SuccessInfo(_) => EventOutcome::Success,
+//             CompactionPlanned::Failed(_) => EventOutcome::Failed,
+//         }
+//     }
+//
+//     fn duration(&self) -> Duration {
+//         match self {
+//             SnapshotFetched::Success(success) => success.fetch_duration,
+//             SnapshotFetched::Failed(failed) => failed.duration,
+//         }
+//     }
+// }

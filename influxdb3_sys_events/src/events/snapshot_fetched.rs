@@ -2,6 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
+use crate::events::{EventData, EventOutcome};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
     pub host: Arc<str>,
@@ -40,8 +42,25 @@ pub struct FailedInfo {
     pub error: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum SnapshotFetched {
     Success(SuccessInfo),
     Failed(FailedInfo),
+}
+
+impl EventData for SnapshotFetched {
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            SnapshotFetched::Success(_) => EventOutcome::Success,
+            SnapshotFetched::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            SnapshotFetched::Success(success) => success.fetch_duration,
+            SnapshotFetched::Failed(failed) => failed.duration,
+        }
+    }
 }

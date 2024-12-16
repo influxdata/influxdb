@@ -142,6 +142,10 @@ impl<T> RingBufferVec<T> {
         let (head, tail) = self.buf.split_at(self.write_index);
         tail.iter().chain(head.iter())
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.buf.len()
+    }
 }
 
 /// This is wrapper type adds the time of event
