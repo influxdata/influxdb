@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -2200,11 +2201,13 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, gLen := cp.PlanOptimize()
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
 		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
+	} else if gLen != int64(3) {
+		t.Fatalf("generation len plan mismatch: got %v, exp %v", gLen, 3)
 	}
 }
 
@@ -2249,7 +2252,7 @@ func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
 	)
 
 	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5]}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize()
 	if exp, got := 1, len(tsm); exp != got {
 		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2265,6 +2268,218 @@ func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
+}
+
+// This test is added to acount for many TSM files within a group being over 2 GB
+// we want to ensure that the shard will be planned.
+func TestDefaultPlanner_PlanOptimize_LargeMultiGeneration(t *testing.T) {
+	data := []tsm1.FileStat{
+		{
+			Path: "01-05.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "01-06.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "01-07.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "01-08.tsm1",
+			Size: 1048 * 1024 * 1024,
+		},
+		{
+			Path: "02-05.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "02-06.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "02-07.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "02-08.tsm1",
+			Size: 1048 * 1024 * 1024,
+		},
+		{
+			Path: "03-04.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "03-05.tsm1",
+			Size: 512 * 1024 * 1024,
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	expFiles := make([]tsm1.FileStat, 0)
+	for _, file := range data {
+		expFiles = append(expFiles, file)
+	}
+
+	tsm, pLen, _ := cp.PlanOptimize()
+	require.Equal(t, 1, len(tsm), "group length mismatch: got %d, exp %d", len(tsm), 1)
+	require.Equal(t, int64(len(tsm)), pLen, "tsm file plan length mismatch: got %d, exp %d", pLen, int64(len(tsm)))
+	require.Equal(t, len(expFiles), len(tsm[0]), "tsm file length mismatch: got %d, exp %d", len(tsm[0]), len(expFiles))
+}
+
+// This test is added to account for a single generation that has a group size
+// under 2 GB so it should be further compacted to a single file.
+func TestDefaultPlanner_PlanOptimize_SmallSingleGeneration(t *testing.T) {
+	// ~650 MB total group size
+	data := []tsm1.FileStat{
+		{
+			Path: "01-05.tsm1",
+			Size: 300 * 1024 * 1024,
+		},
+		{
+			Path: "01-06.tsm1",
+			Size: 200 * 1024 * 1024,
+		},
+		{
+			Path: "01-07.tsm1",
+			Size: 100 * 1024 * 1024,
+		},
+		{
+			Path: "01-08.tsm1",
+			Size: 50 * 1024 * 1024,
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	expFiles := make([]tsm1.FileStat, 0)
+	for _, file := range data {
+		expFiles = append(expFiles, file)
+	}
+
+	tsm, pLen, gLen := cp.PlanOptimize()
+	require.Equal(t, 1, len(tsm), "group length mismatch: got %d, exp %d", len(tsm), 1)
+	require.Equal(t, int64(len(tsm)), pLen, "tsm file plan length mismatch: got %d, exp %d", pLen, int64(len(expFiles)))
+	require.Equal(t, int64(1), gLen, "generation length mismatch: got %d, exp %d", gLen, 1)
+	require.Equal(t, len(expFiles), len(tsm[0]), "tsm file length mismatch: got %d, exp %d", len(tsm[0]), expFiles)
+}
+
+// This test is added to account for a single generation that has a group size
+// under 2 GB and has less then level 4 files it should be further compacted to a single file.
+// FullyCompacted should NOT skip over opening this shard.
+func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing.T) {
+	// ~650 MB total group size
+	data := []tsm1.FileStat{
+		{
+			Path: "01-02.tsm1",
+			Size: 300 * 1024 * 1024,
+		},
+		{
+			Path: "01-03.tsm1",
+			Size: 200 * 1024 * 1024,
+		},
+		{
+			Path: "01-04.tsm1",
+			Size: 100 * 1024 * 1024,
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	expFiles := make([]tsm1.FileStat, 0)
+	for _, file := range data {
+		expFiles = append(expFiles, file)
+	}
+
+	tsm, pLen, gLen := cp.PlanOptimize()
+	require.Equal(t, 1, len(tsm), "group length mismatch: got %d, exp %d", len(tsm), 1)
+	require.Equal(t, int64(len(tsm)), pLen, "tsm file plan length mismatch: got %d, exp %d", pLen, int64(len(expFiles)))
+	require.Equal(t, int64(1), gLen, "generation length mismatch: got %d, exp %d", gLen, 1)
+	require.Equal(t, len(expFiles), len(tsm[0]), "tsm file length mismatch: got %d, exp %d", len(tsm[0]), expFiles)
+}
+
+// This test is added to account for a single generation that has a group size
+// under 2 GB so it should be further compacted to a single file.
+// FullyCompacted should NOT skip over opening this shard.
+func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
+	// ~650 MB total group size
+	data := []tsm1.FileStat{
+		{
+			Path: "01-05.tsm1",
+			Size: 300 * 1024 * 1024,
+		},
+		{
+			Path: "01-06.tsm1",
+			Size: 200 * 1024 * 1024,
+		},
+		{
+			Path: "01-07.tsm1",
+			Size: 100 * 1024 * 1024,
+		},
+		{
+			Path: "01-08.tsm1",
+			Size: 50 * 1024 * 1024,
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	compacted, reason := cp.FullyCompacted()
+	reasonExp := "not fully compacted and not idle because group size under 2 GB and more then single file"
+	require.Equal(t, reason, reasonExp)
+	require.Equal(t, false, compacted)
+}
+
+// This test is added to account for halting state after
+// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
+// will need to ensure that once we have single TSM file under 2 GB we stop
+func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration_Halt(t *testing.T) {
+	// ~650 MB total group size
+	data := []tsm1.FileStat{
+		{
+			Path: "01-09.tsm1",
+			Size: 650 * 1024 * 1024,
+		},
+	}
+
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+
+	compacted, reason := cp.FullyCompacted()
+	reasonExp := ""
+	require.Equal(t, reason, reasonExp)
+	require.Equal(t, true, compacted)
 }
 
 func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
@@ -2322,7 +2537,7 @@ func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
 	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
 	expFiles2 := []tsm1.FileStat{data[6], data[7], data[8], data[9]}
 
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize()
 	if exp, got := 2, len(tsm); exp != got {
 		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2375,7 +2590,7 @@ func TestDefaultPlanner_PlanOptimize_Optimized(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize()
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2409,7 +2624,7 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize()
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2586,7 +2801,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	}
 	cp.Release(plan)
 
-	plan, pLen = cp.PlanOptimize()
+	plan, pLen, _ = cp.PlanOptimize()
 	// ensure the optimize planner would pick this up
 	if exp, got := 1, len(plan); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
