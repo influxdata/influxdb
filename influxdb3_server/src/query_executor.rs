@@ -682,29 +682,27 @@ mod tests {
         let host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let catalog = Arc::new(Catalog::new(host_id, instance_id));
-        let write_buffer_impl = Arc::new(
-            WriteBufferImpl::new(WriteBufferImplArgs {
-                persister,
-                catalog: Arc::clone(&catalog),
-                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-                meta_cache: MetaCacheProvider::new_from_catalog(
-                    Arc::<MockProvider>::clone(&time_provider),
-                    Arc::clone(&catalog),
-                )
-                .unwrap(),
-                time_provider: Arc::<MockProvider>::clone(&time_provider),
-                executor: Arc::clone(&exec),
-                wal_config: WalConfig {
-                    gen1_duration: Gen1Duration::new_1m(),
-                    max_write_buffer_size: 100,
-                    flush_interval: Duration::from_millis(10),
-                    snapshot_size: 1,
-                },
-                parquet_cache: Some(parquet_cache),
-            })
-            .await
+        let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache: MetaCacheProvider::new_from_catalog(
+                Arc::<MockProvider>::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
             .unwrap(),
-        );
+            time_provider: Arc::<MockProvider>::clone(&time_provider),
+            executor: Arc::clone(&exec),
+            wal_config: WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            parquet_cache: Some(parquet_cache),
+        })
+        .await
+        .unwrap();
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
         let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);

@@ -984,9 +984,16 @@ where
         self.write_buffer
             .insert_trigger(
                 db.as_str(),
-                trigger_name,
+                trigger_name.clone(),
                 plugin_name,
                 trigger_specification,
+            )
+            .await?;
+        self.write_buffer
+            .run_trigger(
+                Arc::clone(&self.write_buffer),
+                db.as_str(),
+                trigger_name.as_str(),
             )
             .await?;
         Ok(Response::builder()

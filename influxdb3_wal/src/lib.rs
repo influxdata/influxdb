@@ -554,7 +554,7 @@ pub struct TriggerDefinition {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,

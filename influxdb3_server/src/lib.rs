@@ -801,26 +801,24 @@ mod tests {
         let sample_host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
-        let write_buffer_impl = Arc::new(
-            influxdb3_write::write_buffer::WriteBufferImpl::new(
-                influxdb3_write::write_buffer::WriteBufferImplArgs {
-                    persister: Arc::clone(&persister),
-                    catalog: Arc::clone(&catalog),
-                    last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-                    meta_cache: MetaCacheProvider::new_from_catalog(
-                        Arc::clone(&time_provider) as _,
-                        Arc::clone(&catalog),
-                    )
-                    .unwrap(),
-                    time_provider: Arc::clone(&time_provider) as _,
-                    executor: Arc::clone(&exec),
-                    wal_config: WalConfig::test_config(),
-                    parquet_cache: Some(parquet_cache),
-                },
-            )
-            .await
-            .unwrap(),
-        );
+        let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
+            influxdb3_write::write_buffer::WriteBufferImplArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::clone(&catalog),
+                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                meta_cache: MetaCacheProvider::new_from_catalog(
+                    Arc::clone(&time_provider) as _,
+                    Arc::clone(&catalog),
+                )
+                .unwrap(),
+                time_provider: Arc::clone(&time_provider) as _,
+                executor: Arc::clone(&exec),
+                wal_config: WalConfig::test_config(),
+                parquet_cache: Some(parquet_cache),
+            },
+        )
+        .await
+        .unwrap();
 
         let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
             &time_provider,

@@ -475,20 +475,18 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeMetaCache)?;
 
-    let write_buffer_impl = Arc::new(
-        WriteBufferImpl::new(WriteBufferImplArgs {
-            persister: Arc::clone(&persister),
-            catalog: Arc::clone(&catalog),
-            last_cache,
-            meta_cache,
-            time_provider: Arc::<SystemProvider>::clone(&time_provider),
-            executor: Arc::clone(&exec),
-            wal_config,
-            parquet_cache,
-        })
-        .await
-        .map_err(|e| Error::WriteBufferInit(e.into()))?,
-    );
+    let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
+        persister: Arc::clone(&persister),
+        catalog: Arc::clone(&catalog),
+        last_cache,
+        meta_cache,
+        time_provider: Arc::<SystemProvider>::clone(&time_provider),
+        executor: Arc::clone(&exec),
+        wal_config,
+        parquet_cache,
+    })
+    .await
+    .map_err(|e| Error::WriteBufferInit(e.into()))?;
 
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
