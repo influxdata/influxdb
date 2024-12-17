@@ -238,6 +238,8 @@ impl CompactedDataConsumer {
             }
         }
 
+        self.compacted_data.update_compaction_summary(summary);
+
         Ok(())
     }
 }

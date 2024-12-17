@@ -150,6 +150,11 @@ impl CompactedCatalog {
     ) -> Result<()> {
         let last_sequence_number = self.sequence_number();
         if sequence_number > last_sequence_number {
+            info!(
+                last_sequence_number = last_sequence_number.as_u32(),
+                compaction_summary_sequence_number = sequence_number.as_u32(),
+                "reloading compactor catalog"
+            );
             let path = CompactedCatalogPath::new(self.compactor_id.as_ref(), sequence_number);
             let bytes = object_store.get(&path.0).await?.bytes().await?;
             let helper: CompactedCatalogHelper = serde_json::from_slice(&bytes)?;

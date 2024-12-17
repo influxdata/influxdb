@@ -110,7 +110,7 @@ impl CompactedData {
             .unwrap_or_default()
     }
 
-    pub(crate) fn compaction_summary(&self) -> Arc<CompactionSummary> {
+    pub fn compaction_summary(&self) -> Arc<CompactionSummary> {
         Arc::clone(&self.inner_compacted_data.read().compaction_summary)
     }
 
