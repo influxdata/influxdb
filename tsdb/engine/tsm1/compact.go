@@ -98,6 +98,10 @@ type CompactionPlanner interface {
 	PlanLevel(level int) ([]CompactionGroup, int64)
 	// PlanOptimize will return the groups for compaction, the compaction group length,
 	// and the amount of generations within the compaction group.
+	// generationCount needs to be set to decide how many points per block during compaction.
+	// This value is mostly ignored in normal compaction code paths, but,
+	// for the edge case where there is a single generation with many
+	// files under 2 GB this value is an important indicator.
 	PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
 	FullyCompacted() (bool, string)
@@ -359,7 +363,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 // PlanOptimize returns all TSM files if they are in different generations in order
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
-func (c *DefaultPlanner) PlanOptimize() ([]CompactionGroup, int64, int64) {
+func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
@@ -435,13 +439,6 @@ func (c *DefaultPlanner) PlanOptimize() ([]CompactionGroup, int64, int64) {
 		cGroups = append(cGroups, cGroup)
 	}
 
-	// The third return value is the generation length.
-	// Need to use this to decide how many points per block to use during compaction.
-	// This value is mostly ignored in normal compaction code paths, but,
-	// for the edge case where there is a single generation with many
-	// files and a group size under 2 GB we need to know that there is a single
-	// generation so the block size can be adjusted to allow for more optimal
-	// compaction.
 	if !c.acquire(cGroups) {
 		return nil, int64(len(cGroups)), int64(len(generations))
 	}
