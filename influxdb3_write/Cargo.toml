@@ -12,6 +12,7 @@ license.workspace = true
 # Core Crates
 data_types.workspace = true
 datafusion_util.workspace = true
+executor.workspace = true
 influxdb-line-protocol.workspace = true
 iox_catalog.workspace = true
 iox_http.workspace = true
