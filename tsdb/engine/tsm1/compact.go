@@ -470,11 +470,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		for i, group := range generations {
 			var skip bool
 
-			gs := group.size()
-			bc := c.FileStore.BlockCount(group.files[0].Path, 1)
-			gl := len(generations)
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if gl > 2 && gs >= uint64(maxTSMFileSize) && bc == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
