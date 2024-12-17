@@ -3446,6 +3446,7 @@ dependencies = [
  "data_types",
  "datafusion",
  "datafusion_util",
+ "executor",
  "futures",
  "futures-util",
  "hashbrown 0.15.1",

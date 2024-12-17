@@ -444,7 +444,9 @@ impl MutableTableChunk {
     fn into_schema_record_batch(self, table_def: Arc<TableDefinition>) -> (Schema, RecordBatch) {
         let mut cols = Vec::with_capacity(self.data.len());
         let mut schema_builder = SchemaBuilder::new();
+        let mut cols_in_batch = HashSet::new();
         for (col_id, builder) in self.data.into_iter() {
+            cols_in_batch.insert(col_id);
             let (col_type, col) = builder.into_influxcol_and_arrow();
             schema_builder.influx_column(
                 table_def
@@ -454,6 +456,20 @@ impl MutableTableChunk {
                 col_type,
             );
             cols.push(col);
+        }
+
+        // ensure that every series key column is present in the batch
+        for col_id in &table_def.series_key {
+            if !cols_in_batch.contains(col_id) {
+                let col_name = table_def
+                    .column_id_to_name(col_id)
+                    .expect("valid column id");
+                schema_builder.influx_column(col_name.as_ref(), InfluxColumnType::Tag);
+                let mut tag_builder: StringDictionaryBuilder<Int32Type> =
+                    StringDictionaryBuilder::new();
+                tag_builder.append_nulls(self.row_count);
+                cols.push(Arc::new(tag_builder.finish()));
+            }
         }
         let schema = schema_builder
             .build()
@@ -778,8 +794,6 @@ mod tests {
         let partitioned_batches = table_buffer
             .partitioned_record_batches(Arc::clone(&table_def), &[])
             .unwrap();
-
-        println!("{partitioned_batches:#?}");
 
         assert_eq!(10, partitioned_batches.len());
 

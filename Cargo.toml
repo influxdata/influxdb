@@ -127,6 +127,7 @@ authz = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba969
 clap_blocks = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 data_types = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 datafusion_util = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
+executor = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 influxdb-line-protocol = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160", features = ["v3"] }
 influxdb_influxql_parser = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
 influxdb_iox_client = { git = "https://github.com/influxdata/influxdb3_core", rev = "7eefba96954bdfb6fe69b26cd6d1fc9acd8e9160" }
