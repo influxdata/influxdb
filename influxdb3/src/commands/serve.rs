@@ -26,9 +26,10 @@ use influxdb3_pro_buffer::{
 use influxdb3_pro_clap_blocks::serve::BufferMode;
 use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
-use influxdb3_pro_compactor::{producer::CompactedDataProducer, ParquetCachePreFetcher};
+use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_pro_data_layout::CompactionConfig;
+use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };

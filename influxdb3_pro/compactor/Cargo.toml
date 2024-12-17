@@ -17,6 +17,7 @@ parquet_file.workspace = true
 schema.workspace = true
 
 # Local Crates
+influxdb3_pro_parquet_cache = { path = "../parquet_cache" }
 influxdb3_pro_data_layout = { path = "../data_layout" }
 influxdb3_cache = { path = "../../influxdb3_cache" }
 influxdb3_catalog = { path = "../../influxdb3_catalog" }

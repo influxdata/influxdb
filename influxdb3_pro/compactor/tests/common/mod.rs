@@ -2,7 +2,7 @@ use std::{str::FromStr, sync::Arc};
 
 use chrono::Utc;
 use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
-use influxdb3_pro_compactor::ParquetCachePreFetcher;
+use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
 use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
 use object_store::{memory::InMemory, ObjectStore};
