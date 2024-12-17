@@ -2419,8 +2419,8 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing
 }
 
 // This test is added to account for a single generation that has a group size
-// under 2 GB so it should be further compacted to a single file.
-// FullyCompacted should NOT skip over opening this shard.
+// under 2 GB and all files at max default points per block of 1000.
+// This should be planned for compaction at a more aggressive points per block.
 func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	// ~650 MB total group size
 	data := []tsm1.FileStat{
@@ -2486,8 +2486,8 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration_Halt(t *testing.T) 
 }
 
 // This test is added to account for a single generation that has a group size
-// under 2 GB so it should be further compacted to a single file.
-// FullyCompacted should NOT skip over opening this shard.
+// under 2 GB and a mix of aggressive max blocks and default max blocks
+// it should be further compacted.
 func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlocks(t *testing.T) {
 	// > 2 GB total group size
 	// 50% of files are at aggressive max block size
@@ -2554,6 +2554,7 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 
 // This test is added to account for a single generation that has a group size
 // over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
+// It should not compact any further.
 func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationMaxAggressiveBlocks(t *testing.T) {
 	// > 2 GB total group size
 	// 100% of files are at aggressive max block size
@@ -2594,7 +2595,9 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationMaxAggressiveBlocks(
 }
 
 // This test is added to account for a single generation that has a group size
-// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
+// over 2 GB at max points per block with aggressive compaction, and, 1 file
+// under 2 GB at default max points per block.
+// It should not compact any further.
 func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationNoMaxAggrBlocks(t *testing.T) {
 	// > 2 GB total group size
 	// 100% of files are at aggressive max block size
@@ -2681,7 +2684,8 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBMaxAggrBlocks(t *
 }
 
 // This test is added to account for a single generation that has a group size
-// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
+// over 2 GB and multiple files under 2 GB with multiple files under aggressive
+// max points per block. This should further compact.
 func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBNotMaxAggrBlocks(t *testing.T) {
 	// > 2 GB total group size
 	// 100% of files are at aggressive max block size
