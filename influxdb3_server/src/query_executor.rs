@@ -1071,7 +1071,7 @@ mod tests {
         let event = CompactionEvent::snapshot_success(SuccessInfo {
             host: Arc::from(host),
             sequence_number: 123,
-            fetch_duration: Duration::from_millis(1234),
+            duration: Duration::from_millis(1234),
             db_count: 2,
             table_count: 1000,
             file_count: 100_000,
@@ -1178,7 +1178,7 @@ mod tests {
         let snapshot_success_event = CompactionEvent::snapshot_success(SuccessInfo {
             host: Arc::from(host),
             sequence_number: 123,
-            fetch_duration: Duration::from_millis(1234),
+            duration: Duration::from_millis(1234),
             db_count: 2,
             table_count: 1000,
             file_count: 100_000,

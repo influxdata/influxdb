@@ -2,6 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
+use crate::events::{EventData, EventOutcome};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
     pub host: Arc<str>,
@@ -29,8 +31,29 @@ pub struct FailedInfo {
     pub error: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum CatalogFetched {
     Success(SuccessInfo),
     Failed(FailedInfo),
+}
+
+impl EventData for CatalogFetched {
+    fn name(&self) -> &'static str {
+        "CATALOG_FETCHED"
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            CatalogFetched::Success(_) => EventOutcome::Success,
+            CatalogFetched::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            CatalogFetched::Success(success) => success.duration,
+            CatalogFetched::Failed(failed) => failed.duration,
+        }
+    }
 }

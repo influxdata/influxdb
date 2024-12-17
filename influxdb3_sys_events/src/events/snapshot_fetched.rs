@@ -9,7 +9,7 @@ pub struct SuccessInfo {
     pub host: Arc<str>,
     pub sequence_number: u64,
     #[serde(skip_serializing)]
-    pub fetch_duration: Duration,
+    pub duration: Duration,
     pub db_count: u64,
     pub table_count: u64,
     pub file_count: u64,
@@ -25,7 +25,7 @@ impl SuccessInfo {
         Self {
             host: Arc::from(host),
             sequence_number,
-            fetch_duration: duration,
+            duration,
             db_count: db_table_file_counts.0,
             table_count: db_table_file_counts.1,
             file_count: db_table_file_counts.2,
@@ -50,6 +50,10 @@ pub enum SnapshotFetched {
 }
 
 impl EventData for SnapshotFetched {
+    fn name(&self) -> &'static str {
+        "SNAPSHOT_FETCHED"
+    }
+
     fn outcome(&self) -> EventOutcome {
         match self {
             SnapshotFetched::Success(_) => EventOutcome::Success,
@@ -59,8 +63,9 @@ impl EventData for SnapshotFetched {
 
     fn duration(&self) -> Duration {
         match self {
-            SnapshotFetched::Success(success) => success.fetch_duration,
+            SnapshotFetched::Success(success) => success.duration,
             SnapshotFetched::Failed(failed) => failed.duration,
         }
     }
+
 }

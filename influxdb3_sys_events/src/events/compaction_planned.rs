@@ -2,6 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
+use crate::events::{EventData, EventOutcome};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
     pub input_generations: Vec<u8>,
@@ -20,24 +22,29 @@ pub struct FailedInfo {
     pub error: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Serialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum CompactionPlanned {
-    SuccessInfo(SuccessInfo),
-    FailedInfo(FailedInfo),
+    Success(SuccessInfo),
+    Failed(FailedInfo),
 }
 
-// impl EventData for CompactionPlanned {
-//     fn outcome(&self) -> EventOutcome {
-//         match self {
-//             CompactionPlanned::SuccessInfo(_) => EventOutcome::Success,
-//             CompactionPlanned::Failed(_) => EventOutcome::Failed,
-//         }
-//     }
-//
-//     fn duration(&self) -> Duration {
-//         match self {
-//             SnapshotFetched::Success(success) => success.fetch_duration,
-//             SnapshotFetched::Failed(failed) => failed.duration,
-//         }
-//     }
-// }
+impl EventData for CompactionPlanned {
+    fn name(&self) -> &'static str {
+        "COMPACTION_PLANNED"
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            CompactionPlanned::Success(_) => EventOutcome::Success,
+            CompactionPlanned::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            CompactionPlanned::Success(success) => success.duration,
+            CompactionPlanned::Failed(failed) => failed.duration,
+        }
+    }
+}

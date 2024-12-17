@@ -2,6 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
+use crate::events::{EventData, EventOutcome};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PlanIdentifier {
     pub db_name: Arc<str>,
@@ -44,14 +46,56 @@ pub struct PlanRunFailedInfo {
     pub identifier: PlanIdentifier,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Serialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum PlanCompactionCompleted {
-    PlanRunSuccessInfo(PlanRunSuccessInfo),
-    PlanRunFailedInfo(PlanRunFailedInfo),
+    Success(PlanRunSuccessInfo),
+    Failed(PlanRunFailedInfo),
 }
 
-#[derive(Debug, Clone, Serialize)]
+impl EventData for PlanCompactionCompleted {
+    fn name(&self) -> &'static str {
+        "PLAN_RUN_COMPLETED"
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            PlanCompactionCompleted::Success(_) => EventOutcome::Success,
+            PlanCompactionCompleted::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            PlanCompactionCompleted::Success(success) => success.duration,
+            PlanCompactionCompleted::Failed(failed) => failed.duration,
+        }
+    }
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum PlanGroupCompactionCompleted {
-    PlanGroupRunSuccessInfo(PlanGroupRunSuccessInfo),
-    PlanGroupRunFailedInfo(PlanGroupRunFailedInfo),
+    Success(PlanGroupRunSuccessInfo),
+    Failed(PlanGroupRunFailedInfo),
+}
+
+impl EventData for PlanGroupCompactionCompleted {
+    fn name(&self) -> &'static str {
+        "PLAN_GROUP_RUN_COMPLETED"
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            PlanGroupCompactionCompleted::Success(_) => EventOutcome::Success,
+            PlanGroupCompactionCompleted::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            PlanGroupCompactionCompleted::Success(success) => success.duration,
+            PlanGroupCompactionCompleted::Failed(failed) => failed.duration,
+        }
+    }
 }

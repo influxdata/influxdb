@@ -37,7 +37,8 @@ pub mod snapshot_fetched;
 /// This will require at the time of querying to pull events from separate buffers
 /// and put them together (sorted by event time). If compaction itself runs concurrently
 /// (i.e for different generations?) then this might be a nice addition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
 pub enum CompactionEvent {
     SnapshotFetched(SnapshotFetched),
     CatalogFetched(CatalogFetched),
@@ -65,17 +66,17 @@ impl CompactionEvent {
     }
 
     pub fn compaction_planned_success(success_info: compaction_planned::SuccessInfo) -> Self {
-        CompactionEvent::CompactionPlanned(CompactionPlanned::SuccessInfo(success_info))
+        CompactionEvent::CompactionPlanned(CompactionPlanned::Success(success_info))
     }
 
     pub fn compaction_planned_failed(failed_info: compaction_planned::FailedInfo) -> Self {
-        CompactionEvent::CompactionPlanned(CompactionPlanned::FailedInfo(failed_info))
+        CompactionEvent::CompactionPlanned(CompactionPlanned::Failed(failed_info))
     }
 
     pub fn compaction_plan_run_completed_success(
         success_info: compaction_completed::PlanRunSuccessInfo,
     ) -> Self {
-        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::PlanRunSuccessInfo(
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Success(
             success_info,
         ))
     }
@@ -83,7 +84,7 @@ impl CompactionEvent {
     pub fn compaction_plan_run_completed_failed(
         failed_info: compaction_completed::PlanRunFailedInfo,
     ) -> Self {
-        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::PlanRunFailedInfo(
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Failed(
             failed_info,
         ))
     }
@@ -92,7 +93,7 @@ impl CompactionEvent {
         success_info: compaction_completed::PlanGroupRunSuccessInfo,
     ) -> Self {
         CompactionEvent::PlanGroupCompactionPlanned(
-            PlanGroupCompactionCompleted::PlanGroupRunSuccessInfo(success_info),
+            PlanGroupCompactionCompleted::Success(success_info),
         )
     }
 
@@ -100,7 +101,7 @@ impl CompactionEvent {
         failed_info: compaction_completed::PlanGroupRunFailedInfo,
     ) -> Self {
         CompactionEvent::PlanGroupCompactionPlanned(
-            PlanGroupCompactionCompleted::PlanGroupRunFailedInfo(failed_info),
+            PlanGroupCompactionCompleted::Failed(failed_info),
         )
     }
 
@@ -110,6 +111,41 @@ impl CompactionEvent {
 
     pub fn compaction_consumed_failed(failed_info: compaction_consumed::FailedInfo) -> Self {
         CompactionEvent::CompactionConsumed(CompactionConsumed::Failed(failed_info))
+    }
+}
+
+impl EventData for CompactionEvent {
+    fn name(&self) -> &'static str {
+        match self {
+            CompactionEvent::SnapshotFetched(info) => info.name(),
+            CompactionEvent::CatalogFetched(info) => info.name(),
+            CompactionEvent::CompactionPlanned(info) => info.name(),
+            CompactionEvent::PlanCompactionCompleted(info) => info.name(),
+            CompactionEvent::PlanGroupCompactionPlanned(info) => info.name(),
+            CompactionEvent::CompactionConsumed(info) => info.name(),
+        }
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            CompactionEvent::SnapshotFetched(info) => info.outcome(),
+            CompactionEvent::CatalogFetched(info) => info.outcome(),
+            CompactionEvent::CompactionPlanned(info) => info.outcome(),
+            CompactionEvent::PlanCompactionCompleted(info) => info.outcome(),
+            CompactionEvent::PlanGroupCompactionPlanned(info) => info.outcome(),
+            CompactionEvent::CompactionConsumed(info) => info.outcome(),
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            CompactionEvent::SnapshotFetched(info) => info.duration(),
+            CompactionEvent::CatalogFetched(info) => info.duration(),
+            CompactionEvent::CompactionPlanned(info) => info.duration(),
+            CompactionEvent::PlanCompactionCompleted(info) => info.duration(),
+            CompactionEvent::PlanGroupCompactionPlanned(info) => info.duration(),
+            CompactionEvent::CompactionConsumed(info) => info.duration(),
+        }
     }
 }
 
@@ -131,112 +167,13 @@ impl ToRecordBatch<CompactionEvent> for CompactionEvent {
 
             for event in buf.in_order() {
                 event_time_arr.append_value(event.format_event_time());
-                match &event.data {
-                    CompactionEvent::SnapshotFetched(snapshot_ev_info) => {
-                        event_type_arr.append_value("SNAPSHOT_FETCHED");
-                        build_event_data(
-                            snapshot_ev_info,
-                            &mut event_status_arr,
-                            &mut event_duration_arr,
-                            &mut event_data_arr,
-                        );
-                    }
-                    CompactionEvent::CatalogFetched(catalog_ev_info) => {
-                        event_type_arr.append_value("CATALOG_FETCHED");
-                        match catalog_ev_info {
-                            CatalogFetched::Success(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            CatalogFetched::Failed(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
-                    }
-                    CompactionEvent::CompactionPlanned(planned_event_info) => {
-                        event_type_arr.append_value("COMPACTION_PLANNED");
-                        match planned_event_info {
-                            CompactionPlanned::SuccessInfo(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            CompactionPlanned::FailedInfo(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
-                    }
-                    CompactionEvent::PlanCompactionCompleted(plan_completed) => {
-                        event_type_arr.append_value("PLAN_RUN_COMPLETED");
-                        match plan_completed {
-                            PlanCompactionCompleted::PlanRunSuccessInfo(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            PlanCompactionCompleted::PlanRunFailedInfo(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
-                    }
-                    CompactionEvent::PlanGroupCompactionPlanned(plan_group_completed) => {
-                        event_type_arr.append_value("PLAN_GROUP_RUN_COMPLETED");
-                        match plan_group_completed {
-                            PlanGroupCompactionCompleted::PlanGroupRunSuccessInfo(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            PlanGroupCompactionCompleted::PlanGroupRunFailedInfo(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
-                    }
-                    CompactionEvent::CompactionConsumed(consumed_info) => {
-                        event_type_arr.append_value("COMPACTION_CONSUMED");
-                        match consumed_info {
-                            CompactionConsumed::Success(success_info) => {
-                                event_status_arr.append_value("Success");
-                                event_duration_arr
-                                    .append_value(success_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(success_info).unwrap());
-                            }
-                            CompactionConsumed::Failed(failed_info) => {
-                                event_status_arr.append_value("Failed");
-                                event_duration_arr
-                                    .append_value(failed_info.duration.as_millis() as u64);
-                                event_data_arr
-                                    .append_value(serde_json::to_string(failed_info).unwrap());
-                            }
-                        }
-                    }
-                }
+                build_event_data(
+                    &event.data,
+                    &mut event_type_arr,
+                    &mut event_status_arr,
+                    &mut event_duration_arr,
+                    &mut event_data_arr,
+                );
             }
 
             let columns: Vec<ArrayRef> = vec![
@@ -266,6 +203,7 @@ impl Display for EventOutcome {
 }
 
 pub(crate) trait EventData {
+    fn name(&self) -> &'static str;
     fn outcome(&self) -> EventOutcome;
     fn duration(&self) -> Duration;
     fn data(&self) -> String
@@ -277,6 +215,10 @@ pub(crate) trait EventData {
 }
 
 impl<T: EventData> EventData for &T {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
     fn outcome(&self) -> EventOutcome {
         (**self).outcome()
     }
@@ -288,12 +230,14 @@ impl<T: EventData> EventData for &T {
 
 fn build_event_data<T>(
     info: T,
+    event_type_arr: &mut StringViewBuilder,
     event_status_arr: &mut StringViewBuilder,
     event_duration_arr: &mut UInt64Builder,
     event_data_arr: &mut StringViewBuilder,
 ) where
     T: EventData + Serialize,
 {
+    event_type_arr.append_value(info.name());
     event_status_arr.append_value(info.outcome().to_string());
     event_duration_arr.append_value(info.duration().as_millis() as u64);
     event_data_arr.append_value(info.data());

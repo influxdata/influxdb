@@ -2,6 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
+use crate::events::{EventData, EventOutcome};
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
     #[serde(skip_serializing)]
@@ -21,8 +23,29 @@ pub struct FailedInfo {
     pub summary_sequence_number: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum CompactionConsumed {
     Success(SuccessInfo),
     Failed(FailedInfo),
+}
+
+impl EventData for CompactionConsumed {
+    fn name(&self) -> &'static str {
+        "COMPACTION_CONSUMED"
+    }
+
+    fn outcome(&self) -> EventOutcome {
+        match self {
+            CompactionConsumed::Success(_) => EventOutcome::Success,
+            CompactionConsumed::Failed(_) => EventOutcome::Failed,
+        }
+    }
+
+    fn duration(&self) -> Duration {
+        match self {
+            CompactionConsumed::Success(success) => success.duration,
+            CompactionConsumed::Failed(failed) => failed.duration,
+        }
+    }
 }

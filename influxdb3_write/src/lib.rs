@@ -601,4 +601,68 @@ mod tests {
         ]);
         assert_eq!((2, 2, 4), overall_counts);
     }
+
+    #[test]
+    fn test_overall_counts_zero() {
+        let host = "host_id";
+        // db 1 setup
+        let db_id_1 = DbId::from(0);
+        let mut dbs_1 = SerdeVecMap::new();
+        let table_id_1 = TableId::from(0);
+        let mut tables_1 = SerdeVecMap::new();
+        let parquet_files_1 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(1),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(2),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_1.insert(table_id_1, parquet_files_1);
+        dbs_1.insert(db_id_1, DatabaseTables { tables: tables_1 });
+
+        // db 2 setup
+        let db_id_2 = DbId::from(2);
+        let mut dbs_2 = SerdeVecMap::new();
+        let table_id_2 = TableId::from(2);
+        let mut tables_2 = SerdeVecMap::new();
+        let parquet_files_2 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(4),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(5),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_2.insert(table_id_2, parquet_files_2);
+        dbs_2.insert(db_id_2, DatabaseTables { tables: tables_2 });
+
+        // add dbs_2 to snapshot
+        let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[]);
+        assert_eq!((0, 0, 0), overall_counts);
+    }
 }
