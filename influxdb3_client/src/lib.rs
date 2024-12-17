@@ -326,6 +326,36 @@ impl Client {
         }
     }
 
+    /// Make a request to the `POST /api/v3/configure/database` API
+    pub async fn api_v3_configure_db_create(&self, db: impl Into<String> + Send) -> Result<()> {
+        let api_path = "/api/v3/configure/database";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+        }
+
+        let mut req = self.http_client.post(url).json(&Req { db: db.into() });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
     /// Make a request to the `DELETE /api/v3/configure/database?db=foo` API
     pub async fn api_v3_configure_db_delete(&self, db: impl AsRef<str> + Send) -> Result<()> {
         let api_path = "/api/v3/configure/database";
@@ -371,6 +401,61 @@ impl Client {
             .send()
             .await
             .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Make a request to the `POST /api/v3/configure/table` API
+    pub async fn api_v3_configure_table_create(
+        &self,
+        db: impl Into<String> + Send,
+        table: impl Into<String> + Send,
+        tags: Vec<impl Into<String> + Send>,
+        fields: Vec<(impl Into<String> + Send, impl Into<String> + Send)>,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/table";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            table: String,
+            tags: Vec<String>,
+            fields: Vec<Field>,
+        }
+        #[derive(Serialize)]
+        struct Field {
+            name: String,
+            r#type: String,
+        }
+
+        let mut req = self.http_client.post(url).json(&Req {
+            db: db.into(),
+            table: table.into(),
+            tags: tags.into_iter().map(Into::into).collect(),
+            fields: fields
+                .into_iter()
+                .map(|(name, r#type)| Field {
+                    name: name.into(),
+                    r#type: r#type.into(),
+                })
+                .collect(),
+        });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
