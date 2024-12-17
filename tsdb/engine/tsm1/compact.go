@@ -96,7 +96,9 @@ type CompactionGroup []string
 type CompactionPlanner interface {
 	Plan(lastWrite time.Time) ([]CompactionGroup, int64)
 	PlanLevel(level int) ([]CompactionGroup, int64)
-	PlanOptimize() ([]CompactionGroup, int64, int64)
+	// PlanOptimize will return the groups for compaction, the compaction group length,
+	// and the amount of generations within the compaction group.
+	PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
 	FullyCompacted() (bool, string)
 
@@ -220,14 +222,32 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 	gens := c.findGenerations(false)
+
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
 		return false, "not fully compacted and not idle because of tombstones"
 	} else {
-		// Safety: check for first index so we don't accidentally do out of bounds access
-		if len(gens) == 1 && len(gens[0].files) > 1 && gens[0].size() < uint64(maxTSMFileSize) {
-			return false, "not fully compacted and not idle because group size under 2 GB and more then single file"
+		// For planning we want to ensure that if there is a single generation
+		// shard, but it has many files that are under 2 GB and many files that are
+		// not at the aggressive compaction points per block count (100,000) we further
+		// compact the shard. It is okay to stop compaction if there are many
+		// files that are under 2 GB but at the aggressive points per block count.
+		if len(gens) == 1 && len(gens[0].files) > 1 {
+			aggressivePointsPerBlockCount := 0
+			filesUnderMaxTsmSizeCount := 0
+			for _, tsmFile := range gens[0].files {
+				if c.FileStore.BlockCount(tsmFile.Path, 0) == tsdb.AggressiveMaxPointsPerBlock {
+					aggressivePointsPerBlockCount++
+				}
+				if tsmFile.Size < maxTSMFileSize {
+					filesUnderMaxTsmSizeCount++
+				}
+			}
+
+			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
+				return false, "not fully compacted and not idle because single generation with many files under 2 GB and many files under aggressive compaction points per block count (100,000 points)"
+			}
 		}
 		return true, ""
 	}
@@ -353,20 +373,9 @@ func (c *DefaultPlanner) PlanOptimize() ([]CompactionGroup, int64, int64) {
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
+	fullyCompacted, _ := c.FullyCompacted()
 
-	// Safety check for potential 0 generations.
-	if len(generations) < 1 {
-		return nil, 0, 0
-	}
-
-	// Return if there's only a single file and single generation.
-	if len(generations) == 1 && len(generations[0].files) == 1 {
-		return nil, 0, 0
-	}
-
-	// If there is a single generation, no tombstones, and the entire group size (all TSM files in the generation)
-	// is over or equal to 2 GB (Max TSM file size) there is nothing to do and we will return.
-	if len(generations) == 1 && generations[0].size() >= uint64(maxTSMFileSize) && !generations.hasTombstones() {
+	if fullyCompacted {
 		return nil, 0, 0
 	}
 
@@ -464,8 +473,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		for i, group := range generations {
 			var skip bool
 
+			gs := group.size()
+			bc := c.FileStore.BlockCount(group.files[0].Path, 1)
+			gl := len(generations)
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if gl > 2 && gs >= uint64(maxTSMFileSize) && bc == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
@@ -922,7 +934,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 // compact writes multiple smaller TSM files into 1 or more larger files.
 func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([]string, error) {
 	// Sets the points per block size. The larger this value is set
-	// the more points there will be a single index. Under normal
+	// the more points there will be in a single index. Under normal
 	// conditions this should always be 1000 but there is an edge case
 	// where this is increased.
 	size := c.Size

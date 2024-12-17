@@ -2174,7 +2174,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						for _, f := range level4Groups[0] {
 							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block to 100_000.", zap.String("path", f))
 						}
-						e.Compactor.Size = tsdb.DefaultMaxPointsPerBlock * 100
+						e.Compactor.Size = tsdb.AggressiveMaxPointsPerBlock
 					} else {
 						e.Compactor.Size = tsdb.DefaultMaxPointsPerBlock
 					}

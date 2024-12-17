@@ -52,6 +52,10 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
+	// AggressiveMaxPointsPerBlock is used when we want to further compact blocks
+	// it is 100 times the default amount of points we use per block
+	AggressiveMaxPointsPerBlock = 100000
+
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// This limit only applies to the "inmem" index.
 	DefaultMaxSeriesPerDatabase = 1000000
