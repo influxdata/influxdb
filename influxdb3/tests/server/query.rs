@@ -1330,3 +1330,49 @@ async fn api_v3_query_sql_meta_cache() {
         resp
     );
 }
+
+/// Test that if we write in a row of LP that is missing a tag value, we're still able to query.
+#[tokio::test]
+async fn api_v3_query_null_tag_values() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
+
+    let resp = client
+        .get(&url)
+        .query(&[
+            ("db", "foo"),
+            (
+                "q",
+                "SELECT host, region, time, usage FROM cpu ORDER BY time",
+            ),
+            ("format", "pretty"),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+---------+---------------------+-------+\n\
+            | host | region  | time                | usage |\n\
+            +------+---------+---------------------+-------+\n\
+            | a    | us-east | 1970-01-01T00:00:01 | 0.9   |\n\
+            | b    |         | 1970-01-01T00:00:04 | 0.8   |\n\
+            +------+---------+---------------------+-------+",
+        resp
+    );
+}
