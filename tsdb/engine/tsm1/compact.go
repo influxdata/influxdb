@@ -32,7 +32,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 const logEvery = 2 * DefaultSegmentSize
 
 const (
@@ -226,6 +225,8 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 	gens := c.findGenerations(false)
+	// 1048576000 is a magic number for bytes per gigabyte
+	singleGenReason := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
 
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
@@ -241,16 +242,16 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 			aggressivePointsPerBlockCount := 0
 			filesUnderMaxTsmSizeCount := 0
 			for _, tsmFile := range gens[0].files {
-				if c.FileStore.BlockCount(tsmFile.Path, 1) == tsdb.AggressiveMaxPointsPerBlock {
+				if c.FileStore.BlockCount(tsmFile.Path, 1) >= tsdb.AggressiveMaxPointsPerBlock {
 					aggressivePointsPerBlockCount++
 				}
-				if tsmFile.Size < maxTSMFileSize {
+				if tsmFile.Size < tsdb.MaxTSMFileSize {
 					filesUnderMaxTsmSizeCount++
 				}
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
-				return false, "not fully compacted and not idle because single generation with many files under 2 GB and many files under aggressive compaction points per block count (100,000 points)"
+				return false, singleGenReason
 			}
 		}
 		return true, ""
@@ -471,7 +472,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			var skip bool
 
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && group.size() > uint64(tsdb.MaxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
@@ -547,7 +548,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		// Skip the file if it's over the max size and contains a full block or the generation is split
 		// over multiple files.  In the latter case, that would mean the data in the file spilled over
 		// the 2GB limit.
-		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock {
+		if g.size() > uint64(tsdb.MaxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock {
 			start = i + 1
 		}
 
@@ -591,7 +592,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 			}
 
 			// Skip the file if it's over the max size and it contains a full block
-			if gen.size() >= uint64(maxTSMFileSize) && c.FileStore.BlockCount(gen.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
+			if gen.size() >= uint64(tsdb.MaxTSMFileSize) && c.FileStore.BlockCount(gen.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
 				startIndex++
 				continue
 			}
@@ -1216,7 +1217,7 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 
 		// If we have a max file size configured and we're over it, close out the file
 		// and return the error.
-		if w.Size() > maxTSMFileSize {
+		if w.Size() > tsdb.MaxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}

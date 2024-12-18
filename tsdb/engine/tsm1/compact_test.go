@@ -2331,9 +2331,9 @@ func TestDefaultPlanner_PlanOptimize_LargeMultiGeneration(t *testing.T) {
 	}
 
 	tsm, pLen, _ := cp.PlanOptimize()
-	require.Equal(t, 1, len(tsm))
-	require.Equal(t, int64(len(tsm)), pLen)
-	require.Equal(t, len(expFiles), len(tsm[0]))
+	require.Equal(t, 1, len(tsm), "compaction group")
+	require.Equal(t, int64(len(tsm)), pLen, "compaction group length")
+	require.Equal(t, len(expFiles), len(tsm[0]), "expected TSM files")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2373,10 +2373,10 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGeneration(t *testing.T) {
 	}
 
 	tsm, pLen, gLen := cp.PlanOptimize()
-	require.Equal(t, 1, len(tsm))
-	require.Equal(t, int64(len(tsm)), pLen)
-	require.Equal(t, int64(1), gLen)
-	require.Equal(t, len(expFiles), len(tsm[0]))
+	require.Equal(t, 1, len(tsm), "compaction group")
+	require.Equal(t, int64(len(tsm)), pLen, "compaction group length")
+	require.Equal(t, int64(1), gLen, "generation of TSM files")
+	require.Equal(t, len(expFiles), len(tsm[0]), "expected TSM files")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2410,12 +2410,15 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing
 	for _, file := range data {
 		expFiles = append(expFiles, file)
 	}
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
+	require.Equal(t, 0, pLenP, "compaction group length; Plan()")
 
 	tsm, pLen, gLen := cp.PlanOptimize()
-	require.Equal(t, 1, len(tsm))
-	require.Equal(t, int64(len(tsm)), pLen)
-	require.Equal(t, int64(1), gLen)
-	require.Equal(t, len(expFiles), len(tsm[0]))
+	require.Equal(t, 1, len(tsm), "compaction group")
+	require.Equal(t, int64(len(tsm)), pLen, "compaction group length")
+	require.Equal(t, int64(1), gLen, "generation of TSM files")
+	require.Equal(t, len(expFiles), len(tsm[0]), "expected TSM files")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2449,14 +2452,16 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	}
 
 	err := fs.SetBlockCounts([]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock})
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
+	// 1048576000 is a magic number for bytes per gigabyte
+	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
+
 	compacted, reason := cp.FullyCompacted()
-	reasonExp := "not fully compacted and not idle because single generation with many files under 2 GB and many files under aggressive compaction points per block count (100,000 points)"
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, false, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.False(t, compacted, "is fully compacted")
 }
 
 // This test is added to account for halting state after
@@ -2481,8 +2486,8 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration_Halt(t *testing.T) 
 
 	compacted, reason := cp.FullyCompacted()
 	reasonExp := ""
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, true, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.True(t, compacted, "is fully compacted")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2542,14 +2547,17 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 		tsdb.DefaultMaxPointsPerBlock,
 	}
 	err := fs.SetBlockCounts(blocks)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
+	// 1048576000 is a magic number for bytes per gigabyte
+	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
+
 	compacted, reason := cp.FullyCompacted()
-	reasonExp := "not fully compacted and not idle because single generation with many files under 2 GB and many files under aggressive compaction points per block count (100,000 points)"
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, false, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.False(t, compacted, "is fully compacted")
+
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2579,19 +2587,19 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationMaxAggressiveBlocks(
 		tsdb.AggressiveMaxPointsPerBlock,
 	}
 	err := fs.SetBlockCounts(blocks)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	compacted, reason := cp.FullyCompacted()
 	reasonExp := ""
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, true, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.True(t, compacted, "is fully compacted")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup)
-	require.Equal(t, int64(0), cgLen)
-	require.Equal(t, int64(0), genLen)
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2622,19 +2630,19 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationNoMaxAggrBlocks(t *t
 		tsdb.DefaultMaxPointsPerBlock,
 	}
 	err := fs.SetBlockCounts(blocks)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	compacted, reason := cp.FullyCompacted()
 	reasonExp := ""
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, true, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.True(t, compacted, "is fully compacted")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup)
-	require.Equal(t, int64(0), cgLen)
-	require.Equal(t, int64(0), genLen)
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2668,19 +2676,19 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBMaxAggrBlocks(t *
 		tsdb.AggressiveMaxPointsPerBlock,
 	}
 	err := fs.SetBlockCounts(blocks)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	compacted, reason := cp.FullyCompacted()
 	reasonExp := ""
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, true, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.True(t, compacted, "is fully compacted")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup)
-	require.Equal(t, int64(0), cgLen)
-	require.Equal(t, int64(0), genLen)
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2715,18 +2723,20 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBNotMaxAggrBlocks(
 		tsdb.DefaultMaxPointsPerBlock,
 	}
 	err := fs.SetBlockCounts(blocks)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
+	// 1048576000 is a magic number for bytes per gigabyte
+	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
+
 	compacted, reason := cp.FullyCompacted()
-	reasonExp := "not fully compacted and not idle because single generation with many files under 2 GB and many files under aggressive compaction points per block count (100,000 points)"
-	require.Equal(t, reason, reasonExp)
-	require.Equal(t, false, compacted)
+	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, int64(1), cgLen)
-	require.Equal(t, int64(1), genLen)
+	require.Equal(t, int64(1), cgLen, "compaction group length")
+	require.Equal(t, int64(1), genLen, "generation count")
 }
 
 func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
@@ -2965,7 +2975,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	}
 
 	err := fs.SetBlockCounts([]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock})
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, time.Nanosecond)
 	plan, pLen := cp.Plan(time.Now().Add(-time.Second))
@@ -3014,7 +3024,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		tsdb.DefaultMaxPointsPerBlock,
 		tsdb.DefaultMaxPointsPerBlock,
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp.FileStore = overFs
 	plan, pLen = cp.Plan(time.Now().Add(-time.Second))
@@ -3105,7 +3115,7 @@ func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
 	}
 
 	err := fs.SetBlockCounts(bcs)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, time.Hour)
 
@@ -3151,7 +3161,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 	}
 
 	err := fs.SetBlockCounts(bcs)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(
 		fs,
@@ -3191,7 +3201,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 	}
 
 	err = overFs.SetBlockCounts(bcs)
-	require.NoError(t, err)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp.FileStore = overFs
 	cGroups, pLen := cp.Plan(time.Now().Add(-time.Second))

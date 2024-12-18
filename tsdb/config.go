@@ -54,7 +54,7 @@ const (
 
 	// AggressiveMaxPointsPerBlock is used when we want to further compact blocks
 	// it is 100 times the default amount of points we use per block
-	AggressiveMaxPointsPerBlock = 100000
+	AggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 100
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// This limit only applies to the "inmem" index.
@@ -81,6 +81,9 @@ const (
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
 	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
+
+	// MaxTSMFileSize is the maximum size of TSM files.
+	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 )
 
 // Config holds the configuration for the tsbd package.
