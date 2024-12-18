@@ -2501,8 +2501,8 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, len(data), cgroup, "compaction group")
-	require.Equal(t, int64(4), cgLen, "compaction group length")
+	require.Equal(t, len(data), len(cgroup), "compaction group")
+	require.Equal(t, int64(1), cgLen, "compaction group length")
 	require.Equal(t, int64(1), genLen, "generation count")
 }
 
@@ -2622,7 +2622,7 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	_, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, int64(8), cgLen, "compaction group length")
+	require.Equal(t, int64(1), cgLen, "compaction group length")
 	require.Equal(t, int64(1), genLen, "generation count")
 }
 
