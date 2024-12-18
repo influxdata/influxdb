@@ -84,7 +84,15 @@ const (
 
 	// MaxTSMFileSize is the maximum size of TSM files.
 	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
+
 )
+
+// SingleGenerationReason outputs a log message for our single generation compaction
+// when checked for full compaction.
+// 1048576000 is a magic number for bytes per gigabyte.
+func SingleGenerationReason() string {
+	return fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), AggressiveMaxPointsPerBlock)
+}
 
 // Config holds the configuration for the tsbd package.
 type Config struct {

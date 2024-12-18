@@ -2330,6 +2330,17 @@ func TestDefaultPlanner_PlanOptimize_LargeMultiGeneration(t *testing.T) {
 		expFiles = append(expFiles, file)
 	}
 
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
+	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
+
 	tsm, pLen, _ := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
 	require.Equal(t, int64(len(tsm)), pLen, "compaction group length")
@@ -2372,6 +2383,17 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGeneration(t *testing.T) {
 		expFiles = append(expFiles, file)
 	}
 
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
+	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
+
 	tsm, pLen, gLen := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
 	require.Equal(t, int64(len(tsm)), pLen, "compaction group length")
@@ -2410,6 +2432,14 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing
 	for _, file := range data {
 		expFiles = append(expFiles, file)
 	}
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
 	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
 	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
 	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
@@ -2456,12 +2486,24 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
-	// 1048576000 is a magic number for bytes per gigabyte
-	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
-
 	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.Equal(t, reason, tsdb.SingleGenerationReason(), "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+
+	cgroup, cgLen, genLen := cp.PlanOptimize()
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for halting state after
@@ -2488,6 +2530,21 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration_Halt(t *testing.T) 
 	reasonExp := ""
 	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 	require.True(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+
+	cgroup, cgLen, genLen := cp.PlanOptimize()
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2550,14 +2607,24 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
-
-	// 1048576000 is a magic number for bytes per gigabyte
-	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
-
 	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.Equal(t, reason, tsdb.SingleGenerationReason(), "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
 
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+
+	cgroup, cgLen, genLen := cp.PlanOptimize()
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Equal(t, int64(0), cgLen, "compaction group length")
+	require.Equal(t, int64(0), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2595,6 +2662,16 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationMaxAggressiveBlocks(
 	reasonExp := ""
 	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 	require.True(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
@@ -2638,6 +2715,16 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationNoMaxAggrBlocks(t *t
 	reasonExp := ""
 	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 	require.True(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
@@ -2684,6 +2771,16 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBMaxAggrBlocks(t *
 	reasonExp := ""
 	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 	require.True(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
@@ -2733,6 +2830,16 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBNotMaxAggrBlocks(
 	compacted, reason := cp.FullyCompacted()
 	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+
+	_, cgLen = cp.Plan(time.Now().Add(-1))
+	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	_, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")

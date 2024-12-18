@@ -225,9 +225,6 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 	gens := c.findGenerations(false)
-	// 1048576000 is a magic number for bytes per gigabyte
-	singleGenReason := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
-
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
@@ -251,7 +248,7 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
-				return false, singleGenReason
+				return false, tsdb.SingleGenerationReason()
 			}
 		}
 		return true, ""
