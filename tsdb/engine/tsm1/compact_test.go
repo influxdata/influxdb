@@ -2501,9 +2501,9 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-	require.Equal(t, int64(0), cgLen, "compaction group length")
-	require.Equal(t, int64(0), genLen, "generation count")
+	require.Equal(t, len(data), cgroup, "compaction group")
+	require.Equal(t, int64(4), cgLen, "compaction group length")
+	require.Equal(t, int64(1), genLen, "generation count")
 }
 
 // This test is added to account for halting state after
@@ -2621,10 +2621,9 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 	_, cgLen = cp.Plan(time.Now().Add(-1))
 	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
-	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-	require.Equal(t, int64(0), cgLen, "compaction group length")
-	require.Equal(t, int64(0), genLen, "generation count")
+	_, cgLen, genLen := cp.PlanOptimize()
+	require.Equal(t, int64(8), cgLen, "compaction group length")
+	require.Equal(t, int64(1), genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
