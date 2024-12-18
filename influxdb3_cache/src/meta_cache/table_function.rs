@@ -71,6 +71,11 @@ impl TableProvider for MetaCacheFunctionProvider {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        let schema = if let Some(projection) = projection {
+            self.schema().project(projection).map(Arc::new)?
+        } else {
+            self.schema()
+        };
         let read = self.provider.cache_map.read();
         let (batches, predicates) = if let Some(cache) = read
             .get(&self.db_id)
@@ -80,26 +85,32 @@ impl TableProvider for MetaCacheFunctionProvider {
             let predicates = convert_filter_exprs(&self.table_def, self.schema(), filters)?;
             (
                 cache
-                    .to_record_batch(&predicates, limit)
+                    .to_record_batch(
+                        Arc::clone(&schema),
+                        &predicates,
+                        projection.map(|p| p.as_slice()),
+                        limit,
+                    )
                     .map(|batch| vec![batch])?,
                 (!predicates.is_empty()).then_some(predicates),
             )
         } else {
             (vec![], None)
         };
-        let mut exec = MetaCacheExec::try_new(
+
+        let mut meta_exec = MetaCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
             self.schema(),
-            projection.cloned(),
+            projection,
             limit,
         )?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
-        exec = exec.with_show_sizes(show_sizes);
+        meta_exec = meta_exec.with_show_sizes(show_sizes);
 
-        Ok(Arc::new(exec))
+        Ok(Arc::new(meta_exec))
     }
 }
 
@@ -281,6 +292,7 @@ struct MetaCacheExec {
     inner: MemoryExec,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
+    projection: Option<Vec<usize>>,
     limit: Option<usize>,
 }
 
@@ -290,13 +302,15 @@ impl MetaCacheExec {
         table_def: Arc<TableDefinition>,
         partitions: &[Vec<RecordBatch>],
         schema: SchemaRef,
-        projection: Option<Vec<usize>>,
+        projection: Option<&Vec<usize>>,
         limit: Option<usize>,
     ) -> Result<Self> {
         Ok(Self {
-            inner: MemoryExec::try_new(partitions, schema, projection)?,
+            // projection is handled prior, so we don't forward it down to the MemoryExec:
+            inner: MemoryExec::try_new(partitions, schema, None)?,
             predicates,
             table_def,
+            projection: projection.cloned(),
             limit,
         })
     }
@@ -314,6 +328,19 @@ impl DisplayAs for MetaCacheExec {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
                 write!(f, "MetaCacheExec:")?;
+                if let Some(projection) = &self.projection {
+                    write!(f, " projection=[")?;
+                    let schema = self.schema();
+                    let mut p_iter = projection.iter();
+                    while let Some(i) = p_iter.next() {
+                        let name = schema.fields().get(*i).ok_or(std::fmt::Error)?.name();
+                        write!(f, "{name}@{i}")?;
+                        if p_iter.size_hint().0 > 0 {
+                            write!(f, ", ")?;
+                        }
+                    }
+                    write!(f, "]")?;
+                }
                 if let Some(limit) = self.limit {
                     write!(f, " limit={limit}")?;
                 }
