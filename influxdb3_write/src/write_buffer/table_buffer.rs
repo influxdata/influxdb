@@ -282,7 +282,7 @@ impl MutableTableChunk {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_value("".to_string());
+                                tag_builder.append_value("");
                             }
                             e.insert(Builder::Tag(tag_builder));
                         }
@@ -390,8 +390,8 @@ impl MutableTableChunk {
                         Builder::I64(b) => b.append_null(),
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) => b.append_value("".to_string()),
-                        Builder::Key(b) => b.append_value("".to_string()),
+                        Builder::Tag(b) => b.append_value(""),
+                        Builder::Key(b) => b.append_value(""),
                         Builder::Time(b) => b.append_null(),
                     }
                 }
@@ -468,7 +468,7 @@ impl MutableTableChunk {
                 let mut tag_builder: StringDictionaryBuilder<Int32Type> =
                     StringDictionaryBuilder::new();
                 for _ in 0..self.row_count {
-                    tag_builder.append_value("".to_string());
+                    tag_builder.append_value("");
                 }
 
                 cols.push(Arc::new(tag_builder.finish()));
