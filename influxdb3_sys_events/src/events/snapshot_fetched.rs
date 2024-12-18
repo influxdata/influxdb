@@ -51,7 +51,7 @@ pub enum SnapshotFetched {
 
 impl EventData for SnapshotFetched {
     fn name(&self) -> &'static str {
-        "SNAPSHOT_FETCHED"
+        "snapshot_fetched"
     }
 
     fn outcome(&self) -> EventOutcome {

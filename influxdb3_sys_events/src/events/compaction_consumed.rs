@@ -32,7 +32,7 @@ pub enum CompactionConsumed {
 
 impl EventData for CompactionConsumed {
     fn name(&self) -> &'static str {
-        "COMPACTION_CONSUMED"
+        "compaction_consumed"
     }
 
     fn outcome(&self) -> EventOutcome {

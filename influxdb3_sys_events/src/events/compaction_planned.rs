@@ -31,7 +31,7 @@ pub enum CompactionPlanned {
 
 impl EventData for CompactionPlanned {
     fn name(&self) -> &'static str {
-        "COMPACTION_PLANNED"
+        "compaction_planned"
     }
 
     fn outcome(&self) -> EventOutcome {

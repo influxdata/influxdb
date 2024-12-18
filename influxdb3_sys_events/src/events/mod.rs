@@ -192,8 +192,8 @@ pub(crate) enum EventOutcome {
 impl Display for EventOutcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EventOutcome::Success => write!(f, "Success"),
-            EventOutcome::Failed => write!(f, "Failed"),
+            EventOutcome::Success => write!(f, "success"),
+            EventOutcome::Failed => write!(f, "failed"),
         }
     }
 }

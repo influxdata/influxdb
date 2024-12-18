@@ -71,6 +71,7 @@ pub struct CompactedDataProducer {
     /// The gen1 data to compact should only ever be accessed by the compaction loop, so we use a
     /// tokio Mutex so we can hold it across await points to object storage.
     compaction_state: tokio::sync::Mutex<CompactionState>,
+    sys_events_store: Arc<dyn CompactionEventStore>,
 }
 
 impl Debug for CompactedDataProducer {
@@ -106,7 +107,11 @@ impl CompactedDataProducer {
         )
         .await?;
         compaction_state
-            .load_snapshots(&compacted_data, Arc::clone(&object_store), sys_events_store)
+            .load_snapshots(
+                &compacted_data,
+                Arc::clone(&object_store),
+                Arc::clone(&sys_events_store),
+            )
             .await?;
 
         Ok(Self {
@@ -119,22 +124,19 @@ impl CompactedDataProducer {
             parquet_cache_prefetcher,
             compacted_data: Arc::new(compacted_data),
             compaction_state: tokio::sync::Mutex::new(compaction_state),
+            sys_events_store,
         })
     }
 
     /// The background loop that periodically checks for new snapshots and run compaction plans
-    pub async fn run_compaction_loop(
-        &self,
-        check_interval: Duration,
-        sys_events_store: Arc<dyn CompactionEventStore>,
-    ) {
+    pub async fn run_compaction_loop(&self, check_interval: Duration) {
         let generation_levels = self.compaction_config.compaction_levels();
         let mut ticker = tokio::time::interval(check_interval);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
             if let Err(e) = self
-                .plan_and_run_compaction(&generation_levels, Arc::clone(&sys_events_store))
+                .plan_and_run_compaction(&generation_levels, Arc::clone(&self.sys_events_store))
                 .await
             {
                 warn!(error = %e, "error running compaction");

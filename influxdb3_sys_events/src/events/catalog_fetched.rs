@@ -40,7 +40,7 @@ pub enum CatalogFetched {
 
 impl EventData for CatalogFetched {
     fn name(&self) -> &'static str {
-        "CATALOG_FETCHED"
+        "catalog_fetched"
     }
 
     fn outcome(&self) -> EventOutcome {

@@ -55,7 +55,7 @@ pub enum PlanCompactionCompleted {
 
 impl EventData for PlanCompactionCompleted {
     fn name(&self) -> &'static str {
-        "PLAN_RUN_COMPLETED"
+        "plan_run_completed"
     }
 
     fn outcome(&self) -> EventOutcome {
@@ -82,7 +82,7 @@ pub enum PlanGroupCompactionCompleted {
 
 impl EventData for PlanGroupCompactionCompleted {
     fn name(&self) -> &'static str {
-        "PLAN_GROUP_RUN_COMPLETED"
+        "plan_group_run_completed"
     }
 
     fn outcome(&self) -> EventOutcome {

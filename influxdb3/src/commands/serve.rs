@@ -736,12 +736,7 @@ pub async fn command(config: Config) -> Result<()> {
         let t = exec
             .executor()
             .spawn(async move {
-                compactor
-                    .run_compaction_loop(
-                        Duration::from_secs(10),
-                        Arc::clone(&compaction_event_store),
-                    )
-                    .await;
+                compactor.run_compaction_loop(Duration::from_secs(10)).await;
             })
             .map_err(Error::Job);
 

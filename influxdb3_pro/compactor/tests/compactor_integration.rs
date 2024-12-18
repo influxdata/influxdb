@@ -131,7 +131,7 @@ async fn two_writers_gen1_compaction() {
         .executor()
         .spawn(async move {
             compaction_producer_clone
-                .run_compaction_loop(Duration::from_millis(10), Arc::clone(&sys_events_store))
+                .run_compaction_loop(Duration::from_millis(10))
                 .await;
         })
         .boxed();
@@ -281,12 +281,11 @@ async fn compact_consumer_picks_up_latest_summary() {
 
     // run the compactor on the DataFusion executor, but don't drop the future:
     let compaction_producer_cloned = Arc::clone(&compaction_producer);
-    let sys_events_cloned = Arc::clone(&sys_events_store);
     let _t = exec
         .executor()
         .spawn(async move {
             compaction_producer_cloned
-                .run_compaction_loop(Duration::from_millis(10), sys_events_cloned)
+                .run_compaction_loop(Duration::from_millis(10))
                 .await;
         })
         .boxed();
