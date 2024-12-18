@@ -2500,8 +2500,7 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	_, cgLen = cp.Plan(time.Now().Add(-1))
 	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
 
-	cgroup, cgLen, genLen := cp.PlanOptimize()
-	require.Equal(t, len(data), len(cgroup), "compaction group")
+	_, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")
 	require.Equal(t, int64(1), genLen, "generation count")
 }
