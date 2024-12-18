@@ -17,7 +17,7 @@ use influxdb3_pro_buffer::WriteBufferPro;
 use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_data_layout::CompactionConfig;
-use influxdb3_sys_events::SysEventStore;
+use influxdb3_sys_events::{events::CompactionEventStore, SysEventStore};
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::persister::Persister;
 use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
@@ -67,7 +67,8 @@ async fn two_writers_gen1_compaction() {
 
     let writer2_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer2_id));
     let writer2_catalog = writer2_persister.load_or_create_catalog().await.unwrap();
-    let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+    let sys_events_store: Arc<dyn CompactionEventStore> =
+        Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let writer2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&writer2_persister),
         catalog: Arc::new(writer2_catalog),
@@ -258,7 +259,8 @@ async fn compact_consumer_picks_up_latest_summary() {
 
     // setup a compaction producer to do the compaciton:
     let compactor_id = Arc::<str>::from("com");
-    let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+    let sys_events_store: Arc<dyn CompactionEventStore> =
+        Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
     let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
     let compaction_producer = Arc::new(

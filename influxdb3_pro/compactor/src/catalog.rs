@@ -9,8 +9,7 @@ use influxdb3_catalog::catalog::{
 };
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
-use influxdb3_sys_events::events::{catalog_fetched, CompactionEvent};
-use influxdb3_sys_events::SysEventStore;
+use influxdb3_sys_events::events::{catalog_fetched, CompactionEventStore};
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
@@ -204,7 +203,7 @@ impl CompactedCatalog {
         &self,
         catalog_snapshot_markers: Vec<CatalogSnapshotMarker>,
         object_store: Arc<dyn ObjectStore>,
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
         // get the catalog snapshot markers we need to update because they have a higher sequence number
         let catalogs_to_update = {
@@ -252,12 +251,12 @@ impl CompactedCatalog {
                 },
             );
             info!(host = %catalog.host_id(), sequence = %catalog.sequence_number().as_u32(), "Updated host catalog");
-            let event = CompactionEvent::catalog_success(catalog_fetched::SuccessInfo {
+            let event = catalog_fetched::SuccessInfo {
                 host: catalog.host_id(),
                 catalog_sequence_number: catalog.sequence_number().as_u32(),
                 duration: start.elapsed(),
-            });
-            sys_events_store.record(event);
+            };
+            sys_events_store.record_catalog_success(event);
         }
 
         {
@@ -280,7 +279,7 @@ impl CompactedCatalog {
         &self,
         catalog: &Arc<Catalog>,
         marker: &CatalogSnapshotMarker,
-        sys_events_store: &Arc<SysEventStore>,
+        sys_events_store: &Arc<dyn CompactionEventStore>,
     ) -> Result<CatalogIdMap, Error> {
         let start = Instant::now();
         let catalog_id_map = self
@@ -292,14 +291,13 @@ impl CompactedCatalog {
             .inspect_err(|err| {
                 if let crate::catalog::Error::MergeError(error) = err {
                     let error_msg = error.to_string();
-                    let failed_event =
-                        CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
-                            host: Arc::from(marker.host.as_str()),
-                            sequence_number: marker.snapshot_sequence_number.as_u64(),
-                            error: error_msg,
-                            duration: start.elapsed(),
-                        });
-                    sys_events_store.record(failed_event);
+                    let failed_event = catalog_fetched::FailedInfo {
+                        host: Arc::from(marker.host.as_str()),
+                        sequence_number: marker.snapshot_sequence_number.as_u64(),
+                        error: error_msg,
+                        duration: start.elapsed(),
+                    };
+                    sys_events_store.record_catalog_failed(failed_event);
                 }
             })?;
         Ok(catalog_id_map)
@@ -496,7 +494,10 @@ pub(crate) mod test_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use influxdb3_sys_events::events::catalog_fetched::CatalogFetched;
+    use influxdb3_sys_events::{
+        events::{catalog_fetched::CatalogFetched, CompactionEvent},
+        SysEventStore,
+    };
     use influxdb3_wal::FieldDataType;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
@@ -637,11 +638,12 @@ mod tests {
         };
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
         let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
-        let failed_events = sys_events_store.as_vec::<CompactionEvent>();
+        let failed_events = sys_events_store.compaction_events_as_vec();
         assert!(res.is_ok());
         debug!(catalogidmap = ?res.unwrap(), "Result from merging other catalog");
         debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");
@@ -687,11 +689,12 @@ mod tests {
         };
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
         let res = catalog.merge_catalog_and_record_error(&catalog2, &marker, &sys_events_store);
-        let failed_events = sys_events_store.as_vec::<CompactionEvent>();
+        let failed_events = sys_events_store.compaction_events_as_vec();
         assert!(res.is_err());
         debug!(result = ?res, "Result from merging other catalog with column type mismatch");
         debug!(events_captured = ?failed_events, "Sys events captured after merging compacted catalogs");

@@ -67,5 +67,4 @@ impl EventData for SnapshotFetched {
             SnapshotFetched::Failed(failed) => failed.duration,
         }
     }
-
 }

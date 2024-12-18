@@ -14,10 +14,7 @@ use influxdb3_pro_data_layout::{
     Generation,
 };
 use influxdb3_pro_data_layout::{CompactionDetailPath, GenerationDetailPath};
-use influxdb3_sys_events::{
-    events::{compaction_consumed, CompactionEvent},
-    SysEventStore,
-};
+use influxdb3_sys_events::events::{compaction_consumed, CompactionEventStore};
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use std::sync::Arc;
@@ -28,7 +25,7 @@ pub struct CompactedDataConsumer {
     pub compactor_id: Arc<str>,
     pub object_store: Arc<dyn ObjectStore>,
     pub compacted_data: Arc<CompactedData>,
-    sys_events_store: Arc<SysEventStore>,
+    sys_events_store: Arc<dyn CompactionEventStore>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 }
 
@@ -49,7 +46,7 @@ impl CompactedDataConsumer {
         compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> anyhow::Result<Self> {
         loop {
             // the producer writes the catalog first and then the summary. We loop until we find
@@ -119,13 +116,13 @@ impl CompactedDataConsumer {
             next_sequence_number
         ))
         .inspect_err(|err| {
-            let event =
-                CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
-                    duration: start.elapsed(),
-                    error: err.to_string(),
-                    summary_sequence_number,
-                });
-            self.sys_events_store.record(event);
+            let event = compaction_consumed::FailedInfo {
+                duration: start.elapsed(),
+                error: err.to_string(),
+                summary_sequence_number,
+            };
+            self.sys_events_store
+                .record_compaction_consumed_failed(event);
         })? {
             Some(summary) => summary,
             None => {
@@ -142,13 +139,13 @@ impl CompactedDataConsumer {
             )
             .await
             .inspect_err(|err| {
-                let event =
-                    CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
-                        duration: start.elapsed(),
-                        error: err.to_string(),
-                        summary_sequence_number,
-                    });
-                self.sys_events_store.record(event);
+                let event = compaction_consumed::FailedInfo {
+                    duration: start.elapsed(),
+                    error: err.to_string(),
+                    summary_sequence_number,
+                };
+                self.sys_events_store
+                    .record_compaction_consumed_failed(event);
             })?;
 
         // load new compaction details, new generations and remove old generations
@@ -224,17 +221,16 @@ impl CompactedDataConsumer {
             if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
                 let db_name = Arc::clone(&db_schema.name);
                 let table_defn = db_schema.table_definition_by_id(table_id);
-                let event = CompactionEvent::compaction_consumed_success(
-                    compaction_consumed::SuccessInfo {
-                        duration: start.elapsed(),
-                        db_name,
-                        table_name: Arc::clone(&table_defn.unwrap().table_name),
-                        new_generations: new_gens_u8,
-                        removed_generations: removed_gens_u8,
-                        summary_sequence_number,
-                    },
-                );
-                self.sys_events_store.record(event);
+                let event = compaction_consumed::SuccessInfo {
+                    duration: start.elapsed(),
+                    db_name,
+                    table_name: Arc::clone(&table_defn.unwrap().table_name),
+                    new_generations: new_gens_u8,
+                    removed_generations: removed_gens_u8,
+                    summary_sequence_number,
+                };
+                self.sys_events_store
+                    .record_compaction_consumed_success(event);
             }
         }
 
@@ -256,6 +252,7 @@ mod tests {
         CompactionDetail, CompactionSequenceNumber, CompactionSummary, Generation,
         GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
     };
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
     use influxdb3_write::ParquetFile;
     use iox_time::{MockProvider, Time};
@@ -395,9 +392,10 @@ mod tests {
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
 
         let consumer = CompactedDataConsumer::new(
             compactor_id,

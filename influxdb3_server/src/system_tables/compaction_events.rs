@@ -3,21 +3,21 @@ use std::sync::Arc;
 use arrow_array::RecordBatch;
 use arrow_schema::{Schema, SchemaRef};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use influxdb3_sys_events::events::CompactionEvent;
+use influxdb3_sys_events::events::{CompactionEvent, CompactionEventStore};
 use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
 use iox_system_tables::IoxSystemTable;
 use observability_deps::tracing::debug;
 
 #[derive(Debug)]
 pub(crate) struct CompactionEventsSysTable {
-    sys_events_store: Arc<SysEventStore>,
+    compaction_events_store: Arc<dyn CompactionEventStore>,
     schema: Arc<Schema>,
 }
 
 impl CompactionEventsSysTable {
     pub fn new(sys_events_store: Arc<SysEventStore>) -> Self {
         Self {
-            sys_events_store,
+            compaction_events_store: sys_events_store as Arc<dyn CompactionEventStore>,
             schema: Arc::new(CompactionEvent::schema()),
         }
     }
@@ -34,7 +34,9 @@ impl IoxSystemTable for CompactionEventsSysTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let maybe_rec_batch = self.sys_events_store.as_record_batch::<CompactionEvent>();
+        let maybe_rec_batch = self
+            .compaction_events_store
+            .compaction_events_as_record_batch();
 
         debug!(
             ?maybe_rec_batch,

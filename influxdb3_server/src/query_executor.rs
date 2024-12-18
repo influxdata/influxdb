@@ -734,7 +734,7 @@ mod tests {
     use influxdb3_sys_events::events::{
         catalog_fetched,
         compaction_completed::{self, PlanIdentifier},
-        compaction_consumed, compaction_planned, CompactionEvent,
+        compaction_consumed, compaction_planned, CompactionEventStore,
     };
     use influxdb3_sys_events::{
         events::snapshot_fetched::{FailedInfo, SuccessInfo},
@@ -1066,16 +1066,9 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_snapshot_success() {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
         let host = "sample-host";
         let db_name = "foo";
-        let event = CompactionEvent::snapshot_success(SuccessInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(1234),
-            db_count: 2,
-            table_count: 1000,
-            file_count: 100_000,
-        });
         let _ = write_buffer
             .write_lp(
                 NamespaceName::new(db_name).unwrap(),
@@ -1090,7 +1083,15 @@ mod tests {
             .await
             .unwrap();
 
-        sys_events_store.record(event);
+        let event = SuccessInfo {
+            host: Arc::from(host),
+            sequence_number: 123,
+            duration: Duration::from_millis(1234),
+            db_count: 2,
+            table_count: 1000,
+            file_count: 100_000,
+        };
+        sys_events_store.record_snapshot_success(event);
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
@@ -1113,14 +1114,15 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_snapshot_error() {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
         let host = "sample-host";
         let db_name = "foo";
-        let event = CompactionEvent::snapshot_failed(FailedInfo {
+        let event = FailedInfo {
             host: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "Foo failed".to_string(),
-        });
+        };
         let _ = write_buffer
             .write_lp(
                 NamespaceName::new(db_name).unwrap(),
@@ -1135,7 +1137,7 @@ mod tests {
             .await
             .unwrap();
 
-        sys_events_store.record(event);
+        sys_events_store.record_snapshot_failed(event);
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
@@ -1158,6 +1160,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_multiple_types() {
         let (write_buffer, query_executor, _, sys_events_store) = setup().await;
+        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
         let host = "sample-host";
         let db_name = "foo";
         let _ = write_buffer
@@ -1175,142 +1178,127 @@ mod tests {
             .unwrap();
 
         // success event - snapshot
-        let snapshot_success_event = CompactionEvent::snapshot_success(SuccessInfo {
+        let snapshot_success_event = SuccessInfo {
             host: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(1234),
             db_count: 2,
             table_count: 1000,
             file_count: 100_000,
-        });
-        sys_events_store.record(snapshot_success_event);
+        };
+        sys_events_store.record_snapshot_success(snapshot_success_event);
 
         // failed event - snapshot
-        let snapshot_failed_event = CompactionEvent::snapshot_failed(FailedInfo {
+        let snapshot_failed_event = FailedInfo {
             host: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "Foo failed".to_string(),
-        });
-        sys_events_store.record(snapshot_failed_event);
+        };
+        sys_events_store.record_snapshot_failed(snapshot_failed_event);
 
         // success event - catalog
-        let catalog_success_event =
-            CompactionEvent::catalog_success(catalog_fetched::SuccessInfo {
-                host: Arc::from(host),
-                catalog_sequence_number: 123,
-                duration: Duration::from_millis(10),
-            });
-        sys_events_store.record(catalog_success_event);
+        let catalog_success_event = catalog_fetched::SuccessInfo {
+            host: Arc::from(host),
+            catalog_sequence_number: 123,
+            duration: Duration::from_millis(10),
+        };
+        sys_events_store.record_catalog_success(catalog_success_event);
 
         // failed events (x 2) - catalog
-        let catalog_failed_event = CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
+        let catalog_failed_event = catalog_fetched::FailedInfo {
             host: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "catalog failed".to_string(),
-        });
-        sys_events_store.record(catalog_failed_event);
+        };
+        sys_events_store.record_catalog_failed(catalog_failed_event);
 
-        let catalog_failed_event = CompactionEvent::catalog_failed(catalog_fetched::FailedInfo {
+        let catalog_failed_event = catalog_fetched::FailedInfo {
             host: Arc::from(host),
             sequence_number: 124,
             duration: Duration::from_millis(100),
             error: "catalog failed 2".to_string(),
-        });
-        sys_events_store.record(catalog_failed_event);
+        };
+        sys_events_store.record_catalog_failed(catalog_failed_event);
 
         // success event - plan
-        let plan_success_event =
-            CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
-                input_generations: vec![2],
-                input_paths: vec![Arc::from("/path1")],
-                output_level: 1,
-                db_name: Arc::from("db"),
-                table_name: Arc::from("table"),
-                left_over_gen1_files: 10,
-                duration: Duration::from_millis(10),
-            });
-        sys_events_store.record(plan_success_event);
+        let plan_success_event = compaction_planned::SuccessInfo {
+            input_generations: vec![2],
+            input_paths: vec![Arc::from("/path1")],
+            output_level: 1,
+            db_name: Arc::from("db"),
+            table_name: Arc::from("table"),
+            left_over_gen1_files: 10,
+            duration: Duration::from_millis(10),
+        };
+        sys_events_store.record_compaction_plan_success(plan_success_event);
         // failed event - plan
-        let plan_failed_event =
-            CompactionEvent::compaction_planned_failed(compaction_planned::FailedInfo {
-                duration: Duration::from_millis(10),
-                error: "db schema is missing".to_owned(),
-            });
-        sys_events_store.record(plan_failed_event);
+        let plan_failed_event = compaction_planned::FailedInfo {
+            duration: Duration::from_millis(10),
+            error: "db schema is missing".to_owned(),
+        };
+        sys_events_store.record_compaction_plan_failed(plan_failed_event);
 
-        let plan_run_success_event = CompactionEvent::compaction_plan_run_completed_success(
-            compaction_completed::PlanRunSuccessInfo {
-                input_generations: vec![2],
-                input_paths: vec![Arc::from("/path1")],
-                output_level: 1,
+        let plan_run_success_event = compaction_completed::PlanRunSuccessInfo {
+            input_generations: vec![2],
+            input_paths: vec![Arc::from("/path1")],
+            output_level: 1,
+            db_name: Arc::from("db"),
+            table_name: Arc::from("table"),
+            left_over_gen1_files: 10,
+            duration: Duration::from_millis(10),
+        };
+        sys_events_store.record_compaction_plan_run_success(plan_run_success_event);
+
+        let plan_run_failed_event = compaction_completed::PlanRunFailedInfo {
+            duration: Duration::from_millis(100),
+            error: "db schema is missing".to_owned(),
+            identifier: PlanIdentifier {
                 db_name: Arc::from("db"),
                 table_name: Arc::from("table"),
-                left_over_gen1_files: 10,
-                duration: Duration::from_millis(10),
+                output_generation: 2,
             },
-        );
-        sys_events_store.record(plan_run_success_event);
+        };
+        sys_events_store.record_compaction_plan_run_failed(plan_run_failed_event);
 
-        let plan_run_failed_event = CompactionEvent::compaction_plan_run_completed_failed(
-            compaction_completed::PlanRunFailedInfo {
-                duration: Duration::from_millis(100),
-                error: "db schema is missing".to_owned(),
-                identifier: PlanIdentifier {
-                    db_name: Arc::from("db"),
-                    table_name: Arc::from("table"),
-                    output_generation: 2,
-                },
-            },
-        );
-        sys_events_store.record(plan_run_failed_event);
-
-        let plan_group_run_success_event =
-            CompactionEvent::compaction_plan_group_run_completed_success(
-                compaction_completed::PlanGroupRunSuccessInfo {
-                    duration: Duration::from_millis(200),
-                    plans_ran: vec![PlanIdentifier {
-                        db_name: Arc::from("db"),
-                        table_name: Arc::from("table"),
-                        output_generation: 2,
-                    }],
-                },
-            );
-        sys_events_store.record(plan_group_run_success_event);
-
-        let plan_group_run_failed_event =
-            CompactionEvent::compaction_plan_group_run_completed_failed(
-                compaction_completed::PlanGroupRunFailedInfo {
-                    duration: Duration::from_millis(120),
-                    error: "plan group run failed".to_string(),
-                    plans_ran: vec![PlanIdentifier {
-                        db_name: Arc::from("db"),
-                        table_name: Arc::from("table"),
-                        output_generation: 2,
-                    }],
-                },
-            );
-        sys_events_store.record(plan_group_run_failed_event);
-
-        let consumer_success_event =
-            CompactionEvent::compaction_consumed_success(compaction_consumed::SuccessInfo {
-                duration: Duration::from_millis(200),
+        let plan_group_run_success_event = compaction_completed::PlanGroupRunSuccessInfo {
+            duration: Duration::from_millis(200),
+            plans_ran: vec![PlanIdentifier {
                 db_name: Arc::from("db"),
                 table_name: Arc::from("table"),
-                new_generations: vec![2, 3],
-                removed_generations: vec![1],
-                summary_sequence_number: 1,
-            });
-        sys_events_store.record(consumer_success_event);
+                output_generation: 2,
+            }],
+        };
+        sys_events_store.record_compaction_plan_group_run_success(plan_group_run_success_event);
 
-        let consumer_failed_event =
-            CompactionEvent::compaction_consumed_failed(compaction_consumed::FailedInfo {
-                duration: Duration::from_millis(200),
-                summary_sequence_number: 1,
-                error: "foo failed".to_owned(),
-            });
-        sys_events_store.record(consumer_failed_event);
+        let plan_group_run_failed_event = compaction_completed::PlanGroupRunFailedInfo {
+            duration: Duration::from_millis(120),
+            error: "plan group run failed".to_string(),
+            plans_ran: vec![PlanIdentifier {
+                db_name: Arc::from("db"),
+                table_name: Arc::from("table"),
+                output_generation: 2,
+            }],
+        };
+        sys_events_store.record_compaction_plan_group_run_failed(plan_group_run_failed_event);
+
+        let consumer_success_event = compaction_consumed::SuccessInfo {
+            duration: Duration::from_millis(200),
+            db_name: Arc::from("db"),
+            table_name: Arc::from("table"),
+            new_generations: vec![2, 3],
+            removed_generations: vec![1],
+            summary_sequence_number: 1,
+        };
+        sys_events_store.record_compaction_consumed_success(consumer_success_event);
+
+        let consumer_failed_event = compaction_consumed::FailedInfo {
+            duration: Duration::from_millis(200),
+            summary_sequence_number: 1,
+            error: "foo failed".to_owned(),
+        };
+        sys_events_store.record_compaction_consumed_failed(consumer_failed_event);
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor

@@ -21,14 +21,11 @@ use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
 };
+use influxdb3_sys_events::events::snapshot_fetched::{FailedInfo, SuccessInfo};
 use influxdb3_sys_events::events::{
     compaction_completed::{self, PlanIdentifier},
     compaction_planned::{self},
-    CompactionEvent,
-};
-use influxdb3_sys_events::{
-    events::snapshot_fetched::{FailedInfo, SuccessInfo},
-    SysEventStore,
+    CompactionEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::SnapshotInfoFilePath;
@@ -100,7 +97,7 @@ impl CompactedDataProducer {
         object_store_url: ObjectStoreUrl,
         executor: Arc<Executor>,
         parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
             Arc::clone(&compactor_id),
@@ -129,7 +126,7 @@ impl CompactedDataProducer {
     pub async fn run_compaction_loop(
         &self,
         check_interval: Duration,
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) {
         let generation_levels = self.compaction_config.compaction_levels();
         let mut ticker = tokio::time::interval(check_interval);
@@ -150,7 +147,7 @@ impl CompactedDataProducer {
     async fn plan_and_run_compaction(
         &self,
         generation_levels: &[GenerationLevel],
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
         let mut compaction_state = self.compaction_state.lock().await;
 
@@ -192,22 +189,18 @@ impl CompactedDataProducer {
                     self.run_compaction_plan_group(plan, &mut compaction_state, &sys_events_store)
                         .await
                         .inspect_err(|err| {
-                            let event = CompactionEvent::compaction_plan_group_run_completed_failed(
-                                compaction_completed::PlanGroupRunFailedInfo {
-                                    duration: run_timer.elapsed(),
-                                    error: err.to_string(),
-                                    plans_ran: identifiers.clone(),
-                                },
-                            );
-                            sys_events_store.record(event);
+                            let event = compaction_completed::PlanGroupRunFailedInfo {
+                                duration: run_timer.elapsed(),
+                                error: err.to_string(),
+                                plans_ran: identifiers.clone(),
+                            };
+                            sys_events_store.record_compaction_plan_group_run_failed(event);
                         })?;
-                    let event = CompactionEvent::compaction_plan_group_run_completed_success(
-                        compaction_completed::PlanGroupRunSuccessInfo {
-                            duration: run_timer.elapsed(),
-                            plans_ran: identifiers,
-                        },
-                    );
-                    sys_events_store.record(event);
+                    let event = compaction_completed::PlanGroupRunSuccessInfo {
+                        duration: run_timer.elapsed(),
+                        plans_ran: identifiers,
+                    };
+                    sys_events_store.record_compaction_plan_group_run_success(event);
                 }
             }
             Err(err_string) => {
@@ -251,22 +244,18 @@ impl CompactedDataProducer {
                         )
                         .await
                         .inspect_err(|err| {
-                            let event = CompactionEvent::compaction_plan_group_run_completed_failed(
-                                compaction_completed::PlanGroupRunFailedInfo {
-                                    duration: run_timer.elapsed(),
-                                    error: err.to_string(),
-                                    plans_ran: identifiers.clone(),
-                                },
-                            );
-                            sys_events_store.record(event);
-                        })?;
-                        let event = CompactionEvent::compaction_plan_group_run_completed_success(
-                            compaction_completed::PlanGroupRunSuccessInfo {
+                            let event = compaction_completed::PlanGroupRunFailedInfo {
                                 duration: run_timer.elapsed(),
-                                plans_ran: identifiers,
-                            },
-                        );
-                        sys_events_store.record(event);
+                                error: err.to_string(),
+                                plans_ran: identifiers.clone(),
+                            };
+                            sys_events_store.record_compaction_plan_group_run_failed(event);
+                        })?;
+                        let event = compaction_completed::PlanGroupRunSuccessInfo {
+                            duration: run_timer.elapsed(),
+                            plans_ran: identifiers,
+                        };
+                        sys_events_store.record_compaction_plan_group_run_success(event);
                     }
                 }
                 Err(err_string) => {
@@ -286,7 +275,7 @@ impl CompactedDataProducer {
         &self,
         compaction_plan_group: CompactionPlanGroup,
         compaction_state: &mut CompactionState,
-        sys_events_store: &Arc<SysEventStore>,
+        sys_events_store: &Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
         let sequence_number = self.compacted_data.next_compaction_sequence_number();
         let snapshot_markers = compaction_state.last_markers();
@@ -323,19 +312,16 @@ impl CompactedDataProducer {
                 continue;
             }
 
-            let event = CompactionEvent::compaction_plan_run_completed_success(
-                compaction_completed::PlanRunSuccessInfo {
-                    input_generations,
-                    input_paths,
-                    output_level: output_generation,
-                    db_name,
-                    table_name,
-                    duration: start.elapsed(),
-                    left_over_gen1_files,
-                },
-            );
-            sys_events_store.record(event);
-
+            let event = compaction_completed::PlanRunSuccessInfo {
+                input_generations,
+                input_paths,
+                output_level: output_generation,
+                db_name,
+                table_name,
+                duration: start.elapsed(),
+                left_over_gen1_files,
+            };
+            sys_events_store.record_compaction_plan_run_success(event);
             compaction_details.insert(key, sequence_number);
         }
 
@@ -526,34 +512,29 @@ fn record_plan_run_failed(
     error: String,
     start: std::time::Instant,
     identifier: PlanIdentifier,
-    sys_events_store: &Arc<SysEventStore>,
+    sys_events_store: &Arc<dyn CompactionEventStore>,
 ) {
-    let event = CompactionEvent::compaction_plan_run_completed_failed(
-        compaction_completed::PlanRunFailedInfo {
-            duration: start.elapsed(),
-            error,
-            identifier,
-        },
-    );
-    sys_events_store.record(event);
+    let event = compaction_completed::PlanRunFailedInfo {
+        duration: start.elapsed(),
+        error,
+        identifier,
+    };
+    sys_events_store.record_compaction_plan_run_failed(event);
 }
 
 fn record_error_compaction_plan(
     duration: Duration,
     error: String,
-    sys_events_store: Arc<SysEventStore>,
+    sys_events_store: Arc<dyn CompactionEventStore>,
 ) {
-    let event = CompactionEvent::compaction_planned_failed(compaction_planned::FailedInfo {
-        duration,
-        error,
-    });
-    sys_events_store.record(event);
+    let event = compaction_planned::FailedInfo { duration, error };
+    sys_events_store.record_compaction_plan_failed(event);
 }
 
 fn record_compaction_plans(
     plan_group: &CompactionPlanGroup,
     duration: Duration,
-    sys_events_store: Arc<SysEventStore>,
+    sys_events_store: Arc<dyn CompactionEventStore>,
 ) {
     let next_compaction_plans = &plan_group.next_compaction_plans;
     for plan in next_compaction_plans {
@@ -564,9 +545,9 @@ fn record_compaction_plans(
 fn record_compaction_plan(
     plan: &NextCompactionPlan,
     duration: Duration,
-    sys_events_store: &Arc<SysEventStore>,
+    sys_events_store: &Arc<dyn CompactionEventStore>,
 ) {
-    let event = CompactionEvent::compaction_planned_success(compaction_planned::SuccessInfo {
+    let event = compaction_planned::SuccessInfo {
         input_generations: Generation::to_vec_levels(&plan.input_generations),
         input_paths: plan
             .input_paths
@@ -578,8 +559,8 @@ fn record_compaction_plan(
         table_name: Arc::clone(&plan.table_definition.table_name),
         duration,
         left_over_gen1_files: plan.leftover_gen1_files.len() as u64,
-    });
-    sys_events_store.record(event);
+    };
+    sys_events_store.record_compaction_plan_success(event);
 }
 
 /// CompactionState tracks the snapshot data and associated files from hosts that have yet to be
@@ -732,7 +713,7 @@ impl CompactionState {
         &mut self,
         compacted_data: &CompactedData,
         object_store: Arc<dyn ObjectStore>,
-        sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
         let mut snapshots = vec![];
         for (host, marker) in &self.host_to_last_marker {
@@ -744,13 +725,13 @@ impl CompactionState {
                 let host_snapshots = load_all_snapshots(persister, host, marker, &sys_events_store)
                     .await
                     .inspect_err(|err| {
-                        let failed_event = snapshot_failed_event(
-                            host,
-                            marker.snapshot_sequence_number,
-                            err.to_string(),
-                            start.elapsed(),
-                        );
-                        sys_events_store.record(failed_event);
+                        let failed_event = FailedInfo {
+                            host: Arc::from(host.as_str()),
+                            duration: start.elapsed(),
+                            sequence_number: marker.snapshot_sequence_number.as_u64(),
+                            error: err.to_string(),
+                        };
+                        sys_events_store.record_snapshot_failed(failed_event);
                     })?;
                 snapshots.extend(host_snapshots);
             } else {
@@ -763,13 +744,13 @@ impl CompactionState {
                 )
                 .await
                 .inspect_err(|err| {
-                    let failed_event = snapshot_failed_event(
-                        host,
-                        marker.snapshot_sequence_number,
-                        err.to_string(),
-                        start.elapsed(),
-                    );
-                    sys_events_store.record(failed_event);
+                    let failed_event = FailedInfo {
+                        host: Arc::from(host.as_str()),
+                        duration: start.elapsed(),
+                        sequence_number: marker.snapshot_sequence_number.as_u64(),
+                        error: err.to_string(),
+                    };
+                    sys_events_store.record_snapshot_failed(failed_event);
                 })?;
             }
         }
@@ -816,13 +797,13 @@ impl CompactionState {
                 .compacted_catalog
                 .map_persisted_snapshot_contents(snapshot)
                 .inspect_err(|err| {
-                    let event = snapshot_failed_event(
-                        &host_id,
-                        sequence_num,
-                        err.to_string(),
-                        start.elapsed(),
-                    );
-                    sys_events_store.record(event);
+                    let event = FailedInfo {
+                        host: Arc::from(host_id.as_str()),
+                        duration: start.elapsed(),
+                        sequence_number: sequence_num.as_u64(),
+                        error: err.to_string(),
+                    };
+                    sys_events_store.record_snapshot_failed(event);
                 })?;
             mapped_snapshots.push(s);
         }
@@ -882,25 +863,11 @@ impl CompactionState {
     }
 }
 
-fn snapshot_failed_event(
-    host: &str,
-    sequence_number: SnapshotSequenceNumber,
-    err: String,
-    duration: Duration,
-) -> CompactionEvent {
-    CompactionEvent::snapshot_failed(FailedInfo {
-        host: Arc::from(host),
-        duration,
-        sequence_number: sequence_number.as_u64(),
-        error: err,
-    })
-}
-
 async fn load_next_snapshot(
     marker: &Arc<HostSnapshotMarker>,
     host: &str,
     object_store: &Arc<dyn ObjectStore>,
-    sys_events_store: &Arc<SysEventStore>,
+    sys_events_store: &Arc<dyn CompactionEventStore>,
     snapshots: &mut Vec<PersistedSnapshot>,
 ) -> Result<(), CompactedDataProducerError> {
     let next_snapshot_sequence_number = marker.snapshot_sequence_number.next();
@@ -913,13 +880,13 @@ async fn load_next_snapshot(
         let time_taken = start.elapsed();
         info!(host = %host, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
         let overall_counts = snapshot.db_table_and_file_count();
-        let success_event = CompactionEvent::snapshot_success(SuccessInfo::new(
+        let success_event = SuccessInfo::new(
             host,
             next_snapshot_sequence_number.as_u64(),
             time_taken,
             overall_counts,
-        ));
-        sys_events_store.record(success_event);
+        );
+        sys_events_store.record_snapshot_success(success_event);
         snapshots.push(snapshot);
     };
     Ok(())
@@ -929,20 +896,20 @@ async fn load_all_snapshots(
     persister: Persister,
     host: &str,
     marker: &Arc<HostSnapshotMarker>,
-    sys_events_store: &Arc<SysEventStore>,
+    sys_events_store: &Arc<dyn CompactionEventStore>,
 ) -> Result<Vec<PersistedSnapshot>> {
     let start = Instant::now();
     let host_snapshots = persister.load_snapshots(1_000).await?;
     let time_taken = start.elapsed();
     info!(host = %host, snapshot_count = host_snapshots.len(), "loaded snapshots");
     let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&host_snapshots);
-    let success_event = CompactionEvent::snapshot_success(SuccessInfo::new(
+    let success_event = SuccessInfo::new(
         host,
         marker.snapshot_sequence_number.as_u64(),
         time_taken,
         overall_counts,
-    ));
-    sys_events_store.record(success_event);
+    );
+    sys_events_store.record_snapshot_success(success_event);
     Ok(host_snapshots)
 }
 
@@ -1164,9 +1131,10 @@ mod tests {
         );
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
         state
             .load_snapshots(
                 &compacted_data,
@@ -1217,9 +1185,10 @@ mod tests {
             .await;
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
 
         let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
 
@@ -1318,9 +1287,10 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_load_all_snapshots() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
         let host = "host_id";
         let obj_store = Arc::new(InMemory::new());
         let persister = Persister::new(obj_store, host);
@@ -1352,7 +1322,7 @@ mod tests {
         });
         let res = load_all_snapshots(persister, host, &marker, &sys_events_store).await;
         debug!(result = ?res, "load all snapshots for compactor");
-        let success_events = sys_events_store.as_vec::<CompactionEvent>();
+        let success_events = sys_events_store.compaction_events_as_vec();
         debug!(events = ?success_events, "events stored after bulk loading all snapshots");
         let first_success_event = success_events.first().unwrap();
         match &first_success_event.data {
@@ -1373,9 +1343,10 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_load_next_snapshot() {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
         let host = "host_id";
         let obj_store = Arc::new(InMemory::new()) as _;
         let persister = Persister::new(Arc::clone(&obj_store), host);
@@ -1416,7 +1387,7 @@ mod tests {
         .await;
 
         debug!(result = ?res, "load all snapshots for compactor");
-        let success_events = sys_events_store.as_vec::<CompactionEvent>();
+        let success_events = sys_events_store.compaction_events_as_vec();
         debug!(events = ?success_events, "events stored after bulk loading all snapshots");
         let first_success_event = success_events.first().unwrap();
         match &first_success_event.data {

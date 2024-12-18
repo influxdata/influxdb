@@ -604,7 +604,6 @@ mod tests {
 
     #[test]
     fn test_overall_counts_zero() {
-        let host = "host_id";
         // db 1 setup
         let db_id_1 = DbId::from(0);
         let mut dbs_1 = SerdeVecMap::new();

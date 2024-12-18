@@ -16,7 +16,7 @@ use crate::{
         compaction_planned::CompactionPlanned,
         snapshot_fetched::SnapshotFetched,
     },
-    Event, RingBuffer, ToRecordBatch,
+    Event, RingBuffer, SysEventStore, ToRecordBatch,
 };
 
 pub mod catalog_fetched;
@@ -76,33 +76,29 @@ impl CompactionEvent {
     pub fn compaction_plan_run_completed_success(
         success_info: compaction_completed::PlanRunSuccessInfo,
     ) -> Self {
-        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Success(
-            success_info,
-        ))
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Success(success_info))
     }
 
     pub fn compaction_plan_run_completed_failed(
         failed_info: compaction_completed::PlanRunFailedInfo,
     ) -> Self {
-        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Failed(
-            failed_info,
-        ))
+        CompactionEvent::PlanCompactionCompleted(PlanCompactionCompleted::Failed(failed_info))
     }
 
     pub fn compaction_plan_group_run_completed_success(
         success_info: compaction_completed::PlanGroupRunSuccessInfo,
     ) -> Self {
-        CompactionEvent::PlanGroupCompactionPlanned(
-            PlanGroupCompactionCompleted::Success(success_info),
-        )
+        CompactionEvent::PlanGroupCompactionPlanned(PlanGroupCompactionCompleted::Success(
+            success_info,
+        ))
     }
 
     pub fn compaction_plan_group_run_completed_failed(
         failed_info: compaction_completed::PlanGroupRunFailedInfo,
     ) -> Self {
-        CompactionEvent::PlanGroupCompactionPlanned(
-            PlanGroupCompactionCompleted::Failed(failed_info),
-        )
+        CompactionEvent::PlanGroupCompactionPlanned(PlanGroupCompactionCompleted::Failed(
+            failed_info,
+        ))
     }
 
     pub fn compaction_consumed_success(success_info: compaction_consumed::SuccessInfo) -> Self {
@@ -251,4 +247,133 @@ fn struct_fields() -> Vec<Field> {
         Field::new("event_status", DataType::Utf8View, false),
         Field::new("event_data", DataType::Utf8View, false),
     ]
+}
+
+pub trait CompactionEventStore: std::fmt::Debug + Send + Sync {
+    fn record_snapshot_success(&self, success_info: snapshot_fetched::SuccessInfo);
+    fn record_snapshot_failed(&self, failed_info: snapshot_fetched::FailedInfo);
+
+    fn record_catalog_success(&self, success_info: catalog_fetched::SuccessInfo);
+    fn record_catalog_failed(&self, failed_info: catalog_fetched::FailedInfo);
+
+    fn record_compaction_plan_success(&self, success_info: compaction_planned::SuccessInfo);
+    fn record_compaction_plan_failed(&self, failed_info: compaction_planned::FailedInfo);
+
+    fn record_compaction_plan_run_success(
+        &self,
+        success_info: compaction_completed::PlanRunSuccessInfo,
+    );
+    fn record_compaction_plan_run_failed(
+        &self,
+        failed_info: compaction_completed::PlanRunFailedInfo,
+    );
+
+    fn record_compaction_plan_group_run_success(
+        &self,
+        success_info: compaction_completed::PlanGroupRunSuccessInfo,
+    );
+    fn record_compaction_plan_group_run_failed(
+        &self,
+        failed_info: compaction_completed::PlanGroupRunFailedInfo,
+    );
+
+    fn record_compaction_consumed_success(&self, success_info: compaction_consumed::SuccessInfo);
+    fn record_compaction_consumed_failed(&self, failed_info: compaction_consumed::FailedInfo);
+
+    fn compaction_events_as_record_batch(&self) -> Option<Result<RecordBatch, ArrowError>>;
+    fn compaction_events_as_vec(&self) -> Vec<Event<CompactionEvent>>;
+}
+
+impl CompactionEventStore for SysEventStore {
+    fn record_snapshot_success(&self, success_info: snapshot_fetched::SuccessInfo) {
+        self.record(CompactionEvent::SnapshotFetched(SnapshotFetched::Success(
+            success_info,
+        )));
+    }
+
+    fn record_snapshot_failed(&self, failed_info: snapshot_fetched::FailedInfo) {
+        self.record(CompactionEvent::SnapshotFetched(SnapshotFetched::Failed(
+            failed_info,
+        )));
+    }
+
+    fn record_catalog_success(&self, success_info: catalog_fetched::SuccessInfo) {
+        self.record(CompactionEvent::CatalogFetched(CatalogFetched::Success(
+            success_info,
+        )));
+    }
+
+    fn record_catalog_failed(&self, failed_info: catalog_fetched::FailedInfo) {
+        self.record(CompactionEvent::CatalogFetched(CatalogFetched::Failed(
+            failed_info,
+        )));
+    }
+
+    fn record_compaction_plan_success(&self, success_info: compaction_planned::SuccessInfo) {
+        self.record(CompactionEvent::CompactionPlanned(
+            CompactionPlanned::Success(success_info),
+        ));
+    }
+
+    fn record_compaction_plan_failed(&self, failed_info: compaction_planned::FailedInfo) {
+        self.record(CompactionEvent::CompactionPlanned(
+            CompactionPlanned::Failed(failed_info),
+        ));
+    }
+
+    fn record_compaction_plan_run_success(
+        &self,
+        success_info: compaction_completed::PlanRunSuccessInfo,
+    ) {
+        self.record(CompactionEvent::PlanCompactionCompleted(
+            PlanCompactionCompleted::Success(success_info),
+        ));
+    }
+
+    fn record_compaction_plan_run_failed(
+        &self,
+        failed_info: compaction_completed::PlanRunFailedInfo,
+    ) {
+        self.record(CompactionEvent::PlanCompactionCompleted(
+            PlanCompactionCompleted::Failed(failed_info),
+        ));
+    }
+
+    fn record_compaction_plan_group_run_success(
+        &self,
+        success_info: compaction_completed::PlanGroupRunSuccessInfo,
+    ) {
+        self.record(CompactionEvent::PlanGroupCompactionPlanned(
+            PlanGroupCompactionCompleted::Success(success_info),
+        ));
+    }
+
+    fn record_compaction_plan_group_run_failed(
+        &self,
+        failed_info: compaction_completed::PlanGroupRunFailedInfo,
+    ) {
+        self.record(CompactionEvent::PlanGroupCompactionPlanned(
+            PlanGroupCompactionCompleted::Failed(failed_info),
+        ));
+    }
+
+    fn record_compaction_consumed_success(&self, success_info: compaction_consumed::SuccessInfo) {
+        self.record(CompactionEvent::CompactionConsumed(
+            CompactionConsumed::Success(success_info),
+        ));
+    }
+
+    fn record_compaction_consumed_failed(&self, failed_info: compaction_consumed::FailedInfo) {
+        self.record(CompactionEvent::CompactionConsumed(
+            CompactionConsumed::Failed(failed_info),
+        ));
+    }
+
+    fn compaction_events_as_record_batch(&self) -> Option<Result<RecordBatch, ArrowError>> {
+        self.as_record_batch::<CompactionEvent>()
+    }
+
+    fn compaction_events_as_vec(&self) -> Vec<Event<CompactionEvent>> {
+        self.as_vec::<CompactionEvent>()
+    }
 }

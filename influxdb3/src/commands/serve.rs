@@ -41,7 +41,7 @@ use influxdb3_server::{
     },
     serve, CommonServerState, QueryExecutor,
 };
-use influxdb3_sys_events::SysEventStore;
+use influxdb3_sys_events::{events::CompactionEventStore, SysEventStore};
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
@@ -530,6 +530,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let mut compacted_data: Option<Arc<CompactedData>> = None;
     let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
+    let compaction_event_store = Arc::clone(&sys_events_store) as Arc<dyn CompactionEventStore>;
 
     if let Some(compactor_id) = config.pro_config.compactor_id {
         if config.pro_config.run_compactions {
@@ -562,7 +563,7 @@ pub async fn command(config: Config) -> Result<()> {
                 persister.object_store_url().clone(),
                 Arc::clone(&exec),
                 parquet_cache_prefetcher,
-                Arc::clone(&sys_events_store),
+                Arc::clone(&compaction_event_store),
             )
             .await?;
 
@@ -573,7 +574,7 @@ pub async fn command(config: Config) -> Result<()> {
                 compactor_id,
                 Arc::clone(&object_store),
                 parquet_cache_prefetcher,
-                Arc::clone(&sys_events_store),
+                Arc::clone(&compaction_event_store),
             )
             .await
             .context("Error initializing compaction consumer")
@@ -736,7 +737,10 @@ pub async fn command(config: Config) -> Result<()> {
             .executor()
             .spawn(async move {
                 compactor
-                    .run_compaction_loop(Duration::from_secs(10), Arc::clone(&sys_events_store))
+                    .run_compaction_loop(
+                        Duration::from_secs(10),
+                        Arc::clone(&compaction_event_store),
+                    )
                     .await;
             })
             .map_err(Error::Job);
