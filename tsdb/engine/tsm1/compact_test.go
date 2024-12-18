@@ -2411,8 +2411,8 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing
 		expFiles = append(expFiles, file)
 	}
 	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
-	require.Equal(t, 0, pLenP, "compaction group length; Plan()")
+	require.Equal(t, int64(0), len(tsmP), "compaction group; Plan()")
+	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
 
 	tsm, pLen, gLen := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
