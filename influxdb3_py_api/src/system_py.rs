@@ -1,5 +1,6 @@
 use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
 use influxdb3_wal::{FieldData, Row, WriteBatch};
+use parking_lot::Mutex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::{PyAnyMethods, PyModule, PyModuleMethods};
 use pyo3::{pyclass, pymethods, pymodule, Bound, IntoPyObject, PyErr, PyObject, PyResult, Python};
@@ -101,7 +102,7 @@ pub struct PyWriteBatch {
 
 #[pymethods]
 impl PyWriteBatch {
-    fn get_iterator_for_table(&self, table_name: &str) -> PyResult<PyWriteBatchIterator> {
+    fn get_iterator_for_table(&self, table_name: &str) -> PyResult<Option<PyWriteBatchIterator>> {
         // Find table ID from name
         let table_id = self
             .schema
@@ -112,9 +113,9 @@ impl PyWriteBatch {
             })?;
 
         // Get table chunks
-        let chunks = self.write_batch.table_chunks.get(table_id).ok_or_else(|| {
-            PyErr::new::<PyValueError, _>(format!("No data for table '{}'", table_name))
-        })?;
+        let Some(chunks) = self.write_batch.table_chunks.get(table_id) else {
+            return Ok(None);
+        };
 
         // Get table definition
         let table_def = self.schema.tables.get(table_id).ok_or_else(|| {
@@ -124,7 +125,7 @@ impl PyWriteBatch {
             ))
         })?;
 
-        Ok(PyWriteBatchIterator {
+        Ok(Some(PyWriteBatchIterator {
             table_definition: Arc::clone(table_def),
             // TODO: avoid copying all the data at once.
             rows: chunks
@@ -133,7 +134,22 @@ impl PyWriteBatch {
                 .flat_map(|chunk| chunk.rows.clone())
                 .collect(),
             current_index: 0,
-        })
+        }))
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+pub struct PyLineProtocolOutput {
+    lines: Arc<Mutex<Vec<String>>>,
+}
+
+#[pymethods]
+impl PyLineProtocolOutput {
+    fn insert_line_protocol(&mut self, line: &str) -> PyResult<()> {
+        let mut lines = self.lines.lock();
+        lines.push(line.to_string());
+        Ok(())
     }
 }
 
@@ -143,13 +159,26 @@ impl PyWriteBatch {
         table_name: &str,
         setup_code: &str,
         call_site: &str,
-    ) -> PyResult<()> {
-        let iterator = self.get_iterator_for_table(table_name)?;
+    ) -> PyResult<Vec<String>> {
+        let Some(iterator) = self.get_iterator_for_table(table_name)? else {
+            return Ok(Vec::new());
+        };
+
         Python::with_gil(|py| {
             py.run(&CString::new(setup_code)?, None, None)?;
             let py_func = py.eval(&CString::new(call_site)?, None, None)?;
-            py_func.call1((iterator,))?;
-            Ok::<(), PyErr>(())
+
+            // Create the output collector with shared state
+            let lines = Arc::new(Mutex::new(Vec::new()));
+            let output = PyLineProtocolOutput {
+                lines: Arc::clone(&lines),
+            };
+
+            // Pass both iterator and output collector to the Python function
+            py_func.call1((iterator, output.into_pyobject(py)?))?;
+
+            let output_lines = lines.lock().clone();
+            Ok(output_lines)
         })
     }
 }

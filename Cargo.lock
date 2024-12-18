@@ -3267,8 +3267,10 @@ dependencies = [
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "influxdb3_catalog",
  "influxdb3_wal",
+ "parking_lot",
  "pyo3",
  "schema",
 ]
@@ -3472,6 +3474,7 @@ dependencies = [
  "parquet",
  "parquet_file",
  "pretty_assertions",
+ "pyo3",
  "schema",
  "serde",
  "serde_json",

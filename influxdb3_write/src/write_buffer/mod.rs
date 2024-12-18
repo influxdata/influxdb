@@ -1,6 +1,8 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
 pub mod persisted_files;
+#[allow(dead_code)]
+pub mod plugins;
 pub mod queryable_buffer;
 mod table_buffer;
 pub mod validator;
@@ -9,7 +11,7 @@ use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
-use crate::{chunk::ParquetChunk, DatabaseManager, ProcessingEngineManager};
+use crate::{chunk::ParquetChunk, write_buffer, DatabaseManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
@@ -31,7 +33,7 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
     object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
-    TriggerDefinition, TriggerSpecificationDefinition,
+    TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
@@ -45,12 +47,19 @@ use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
 use parquet_file::storage::ParquetExecInput;
+use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::watch::Receiver;
+
+#[cfg(feature = "system-py")]
+use {
+    crate::write_buffer::plugins::PluginContext,
+    influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -166,7 +175,7 @@ impl WriteBufferImpl {
             wal_config,
             parquet_cache,
         }: WriteBufferImplArgs,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
             .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
@@ -211,7 +220,7 @@ impl WriteBufferImpl {
         )
         .await?;
 
-        Ok(Self {
+        let result = Arc::new(Self {
             catalog,
             parquet_cache,
             persister,
@@ -222,7 +231,15 @@ impl WriteBufferImpl {
             last_cache,
             persisted_files,
             buffer: queryable_buffer,
-        })
+        });
+        let write_buffer: Arc<dyn WriteBuffer> = result.clone();
+        let triggers = result.catalog().triggers();
+        for (db_name, trigger_name) in triggers {
+            result
+                .run_trigger(Arc::clone(&write_buffer), &db_name, &trigger_name)
+                .await?;
+        }
+        Ok(result)
     }
 
     pub fn catalog(&self) -> Arc<Catalog> {
@@ -771,6 +788,46 @@ impl ProcessingEngineManager for WriteBufferImpl {
         self.wal.write_ops(vec![wal_op]).await?;
         Ok(())
     }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn run_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> crate::Result<(), write_buffer::Error> {
+        #[cfg(feature = "system-py")]
+        {
+            let (_db_id, db_schema) =
+                self.catalog
+                    .db_id_and_schema(db_name)
+                    .ok_or_else(|| Error::DatabaseNotFound {
+                        db_name: db_name.to_string(),
+                    })?;
+            let trigger = db_schema
+                .processing_engine_triggers
+                .get(trigger_name)
+                .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                    database_name: db_name.to_string(),
+                    trigger_name: trigger_name.to_string(),
+                })?
+                .clone();
+            let trigger_rx = self.buffer.subscribe_to_plugin_events();
+            let plugin_context = PluginContext {
+                trigger_rx,
+                write_buffer,
+            };
+            plugins::run_plugin(db_name.to_string(), trigger, plugin_context);
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+#[allow(unused)]
+pub(crate) enum PluginEvent {
+    WriteWalContents(Arc<WalContents>),
 }
 
 impl WriteBuffer for WriteBufferImpl {}
@@ -1299,7 +1356,7 @@ mod tests {
         // do three writes to force a snapshot
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=1",
@@ -1324,7 +1381,7 @@ mod tests {
         // WAL period left from before:
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=4",
@@ -1345,7 +1402,7 @@ mod tests {
         // and finally, do two more, with a catalog update, forcing persistence
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=6,asdf=true",
@@ -1578,7 +1635,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1645,7 +1702,7 @@ mod tests {
         // Do six writes to trigger a snapshot
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso,type=drink price=2.50"),
@@ -1731,7 +1788,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1809,7 +1866,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1854,7 +1911,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1929,7 +1986,7 @@ mod tests {
         // make some writes to generate a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!(
@@ -2035,7 +2092,7 @@ mod tests {
         // make some writes to generate a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!(
@@ -2254,7 +2311,11 @@ mod tests {
         start: Time,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
-    ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+    ) {
         setup_cache_optional(start, object_store, wal_config, true).await
     }
 
@@ -2263,7 +2324,11 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
         use_cache: bool,
-    ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+    ) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let (object_store, parquet_cache) = if use_cache {
             let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(

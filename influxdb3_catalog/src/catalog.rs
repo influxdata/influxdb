@@ -108,6 +108,16 @@ pub enum Error {
     },
     #[error("Processing Engine Unimplemented: {}", feature_description)]
     ProcessingEngineUnimplemented { feature_description: String },
+
+    #[error(
+        "Processing Engine Trigger {} not in DB {}",
+        trigger_name,
+        database_name
+    )]
+    ProcessingEngineTriggerNotFound {
+        database_name: String,
+        trigger_name: String,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -354,6 +364,21 @@ impl Catalog {
         if inner.sequence == sequence_number {
             inner.updated = false;
         }
+    }
+
+    pub fn triggers(&self) -> Vec<(String, String)> {
+        let inner = self.inner.read();
+        let result = inner
+            .databases
+            .values()
+            .flat_map(|schema| {
+                schema
+                    .processing_engine_triggers
+                    .keys()
+                    .map(move |key| (schema.name.to_string(), key.to_string()))
+            })
+            .collect();
+        result
     }
 
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
@@ -891,10 +916,10 @@ impl TableDefinition {
         .expect("tables defined from ops should not exceed column limits")
     }
 
-    pub(crate) fn check_and_add_new_fields<'a>(
-        &'a self,
+    pub(crate) fn check_and_add_new_fields(
+        &self,
         table_definition: &influxdb3_wal::TableDefinition,
-    ) -> Result<Cow<'a, Self>> {
+    ) -> Result<Cow<'_, Self>> {
         // validate the series key is the same
         if table_definition.key != self.series_key {
             return Err(Error::SeriesKeyMismatch {

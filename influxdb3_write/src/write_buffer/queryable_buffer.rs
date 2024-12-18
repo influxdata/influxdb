@@ -3,6 +3,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
+use crate::write_buffer::PluginEvent;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -20,8 +21,6 @@ use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
-#[cfg(feature = "system-py")]
-use influxdb3_py_api::system_py::PyWriteBatch;
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
@@ -29,15 +28,15 @@ use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
 use observability_deps::tracing::{error, info};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
 use schema::Schema;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
+use tokio::sync::{broadcast, oneshot};
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -52,6 +51,7 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
+    plugin_event_tx: Mutex<Option<broadcast::Sender<PluginEvent>>>,
 }
 
 pub struct QueryableBufferArgs {
@@ -90,6 +90,7 @@ impl QueryableBuffer {
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
+            plugin_event_tx: Mutex::new(None),
         }
     }
 
@@ -368,11 +369,28 @@ impl QueryableBuffer {
         let mut buffer = self.buffer.write();
         buffer.db_to_table.remove(db_id);
     }
+
+    #[cfg(feature = "system-py")]
+    pub(crate) fn subscribe_to_plugin_events(&self) -> broadcast::Receiver<PluginEvent> {
+        let mut sender = self.plugin_event_tx.lock();
+
+        if sender.is_none() {
+            let (tx, rx) = broadcast::channel(1024);
+            *sender = Some(tx);
+            return rx;
+        }
+        sender.as_ref().unwrap().subscribe()
+    }
 }
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
     fn notify(&self, write: WalContents) {
+        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
+            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+                error!(%err, "Error sending WAL content to plugins");
+            }
+        }
         self.buffer_contents(write)
     }
 
@@ -381,6 +399,11 @@ impl WalFileNotifier for QueryableBuffer {
         write: WalContents,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
+        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
+            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+                error!(%err, "Error sending WAL content to plugins");
+            }
+        }
         self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
@@ -507,65 +530,6 @@ impl BufferState {
             .catalog
             .db_schema_by_id(&write_batch.database_id)
             .expect("database should exist");
-
-        // TODO: factor this out
-        #[cfg(feature = "system-py")]
-        {
-            use influxdb3_wal::TriggerSpecificationDefinition;
-            use influxdb3_wal::TriggerSpecificationDefinition::SingleTableWalWrite;
-            let write_tables: hashbrown::HashSet<_> = write_batch
-                .table_chunks
-                .keys()
-                .map(|key| {
-                    let table_name = db_schema.table_map.get_by_left(key).unwrap();
-                    table_name.to_string()
-                })
-                .collect();
-            let triggers: Vec<_> = db_schema
-                .processing_engine_triggers
-                .values()
-                .filter_map(|trigger| match &trigger.trigger {
-                    SingleTableWalWrite { table_name } => {
-                        if write_tables.contains(table_name.as_str()) {
-                            Some((trigger, vec![table_name.clone()]))
-                        } else {
-                            None
-                        }
-                    }
-                    TriggerSpecificationDefinition::AllTablesWalWrite => {
-                        if !write_tables.is_empty() {
-                            Some((
-                                trigger,
-                                write_tables.iter().map(ToString::to_string).collect(),
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .collect();
-            if !triggers.is_empty() {
-                // Create PyWriteBatch instance
-                let py_write_batch = PyWriteBatch {
-                    write_batch: write_batch.clone(),
-                    schema: db_schema.clone(),
-                };
-                for (trigger, write_tables) in triggers {
-                    for table in &write_tables {
-                        if let Err(err) = py_write_batch.call_against_table(
-                            table,
-                            trigger.plugin.code.as_str(),
-                            trigger.plugin.function_name.as_str(),
-                        ) {
-                            error!(
-                                "failed to call trigger {} with error {}",
-                                trigger.trigger_name, err
-                            )
-                        }
-                    }
-                }
-            }
-        }
 
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
