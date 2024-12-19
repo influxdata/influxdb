@@ -9,8 +9,8 @@ use influxdb3_catalog::catalog::{
 
 use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration, Row,
-    TableChunks, WriteBatch,
+    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration,
+    OrderedCatalogBatch, Row, TableChunks, WriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, v3, ParsedLine};
 use iox_time::Time;
@@ -31,7 +31,7 @@ pub struct WithCatalog {
 pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
-    catalog_batch: Option<CatalogBatch>,
+    catalog_batch: Option<OrderedCatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
@@ -136,8 +136,7 @@ impl WriteValidator<WithCatalog> {
                 time_ns: self.state.time_now_ns,
                 ops: catalog_updates,
             };
-            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
-            Some(catalog_batch)
+            self.state.catalog.apply_catalog_batch(catalog_batch)?
         };
 
         Ok(WriteValidator {
@@ -222,8 +221,7 @@ impl WriteValidator<WithCatalog> {
                 database_name: Arc::clone(&self.state.db_schema.name),
                 ops: catalog_updates,
             };
-            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
-            Some(catalog_batch)
+            self.state.catalog.apply_catalog_batch(catalog_batch)?
         };
 
         Ok(WriteValidator {
@@ -403,7 +401,13 @@ fn validate_and_qualify_v3_line(
                     line_number: line_number + 1,
                     error_message: e.to_string(),
                 })?;
-            db_schema.insert_table(table_id, Arc::new(new_table_def));
+            db_schema
+                .insert_table(table_id, Arc::new(new_table_def))
+                .map_err(|e| WriteLineError {
+                    original_line: raw_line.to_string(),
+                    line_number: line_number + 1,
+                    error_message: e.to_string(),
+                })?;
         }
         QualifiedLine {
             table_id,
@@ -475,10 +479,23 @@ fn validate_and_qualify_v3_line(
         catalog_op = Some(table_definition_op);
 
         let db_schema = db_schema.to_mut();
-        assert!(
-            db_schema.insert_table(table_id, Arc::new(table)).is_none(),
-            "attempted to overwrite existing table"
-        );
+        db_schema
+            .insert_table(table_id, Arc::new(table))
+            .map_err(|e| WriteLineError {
+                original_line: raw_line.to_string(),
+                line_number: line_number + 1,
+                error_message: e.to_string(),
+            })?
+            .map_or_else(
+                || Ok(()),
+                |_| {
+                    Err(WriteLineError {
+                        original_line: raw_line.to_string(),
+                        line_number: line_number + 1,
+                        error_message: "unexpected overwrite of existing table".to_string(),
+                    })
+                },
+            )?;
         QualifiedLine {
             table_id,
             row: Row {
@@ -611,7 +628,13 @@ fn validate_and_qualify_v1_line(
                     line_number: line_number + 1,
                     error_message: e.to_string(),
                 })?;
-            db_schema.insert_table(table_id, Arc::new(new_table_def));
+            db_schema
+                .insert_table(table_id, Arc::new(new_table_def))
+                .map_err(|e| WriteLineError {
+                    original_line: line.to_string(),
+                    line_number: line_number + 1,
+                    error_message: e.to_string(),
+                })?;
 
             catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
                 database_name,
@@ -686,10 +709,23 @@ fn validate_and_qualify_v1_line(
         let table = TableDefinition::new(table_id, Arc::clone(&table_name), columns, key).unwrap();
 
         let db_schema = db_schema.to_mut();
-        assert!(
-            db_schema.insert_table(table_id, Arc::new(table)).is_none(),
-            "attempted to overwrite existing table"
-        );
+        db_schema
+            .insert_table(table_id, Arc::new(table))
+            .map_err(|e| WriteLineError {
+                original_line: line.to_string(),
+                line_number: line_number + 1,
+                error_message: e.to_string(),
+            })?
+            .map_or_else(
+                || Ok(()),
+                |_| {
+                    Err(WriteLineError {
+                        original_line: line.to_string(),
+                        line_number: line_number + 1,
+                        error_message: "unexpected overwrite of existing table".to_string(),
+                    })
+                },
+            )?;
         QualifiedLine {
             table_id,
             row: Row {
@@ -719,7 +755,7 @@ pub struct ValidatedLines {
     /// Only valid lines will be converted into a WriteBatch
     pub(crate) valid_data: WriteBatch,
     /// If any catalog updates were made, they will be included here
-    pub(crate) catalog_updates: Option<CatalogBatch>,
+    pub(crate) catalog_updates: Option<OrderedCatalogBatch>,
 }
 
 impl From<ValidatedLines> for WriteBatch {

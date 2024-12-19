@@ -456,11 +456,13 @@ impl BufferState {
             match op {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),
                 WalOp::Catalog(catalog_batch) => {
-                    self.catalog
-                        // just catalog level changes
-                        .apply_catalog_batch(&catalog_batch)
-                        .expect("catalog batch should apply");
-
+                    let Some(catalog_batch) = self
+                        .catalog
+                        .apply_ordered_catalog_batch(catalog_batch)
+                        .expect("should be able to reapply")
+                    else {
+                        continue;
+                    };
                     let db_schema = self
                         .catalog
                         .db_schema_by_id(&catalog_batch.database_id)
