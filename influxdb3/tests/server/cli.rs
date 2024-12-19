@@ -6,6 +6,8 @@ use std::{
 
 use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
+use pretty_assertions::assert_eq;
+use serde_json::{json, Value};
 use test_helpers::assert_contains;
 
 use crate::TestServer;
@@ -78,6 +80,57 @@ pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_create_database() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run_with_confirmation(&[
+        "database",
+        "create",
+        "--dbname",
+        db_name,
+        "--host",
+        &server_addr,
+    ]);
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_database_limit() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    for i in 0..5 {
+        let name = format!("{db_name}{i}");
+        let result = run_with_confirmation(&[
+            "database",
+            "create",
+            "--dbname",
+            &name,
+            "--host",
+            &server_addr,
+        ]);
+        debug!(result = ?result, "create database");
+        assert_contains!(&result, format!("Database \"{name}\" created successfully"));
+    }
+
+    let result = run_with_confirmation_and_err(&[
+        "database",
+        "create",
+        "--dbname",
+        "foo5",
+        "--host",
+        &server_addr,
+    ]);
+    debug!(result = ?result, "create database");
+    assert_contains!(
+        &result,
+        "Adding a new database would exceed limit of 5 databases"
+    );
+}
+
+#[test_log::test(tokio::test)]
 async fn test_delete_database() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
@@ -117,6 +170,91 @@ async fn test_delete_missing_database() {
     ]);
     debug!(result = ?result, "delete missing database");
     assert_contains!(&result, "404");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_table() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "bar";
+    let result = run_with_confirmation(&[
+        "database",
+        "create",
+        "--dbname",
+        db_name,
+        "--host",
+        &server_addr,
+    ]);
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+    let result = run_with_confirmation(&[
+        "table",
+        "create",
+        "--dbname",
+        db_name,
+        "--table",
+        table_name,
+        "--host",
+        &server_addr,
+        "--tags",
+        "one",
+        "two",
+        "three",
+        "--fields",
+        "four:utf8",
+        "five:uint64",
+        "six:float64",
+        "seven:int64",
+        "eight:bool",
+    ]);
+    debug!(result = ?result, "create table");
+    assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
+    // Check that we can query the table and that it has no values
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(result, json!([]));
+    server
+        .write_lp_to_db(
+            db_name,
+            format!("{table_name},one=1,two=2,three=3 four=\"4\",five=5u,six=6,seven=7i,eight=true 1000"),
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+    // Check that we can get data from the table
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        json!([{
+            "one": "1",
+            "two": "2",
+            "three": "3",
+            "four": "4",
+            "five": 5,
+            "six": 6.0,
+            "seven": 7,
+            "eight": true,
+            "time": "1970-01-01T00:16:40"
+        }])
+    );
 }
 
 #[test_log::test(tokio::test)]

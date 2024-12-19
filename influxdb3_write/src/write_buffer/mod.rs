@@ -31,6 +31,8 @@ use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_wal::FieldDataType;
+use influxdb3_wal::TableDefinition;
 use influxdb3_wal::{
     object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
     TriggerDefinition, TriggerSpecificationDefinition, WalContents,
@@ -40,6 +42,7 @@ use influxdb3_wal::{
     MetaCacheDefinition, MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
+use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -97,8 +100,15 @@ pub enum Error {
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
 
+    // This error is exclusive to the table creation API
+    #[error("table creation failed due to no fields")]
+    EmptyFields,
+
     #[error("tried accessing database that does not exist")]
     DbDoesNotExist,
+
+    #[error("tried creating database named '{0}' that already exists")]
+    DatabaseExists(String),
 
     #[error("tried accessing table that do not exist")]
     TableDoesNotExist,
@@ -644,6 +654,30 @@ impl LastCacheManager for WriteBufferImpl {
 
 #[async_trait::async_trait]
 impl DatabaseManager for WriteBufferImpl {
+    async fn create_database(&self, name: String) -> crate::Result<(), self::Error> {
+        if self.catalog.db_name_to_id(&name).is_some() {
+            return Err(self::Error::DatabaseExists(name.clone()));
+        }
+        // Create the Database
+        let db_schema = self.catalog.db_or_create(&name)?;
+        let db_id = db_schema.id;
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::CreateDatabase(DatabaseDefinition {
+                database_id: db_id,
+                database_name: Arc::clone(&db_schema.name),
+            })],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully created database");
+        Ok(())
+    }
+
     async fn soft_delete_database(&self, name: String) -> crate::Result<(), self::Error> {
         let (db_id, db_schema) =
             self.catalog
@@ -667,6 +701,91 @@ impl DatabaseManager for WriteBufferImpl {
         let wal_op = WalOp::Catalog(catalog_batch);
         self.wal.write_ops(vec![wal_op]).await?;
         debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        Ok(())
+    }
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), self::Error> {
+        if fields.is_empty() {
+            return Err(self::Error::EmptyFields);
+        }
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(&db)
+                .ok_or_else(|| self::Error::DatabaseNotFound {
+                    db_name: db.to_owned(),
+                })?;
+
+        let table_id = TableId::new();
+        let table_name = table.into();
+        let mut key = Vec::new();
+        let field_definitions = {
+            let mut field_definitions = Vec::new();
+            for tag in tags {
+                let id = ColumnId::new();
+                key.push(id);
+                field_definitions.push(FieldDefinition {
+                    name: tag.into(),
+                    id,
+                    data_type: FieldDataType::Tag,
+                });
+            }
+
+            for (name, ty) in fields {
+                field_definitions.push(FieldDefinition {
+                    name: name.into(),
+                    id: ColumnId::new(),
+                    data_type: match ty.as_str() {
+                        "uint64" => FieldDataType::UInteger,
+                        "float64" => FieldDataType::Float,
+                        "int64" => FieldDataType::Integer,
+                        "bool" => FieldDataType::Boolean,
+                        "utf8" => FieldDataType::String,
+                        _ => todo!(),
+                    },
+                });
+            }
+
+            field_definitions.push(FieldDefinition {
+                name: "time".into(),
+                id: ColumnId::new(),
+                data_type: FieldDataType::Timestamp,
+            });
+
+            field_definitions
+        };
+
+        let catalog_table_def = TableDefinition {
+            database_id: db_schema.id,
+            database_name: Arc::clone(&db_schema.name),
+            table_name: Arc::clone(&table_name),
+            table_id,
+            field_definitions,
+            key,
+        };
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::CreateTable(catalog_table_def)],
+        };
+        self.catalog.apply_catalog_batch(&catalog_batch)?;
+        let wal_op = WalOp::Catalog(catalog_batch);
+        self.wal.write_ops(vec![wal_op]).await?;
+
+        debug!(
+            db_name = ?db_schema.name,
+            db_id = ?db_id,
+            table_id = ?table_id,
+            name = ?table_name,
+            "successfully created table"
+        );
+
         Ok(())
     }
 

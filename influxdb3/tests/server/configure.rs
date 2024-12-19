@@ -886,6 +886,235 @@ async fn api_v3_configure_db_delete_missing_query_param() {
 }
 
 #[test_log::test(tokio::test)]
+async fn api_v3_configure_db_create() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_db_create_db_with_same_name() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("create database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("delete database call succeed");
+    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_db_create_db_hit_limit() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+    for i in 0..5 {
+        let resp = client
+            .post(&url)
+            .json(&json!({ "db": format!("foo{i}") }))
+            .send()
+            .await
+            .expect("create database call did not succeed");
+        assert_eq!(StatusCode::OK, resp.status());
+    }
+
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo5" }))
+        .send()
+        .await
+        .expect("create database succeeded");
+    assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_db_create_db_reuse_old_name() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("create database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+    let resp = client
+        .delete(format!("{url}?db=foo"))
+        .send()
+        .await
+        .expect("delete database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+    let resp = client
+        .post(&url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("create database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_table_create_then_write() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let db_url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+    let table_url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .post(&db_url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("create database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+
+    let resp = client
+        .post(&table_url)
+        .json(&json!({
+            "db": "foo" ,
+            "table": "bar",
+            "tags": ["tag1", "tag2"],
+            "fields": [
+                {
+                    "name": "field1",
+                    "type": "uint64"
+                },
+                {
+                    "name": "field2",
+                    "type": "int64"
+                },
+                {
+                    "name": "field3",
+                    "type": "float64"
+                },
+                {
+                    "name": "field4",
+                    "type": "utf8"
+                },
+                {
+                    "name": "field5",
+                    "type": "bool"
+                }
+            ]
+
+        }))
+        .send()
+        .await
+        .expect("create table call failed");
+    assert_eq!(StatusCode::OK, resp.status());
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(result, json!([]));
+    server
+        .write_lp_to_db(
+            "foo",
+            "bar,tag1=1,tag2=2 field1=1u,field2=2i,field3=3,field4=\"4\",field5=true 1000",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        json!([{
+            "tag1": "1",
+            "tag2": "2",
+            "field1": 1,
+            "field2": 2,
+            "field3": 3.0,
+            "field4": "4",
+            "field5": true,
+            "time": "1970-01-01T00:16:40"
+        }])
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_table_create_no_fields() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let db_url = format!(
+        "{base}/api/v3/configure/database",
+        base = server.client_addr()
+    );
+    let table_url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .post(&db_url)
+        .json(&json!({ "db": "foo" }))
+        .send()
+        .await
+        .expect("create database call did not succeed");
+    assert_eq!(StatusCode::OK, resp.status());
+
+    let resp = client
+        .post(&table_url)
+        .json(&json!({
+            "db": "foo" ,
+            "table": "bar",
+            "tags": ["one", "two"],
+            "fields": []
+        }))
+        .send()
+        .await
+        .expect("create table call failed");
+    assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, resp.status());
+}
+
+#[test_log::test(tokio::test)]
 async fn api_v3_configure_table_delete() {
     let db_name = "foo";
     let tbl_name = "tbl";
