@@ -92,7 +92,7 @@ var SingleGenerationReasonText string = SingleGenerationReason()
 // when checked for full compaction.
 // 1048576000 is a magic number for bytes per gigabyte.
 func SingleGenerationReason() string {
-	return fmt.Sprintf("not fully compacted and not idle because single generation with more then 2 files under %d GB and more then 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), AggressiveMaxPointsPerBlock)
+	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), AggressiveMaxPointsPerBlock)
 }
 
 // Config holds the configuration for the tsbd package.
