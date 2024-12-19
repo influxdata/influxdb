@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::{Duration, Instant}};
 
 use num::Float;
 use observability_deps::tracing::{debug, warn};
@@ -134,6 +134,7 @@ struct TelemetryStoreInner {
     os: Arc<str>,
     influx_version: Arc<str>,
     storage_type: Arc<str>,
+    start_timer: Instant,
     cores: usize,
     cpu: Cpu,
     memory: Memory,
@@ -165,6 +166,7 @@ impl TelemetryStoreInner {
             influx_version,
             storage_type,
             cores,
+            start_timer: Instant::now(),
             cpu: Cpu::default(),
             memory: Memory::default(),
             per_minute_events_bucket: EventsBucket::new(),
@@ -187,6 +189,7 @@ impl TelemetryStoreInner {
             storage_type: self.storage_type.clone(),
             cores: self.cores,
             product_type: "OSS",
+            uptime_secs: self.start_timer.elapsed().as_secs(),
 
             cpu_utilization_percent_min: self.cpu.utilization.min,
             cpu_utilization_percent_max: self.cpu.utilization.max,
@@ -311,9 +314,12 @@ mod tests {
             "http://localhost/telemetry",
         )
         .await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
         // check snapshot
         let snapshot = store.snapshot();
         assert_eq!("some-instance-id", &*snapshot.instance_id);
+        assert_eq!(1, snapshot.uptime_secs);
 
         // add cpu/mem and snapshot 1
         let mem_used_bytes = 123456789;

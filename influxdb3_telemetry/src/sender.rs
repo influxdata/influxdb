@@ -49,6 +49,7 @@ pub(crate) struct TelemetryPayload {
     pub instance_id: Arc<str>,
     pub cores: usize,
     pub product_type: &'static str,
+    pub uptime_secs: u64,
     // cpu
     pub cpu_utilization_percent_min: f32,
     pub cpu_utilization_percent_max: f32,
@@ -181,6 +182,7 @@ mod tests {
             parquet_file_count: 100,
             parquet_file_size_mb: 100.0,
             parquet_row_count: 100,
+            uptime_secs: 100,
         }
     }
 }
