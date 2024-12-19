@@ -62,7 +62,15 @@ pub trait WriteBuffer:
 /// Database manager - supports only delete operation
 #[async_trait::async_trait]
 pub trait DatabaseManager: Debug + Send + Sync + 'static {
+    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error>;
     async fn soft_delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error>;
     async fn soft_delete_table(
         &self,
         db_name: String,

@@ -246,6 +246,18 @@ impl Error {
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
+            Self::WriteBuffer(err @ WriteBufferError::EmptyTagSet) => Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
+            Self::WriteBuffer(err @ WriteBufferError::EmptyFields) => Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
                 | CatalogError::TooManyColumns
@@ -1001,11 +1013,44 @@ where
             .body(Body::empty())?)
     }
 
+    async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
+        self.write_buffer.create_database(db).await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
         self.write_buffer
             .soft_delete_database(delete_req.db)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
+    async fn create_table(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let CreateTableRequest {
+            db,
+            table,
+            tags,
+            fields,
+        } = self.read_body_json(req).await?;
+        self.write_buffer
+            .create_table(
+                db,
+                table,
+                tags,
+                fields
+                    .into_iter()
+                    .map(|field| (field.name, field.r#type))
+                    .collect(),
+            )
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -1384,8 +1429,27 @@ struct ProcessEngineTriggerCreateRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct CreateDatabaseRequest {
+    db: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct DeleteDatabaseRequest {
     db: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateTableRequest {
+    db: String,
+    table: String,
+    tags: Vec<String>,
+    fields: Vec<CreateTableField>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateTableField {
+    name: String,
+    r#type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1481,7 +1545,9 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
         }
+        (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
+        (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,
         // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
         _ => {
