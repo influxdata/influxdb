@@ -100,9 +100,7 @@ pub enum Error {
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
 
-    // These two errors are exclusive to the table creation API
-    #[error("table creation failed due to no tags")]
-    EmptyTagSet,
+    // This error is exclusive to the table creation API
     #[error("table creation failed due to no fields")]
     EmptyFields,
 
@@ -712,9 +710,6 @@ impl DatabaseManager for WriteBufferImpl {
         tags: Vec<String>,
         fields: Vec<(String, String)>,
     ) -> Result<(), self::Error> {
-        if tags.is_empty() {
-            return Err(self::Error::EmptyTagSet);
-        }
         if fields.is_empty() {
             return Err(self::Error::EmptyFields);
         }

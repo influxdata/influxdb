@@ -1083,60 +1083,6 @@ async fn api_v3_configure_table_create_then_write() {
 }
 
 #[test_log::test(tokio::test)]
-async fn api_v3_configure_table_create_no_tags() {
-    let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
-    let db_url = format!(
-        "{base}/api/v3/configure/database",
-        base = server.client_addr()
-    );
-    let table_url = format!("{base}/api/v3/configure/table", base = server.client_addr());
-
-    let resp = client
-        .post(&db_url)
-        .json(&json!({ "db": "foo" }))
-        .send()
-        .await
-        .expect("create database call did not succeed");
-    assert_eq!(StatusCode::OK, resp.status());
-
-    let resp = client
-        .post(&table_url)
-        .json(&json!({
-            "db": "foo" ,
-            "table": "bar",
-            "tags": [],
-            "fields": [
-                {
-                    "name": "field1",
-                    "type": "uint64"
-                },
-                {
-                    "name": "field2",
-                    "type": "int64"
-                },
-                {
-                    "name": "field3",
-                    "type": "float64"
-                },
-                {
-                    "name": "field4",
-                    "type": "utf8"
-                },
-                {
-                    "name": "field5",
-                    "type": "bool"
-                }
-            ]
-
-        }))
-        .send()
-        .await
-        .expect("create table call failed");
-    assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, resp.status());
-}
-
-#[test_log::test(tokio::test)]
 async fn api_v3_configure_table_create_no_fields() {
     let server = TestServer::spawn().await;
     let client = reqwest::Client::new();
