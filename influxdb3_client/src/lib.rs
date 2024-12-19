@@ -815,6 +815,8 @@ impl Display for QueryKind {
 #[serde(rename_all = "snake_case")]
 pub enum Format {
     Json,
+    #[serde(rename = "jsonl")]
+    JsonLines,
     Csv,
     Parquet,
     Pretty,

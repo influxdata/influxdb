@@ -46,6 +46,7 @@ use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::Duration;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
@@ -1259,6 +1260,7 @@ pub(crate) enum QueryFormat {
     Csv,
     Pretty,
     Json,
+    JsonLines,
 }
 
 impl QueryFormat {
@@ -1268,6 +1270,7 @@ impl QueryFormat {
             Self::Csv => "text/csv",
             Self::Pretty => "text/plain; charset=utf-8",
             Self::Json => "application/json",
+            Self::JsonLines => "application/jsonl",
         }
     }
 
@@ -1291,7 +1294,7 @@ impl QueryFormat {
 }
 
 async fn record_batch_stream_to_body(
-    stream: Pin<Box<dyn RecordBatchStream + Send>>,
+    mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
 ) -> Result<Body, Error> {
     fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
@@ -1333,15 +1336,41 @@ async fn record_batch_stream_to_body(
         Ok(Bytes::from(bytes))
     }
 
-    let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-
     match format {
-        QueryFormat::Pretty => to_pretty(batches),
-        QueryFormat::Parquet => to_parquet(batches),
-        QueryFormat::Csv => to_csv(batches),
-        QueryFormat::Json => to_json(batches),
+        QueryFormat::Pretty => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_pretty(batches).map(Body::from)
+        }
+        QueryFormat::Parquet => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_parquet(batches).map(Body::from)
+        }
+        QueryFormat::Csv => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_csv(batches).map(Body::from)
+        }
+        QueryFormat::Json => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_json(batches).map(Body::from)
+        }
+        QueryFormat::JsonLines => {
+            let stream = futures::stream::poll_fn(move |ctx| match stream.poll_next_unpin(ctx) {
+                Poll::Ready(Some(batch)) => {
+                    let mut writer = arrow_json::LineDelimitedWriter::new(Vec::new());
+                    let batch = match batch {
+                        Ok(batch) => batch,
+                        Err(e) => return Poll::Ready(Some(Err(e))),
+                    };
+                    writer.write(&batch).unwrap();
+                    writer.finish().unwrap();
+                    Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                }
+                Poll::Ready(None) => Poll::Ready(None),
+                Poll::Pending => Poll::Pending,
+            });
+            Ok(Body::wrap_stream(stream))
+        }
     }
-    .map(Body::from)
 }
 
 // This is a hack around the fact that bool default is false not true
