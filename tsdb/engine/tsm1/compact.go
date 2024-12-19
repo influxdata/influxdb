@@ -248,7 +248,7 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
-				return false, tsdb.SingleGenerationReason()
+				return false, tsdb.SingleGenerationReasonText
 			}
 		}
 		return true, ""

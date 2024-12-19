@@ -2487,7 +2487,7 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
 	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, tsdb.SingleGenerationReason(), "fullyCompacted reason")
+	require.Equal(t, reason, tsdb.SingleGenerationReasonText, "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
@@ -2607,7 +2607,7 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, tsdb.SingleGenerationReason(), "fullyCompacted reason")
+	require.Equal(t, reason, tsdb.SingleGenerationReasonText, "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)

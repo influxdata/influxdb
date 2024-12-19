@@ -84,8 +84,9 @@ const (
 
 	// MaxTSMFileSize is the maximum size of TSM files.
 	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
-
 )
+
+var SingleGenerationReasonText string = SingleGenerationReason()
 
 // SingleGenerationReason outputs a log message for our single generation compaction
 // when checked for full compaction.
