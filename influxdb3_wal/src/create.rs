@@ -43,18 +43,18 @@ pub fn write_batch_op(write_batch: WriteBatch) -> WalOp {
     WalOp::Write(write_batch)
 }
 
-pub fn catalog_batch_op(
+pub fn catalog_batch(
     db_id: DbId,
     db_name: impl Into<Arc<str>>,
     time_ns: i64,
     ops: impl IntoIterator<Item = CatalogOp>,
-) -> WalOp {
-    WalOp::Catalog(CatalogBatch {
+) -> CatalogBatch {
+    CatalogBatch {
         database_id: db_id,
         database_name: db_name.into(),
         time_ns,
         ops: ops.into_iter().collect(),
-    })
+    }
 }
 
 pub fn add_fields_op(

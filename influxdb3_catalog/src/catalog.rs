@@ -10,7 +10,7 @@ use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition, FieldAdditions,
     FieldDefinition, LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
-    PluginDefinition, TriggerDefinition,
+    OrderedCatalogBatch, PluginDefinition, TriggerDefinition,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -184,8 +184,24 @@ impl Catalog {
         }
     }
 
-    pub fn apply_catalog_batch(&self, catalog_batch: &CatalogBatch) -> Result<()> {
+    pub fn apply_catalog_batch(
+        &self,
+        catalog_batch: CatalogBatch,
+    ) -> Result<Option<OrderedCatalogBatch>> {
         self.inner.write().apply_catalog_batch(catalog_batch)
+    }
+
+    // Checks the sequence number to see if it needs to be applied.
+    pub fn apply_ordered_catalog_batch(
+        &self,
+        batch: OrderedCatalogBatch,
+    ) -> Result<Option<CatalogBatch>> {
+        if batch.sequence_number() >= self.sequence_number().as_u32() {
+            if let Some(catalog_batch) = self.apply_catalog_batch(batch.batch())? {
+                return Ok(Some(catalog_batch.batch()));
+            }
+        }
+        Ok(None)
     }
 
     pub fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
@@ -478,24 +494,31 @@ impl InnerCatalog {
 
     /// Applies the `CatalogBatch` while validating that all updates are compatible. If updates
     /// have already been applied, the sequence number and updated tracker are not updated.
-    pub fn apply_catalog_batch(&mut self, catalog_batch: &CatalogBatch) -> Result<()> {
+    pub fn apply_catalog_batch(
+        &mut self,
+        catalog_batch: CatalogBatch,
+    ) -> Result<Option<OrderedCatalogBatch>> {
         let table_count = self.table_count();
 
         if let Some(db) = self.databases.get(&catalog_batch.database_id) {
-            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
+            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, &catalog_batch)? {
                 check_overall_table_count(Some(db), &new_db, table_count)?;
                 self.upsert_db(new_db);
+            } else {
+                return Ok(None);
             }
         } else {
             if self.databases.len() >= Catalog::NUM_DBS_LIMIT {
                 return Err(Error::TooManyDbs);
             }
-            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
+            let new_db = DatabaseSchema::new_from_batch(&catalog_batch)?;
             check_overall_table_count(None, &new_db, table_count)?;
             self.upsert_db(new_db);
         }
-
-        Ok(())
+        Ok(Some(OrderedCatalogBatch::new(
+            catalog_batch,
+            self.sequence.0,
+        )))
     }
 
     pub fn db_exists(&self, db_id: DbId) -> bool {
@@ -1697,7 +1720,7 @@ mod tests {
         let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
         catalog.insert_database(DatabaseSchema::new(DbId::new(), Arc::from("foo")));
         let db_id = catalog.db_name_to_id("foo").unwrap();
-        let catalog_batch = create::catalog_batch_op(
+        let catalog_batch = create::catalog_batch(
             db_id,
             "foo",
             0,
@@ -1714,7 +1737,7 @@ mod tests {
             )],
         );
         let err = catalog
-            .apply_catalog_batch(catalog_batch.as_catalog().unwrap())
+            .apply_catalog_batch(catalog_batch)
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }

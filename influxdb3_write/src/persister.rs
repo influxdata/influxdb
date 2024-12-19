@@ -16,8 +16,8 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
-use futures_util::stream::StreamExt;
 use futures_util::stream::TryStreamExt;
+use futures_util::stream::{FuturesOrdered, StreamExt};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
@@ -32,7 +32,6 @@ use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::JoinSet;
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -188,8 +187,9 @@ impl Persister {
     ///
     /// This is intended to be used on server start.
     pub async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
-        let mut join_set = JoinSet::new();
+        let mut futures = FuturesOrdered::new();
         let mut offset: Option<ObjPath> = None;
+
         while most_recent_n > 0 {
             let count = if most_recent_n > 1000 {
                 most_recent_n -= 1000;
@@ -238,7 +238,7 @@ impl Persister {
             }
 
             for item in &list[0..end] {
-                join_set.spawn(get_snapshot(
+                futures.push_back(get_snapshot(
                     item.location.clone(),
                     Arc::clone(&self.object_store),
                 ));
@@ -254,8 +254,11 @@ impl Persister {
             offset = Some(list[end - 1].location.clone());
         }
 
-        // Returns an error if there is one and reuses the Vec's memory as well
-        join_set.join_all().await.into_iter().collect()
+        let mut results = Vec::new();
+        while let Some(result) = futures.next().await {
+            results.push(result?);
+        }
+        Ok(results)
     }
 
     /// Loads a Parquet file from ObjectStore
@@ -486,7 +489,7 @@ mod tests {
         persister.persist_catalog(&catalog).await.unwrap();
 
         let batch = |name: &str, num: u32| {
-            let _ = catalog.apply_catalog_batch(&CatalogBatch {
+            let _ = catalog.apply_catalog_batch(CatalogBatch {
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 time_ns: 5000,

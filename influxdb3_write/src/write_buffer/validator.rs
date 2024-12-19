@@ -9,8 +9,8 @@ use influxdb3_catalog::catalog::{
 
 use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration, Row,
-    TableChunks, WriteBatch,
+    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration,
+    OrderedCatalogBatch, Row, TableChunks, WriteBatch,
 };
 use influxdb_line_protocol::{parse_lines, v3, ParsedLine};
 use iox_time::Time;
@@ -31,7 +31,7 @@ pub struct WithCatalog {
 pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
-    catalog_batch: Option<CatalogBatch>,
+    catalog_batch: Option<OrderedCatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
@@ -136,8 +136,7 @@ impl WriteValidator<WithCatalog> {
                 time_ns: self.state.time_now_ns,
                 ops: catalog_updates,
             };
-            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
-            Some(catalog_batch)
+            self.state.catalog.apply_catalog_batch(catalog_batch)?
         };
 
         Ok(WriteValidator {
@@ -222,8 +221,7 @@ impl WriteValidator<WithCatalog> {
                 database_name: Arc::clone(&self.state.db_schema.name),
                 ops: catalog_updates,
             };
-            self.state.catalog.apply_catalog_batch(&catalog_batch)?;
-            Some(catalog_batch)
+            self.state.catalog.apply_catalog_batch(catalog_batch)?
         };
 
         Ok(WriteValidator {
@@ -719,7 +717,7 @@ pub struct ValidatedLines {
     /// Only valid lines will be converted into a WriteBatch
     pub(crate) valid_data: WriteBatch,
     /// If any catalog updates were made, they will be included here
-    pub(crate) catalog_updates: Option<CatalogBatch>,
+    pub(crate) catalog_updates: Option<OrderedCatalogBatch>,
 }
 
 impl From<ValidatedLines> for WriteBatch {

@@ -1,8 +1,8 @@
 use crate::serialize::verify_file_type_and_deserialize;
 use crate::snapshot_tracker::{SnapshotInfo, SnapshotTracker, WalPeriod};
 use crate::{
-    background_wal_flush, CatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig,
-    WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
+    background_wal_flush, OrderedCatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal,
+    WalConfig, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
 };
 use bytes::Bytes;
 use data_types::Timestamp;
@@ -516,7 +516,7 @@ struct WalBuffer {
     op_limit: usize,
     op_count: usize,
     database_to_write_batch: HashMap<Arc<str>, WriteBatch>,
-    catalog_batches: Vec<CatalogBatch>,
+    catalog_batches: Vec<OrderedCatalogBatch>,
     write_op_responses: Vec<oneshot::Sender<WriteResult>>,
 }
 
@@ -594,21 +594,18 @@ impl WalBuffer {
         }
 
         for catalog_batch in &self.catalog_batches {
-            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.time_ns);
-            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.time_ns);
+            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.catalog.time_ns);
+            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.catalog.time_ns);
         }
 
         // have the catalog ops come before any writes in ordering
         let mut ops =
             Vec::with_capacity(self.database_to_write_batch.len() + self.catalog_batches.len());
 
-        for catalog_batch in self.catalog_batches {
-            ops.push(WalOp::Catalog(catalog_batch));
-        }
+        ops.extend(self.catalog_batches.into_iter().map(WalOp::Catalog));
+        ops.extend(self.database_to_write_batch.into_values().map(WalOp::Write));
 
-        for write_batch in self.database_to_write_batch.into_values() {
-            ops.push(WalOp::Write(write_batch));
-        }
+        ops.sort();
 
         (
             WalContents {
