@@ -194,32 +194,32 @@ impl TelemetryStoreInner {
             product_type: "OSS",
             uptime_secs: self.start_timer.elapsed().as_secs(),
 
-            cpu_utilization_percent_min_hourly: self.cpu.utilization.min,
-            cpu_utilization_percent_max_hourly: self.cpu.utilization.max,
-            cpu_utilization_percent_avg_hourly: to_2_decimal_places(self.cpu.utilization.avg),
+            cpu_utilization_percent_min_1m: self.cpu.utilization.min,
+            cpu_utilization_percent_max_1m: self.cpu.utilization.max,
+            cpu_utilization_percent_avg_1m: to_2_decimal_places(self.cpu.utilization.avg),
 
-            memory_used_mb_min_hourly: self.memory.usage.min,
-            memory_used_mb_max_hourly: self.memory.usage.max,
-            memory_used_mb_avg_hourly: self.memory.usage.avg,
+            memory_used_mb_min_1m: self.memory.usage.min,
+            memory_used_mb_max_1m: self.memory.usage.max,
+            memory_used_mb_avg_1m: self.memory.usage.avg,
 
-            write_requests_min_hourly: self.writes.num_writes.min,
-            write_requests_max_hourly: self.writes.num_writes.max,
-            write_requests_avg_hourly: self.writes.num_writes.avg,
+            write_requests_min_1m: self.writes.num_writes.min,
+            write_requests_max_1m: self.writes.num_writes.max,
+            write_requests_avg_1m: self.writes.num_writes.avg,
 
-            write_lines_min_hourly: self.writes.lines.min,
-            write_lines_max_hourly: self.writes.lines.max,
-            write_lines_avg_hourly: self.writes.lines.avg,
+            write_lines_min_1m: self.writes.lines.min,
+            write_lines_max_1m: self.writes.lines.max,
+            write_lines_avg_1m: self.writes.lines.avg,
 
             // if writes are very low, less than 1 MB it rounds it to 0
             // TODO: Maybe this should be float to hold less than 1 MB or
             //       leave it as 0 if it does not matter.
-            write_mb_min_hourly: to_mega_bytes(self.writes.size_bytes.min),
-            write_mb_max_hourly: to_mega_bytes(self.writes.size_bytes.max),
-            write_mb_avg_hourly: to_mega_bytes(self.writes.size_bytes.avg),
+            write_mb_min_1m: to_mega_bytes(self.writes.size_bytes.min),
+            write_mb_max_1m: to_mega_bytes(self.writes.size_bytes.max),
+            write_mb_avg_1m: to_mega_bytes(self.writes.size_bytes.avg),
 
-            query_requests_min_hourly: self.reads.num_queries.min,
-            query_requests_max_hourly: self.reads.num_queries.max,
-            query_requests_avg_hourly: self.reads.num_queries.avg,
+            query_requests_min_1m: self.reads.num_queries.min,
+            query_requests_max_1m: self.reads.num_queries.max,
+            query_requests_avg_1m: self.reads.num_queries.avg,
 
             // hmmm. will be nice to pass persisted file in?
             parquet_file_count: 0,
@@ -330,23 +330,23 @@ mod tests {
         store.add_cpu_and_memory(89.0, mem_used_bytes);
         let snapshot = store.snapshot();
         info!(snapshot = ?snapshot, "sample snapshot 1");
-        assert_eq!(89.0, snapshot.cpu_utilization_percent_min_hourly);
-        assert_eq!(89.0, snapshot.cpu_utilization_percent_max_hourly);
-        assert_eq!(89.0, snapshot.cpu_utilization_percent_avg_hourly);
-        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min_hourly);
-        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_max_hourly);
-        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_avg_hourly);
+        assert_eq!(89.0, snapshot.cpu_utilization_percent_min_1m);
+        assert_eq!(89.0, snapshot.cpu_utilization_percent_max_1m);
+        assert_eq!(89.0, snapshot.cpu_utilization_percent_avg_1m);
+        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min_1m);
+        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_max_1m);
+        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_avg_1m);
 
         // add cpu/mem snapshot 2
         store.add_cpu_and_memory(100.0, 134567890);
         let snapshot = store.snapshot();
         info!(snapshot = ?snapshot, "sample snapshot 2");
-        assert_eq!(89.0, snapshot.cpu_utilization_percent_min_hourly);
-        assert_eq!(100.0, snapshot.cpu_utilization_percent_max_hourly);
-        assert_eq!(94.5, snapshot.cpu_utilization_percent_avg_hourly);
-        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min_hourly);
-        assert_eq!(128, snapshot.memory_used_mb_max_hourly);
-        assert_eq!(122, snapshot.memory_used_mb_avg_hourly);
+        assert_eq!(89.0, snapshot.cpu_utilization_percent_min_1m);
+        assert_eq!(100.0, snapshot.cpu_utilization_percent_max_1m);
+        assert_eq!(94.5, snapshot.cpu_utilization_percent_avg_1m);
+        assert_eq!(expected_mem_in_mb, snapshot.memory_used_mb_min_1m);
+        assert_eq!(128, snapshot.memory_used_mb_max_1m);
+        assert_eq!(122, snapshot.memory_used_mb_avg_1m);
         assert_eq!(200, snapshot.parquet_file_count);
         assert_eq!(500.25, snapshot.parquet_file_size_mb);
         assert_eq!(100, snapshot.parquet_row_count);
@@ -370,17 +370,17 @@ mod tests {
             "After rolling up reads/writes"
         );
 
-        assert_eq!(1, snapshot.write_lines_min_hourly);
-        assert_eq!(120, snapshot.write_lines_max_hourly);
-        assert_eq!(56, snapshot.write_lines_avg_hourly);
+        assert_eq!(1, snapshot.write_lines_min_1m);
+        assert_eq!(120, snapshot.write_lines_max_1m);
+        assert_eq!(56, snapshot.write_lines_avg_1m);
 
-        assert_eq!(0, snapshot.write_mb_min_hourly);
-        assert_eq!(0, snapshot.write_mb_max_hourly);
-        assert_eq!(0, snapshot.write_mb_avg_hourly);
+        assert_eq!(0, snapshot.write_mb_min_1m);
+        assert_eq!(0, snapshot.write_mb_max_1m);
+        assert_eq!(0, snapshot.write_mb_avg_1m);
 
-        assert_eq!(3, snapshot.query_requests_min_hourly);
-        assert_eq!(3, snapshot.query_requests_max_hourly);
-        assert_eq!(3, snapshot.query_requests_avg_hourly);
+        assert_eq!(3, snapshot.query_requests_min_1m);
+        assert_eq!(3, snapshot.query_requests_max_1m);
+        assert_eq!(3, snapshot.query_requests_avg_1m);
 
         // add more writes after rollup
         store.add_write_metrics(100, 101_024_000);
@@ -398,29 +398,29 @@ mod tests {
             snapshot = ?snapshot,
             "After rolling up reads/writes 2nd time"
         );
-        assert_eq!(1, snapshot.write_lines_min_hourly);
-        assert_eq!(120, snapshot.write_lines_max_hourly);
-        assert_eq!(56, snapshot.write_lines_avg_hourly);
+        assert_eq!(1, snapshot.write_lines_min_1m);
+        assert_eq!(120, snapshot.write_lines_max_1m);
+        assert_eq!(56, snapshot.write_lines_avg_1m);
 
-        assert_eq!(0, snapshot.write_mb_min_hourly);
-        assert_eq!(200, snapshot.write_mb_max_hourly);
-        assert_eq!(50, snapshot.write_mb_avg_hourly);
+        assert_eq!(0, snapshot.write_mb_min_1m);
+        assert_eq!(200, snapshot.write_mb_max_1m);
+        assert_eq!(50, snapshot.write_mb_avg_1m);
 
-        assert_eq!(2, snapshot.query_requests_min_hourly);
-        assert_eq!(3, snapshot.query_requests_max_hourly);
-        assert_eq!(3, snapshot.query_requests_avg_hourly);
+        assert_eq!(2, snapshot.query_requests_min_1m);
+        assert_eq!(3, snapshot.query_requests_max_1m);
+        assert_eq!(3, snapshot.query_requests_avg_1m);
 
         // reset
         store.reset_metrics();
         // check snapshot 3
         let snapshot = store.snapshot();
         info!(snapshot = ?snapshot, "sample snapshot 3");
-        assert_eq!(0.0, snapshot.cpu_utilization_percent_min_hourly);
-        assert_eq!(0.0, snapshot.cpu_utilization_percent_max_hourly);
-        assert_eq!(0.0, snapshot.cpu_utilization_percent_avg_hourly);
-        assert_eq!(0, snapshot.memory_used_mb_min_hourly);
-        assert_eq!(0, snapshot.memory_used_mb_max_hourly);
-        assert_eq!(0, snapshot.memory_used_mb_avg_hourly);
+        assert_eq!(0.0, snapshot.cpu_utilization_percent_min_1m);
+        assert_eq!(0.0, snapshot.cpu_utilization_percent_max_1m);
+        assert_eq!(0.0, snapshot.cpu_utilization_percent_avg_1m);
+        assert_eq!(0, snapshot.memory_used_mb_min_1m);
+        assert_eq!(0, snapshot.memory_used_mb_max_1m);
+        assert_eq!(0, snapshot.memory_used_mb_avg_1m);
     }
 
     #[test]
