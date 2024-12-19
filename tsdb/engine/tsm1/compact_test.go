@@ -2822,11 +2822,8 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBNotMaxAggrBlocks(
 
 	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
 
-	// 1048576000 is a magic number for bytes per gigabyte
-	reasonExp := fmt.Sprintf("not fully compacted and not idle because single generation with many files under %d GB and many files under aggressive compaction points per block count (%d points)", int(tsdb.MaxTSMFileSize/1048576000), tsdb.AggressiveMaxPointsPerBlock)
-
 	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+	require.Equal(t, reason, tsdb.SingleGenerationReasonText, "fullyCompacted reason")
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
