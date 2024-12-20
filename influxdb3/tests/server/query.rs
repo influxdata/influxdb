@@ -1,5 +1,6 @@
 use crate::TestServer;
 use futures::StreamExt;
+use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -53,6 +54,18 @@ async fn api_v3_query_sql() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[tokio::test]
+async fn api_v3_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v3_query_sql(&params).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -677,6 +690,18 @@ async fn api_v3_query_json_format() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[tokio::test]
+async fn api_v1_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v1_query(&params, None).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
