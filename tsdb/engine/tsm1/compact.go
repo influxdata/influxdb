@@ -397,7 +397,7 @@ func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compact
 			}
 		}
 
-		if len(currentGen) == 0 || currentGen.level() == cur.level() {
+		if len(currentGen) == 0 || currentGen.level() >= cur.level() {
 			currentGen = append(currentGen, cur)
 			continue
 		}

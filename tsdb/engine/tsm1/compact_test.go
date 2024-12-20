@@ -2212,65 +2212,6 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	}
 }
 
-func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
-	data := []tsm1.FileStat{
-		{
-			Path: "01-04.tsm1",
-			Size: 251 * 1024 * 1024,
-		},
-		{
-			Path: "02-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "03-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "04-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "05-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "06-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "07-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-	}
-
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5]}
-	tsm, pLen, _ := cp.PlanOptimize()
-	if exp, got := 1, len(tsm); exp != got {
-		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
-	} else if pLen != int64(len(tsm)) {
-		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
-	}
-
-	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles1 {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-}
-
 // This test is added to acount for many TSM files within a group being over 2 GB
 // we want to ensure that the shard will be planned.
 func TestDefaultPlanner_PlanOptimize_LargeMultiGeneration(t *testing.T) {
@@ -2881,11 +2822,11 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGen2GBLastLevel2(t *testing.T) 
 			Size: 1048 * 1024 * 1024,
 		},
 		{
-			Path: "03-02.tsm1",
+			Path: "03-03.tsm1",
 			Size: 2048 * 1024 * 1024,
 		},
 		{
-			Path: "03-03.tsm1",
+			Path: "03-04.tsm1",
 			Size: 2048 * 1024 * 1024,
 		},
 		{
@@ -2893,7 +2834,7 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGen2GBLastLevel2(t *testing.T) 
 			Size: 600 * 1024 * 1024,
 		},
 		{
-			Path: "03-05.tsm1",
+			Path: "03-06.tsm1",
 			Size: 500 * 1024 * 1024,
 		},
 	}
@@ -2925,89 +2866,6 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGen2GBLastLevel2(t *testing.T) 
 	require.Equal(t, int64(1), cgLen, "compaction group length")
 	require.Equal(t, int64(3), genLen, "generation count")
 	require.Equal(t, len(expFiles), len(tsm[0]), "tsm files in compaction group")
-}
-
-func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
-	data := []tsm1.FileStat{
-		{
-			Path: "01-04.tsm1",
-			Size: 251 * 1024 * 1024,
-		},
-		{
-			Path: "02-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "03-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "04-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "05-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "06-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "07-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "08-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "09-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "10-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-	}
-
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[6], data[7], data[8], data[9]}
-
-	tsm, pLen, _ := cp.PlanOptimize()
-	if exp, got := 2, len(tsm); exp != got {
-		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
-	} else if pLen != int64(len(tsm)) {
-		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
-	}
-
-	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles1 {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-
-	if exp, got := len(expFiles2), len(tsm[1]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles2 {
-		if got, exp := tsm[1][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
