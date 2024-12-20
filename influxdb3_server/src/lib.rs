@@ -815,6 +815,7 @@ mod tests {
                 executor: Arc::clone(&exec),
                 wal_config: WalConfig::test_config(),
                 parquet_cache: Some(parquet_cache),
+                metric_registry: Arc::clone(&metrics),
             },
         )
         .await

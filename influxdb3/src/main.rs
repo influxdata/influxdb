@@ -97,10 +97,10 @@ enum Command {
     MetaCache(commands::meta_cache::Config),
 
     /// Manage database (delete only for the moment)
-    Database(commands::manage::database::ManageDatabaseConfig),
+    Database(commands::manage::database::Config),
 
     /// Manage table (delete only for the moment)
-    Table(commands::manage::table::ManageTableConfig),
+    Table(commands::manage::table::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -166,14 +166,14 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Some(Command::Database(config)) => {
-                if let Err(e) = commands::manage::database::delete_database(config).await {
-                    eprintln!("Database delete command failed: {e}");
+                if let Err(e) = commands::manage::database::command(config).await {
+                    eprintln!("Database command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Table(config)) => {
-                if let Err(e) = commands::manage::table::delete_table(config).await {
-                    eprintln!("Table delete command failed: {e}");
+                if let Err(e) = commands::manage::table::command(config).await {
+                    eprintln!("Table command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

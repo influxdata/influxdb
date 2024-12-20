@@ -1,5 +1,6 @@
 use crate::TestServer;
 use futures::StreamExt;
+use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -53,6 +54,18 @@ async fn api_v3_query_sql() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[tokio::test]
+async fn api_v3_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v3_query_sql(&params).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -677,6 +690,18 @@ async fn api_v3_query_json_format() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[tokio::test]
+async fn api_v1_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v1_query(&params, None).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -1332,15 +1357,16 @@ async fn api_v3_query_sql_meta_cache() {
 }
 
 /// Test that if we write in a row of LP that is missing a tag value, we're still able to query.
-#[tokio::test]
-async fn api_v3_query_null_tag_values() {
+/// Also tests that if the buffer is missing a field, we're still able to query.
+#[test_log::test(tokio::test)]
+async fn api_v3_query_null_tag_values_null_fields() {
     let server = TestServer::spawn().await;
 
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 1
-            cpu,host=b usage=0.80 4",
+            "cpu,host=a,region=us-east usage=0.9,system=0.1 1
+            cpu,host=b usage=0.80,system=0.1 4",
             Precision::Second,
         )
         .await
@@ -1373,6 +1399,40 @@ async fn api_v3_query_null_tag_values() {
             | a    | us-east | 1970-01-01T00:00:01 | 0.9   |\n\
             | b    |         | 1970-01-01T00:00:04 | 0.8   |\n\
             +------+---------+---------------------+-------+",
+        resp
+    );
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 10000000",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let resp = client
+        .get(&url)
+        .query(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM cpu ORDER BY time"),
+            ("format", "pretty"),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+---------+--------+---------------------+-------+\n\
+         | host | region  | system | time                | usage |\n\
+         +------+---------+--------+---------------------+-------+\n\
+         | a    | us-east | 0.1    | 1970-01-01T00:00:01 | 0.9   |\n\
+         | b    |         | 0.1    | 1970-01-01T00:00:04 | 0.8   |\n\
+         | a    | us-east |        | 1970-04-26T17:46:40 | 0.9   |\n\
+         +------+---------+--------+---------------------+-------+",
         resp
     );
 }
