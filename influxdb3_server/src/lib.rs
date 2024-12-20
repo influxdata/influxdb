@@ -544,7 +544,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -554,7 +554,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -564,7 +564,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -574,7 +574,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -584,7 +584,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -594,7 +594,7 @@ mod tests {
             "millisecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -604,7 +604,7 @@ mod tests {
             "microsecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -614,7 +614,7 @@ mod tests {
             "nanosecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         let res = query(
             &server,
@@ -667,7 +667,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         // Create the last cache:
         wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
@@ -693,7 +693,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         struct TestCase {
             query: &'static str,
