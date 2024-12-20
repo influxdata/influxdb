@@ -755,8 +755,8 @@ mod tests {
             };
             persister.persist_snapshot(&info_file).await.unwrap();
         }
-        let snapshots = persister.load_snapshots(9500).await.unwrap();
-        // We asked for the most recent 9500 so there should be 9001 of them
+        let snapshots = persister.load_snapshots(1500).await.unwrap();
+        // We asked for the most recent 1500 so there should be 1001 of them
         assert_eq!(snapshots.len(), 1001);
         assert_eq!(snapshots[0].next_file_id.as_u64(), 1000);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 1000);

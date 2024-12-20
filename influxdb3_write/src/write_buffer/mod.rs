@@ -1766,9 +1766,6 @@ mod tests {
         assert_eq!(ParquetFileId::next_id().as_u64(), 6);
     }
 
-    #[tokio::test]
-    async fn catalog_ops_correctly_ordered() {}
-
     /// This is the reproducer for [#25277][see]
     ///
     /// [see]: https://github.com/influxdata/influxdb/issues/25277
