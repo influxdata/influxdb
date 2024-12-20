@@ -195,7 +195,10 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 
 	rootDir := t.TempDir()
 
-	engine := storage.NewEngine(rootDir, storage.NewConfig(), storage.WithMetaClient(metaClient))
+	engine, err := storage.NewEngine(rootDir, storage.NewConfig(), storage.WithMetaClient(metaClient))
+	if err != nil {
+		t.Fatalf("failed to create storage engine: %s", err)
+	}
 	engine.WithLogger(logger)
 
 	if err := engine.Open(context.Background()); err != nil {

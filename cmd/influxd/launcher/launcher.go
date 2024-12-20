@@ -429,12 +429,16 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			os.Exit(1)
 		}
 
-		m.engine = storage.NewEngine(
+		engine, err := storage.NewEngine(
 			opts.EnginePath,
 			opts.StorageConfig,
 			storage.WithMetricsDisabled(opts.MetricsDisabled),
 			storage.WithMetaClient(metaClient),
 		)
+		if err != nil {
+			return err
+		}
+		m.engine = engine
 	}
 	m.engine.WithLogger(m.log)
 	m.engine.WithStartupMetrics(m.startupProgress)

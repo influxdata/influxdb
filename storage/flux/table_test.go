@@ -165,11 +165,14 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 	}
 
 	// Now load the engine.
-	engine := storage.NewEngine(
+	engine, err := storage.NewEngine(
 		enginePath,
 		storage.NewConfig(),
 		storage.WithMetaClient(metaClient),
 	)
+	if err != nil {
+		tb.Fatalf("failed to create storage engine: %s", err)
+	}
 	if err := engine.Open(context.Background()); err != nil {
 		close()
 		tb.Fatalf("failed to open storage engine: %s", err)
