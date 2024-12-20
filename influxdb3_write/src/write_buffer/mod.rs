@@ -1,5 +1,6 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
+mod metrics;
 pub mod persisted_files;
 #[allow(dead_code)]
 pub mod plugins;
@@ -46,6 +47,8 @@ use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
+use metric::Registry;
+use metrics::WriteMetrics;
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
@@ -154,6 +157,7 @@ pub struct WriteBufferImpl {
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
     time_provider: Arc<dyn TimeProvider>,
+    metrics: WriteMetrics,
     meta_cache: Arc<MetaCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
 }
@@ -171,6 +175,7 @@ pub struct WriteBufferImplArgs {
     pub executor: Arc<iox_query::exec::Executor>,
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub metric_registry: Arc<Registry>,
 }
 
 impl WriteBufferImpl {
@@ -184,6 +189,7 @@ impl WriteBufferImpl {
             executor,
             wal_config,
             parquet_cache,
+            metric_registry,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -241,6 +247,7 @@ impl WriteBufferImpl {
             last_cache,
             persisted_files,
             buffer: queryable_buffer,
+            metrics: WriteMetrics::new(&metric_registry),
         });
         let write_buffer: Arc<dyn WriteBuffer> = result.clone();
         let triggers = result.catalog().triggers();
@@ -294,6 +301,12 @@ impl WriteBufferImpl {
         // contents are sent to the configured notifier, which in this case is the queryable buffer.
         // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
+
+        // record metrics for lines written and bytes written, for valid lines
+        self.metrics
+            .record_lines(&db_name, result.line_count as u64);
+        self.metrics
+            .record_bytes(&db_name, result.valid_bytes_count);
 
         Ok(BufferedWriteRequest {
             db_name,
@@ -970,6 +983,8 @@ mod tests {
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
+    use metric::{Attributes, Metric, U64Counter};
+    use metrics::{WRITE_BYTES_TOTAL_NAME, WRITE_LINES_TOTAL_NAME};
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
@@ -1026,6 +1041,7 @@ mod tests {
             executor: crate::test_help::make_exec(),
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -1109,6 +1125,7 @@ mod tests {
                 snapshot_size: 100,
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -1176,6 +1193,7 @@ mod tests {
                     snapshot_size: 1,
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
+                metric_registry: Default::default(),
             })
             .await
             .unwrap()
@@ -1402,6 +1420,7 @@ mod tests {
                 snapshot_size: 2,
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -2350,6 +2369,125 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[tokio::test]
+    async fn write_metrics() {
+        let object_store = Arc::new(InMemory::new());
+        let (buf, metrics) = setup_with_metrics(
+            Time::from_timestamp_nanos(0),
+            object_store,
+            WalConfig::test_config(),
+        )
+        .await;
+        let lines_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_TOTAL_NAME)
+            .unwrap();
+        let bytes_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_TOTAL_NAME)
+            .unwrap();
+
+        let db_1 = "foo";
+        let db_2 = "bar";
+
+        // do a write and check the metrics:
+        let lp = "\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            ";
+        do_writes(
+            db_1,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            3,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        let mut bytes: usize = lp.lines().map(|l| l.len()).sum();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+
+        // do another write to that db and check again for updates:
+        let lp = "\
+            mem,region=us,host=a used=1,swap=4\n\
+            mem,region=eu,host=b used=1,swap=4\n\
+            mem,region=ca,host=c used=1,swap=4\n\
+            ";
+        do_writes(
+            db_1,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            6,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        bytes += lp.lines().map(|l| l.len()).sum::<usize>();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+
+        // now do a write that will only be partially accepted to ensure that
+        // the metrics are only calculated for writes that get accepted:
+
+        // the legume will not be accepted, because it contains a new tag,
+        // so should not be included in metric calculations:
+        let lp = "\
+            produce,type=fruit,name=banana price=1.50\n\
+            produce,type=fruit,name=papaya price=5.50\n\
+            produce,type=vegetable,name=lettuce price=1.00\n\
+            produce,type=fruit,name=lentils,family=legume price=2.00\n\
+            ";
+        do_writes_partial(
+            db_2,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            3,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+        // only take first three (valid) lines to get expected bytes:
+        let bytes: usize = lp.lines().take(3).map(|l| l.len()).sum();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -2367,6 +2505,25 @@ mod tests {
                     w.lp.as_ref(),
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,
+                    Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+        }
+    }
+
+    async fn do_writes_partial<W: WriteBuffer, LP: AsRef<str>>(
+        db: &'static str,
+        buffer: &W,
+        writes: &[TestWrite<LP>],
+    ) {
+        for w in writes {
+            buffer
+                .write_lp(
+                    NamespaceName::new(db).unwrap(),
+                    w.lp.as_ref(),
+                    Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
+                    true,
                     Precision::Nanosecond,
                 )
                 .await
@@ -2435,7 +2592,9 @@ mod tests {
         IOxSessionContext,
         Arc<dyn TimeProvider>,
     ) {
-        setup_cache_optional(start, object_store, wal_config, true).await
+        let (buf, ctx, time_provider, _metrics) =
+            setup_inner(start, object_store, wal_config, true).await;
+        (buf, ctx, time_provider)
     }
 
     async fn setup_cache_optional(
@@ -2448,7 +2607,34 @@ mod tests {
         IOxSessionContext,
         Arc<dyn TimeProvider>,
     ) {
+        let (buf, ctx, time_provider, _metrics) =
+            setup_inner(start, object_store, wal_config, use_cache).await;
+        (buf, ctx, time_provider)
+    }
+
+    async fn setup_with_metrics(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+    ) -> (Arc<WriteBufferImpl>, Arc<Registry>) {
+        let (buf, _ctx, _time_provider, metrics) =
+            setup_inner(start, object_store, wal_config, false).await;
+        (buf, metrics)
+    }
+
+    async fn setup_inner(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+        use_cache: bool,
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+        Arc<Registry>,
+    ) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
+        let metric_registry = Arc::new(Registry::new());
         let (object_store, parquet_cache) = if use_cache {
             let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
                 object_store,
@@ -2474,13 +2660,14 @@ mod tests {
             executor: crate::test_help::make_exec(),
             wal_config,
             parquet_cache,
+            metric_registry: Arc::clone(&metric_registry),
         })
         .await
         .unwrap();
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
-        (wbuf, ctx, time_provider)
+        (wbuf, ctx, time_provider, metric_registry)
     }
 
     async fn get_table_batches(

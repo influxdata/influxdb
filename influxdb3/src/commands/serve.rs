@@ -484,6 +484,7 @@ pub async fn command(config: Config) -> Result<()> {
         executor: Arc::clone(&exec),
         wal_config,
         parquet_cache,
+        metric_registry: Arc::clone(&metrics),
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;

@@ -31,6 +31,7 @@ pub struct WithCatalog {
 pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
+    bytes: u64,
     catalog_batch: Option<CatalogBatch>,
     errors: Vec<WriteLineError>,
 }
@@ -89,6 +90,7 @@ impl WriteValidator<WithCatalog> {
         let mut errors = vec![];
         let mut lp_lines = lp.lines();
         let mut lines = vec![];
+        let mut bytes = 0;
         let mut catalog_updates = vec![];
         let mut schema = Cow::Borrowed(self.state.db_schema.as_ref());
 
@@ -100,14 +102,16 @@ impl WriteValidator<WithCatalog> {
                     error_message: e.to_string(),
                 })
                 .and_then(|line| {
+                    let raw_line = lp_lines.next().unwrap();
                     validate_and_qualify_v3_line(
                         &mut schema,
                         line_idx,
                         line,
-                        lp_lines.next().unwrap(),
+                        raw_line,
                         ingest_time,
                         precision,
                     )
+                    .inspect(|_| bytes += raw_line.len() as u64)
                 }) {
                 Ok((qualified_line, catalog_ops)) => (qualified_line, catalog_ops),
                 Err(error) => {
@@ -144,6 +148,7 @@ impl WriteValidator<WithCatalog> {
             state: LinesParsed {
                 catalog: self.state,
                 lines,
+                bytes,
                 catalog_batch,
                 errors,
             },
@@ -170,6 +175,7 @@ impl WriteValidator<WithCatalog> {
         let mut errors = vec![];
         let mut lp_lines = lp.lines();
         let mut lines = vec![];
+        let mut bytes = 0;
         let mut catalog_updates = vec![];
         let mut schema = Cow::Borrowed(self.state.db_schema.as_ref());
 
@@ -183,14 +189,9 @@ impl WriteValidator<WithCatalog> {
                     error_message: e.to_string(),
                 })
                 .and_then(|l| {
-                    validate_and_qualify_v1_line(
-                        &mut schema,
-                        line_idx,
-                        l,
-                        lp_lines.next().unwrap(),
-                        ingest_time,
-                        precision,
-                    )
+                    let raw_line = lp_lines.next().unwrap();
+                    validate_and_qualify_v1_line(&mut schema, line_idx, l, ingest_time, precision)
+                        .inspect(|_| bytes += raw_line.len() as u64)
                 }) {
                 Ok((qualified_line, catalog_op)) => (qualified_line, catalog_op),
                 Err(e) => {
@@ -231,6 +232,7 @@ impl WriteValidator<WithCatalog> {
                 catalog: self.state,
                 lines,
                 errors,
+                bytes,
                 catalog_batch,
             },
         })
@@ -504,7 +506,6 @@ fn validate_and_qualify_v1_line(
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
     line: ParsedLine,
-    _raw_line: &str,
     ingest_time: Time,
     precision: Precision,
 ) -> Result<(QualifiedLine, Option<CatalogOp>), WriteLineError> {
@@ -710,6 +711,8 @@ fn validate_and_qualify_v1_line(
 pub struct ValidatedLines {
     /// Number of lines passed in
     pub(crate) line_count: usize,
+    /// Number of bytes of all valid lines written
+    pub(crate) valid_bytes_count: u64,
     /// Number of fields passed in
     pub(crate) field_count: usize,
     /// Number of index columns passed in, whether tags (v1) or series keys (v3)
@@ -763,6 +766,7 @@ impl WriteValidator<LinesParsed> {
 
         ValidatedLines {
             line_count,
+            valid_bytes_count: self.state.bytes,
             field_count,
             index_count,
             errors: self.state.errors,

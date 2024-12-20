@@ -700,6 +700,7 @@ mod tests {
                 snapshot_size: 1,
             },
             parquet_cache: Some(parquet_cache),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
