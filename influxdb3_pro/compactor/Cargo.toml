@@ -59,6 +59,8 @@ test_helpers.workspace = true
 pretty_assertions.workspace = true
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_pro_buffer = { path = "../buffer" }
+influxdb3_server = { path = "../../influxdb3_server" }
+influxdb3_telemetry = { path = "../../influxdb3_telemetry" }
 influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
 serde_json.workspace = true
 test-log.workspace = true

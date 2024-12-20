@@ -23,7 +23,7 @@ use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_config::ProConfig;
-use influxdb3_pro_data_layout::CompactedDataSystemTableView;
+use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
@@ -361,6 +361,7 @@ impl QueryDatabase for QueryExecutorImpl {
             compacted_data: self.compacted_data.clone(),
             pro_config: Arc::clone(&self.pro_config),
             sys_events_store: Arc::clone(&self.sys_events_store),
+            compactor_mode: false,
         }))))
     }
 
@@ -381,6 +382,7 @@ impl QueryDatabase for QueryExecutorImpl {
 pub struct CreateDatabaseArgs {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
+    compactor_mode: bool,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
@@ -393,6 +395,7 @@ pub struct CreateDatabaseArgs {
 pub struct Database {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
+    compactor_mode: bool,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
@@ -405,6 +408,7 @@ impl Database {
             db_schema,
             write_buffer,
             exec,
+            compactor_mode,
             datafusion_config,
             query_log,
             compacted_data,
@@ -419,6 +423,7 @@ impl Database {
             compacted_data.clone(),
             Arc::clone(&pro_config),
             Arc::clone(&sys_events_store),
+            compactor_mode,
         ));
         Self {
             db_schema,
@@ -427,6 +432,7 @@ impl Database {
             datafusion_config,
             query_log,
             system_schema_provider,
+            compactor_mode,
         }
     }
 
@@ -438,6 +444,7 @@ impl Database {
             datafusion_config: Arc::clone(&db.datafusion_config),
             query_log: Arc::clone(&db.query_log),
             system_schema_provider: Arc::clone(&db.system_schema_provider),
+            compactor_mode: db.compactor_mode,
         }
     }
 
@@ -497,20 +504,22 @@ impl QueryNamespace for Database {
         }
 
         let ctx = cfg.build();
-        ctx.inner().register_udtf(
-            LAST_CACHE_UDTF_NAME,
-            Arc::new(LastCacheFunction::new(
-                self.db_schema.id,
-                self.write_buffer.last_cache_provider(),
-            )),
-        );
-        ctx.inner().register_udtf(
-            META_CACHE_UDTF_NAME,
-            Arc::new(MetaCacheFunction::new(
-                self.db_schema.id,
-                self.write_buffer.meta_cache_provider(),
-            )),
-        );
+        if !self.compactor_mode {
+            ctx.inner().register_udtf(
+                LAST_CACHE_UDTF_NAME,
+                Arc::new(LastCacheFunction::new(
+                    self.db_schema.id,
+                    self.write_buffer.last_cache_provider(),
+                )),
+            );
+            ctx.inner().register_udtf(
+                META_CACHE_UDTF_NAME,
+                Arc::new(MetaCacheFunction::new(
+                    self.db_schema.id,
+                    self.write_buffer.meta_cache_provider(),
+                )),
+            );
+        }
         ctx
     }
 
@@ -647,23 +656,149 @@ impl TableProvider for QueryTable {
     }
 }
 
+#[derive(Debug)]
+pub struct CreateSysTableOnlyQueryExecutorArgs {
+    pub write_buffer: Arc<dyn WriteBuffer>,
+    pub exec: Arc<Executor>,
+    pub metrics: Arc<Registry>,
+    pub datafusion_config: Arc<HashMap<String, String>>,
+    pub query_log_size: usize,
+    pub telemetry_store: Arc<TelemetryStore>,
+    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    pub pro_config: Arc<RwLock<ProConfig>>,
+    pub sys_events_store: Arc<SysEventStore>,
+    pub compactor_mode: bool,
+}
+
 #[derive(Debug, Clone)]
-pub struct PlaceHolderQueryExecutorImpl;
+pub struct SysTableOnlyQueryExecutorImpl {
+    pub write_buffer: Arc<dyn WriteBuffer>,
+    pub exec: Arc<Executor>,
+    pub datafusion_config: Arc<HashMap<String, String>>,
+    pub query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    pub query_log: Arc<QueryLog>,
+    pub telemetry_store: Arc<TelemetryStore>,
+    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    pub pro_config: Arc<RwLock<ProConfig>>,
+    pub sys_events_store: Arc<SysEventStore>,
+    pub compactor_mode: bool,
+}
+
+impl SysTableOnlyQueryExecutorImpl {
+    pub fn new(
+        CreateSysTableOnlyQueryExecutorArgs {
+            write_buffer,
+            exec,
+            metrics,
+            datafusion_config,
+            query_log_size,
+            telemetry_store,
+            compacted_data,
+            pro_config,
+            sys_events_store,
+            compactor_mode,
+        }: CreateSysTableOnlyQueryExecutorArgs,
+    ) -> Self {
+        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
+            &metrics,
+            &[("semaphore", "query_execution")],
+        ));
+        let query_execution_semaphore =
+            Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
+        let query_log = Arc::new(QueryLog::new(
+            query_log_size,
+            Arc::new(iox_time::SystemProvider::new()),
+        ));
+
+        Self {
+            write_buffer: Arc::clone(&write_buffer),
+            exec: Arc::clone(&exec),
+            query_log,
+            query_execution_semaphore,
+            datafusion_config: Arc::clone(&datafusion_config),
+            telemetry_store: Arc::clone(&telemetry_store),
+            compacted_data,
+            pro_config: Arc::clone(&pro_config),
+            sys_events_store: Arc::clone(&sys_events_store),
+            compactor_mode,
+        }
+    }
+}
 
 #[async_trait]
-impl QueryExecutor for PlaceHolderQueryExecutorImpl {
+impl QueryExecutor for SysTableOnlyQueryExecutorImpl {
     type Error = Error;
 
     async fn query(
         &self,
-        _database: &str,
-        _q: &str,
-        _params: Option<StatementParams>,
-        _kind: QueryKind,
-        _span_ctx: Option<SpanContext>,
-        _external_span_ctx: Option<RequestLogContext>,
+        database: &str,
+        query: &str,
+        params: Option<StatementParams>,
+        kind: QueryKind,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        Err(Error::MethodNotImplemented)
+        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
+        let db = self
+            .namespace(database, span_ctx.child_span("get database"), false)
+            .await
+            .map_err(|_| Error::DatabaseNotFound {
+                db_name: database.to_string(),
+            })?
+            .ok_or_else(|| Error::DatabaseNotFound {
+                db_name: database.to_string(),
+            })?;
+
+        let params = params.unwrap_or_default();
+
+        let token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            kind.query_type(),
+            Box::new(query.to_string()),
+            params.clone(),
+        );
+
+        // NOTE - we use the default query configuration on the IOxSessionContext here:
+        let ctx = db.new_query_context(span_ctx, Default::default());
+        let planner = Planner::new(&ctx);
+        let query = query.to_string();
+
+        // Perform query planning on a separate threadpool than the IO runtime that is servicing
+        // this request by using `IOxSessionContext::run`.
+        let plan = ctx
+            .run(async move {
+                match kind {
+                    QueryKind::Sql => planner.sql(query, params).await,
+                    QueryKind::InfluxQl => planner.influxql(query, params).await,
+                }
+            })
+            .await;
+
+        let plan = match plan.map_err(Error::QueryPlanning) {
+            Ok(plan) => plan,
+            Err(e) => {
+                token.fail();
+                return Err(e);
+            }
+        };
+        let token = token.planned(&ctx, Arc::clone(&plan));
+
+        // TODO: Enforce concurrency limit here
+        let token = token.permit();
+
+        // TODO: Do we need to track sys table queries too?
+        self.telemetry_store.update_num_queries();
+
+        match ctx.execute_stream(Arc::clone(&plan)).await {
+            Ok(query_results) => {
+                token.success();
+                Ok(query_results)
+            }
+            Err(err) => {
+                token.fail();
+                Err(Error::ExecuteStream(err))
+            }
+        }
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
@@ -685,32 +820,49 @@ impl QueryExecutor for PlaceHolderQueryExecutorImpl {
 }
 
 #[async_trait]
-impl QueryDatabase for PlaceHolderQueryExecutorImpl {
+impl QueryDatabase for SysTableOnlyQueryExecutorImpl {
     /// Get namespace if it exists.
     ///
     /// System tables may contain debug information depending on `include_debug_info_tables`.
     async fn namespace(
         &self,
-        _name: &str,
+        name: &str,
         _span: Option<Span>,
         _include_debug_info_tables: bool,
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
-        Err(DataFusionError::External(Box::new(
-            Error::MethodNotImplemented,
-        )))
+        let db_schema = self
+            .compacted_data
+            .clone()
+            .and_then(|compacted_data| compacted_data.catalog().db_schema(name))
+            .ok_or_else(|| {
+                DataFusionError::External(Box::new(Error::DatabaseNotFound {
+                    db_name: name.into(),
+                }))
+            })?;
+        Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
+            db_schema,
+            write_buffer: Arc::clone(&self.write_buffer),
+            exec: Arc::clone(&self.exec),
+            datafusion_config: Arc::clone(&self.datafusion_config),
+            query_log: Arc::clone(&self.query_log),
+            compacted_data: self.compacted_data.clone(),
+            pro_config: Arc::clone(&self.pro_config),
+            sys_events_store: Arc::clone(&self.sys_events_store),
+            compactor_mode: self.compactor_mode,
+        }))))
     }
 
     /// Acquire concurrency-limiting semapahore
-    async fn acquire_semaphore(
-        &self,
-        _span: Option<Span>,
-    ) -> InstrumentedAsyncOwnedSemaphorePermit {
-        unimplemented!()
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
+        Arc::clone(&self.query_execution_semaphore)
+            .acquire_owned(span)
+            .await
+            .expect("Semaphore should not be closed by anyone")
     }
 
     /// Return the query log entries
     fn query_log(&self) -> QueryLogEntries {
-        unimplemented!()
+        self.query_log.entries()
     }
 }
 
@@ -728,9 +880,8 @@ mod tests {
     };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::ParquetFileId;
-    use influxdb3_pro_data_layout::{
-        CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
-    };
+    use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
+    use influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult;
     use influxdb3_sys_events::events::{
         catalog_fetched,
         compaction_completed::{self, PlanIdentifier},
@@ -804,6 +955,10 @@ mod tests {
                 },
             ])
         }
+
+        fn catalog(&self) -> &influxdb3_pro_compactor::catalog::CompactedCatalog {
+            todo!()
+        }
     }
 
     fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
@@ -872,7 +1027,7 @@ mod tests {
         .unwrap();
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
-        let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let telemetry_store = TelemetryStore::new_without_background_runners(Some(persisted_files));
         let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
             &time_provider,
         )));

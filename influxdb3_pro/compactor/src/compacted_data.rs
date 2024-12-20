@@ -6,9 +6,9 @@ use hashbrown::HashMap;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_pro_data_layout::{
-    gen_time_string, CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
-    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary,
-    Generation, GenerationDetail, GenerationDetailPath, GenerationId, HostSnapshotMarker,
+    gen_time_string, CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
+    CompactionSequenceNumber, CompactionSummary, Generation, GenerationDetail,
+    GenerationDetailPath, GenerationId, HostSnapshotMarker,
 };
 use influxdb3_pro_index::memory::FileIndex;
 use influxdb3_write::ParquetFile;
@@ -29,6 +29,18 @@ pub enum Error {
 
     #[error("Error while joining: {0}")]
     TokioJoinError(#[from] tokio::task::JoinError),
+}
+
+/// This trait is for a view of `CompactedData` that can be queried as a system table
+pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug {
+    // TODO: rationalise Option<Vec<_>> vs Vec<_>
+    fn query(
+        &self,
+        db_name: &str,
+        table_name: &str,
+    ) -> Option<Vec<CompactedDataSystemTableQueryResult>>;
+
+    fn catalog(&self) -> &CompactedCatalog;
 }
 
 /// Result type for functions in this module.
@@ -300,6 +312,10 @@ impl CompactedDataSystemTableView for CompactedData {
             })
             .collect();
         Some(results)
+    }
+
+    fn catalog(&self) -> &CompactedCatalog {
+        &self.compacted_catalog
     }
 }
 

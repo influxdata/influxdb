@@ -12,6 +12,7 @@ pub struct TestConfigPro {
     auth_token: Option<(String, String)>,
     host_id: Option<String>,
     replicas: Vec<String>,
+    compaction_hosts: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<BufferMode>,
     object_store_path: Option<String>,
@@ -36,11 +37,18 @@ impl ConfigProvider for TestConfigPro {
         if !self.replicas.is_empty() {
             args.append(&mut vec!["--replicas".to_string(), self.replicas.join(",")])
         }
+        if !self.compaction_hosts.is_empty() {
+            args.append(&mut vec![
+                "--compaction-hosts".to_string(),
+                self.compaction_hosts.join(","),
+            ])
+        }
         if let Some(compactor_id) = &self.compactor_id {
             args.append(&mut vec![
                 "--compactor-id".to_string(),
                 compactor_id.to_owned(),
-            ])
+            ]);
+            args.append(&mut vec!["--run-compactions".to_string()]);
         }
         if let Some(path) = &self.object_store_path {
             args.append(&mut vec![
@@ -107,6 +115,15 @@ impl TestConfigPro {
     /// Specify a replication interval in a "human time", e.g., "1ms", "10ms", etc.
     pub fn with_replication_interval<S: Into<String>>(mut self, interval: S) -> Self {
         self.replication_interval = Some(interval.into());
+        self
+    }
+
+    pub fn with_compaction_hosts(
+        mut self,
+        compaction_hosts: impl IntoIterator<Item: Into<String>>,
+    ) -> Self {
+        self.compaction_hosts
+            .extend(compaction_hosts.into_iter().map(Into::into));
         self
     }
 }

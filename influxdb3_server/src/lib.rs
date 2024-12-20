@@ -839,7 +839,7 @@ mod tests {
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
-            TelemetryStore::new_without_background_runners(parquet_metrics_provider);
+            TelemetryStore::new_without_background_runners(Some(parquet_metrics_provider));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let pro_config = Arc::new(RwLock::new(ProConfig::default()));
         let common_state = crate::CommonServerState::new(

@@ -30,12 +30,13 @@ use object_store::memory::InMemory;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use pretty_assertions::assert_eq;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 #[ignore = "flakey test as the 208 data point for some reason isn't always there (see comment below)"]
 async fn two_writers_gen1_compaction() {
     let metrics = Arc::new(metric::Registry::default());

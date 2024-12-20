@@ -71,7 +71,9 @@ impl TelemetryStore {
         store
     }
 
-    pub fn new_without_background_runners(persisted_files: Arc<dyn ParquetMetrics>) -> Arc<Self> {
+    pub fn new_without_background_runners(
+        persisted_files: Option<Arc<dyn ParquetMetrics>>,
+    ) -> Arc<Self> {
         let instance_id = Arc::from("sample-instance-id");
         let os = Arc::from("Linux");
         let influx_version = Arc::from("influxdb3-0.1.0");
@@ -80,7 +82,7 @@ impl TelemetryStore {
         let inner = TelemetryStoreInner::new(instance_id, os, influx_version, storage_type, cores);
         Arc::new(TelemetryStore {
             inner: parking_lot::Mutex::new(inner),
-            persisted_files: Some(persisted_files),
+            persisted_files,
         })
     }
 

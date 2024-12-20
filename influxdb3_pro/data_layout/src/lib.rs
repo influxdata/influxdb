@@ -38,16 +38,6 @@ pub struct CompactedDataSystemTableQueryResult {
     pub parquet_files: Vec<Arc<ParquetFile>>,
 }
 
-/// This trait is for a view of `CompactedData` that can be queried as a system table
-pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug {
-    // TODO: rationalise Option<Vec<_>> vs Vec<_>
-    fn query(
-        &self,
-        db_name: &str,
-        table_name: &str,
-    ) -> Option<Vec<CompactedDataSystemTableQueryResult>>;
-}
-
 /// The `CompactionSummary` keeps track of the last snapshot from each host that has been compacted.
 /// Every table will have its own `CompactionDetail` and the summary contains a pointer to
 /// whatever the latest compaction detail is for each table.

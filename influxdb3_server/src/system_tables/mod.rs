@@ -10,7 +10,7 @@ use datafusion::{
 };
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_config::ProConfig;
-use influxdb3_pro_data_layout::CompactedDataSystemTableView;
+use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
@@ -77,63 +77,68 @@ impl SystemSchemaProvider {
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
         pro_config: Arc<RwLock<ProConfig>>,
         sys_events_store: Arc<SysEventStore>,
+        compactor_mode: bool,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
         tables.insert(QUERIES_TABLE_NAME, queries);
-        let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
-            Arc::clone(&db_schema),
-            buffer.last_cache_provider(),
-        ))));
-        tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
-        let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
-            Arc::clone(&db_schema),
-            buffer.meta_cache_provider(),
-        ))));
-        tables.insert(META_CACHES_TABLE_NAME, meta_caches);
-        // pro tables:
-        tables.insert(
-            FILE_INDEX_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
-                buffer.catalog(),
-                pro_config,
-            )))),
-        );
+        if !compactor_mode {
+            let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
+                Arc::clone(&db_schema),
+                buffer.last_cache_provider(),
+            ))));
+            tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+            let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
+                Arc::clone(&db_schema),
+                buffer.meta_cache_provider(),
+            ))));
+            tables.insert(META_CACHES_TABLE_NAME, meta_caches);
+            // pro tables:
+            tables.insert(
+                FILE_INDEX_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
+                    buffer.catalog(),
+                    pro_config,
+                )))),
+            );
+            tables.insert(
+                PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(
+                    ProcessingEnginePluginTable::new(
+                        db_schema
+                            .processing_engine_plugins
+                            .iter()
+                            .map(|(_name, call)| call.clone())
+                            .collect(),
+                    ),
+                ))),
+            );
+            tables.insert(
+                PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
+                Arc::new(SystemTableProvider::new(Arc::new(
+                    ProcessingEngineTriggerTable::new(
+                        db_schema
+                            .processing_engine_triggers
+                            .iter()
+                            .map(|(_name, trigger)| trigger.clone())
+                            .collect(),
+                    ),
+                ))),
+            );
+        }
         let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
             CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
         )));
         tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
+
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
             buffer,
         ))));
-        tables.insert(
-            PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(
-                ProcessingEnginePluginTable::new(
-                    db_schema
-                        .processing_engine_plugins
-                        .iter()
-                        .map(|(_name, call)| call.clone())
-                        .collect(),
-                ),
-            ))),
-        );
-        tables.insert(
-            PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(
-                ProcessingEngineTriggerTable::new(
-                    db_schema
-                        .processing_engine_triggers
-                        .iter()
-                        .map(|(_name, trigger)| trigger.clone())
-                        .collect(),
-                ),
-            ))),
-        );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
+
         tables.insert(
             COMPACTION_EVENTS_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(

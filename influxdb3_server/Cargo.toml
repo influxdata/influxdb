@@ -43,6 +43,7 @@ influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 
 # Pro Crates
 influxdb3_pro_data_layout = { path = "../influxdb3_pro/data_layout" }
+influxdb3_pro_compactor = { path = "../influxdb3_pro/compactor" }
 
 # crates.io Dependencies
 anyhow.workspace = true

@@ -6,9 +6,8 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use async_trait::async_trait;
 use datafusion::{error::DataFusionError, prelude::Expr};
 use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_pro_data_layout::{
-    CompactedDataSystemTableQueryResult, CompactedDataSystemTableView,
-};
+use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
+use influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult;
 use iox_system_tables::IoxSystemTable;
 use observability_deps::tracing::debug;
 
@@ -207,6 +206,10 @@ mod tests {
                     max_time: 1234567890000000000,
                 })],
             }])
+        }
+
+        fn catalog(&self) -> &influxdb3_pro_compactor::catalog::CompactedCatalog {
+            todo!()
         }
     }
 

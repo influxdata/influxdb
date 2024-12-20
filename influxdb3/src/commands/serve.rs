@@ -24,10 +24,9 @@ use influxdb3_pro_buffer::{
     WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::compacted_data::CompactedData;
+use influxdb3_pro_compactor::compacted_data::{CompactedData, CompactedDataSystemTableView};
 use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
-use influxdb3_pro_data_layout::CompactedDataSystemTableView;
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_process::{
@@ -37,7 +36,8 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
-        self, CreateQueryExecutorArgs, PlaceHolderQueryExecutorImpl, QueryExecutorImpl,
+        self, CreateQueryExecutorArgs, CreateSysTableOnlyQueryExecutorArgs, QueryExecutorImpl,
+        SysTableOnlyQueryExecutorImpl,
     },
     serve, CommonServerState, QueryExecutor,
 };
@@ -691,7 +691,20 @@ pub async fn command(config: Config) -> Result<()> {
 
     let query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>> =
         match config.pro_config.mode {
-            BufferMode::Compactor => Arc::new(PlaceHolderQueryExecutorImpl),
+            BufferMode::Compactor => Arc::new(SysTableOnlyQueryExecutorImpl::new(
+                CreateSysTableOnlyQueryExecutorArgs {
+                    write_buffer: Arc::clone(&write_buffer),
+                    exec: Arc::clone(&exec),
+                    metrics: Arc::clone(&metrics),
+                    datafusion_config: Arc::new(config.datafusion_config),
+                    query_log_size: config.query_log_size,
+                    telemetry_store: Arc::clone(&telemetry_store),
+                    compacted_data: sys_table_compacted_data,
+                    pro_config: Arc::clone(&pro_config),
+                    sys_events_store: Arc::clone(&sys_events_store),
+                    compactor_mode: true,
+                },
+            )),
             _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
                 catalog: write_buffer.catalog(),
                 write_buffer: Arc::clone(&write_buffer),
