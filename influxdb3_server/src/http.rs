@@ -369,6 +369,18 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
+            Self::Query(query_executor::Error::DatabaseNotFound { .. }) => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(body)
+                    .unwrap()
+            }
             Self::SerdeJson(_) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
