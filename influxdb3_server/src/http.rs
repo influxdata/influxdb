@@ -505,7 +505,10 @@ where
             .add_write_metrics(num_lines, payload_size);
 
         if result.invalid_lines.is_empty() {
-            Ok(Response::new(Body::empty()))
+            Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .map_err(Into::into)
         } else {
             Err(Error::PartialLpWrite(result))
         }

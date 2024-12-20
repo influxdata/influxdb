@@ -53,7 +53,7 @@ async fn auth() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::NO_CONTENT
     );
     assert_eq!(
         client
@@ -66,7 +66,7 @@ async fn auth() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::NO_CONTENT
     );
     assert_eq!(
         client
@@ -320,7 +320,7 @@ async fn v1_password_parameter() {
             .await
             .expect("send request")
             .status(),
-        StatusCode::OK,
+        StatusCode::NO_CONTENT,
     );
     // Send request to write API with the token in auth header:
     assert_eq!(
@@ -333,6 +333,6 @@ async fn v1_password_parameter() {
             .await
             .expect("send request")
             .status(),
-        StatusCode::OK,
+        StatusCode::NO_CONTENT,
     );
 }

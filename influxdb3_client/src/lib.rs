@@ -600,7 +600,7 @@ impl<'c> WriteRequestBuilder<'c, Body> {
         let content = resp.bytes().await.map_err(Error::Bytes)?;
         match status {
             // TODO - handle the OK response content, return to caller, etc.
-            StatusCode::OK => Ok(()),
+            StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
             code => Err(Error::ApiError {
                 code,
                 message: String::from_utf8(content.to_vec())?,
