@@ -1,8 +1,8 @@
 use crate::serialize::verify_file_type_and_deserialize;
 use crate::snapshot_tracker::{SnapshotInfo, SnapshotTracker, WalPeriod};
 use crate::{
-    background_wal_flush, CatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig,
-    WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
+    background_wal_flush, OrderedCatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal,
+    WalConfig, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
 };
 use bytes::Bytes;
 use data_types::Timestamp;
@@ -516,7 +516,7 @@ struct WalBuffer {
     op_limit: usize,
     op_count: usize,
     database_to_write_batch: HashMap<Arc<str>, WriteBatch>,
-    catalog_batches: Vec<CatalogBatch>,
+    catalog_batches: Vec<OrderedCatalogBatch>,
     write_op_responses: Vec<oneshot::Sender<WriteResult>>,
 }
 
@@ -594,21 +594,18 @@ impl WalBuffer {
         }
 
         for catalog_batch in &self.catalog_batches {
-            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.time_ns);
-            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.time_ns);
+            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.catalog.time_ns);
+            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.catalog.time_ns);
         }
 
         // have the catalog ops come before any writes in ordering
         let mut ops =
             Vec::with_capacity(self.database_to_write_batch.len() + self.catalog_batches.len());
 
-        for catalog_batch in self.catalog_batches {
-            ops.push(WalOp::Catalog(catalog_batch));
-        }
+        ops.extend(self.catalog_batches.into_iter().map(WalOp::Catalog));
+        ops.extend(self.database_to_write_batch.into_values().map(WalOp::Write));
 
-        for write_batch in self.database_to_write_batch.into_values() {
-            ops.push(WalOp::Write(write_batch));
-        }
+        ops.sort();
 
         (
             WalContents {
@@ -667,7 +664,7 @@ mod tests {
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
         let wal_config = WalConfig {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_secs(1),
@@ -877,7 +874,7 @@ mod tests {
         );
 
         // before we trigger a snapshot, test replay with a new wal and notifier
-        let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
             Arc::clone(&object_store),
@@ -897,7 +894,7 @@ mod tests {
         replay_wal.replay().await.unwrap();
         let replay_notifier = replay_notifier
             .as_any()
-            .downcast_ref::<TestNotfiier>()
+            .downcast_ref::<TestNotifier>()
             .unwrap();
 
         {
@@ -1008,7 +1005,7 @@ mod tests {
             },
         );
 
-        let notifier = notifier.as_any().downcast_ref::<TestNotfiier>().unwrap();
+        let notifier = notifier.as_any().downcast_ref::<TestNotifier>().unwrap();
 
         {
             let notified_writes = notifier.notified_writes.lock();
@@ -1022,7 +1019,7 @@ mod tests {
             .await;
 
         // test that replay now only has file 3
-        let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
             object_store,
@@ -1039,7 +1036,7 @@ mod tests {
         replay_wal.replay().await.unwrap();
         let replay_notifier = replay_notifier
             .as_any()
-            .downcast_ref::<TestNotfiier>()
+            .downcast_ref::<TestNotifier>()
             .unwrap();
         let notified_writes = replay_notifier.notified_writes.lock();
         assert_eq!(*notified_writes, vec![file_3_contents.clone()]);
@@ -1052,7 +1049,7 @@ mod tests {
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotfiier::default());
+        let notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
         let wal_config = WalConfig {
             max_write_buffer_size: 100,
             flush_interval: Duration::from_secs(1),
@@ -1070,7 +1067,7 @@ mod tests {
         );
 
         assert!(wal.flush_buffer().await.is_none());
-        let notifier = notifier.as_any().downcast_ref::<TestNotfiier>().unwrap();
+        let notifier = notifier.as_any().downcast_ref::<TestNotifier>().unwrap();
         assert!(notifier.notified_writes.lock().is_empty());
 
         // make sure no wal file was written
@@ -1096,13 +1093,13 @@ mod tests {
     }
 
     #[derive(Debug, Default)]
-    struct TestNotfiier {
+    struct TestNotifier {
         notified_writes: parking_lot::Mutex<Vec<WalContents>>,
         snapshot_details: parking_lot::Mutex<Option<SnapshotDetails>>,
     }
 
     #[async_trait]
-    impl WalFileNotifier for TestNotfiier {
+    impl WalFileNotifier for TestNotifier {
         fn notify(&self, write: WalContents) {
             self.notified_writes.lock().push(write);
         }

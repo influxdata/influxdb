@@ -521,21 +521,23 @@ impl MetaCacheManager for WriteBufferImpl {
         cache_name: Option<String>,
         args: CreateMetaCacheArgs,
     ) -> Result<Option<MetaCacheDefinition>, Error> {
-        let table_id = args.table_def.table_id;
         if let Some(new_cache_definition) = self
             .meta_cache
             .create_cache(db_schema.id, cache_name.map(Into::into), args)
             .map_err(Error::MetaCacheError)?
         {
-            self.catalog
-                .add_meta_cache(db_schema.id, table_id, new_cache_definition.clone());
-            let add_meta_cache_batch = influxdb3_wal::create::catalog_batch_op(
-                db_schema.id,
-                Arc::clone(&db_schema.name),
-                self.time_provider.now().timestamp_nanos(),
-                [CatalogOp::CreateMetaCache(new_cache_definition.clone())],
-            );
-            self.wal.write_ops(vec![add_meta_cache_batch]).await?;
+            let catalog_op = CatalogOp::CreateMetaCache(new_cache_definition.clone());
+            let catalog_batch = CatalogBatch {
+                database_id: db_schema.id,
+                database_name: db_schema.name.clone(),
+                time_ns: self.time_provider.now().timestamp_nanos(),
+                ops: vec![catalog_op],
+            };
+            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+                self.wal
+                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                    .await?;
+            }
             Ok(Some(new_cache_definition))
         } else {
             Ok(None)
@@ -551,20 +553,21 @@ impl MetaCacheManager for WriteBufferImpl {
         let catalog = self.catalog();
         let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
         self.meta_cache.delete_cache(db_id, tbl_id, cache_name)?;
-        catalog.remove_meta_cache(db_id, tbl_id, cache_name);
-
-        self.wal
-            .write_ops(vec![influxdb3_wal::create::catalog_batch_op(
-                *db_id,
-                Arc::clone(&db_schema.name),
-                self.time_provider.now().timestamp_nanos(),
-                [CatalogOp::DeleteMetaCache(MetaCacheDelete {
-                    table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
-                    table_id: *tbl_id,
-                    cache_name: cache_name.into(),
-                })],
-            )])
-            .await?;
+        let catalog_batch = CatalogBatch {
+            database_id: *db_id,
+            database_name: Arc::clone(&db_schema.name),
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            ops: vec![CatalogOp::DeleteMetaCache(MetaCacheDelete {
+                table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
+                table_id: *tbl_id,
+                cache_name: cache_name.into(),
+            })],
+        };
+        if let Some(catalog_batch) = catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
 
         Ok(())
     }
@@ -620,14 +623,17 @@ impl LastCacheManager for WriteBufferImpl {
                 value_columns,
             },
         )? {
-            self.catalog.add_last_cache(db_id, table_id, info.clone());
-            let add_cache_catalog_batch = WalOp::Catalog(CatalogBatch {
+            let catalog_batch = CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 ops: vec![CreateLastCache(info.clone())],
-            });
-            self.wal.write_ops(vec![add_cache_catalog_batch]).await?;
+            };
+            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+                self.wal
+                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                    .await?;
+            }
 
             Ok(Some(info))
         } else {
@@ -644,22 +650,25 @@ impl LastCacheManager for WriteBufferImpl {
         let catalog = self.catalog();
         let db_schema = catalog.db_schema_by_id(&db_id).expect("db should exist");
         self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
-        catalog.delete_last_cache(db_id, tbl_id, cache_name);
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
+                table_id: tbl_id,
+                table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
+                name: cache_name.into(),
+            })],
+        };
 
         // NOTE: if this fails then the cache will be gone from the running server, but will be
         // resurrected on server restart.
-        self.wal
-            .write_ops(vec![WalOp::Catalog(CatalogBatch {
-                time_ns: self.time_provider.now().timestamp_nanos(),
-                database_id: db_id,
-                database_name: Arc::clone(&db_schema.name),
-                ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
-                    table_id: tbl_id,
-                    table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
-                    name: cache_name.into(),
-                })],
-            })])
-            .await?;
+        if let Some(catalog_batch) = catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
 
         Ok(())
     }
@@ -684,9 +693,11 @@ impl DatabaseManager for WriteBufferImpl {
                 database_name: Arc::clone(&db_schema.name),
             })],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
         debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully created database");
         Ok(())
     }
@@ -710,10 +721,11 @@ impl DatabaseManager for WriteBufferImpl {
                 deletion_time: deletion_time.timestamp_nanos(),
             })],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
-        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+            debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        }
         Ok(())
     }
     async fn create_table(
@@ -787,9 +799,11 @@ impl DatabaseManager for WriteBufferImpl {
             database_name: Arc::clone(&db_schema.name),
             ops: vec![CatalogOp::CreateTable(catalog_table_def)],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
 
         debug!(
             db_name = ?db_schema.name,
@@ -832,9 +846,11 @@ impl DatabaseManager for WriteBufferImpl {
                 table_name: Arc::clone(&table_defn.table_name),
             })],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
         debug!(
             db_id = ?db_id,
             db_name = ?&db_schema.name,
@@ -877,9 +893,10 @@ impl ProcessingEngineManager for WriteBufferImpl {
             database_name: Arc::clone(&db_schema.name),
             ops: vec![catalog_op],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
         Ok(())
     }
 
@@ -915,9 +932,10 @@ impl ProcessingEngineManager for WriteBufferImpl {
             database_name: Arc::clone(&db_schema.name),
             ops: vec![catalog_op],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
         Ok(())
     }
 

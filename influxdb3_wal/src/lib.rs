@@ -21,6 +21,7 @@ use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -213,7 +214,31 @@ impl Default for Gen1Duration {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WalOp {
     Write(WriteBatch),
-    Catalog(CatalogBatch),
+    Catalog(OrderedCatalogBatch),
+}
+
+impl PartialOrd for WalOp {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WalOp {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            // Catalog ops come before Write ops
+            (WalOp::Catalog(_), WalOp::Write(_)) => Ordering::Less,
+            (WalOp::Write(_), WalOp::Catalog(_)) => Ordering::Greater,
+
+            // For two Catalog ops, compare by database_sequence_number
+            (WalOp::Catalog(a), WalOp::Catalog(b)) => {
+                a.database_sequence_number.cmp(&b.database_sequence_number)
+            }
+
+            // For two Write ops, consider them equal
+            (WalOp::Write(_), WalOp::Write(_)) => Ordering::Equal,
+        }
+    }
 }
 
 impl WalOp {
@@ -227,7 +252,7 @@ impl WalOp {
     pub fn as_catalog(&self) -> Option<&CatalogBatch> {
         match self {
             WalOp::Write(_) => None,
-            WalOp::Catalog(c) => Some(c),
+            WalOp::Catalog(c) => Some(&c.catalog),
         }
     }
 }
@@ -238,6 +263,30 @@ pub struct CatalogBatch {
     pub database_name: Arc<str>,
     pub time_ns: i64,
     pub ops: Vec<CatalogOp>,
+}
+
+/// A catalog batch that has been processed by the catalog and given a sequence number.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OrderedCatalogBatch {
+    catalog: CatalogBatch,
+    database_sequence_number: u32,
+}
+
+impl OrderedCatalogBatch {
+    pub fn new(catalog: CatalogBatch, database_sequence_number: u32) -> Self {
+        Self {
+            catalog,
+            database_sequence_number,
+        }
+    }
+
+    pub fn sequence_number(&self) -> u32 {
+        self.database_sequence_number
+    }
+
+    pub fn batch(self) -> CatalogBatch {
+        self.catalog
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
