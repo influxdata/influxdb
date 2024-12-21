@@ -9,7 +9,7 @@ use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_wal::{
-    LastCacheDefinition, LastCacheValueColumnsDef, PluginDefinition, TriggerDefinition,
+    LastCacheDefinition, LastCacheValueColumnsDef, PluginDefinition, PluginType, TriggerDefinition,
 };
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
@@ -163,7 +163,7 @@ struct ProcessingEnginePluginSnapshot {
     pub plugin_name: String,
     pub code: String,
     pub function_name: String,
-    pub plugin_type: String,
+    pub plugin_type: PluginType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -411,7 +411,7 @@ impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
             plugin_name: plugin.plugin_name.to_string(),
             code: plugin.code.to_string(),
             function_name: plugin.function_name.to_string(),
-            plugin_type: serde_json::to_string(&plugin.plugin_type).unwrap(),
+            plugin_type: plugin.plugin_type,
         }
     }
 }
@@ -419,10 +419,10 @@ impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
 impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
     fn from(plugin: ProcessingEnginePluginSnapshot) -> Self {
         Self {
-            plugin_name: plugin.plugin_type.to_string(),
+            plugin_name: plugin.plugin_name.to_string(),
             code: plugin.code.to_string(),
             function_name: plugin.function_name.to_string(),
-            plugin_type: serde_json::from_str(&plugin.plugin_type).expect("serialized plugin type"),
+            plugin_type: plugin.plugin_type,
         }
     }
 }

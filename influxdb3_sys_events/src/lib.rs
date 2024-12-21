@@ -145,6 +145,9 @@ impl<T> RingBufferVec<T> {
 
     pub(crate) fn len(&self) -> usize {
         self.buf.len()
+        tail.iter()
+            .chain(head.iter())
+            .filter_map(|item| item.as_ref())
     }
 }
 

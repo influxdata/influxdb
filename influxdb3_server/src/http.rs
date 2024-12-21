@@ -47,6 +47,7 @@ use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::Duration;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
@@ -262,6 +263,14 @@ impl Error {
                 .status(StatusCode::NOT_FOUND)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
+            Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
+            Self::WriteBuffer(err @ WriteBufferError::EmptyFields) => Response::builder()
+                .status(StatusCode::UNPROCESSABLE_ENTITY)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
                 | CatalogError::TooManyColumns
@@ -374,6 +383,18 @@ impl Error {
                 let body = Body::from(serialized);
                 Response::builder()
                     .status(StatusCode::METHOD_NOT_ALLOWED)
+                    .body(body)
+                    .unwrap()
+            }
+            Self::Query(query_executor::Error::DatabaseNotFound { .. }) => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
                     .body(body)
                     .unwrap()
             }
@@ -509,7 +530,10 @@ where
             .add_write_metrics(num_lines, payload_size);
 
         if result.invalid_lines.is_empty() {
-            Ok(Response::new(Body::empty()))
+            Response::builder()
+                .status(StatusCode::NO_CONTENT)
+                .body(Body::empty())
+                .map_err(Into::into)
         } else {
             Err(Error::PartialLpWrite(result))
         }
@@ -967,57 +991,7 @@ where
             .body(Body::empty())?)
     }
 
-    async fn configure_processing_engine_plugin(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        let ProcessingEnginePluginCreateRequest {
-            db,
-            plugin_name,
-            code,
-            function_name,
-            plugin_type,
-        } = if let Some(query) = req.uri().query() {
-            serde_urlencoded::from_str(query)?
-        } else {
-            self.read_body_json(req).await?
-        };
-        self.write_buffer
-            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
-            .await?;
-
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-
-    async fn configure_processing_engine_trigger(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        let ProcessEngineTriggerCreateRequest {
-            db,
-            plugin_name,
-            trigger_name,
-            trigger_specification,
-        } = if let Some(query) = req.uri().query() {
-            serde_urlencoded::from_str(query)?
-        } else {
-            self.read_body_json(req).await?
-        };
-        self.write_buffer
-            .insert_trigger(
-                db.as_str(),
-                trigger_name,
-                plugin_name,
-                trigger_specification,
-            )
-            .await?;
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-
+    // WIP - move thsi to pro module
     async fn configure_file_index_create(&self, req: Request<Body>) -> Result<Response<Body>> {
         let FileIndexCreateRequest { db, table, columns } = self.read_body_json(req).await?;
 
@@ -1113,6 +1087,7 @@ where
             .unwrap())
     }
 
+    // WIP - move this to pro module
     async fn configure_file_index_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
         let FileIndexDeleteRequest { db, table } = self.read_body_json(req).await?;
         let catalog = self.write_buffer.catalog();
@@ -1168,6 +1143,72 @@ where
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn configure_processing_engine_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessingEnginePluginCreateRequest {
+            db,
+            plugin_name,
+            code,
+            function_name,
+            plugin_type,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
+            .await?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn configure_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessEngineTriggerCreateRequest {
+            db,
+            plugin_name,
+            trigger_name,
+            trigger_specification,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .insert_trigger(
+                db.as_str(),
+                trigger_name.clone(),
+                plugin_name,
+                trigger_specification,
+            )
+            .await?;
+        self.write_buffer
+            .run_trigger(
+                Arc::clone(&self.write_buffer),
+                db.as_str(),
+                trigger_name.as_str(),
+            )
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
+        self.write_buffer.create_database(db).await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
     }
@@ -1177,6 +1218,30 @@ where
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
         self.write_buffer
             .soft_delete_database(delete_req.db)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
+    async fn create_table(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let CreateTableRequest {
+            db,
+            table,
+            tags,
+            fields,
+        } = self.read_body_json(req).await?;
+        self.write_buffer
+            .create_table(
+                db,
+                table,
+                tags,
+                fields
+                    .into_iter()
+                    .map(|field| (field.name, field.r#type))
+                    .collect(),
+            )
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -1377,6 +1442,7 @@ pub(crate) enum QueryFormat {
     Csv,
     Pretty,
     Json,
+    JsonLines,
 }
 
 impl QueryFormat {
@@ -1386,6 +1452,7 @@ impl QueryFormat {
             Self::Csv => "text/csv",
             Self::Pretty => "text/plain; charset=utf-8",
             Self::Json => "application/json",
+            Self::JsonLines => "application/jsonl",
         }
     }
 
@@ -1409,7 +1476,7 @@ impl QueryFormat {
 }
 
 async fn record_batch_stream_to_body(
-    stream: Pin<Box<dyn RecordBatchStream + Send>>,
+    mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
 ) -> Result<Body, Error> {
     fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
@@ -1451,15 +1518,41 @@ async fn record_batch_stream_to_body(
         Ok(Bytes::from(bytes))
     }
 
-    let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-
     match format {
-        QueryFormat::Pretty => to_pretty(batches),
-        QueryFormat::Parquet => to_parquet(batches),
-        QueryFormat::Csv => to_csv(batches),
-        QueryFormat::Json => to_json(batches),
+        QueryFormat::Pretty => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_pretty(batches).map(Body::from)
+        }
+        QueryFormat::Parquet => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_parquet(batches).map(Body::from)
+        }
+        QueryFormat::Csv => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_csv(batches).map(Body::from)
+        }
+        QueryFormat::Json => {
+            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
+            to_json(batches).map(Body::from)
+        }
+        QueryFormat::JsonLines => {
+            let stream = futures::stream::poll_fn(move |ctx| match stream.poll_next_unpin(ctx) {
+                Poll::Ready(Some(batch)) => {
+                    let mut writer = arrow_json::LineDelimitedWriter::new(Vec::new());
+                    let batch = match batch {
+                        Ok(batch) => batch,
+                        Err(e) => return Poll::Ready(Some(Err(e))),
+                    };
+                    writer.write(&batch).unwrap();
+                    writer.finish().unwrap();
+                    Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                }
+                Poll::Ready(None) => Poll::Ready(None),
+                Poll::Pending => Poll::Pending,
+            });
+            Ok(Body::wrap_stream(stream))
+        }
     }
-    .map(Body::from)
 }
 
 // This is a hack around the fact that bool default is false not true
@@ -1535,6 +1628,7 @@ struct LastCacheDeleteRequest {
     name: String,
 }
 
+// WIP - move to pro module
 /// Request definition for the `POST /api/v3/pro/configure/file_index` API
 #[derive(Debug, Deserialize)]
 struct FileIndexCreateRequest {
@@ -1543,13 +1637,13 @@ struct FileIndexCreateRequest {
     columns: Vec<String>,
 }
 
+// WIP
 /// Request definition for the `DELETE /api/v3/pro/configure/file_index` API
 #[derive(Debug, Deserialize)]
 struct FileIndexDeleteRequest {
     db: String,
     table: Option<String>,
 }
-
 /// Request definition for `POST /api/v3/configure/processing_engine_plugin` API
 #[derive(Debug, Deserialize)]
 struct ProcessingEnginePluginCreateRequest {
@@ -1570,8 +1664,27 @@ struct ProcessEngineTriggerCreateRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct CreateDatabaseRequest {
+    db: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct DeleteDatabaseRequest {
     db: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateTableRequest {
+    db: String,
+    table: String,
+    tags: Vec<String>,
+    fields: Vec<CreateTableField>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateTableField {
+    name: String,
+    r#type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1674,7 +1787,9 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
         }
+        (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
+        (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,
         // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
         _ => {

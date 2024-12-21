@@ -33,6 +33,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use write_buffer::plugins::ProcessingEngineManager;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -64,7 +65,15 @@ pub trait WriteBuffer:
 /// Database manager - supports only delete operation
 #[async_trait::async_trait]
 pub trait DatabaseManager: Debug + Send + Sync + 'static {
+    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error>;
     async fn soft_delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error>;
     async fn soft_delete_table(
         &self,
         db_name: String,

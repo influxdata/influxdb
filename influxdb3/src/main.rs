@@ -11,13 +11,9 @@ clippy::future_not_send
 )]
 
 use dotenvy::dotenv;
+use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use tokio::runtime::Runtime;
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -52,24 +48,27 @@ clap::Arg::new("help")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3.0 Edge server and command line tools",
-long_about = r#"InfluxDB 3.0 Edge server and command line tools
+about = "InfluxDB 3.0 OSS server and command line tools",
+long_about = r#"InfluxDB 3.0 OSS server and command line tools
 
 Examples:
-    # Run the InfluxDB 3.0 Edge server
-    influxdb3 serve
+    # Run the InfluxDB 3.0 OSS server
+    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
     # Display all commands
     influxdb3 --help
 
-    # Run the InfluxDB 3.0 Edge server in all-in-one mode with extra verbose logging
-    influxdb3 serve -v
+    # Run the InfluxDB 3.0 OSS server with extra verbose logging
+    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
-    # Run InfluxDB 3.0 Edge with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb3 serve
+    # Run InfluxDB 3.0 OSS with full debug logging specified with LOG_FILTER
+    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 "#
 )]
 struct Config {
+    #[clap(flatten)]
+    runtime_config: TokioIoConfig,
+
     #[clap(subcommand)]
     command: Option<Command>,
 }
@@ -99,10 +98,10 @@ enum Command {
     MetaCache(commands::meta_cache::Config),
 
     /// Manage database (delete only for the moment)
-    Database(commands::manage::database::ManageDatabaseConfig),
+    Database(commands::manage::database::Config),
 
     /// Manage table (delete only for the moment)
-    Table(commands::manage::table::ManageTableConfig),
+    Table(commands::manage::table::Config),
 
     /// Manage the file index
     FileIndex(commands::file_index::Config),
@@ -117,7 +116,8 @@ fn main() -> Result<(), std::io::Error> {
 
     let config: Config = clap::Parser::parse();
 
-    let tokio_runtime = get_runtime(None)?;
+    let tokio_runtime = config.runtime_config.builder()?.build()?;
+
     tokio_runtime.block_on(async move {
         fn handle_init_logs(r: Result<TroggingGuard, trogging::Error>) -> TroggingGuard {
             match r {
@@ -170,14 +170,14 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Some(Command::Database(config)) => {
-                if let Err(e) = commands::manage::database::delete_database(config).await {
-                    eprintln!("Database delete command failed: {e}");
+                if let Err(e) = commands::manage::database::command(config).await {
+                    eprintln!("Database command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Table(config)) => {
-                if let Err(e) = commands::manage::table::delete_table(config).await {
-                    eprintln!("Table delete command failed: {e}");
+                if let Err(e) = commands::manage::table::command(config).await {
+                    eprintln!("Table command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -191,43 +191,6 @@ fn main() -> Result<(), std::io::Error> {
     });
 
     Ok(())
-}
-
-/// Creates the tokio runtime for executing IOx
-///
-/// if nthreads is none, uses the default scheduler
-/// otherwise, creates a scheduler with the number of threads
-fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
-    // NOTE: no log macros will work here!
-    //
-    // That means use eprintln!() instead of error!() and so on. The log emitter
-    // requires a running tokio runtime and is initialised after this function.
-
-    use tokio::runtime::Builder;
-    let kind = std::io::ErrorKind::Other;
-    match num_threads {
-        None => Runtime::new(),
-        Some(num_threads) => {
-            println!("Setting number of threads to '{num_threads}' per command line request");
-
-            let thread_counter = Arc::new(AtomicUsize::new(1));
-            match num_threads {
-                0 => {
-                    let msg =
-                        format!("Invalid num-threads: '{num_threads}' must be greater than zero");
-                    Err(std::io::Error::new(kind, msg))
-                }
-                1 => Builder::new_current_thread().enable_all().build(),
-                _ => Builder::new_multi_thread()
-                    .enable_all()
-                    .thread_name_fn(move || {
-                        format!("IOx main {}", thread_counter.fetch_add(1, Ordering::SeqCst))
-                    })
-                    .worker_threads(num_threads)
-                    .build(),
-            }
-        }
-    }
 }
 
 /// Source the .env file before initialising the Config struct - this sets

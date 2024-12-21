@@ -68,6 +68,7 @@ pub struct Config {
 enum Format {
     Pretty,
     Json,
+    JsonLines,
     Csv,
     Parquet,
 }
@@ -83,6 +84,7 @@ impl From<Format> for influxdb3_client::Format {
         match this {
             Format::Pretty => Self::Pretty,
             Format::Json => Self::Json,
+            Format::JsonLines => Self::JsonLines,
             Format::Csv => Self::Csv,
             Format::Parquet => Self::Parquet,
         }

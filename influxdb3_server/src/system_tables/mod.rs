@@ -35,6 +35,8 @@ mod parquet_files;
 use crate::system_tables::python_call::{
     ProcessingEnginePluginTable, ProcessingEngineTriggerTable,
 };
+#[cfg(test)]
+pub(crate) use parquet_files::table_name_predicate_error;
 
 mod python_call;
 mod queries;
@@ -49,6 +51,10 @@ pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 pub(crate) const COMPACTED_DATA_TABLE_NAME: &str = "compacted_data";
 pub(crate) const FILE_INDEX_TABLE_NAME: &str = "file_index";
 pub(crate) const COMPACTION_EVENTS_TABLE_NAME: &str = "compaction_events";
+
+const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
+
+const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
 const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
 

@@ -3,7 +3,9 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
+use crate::write_buffer::PluginEvent;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
+use anyhow::Context;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use data_types::{
@@ -28,16 +30,16 @@ use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
-use observability_deps::tracing::{debug, error, info};
-use parking_lot::RwLock;
+use observability_deps::tracing::{error, info};
+use parking_lot::{Mutex, RwLock};
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
 use schema::Schema;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::oneshot;
 use tokio::sync::oneshot::Receiver;
+use tokio::sync::{broadcast, oneshot};
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -52,6 +54,7 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
+    plugin_event_tx: Mutex<Option<broadcast::Sender<PluginEvent>>>,
 }
 
 pub struct QueryableBufferArgs {
@@ -90,6 +93,7 @@ impl QueryableBuffer {
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
+            plugin_event_tx: Mutex::new(None),
         }
     }
 
@@ -290,22 +294,38 @@ impl QueryableBuffer {
                 let min_time = persist_job.timestamp_min_max.min;
                 let max_time = persist_job.timestamp_min_max.max;
 
-                let (size_bytes, meta, cache_notifier) = sort_dedupe_persist(
+                let SortDedupePersistSummary {
+                    file_size_bytes,
+                    file_meta_data,
+                    parquet_cache_rx,
+                } = sort_dedupe_persist(
                     persist_job,
                     Arc::clone(&persister),
                     Arc::clone(&executor),
                     parquet_cache.clone(),
                 )
-                .await;
-                cache_notifiers.push(cache_notifier);
+                .await
+                .inspect_err(|error| {
+                    error!(
+                        %error,
+                        debug = ?error,
+                        "error during sort, deduplicate, and persist of buffer data as parquet"
+                    );
+                })
+                // for now, we are still panicking in this case, see:
+                // https://github.com/influxdata/influxdb/issues/25676
+                // https://github.com/influxdata/influxdb/issues/25677
+                .expect("sort, deduplicate, and persist buffer data as parquet");
+
+                cache_notifiers.push(parquet_cache_rx);
                 persisted_snapshot.add_parquet_file(
                     database_id,
                     table_id,
                     ParquetFile {
                         id: ParquetFileId::new(),
                         path,
-                        size_bytes,
-                        row_count: meta.num_rows as u64,
+                        size_bytes: file_size_bytes,
+                        row_count: file_meta_data.num_rows as u64,
                         chunk_time,
                         min_time,
                         max_time,
@@ -368,11 +388,28 @@ impl QueryableBuffer {
         let mut buffer = self.buffer.write();
         buffer.db_to_table.remove(db_id);
     }
+
+    #[cfg(feature = "system-py")]
+    pub(crate) fn subscribe_to_plugin_events(&self) -> broadcast::Receiver<PluginEvent> {
+        let mut sender = self.plugin_event_tx.lock();
+
+        if sender.is_none() {
+            let (tx, rx) = broadcast::channel(1024);
+            *sender = Some(tx);
+            return rx;
+        }
+        sender.as_ref().unwrap().subscribe()
+    }
 }
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
     fn notify(&self, write: WalContents) {
+        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
+            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+                error!(%err, "Error sending WAL content to plugins");
+            }
+        }
         self.buffer_contents(write)
     }
 
@@ -381,6 +418,11 @@ impl WalFileNotifier for QueryableBuffer {
         write: WalContents,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
+        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
+            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+                error!(%err, "Error sending WAL content to plugins");
+            }
+        }
         self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
@@ -416,11 +458,13 @@ impl BufferState {
             match op {
                 WalOp::Write(write_batch) => self.add_write_batch(write_batch),
                 WalOp::Catalog(catalog_batch) => {
-                    self.catalog
-                        // just catalog level changes
-                        .apply_catalog_batch(&catalog_batch)
-                        .expect("catalog batch should apply");
-
+                    let Some(catalog_batch) = self
+                        .catalog
+                        .apply_ordered_catalog_batch(catalog_batch)
+                        .expect("should be able to reapply")
+                    else {
+                        continue;
+                    };
                     let db_schema = self
                         .catalog
                         .db_schema_by_id(&catalog_batch.database_id)
@@ -509,65 +553,6 @@ impl BufferState {
             .db_schema_by_id(&write_batch.database_id)
             .expect("database should exist");
 
-        // TODO: factor this out
-        #[cfg(feature = "system-py")]
-        {
-            use influxdb3_wal::TriggerSpecificationDefinition;
-            use influxdb3_wal::TriggerSpecificationDefinition::SingleTableWalWrite;
-            let write_tables: hashbrown::HashSet<_> = write_batch
-                .table_chunks
-                .keys()
-                .map(|key| {
-                    let table_name = db_schema.table_map.get_by_left(key).unwrap();
-                    table_name.to_string()
-                })
-                .collect();
-            let triggers: Vec<_> = db_schema
-                .processing_engine_triggers
-                .values()
-                .filter_map(|trigger| match &trigger.trigger {
-                    SingleTableWalWrite { table_name } => {
-                        if write_tables.contains(table_name.as_str()) {
-                            Some((trigger, vec![table_name.clone()]))
-                        } else {
-                            None
-                        }
-                    }
-                    TriggerSpecificationDefinition::AllTablesWalWrite => {
-                        if !write_tables.is_empty() {
-                            Some((
-                                trigger,
-                                write_tables.iter().map(ToString::to_string).collect(),
-                            ))
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .collect();
-            if !triggers.is_empty() {
-                // Create PyWriteBatch instance
-                let py_write_batch = PyWriteBatch {
-                    write_batch: write_batch.clone(),
-                    schema: db_schema.clone(),
-                };
-                for (trigger, write_tables) in triggers {
-                    for table in &write_tables {
-                        if let Err(err) = py_write_batch.call_against_table(
-                            table,
-                            trigger.plugin.code.as_str(),
-                            trigger.plugin.function_name.as_str(),
-                        ) {
-                            error!(
-                                "failed to call trigger {} with error {}",
-                                trigger.trigger_name, err
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
         for (table_id, table_chunks) in write_batch.table_chunks {
@@ -603,12 +588,31 @@ struct PersistJob {
     sort_key: SortKey,
 }
 
+pub(crate) struct SortDedupePersistSummary {
+    pub file_size_bytes: u64,
+    pub file_meta_data: FileMetaData,
+    pub parquet_cache_rx: Option<oneshot::Receiver<()>>,
+}
+
+impl SortDedupePersistSummary {
+    fn new(
+        file_size_bytes: u64,
+        file_meta_data: FileMetaData,
+        parquet_cache_rx: Option<oneshot::Receiver<()>>,
+    ) -> Self {
+        Self {
+            file_size_bytes,
+            file_meta_data,
+            parquet_cache_rx,
+        }
+    }
+}
 async fn sort_dedupe_persist(
     persist_job: PersistJob,
     persister: Arc<Persister>,
     executor: Arc<Executor>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
-) -> (u64, FileMetaData, Option<oneshot::Receiver<()>>) {
+) -> Result<SortDedupePersistSummary, anyhow::Error> {
     // Dedupe and sort using the COMPACT query built into
     // iox_query
     let row_count = persist_job.batch.num_rows();
@@ -654,13 +658,20 @@ async fn sort_dedupe_persist(
             chunks,
             persist_job.sort_key,
         )
-        .unwrap();
+        .context(
+            "failed to produce a logical plan to deduplicate and sort chunked data from the buffer",
+        )?;
 
     // Build physical plan
-    let physical_plan = ctx.create_physical_plan(&logical_plan).await.unwrap();
+    let physical_plan = ctx.create_physical_plan(&logical_plan).await.context(
+        "failed to produce a physical plan to deduplicate and sort chunked data from the buffer",
+    )?;
 
     // Execute the plan and return compacted record batches
-    let data = ctx.collect(physical_plan).await.unwrap();
+    let data = ctx
+        .collect(physical_plan)
+        .await
+        .context("failed to execute the sort and deduplication of chunked data from the buffer")?;
 
     // keep attempting to persist forever. If we can't reach the object store, we'll stop accepting
     // writes elsewhere in the system, so we need to keep trying to persist.
@@ -673,14 +684,17 @@ async fn sort_dedupe_persist(
         {
             Ok((size_bytes, meta)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
-                if let Some(pq) = parquet_cache {
+                let parquet_cache_rx = parquet_cache.map(|parquet_cache_oracle| {
                     let (cache_request, cache_notify_rx) =
                         CacheRequest::create(Path::from(persist_job.path.to_string()));
-                    pq.register(cache_request);
-                    return (size_bytes, meta, Some(cache_notify_rx));
-                } else {
-                    return (size_bytes, meta, None);
-                }
+                    parquet_cache_oracle.register(cache_request);
+                    cache_notify_rx
+                });
+                return Ok(SortDedupePersistSummary::new(
+                    size_bytes,
+                    meta,
+                    parquet_cache_rx,
+                ));
             }
             Err(e) => {
                 error!(
@@ -690,5 +704,161 @@ async fn sort_dedupe_persist(
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::write_buffer::validator::WriteValidator;
+    use crate::Precision;
+    use datafusion_util::config::register_iox_object_store;
+    use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
+    use iox_query::exec::ExecutorConfig;
+    use iox_time::{MockProvider, Time, TimeProvider};
+    use object_store::memory::InMemory;
+    use object_store::ObjectStore;
+    use parquet_file::storage::{ParquetStorage, StorageId};
+    use std::num::NonZeroUsize;
+
+    #[tokio::test]
+    async fn snapshot_works_with_not_all_columns_in_buffer() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let metrics = Arc::new(metric::Registry::default());
+
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+        let exec = Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                // Default to 1gb
+                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+            },
+            DedicatedExecutor::new_testing(),
+        ));
+        let runtime_env = exec.new_context().inner().runtime_env();
+        register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
+        register_current_runtime_for_io();
+
+        let catalog = Arc::new(Catalog::new("hosta".into(), "foo".into()));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "hosta"));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        let queryable_buffer_args = QueryableBufferArgs {
+            executor: Arc::clone(&exec),
+            catalog: Arc::clone(&catalog),
+            persister: Arc::clone(&persister),
+            last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            meta_cache_provider: MetaCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            persisted_files: Arc::new(Default::default()),
+            parquet_cache: None,
+        };
+        let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
+
+        let db = data_types::NamespaceName::new("testdb").unwrap();
+
+        // create the initial write with two tags
+        let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog), 0).unwrap();
+        let lp = "foo,t1=a,t2=b f1=1i 1000000000";
+
+        let lines = val
+            .v1_parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_1m());
+        let batch: WriteBatch = lines.into();
+        let wal_contents = WalContents {
+            persist_timestamp_ms: 0,
+            min_timestamp_ns: batch.min_time_ns,
+            max_timestamp_ns: batch.max_time_ns,
+            wal_file_number: WalFileSequenceNumber::new(1),
+            ops: vec![WalOp::Write(batch)],
+            snapshot: None,
+        };
+        let end_time =
+            wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
+
+        // write the lp into the buffer
+        queryable_buffer.notify(wal_contents);
+
+        // now force a snapshot, persisting the data to parquet file. Also, buffer up a new write
+        let snapshot_sequence_number = SnapshotSequenceNumber::new(1);
+        let snapshot_details = SnapshotDetails {
+            snapshot_sequence_number,
+            end_time_marker: end_time,
+            last_wal_sequence_number: WalFileSequenceNumber::new(2),
+        };
+
+        // create another write, this time with only one tag, in a different gen1 block
+        let lp = "foo,t2=b f1=1i 240000000000";
+        let val = WriteValidator::initialize(db, Arc::clone(&catalog), 0).unwrap();
+
+        let lines = val
+            .v1_parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_1m());
+        let batch: WriteBatch = lines.into();
+        let wal_contents = WalContents {
+            persist_timestamp_ms: 0,
+            min_timestamp_ns: batch.min_time_ns,
+            max_timestamp_ns: batch.max_time_ns,
+            wal_file_number: WalFileSequenceNumber::new(2),
+            ops: vec![WalOp::Write(batch)],
+            snapshot: None,
+        };
+        let end_time =
+            wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
+
+        let details = queryable_buffer
+            .notify_and_snapshot(wal_contents, snapshot_details)
+            .await;
+        let _details = details.await.unwrap();
+
+        // validate we have a single persisted file
+        let db = catalog.db_schema("testdb").unwrap();
+        let table = db.table_definition("foo").unwrap();
+        let files = queryable_buffer
+            .persisted_files
+            .get_files(db.id, table.table_id);
+        assert_eq!(files.len(), 1);
+
+        // now force another snapshot, persisting the data to parquet file
+        let snapshot_sequence_number = SnapshotSequenceNumber::new(2);
+        let snapshot_details = SnapshotDetails {
+            snapshot_sequence_number,
+            end_time_marker: end_time,
+            last_wal_sequence_number: WalFileSequenceNumber::new(3),
+        };
+        queryable_buffer
+            .notify_and_snapshot(
+                WalContents {
+                    persist_timestamp_ms: 0,
+                    min_timestamp_ns: 0,
+                    max_timestamp_ns: 0,
+                    wal_file_number: WalFileSequenceNumber::new(3),
+                    ops: vec![],
+                    snapshot: Some(snapshot_details),
+                },
+                snapshot_details,
+            )
+            .await
+            .await
+            .unwrap();
+
+        // validate we have two persisted files
+        let files = queryable_buffer
+            .persisted_files
+            .get_files(db.id, table.table_id);
+        assert_eq!(files.len(), 2);
     }
 }

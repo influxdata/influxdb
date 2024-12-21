@@ -15,7 +15,11 @@ static NEXT_DB_ID: AtomicU32 = AtomicU32::new(0);
 
 impl DbId {
     pub fn new() -> Self {
-        Self(NEXT_DB_ID.fetch_add(1, Ordering::SeqCst))
+        Self(
+            NEXT_DB_ID
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
+                .expect("Overflowed with DB IDs"),
+        )
     }
 
     pub fn next_id() -> DbId {
@@ -55,7 +59,11 @@ static NEXT_TABLE_ID: AtomicU32 = AtomicU32::new(0);
 
 impl TableId {
     pub fn new() -> Self {
-        Self(NEXT_TABLE_ID.fetch_add(1, Ordering::SeqCst))
+        Self(
+            NEXT_TABLE_ID
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
+                .expect("Overflowed with Table IDs"),
+        )
     }
 
     pub fn next_id() -> Self {
@@ -96,7 +104,11 @@ static NEXT_COLUMN_ID: AtomicU32 = AtomicU32::new(0);
 
 impl ColumnId {
     pub fn new() -> Self {
-        Self(NEXT_COLUMN_ID.fetch_add(1, Ordering::SeqCst))
+        Self(
+            NEXT_COLUMN_ID
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
+                .expect("Overflowed with Column IDs"),
+        )
     }
 
     pub fn next_id() -> Self {
@@ -138,7 +150,11 @@ pub struct ParquetFileId(u64);
 
 impl ParquetFileId {
     pub fn new() -> Self {
-        Self(NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst))
+        Self(
+            NEXT_FILE_ID
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
+                .expect("Overflowed with Parquet File IDs"),
+        )
     }
 
     pub fn next_id() -> Self {

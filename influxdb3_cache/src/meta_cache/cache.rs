@@ -218,9 +218,17 @@ impl MetaCache {
     /// filtered out of the result.
     pub(crate) fn to_record_batch(
         &self,
+        schema: SchemaRef,
         predicates: &IndexMap<ColumnId, Predicate>,
+        projection: Option<&[usize]>,
         limit: Option<usize>,
     ) -> Result<RecordBatch, ArrowError> {
+        let n_columns = projection
+            .as_ref()
+            .and_then(|p| p.iter().max().copied())
+            .unwrap_or(self.column_ids.len())
+            + 1;
+
         // predicates may not be provided for all columns in the cache, or not be provided in the
         // order of columns in the cache. This re-orders them to the correct order, and fills in any
         // gaps with None.
@@ -228,13 +236,20 @@ impl MetaCache {
             .column_ids
             .iter()
             .map(|id| predicates.get(id))
+            // if a projection was included, we only want to take as many columns as necessary:
+            .take(n_columns)
             .collect();
 
         // Uses a [`StringViewBuilder`] to compose the set of [`RecordBatch`]es. This is convenient for
         // the sake of nested caches, where a predicate on a higher branch in the cache will need to have
         // its value in the outputted batches duplicated.
-        let mut builders: Vec<StringViewBuilder> = (0..self.column_ids.len())
-            .map(|_| StringViewBuilder::new())
+        let mut builders: Vec<Option<StringViewBuilder>> = (0..self.column_ids.len())
+            .map(|i| {
+                projection
+                    .map(|p| p.contains(&i).then(StringViewBuilder::new))
+                    .unwrap_or_else(|| Some(StringViewBuilder::new()))
+            })
+            .take(n_columns)
             .collect();
 
         let expired_time_ns = self.expired_time_ns();
@@ -248,9 +263,10 @@ impl MetaCache {
         );
 
         RecordBatch::try_new(
-            Arc::clone(&self.schema),
+            schema,
             builders
                 .into_iter()
+                .flatten()
                 .map(|mut builder| Arc::new(builder.finish()) as ArrayRef)
                 .collect(),
         )
@@ -419,12 +435,12 @@ impl Node {
         expired_time_ns: i64,
         predicates: &[Option<&Predicate>],
         mut limit: usize,
-        builders: &mut [StringViewBuilder],
+        builders: &mut [Option<StringViewBuilder>],
     ) -> usize {
         let mut total_count = 0;
-        let (predicate, next_predicates) = predicates
-            .split_first()
-            .expect("predicates should not be empty");
+        let Some((predicate, next_predicates)) = predicates.split_first() else {
+            return total_count;
+        };
         // if there is a predicate, evaluate it, otherwise, just grab everything from the node:
         let values_and_nodes = if let Some(predicate) = predicate {
             self.evaluate_predicate(expired_time_ns, predicate, limit)
@@ -450,16 +466,27 @@ impl Node {
                     next_builders,
                 );
                 if count > 0 {
-                    // we are not on a terminal node in the cache, so create a block, as this value
-                    // repeated `count` times, i.e., depending on how many values come out of
-                    // subsequent nodes:
-                    let block = builder.append_block(value.0.as_bytes().into());
-                    for _ in 0..count {
-                        builder
-                            .try_append_view(block, 0u32, value.0.as_bytes().len() as u32)
-                            .expect("append view for known valid block, offset and length");
+                    if let Some(builder) = builder {
+                        // we are not on a terminal node in the cache, so create a block, as this value
+                        // repeated `count` times, i.e., depending on how many values come out of
+                        // subsequent nodes:
+                        let block = builder.append_block(value.0.as_bytes().into());
+                        for _ in 0..count {
+                            builder
+                                .try_append_view(block, 0u32, value.0.as_bytes().len() as u32)
+                                .expect("append view for known valid block, offset and length");
+                        }
                     }
                     total_count += count;
+                } else if next_predicates.is_empty() && next_builders.is_empty() {
+                    if let Some(builder) = builder {
+                        builder.append_value(value.0);
+                    }
+                }
+                if let Some(new_limit) = limit.checked_sub(count) {
+                    limit = new_limit;
+                } else {
+                    break;
                 }
                 if let Some(new_limit) = limit.checked_sub(count) {
                     limit = new_limit;
@@ -467,7 +494,9 @@ impl Node {
                     break;
                 }
             } else {
-                builder.append_value(value.0);
+                if let Some(builder) = builder {
+                    builder.append_value(value.0);
+                }
                 total_count += 1;
             }
         }

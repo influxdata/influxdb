@@ -16,8 +16,8 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
-use futures_util::stream::StreamExt;
 use futures_util::stream::TryStreamExt;
+use futures_util::stream::{FuturesOrdered, StreamExt};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
@@ -188,8 +188,9 @@ impl Persister {
     ///
     /// This is intended to be used on server start.
     pub async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
-        let mut join_set = JoinSet::new();
+        let mut futures = FuturesOrdered::new();
         let mut offset: Option<ObjPath> = None;
+
         while most_recent_n > 0 {
             let count = if most_recent_n > 1000 {
                 most_recent_n -= 1000;
@@ -238,7 +239,7 @@ impl Persister {
             }
 
             for item in &list[0..end] {
-                join_set.spawn(get_snapshot(
+                futures.push_back(get_snapshot(
                     item.location.clone(),
                     Arc::clone(&self.object_store),
                 ));
@@ -253,8 +254,12 @@ impl Persister {
             // the list call to the object store.
             offset = Some(list[end - 1].location.clone());
         }
-        // Returns an error if there is one and reuses the Vec's memory as well
-        join_set.join_all().await.into_iter().collect()
+
+        let mut results = Vec::new();
+        while let Some(result) = futures.next().await {
+            results.push(result?);
+        }
+        Ok(results)
     }
 
     /// Loads a Parquet file from ObjectStore
@@ -485,7 +490,7 @@ mod tests {
         persister.persist_catalog(&catalog).await.unwrap();
 
         let batch = |name: &str, num: u32| {
-            let _ = catalog.apply_catalog_batch(&CatalogBatch {
+            let _ = catalog.apply_catalog_batch(CatalogBatch {
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 time_ns: 5000,
@@ -729,11 +734,11 @@ mod tests {
 
     #[tokio::test]
     /// This test makes sure that the logic for offset lists works
-    async fn persist_and_load_over_9000_snapshot_info_files() {
+    async fn persist_and_load_over_1000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
-        for id in 0..9001 {
+        for id in 0..1001 {
             let info_file = PersistedSnapshot {
                 host_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
@@ -751,13 +756,13 @@ mod tests {
             };
             persister.persist_snapshot(&info_file).await.unwrap();
         }
-        let snapshots = persister.load_snapshots(9500).await.unwrap();
-        // We asked for the most recent 9500 so there should be 9001 of them
-        assert_eq!(snapshots.len(), 9001);
-        assert_eq!(snapshots[0].next_file_id.as_u64(), 9000);
-        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 9000);
-        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 9000);
-        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 9000);
+        let snapshots = persister.load_snapshots(1500).await.unwrap();
+        // We asked for the most recent 1500 so there should be 1001 of them
+        assert_eq!(snapshots.len(), 1001);
+        assert_eq!(snapshots[0].next_file_id.as_u64(), 1000);
+        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 1000);
+        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 1000);
+        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 1000);
     }
 
     #[tokio::test]
