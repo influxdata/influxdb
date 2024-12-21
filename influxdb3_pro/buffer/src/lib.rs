@@ -13,10 +13,12 @@ use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
 };
 use influxdb3_write::{
-    write_buffer::{self, persisted_files::PersistedFiles, Result as WriteBufferResult},
+    write_buffer::{
+        self, persisted_files::PersistedFiles, plugins::ProcessingEngineManager,
+        Result as WriteBufferResult,
+    },
     BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, LastCacheManager,
-    MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, ProcessingEngineManager,
-    WriteBuffer,
+    MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -188,10 +190,22 @@ impl<Mode: MetaCacheManager> MetaCacheManager for WriteBufferPro<Mode> {
 
 #[async_trait::async_trait]
 impl<Mode: DatabaseManager> DatabaseManager for WriteBufferPro<Mode> {
+    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error> {
+        self.mode.create_database(name).await
+    }
     async fn soft_delete_database(&self, name: String) -> WriteBufferResult<()> {
         self.mode.soft_delete_database(name).await
     }
 
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode.create_table(db, table, tags, fields).await
+    }
     async fn soft_delete_table(
         &self,
         db_name: String,
@@ -225,6 +239,17 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferPro<M
     ) -> Result<(), write_buffer::Error> {
         self.mode
             .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .await
+    }
+
+    async fn run_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode
+            .run_trigger(write_buffer, db_name, trigger_name)
             .await
     }
 }

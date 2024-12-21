@@ -48,13 +48,26 @@ pub fn catalog_batch_op(
     db_name: impl Into<Arc<str>>,
     time_ns: i64,
     ops: impl IntoIterator<Item = CatalogOp>,
+    sequence_number: u32,
 ) -> WalOp {
-    WalOp::Catalog(CatalogBatch {
+    WalOp::Catalog(OrderedCatalogBatch::new(
+        catalog_batch(db_id, db_name, time_ns, ops),
+        sequence_number,
+    ))
+}
+
+pub fn catalog_batch(
+    db_id: DbId,
+    db_name: impl Into<Arc<str>>,
+    time_ns: i64,
+    ops: impl IntoIterator<Item = CatalogOp>,
+) -> CatalogBatch {
+    CatalogBatch {
         database_id: db_id,
         database_name: db_name.into(),
         time_ns,
         ops: ops.into_iter().collect(),
-    })
+    }
 }
 
 pub fn add_fields_op(

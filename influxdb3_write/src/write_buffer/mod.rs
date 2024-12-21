@@ -1,6 +1,9 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
+mod metrics;
 pub mod persisted_files;
+#[allow(dead_code)]
+pub mod plugins;
 mod pro;
 pub mod queryable_buffer;
 mod table_buffer;
@@ -10,7 +13,7 @@ use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
-use crate::{chunk::ParquetChunk, DatabaseManager, ProcessingEngineManager};
+use crate::{chunk::ParquetChunk, write_buffer, DatabaseManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
@@ -30,28 +33,40 @@ use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_wal::FieldDataType;
+use influxdb3_wal::TableDefinition;
 use influxdb3_wal::{
     object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
-    TriggerDefinition, TriggerSpecificationDefinition,
+    TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
     MetaCacheDefinition, MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
+use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
+use metric::Registry;
+use metrics::WriteMetrics;
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
 use observability_deps::tracing::{debug, error};
 use parquet_file::storage::ParquetExecInput;
+use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::sync::watch::Receiver;
+
+#[cfg(feature = "system-py")]
+use {
+    crate::write_buffer::plugins::PluginContext,
+    influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -89,8 +104,15 @@ pub enum Error {
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
 
+    // This error is exclusive to the table creation API
+    #[error("table creation failed due to no fields")]
+    EmptyFields,
+
     #[error("tried accessing database that does not exist")]
     DbDoesNotExist,
+
+    #[error("tried creating database named '{0}' that already exists")]
+    DatabaseExists(String),
 
     #[error("tried accessing table that do not exist")]
     TableDoesNotExist,
@@ -139,6 +161,7 @@ pub struct WriteBufferImpl {
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
     time_provider: Arc<dyn TimeProvider>,
+    metrics: WriteMetrics,
     meta_cache: Arc<MetaCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
 }
@@ -156,6 +179,7 @@ pub struct WriteBufferImplArgs {
     pub executor: Arc<iox_query::exec::Executor>,
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub metric_registry: Arc<Registry>,
 }
 
 impl WriteBufferImpl {
@@ -169,8 +193,9 @@ impl WriteBufferImpl {
             executor,
             wal_config,
             parquet_cache,
+            metric_registry,
         }: WriteBufferImplArgs,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
             .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
@@ -215,7 +240,7 @@ impl WriteBufferImpl {
         )
         .await?;
 
-        Ok(Self {
+        let result = Arc::new(Self {
             catalog,
             parquet_cache,
             persister,
@@ -226,7 +251,16 @@ impl WriteBufferImpl {
             last_cache,
             persisted_files,
             buffer: queryable_buffer,
-        })
+            metrics: WriteMetrics::new(&metric_registry),
+        });
+        let write_buffer: Arc<dyn WriteBuffer> = result.clone();
+        let triggers = result.catalog().triggers();
+        for (db_name, trigger_name) in triggers {
+            result
+                .run_trigger(Arc::clone(&write_buffer), &db_name, &trigger_name)
+                .await?;
+        }
+        Ok(result)
     }
 
     pub fn catalog(&self) -> Arc<Catalog> {
@@ -275,6 +309,12 @@ impl WriteBufferImpl {
         // contents are sent to the configured notifier, which in this case is the queryable buffer.
         // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
+
+        // record metrics for lines written and bytes written, for valid lines
+        self.metrics
+            .record_lines(&db_name, result.line_count as u64);
+        self.metrics
+            .record_bytes(&db_name, result.valid_bytes_count);
 
         Ok(BufferedWriteRequest {
             db_name,
@@ -489,21 +529,23 @@ impl MetaCacheManager for WriteBufferImpl {
         cache_name: Option<String>,
         args: CreateMetaCacheArgs,
     ) -> Result<Option<MetaCacheDefinition>, Error> {
-        let table_id = args.table_def.table_id;
         if let Some(new_cache_definition) = self
             .meta_cache
             .create_cache(db_schema.id, cache_name.map(Into::into), args)
             .map_err(Error::MetaCacheError)?
         {
-            self.catalog
-                .add_meta_cache(db_schema.id, table_id, new_cache_definition.clone());
-            let add_meta_cache_batch = influxdb3_wal::create::catalog_batch_op(
-                db_schema.id,
-                Arc::clone(&db_schema.name),
-                self.time_provider.now().timestamp_nanos(),
-                [CatalogOp::CreateMetaCache(new_cache_definition.clone())],
-            );
-            self.wal.write_ops(vec![add_meta_cache_batch]).await?;
+            let catalog_op = CatalogOp::CreateMetaCache(new_cache_definition.clone());
+            let catalog_batch = CatalogBatch {
+                database_id: db_schema.id,
+                database_name: db_schema.name.clone(),
+                time_ns: self.time_provider.now().timestamp_nanos(),
+                ops: vec![catalog_op],
+            };
+            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+                self.wal
+                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                    .await?;
+            }
             Ok(Some(new_cache_definition))
         } else {
             Ok(None)
@@ -519,20 +561,21 @@ impl MetaCacheManager for WriteBufferImpl {
         let catalog = self.catalog();
         let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
         self.meta_cache.delete_cache(db_id, tbl_id, cache_name)?;
-        catalog.remove_meta_cache(db_id, tbl_id, cache_name);
-
-        self.wal
-            .write_ops(vec![influxdb3_wal::create::catalog_batch_op(
-                *db_id,
-                Arc::clone(&db_schema.name),
-                self.time_provider.now().timestamp_nanos(),
-                [CatalogOp::DeleteMetaCache(MetaCacheDelete {
-                    table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
-                    table_id: *tbl_id,
-                    cache_name: cache_name.into(),
-                })],
-            )])
-            .await?;
+        let catalog_batch = CatalogBatch {
+            database_id: *db_id,
+            database_name: Arc::clone(&db_schema.name),
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            ops: vec![CatalogOp::DeleteMetaCache(MetaCacheDelete {
+                table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
+                table_id: *tbl_id,
+                cache_name: cache_name.into(),
+            })],
+        };
+        if let Some(catalog_batch) = catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
 
         Ok(())
     }
@@ -588,14 +631,17 @@ impl LastCacheManager for WriteBufferImpl {
                 value_columns,
             },
         )? {
-            self.catalog.add_last_cache(db_id, table_id, info.clone());
-            let add_cache_catalog_batch = WalOp::Catalog(CatalogBatch {
+            let catalog_batch = CatalogBatch {
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 ops: vec![CreateLastCache(info.clone())],
-            });
-            self.wal.write_ops(vec![add_cache_catalog_batch]).await?;
+            };
+            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+                self.wal
+                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                    .await?;
+            }
 
             Ok(Some(info))
         } else {
@@ -612,22 +658,25 @@ impl LastCacheManager for WriteBufferImpl {
         let catalog = self.catalog();
         let db_schema = catalog.db_schema_by_id(&db_id).expect("db should exist");
         self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
-        catalog.delete_last_cache(db_id, tbl_id, cache_name);
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
+                table_id: tbl_id,
+                table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
+                name: cache_name.into(),
+            })],
+        };
 
         // NOTE: if this fails then the cache will be gone from the running server, but will be
         // resurrected on server restart.
-        self.wal
-            .write_ops(vec![WalOp::Catalog(CatalogBatch {
-                time_ns: self.time_provider.now().timestamp_nanos(),
-                database_id: db_id,
-                database_name: Arc::clone(&db_schema.name),
-                ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
-                    table_id: tbl_id,
-                    table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
-                    name: cache_name.into(),
-                })],
-            })])
-            .await?;
+        if let Some(catalog_batch) = catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
 
         Ok(())
     }
@@ -635,6 +684,32 @@ impl LastCacheManager for WriteBufferImpl {
 
 #[async_trait::async_trait]
 impl DatabaseManager for WriteBufferImpl {
+    async fn create_database(&self, name: String) -> crate::Result<(), self::Error> {
+        if self.catalog.db_name_to_id(&name).is_some() {
+            return Err(self::Error::DatabaseExists(name.clone()));
+        }
+        // Create the Database
+        let db_schema = self.catalog.db_or_create(&name)?;
+        let db_id = db_schema.id;
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::CreateDatabase(DatabaseDefinition {
+                database_id: db_id,
+                database_name: Arc::clone(&db_schema.name),
+            })],
+        };
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
+        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully created database");
+        Ok(())
+    }
+
     async fn soft_delete_database(&self, name: String) -> crate::Result<(), self::Error> {
         let (db_id, db_schema) =
             self.catalog
@@ -654,10 +729,98 @@ impl DatabaseManager for WriteBufferImpl {
                 deletion_time: deletion_time.timestamp_nanos(),
             })],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
-        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+            debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
+        }
+        Ok(())
+    }
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), self::Error> {
+        if fields.is_empty() {
+            return Err(self::Error::EmptyFields);
+        }
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(&db)
+                .ok_or_else(|| self::Error::DatabaseNotFound {
+                    db_name: db.to_owned(),
+                })?;
+
+        let table_id = TableId::new();
+        let table_name = table.into();
+        let mut key = Vec::new();
+        let field_definitions = {
+            let mut field_definitions = Vec::new();
+            for tag in tags {
+                let id = ColumnId::new();
+                key.push(id);
+                field_definitions.push(FieldDefinition {
+                    name: tag.into(),
+                    id,
+                    data_type: FieldDataType::Tag,
+                });
+            }
+
+            for (name, ty) in fields {
+                field_definitions.push(FieldDefinition {
+                    name: name.into(),
+                    id: ColumnId::new(),
+                    data_type: match ty.as_str() {
+                        "uint64" => FieldDataType::UInteger,
+                        "float64" => FieldDataType::Float,
+                        "int64" => FieldDataType::Integer,
+                        "bool" => FieldDataType::Boolean,
+                        "utf8" => FieldDataType::String,
+                        _ => todo!(),
+                    },
+                });
+            }
+
+            field_definitions.push(FieldDefinition {
+                name: "time".into(),
+                id: ColumnId::new(),
+                data_type: FieldDataType::Timestamp,
+            });
+
+            field_definitions
+        };
+
+        let catalog_table_def = TableDefinition {
+            database_id: db_schema.id,
+            database_name: Arc::clone(&db_schema.name),
+            table_name: Arc::clone(&table_name),
+            table_id,
+            field_definitions,
+            key,
+        };
+
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![CatalogOp::CreateTable(catalog_table_def)],
+        };
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
+
+        debug!(
+            db_name = ?db_schema.name,
+            db_id = ?db_id,
+            table_id = ?table_id,
+            name = ?table_name,
+            "successfully created table"
+        );
+
         Ok(())
     }
 
@@ -691,9 +854,11 @@ impl DatabaseManager for WriteBufferImpl {
                 table_name: Arc::clone(&table_defn.table_name),
             })],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
         debug!(
             db_id = ?db_id,
             db_name = ?&db_schema.name,
@@ -736,9 +901,10 @@ impl ProcessingEngineManager for WriteBufferImpl {
             database_name: Arc::clone(&db_schema.name),
             ops: vec![catalog_op],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
         Ok(())
     }
 
@@ -774,11 +940,52 @@ impl ProcessingEngineManager for WriteBufferImpl {
             database_name: Arc::clone(&db_schema.name),
             ops: vec![catalog_op],
         };
-        self.catalog.apply_catalog_batch(&catalog_batch)?;
-        let wal_op = WalOp::Catalog(catalog_batch);
-        self.wal.write_ops(vec![wal_op]).await?;
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
         Ok(())
     }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn run_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> crate::Result<(), write_buffer::Error> {
+        #[cfg(feature = "system-py")]
+        {
+            let (_db_id, db_schema) =
+                self.catalog
+                    .db_id_and_schema(db_name)
+                    .ok_or_else(|| Error::DatabaseNotFound {
+                        db_name: db_name.to_string(),
+                    })?;
+            let trigger = db_schema
+                .processing_engine_triggers
+                .get(trigger_name)
+                .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                    database_name: db_name.to_string(),
+                    trigger_name: trigger_name.to_string(),
+                })?
+                .clone();
+            let trigger_rx = self.buffer.subscribe_to_plugin_events();
+            let plugin_context = PluginContext {
+                trigger_rx,
+                write_buffer,
+            };
+            plugins::run_plugin(db_name.to_string(), trigger, plugin_context);
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+#[allow(unused)]
+pub(crate) enum PluginEvent {
+    WriteWalContents(Arc<WalContents>),
 }
 
 impl WriteBuffer for WriteBufferImpl {}
@@ -802,6 +1009,8 @@ mod tests {
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
+    use metric::{Attributes, Metric, U64Counter};
+    use metrics::{WRITE_BYTES_TOTAL_NAME, WRITE_LINES_TOTAL_NAME};
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
@@ -858,6 +1067,7 @@ mod tests {
             executor: crate::test_help::make_exec(),
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -941,6 +1151,7 @@ mod tests {
                 snapshot_size: 100,
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -1008,6 +1219,7 @@ mod tests {
                     snapshot_size: 1,
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
+                metric_registry: Default::default(),
             })
             .await
             .unwrap()
@@ -1234,6 +1446,7 @@ mod tests {
                 snapshot_size: 2,
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
+            metric_registry: Default::default(),
         })
         .await
         .unwrap();
@@ -1307,7 +1520,7 @@ mod tests {
         // do three writes to force a snapshot
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=1",
@@ -1332,7 +1545,7 @@ mod tests {
         // WAL period left from before:
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=4",
@@ -1353,7 +1566,7 @@ mod tests {
         // and finally, do two more, with a catalog update, forcing persistence
         do_writes(
             db_name,
-            &write_buffer,
+            write_buffer.as_ref(),
             &[
                 TestWrite {
                     lp: "cpu bar=6,asdf=true",
@@ -1586,7 +1799,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1653,7 +1866,7 @@ mod tests {
         // Do six writes to trigger a snapshot
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso,type=drink price=2.50"),
@@ -1739,7 +1952,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1817,7 +2030,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1862,7 +2075,7 @@ mod tests {
         // do some writes to get a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso price=2.50"),
@@ -1937,7 +2150,7 @@ mod tests {
         // make some writes to generate a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!(
@@ -2043,7 +2256,7 @@ mod tests {
         // make some writes to generate a snapshot:
         do_writes(
             db_name,
-            &wbuf,
+            wbuf.as_ref(),
             &[
                 TestWrite {
                     lp: format!(
@@ -2182,6 +2395,125 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    #[tokio::test]
+    async fn write_metrics() {
+        let object_store = Arc::new(InMemory::new());
+        let (buf, metrics) = setup_with_metrics(
+            Time::from_timestamp_nanos(0),
+            object_store,
+            WalConfig::test_config(),
+        )
+        .await;
+        let lines_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_TOTAL_NAME)
+            .unwrap();
+        let bytes_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_TOTAL_NAME)
+            .unwrap();
+
+        let db_1 = "foo";
+        let db_2 = "bar";
+
+        // do a write and check the metrics:
+        let lp = "\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            ";
+        do_writes(
+            db_1,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            3,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        let mut bytes: usize = lp.lines().map(|l| l.len()).sum();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+
+        // do another write to that db and check again for updates:
+        let lp = "\
+            mem,region=us,host=a used=1,swap=4\n\
+            mem,region=eu,host=b used=1,swap=4\n\
+            mem,region=ca,host=c used=1,swap=4\n\
+            ";
+        do_writes(
+            db_1,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            6,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        bytes += lp.lines().map(|l| l.len()).sum::<usize>();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+
+        // now do a write that will only be partially accepted to ensure that
+        // the metrics are only calculated for writes that get accepted:
+
+        // the legume will not be accepted, because it contains a new tag,
+        // so should not be included in metric calculations:
+        let lp = "\
+            produce,type=fruit,name=banana price=1.50\n\
+            produce,type=fruit,name=papaya price=5.50\n\
+            produce,type=vegetable,name=lettuce price=1.00\n\
+            produce,type=fruit,name=lentils,family=legume price=2.00\n\
+            ";
+        do_writes_partial(
+            db_2,
+            buf.as_ref(),
+            &[TestWrite {
+                lp,
+                time_seconds: 1,
+            }],
+        )
+        .await;
+        assert_eq!(
+            3,
+            lines_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+        // only take first three (valid) lines to get expected bytes:
+        let bytes: usize = lp.lines().take(3).map(|l| l.len()).sum();
+        assert_eq!(
+            bytes as u64,
+            bytes_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
@@ -2199,6 +2531,25 @@ mod tests {
                     w.lp.as_ref(),
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,
+                    Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+        }
+    }
+
+    async fn do_writes_partial<W: WriteBuffer, LP: AsRef<str>>(
+        db: &'static str,
+        buffer: &W,
+        writes: &[TestWrite<LP>],
+    ) {
+        for w in writes {
+            buffer
+                .write_lp(
+                    NamespaceName::new(db).unwrap(),
+                    w.lp.as_ref(),
+                    Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
+                    true,
                     Precision::Nanosecond,
                 )
                 .await
@@ -2262,8 +2613,14 @@ mod tests {
         start: Time,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
-    ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
-        setup_cache_optional(start, object_store, wal_config, true).await
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+    ) {
+        let (buf, ctx, time_provider, _metrics) =
+            setup_inner(start, object_store, wal_config, true).await;
+        (buf, ctx, time_provider)
     }
 
     async fn setup_cache_optional(
@@ -2271,8 +2628,39 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
         use_cache: bool,
-    ) -> (WriteBufferImpl, IOxSessionContext, Arc<dyn TimeProvider>) {
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+    ) {
+        let (buf, ctx, time_provider, _metrics) =
+            setup_inner(start, object_store, wal_config, use_cache).await;
+        (buf, ctx, time_provider)
+    }
+
+    async fn setup_with_metrics(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+    ) -> (Arc<WriteBufferImpl>, Arc<Registry>) {
+        let (buf, _ctx, _time_provider, metrics) =
+            setup_inner(start, object_store, wal_config, false).await;
+        (buf, metrics)
+    }
+
+    async fn setup_inner(
+        start: Time,
+        object_store: Arc<dyn ObjectStore>,
+        wal_config: WalConfig,
+        use_cache: bool,
+    ) -> (
+        Arc<WriteBufferImpl>,
+        IOxSessionContext,
+        Arc<dyn TimeProvider>,
+        Arc<Registry>,
+    ) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
+        let metric_registry = Arc::new(Registry::new());
         let (object_store, parquet_cache) = if use_cache {
             let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
                 object_store,
@@ -2298,13 +2686,14 @@ mod tests {
             executor: crate::test_help::make_exec(),
             wal_config,
             parquet_cache,
+            metric_registry: Arc::clone(&metric_registry),
         })
         .await
         .unwrap();
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
-        (wbuf, ctx, time_provider)
+        (wbuf, ctx, time_provider, metric_registry)
     }
 
     async fn get_table_batches(

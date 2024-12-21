@@ -9,22 +9,24 @@ max_timestamp_ns: 1
 wal_file_number: 0
 ops:
   - Catalog:
-      database_id: 0
-      database_name: foo
-      time_ns: 0
-      ops:
-        - CreateTable:
-            database_id: 0
-            database_name: foo
-            table_name: pow
-            table_id: 3
-            field_definitions:
-              - name: t1
-                id: 8
-                data_type: Tag
-              - name: f1
-                id: 9
-                data_type: Boolean
-            key:
-              - 8
+      catalog:
+        database_id: 0
+        database_name: foo
+        time_ns: 0
+        ops:
+          - CreateTable:
+              database_id: 0
+              database_name: foo
+              table_name: pow
+              table_id: 3
+              field_definitions:
+                - name: t1
+                  id: 8
+                  data_type: Tag
+                - name: f1
+                  id: 9
+                  data_type: Boolean
+              key:
+                - 8
+      database_sequence_number: 0
 snapshot: ~

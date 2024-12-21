@@ -282,7 +282,7 @@ impl MutableTableChunk {
                             let mut tag_builder = StringDictionaryBuilder::new();
                             // append nulls for all previous rows
                             for _ in 0..(row_index + self.row_count) {
-                                tag_builder.append_null();
+                                tag_builder.append_value("");
                             }
                             e.insert(Builder::Tag(tag_builder));
                         }
@@ -390,8 +390,8 @@ impl MutableTableChunk {
                         Builder::I64(b) => b.append_null(),
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) => b.append_null(),
-                        Builder::Key(b) => b.append_null(),
+                        Builder::Tag(b) => b.append_value(""),
+                        Builder::Key(b) => b.append_value(""),
                         Builder::Time(b) => b.append_null(),
                     }
                 }
@@ -422,17 +422,37 @@ impl MutableTableChunk {
                 Some(row_ids) => {
                     let b = table_def
                         .column_name_to_id(f.name().as_str())
-                        .and_then(|id| self.data.get(&id))
-                        .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
-                        .get_rows(row_ids);
-                    cols.push(b);
+                        .and_then(|id| self.data.get(&id));
+
+                    let col = match b {
+                        Some(b) => b.get_rows(row_ids),
+                        None => {
+                            let name: &str = f.name().as_ref();
+                            let col_def = table_def
+                                .column_definition(name)
+                                .expect("valid column name");
+                            array_ref_nulls_for_type(col_def.data_type, row_ids.len())
+                        }
+                    };
+
+                    cols.push(col);
                 }
                 None => {
-                    let b = table_def
+                    let builder = table_def
                         .column_name_to_id(f.name().as_str())
-                        .and_then(|id| self.data.get(&id))
-                        .ok_or_else(|| Error::FieldNotFound(f.name().to_string()))?
-                        .as_arrow();
+                        .and_then(|id| self.data.get(&id));
+
+                    let b = match builder {
+                        Some(b) => b.as_arrow(),
+                        None => {
+                            let name: &str = f.name().as_ref();
+                            let col_def = table_def
+                                .column_definition(name)
+                                .expect("valid column name");
+                            array_ref_nulls_for_type(col_def.data_type, self.row_count)
+                        }
+                    };
+
                     cols.push(b);
                 }
             }
@@ -444,7 +464,9 @@ impl MutableTableChunk {
     fn into_schema_record_batch(self, table_def: Arc<TableDefinition>) -> (Schema, RecordBatch) {
         let mut cols = Vec::with_capacity(self.data.len());
         let mut schema_builder = SchemaBuilder::new();
+        let mut cols_in_batch = HashSet::new();
         for (col_id, builder) in self.data.into_iter() {
+            cols_in_batch.insert(col_id);
             let (col_type, col) = builder.into_influxcol_and_arrow();
             schema_builder.influx_column(
                 table_def
@@ -454,6 +476,34 @@ impl MutableTableChunk {
                 col_type,
             );
             cols.push(col);
+        }
+
+        // ensure that every series key column is present in the batch
+        for col_id in &table_def.series_key {
+            if !cols_in_batch.contains(col_id) {
+                let col_name = table_def
+                    .column_id_to_name(col_id)
+                    .expect("valid column id");
+                schema_builder.influx_column(col_name.as_ref(), InfluxColumnType::Tag);
+                let mut tag_builder: StringDictionaryBuilder<Int32Type> =
+                    StringDictionaryBuilder::new();
+                for _ in 0..self.row_count {
+                    tag_builder.append_value("");
+                }
+
+                cols.push(Arc::new(tag_builder.finish()));
+                cols_in_batch.insert(*col_id);
+            }
+        }
+
+        // ensure that every field column is present in the batch
+        for (col_id, col_def) in &table_def.columns {
+            if !cols_in_batch.contains(col_id) {
+                schema_builder.influx_column(col_def.name.as_ref(), col_def.data_type);
+                let col = array_ref_nulls_for_type(col_def.data_type, self.row_count);
+
+                cols.push(col);
+            }
         }
         let schema = schema_builder
             .build()
@@ -465,6 +515,50 @@ impl MutableTableChunk {
             RecordBatch::try_new(arrow_schema, cols)
                 .expect("should always be able to build record batch"),
         )
+    }
+}
+
+fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef {
+    match data_type {
+        InfluxColumnType::Field(InfluxFieldType::Boolean) => {
+            let mut builder = BooleanBuilder::new();
+            builder.append_nulls(len);
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Timestamp => {
+            let mut builder = TimestampNanosecondBuilder::new();
+            builder.append_nulls(len);
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Tag => {
+            let mut builder: StringDictionaryBuilder<Int32Type> = StringDictionaryBuilder::new();
+            for _ in 0..len {
+                builder.append_value("");
+            }
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Field(InfluxFieldType::Integer) => {
+            let mut builder = Int64Builder::new();
+            builder.append_nulls(len);
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Field(InfluxFieldType::Float) => {
+            let mut builder = Float64Builder::new();
+            builder.append_nulls(len);
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Field(InfluxFieldType::String) => {
+            let mut builder = StringBuilder::new();
+            for _ in 0..len {
+                builder.append_null();
+            }
+            Arc::new(builder.finish())
+        }
+        InfluxColumnType::Field(InfluxFieldType::UInteger) => {
+            let mut builder = UInt64Builder::new();
+            builder.append_nulls(len);
+            Arc::new(builder.finish())
+        }
     }
 }
 
@@ -778,8 +872,6 @@ mod tests {
         let partitioned_batches = table_buffer
             .partitioned_record_batches(Arc::clone(&table_def), &[])
             .unwrap();
-
-        println!("{partitioned_batches:#?}");
 
         assert_eq!(10, partitioned_batches.len());
 

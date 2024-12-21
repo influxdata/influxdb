@@ -880,8 +880,8 @@ mod tests {
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
-        CatalogBatch, FieldDataType, Gen1Duration, WalConfig, WalContents, WalFileSequenceNumber,
-        WalOp,
+        CatalogBatch, FieldDataType, Gen1Duration, OrderedCatalogBatch, WalConfig, WalContents,
+        WalFileSequenceNumber, WalOp,
     };
     use influxdb3_write::{
         persister::Persister,
@@ -939,7 +939,7 @@ mod tests {
         // Do some writes to the primary to trigger snapshot:
         do_writes(
             db_name,
-            &primary,
+            primary.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=espresso,type=drink price=2.50"),
@@ -1011,7 +1011,7 @@ mod tests {
         // Do more writes to the primary:
         do_writes(
             db_name,
-            &primary,
+            primary.as_ref(),
             &[
                 TestWrite {
                     lp: format!("{tbl_name},name=muffin,type=snack price=4.00"),
@@ -1137,7 +1137,7 @@ mod tests {
         // write to spock:
         do_writes(
             "foo",
-            &primaries["spock"],
+            primaries["spock"].as_ref(),
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1157,7 +1157,7 @@ mod tests {
         // write to tuvok, with values flipped to true:
         do_writes(
             "foo",
-            &primaries["tuvok"],
+            primaries["tuvok"].as_ref(),
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1258,7 +1258,7 @@ mod tests {
         // write to newton:
         do_writes(
             "foo",
-            &primary,
+            primary.as_ref(),
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1328,7 +1328,7 @@ mod tests {
         // write to skinner:
         do_writes(
             "foo",
-            &primaries["skinner"],
+            primaries["skinner"].as_ref(),
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1348,7 +1348,7 @@ mod tests {
         // write to chalmers:
         do_writes(
             "foo",
-            &primaries["chalmers"],
+            primaries["chalmers"].as_ref(),
             &[
                 TestWrite {
                     time_seconds: 1,
@@ -1572,6 +1572,7 @@ mod tests {
                     ],
                     [t1_col_id],
                 )],
+                0,
             )],
         );
         // check the replicated catalog's id map before we map the above wal content
@@ -1598,7 +1599,7 @@ mod tests {
         });
         // apply the mapped catalog batch to the primary catalog, as it would be done during replay:
         primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
             .unwrap();
         // check for the new table definition in the local primary catalog after the mapped batch
         // was applied:
@@ -1648,10 +1649,11 @@ mod tests {
                     ],
                     [t1_col_id],
                 )],
+                0,
             )],
         );
         replica
-            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
@@ -1669,7 +1671,7 @@ mod tests {
             insta::assert_yaml_snapshot!(id_map);
         });
         primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
             .unwrap();
         let db = primary.db_schema("sup").unwrap();
         insta::with_settings!({
@@ -1717,10 +1719,11 @@ mod tests {
                         ],
                         [t1_col_id],
                     )],
+                    0,
                 )],
             );
             primary
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("catalog batch should apply successfully on primary catalog");
             (db_id, table_id)
         };
@@ -1755,10 +1758,11 @@ mod tests {
                         ],
                         [t1_col_id],
                     )],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("catalog batch should apply successfully on replica catalog");
             (db_id, table_id, wal_content)
         };
@@ -1815,10 +1819,11 @@ mod tests {
                         FieldDataType::Float,
                     )],
                 )],
+                0,
             )],
         );
         replica
-            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
             .expect("catalog batch should apply successfully to the replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
@@ -1837,7 +1842,7 @@ mod tests {
         });
         // apply the mapped wal content to the primary:
         primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
             .unwrap();
         let db = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -1875,10 +1880,11 @@ mod tests {
                             FieldDataType::Float,
                         )],
                     )],
+                    0,
                 )],
             );
             primary
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("catalog batch should apply on primary");
             (db_id, table_id)
         };
@@ -1902,10 +1908,11 @@ mod tests {
                             FieldDataType::Float,
                         )],
                     )],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("catalog batch should apply on primary");
             (db_id, table_id, wal_content)
         };
@@ -1970,10 +1977,11 @@ mod tests {
                     [t1_col_id],
                 )
                 .build()],
+                0,
             )],
         );
         replica
-            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
             .expect("catalog batch should apply successfully on replica catalog");
         let id_map = replicated_catalog.id_map.lock().clone();
         insta::with_settings!({
@@ -1992,7 +2000,7 @@ mod tests {
             insta::assert_yaml_snapshot!(id_map);
         });
         primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
             .unwrap();
         let db = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -2013,14 +2021,15 @@ mod tests {
                     "bar",
                     "test_cache",
                 )],
+                0,
             )],
         );
         replica
-            .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
             .expect("catalog batch to delete last cache should apply on replica catalog");
         let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
         primary
-            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().unwrap())
+            .apply_catalog_batch(mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
             .expect("mapped catalog batch should apply on primary to delete last cache");
         let db = primary.db_schema("foo").unwrap();
         insta::with_settings!({
@@ -2054,10 +2063,11 @@ mod tests {
                         [t1_col_id],
                     )
                     .build()],
+                    0,
                 )],
             );
             primary
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to primary to create last cache");
         }
         let replica_wal_content = {
@@ -2077,10 +2087,11 @@ mod tests {
                         [t1_col_id],
                     )
                     .build()],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to replica to create last cache");
             wal_content
         };
@@ -2136,10 +2147,11 @@ mod tests {
                         [t1_col_id],
                     )
                     .build()],
+                    0,
                 )],
             );
             primary
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to primary to create last cache");
         }
         // now on the replica:
@@ -2160,10 +2172,11 @@ mod tests {
                         [],
                     )
                     .build()],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to replica to create last cache");
             wal_content
         };
@@ -2218,10 +2231,11 @@ mod tests {
                         )
                         .build(),
                     ],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch with table create and last cache create on replica");
             wal_content
         };
@@ -2232,10 +2246,17 @@ mod tests {
                 .into_iter()
                 .map(|op| match op {
                     WalOp::Write(_) => op,
-                    WalOp::Catalog(catalog_batch) => WalOp::Catalog(CatalogBatch {
-                        ops: catalog_batch.ops.into_iter().skip(1).collect(),
-                        ..catalog_batch
-                    }),
+                    WalOp::Catalog(catalog_batch) => {
+                        let sequence = catalog_batch.sequence_number();
+                        let batch = catalog_batch.batch();
+                        WalOp::Catalog(OrderedCatalogBatch::new(
+                            CatalogBatch {
+                                ops: batch.ops.into_iter().skip(1).collect(),
+                                ..batch
+                            },
+                            sequence,
+                        ))
+                    }
                 })
                 .collect(),
             ..replica_wal_content
@@ -2276,10 +2297,11 @@ mod tests {
                             FieldDataType::String,
                         )],
                     )],
+                    0,
                 )],
             );
             primary
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to primary");
         }
         // now add the same "f4", but as a float, to the replica:
@@ -2303,10 +2325,11 @@ mod tests {
                             FieldDataType::Float,
                         )],
                     )],
+                    0,
                 )],
             );
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to replica to make sure it is valid");
             wal_content
         };
@@ -2358,11 +2381,12 @@ mod tests {
                             )],
                         ),
                     ],
+                    0,
                 )],
             );
             // apply the wal content to the replica to make sure it is valid:
             replica
-                .apply_catalog_batch(wal_content.ops[0].as_catalog().unwrap())
+                .apply_catalog_batch(wal_content.ops[0].as_catalog().cloned().unwrap())
                 .expect("apply catalog batch to replica to check its validity");
             wal_content
         };
@@ -2373,10 +2397,17 @@ mod tests {
                 .into_iter()
                 .map(|op| match op {
                     WalOp::Write(_) => op,
-                    WalOp::Catalog(cat) => WalOp::Catalog(CatalogBatch {
-                        ops: cat.ops.into_iter().skip(1).collect(),
-                        ..cat
-                    }),
+                    WalOp::Catalog(cat) => {
+                        let sequence = cat.sequence_number();
+                        let batch = cat.batch();
+                        WalOp::Catalog(OrderedCatalogBatch::new(
+                            CatalogBatch {
+                                ops: batch.ops.into_iter().skip(1).collect(),
+                                ..batch
+                            },
+                            sequence,
+                        ))
+                    }
                 })
                 .collect(),
             ..replica_wal_content
@@ -2461,7 +2492,7 @@ mod tests {
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
         time_provider: Arc<dyn TimeProvider>,
-    ) -> WriteBufferImpl {
+    ) -> Arc<WriteBufferImpl> {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -2475,9 +2506,10 @@ mod tests {
             last_cache,
             meta_cache,
             time_provider,
-            executor: make_exec(object_store, metric_registry),
+            executor: make_exec(object_store, Arc::clone(&metric_registry)),
             wal_config,
             parquet_cache: None,
+            metric_registry,
         })
         .await
         .unwrap()

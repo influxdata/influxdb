@@ -1,5 +1,6 @@
 use crate::server::TestServer;
 use futures::StreamExt;
+use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
@@ -53,6 +54,18 @@ async fn api_v3_query_sql() {
         println!("{resp}");
         assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
     }
+}
+
+#[tokio::test]
+async fn api_v3_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v3_query_sql(&params).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -671,6 +684,103 @@ async fn api_v3_query_json_format() {
             .api_v3_query_influxql(&params)
             .await
             .json::<Value>()
+            .await
+            .unwrap();
+        println!("\n{q}", q = t.query);
+        println!("{resp}");
+        assert_eq!(t.expected, resp, "query failed: {q}", q = t.query);
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_sql_not_found() {
+    let server = TestServer::spawn().await;
+    let params = vec![
+        ("q", "SELECT * FROM foo"),
+        ("format", "pretty"),
+        ("db", "foo"),
+    ];
+    let resp = server.api_v1_query(&params, None).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn api_v3_query_jsonl_format() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 1
+            cpu,host=b,region=us-east usage=0.50 1
+            cpu,host=a,region=us-east usage=0.80 2
+            cpu,host=b,region=us-east usage=0.60 2
+            cpu,host=a,region=us-east usage=0.70 3
+            cpu,host=b,region=us-east usage=0.70 3
+            cpu,host=a,region=us-east usage=0.50 4
+            cpu,host=b,region=us-east usage=0.80 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    struct TestCase<'a> {
+        database: Option<&'a str>,
+        query: &'a str,
+        expected: String,
+    }
+
+    let test_cases = [
+        TestCase {
+            database: Some("foo"),
+            query: "SELECT time, host, region, usage FROM cpu",
+            expected: "{\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:01\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.9}\n\
+               {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:01\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.5}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:02\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.8}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:02\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.6}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:03\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.7}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:03\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.7}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:04\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.5}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:04\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.8}\n"
+            .into(),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW MEASUREMENTS",
+            expected: "{\"iox::measurement\":\"measurements\",\"name\":\"cpu\"}\n".into(),
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW FIELD KEYS",
+            expected: "{\"iox::measurement\":\"cpu\",\"fieldKey\":\"usage\",\"fieldType\":\"float\"}\n".into()
+        },
+        TestCase {
+            database: Some("foo"),
+            query: "SHOW TAG KEYS",
+            expected:
+                "{\"iox::measurement\":\"cpu\",\"tagKey\":\"host\"}\n\
+                {\"iox::measurement\":\"cpu\",\"tagKey\":\"region\"}\n".into()
+        },
+        TestCase {
+            database: None,
+            query: "SHOW DATABASES",
+            expected: "{\"iox::database\":\"foo\"}\n".into(),
+        },
+        TestCase {
+            database: None,
+            query: "SHOW RETENTION POLICIES",
+            expected: "{\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
+        },
+    ];
+    for t in test_cases {
+        let mut params = vec![("q", t.query), ("format", "json_lines")];
+        if let Some(db) = t.database {
+            params.push(("db", db))
+        }
+        let resp = server
+            .api_v3_query_influxql(&params)
+            .await
+            .text()
             .await
             .unwrap();
         println!("\n{q}", q = t.query);
@@ -1327,6 +1437,87 @@ async fn api_v3_query_sql_meta_cache() {
             {"region": "eu", "host": "b"},
             {"region": "us", "host": "a"},
         ]),
+        resp
+    );
+}
+
+/// Test that if we write in a row of LP that is missing a tag value, we're still able to query.
+/// Also tests that if the buffer is missing a field, we're still able to query.
+#[test_log::test(tokio::test)]
+async fn api_v3_query_null_tag_values_null_fields() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9,system=0.1 1
+            cpu,host=b usage=0.80,system=0.1 4",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
+
+    let resp = client
+        .get(&url)
+        .query(&[
+            ("db", "foo"),
+            (
+                "q",
+                "SELECT host, region, time, usage FROM cpu ORDER BY time",
+            ),
+            ("format", "pretty"),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+---------+---------------------+-------+\n\
+            | host | region  | time                | usage |\n\
+            +------+---------+---------------------+-------+\n\
+            | a    | us-east | 1970-01-01T00:00:01 | 0.9   |\n\
+            | b    |         | 1970-01-01T00:00:04 | 0.8   |\n\
+            +------+---------+---------------------+-------+",
+        resp
+    );
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=a,region=us-east usage=0.9 10000000",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let resp = client
+        .get(&url)
+        .query(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM cpu ORDER BY time"),
+            ("format", "pretty"),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+---------+--------+---------------------+-------+\n\
+         | host | region  | system | time                | usage |\n\
+         +------+---------+--------+---------------------+-------+\n\
+         | a    | us-east | 0.1    | 1970-01-01T00:00:01 | 0.9   |\n\
+         | b    |         | 0.1    | 1970-01-01T00:00:04 | 0.8   |\n\
+         | a    | us-east |        | 1970-04-26T17:46:40 | 0.9   |\n\
+         +------+---------+--------+---------------------+-------+",
         resp
     );
 }

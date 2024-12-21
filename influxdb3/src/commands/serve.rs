@@ -1,11 +1,10 @@
-//! Entrypoint for InfluxDB 3.0 Edge Server
+//! Entrypoint for InfluxDB 3.0 OSS Server
 
 use anyhow::{bail, Context};
 use clap_blocks::{
     memory_size::MemorySize,
     object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
-    tokio::TokioDatafusionConfig,
 };
 use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
@@ -16,6 +15,7 @@ use influxdb3_cache::{
     meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_clap_blocks::tokio::TokioDatafusionConfig;
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
@@ -404,7 +404,7 @@ pub async fn command(config: Config) -> Result<()> {
         uuid = %PROCESS_UUID.as_ref() as &str,
         num_cpus,
         %build_malloc_conf,
-        "InfluxDB3 Edge server starting",
+        "InfluxDB3 OSS server starting",
     );
 
     let metrics = setup_metric_registry();

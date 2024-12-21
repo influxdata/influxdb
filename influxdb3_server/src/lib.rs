@@ -1,4 +1,4 @@
-//! InfluxDB 3.0 Edge server implementation
+//! InfluxDB 3.0 OSS server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
@@ -556,7 +556,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -566,7 +566,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -576,7 +576,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -586,7 +586,7 @@ mod tests {
             "auto",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -596,7 +596,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -606,7 +606,7 @@ mod tests {
             "millisecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -616,7 +616,7 @@ mod tests {
             "microsecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
         let resp = write_lp(
             &server,
             "foo",
@@ -626,7 +626,7 @@ mod tests {
             "nanosecond",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         let res = query(
             &server,
@@ -679,7 +679,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         // Create the last cache:
         wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
@@ -705,7 +705,7 @@ mod tests {
             "second",
         )
         .await;
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         struct TestCase {
             query: &'static str,
@@ -813,26 +813,25 @@ mod tests {
         let sample_host_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
-        let write_buffer_impl = Arc::new(
-            influxdb3_write::write_buffer::WriteBufferImpl::new(
-                influxdb3_write::write_buffer::WriteBufferImplArgs {
-                    persister: Arc::clone(&persister),
-                    catalog: Arc::clone(&catalog),
-                    last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-                    meta_cache: MetaCacheProvider::new_from_catalog(
-                        Arc::clone(&time_provider) as _,
-                        Arc::clone(&catalog),
-                    )
-                    .unwrap(),
-                    time_provider: Arc::clone(&time_provider) as _,
-                    executor: Arc::clone(&exec),
-                    wal_config: WalConfig::test_config(),
-                    parquet_cache: Some(parquet_cache),
-                },
-            )
-            .await
-            .unwrap(),
-        );
+        let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
+            influxdb3_write::write_buffer::WriteBufferImplArgs {
+                persister: Arc::clone(&persister),
+                catalog: Arc::clone(&catalog),
+                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                meta_cache: MetaCacheProvider::new_from_catalog(
+                    Arc::clone(&time_provider) as _,
+                    Arc::clone(&catalog),
+                )
+                .unwrap(),
+                time_provider: Arc::clone(&time_provider) as _,
+                executor: Arc::clone(&exec),
+                wal_config: WalConfig::test_config(),
+                parquet_cache: Some(parquet_cache),
+                metric_registry: Arc::clone(&metrics),
+            },
+        )
+        .await
+        .unwrap();
 
         let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
             &time_provider,

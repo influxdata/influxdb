@@ -184,7 +184,7 @@ mod tests {
 
         for tc in test_cases {
             let records = cache
-                .to_record_batch(&tc.predicates, None)
+                .to_record_batch(cache.arrow_schema(), &tc.predicates, None, None)
                 .expect("get record batches");
             println!("{}", tc.desc);
             assert_batches_sorted_eq!(tc.expected, &[records]);
@@ -241,7 +241,9 @@ mod tests {
         // check the cache before prune:
         // NOTE: this does not include entries that have surpassed the max_age of the cache, though,
         // there are still more than the cache's max cardinality, as it has not yet been pruned.
-        let records = cache.to_record_batch(&Default::default(), None).unwrap();
+        let records = cache
+            .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+            .unwrap();
         assert_batches_sorted_eq!(
             [
                 "+-----------+------+",
@@ -267,7 +269,9 @@ mod tests {
             &[records]
         );
         cache.prune();
-        let records = cache.to_record_batch(&Default::default(), None).unwrap();
+        let records = cache
+            .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+            .unwrap();
         assert_batches_sorted_eq!(
             [
                 "+-----------+------+",
@@ -330,7 +334,9 @@ mod tests {
         }
 
         // no limit produces all records in the cache:
-        let batches = cache.to_record_batch(&Default::default(), None).unwrap();
+        let batches = cache
+            .to_record_batch(cache.arrow_schema(), &Default::default(), None, None)
+            .unwrap();
         assert_batches_eq!(
             [
                 "+---------+------+",
@@ -354,7 +360,9 @@ mod tests {
         );
 
         // applying a limit only returns that number of records from the cache:
-        let batches = cache.to_record_batch(&Default::default(), Some(5)).unwrap();
+        let batches = cache
+            .to_record_batch(cache.arrow_schema(), &Default::default(), None, Some(5))
+            .unwrap();
         assert_batches_eq!(
             [
                 "+---------+------+",
@@ -499,7 +507,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -513,7 +521,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -527,7 +535,7 @@ mod tests {
                     "| us-east | a    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -542,7 +550,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -556,7 +564,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -575,7 +583,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -594,7 +602,7 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -610,7 +618,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -625,7 +633,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -640,7 +648,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -655,7 +663,7 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -668,18 +676,13 @@ mod tests {
                     "| ca-cent |",
                     "| ca-east |",
                     "| ca-west |",
-                    "| ca-west |",
-                    "| eu-cent |",
                     "| eu-cent |",
                     "| eu-west |",
-                    "| eu-west |",
                     "| us-east |",
-                    "| us-east |",
-                    "| us-west |",
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -698,7 +701,7 @@ mod tests {
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1",
                 // it seems that DISTINCT changes around the order of results
                 use_sorted_assert: true,
             },
@@ -723,11 +726,24 @@ mod tests {
                     "| l    |", // commenting for no new line
                     "+------+", // commenting for no new line
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 // this column will not be sorted since the order of elements depends on the next level
                 // up in the cache, so the `region` column is iterated over in order, but the nested
                 // `host` values, although sorted within `region`s, will not be globally sorted.
                 use_sorted_assert: true,
+            },
+            TestCase {
+                _desc: "project host column",
+                sql: "SELECT host FROM meta_cache('cpu') WHERE region = 'ca-cent'",
+                expected: &[
+                    "+------+", // commenting for no new line
+                    "| host |", // commenting for no new line
+                    "+------+", // commenting for no new line
+                    "| f    |", // commenting for no new line
+                    "+------+", // commenting for no new line
+                ],
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                use_sorted_assert: false,
             },
             TestCase {
                 _desc: "limit clause",
@@ -746,7 +762,7 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -762,7 +778,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
@@ -779,15 +795,14 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
         ];
 
         for tc in test_cases {
+            println!("test case: {}\n{}\n", tc._desc, tc.sql);
             let results = ctx.sql(tc.sql).await.unwrap().collect().await.unwrap();
-            // Uncommenting may make figuring out which test case is failing easier:
-            println!("test case: {}", tc._desc);
             if tc.use_sorted_assert {
                 assert_batches_sorted_eq!(tc.expected, &results);
             } else {

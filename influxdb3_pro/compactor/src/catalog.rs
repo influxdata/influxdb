@@ -482,7 +482,7 @@ pub(crate) mod test_helpers {
                 }),
             ],
         };
-        catalog.apply_catalog_batch(&batch).unwrap();
+        catalog.apply_catalog_batch(batch).unwrap();
 
         let persister = Persister::new(object_store, host_id);
         persister.persist_catalog(&catalog).await.unwrap();
