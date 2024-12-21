@@ -22,15 +22,13 @@ use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
-#[cfg(feature = "system-py")]
-use influxdb3_py_api::system_py::PyWriteBatch;
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::{Mutex, RwLock};
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;

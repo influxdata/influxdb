@@ -81,7 +81,6 @@ pub enum Error {
         existing: String,
     },
 
-    // WIP - should this be pro-specific?
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 

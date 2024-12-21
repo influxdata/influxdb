@@ -14,10 +14,8 @@ use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
 };
-use influxdb3_write::{
-    write_buffer::{self, parquet_chunk_from_file},
-    ProcessingEngineManager,
-};
+use influxdb3_write::write_buffer::plugins::ProcessingEngineManager;
+use influxdb3_write::write_buffer::{self, parquet_chunk_from_file};
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -252,7 +250,21 @@ impl MetaCacheManager for ReadMode {
 
 #[async_trait]
 impl DatabaseManager for ReadMode {
+    async fn create_database(&self, _name: String) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
     async fn soft_delete_database(&self, _name: String) -> Result<(), WriteBufferError> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn create_table(
+        &self,
+        _db: String,
+        _table: String,
+        _tags: Vec<String>,
+        _fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 
@@ -285,6 +297,16 @@ impl ProcessingEngineManager for ReadMode {
         _plugin_name: String,
         _trigger_specification: TriggerSpecificationDefinition,
     ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn run_trigger(
+        &self,
+        _write_buffer: Arc<dyn WriteBuffer>,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        // TODO - should be able to run triggers in read mode
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 }

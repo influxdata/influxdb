@@ -5,8 +5,8 @@ use indexmap::IndexMap;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DatabaseDefinition, DeleteDatabaseDefinition, DeleteTableDefinition,
     Field, FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete,
-    LastCacheValueColumnsDef, MetaCacheDefinition, MetaCacheDelete, Row, TableChunk, TableChunks,
-    TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
+    LastCacheValueColumnsDef, MetaCacheDefinition, MetaCacheDelete, OrderedCatalogBatch, Row,
+    TableChunk, TableChunks, TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
 use schema::InfluxColumnType;
 use serde::{Deserialize, Serialize};
@@ -622,19 +622,30 @@ impl CatalogIdMap {
     fn map_catalog_batch(
         &mut self,
         target_catalog: &Catalog,
-        from: CatalogBatch,
-    ) -> Result<Mapped<CatalogBatch>> {
-        let database_id = self.map_db_or_new(target_catalog, &from.database_name, from.database_id);
-        Ok(from
+        from: OrderedCatalogBatch,
+    ) -> Result<Mapped<OrderedCatalogBatch>> {
+        let sequence_number = from.sequence_number();
+        let from_batch = from.batch();
+        let database_id = self.map_db_or_new(
+            target_catalog,
+            &from_batch.database_name,
+            from_batch.database_id,
+        );
+        Ok(from_batch
             .ops
             .into_iter()
             .map(|op| self.map_catalog_op(target_catalog, database_id.copied(), op))
             .collect::<Result<Mapped<Vec<CatalogOp>>>>()?
-            .map(|ops| CatalogBatch {
-                database_id: *database_id,
-                database_name: Arc::clone(&from.database_name),
-                time_ns: from.time_ns,
-                ops,
+            .map(|ops| {
+                OrderedCatalogBatch::new(
+                    CatalogBatch {
+                        database_id: *database_id,
+                        database_name: Arc::clone(&from_batch.database_name),
+                        time_ns: from_batch.time_ns,
+                        ops,
+                    },
+                    sequence_number,
+                )
             }))
     }
 
@@ -1195,7 +1206,8 @@ mod tests {
             [t3_col_id],
         );
         let mut db = b.db_schema("foo").unwrap().deref().clone();
-        db.insert_table(new_tbl.table_id, Arc::new(new_tbl));
+        db.insert_table(new_tbl.table_id, Arc::new(new_tbl))
+            .unwrap();
         b.insert_database(db);
         // check the db/table by name in b:
         {
@@ -1412,7 +1424,7 @@ mod tests {
                 count: LastCacheSize::new(1).unwrap(),
                 ttl: 3600,
             });
-            db.insert_table(tbl.table_id, Arc::new(tbl));
+            db.insert_table(tbl.table_id, Arc::new(tbl)).unwrap();
             a.insert_database(db);
         }
         // add a last cache to 'b' but with a different configuration:
@@ -1429,7 +1441,7 @@ mod tests {
                 count: LastCacheSize::new(1).unwrap(),
                 ttl: 3600,
             });
-            db.insert_table(tbl.table_id, Arc::new(tbl));
+            db.insert_table(tbl.table_id, Arc::new(tbl)).unwrap();
             b.insert_database(db);
         }
         let err = a

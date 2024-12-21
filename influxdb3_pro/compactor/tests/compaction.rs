@@ -67,6 +67,7 @@ async fn five_files_multiple_series_same_schema() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),
@@ -292,6 +293,7 @@ async fn two_files_two_series_and_same_schema() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),
@@ -449,6 +451,7 @@ async fn two_files_same_series_and_schema() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),
@@ -592,6 +595,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),
@@ -772,6 +776,7 @@ async fn deduplication_of_data() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),
@@ -904,6 +909,7 @@ async fn compactor_casting() {
             executor: Arc::new(Executor::new_testing()),
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
+            metric_registry: Default::default(),
         })
         .await
         .unwrap(),

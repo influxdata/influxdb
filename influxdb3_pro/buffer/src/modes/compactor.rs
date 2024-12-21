@@ -16,9 +16,12 @@ use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
 };
 use influxdb3_write::{
-    write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
+    write_buffer::{
+        self, plugins::ProcessingEngineManager, Error as WriteBufferError,
+        Result as WriteBufferResult,
+    },
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
-    PersistedSnapshot, Precision, ProcessingEngineManager, WriteBuffer,
+    PersistedSnapshot, Precision, WriteBuffer,
 };
 use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
@@ -138,10 +141,22 @@ impl MetaCacheManager for CompactorMode {
 
 #[async_trait]
 impl DatabaseManager for CompactorMode {
+    async fn create_database(&self, _name: String) -> Result<(), write_buffer::Error> {
+        unimplemented!("create_database not implemented for CompactorMode")
+    }
     async fn soft_delete_database(&self, _name: String) -> Result<(), WriteBufferError> {
         unimplemented!("soft_delete_database not implemented for CompactorMode")
     }
 
+    async fn create_table(
+        &self,
+        _db: String,
+        _table: String,
+        _tags: Vec<String>,
+        _fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("create_table not implemented for CompactorMode")
+    }
     async fn soft_delete_table(
         &self,
         _db_name: String,
@@ -172,6 +187,15 @@ impl ProcessingEngineManager for CompactorMode {
         _trigger_specification: TriggerSpecificationDefinition,
     ) -> Result<(), write_buffer::Error> {
         unimplemented!("cannot insert processing engine trigger in CompactorMode")
+    }
+
+    async fn run_trigger(
+        &self,
+        _write_buffer: Arc<dyn WriteBuffer>,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot run processing engine trigger in CompactorMode")
     }
 }
 

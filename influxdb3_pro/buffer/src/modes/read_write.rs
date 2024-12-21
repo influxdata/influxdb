@@ -14,7 +14,9 @@ use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition, WalConfig,
 };
+use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
 use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
+use influxdb3_write::write_buffer::plugins::ProcessingEngineManager;
 use influxdb3_write::write_buffer::{parquet_chunk_from_file, WriteBufferImplArgs};
 use influxdb3_write::{
     persister::Persister,
@@ -22,7 +24,6 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{persister::DEFAULT_OBJECT_STORE_URL, ProcessingEngineManager};
 use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -32,7 +33,7 @@ use tokio::sync::watch::Receiver;
 
 #[derive(Debug)]
 pub struct ReadWriteMode {
-    primary: WriteBufferImpl,
+    primary: Arc<WriteBufferImpl>,
     host_id: Arc<str>,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
@@ -83,6 +84,7 @@ impl ReadWriteMode {
             executor,
             wal_config,
             parquet_cache: parquet_cache.clone(),
+            metric_registry: Arc::clone(&metric_registry),
         })
         .await?;
 
@@ -361,8 +363,22 @@ impl MetaCacheManager for ReadWriteMode {
 
 #[async_trait]
 impl DatabaseManager for ReadWriteMode {
+    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error> {
+        self.primary.create_database(name).await
+    }
+
     async fn soft_delete_database(&self, name: String) -> write_buffer::Result<()> {
         self.primary.soft_delete_database(name).await
+    }
+
+    async fn create_table(
+        &self,
+        db: String,
+        table: String,
+        tags: Vec<String>,
+        fields: Vec<(String, String)>,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary.create_table(db, table, tags, fields).await
     }
 
     async fn soft_delete_table(
@@ -398,6 +414,17 @@ impl ProcessingEngineManager for ReadWriteMode {
     ) -> Result<(), write_buffer::Error> {
         self.primary
             .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .await
+    }
+
+    async fn run_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary
+            .run_trigger(write_buffer, db_name, trigger_name)
             .await
     }
 }

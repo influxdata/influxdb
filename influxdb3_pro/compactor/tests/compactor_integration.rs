@@ -78,6 +78,7 @@ async fn two_writers_gen1_compaction() {
         executor: Arc::clone(&exec),
         wal_config,
         parquet_cache: None,
+        metric_registry: Arc::clone(&metrics),
     })
     .await
     .unwrap();
@@ -140,11 +141,11 @@ async fn two_writers_gen1_compaction() {
     // which will then trigger a compaction. We also want to do one more snapshot each
     // so that we'll have non-compacted files show up in this query too.
     do_writes(read_write_mode.as_ref(), writer1_id, 0, 1).await;
-    do_writes(&writer2_buffer, writer2_id, 0, 2).await;
+    do_writes(writer2_buffer.as_ref(), writer2_id, 0, 2).await;
     do_writes(read_write_mode.as_ref(), writer1_id, 1, 1).await;
-    do_writes(&writer2_buffer, writer2_id, 1, 2).await;
+    do_writes(writer2_buffer.as_ref(), writer2_id, 1, 2).await;
     do_writes(read_write_mode.as_ref(), writer1_id, 2, 1).await;
-    do_writes(&writer2_buffer, writer2_id, 2, 2).await;
+    do_writes(writer2_buffer.as_ref(), writer2_id, 2, 2).await;
 
     // wait for two compactions to happen
     let mut count = 0;

@@ -488,11 +488,6 @@ impl Node {
                 } else {
                     break;
                 }
-                if let Some(new_limit) = limit.checked_sub(count) {
-                    limit = new_limit;
-                } else {
-                    break;
-                }
             } else {
                 if let Some(builder) = builder {
                     builder.append_value(value.0);
