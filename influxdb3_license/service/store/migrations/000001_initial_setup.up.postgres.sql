@@ -1,12 +1,11 @@
 -- filename: 000001_initial_setup.up.postgres.sql
 -- description: Initial setup for the InfluxDB 3 Pro license service
 
--- Table to store users
+-- Table to stor users
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
     emails_sent_cnt INT NOT NULL DEFAULT 0,
-    verification_token UUID NOT NULL,
     verified_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -14,34 +13,68 @@ CREATE TABLE users (
 );
 
 CREATE UNIQUE INDEX idx_users_email ON users(email);
-CREATE UNIQUE INDEX idx_users_verification_token ON users(verification_token);
 
 -- Table to track IP addresses associated with users
 CREATE TABLE user_ips (
     ipaddr inet,
     user_id BIGSERIAL,
+    blocked BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_user_ips_ipaddr ON user_ips(ipaddr);
+CREATE INDEX idx_user_ips_blocked ON user_ips(blocked);
 
--- Table to store emails sent to users
-CREATE TABLE emails_sent (
-    id BIGSERIAL PRIMARY KEY,
+-- Create an enum for valid email states
+CREATE TYPE email_state_enum AS ENUM ('scheduled', 'sent', 'failed');
+
+-- Create a table to store emails and partition it on email state
+CREATE TABLE emails (
+    id BIGSERIAL,
+    user_id BIGSERIAL NOT NULL,
+    user_ip inet NOT NULL,
+    verification_token UUID NOT NULL,
     license_id BIGSERIAL NOT NULL,
     email_template_name VARCHAR(255),
     to_email VARCHAR(255) NOT NULL,
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
-    sent_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
+    state email_state_enum NOT NULL DEFAULT 'scheduled',
+    scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMP WITH TIME ZONE, -- Date/time of last successful send
+    send_cnt INT NOT NULL DEFAULT 0, -- Count of successful sends
+    send_fail_cnt INT NOT NULL DEFAULT 0, -- Count of failed send attempts
+    last_err_msg TEXT, -- Error message from last failed send
+    delivery_srvc_resp TEXT, -- Response from the mail service (eg, Mailgun)
+    delivery_srvc_id VARCHAR(255), -- ID from the mail service for this email
+    CONSTRAINT pk_emails PRIMARY KEY (id, state)  -- Named primary key constraint
+) PARTITION BY LIST (state);
 
-CREATE INDEX idx_emails_sent_to_email ON emails_sent(to_email);
-CREATE INDEX idx_emails_sent_sent_at ON emails_sent(sent_at);
+-- Create partitions
+CREATE TABLE emails_scheduled PARTITION OF emails
+    FOR VALUES IN ('scheduled');
 
--- Table to store users' licenses
-CREATE TYPE status_enum AS ENUM ('requested', 'active', 'inactive');
+CREATE TABLE emails_sent PARTITION OF emails
+    FOR VALUES IN ('sent');
 
+CREATE TABLE emails_failed PARTITION OF emails
+    FOR VALUES IN ('failed');
+
+-- Indexes (created on parent table, inherited by partitions)
+CREATE INDEX idx_emails_to_email ON emails(to_email);
+CREATE INDEX idx_emails_user_id ON emails(user_id);
+CREATE INDEX idx_emails_verification_token ON emails(verification_token);
+CREATE INDEX idx_emails_scheduled_at ON emails(scheduled_at)
+    WHERE state = 'scheduled';
+CREATE INDEX idx_emails_sent_at ON emails(sent_at)
+    WHERE state = 'sent';
+CREATE INDEX idx_emails_delivery_srvc_id ON emails(delivery_srvc_id)
+    WHERE state = 'sent';
+
+-- Enum of valid license states
+CREATE TYPE license_state_enum AS ENUM ('requested', 'active', 'inactive');
+
+-- Table to stor users' licenses
 CREATE TABLE licenses (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
@@ -50,7 +83,7 @@ CREATE TABLE licenses (
     license_key TEXT NOT NULL,
     valid_from TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
-    status status_enum NOT NULL DEFAULT 'requested',
+    state license_state_enum NOT NULL DEFAULT 'requested',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT unique_email_host UNIQUE(email, host_id),      -- host must be unique per email
@@ -59,3 +92,4 @@ CREATE TABLE licenses (
 
 CREATE INDEX idx_licenses_instance ON licenses(instance_id);
 CREATE INDEX idx_licenses_email ON licenses(email);
+CREATE INDEX idx_licenses_state ON licenses(state);

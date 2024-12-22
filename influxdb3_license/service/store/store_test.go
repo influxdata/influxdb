@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/testutil"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +16,7 @@ import (
 
 func TestUserCRUD(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -32,9 +32,8 @@ func TestUserCRUD(t *testing.T) {
 	defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
 
 	user := &store.User{
-		Email:             "test@example.com",
-		EmailsSentCount:   0,
-		VerificationToken: uuid.New().String(),
+		Email:           "test@example.com",
+		EmailsSentCount: 0,
 	}
 
 	err = s.CreateUser(ctx, tx, user)
@@ -129,7 +128,7 @@ func TestUserCRUD(t *testing.T) {
 
 func TestUserInvariants(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -143,15 +142,13 @@ func TestUserInvariants(t *testing.T) {
 		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
 
 		// Test each non-null field with raw SQL
-		fields := []string{"email", "verification_token"}
+		fields := []string{"email"}
 		for _, field := range fields {
 			query := `
                 INSERT INTO users (
-                    email,
-                    verification_token
+                    email
                 ) VALUES (
-                    CASE WHEN $1 = 'email' THEN NULL ELSE 'test@example.com' END,
-                    CASE WHEN $1 = 'verification_token' THEN NULL ELSE '123e4567-e89b-12d3-a456-426614174000'::uuid END
+                    CASE WHEN $1 = 'email' THEN NULL ELSE 'test@example.com' END
                 )`
 
 			_, err = tx.(*sql.Tx).ExecContext(ctx, query, field)
@@ -170,9 +167,8 @@ func TestUserInvariants(t *testing.T) {
 
 		// Create first user
 		user1 := &store.User{
-			Email:             "test@example.com",
-			EmailsSentCount:   0,
-			VerificationToken: uuid.New().String(),
+			Email:           "test@example.com",
+			EmailsSentCount: 0,
 		}
 		err = s.CreateUser(ctx, tx, user1)
 		if err != nil {
@@ -181,42 +177,12 @@ func TestUserInvariants(t *testing.T) {
 
 		// Try to create second user with same email
 		user2 := &store.User{
-			Email:             "test@example.com", // same email
-			EmailsSentCount:   0,
-			VerificationToken: uuid.New().String(),
+			Email:           "test@example.com", // same email
+			EmailsSentCount: 0,
 		}
 		err = s.CreateUser(ctx, tx, user2)
 		if err == nil {
 			t.Error("expected error creating user with duplicate email")
-		}
-	})
-
-	t.Run("verification token uniqueness", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		token := uuid.New().String()
-		user1 := &store.User{
-			Email:             "test1@example.com",
-			EmailsSentCount:   0,
-			VerificationToken: token,
-		}
-		err = s.CreateUser(ctx, tx, user1)
-		if err != nil {
-			t.Fatalf("create first user: %v", err)
-		}
-
-		user2 := &store.User{
-			Email:             "test2@example.com",
-			EmailsSentCount:   0,
-			VerificationToken: token, // same token
-		}
-		err = s.CreateUser(ctx, tx, user2)
-		if err == nil {
-			t.Error("expected error creating user with duplicate verification token")
 		}
 	})
 
@@ -228,8 +194,7 @@ func TestUserInvariants(t *testing.T) {
 		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
 
 		user := &store.User{
-			Email:             "test@example.com",
-			VerificationToken: uuid.New().String(),
+			Email: "test@example.com",
 		}
 		err = s.CreateUser(ctx, tx, user)
 		if err != nil {
@@ -250,7 +215,7 @@ func TestUserInvariants(t *testing.T) {
 
 func TestUserIPCRUD(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -265,9 +230,8 @@ func TestUserIPCRUD(t *testing.T) {
 	defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
 
 	user := &store.User{
-		Email:             "test@example.com",
-		EmailsSentCount:   0,
-		VerificationToken: uuid.New().String(),
+		Email:           "test@example.com",
+		EmailsSentCount: 0,
 	}
 
 	err = s.CreateUser(ctx, tx, user)
@@ -340,7 +304,7 @@ func TestUserIPCRUD(t *testing.T) {
 
 func TestUserIPInvariants(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -374,9 +338,8 @@ func TestUserIPInvariants(t *testing.T) {
 
 		// Create test user
 		user := &store.User{
-			Email:             "test@example.com",
-			EmailsSentCount:   0,
-			VerificationToken: uuid.New().String(),
+			Email:           "test@example.com",
+			EmailsSentCount: 0,
 		}
 		err = s.CreateUser(ctx, tx, user)
 		if err != nil {
@@ -417,9 +380,8 @@ func TestUserIPInvariants(t *testing.T) {
 		users := make([]*store.User, 2)
 		for i := range users {
 			users[i] = &store.User{
-				Email:             fmt.Sprintf("test%d@example.com", i),
-				EmailsSentCount:   0,
-				VerificationToken: uuid.New().String(),
+				Email:           fmt.Sprintf("test%d@example.com", i),
+				EmailsSentCount: 0,
 			}
 			err = s.CreateUser(ctx, tx, users[i])
 			if err != nil {
@@ -459,9 +421,8 @@ func TestUserIPInvariants(t *testing.T) {
 
 		// Create test user
 		user := &store.User{
-			Email:             "test@example.com",
-			EmailsSentCount:   0,
-			VerificationToken: uuid.New().String(),
+			Email:           "test@example.com",
+			EmailsSentCount: 0,
 		}
 		err = s.CreateUser(ctx, tx, user)
 		if err != nil {
@@ -481,249 +442,9 @@ func TestUserIPInvariants(t *testing.T) {
 	})
 }
 
-func TestEmailCRUD(t *testing.T) {
-	ctx := context.Background()
-	testDB := NewTestDB(t)
-	defer testDB.Cleanup()
-	testDB.Setup(ctx)
-
-	s := postgres.NewStore(testDB.DB)
-
-	// Create email
-	t.Log("Creating email...")
-	tx, err := s.BeginTx(ctx)
-	if err != nil {
-		t.Fatalf("begin transaction: %v", err)
-	}
-	defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-	email := &store.Email{
-		ToEmail:      "test@example.com",
-		TemplateName: "welcome",
-		Subject:      "Welcome to the service",
-		Body:         "Hello, welcome to our service!",
-	}
-
-	err = s.CreateEmail(ctx, tx, email)
-	if err != nil {
-		t.Fatalf("create email: %v", err)
-	}
-
-	t.Logf("Email created successfully:")
-	t.Logf("  ID: %d", email.ID)
-	t.Logf("  ToEmail: %s", email.ToEmail)
-	t.Logf("  TemplateName: %s", email.TemplateName)
-	t.Logf("  Subject: %s", email.Subject)
-	t.Logf("  SentAt: %v", email.SentAt)
-
-	// Verify email exists
-	t.Log("Verifying email exists...")
-	emails, err := s.GetEmailsByToEmail(ctx, tx, email.ToEmail)
-	if err != nil {
-		t.Fatalf("get emails: %v", err)
-	}
-	if len(emails) != 1 {
-		t.Fatalf("expected 1 email, got %d", len(emails))
-	}
-	retrieved := emails[0]
-	t.Logf("Email retrieved by ToEmail:")
-	t.Logf("  ID: %d", retrieved.ID)
-	t.Logf("  ToEmail: %s", retrieved.ToEmail)
-
-	// Update email
-	t.Log("\nUpdating email...")
-	originalSubject := email.Subject
-	email.Subject = "Updated welcome message"
-
-	err = s.UpdateEmail(ctx, tx, email)
-	if err != nil {
-		t.Fatalf("update email: %v", err)
-	}
-
-	t.Log("Email updated successfully:")
-	t.Logf("  Original Subject: %s", originalSubject)
-	t.Logf("  New Subject: %s", email.Subject)
-
-	// Verify update was persisted
-	t.Log("Verifying update was persisted...")
-	emails, err = s.GetEmailsByToEmail(ctx, tx, email.ToEmail)
-	if err != nil {
-		t.Fatalf("get updated email: %v", err)
-	}
-	if len(emails) != 1 {
-		t.Fatalf("expected 1 email, got %d", len(emails))
-	}
-	retrieved = emails[0]
-	if retrieved.Subject != email.Subject {
-		t.Errorf("got Subject %q, want %q", retrieved.Subject, email.Subject)
-	}
-	t.Log("Update verified successfully")
-
-	// Delete email
-	t.Logf("Deleting email with ID: %d...", email.ID)
-	err = s.DeleteEmail(ctx, tx, email.ID)
-	if err != nil {
-		t.Fatalf("delete email: %v", err)
-	}
-	t.Log("Email successfully deleted")
-
-	// Verify email was deleted
-	t.Log("Verifying email was deleted...")
-	emails, err = s.GetEmailsByToEmail(ctx, tx, email.ToEmail)
-	if err != nil {
-		t.Fatalf("get deleted email: %v", err)
-	}
-	if len(emails) != 0 {
-		t.Error("expected no emails after deletion")
-	}
-	t.Log("Verified email no longer exists")
-
-	err = tx.Commit()
-	if err != nil {
-		t.Fatalf("commit transaction: %v", err)
-	}
-}
-
-func TestEmailInvariants(t *testing.T) {
-	ctx := context.Background()
-	testDB := NewTestDB(t)
-	defer testDB.Cleanup()
-	testDB.Setup(ctx)
-
-	s := postgres.NewStore(testDB.DB)
-
-	t.Run("inserting NULL for non-null fields", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		// We need to use raw SQL to try inserting NULL values
-		// since the Go struct won't let us represent this state
-		_, err = tx.(*sql.Tx).ExecContext(ctx, `
-            INSERT INTO emails_sent (subject, body)
-            VALUES (NULL, 'test body')
-        `)
-		if err == nil {
-			t.Error("expected error inserting NULL subject")
-		}
-
-		_, err = tx.(*sql.Tx).ExecContext(ctx, `
-            INSERT INTO emails_sent (subject, body)
-            VALUES ('test subject', NULL)
-        `)
-		if err == nil {
-			t.Error("expected error inserting NULL body")
-		}
-	})
-
-	t.Run("default values", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		email := &store.Email{
-			ToEmail:      "test@example.com",
-			TemplateName: "welcome",
-			Subject:      "test subject",
-			Body:         "test body",
-		}
-
-		err = s.CreateEmail(ctx, tx, email)
-		if err != nil {
-			t.Fatalf("create email: %v", err)
-		}
-
-		if email.SentAt.IsZero() {
-			t.Error("expected SentAt to be set")
-		}
-	})
-
-	t.Run("nullable fields", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		// Both to_email and template_name are nullable
-		email := &store.Email{
-			Subject: "test subject",
-			Body:    "test body",
-		}
-
-		err = s.CreateEmail(ctx, tx, email)
-		if err != nil {
-			t.Fatalf("create email with null fields: %v", err)
-		}
-
-		if email.ID == 0 {
-			t.Error("expected ID to be set")
-		}
-	})
-
-	t.Run("varchar length", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		// Create string longer than VARCHAR(255)
-		longString := strings.Repeat("a", 256)
-
-		email := &store.Email{
-			ToEmail:      longString,
-			TemplateName: longString,
-			Subject:      "test subject",
-			Body:         "test body",
-		}
-
-		err = s.CreateEmail(ctx, tx, email)
-		if err == nil {
-			t.Error("expected error creating email with fields exceeding VARCHAR(255)")
-		}
-	})
-
-	t.Run("id auto-increment", func(t *testing.T) {
-		tx, err := s.BeginTx(ctx)
-		if err != nil {
-			t.Fatalf("begin transaction: %v", err)
-		}
-		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
-
-		// Create two emails and verify IDs are sequential
-		email1 := &store.Email{
-			Subject: "test subject 1",
-			Body:    "test body 1",
-		}
-		err = s.CreateEmail(ctx, tx, email1)
-		if err != nil {
-			t.Fatalf("create first email: %v", err)
-		}
-
-		email2 := &store.Email{
-			Subject: "test subject 2",
-			Body:    "test body 2",
-		}
-		err = s.CreateEmail(ctx, tx, email2)
-		if err != nil {
-			t.Fatalf("create second email: %v", err)
-		}
-
-		if email1.ID >= email2.ID {
-			t.Errorf("expected second ID (%d) to be greater than first ID (%d)",
-				email2.ID, email1.ID)
-		}
-	})
-}
-
 func TestLicenseCRUD(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -747,7 +468,7 @@ func TestLicenseCRUD(t *testing.T) {
 		LicenseKey: "license-key-123",
 		ValidFrom:  validFrom,
 		ValidUntil: validUntil,
-		Status:     store.LicenseStatusRequested,
+		State:      store.LicenseStateRequested,
 	}
 
 	err = s.CreateLicense(ctx, tx, license)
@@ -760,7 +481,7 @@ func TestLicenseCRUD(t *testing.T) {
 	t.Logf("  Email: %s", license.Email)
 	t.Logf("  HostID: %s", license.HostID)
 	t.Logf("  InstanceID: %s", license.InstanceID)
-	t.Logf("  Status: %s", license.Status)
+	t.Logf("  State: %s", license.State)
 	t.Logf("  ValidFrom: %v", license.ValidFrom)
 	t.Logf("  ValidUntil: %v", license.ValidUntil)
 	t.Logf("  CreatedAt: %v", license.CreatedAt)
@@ -789,9 +510,9 @@ func TestLicenseCRUD(t *testing.T) {
 
 	// Update license
 	t.Log("\nUpdating license...")
-	originalStatus := license.Status
+	originalStatus := license.State
 	originalUpdatedAt := license.UpdatedAt
-	license.Status = store.LicenseStatusActive
+	license.State = store.LicenseStateActive
 
 	err = s.UpdateLicense(ctx, tx, license)
 	if err != nil {
@@ -799,8 +520,8 @@ func TestLicenseCRUD(t *testing.T) {
 	}
 
 	t.Log("License updated successfully:")
-	t.Logf("  Original Status: %s", originalStatus)
-	t.Logf("  New Status: %s", license.Status)
+	t.Logf("  Original State: %s", originalStatus)
+	t.Logf("  New State: %s", license.State)
 	t.Logf("  Original UpdatedAt: %v", originalUpdatedAt)
 	t.Logf("  New UpdatedAt: %v", license.UpdatedAt)
 
@@ -814,8 +535,8 @@ func TestLicenseCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get updated license: %v", err)
 	}
-	if retrieved.Status != store.LicenseStatusActive {
-		t.Errorf("got Status %q, want %q", retrieved.Status, store.LicenseStatusActive)
+	if retrieved.State != store.LicenseStateActive {
+		t.Errorf("got State %q, want %q", retrieved.State, store.LicenseStateActive)
 	}
 	t.Log("Update verified successfully")
 
@@ -846,7 +567,7 @@ func TestLicenseCRUD(t *testing.T) {
 
 func TestLicenseInvariants(t *testing.T) {
 	ctx := context.Background()
-	testDB := NewTestDB(t)
+	testDB := testutil.NewTestDB(t)
 	defer testDB.Cleanup()
 	testDB.Setup(ctx)
 
@@ -865,14 +586,14 @@ func TestLicenseInvariants(t *testing.T) {
 			query := `
                 INSERT INTO licenses (
                     email, host_id, instance_id, license_key,
-                    valid_until, status
+                    valid_until, state
                 ) VALUES (
                     CASE WHEN $1 = 'email' THEN NULL ELSE 'test@example.com' END,
                     CASE WHEN $1 = 'host_id' THEN NULL ELSE 'host123' END,
                     CASE WHEN $1 = 'instance_id' THEN NULL ELSE '123e4567-e89b-12d3-a456-426614174000'::uuid END,
                     CASE WHEN $1 = 'license_key' THEN NULL ELSE 'key123' END,
                     CASE WHEN $1 = 'valid_until' THEN NULL ELSE NOW() + INTERVAL '1 year' END,
-                    CASE WHEN $1 = 'status' THEN NULL ELSE 'active' END
+                    CASE WHEN $1 = 'state' THEN NULL ELSE 'active' END
                 )`
 
 			_, err = tx.(*sql.Tx).ExecContext(ctx, query, field)
@@ -897,7 +618,7 @@ func TestLicenseInvariants(t *testing.T) {
 			LicenseKey: "key123",
 			ValidFrom:  time.Now(),
 			ValidUntil: time.Now().AddDate(1, 0, 0),
-			Status:     store.LicenseStatusActive,
+			State:      store.LicenseStateActive,
 		}
 
 		err = s.CreateLicense(ctx, tx, license1)
@@ -913,7 +634,7 @@ func TestLicenseInvariants(t *testing.T) {
 			LicenseKey: "key456",
 			ValidFrom:  time.Now(),
 			ValidUntil: time.Now().AddDate(1, 0, 0),
-			Status:     store.LicenseStatusActive,
+			State:      store.LicenseStateActive,
 		}
 
 		err = s.CreateLicense(ctx, tx, license2)
@@ -929,7 +650,7 @@ func TestLicenseInvariants(t *testing.T) {
 			LicenseKey: "key789",
 			ValidFrom:  time.Now(),
 			ValidUntil: time.Now().AddDate(1, 0, 0),
-			Status:     store.LicenseStatusActive,
+			State:      store.LicenseStateActive,
 		}
 
 		err = s.CreateLicense(ctx, tx, license3)
@@ -955,7 +676,7 @@ func TestLicenseInvariants(t *testing.T) {
 
 		t.Log("Before creation:")
 		t.Logf("  ValidFrom: %v", license.ValidFrom)
-		t.Logf("  Status: %q", license.Status)
+		t.Logf("  State: %q", license.State)
 
 		err = s.CreateLicense(ctx, tx, license)
 		if err != nil {
@@ -964,20 +685,20 @@ func TestLicenseInvariants(t *testing.T) {
 
 		t.Log("After creation:")
 		t.Logf("  ValidFrom: %v", license.ValidFrom)
-		t.Logf("  Status: %q", license.Status)
+		t.Logf("  State: %q", license.State)
 
 		// Direct database query to verify
 		var dbValidFrom time.Time
 		var dbStatus string
 		err = tx.(*sql.Tx).QueryRowContext(ctx,
-			"SELECT valid_from, status FROM licenses WHERE id = $1",
+			"SELECT valid_from, state FROM licenses WHERE id = $1",
 			license.ID).Scan(&dbValidFrom, &dbStatus)
 		if err != nil {
 			t.Fatalf("query db values: %v", err)
 		}
 		t.Log("Database values:")
 		t.Logf("  ValidFrom: %v", dbValidFrom)
-		t.Logf("  Status: %q", dbStatus)
+		t.Logf("  State: %q", dbStatus)
 
 		// Original checks
 		if license.CreatedAt.IsZero() {
@@ -989,8 +710,8 @@ func TestLicenseInvariants(t *testing.T) {
 		if license.ValidFrom.IsZero() {
 			t.Error("expected ValidFrom to be set")
 		}
-		if license.Status != store.LicenseStatusRequested {
-			t.Errorf("expected default status 'inactive', got %q", license.Status)
+		if license.State != store.LicenseStateRequested {
+			t.Errorf("expected default status 'inactive', got %q", license.State)
 		}
 	})
 
@@ -1010,7 +731,7 @@ func TestLicenseInvariants(t *testing.T) {
 			LicenseKey: "key123",
 			ValidFrom:  time.Now(),
 			ValidUntil: pastTime,
-			Status:     store.LicenseStatusActive,
+			State:      store.LicenseStateActive,
 		}
 
 		err = s.CreateLicense(ctx, tx, license)

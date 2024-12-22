@@ -1,9 +1,10 @@
-package store_test
+package testutil
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/projectpath"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,7 +63,8 @@ func NewTestDB(t *testing.T) *TestDB {
 	}
 
 	// Read migration file
-	migrationPath := filepath.Join("migrations", "000001_initial_setup.up.postgres.sql")
+	rootPath := projectpath.Root()
+	migrationPath := filepath.Join(rootPath, "store", "migrations", "000001_initial_setup.up.postgres.sql")
 	migration, err := os.ReadFile(migrationPath)
 	if err != nil {
 		t.Fatalf("Failed to read migration file: %v", err)
@@ -128,7 +130,7 @@ func (tdb *TestDB) Cleanup() {
 func (tdb *TestDB) TruncateAllTables(ctx context.Context) {
 	tdb.t.Helper()
 
-	tables := []string{"users", "emails_sent", "licenses"}
+	tables := []string{"user_ips", "emails", "licenses", "users"}
 	for _, table := range tables {
 		_, err := tdb.DB.ExecContext(ctx, fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table))
 		if err != nil {
