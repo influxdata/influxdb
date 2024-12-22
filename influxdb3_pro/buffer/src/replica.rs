@@ -745,6 +745,8 @@ impl ReplicatedBuffer {
             // This will continue to request the file from the object store if the request errors.
             // However, if the snapshot is retrieved, and fails to map, an error will be logged and
             // the loop will break. This will not halt replication.
+            let mut not_found_attempts = 0;
+            const RETRY_INTERVAL: Duration = Duration::from_secs(1);
             loop {
                 match object_store.get(&snapshot_path).await {
                     Ok(get_result) => {
@@ -795,15 +797,32 @@ impl ReplicatedBuffer {
                         persisted_files.add_persisted_snapshot_files(snapshot);
                         break;
                     }
+                    Err(object_store::Error::NotFound { path, source }) => {
+                        not_found_attempts += 1;
+                        // only log NOT_FOUND errors every ten seconds as they can clutter up the
+                        // logs. NOT_FOUND is common as the snapshot file may not be immediately
+                        // available. This is because the WAL file may refer to a snapshot that is
+                        // still in the process of being persisted, i.e., all of its parquet is
+                        // being persisted, and the snapshot file itself is not created until all
+                        // of the parquet has been persisted.
+                        if not_found_attempts % 10 == 0 {
+                            info!(
+                                error = %source,
+                                %path,
+                                "persisted snapshot not found in replica's object storage after \
+                                {not_found_attempts} attempts"
+                            );
+                        }
+                    }
                     Err(error) => {
                         error!(
                             %error,
                             path = ?snapshot_path,
                             "error getting persisted snapshot from replica's object storage"
                         );
-                        tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
+                tokio::time::sleep(RETRY_INTERVAL).await;
             }
         });
     }
