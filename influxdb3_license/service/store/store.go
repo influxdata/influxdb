@@ -2,20 +2,21 @@ package store
 
 import (
 	"context"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"net"
 	"time"
 )
 
 // User represents a user record from the database
 type User struct {
-	ID                int64
-	Email             string
-	EmailsSentCount   int
-	VerificationToken string
-	VerifiedAt        *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	DeletedAt         *time.Time
+	ID              int64
+	Email           string
+	EmailsSentCount int
+	VerifiedAt      *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       *time.Time
 }
 
 // UserIP represents a record in the user_ips table
@@ -24,23 +25,119 @@ type UserIP struct {
 	UserID int64
 }
 
-// Email represents an email sent record
-type Email struct {
-	ID           int64
-	ToEmail      string
-	TemplateName string
-	Subject      string
-	Body         string
-	SentAt       time.Time
-}
-
-// LicenseStatus is an enum for valid license states
-type LicenseStatus string
+// EmailState describes the possible states an email can be in
+type EmailState string
 
 const (
-	LicenseStatusRequested LicenseStatus = "requested"
-	LicenseStatusActive    LicenseStatus = "active"
-	LicenseStatusInactive  LicenseStatus = "inactive"
+	EmailStateScheduled EmailState = "scheduled"
+	EmailStateSent      EmailState = "sent"
+	EmailStateFailed    EmailState = "failed"
+)
+
+func (e EmailState) String() string {
+	switch e {
+	case EmailStateScheduled:
+		return "scheduled"
+	case EmailStateSent:
+		return "sent"
+	case EmailStateFailed:
+		return "failed"
+	default:
+		return "unknown"
+	}
+}
+
+// Email represents an email in emails_pending or emails_sent
+type Email struct {
+	ID                int64
+	UserID            int64
+	UserIP            net.IP
+	VerificationToken string
+	LicenseID         int64
+	TemplateName      string
+	ToEmail           string
+	Subject           string
+	Body              string
+	State             EmailState
+	ScheduledAt       time.Time
+	SentAt            time.Time // Date/time of last successful send
+	SendCnt           int       // Count of successful sends
+	SendFailCnt       int       // Count of failed send attempts
+	LastErrMsg        string    // Error message from last failed send
+	DeliverySrvcResp  string    // Response from delivery service (eg, Mailgun)
+	DeliverSrvcID     string    // ID from delivery service for this email
+}
+
+func LogEmail(msg string, e *Email, level zapcore.Level, logger *zap.Logger) {
+	if logger == nil {
+		return
+	}
+
+	fields := []zap.Field{
+		zap.Int64("id", e.ID),
+		zap.Int64("user_id", e.UserID),
+		zap.String("user_ip", e.UserIP.String()),
+		zap.String("verification_token", e.VerificationToken),
+		zap.Int64("license_id", e.LicenseID),
+		zap.String("to_email", e.ToEmail),
+		zap.String("state", string(e.State)),
+		zap.Time("scheduled_at", e.ScheduledAt),
+		zap.Int("send_cnt", e.SendCnt),
+		zap.Int("send_fail_cnt", e.SendFailCnt),
+	}
+
+	if level == zapcore.ErrorLevel || level == zapcore.DebugLevel {
+		fields = append(fields,
+			zap.String("email_template_name", e.TemplateName),
+			zap.String("subject", e.Subject),
+			zap.String("body", e.Body),
+		)
+	}
+
+	// Optional fields
+	if e.TemplateName != "" {
+		fields = append(fields, zap.String("template_name", e.TemplateName))
+	}
+	if !e.SentAt.IsZero() {
+		fields = append(fields, zap.Time("sent_at", e.SentAt))
+	}
+	if e.LastErrMsg != "" {
+		fields = append(fields, zap.String("error", e.LastErrMsg))
+	}
+	if e.DeliverySrvcResp != "" {
+		fields = append(fields, zap.String("delivery_srvc_resp", e.DeliverySrvcResp))
+	}
+	if e.DeliverSrvcID != "" {
+		fields = append(fields, zap.String("deliver_srvc_id", e.DeliverSrvcID))
+	}
+
+	switch level {
+	case zapcore.DebugLevel:
+		logger.Debug(msg, fields...)
+	case zapcore.InfoLevel:
+		logger.Info(msg, fields...)
+	case zapcore.WarnLevel:
+		logger.Warn(msg, fields...)
+	case zapcore.ErrorLevel:
+		logger.Error(msg, fields...)
+	case zapcore.DPanicLevel:
+		logger.DPanic(msg, fields...)
+	case zapcore.PanicLevel:
+		logger.Panic(msg, fields...)
+	case zapcore.FatalLevel:
+		logger.Fatal(msg, fields...)
+	default:
+		logger.Info(msg, fields...)
+	}
+}
+
+// LicenseState is an enum for valid license states
+type LicenseState string
+
+const (
+	LicenseStateRequested LicenseState = "requested"
+	LicenseStateActive    LicenseState = "active"
+	LicenseStateInactive  LicenseState = "inactive"
 )
 
 // License represents a license record
@@ -52,7 +149,7 @@ type License struct {
 	LicenseKey string
 	ValidFrom  time.Time
 	ValidUntil time.Time
-	Status     LicenseStatus
+	State      LicenseState
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
@@ -79,12 +176,18 @@ type Store interface {
 	DeleteUserIP(ctx context.Context, tx Tx, ipAddr net.IP, userID int64) error
 	GetUserIPsByUserID(ctx context.Context, tx Tx, userID int64) ([]*UserIP, error)
 	GetUserIDsByIPAddr(ctx context.Context, tx Tx, ipAddr net.IP) ([]int64, error)
+	BlockUserAndIP(ctx context.Context, tx Tx, ipAddr net.IP, userID int64) error
 
 	// Email operations
 	CreateEmail(ctx context.Context, tx Tx, email *Email) error
 	UpdateEmail(ctx context.Context, tx Tx, email *Email) error
 	DeleteEmail(ctx context.Context, tx Tx, id int64) error
-	GetEmailsByToEmail(ctx context.Context, tx Tx, email string) ([]*Email, error)
+	DeleteAllEmails(ctx context.Context, tx Tx) error
+	GetEmailByID(ctx context.Context, tx Tx, id int64) (*Email, error)
+	GetScheduledEmailCnt(ctx context.Context, tx Tx) (int64, error)
+	GetScheduledEmailBatch(ctx context.Context, tx Tx, batchSize int) ([]*Email, error)
+	MarkEmailAsSent(ctx context.Context, tx Tx, email *Email) error
+	MarkEmailAsFailed(ctx context.Context, tx Tx, id int64, errorMsg string) error
 
 	// License operations
 	CreateLicense(ctx context.Context, tx Tx, license *License) error

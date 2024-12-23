@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/store"
 	"net"
@@ -31,8 +32,8 @@ func (s *Store) BeginTx(ctx context.Context) (store.Tx, error) {
 // User operations
 func (s *Store) CreateUser(ctx context.Context, tx store.Tx, user *store.User) error {
 	query := `
-        INSERT INTO users (email, emails_sent_cnt, verification_token, verified_at, deleted_at)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users (email, emails_sent_cnt, verified_at, deleted_at)
+        VALUES ($1, $2, $3, $4)
         RETURNING id, created_at, updated_at`
 
 	sqlTx := tx.(*sql.Tx)
@@ -40,7 +41,6 @@ func (s *Store) CreateUser(ctx context.Context, tx store.Tx, user *store.User) e
 		ctx, query,
 		user.Email,
 		user.EmailsSentCount,
-		user.VerificationToken,
 		user.VerifiedAt,
 		user.DeletedAt,
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
@@ -54,9 +54,9 @@ func (s *Store) CreateUser(ctx context.Context, tx store.Tx, user *store.User) e
 func (s *Store) UpdateUser(ctx context.Context, tx store.Tx, user *store.User) error {
 	query := `
         UPDATE users
-        SET email = $1, emails_sent_cnt = $2, verification_token = $3,
-            verified_at = $4, deleted_at = $5, updated_at = statement_timestamp()
-        WHERE id = $6
+        SET email = $1, emails_sent_cnt = $2,
+            verified_at = $3, deleted_at = $4, updated_at = statement_timestamp()
+        WHERE id = $5
         RETURNING updated_at`
 
 	sqlTx := tx.(*sql.Tx)
@@ -64,7 +64,6 @@ func (s *Store) UpdateUser(ctx context.Context, tx store.Tx, user *store.User) e
 		ctx, query,
 		user.Email,
 		user.EmailsSentCount,
-		user.VerificationToken,
 		user.VerifiedAt,
 		user.DeletedAt,
 		user.ID,
@@ -99,7 +98,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, tx store.Tx, email string) (
 	var user store.User
 
 	query := `
-        SELECT id, email, emails_sent_cnt, verification_token,
+        SELECT id, email, emails_sent_cnt,
                verified_at, created_at, updated_at
         FROM users
         WHERE email = $1 AND deleted_at IS NULL`
@@ -109,7 +108,6 @@ func (s *Store) GetUserByEmail(ctx context.Context, tx store.Tx, email string) (
 		&user.ID,
 		&user.Email,
 		&user.EmailsSentCount,
-		&user.VerificationToken,
 		&user.VerifiedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -173,7 +171,9 @@ func (s *Store) GetUserIPsByUserID(ctx context.Context, tx store.Tx, userID int6
 	if err != nil {
 		return nil, fmt.Errorf("querying user IP records: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var userIPs []*store.UserIP
 	for rows.Next() {
@@ -210,7 +210,9 @@ func (s *Store) GetUserIDsByIPAddr(ctx context.Context, tx store.Tx, ipAddr net.
 	if err != nil {
 		return nil, fmt.Errorf("querying user IDs by IP: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var userIDs []int64
 	for rows.Next() {
@@ -228,46 +230,117 @@ func (s *Store) GetUserIDsByIPAddr(ctx context.Context, tx store.Tx, ipAddr net.
 	return userIDs, nil
 }
 
+func (s *Store) BlockUserAndIP(ctx context.Context, tx store.Tx, ipAddr net.IP, userID int64) error {
+	// First select for update to lock the row
+	query := `
+        SELECT ipaddr
+        FROM user_ips
+        WHERE ipaddr = $1 AND user_id = $2
+        FOR UPDATE`
+
+	sqlTx := tx.(*sql.Tx)
+	row := sqlTx.QueryRowContext(ctx, query, ipAddr.String(), userID)
+	if err := row.Scan(&ipAddr); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("no user IP record found for IP %s and user ID %d", ipAddr.String(), userID)
+		}
+		return fmt.Errorf("selecting user IP for update: %w", err)
+	}
+
+	// Now update the blocked status
+	updateQuery := `
+        UPDATE user_ips
+        SET blocked = true
+        WHERE ipaddr = $1 AND user_id = $2`
+
+	result, err := sqlTx.ExecContext(ctx, updateQuery, ipAddr.String(), userID)
+	if err != nil {
+		return fmt.Errorf("blocking user IP: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("no user IP record found for IP %s and user ID %d", ipAddr.String(), userID)
+	}
+	return nil
+}
+
 // Email operations
 func (s *Store) CreateEmail(ctx context.Context, tx store.Tx, email *store.Email) error {
 	query := `
-        INSERT INTO emails_sent (to_email, email_template_name, subject, body)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, sent_at`
+        INSERT INTO emails (
+            user_id, user_ip, verification_token, license_id, email_template_name,
+            to_email, subject, body
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, state, scheduled_at`
 
 	sqlTx := tx.(*sql.Tx)
 	err := sqlTx.QueryRowContext(
 		ctx, query,
-		email.ToEmail,
+		email.UserID,
+		email.UserIP.String(),
+		email.VerificationToken,
+		email.LicenseID,
 		email.TemplateName,
+		email.ToEmail,
 		email.Subject,
 		email.Body,
-	).Scan(&email.ID, &email.SentAt)
+	).Scan(&email.ID, &email.State, &email.ScheduledAt)
 
 	if err != nil {
-		return fmt.Errorf("creating email record: %w", err)
+		return fmt.Errorf("creating email: %w", err)
 	}
 	return nil
 }
 
 func (s *Store) UpdateEmail(ctx context.Context, tx store.Tx, email *store.Email) error {
 	query := `
-        UPDATE emails_sent
-        SET to_email = $1, email_template_name = $2, subject = $3, body = $4
-        WHERE id = $5`
+        UPDATE emails
+        SET user_id = $1,
+            user_ip = $2,
+            verification_token = $3,
+            license_id = $4,
+            email_template_name = $5,
+            to_email = $6,
+            subject = $7,
+            body = $8,
+            state = $9,
+            scheduled_at = $10,
+            sent_at = $11,
+            send_cnt = $12,
+            send_fail_cnt = $13,
+            last_err_msg = $14,
+            delivery_srvc_resp = $15,
+            delivery_srvc_id = $16
+        WHERE id = $17`
 
 	sqlTx := tx.(*sql.Tx)
 	result, err := sqlTx.ExecContext(
 		ctx, query,
-		email.ToEmail,
+		email.UserID,
+		email.UserIP,
+		email.VerificationToken,
+		email.LicenseID,
 		email.TemplateName,
+		email.ToEmail,
 		email.Subject,
 		email.Body,
+		email.State,
+		email.ScheduledAt,
+		email.SentAt,
+		email.SendCnt,
+		email.SendFailCnt,
+		email.LastErrMsg,
+		email.DeliverySrvcResp,
+		email.DeliverSrvcID,
 		email.ID,
 	)
 
 	if err != nil {
-		return fmt.Errorf("updating email record: %w", err)
+		return fmt.Errorf("updating email: %w", err)
 	}
 
 	rows, err := result.RowsAffected()
@@ -275,18 +348,18 @@ func (s *Store) UpdateEmail(ctx context.Context, tx store.Tx, email *store.Email
 		return fmt.Errorf("getting rows affected: %w", err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("no email record found with id %d", email.ID)
+		return fmt.Errorf("no email found with id %d", email.ID)
 	}
 	return nil
 }
 
 func (s *Store) DeleteEmail(ctx context.Context, tx store.Tx, id int64) error {
-	query := `DELETE FROM emails_sent WHERE id = $1`
+	query := `DELETE FROM emails WHERE id = $1`
 
 	sqlTx := tx.(*sql.Tx)
 	result, err := sqlTx.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("deleting email record: %w", err)
+		return fmt.Errorf("deleting email: %w", err)
 	}
 
 	rows, err := result.RowsAffected()
@@ -294,46 +367,232 @@ func (s *Store) DeleteEmail(ctx context.Context, tx store.Tx, id int64) error {
 		return fmt.Errorf("getting rows affected: %w", err)
 	}
 	if rows == 0 {
-		return fmt.Errorf("no email record found with id %d", id)
+		return fmt.Errorf("no email found with id %d", id)
 	}
 	return nil
 }
 
-func (s *Store) GetEmailsByToEmail(ctx context.Context, tx store.Tx, email string) ([]*store.Email, error) {
+func (s *Store) DeleteAllEmails(ctx context.Context, tx store.Tx) error {
+	query := `DELETE FROM emails`
+	sqlTx := tx.(*sql.Tx)
+	_, err := sqlTx.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("deleting all emails: %w", err)
+	}
+	return nil
+}
+
+// GetEmailByID retrieves an email by its ID
+func (s *Store) GetEmailByID(ctx context.Context, tx store.Tx, id int64) (*store.Email, error) {
+	sqlTx, ok := tx.(*sql.Tx)
+	if !ok {
+		return nil, fmt.Errorf("invalid transaction type: %T", tx)
+	}
+
+	var email store.Email
+	// Use sql.NullTime for nullable timestamp fields
+	var sentAt sql.NullTime
+	var lastErrMsg sql.NullString
+	var deliverySrvcResp sql.NullString
+	var deliverySrvcID sql.NullString
+
+	err := sqlTx.QueryRowContext(ctx, `
+        SELECT id, user_id, user_ip, verification_token, license_id,
+               email_template_name, to_email, subject, body,
+               state, scheduled_at, sent_at, send_cnt,
+               send_fail_cnt, last_err_msg, delivery_srvc_resp, delivery_srvc_id
+        FROM emails
+        WHERE id = $1`, id).Scan(
+		&email.ID,
+		&email.UserID,
+		&email.UserIP,
+		&email.VerificationToken,
+		&email.LicenseID,
+		&email.TemplateName,
+		&email.ToEmail,
+		&email.Subject,
+		&email.Body,
+		&email.State,
+		&email.ScheduledAt,
+		&sentAt,
+		&email.SendCnt,
+		&email.SendFailCnt,
+		&lastErrMsg,
+		&deliverySrvcResp,
+		&deliverySrvcID,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("GetEmailByID: %w", err)
+	}
+
+	// Only set optional fields if we got valid data from the DB
+	if sentAt.Valid {
+		email.SentAt = sentAt.Time
+	}
+	if lastErrMsg.Valid {
+		email.LastErrMsg = lastErrMsg.String
+	}
+	if deliverySrvcResp.Valid {
+		email.DeliverySrvcResp = deliverySrvcResp.String
+	}
+	if deliverySrvcID.Valid {
+		email.DeliverSrvcID = deliverySrvcID.String
+	}
+
+	return &email, nil
+}
+
+func (s *Store) GetScheduledEmailCnt(ctx context.Context, tx store.Tx) (int64, error) {
+	sqlTx, ok := tx.(*sql.Tx)
+	if !ok {
+		return 0, fmt.Errorf("invalid transaction type: %T", tx)
+	}
+
+	var count int64
 	query := `
-        SELECT id, to_email, email_template_name, subject, body, sent_at
-        FROM emails_sent
-        WHERE to_email = $1
-        ORDER BY sent_at DESC`
+		SELECT COUNT(*)
+		FROM emails
+		WHERE state = 'scheduled'
+		  AND scheduled_at <= NOW()`
+
+	err := sqlTx.QueryRowContext(ctx, query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("counting scheduled emails: %w", err)
+	}
+
+	return count, nil
+}
+
+func (s *Store) GetScheduledEmailBatch(ctx context.Context, tx store.Tx, batchSize int) ([]*store.Email, error) {
+	query := `
+        SELECT id, user_id, user_ip, verification_token, license_id, email_template_name, to_email, subject, body,
+               state, scheduled_at, sent_at, send_cnt, send_fail_cnt, last_err_msg, delivery_srvc_resp, delivery_srvc_id
+        FROM emails
+        WHERE state = 'scheduled'
+          AND scheduled_at <= NOW()
+        ORDER BY scheduled_at
+        LIMIT $1
+        FOR UPDATE SKIP LOCKED`
 
 	sqlTx := tx.(*sql.Tx)
-	rows, err := sqlTx.QueryContext(ctx, query, email)
+	rows, err := sqlTx.QueryContext(ctx, query, batchSize)
 	if err != nil {
-		return nil, fmt.Errorf("querying email records: %w", err)
+		return nil, fmt.Errorf("querying scheduled emails: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) { _ = rows.Close() }(rows)
+
+	var sentAt sql.NullTime
+	var lastErrMsg sql.NullString
+	var deliverySrvcResp sql.NullString
+	var deliverySrvcID sql.NullString
 
 	var emails []*store.Email
 	for rows.Next() {
 		var email store.Email
 		err := rows.Scan(
 			&email.ID,
-			&email.ToEmail,
+			&email.UserID,
+			&email.UserIP,
+			&email.VerificationToken,
+			&email.LicenseID,
 			&email.TemplateName,
+			&email.ToEmail,
 			&email.Subject,
 			&email.Body,
-			&email.SentAt,
+			&email.State,
+			&email.ScheduledAt,
+			&sentAt,
+			&email.SendCnt,
+			&email.SendFailCnt,
+			&lastErrMsg,
+			&deliverySrvcResp,
+			&deliverySrvcID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scanning email record: %w", err)
+			return nil, fmt.Errorf("scanning email row: %w", err)
 		}
+
+		if sentAt.Valid {
+			email.SentAt = sentAt.Time
+		}
+		if lastErrMsg.Valid {
+			email.LastErrMsg = lastErrMsg.String
+		}
+		if deliverySrvcResp.Valid {
+			email.DeliverySrvcResp = deliverySrvcResp.String
+		}
+		if deliverySrvcID.Valid {
+			email.DeliverSrvcID = deliverySrvcID.String
+		}
+
 		emails = append(emails, &email)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating email records: %w", err)
+		return nil, fmt.Errorf("iterating email rows: %w", err)
 	}
 
 	return emails, nil
+}
+
+func (s *Store) MarkEmailAsSent(ctx context.Context, tx store.Tx, email *store.Email) error {
+	query := `
+        UPDATE emails
+        SET state = 'sent',
+            sent_at = $1,
+            send_cnt = send_cnt + 1,
+            delivery_srvc_resp = $2,
+            delivery_srvc_id = $3
+        WHERE id = $4
+          AND state = 'scheduled'`
+
+	sqlTx := tx.(*sql.Tx)
+	result, err := sqlTx.ExecContext(ctx, query,
+		email.SentAt,
+		email.DeliverySrvcResp,
+		email.DeliverSrvcID,
+		email.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("marking email as sent: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("no scheduled email found with id %d", email.ID)
+	}
+	return nil
+}
+
+func (s *Store) MarkEmailAsFailed(ctx context.Context, tx store.Tx, id int64, errorMsg string) error {
+	query := `
+        UPDATE emails
+        SET state = 'failed',
+            send_fail_cnt = send_cnt + 1,
+            last_err_msg = $1
+        WHERE id = $2
+          AND state = 'scheduled'`
+
+	sqlTx := tx.(*sql.Tx)
+	result, err := sqlTx.ExecContext(ctx, query, errorMsg, id)
+	if err != nil {
+		return fmt.Errorf("marking email as failed: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("getting rows affected: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("no scheduled email found with id %d", id)
+	}
+	return nil
 }
 
 // License operations
@@ -345,7 +604,7 @@ func (s *Store) CreateLicense(ctx context.Context, tx store.Tx, license *store.L
             $1, $2, $3, $4, $5
         )
         RETURNING id, email, host_id, instance_id, license_key,
-                  valid_from, valid_until, status, created_at, updated_at`
+                  valid_from, valid_until, state, created_at, updated_at`
 
 	sqlTx := tx.(*sql.Tx)
 	err := sqlTx.QueryRowContext(
@@ -363,7 +622,7 @@ func (s *Store) CreateLicense(ctx context.Context, tx store.Tx, license *store.L
 		&license.LicenseKey,
 		&license.ValidFrom,
 		&license.ValidUntil,
-		&license.Status,
+		&license.State,
 		&license.CreatedAt,
 		&license.UpdatedAt,
 	)
@@ -378,7 +637,7 @@ func (s *Store) UpdateLicense(ctx context.Context, tx store.Tx, license *store.L
 	query := `
         UPDATE licenses
         SET email = $1, host_id = $2, instance_id = $3, license_key = $4,
-            valid_from = $5, valid_until = $6, status = $7, updated_at = statement_timestamp()
+            valid_from = $5, valid_until = $6, state = $7, updated_at = statement_timestamp()
         WHERE id = $8
         RETURNING updated_at`
 
@@ -391,7 +650,7 @@ func (s *Store) UpdateLicense(ctx context.Context, tx store.Tx, license *store.L
 		license.LicenseKey,
 		license.ValidFrom,
 		license.ValidUntil,
-		license.Status,
+		license.State,
 		license.ID,
 	).Scan(&license.UpdatedAt)
 
@@ -423,7 +682,7 @@ func (s *Store) DeleteLicense(ctx context.Context, tx store.Tx, id int64) error 
 func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email string) ([]*store.License, error) {
 	query := `
         SELECT id, email, host_id, instance_id, license_key, valid_from,
-               valid_until, status, created_at, updated_at
+               valid_until, state, created_at, updated_at
         FROM licenses
         WHERE email = $1`
 
@@ -432,7 +691,9 @@ func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email strin
 	if err != nil {
 		return nil, fmt.Errorf("querying licenses: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var licenses []*store.License
 	for rows.Next() {
@@ -445,7 +706,7 @@ func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email strin
 			&license.LicenseKey,
 			&license.ValidFrom,
 			&license.ValidUntil,
-			&license.Status,
+			&license.State,
 			&license.CreatedAt,
 			&license.UpdatedAt,
 		)
@@ -466,7 +727,7 @@ func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanc
 
 	query := `
         SELECT id, email, host_id, instance_id, license_key, valid_from,
-               valid_until, status, created_at, updated_at
+               valid_until, state, created_at, updated_at
         FROM licenses
         WHERE instance_id = $1`
 
@@ -479,7 +740,7 @@ func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanc
 		&license.LicenseKey,
 		&license.ValidFrom,
 		&license.ValidUntil,
-		&license.Status,
+		&license.State,
 		&license.CreatedAt,
 		&license.UpdatedAt,
 	)

@@ -86,9 +86,28 @@ func NewOperation(log *zap.Logger, msg, name string, fields ...zapcore.Field) (*
 		f = append(f, fields...)
 	}
 
+	//now := time.Now()
+	log = log.With(f...)
+	//log.Info(msg+" (start)", OperationEventStart())
+
+	//return log, func() { log.Info(msg+" (end)", OperationEventEnd(), OperationElapsed(time.Since(now))) }
+	return log, func() {}
+}
+
+// NewDebugOperation uses the exiting log to create a new logger with context
+// containing a trace id and the operation. Prior to returning, a standardized message
+// is logged at debug level indicating the operation has started. The returned function should be
+// called when the operation concludes in order to log a corresponding message which
+// includes an elapsed time and that the operation has ended.
+func NewDebugOperation(log *zap.Logger, msg, name string, fields ...zapcore.Field) (*zap.Logger, func()) {
+	f := []zapcore.Field{TraceID(nextID()), OperationName(name)}
+	if len(fields) > 0 {
+		f = append(f, fields...)
+	}
+
 	now := time.Now()
 	log = log.With(f...)
-	log.Info(msg+" (start)", OperationEventStart())
+	log.Debug(msg+" (start)", OperationEventStart())
 
-	return log, func() { log.Info(msg+" (end)", OperationEventEnd(), OperationElapsed(time.Since(now))) }
+	return log, func() { log.Debug(msg+" (end)", OperationEventEnd(), OperationElapsed(time.Since(now))) }
 }
