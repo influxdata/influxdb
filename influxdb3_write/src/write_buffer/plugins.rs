@@ -1,5 +1,6 @@
 use crate::write_buffer::PluginEvent;
 use crate::{write_buffer, WriteBuffer};
+use influxdb3_client::plugin_test::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::{PluginType, TriggerDefinition, TriggerSpecificationDefinition};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -20,6 +21,9 @@ pub enum Error {
 
     #[error("failed to send shutdown message back")]
     FailedToShutdown,
+
+    #[error(transparent)]
+    AnyhowError(#[from] anyhow::Error),
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -79,6 +83,11 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), write_buffer::Error>;
+
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> crate::Result<WalPluginTestResponse, write_buffer::Error>;
 }
 
 #[cfg(feature = "system-py")]
@@ -214,5 +223,84 @@ mod python_plugin {
 
             Ok(false)
         }
+    }
+}
+
+#[cfg(feature = "system-py")]
+pub(crate) fn run_test_wal_plugin(
+    now_time: iox_time::Time,
+    catalog: Arc<influxdb3_catalog::catalog::Catalog>,
+    code: String,
+    request: WalPluginTestRequest,
+) -> Result<WalPluginTestResponse, Error> {
+    use crate::write_buffer::validator::WriteValidator;
+    use crate::Precision;
+    use data_types::NamespaceName;
+    use influxdb3_wal::Gen1Duration;
+
+    // parse the lp into a write batch
+    let namespace = NamespaceName::new("_testdb").unwrap();
+    let validator =
+        WriteValidator::initialize(namespace, Arc::clone(&catalog), now_time.timestamp_nanos())?;
+    let data = validator.v1_parse_lines_and_update_schema(
+        &request.input_lp.unwrap(),
+        false,
+        now_time,
+        Precision::Nanosecond,
+    )?;
+    let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
+    let db = catalog.db_schema("_testdb").unwrap();
+
+    let log_lines = influxdb3_py_api::system_py::execute_python_with_batch(
+        &code,
+        &data.valid_data,
+        db,
+        catalog,
+    )?;
+    Ok(WalPluginTestResponse {
+        log_lines,
+        database_writes: Default::default(),
+        errors: vec![],
+    })
+}
+
+#[cfg(feature = "system-py")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use influxdb3_catalog::catalog::Catalog;
+    use iox_time::Time;
+
+    #[test]
+    fn test_wal_plugin() {
+        let now = Time::from_timestamp_nanos(1);
+        let catalog = Catalog::new("foo".into(), "bar".into());
+        let code = r#"
+for table_batch in table_batches:
+    api.info("table: " + table_batch["table_name"])
+
+    for row in table_batch["rows"]:
+        api.info("row: " + str(row))
+
+api.info("done")
+        ""#;
+
+        let request = WalPluginTestRequest {
+            name: "test".into(),
+            input_lp: Some("cpu,host=A,region=west usage=1i,system=23.2 100".into()),
+            input_file: None,
+            save_output_to_file: None,
+            validate_output_file: None,
+        };
+
+        let reesponse =
+            run_test_wal_plugin(now, Arc::new(catalog), code.to_string(), request).unwrap();
+
+        let expected_log_lines = vec![
+            "table: cpu",
+            "row: {\"host\": \"A\", \"region\": \"west\", \"usage\": 1, \"system\": 23.2, \"_time\": 100}",
+            "done",
+        ];
+        assert_eq!(reesponse.log_lines, expected_log_lines);
     }
 }

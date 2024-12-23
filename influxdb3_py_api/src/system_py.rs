@@ -1,10 +1,13 @@
-use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_wal::{FieldData, Row, WriteBatch};
 use parking_lot::Mutex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::{PyAnyMethods, PyModule, PyModuleMethods};
-use pyo3::{pyclass, pymethods, pymodule, Bound, IntoPyObject, PyErr, PyObject, PyResult, Python};
-use schema::InfluxColumnType;
+use pyo3::types::{PyDict, PyList};
+use pyo3::{
+    pyclass, pymethods, pymodule, Bound, IntoPy, IntoPyObject, PyErr, PyObject, PyResult, Python,
+};
+use schema::{InfluxColumnType, Schema};
 use std::ffi::CString;
 use std::sync::Arc;
 
@@ -181,6 +184,153 @@ impl PyWriteBatch {
             Ok(output_lines)
         })
     }
+}
+
+#[pyclass]
+#[derive(Debug)]
+struct PyPluginCallApi {
+    schema: Arc<DatabaseSchema>,
+    catalog: Arc<Catalog>,
+    return_state: Arc<Mutex<ReturnState>>,
+}
+
+#[derive(Debug, Default)]
+struct ReturnState {
+    log_lines: Vec<LogLine>,
+}
+
+enum LogLine {
+    Info(String),
+    Warn(String),
+    Error(String),
+}
+
+impl std::fmt::Display for LogLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogLine::Info(s) => write!(f, "INFO: {}", s),
+            LogLine::Warn(s) => write!(f, "WARN: {}", s),
+            LogLine::Error(s) => write!(f, "ERROR: {}", s),
+        }
+    }
+}
+
+impl std::fmt::Debug for LogLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
+#[pymethods]
+impl PyPluginCallApi {
+    fn info(&self, line: &str) -> PyResult<()> {
+        self.return_state
+            .lock()
+            .log_lines
+            .push(LogLine::Info(line.to_string()));
+        Ok(())
+    }
+
+    fn warn(&self, line: &str) -> PyResult<()> {
+        self.return_state
+            .lock()
+            .log_lines
+            .push(LogLine::Warn(line.to_string()));
+        Ok(())
+    }
+
+    fn error(&self, line: &str) -> PyResult<()> {
+        self.return_state
+            .lock()
+            .log_lines
+            .push(LogLine::Error(line.to_string()));
+        Ok(())
+    }
+}
+
+pub fn execute_python_with_batch(
+    code: &str,
+    write_batch: &WriteBatch,
+    schema: Arc<DatabaseSchema>,
+    catalog: Arc<Catalog>,
+) -> PyResult<Vec<String>> {
+    Python::with_gil(|py| {
+        let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
+
+        for (table_id, table_chunks) in &write_batch.table_chunks {
+            let table_def = schema.tables.get(table_id).unwrap();
+
+            let dict = PyDict::new(py);
+            dict.set_item("table_name", table_def.table_name.as_ref())
+                .unwrap();
+
+            let mut rows: Vec<PyObject> = Vec::new();
+            for chunk in table_chunks.chunk_time_to_chunk.values() {
+                for row in &chunk.rows {
+                    let py_row = PyDict::new(py);
+                    py_row.set_item("time", row.time).unwrap();
+                    let mut fields = Vec::with_capacity(row.fields.len());
+                    for field in &row.fields {
+                        let field_data = match &field.value {
+                            FieldData::String(s) => s.into_py(py),
+                            FieldData::Integer(i) => i.into_py(py),
+                            FieldData::UInteger(u) => u.into_py(py),
+                            FieldData::Float(f) => f.into_py(py),
+                            FieldData::Boolean(b) => b.into_py(py),
+                            FieldData::Tag(t) => t.into_py(py),
+                            FieldData::Key(k) => k.into_py(py),
+                            FieldData::Timestamp(ts) => ts.into_py(py),
+                        };
+                        let field_name = table_def.column_id_to_name(&field.id).unwrap();
+                        if field_name.as_ref() == "time" {
+                            continue;
+                        }
+
+                        let field = PyDict::new(py);
+                        field.set_item("name", field_name.as_ref()).unwrap();
+                        field.set_item("value", field_data).unwrap();
+                        fields.push(field.unbind());
+                    }
+                    let fields = PyList::new(py, fields).unwrap();
+                    py_row.set_item("fields", fields.unbind()).unwrap();
+
+                    rows.push(py_row.into());
+                }
+            }
+
+            let rows = PyList::new(py, rows).unwrap();
+
+            dict.set_item("rows", rows.unbind()).unwrap();
+            table_batches.push(dict);
+        }
+
+        let py_batches = PyList::new(py, table_batches).unwrap();
+
+        let locals = PyDict::new(py);
+        locals
+            .set_item("table_batches", py_batches.unbind())
+            .unwrap();
+
+        let api = PyPluginCallApi {
+            schema,
+            catalog,
+            return_state: Default::default(),
+        };
+        let return_state = Arc::clone(&api.return_state);
+        locals.set_item("api", api.into_py(py)).unwrap();
+
+        py.run(&CString::new(code).unwrap(), None, Some(&locals))
+            .unwrap();
+
+        let log_lines = return_state
+            .lock()
+            .log_lines
+            .iter()
+            .map(|line| line.to_string())
+            .collect();
+
+        Ok(log_lines)
+    })
 }
 
 // Module initialization

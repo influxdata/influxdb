@@ -25,6 +25,7 @@ mod commands {
     pub mod last_cache;
     pub mod manage;
     pub mod meta_cache;
+    pub mod plugin_test;
     pub mod processing_engine;
     pub mod query;
     pub mod serve;
@@ -105,6 +106,9 @@ enum Command {
 
     /// Manage table (delete only for the moment)
     Table(commands::manage::table::Config),
+
+    /// Test Python plugins for processing WAL writes, persistence Snapshots, requests, or scheduled tasks.
+    PluginTest(commands::plugin_test::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -184,6 +188,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Table(config)) => {
                 if let Err(e) = commands::manage::table::command(config).await {
                     eprintln!("Table command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::PluginTest(config)) => {
+                if let Err(e) = commands::plugin_test::command(config).await {
+                    eprintln!("Plugin Test command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
