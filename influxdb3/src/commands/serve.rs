@@ -36,8 +36,9 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
-        self, CreateQueryExecutorArgs, CreateSysTableOnlyQueryExecutorArgs, QueryExecutorImpl,
-        SysTableOnlyQueryExecutorImpl,
+        self,
+        pro::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
+        CreateQueryExecutorArgs, QueryExecutorImpl,
     },
     serve, CommonServerState, QueryExecutor,
 };
@@ -568,6 +569,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await?;
 
             compacted_data = Some(Arc::clone(&producer.compacted_data));
+            debug!("Setting up compaction producer");
             compaction_producer = Some(Arc::new(producer));
         } else {
             let consumer = CompactedDataConsumer::new(
@@ -691,18 +693,15 @@ pub async fn command(config: Config) -> Result<()> {
 
     let query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>> =
         match config.pro_config.mode {
-            BufferMode::Compactor => Arc::new(SysTableOnlyQueryExecutorImpl::new(
-                CreateSysTableOnlyQueryExecutorArgs {
-                    write_buffer: Arc::clone(&write_buffer),
+            BufferMode::Compactor => Arc::new(CompactionSysTableQueryExecutorImpl::new(
+                CompactionSysTableQueryExecutorArgs {
                     exec: Arc::clone(&exec),
                     metrics: Arc::clone(&metrics),
                     datafusion_config: Arc::new(config.datafusion_config),
                     query_log_size: config.query_log_size,
                     telemetry_store: Arc::clone(&telemetry_store),
-                    compacted_data: sys_table_compacted_data,
-                    pro_config: Arc::clone(&pro_config),
                     sys_events_store: Arc::clone(&sys_events_store),
-                    compactor_mode: true,
+                    compacted_data: sys_table_compacted_data,
                 },
             )),
             _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
@@ -746,6 +745,7 @@ pub async fn command(config: Config) -> Result<()> {
 
         // Note that unlike tokio::spawn, if the handle to the task is
         // dropped, the task is cancelled, so it must be retained until the end
+        debug!("Setting up the compaction loop");
         let t = exec
             .executor()
             .spawn(async move {

@@ -1,6 +1,8 @@
 //! module for query executor
-use crate::query_planner::Planner;
+pub mod pro;
+
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
+use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
@@ -145,55 +147,16 @@ impl QueryExecutor for QueryExecutorImpl {
                 db_name: database.to_string(),
             })?;
 
-        let params = params.unwrap_or_default();
-
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            kind.query_type(),
-            Box::new(query.to_string()),
-            params.clone(),
-        );
-
-        // NOTE - we use the default query configuration on the IOxSessionContext here:
-        let ctx = db.new_query_context(span_ctx, Default::default());
-        let planner = Planner::new(&ctx);
-        let query = query.to_string();
-
-        // Perform query planning on a separate threadpool than the IO runtime that is servicing
-        // this request by using `IOxSessionContext::run`.
-        let plan = ctx
-            .run(async move {
-                match kind {
-                    QueryKind::Sql => planner.sql(query, params).await,
-                    QueryKind::InfluxQl => planner.influxql(query, params).await,
-                }
-            })
-            .await;
-
-        let plan = match plan.map_err(Error::QueryPlanning) {
-            Ok(plan) => plan,
-            Err(e) => {
-                token.fail();
-                return Err(e);
-            }
-        };
-        let token = token.planned(&ctx, Arc::clone(&plan));
-
-        // TODO: Enforce concurrency limit here
-        let token = token.permit();
-
-        self.telemetry_store.update_num_queries();
-
-        match ctx.execute_stream(Arc::clone(&plan)).await {
-            Ok(query_results) => {
-                token.success();
-                Ok(query_results)
-            }
-            Err(err) => {
-                token.fail();
-                Err(Error::ExecuteStream(err))
-            }
-        }
+        query_database(
+            db,
+            query,
+            params,
+            kind,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.telemetry_store),
+        )
+        .await
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
@@ -361,15 +324,11 @@ impl QueryDatabase for QueryExecutorImpl {
             compacted_data: self.compacted_data.clone(),
             pro_config: Arc::clone(&self.pro_config),
             sys_events_store: Arc::clone(&self.sys_events_store),
-            compactor_mode: false,
         }))))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
-        Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned(span)
-            .await
-            .expect("Semaphore should not be closed by anyone")
+        acquire_semaphore(Arc::clone(&self.query_execution_semaphore), span).await
     }
 
     fn query_log(&self) -> QueryLogEntries {
@@ -382,7 +341,6 @@ impl QueryDatabase for QueryExecutorImpl {
 pub struct CreateDatabaseArgs {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
-    compactor_mode: bool,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
@@ -395,7 +353,6 @@ pub struct CreateDatabaseArgs {
 pub struct Database {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
-    compactor_mode: bool,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
@@ -408,7 +365,6 @@ impl Database {
             db_schema,
             write_buffer,
             exec,
-            compactor_mode,
             datafusion_config,
             query_log,
             compacted_data,
@@ -416,14 +372,15 @@ impl Database {
             sys_events_store,
         }: CreateDatabaseArgs,
     ) -> Self {
-        let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            Arc::clone(&db_schema),
-            Arc::clone(&query_log),
-            Arc::clone(&write_buffer),
-            compacted_data.clone(),
-            Arc::clone(&pro_config),
-            Arc::clone(&sys_events_store),
-            compactor_mode,
+        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
+            AllSystemSchemaTablesProvider::new(
+                Arc::clone(&db_schema),
+                Arc::clone(&query_log),
+                Arc::clone(&write_buffer),
+                compacted_data.clone(),
+                Arc::clone(&pro_config),
+                Arc::clone(&sys_events_store),
+            ),
         ));
         Self {
             db_schema,
@@ -432,7 +389,6 @@ impl Database {
             datafusion_config,
             query_log,
             system_schema_provider,
-            compactor_mode,
         }
     }
 
@@ -444,7 +400,6 @@ impl Database {
             datafusion_config: Arc::clone(&db.datafusion_config),
             query_log: Arc::clone(&db.query_log),
             system_schema_provider: Arc::clone(&db.system_schema_provider),
-            compactor_mode: db.compactor_mode,
         }
     }
 
@@ -504,22 +459,20 @@ impl QueryNamespace for Database {
         }
 
         let ctx = cfg.build();
-        if !self.compactor_mode {
-            ctx.inner().register_udtf(
-                LAST_CACHE_UDTF_NAME,
-                Arc::new(LastCacheFunction::new(
-                    self.db_schema.id,
-                    self.write_buffer.last_cache_provider(),
-                )),
-            );
-            ctx.inner().register_udtf(
-                META_CACHE_UDTF_NAME,
-                Arc::new(MetaCacheFunction::new(
-                    self.db_schema.id,
-                    self.write_buffer.meta_cache_provider(),
-                )),
-            );
-        }
+        ctx.inner().register_udtf(
+            LAST_CACHE_UDTF_NAME,
+            Arc::new(LastCacheFunction::new(
+                self.db_schema.id,
+                self.write_buffer.last_cache_provider(),
+            )),
+        );
+        ctx.inner().register_udtf(
+            META_CACHE_UDTF_NAME,
+            Arc::new(MetaCacheFunction::new(
+                self.db_schema.id,
+                self.write_buffer.meta_cache_provider(),
+            )),
+        );
         ctx
     }
 
@@ -656,214 +609,74 @@ impl TableProvider for QueryTable {
     }
 }
 
-#[derive(Debug)]
-pub struct CreateSysTableOnlyQueryExecutorArgs {
-    pub write_buffer: Arc<dyn WriteBuffer>,
-    pub exec: Arc<Executor>,
-    pub metrics: Arc<Registry>,
-    pub datafusion_config: Arc<HashMap<String, String>>,
-    pub query_log_size: usize,
-    pub telemetry_store: Arc<TelemetryStore>,
-    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pub pro_config: Arc<RwLock<ProConfig>>,
-    pub sys_events_store: Arc<SysEventStore>,
-    pub compactor_mode: bool,
-}
+async fn query_database(
+    db: Arc<dyn QueryNamespace>,
+    query: &str,
+    params: Option<StatementParams>,
+    kind: QueryKind,
+    span_ctx: Option<SpanContext>,
+    external_span_ctx: Option<RequestLogContext>,
+    telemetry_store: Arc<TelemetryStore>,
+) -> Result<SendableRecordBatchStream, Error> {
+    let params = params.unwrap_or_default();
 
-#[derive(Debug, Clone)]
-pub struct SysTableOnlyQueryExecutorImpl {
-    pub write_buffer: Arc<dyn WriteBuffer>,
-    pub exec: Arc<Executor>,
-    pub datafusion_config: Arc<HashMap<String, String>>,
-    pub query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    pub query_log: Arc<QueryLog>,
-    pub telemetry_store: Arc<TelemetryStore>,
-    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pub pro_config: Arc<RwLock<ProConfig>>,
-    pub sys_events_store: Arc<SysEventStore>,
-    pub compactor_mode: bool,
-}
+    let token = db.record_query(
+        external_span_ctx.as_ref().map(RequestLogContext::ctx),
+        kind.query_type(),
+        Box::new(query.to_string()),
+        params.clone(),
+    );
 
-impl SysTableOnlyQueryExecutorImpl {
-    pub fn new(
-        CreateSysTableOnlyQueryExecutorArgs {
-            write_buffer,
-            exec,
-            metrics,
-            datafusion_config,
-            query_log_size,
-            telemetry_store,
-            compacted_data,
-            pro_config,
-            sys_events_store,
-            compactor_mode,
-        }: CreateSysTableOnlyQueryExecutorArgs,
-    ) -> Self {
-        let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
-            &metrics,
-            &[("semaphore", "query_execution")],
-        ));
-        let query_execution_semaphore =
-            Arc::new(semaphore_metrics.new_semaphore(Semaphore::MAX_PERMITS));
-        let query_log = Arc::new(QueryLog::new(
-            query_log_size,
-            Arc::new(iox_time::SystemProvider::new()),
-        ));
+    // NOTE - we use the default query configuration on the IOxSessionContext here:
+    let ctx = db.new_query_context(span_ctx, Default::default());
+    let planner = Planner::new(&ctx);
+    let query = query.to_string();
 
-        Self {
-            write_buffer: Arc::clone(&write_buffer),
-            exec: Arc::clone(&exec),
-            query_log,
-            query_execution_semaphore,
-            datafusion_config: Arc::clone(&datafusion_config),
-            telemetry_store: Arc::clone(&telemetry_store),
-            compacted_data,
-            pro_config: Arc::clone(&pro_config),
-            sys_events_store: Arc::clone(&sys_events_store),
-            compactor_mode,
+    // Perform query planning on a separate threadpool than the IO runtime that is servicing
+    // this request by using `IOxSessionContext::run`.
+    let plan = ctx
+        .run(async move {
+            match kind {
+                QueryKind::Sql => planner.sql(query, params).await,
+                QueryKind::InfluxQl => planner.influxql(query, params).await,
+            }
+        })
+        .await;
+
+    let plan = match plan.map_err(Error::QueryPlanning) {
+        Ok(plan) => plan,
+        Err(e) => {
+            token.fail();
+            return Err(e);
+        }
+    };
+    let token = token.planned(&ctx, Arc::clone(&plan));
+
+    // TODO: Enforce concurrency limit here
+    let token = token.permit();
+
+    telemetry_store.update_num_queries();
+
+    match ctx.execute_stream(Arc::clone(&plan)).await {
+        Ok(query_results) => {
+            token.success();
+            Ok(query_results)
+        }
+        Err(err) => {
+            token.fail();
+            Err(Error::ExecuteStream(err))
         }
     }
 }
 
-#[async_trait]
-impl QueryExecutor for SysTableOnlyQueryExecutorImpl {
-    type Error = Error;
-
-    async fn query(
-        &self,
-        database: &str,
-        query: &str,
-        params: Option<StatementParams>,
-        kind: QueryKind,
-        span_ctx: Option<SpanContext>,
-        external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
-        let db = self
-            .namespace(database, span_ctx.child_span("get database"), false)
-            .await
-            .map_err(|_| Error::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?
-            .ok_or_else(|| Error::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?;
-
-        let params = params.unwrap_or_default();
-
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            kind.query_type(),
-            Box::new(query.to_string()),
-            params.clone(),
-        );
-
-        // NOTE - we use the default query configuration on the IOxSessionContext here:
-        let ctx = db.new_query_context(span_ctx, Default::default());
-        let planner = Planner::new(&ctx);
-        let query = query.to_string();
-
-        // Perform query planning on a separate threadpool than the IO runtime that is servicing
-        // this request by using `IOxSessionContext::run`.
-        let plan = ctx
-            .run(async move {
-                match kind {
-                    QueryKind::Sql => planner.sql(query, params).await,
-                    QueryKind::InfluxQl => planner.influxql(query, params).await,
-                }
-            })
-            .await;
-
-        let plan = match plan.map_err(Error::QueryPlanning) {
-            Ok(plan) => plan,
-            Err(e) => {
-                token.fail();
-                return Err(e);
-            }
-        };
-        let token = token.planned(&ctx, Arc::clone(&plan));
-
-        // TODO: Enforce concurrency limit here
-        let token = token.permit();
-
-        // TODO: Do we need to track sys table queries too?
-        self.telemetry_store.update_num_queries();
-
-        match ctx.execute_stream(Arc::clone(&plan)).await {
-            Ok(query_results) => {
-                token.success();
-                Ok(query_results)
-            }
-            Err(err) => {
-                token.fail();
-                Err(Error::ExecuteStream(err))
-            }
-        }
-    }
-
-    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
-        Err(Error::MethodNotImplemented)
-    }
-
-    async fn show_retention_policies(
-        &self,
-        _database: Option<&str>,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        Err(Error::MethodNotImplemented)
-    }
-
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
-        let cloned_self = (*self).clone();
-        Arc::new(cloned_self)
-    }
-}
-
-#[async_trait]
-impl QueryDatabase for SysTableOnlyQueryExecutorImpl {
-    /// Get namespace if it exists.
-    ///
-    /// System tables may contain debug information depending on `include_debug_info_tables`.
-    async fn namespace(
-        &self,
-        name: &str,
-        _span: Option<Span>,
-        _include_debug_info_tables: bool,
-    ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
-        let db_schema = self
-            .compacted_data
-            .clone()
-            .and_then(|compacted_data| compacted_data.catalog().db_schema(name))
-            .ok_or_else(|| {
-                DataFusionError::External(Box::new(Error::DatabaseNotFound {
-                    db_name: name.into(),
-                }))
-            })?;
-        Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
-            db_schema,
-            write_buffer: Arc::clone(&self.write_buffer),
-            exec: Arc::clone(&self.exec),
-            datafusion_config: Arc::clone(&self.datafusion_config),
-            query_log: Arc::clone(&self.query_log),
-            compacted_data: self.compacted_data.clone(),
-            pro_config: Arc::clone(&self.pro_config),
-            sys_events_store: Arc::clone(&self.sys_events_store),
-            compactor_mode: self.compactor_mode,
-        }))))
-    }
-
-    /// Acquire concurrency-limiting semapahore
-    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
-        Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned(span)
-            .await
-            .expect("Semaphore should not be closed by anyone")
-    }
-
-    /// Return the query log entries
-    fn query_log(&self) -> QueryLogEntries {
-        self.query_log.entries()
-    }
+async fn acquire_semaphore(
+    semaphore: Arc<InstrumentedAsyncSemaphore>,
+    span: Option<Span>,
+) -> InstrumentedAsyncOwnedSemaphorePermit {
+    semaphore
+        .acquire_owned(span)
+        .await
+        .expect("Semaphore should not be closed by anyone")
 }
 
 #[cfg(test)]
@@ -872,7 +685,7 @@ mod tests {
 
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
-    use datafusion::{assert_batches_eq, assert_batches_sorted_eq, error::DataFusionError};
+    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
     use influxdb3_cache::{
         last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
@@ -882,15 +695,7 @@ mod tests {
     use influxdb3_id::ParquetFileId;
     use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
     use influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult;
-    use influxdb3_sys_events::events::{
-        catalog_fetched,
-        compaction_completed::{self, PlanIdentifier},
-        compaction_consumed, compaction_planned, CompactionEventStore,
-    };
-    use influxdb3_sys_events::{
-        events::snapshot_fetched::{FailedInfo, SuccessInfo},
-        SysEventStore,
-    };
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -902,7 +707,6 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use metric::Registry;
     use object_store::{local::LocalFileSystem, ObjectStore};
-    use observability_deps::tracing::debug;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
     use tokio::sync::RwLock;
@@ -983,7 +787,7 @@ mod tests {
         ))
     }
 
-    async fn setup() -> (
+    pub(crate) async fn setup() -> (
         Arc<dyn WriteBuffer>,
         QueryExecutorImpl,
         Arc<MockProvider>,
@@ -1215,272 +1019,5 @@ mod tests {
                 "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
             ],
             &batches);
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn test_sys_table_compaction_events_snapshot_success() {
-        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
-        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
-        let host = "sample-host";
-        let db_name = "foo";
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new(db_name).unwrap(),
-                "\
-            cpu,host=a,region=us-east usage=250\n\
-            mem,host=a,region=us-east usage=150000\n\
-            ",
-                Time::from_timestamp_nanos(0),
-                false,
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-
-        let event = SuccessInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(1234),
-            db_count: 2,
-            table_count: 1000,
-            file_count: 100_000,
-        };
-        sys_events_store.record_snapshot_success(event);
-
-        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
-        let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
-            .await
-            .unwrap();
-        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
-        debug!(batches = ?batches, "result from collecting batch stream");
-        assert_batches_sorted_eq!(
-            [
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                                                       |",
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched | 1234           | success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
-                "+------------+------------------+----------------+--------------+--------------------------------------------------------------------------------------------------+",
-            ],
-            &batches.unwrap());
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn test_sys_table_compaction_events_snapshot_error() {
-        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
-        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
-        let host = "sample-host";
-        let db_name = "foo";
-        let event = FailedInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(10),
-            error: "Foo failed".to_string(),
-        };
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new(db_name).unwrap(),
-                "\
-            cpu,host=a,region=us-east usage=250\n\
-            mem,host=a,region=us-east usage=150000\n\
-            ",
-                Time::from_timestamp_nanos(0),
-                false,
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-
-        sys_events_store.record_snapshot_failed(event);
-
-        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
-        let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
-            .await
-            .unwrap();
-        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
-        debug!(batches = ?batches, "result from collecting batch stream");
-        assert_batches_sorted_eq!(
-            [
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                        |",
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched | 10             | failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------+",
-            ],
-            &batches.unwrap());
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn test_sys_table_compaction_events_multiple_types() {
-        let (write_buffer, query_executor, _, sys_events_store) = setup().await;
-        let sys_events_store: Arc<dyn CompactionEventStore> = sys_events_store;
-        let host = "sample-host";
-        let db_name = "foo";
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new(db_name).unwrap(),
-                "\
-            cpu,host=a,region=us-east usage=250\n\
-            mem,host=a,region=us-east usage=150000\n\
-            ",
-                Time::from_timestamp_nanos(0),
-                false,
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-
-        // success event - snapshot
-        let snapshot_success_event = SuccessInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(1234),
-            db_count: 2,
-            table_count: 1000,
-            file_count: 100_000,
-        };
-        sys_events_store.record_snapshot_success(snapshot_success_event);
-
-        // failed event - snapshot
-        let snapshot_failed_event = FailedInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(10),
-            error: "Foo failed".to_string(),
-        };
-        sys_events_store.record_snapshot_failed(snapshot_failed_event);
-
-        // success event - catalog
-        let catalog_success_event = catalog_fetched::SuccessInfo {
-            host: Arc::from(host),
-            catalog_sequence_number: 123,
-            duration: Duration::from_millis(10),
-        };
-        sys_events_store.record_catalog_success(catalog_success_event);
-
-        // failed events (x 2) - catalog
-        let catalog_failed_event = catalog_fetched::FailedInfo {
-            host: Arc::from(host),
-            sequence_number: 123,
-            duration: Duration::from_millis(10),
-            error: "catalog failed".to_string(),
-        };
-        sys_events_store.record_catalog_failed(catalog_failed_event);
-
-        let catalog_failed_event = catalog_fetched::FailedInfo {
-            host: Arc::from(host),
-            sequence_number: 124,
-            duration: Duration::from_millis(100),
-            error: "catalog failed 2".to_string(),
-        };
-        sys_events_store.record_catalog_failed(catalog_failed_event);
-
-        // success event - plan
-        let plan_success_event = compaction_planned::SuccessInfo {
-            input_generations: vec![2],
-            input_paths: vec![Arc::from("/path1")],
-            output_level: 1,
-            db_name: Arc::from("db"),
-            table_name: Arc::from("table"),
-            left_over_gen1_files: 10,
-            duration: Duration::from_millis(10),
-        };
-        sys_events_store.record_compaction_plan_success(plan_success_event);
-        // failed event - plan
-        let plan_failed_event = compaction_planned::FailedInfo {
-            duration: Duration::from_millis(10),
-            error: "db schema is missing".to_owned(),
-        };
-        sys_events_store.record_compaction_plan_failed(plan_failed_event);
-
-        let plan_run_success_event = compaction_completed::PlanRunSuccessInfo {
-            input_generations: vec![2],
-            input_paths: vec![Arc::from("/path1")],
-            output_level: 1,
-            db_name: Arc::from("db"),
-            table_name: Arc::from("table"),
-            left_over_gen1_files: 10,
-            duration: Duration::from_millis(10),
-        };
-        sys_events_store.record_compaction_plan_run_success(plan_run_success_event);
-
-        let plan_run_failed_event = compaction_completed::PlanRunFailedInfo {
-            duration: Duration::from_millis(100),
-            error: "db schema is missing".to_owned(),
-            identifier: PlanIdentifier {
-                db_name: Arc::from("db"),
-                table_name: Arc::from("table"),
-                output_generation: 2,
-            },
-        };
-        sys_events_store.record_compaction_plan_run_failed(plan_run_failed_event);
-
-        let plan_group_run_success_event = compaction_completed::PlanGroupRunSuccessInfo {
-            duration: Duration::from_millis(200),
-            plans_ran: vec![PlanIdentifier {
-                db_name: Arc::from("db"),
-                table_name: Arc::from("table"),
-                output_generation: 2,
-            }],
-        };
-        sys_events_store.record_compaction_plan_group_run_success(plan_group_run_success_event);
-
-        let plan_group_run_failed_event = compaction_completed::PlanGroupRunFailedInfo {
-            duration: Duration::from_millis(120),
-            error: "plan group run failed".to_string(),
-            plans_ran: vec![PlanIdentifier {
-                db_name: Arc::from("db"),
-                table_name: Arc::from("table"),
-                output_generation: 2,
-            }],
-        };
-        sys_events_store.record_compaction_plan_group_run_failed(plan_group_run_failed_event);
-
-        let consumer_success_event = compaction_consumed::SuccessInfo {
-            duration: Duration::from_millis(200),
-            db_name: Arc::from("db"),
-            table_name: Arc::from("table"),
-            new_generations: vec![2, 3],
-            removed_generations: vec![1],
-            summary_sequence_number: 1,
-        };
-        sys_events_store.record_compaction_consumed_success(consumer_success_event);
-
-        let consumer_failed_event = compaction_consumed::FailedInfo {
-            duration: Duration::from_millis(200),
-            summary_sequence_number: 1,
-            error: "foo failed".to_owned(),
-        };
-        sys_events_store.record_compaction_consumed_failed(consumer_failed_event);
-
-        let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
-        let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
-            .await
-            .unwrap();
-        let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
-        debug!(batches = ?batches, "result from collecting batch stream");
-        assert_batches_eq!(
-            [
-                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type               | event_duration | event_status | event_data                                                                                                                        |",
-                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched         | 1234           | success      | {\"host\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                                  |",
-                "| 1970-01-01 | snapshot_fetched         | 10             | failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                                 |",
-                "| 1970-01-01 | catalog_fetched          | 10             | success      | {\"host\":\"sample-host\",\"catalog_sequence_number\":123}                                                                              |",
-                "| 1970-01-01 | catalog_fetched          | 10             | failed       | {\"host\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                             |",
-                "| 1970-01-01 | catalog_fetched          | 100            | failed       | {\"host\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                           |",
-                "| 1970-01-01 | compaction_planned       | 10             | success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",
-                "| 1970-01-01 | compaction_planned       | 10             | failed       | {\"duration\":{\"secs\":0,\"nanos\":10000000},\"error\":\"db schema is missing\"}                                                           |",
-                "| 1970-01-01 | plan_run_completed       | 10             | success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",
-                "| 1970-01-01 | plan_run_completed       | 100            | failed       | {\"error\":\"db schema is missing\",\"identifier\":{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}}                         |",
-                "| 1970-01-01 | plan_group_run_completed | 200            | success      | {\"plans_ran\":[{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}]}                                                       |",
-                "| 1970-01-01 | plan_group_run_completed | 120            | failed       | {\"error\":\"plan group run failed\",\"plans_ran\":[{\"db_name\":\"db\",\"table_name\":\"table\",\"output_generation\":2}]}                       |",
-                "| 1970-01-01 | compaction_consumed      | 200            | success      | {\"db_name\":\"db\",\"table_name\":\"table\",\"new_generations\":[2,3],\"removed_generations\":[1],\"summary_sequence_number\":1}               |",
-                "| 1970-01-01 | compaction_consumed      | 200            | failed       | {\"error\":\"foo failed\",\"summary_sequence_number\":1}                                                                                |",
-                "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
-            ],
-            &batches.unwrap());
     }
 }

@@ -20,14 +20,17 @@ use parquet_files::ParquetFilesTable;
 use tokio::sync::RwLock;
 use tonic::async_trait;
 
-use crate::system_tables::{
-    compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
+use crate::{
+    query_executor::pro::CompactionSystemTablesProvider,
+    system_tables::{
+        compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
+    },
 };
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 mod compacted_data;
-mod compaction_events;
+pub(crate) mod compaction_events;
 mod config;
 mod last_caches;
 mod meta_caches;
@@ -54,22 +57,62 @@ const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
-pub(crate) struct SystemSchemaProvider {
+#[derive(Debug)]
+pub(crate) enum SystemSchemaProvider {
+    AllSystemSchemaTables(AllSystemSchemaTablesProvider),
+    CompactionSystemTables(CompactionSystemTablesProvider),
+}
+
+#[async_trait]
+impl SchemaProvider for SystemSchemaProvider {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        match self {
+            Self::AllSystemSchemaTables(all_system_tables) => all_system_tables.table_names(),
+            Self::CompactionSystemTables(compaction_sys_tables) => {
+                compaction_sys_tables.table_names()
+            }
+        }
+    }
+
+    async fn table(&self, name: &str) -> Result<Option<Arc<dyn TableProvider>>, DataFusionError> {
+        match self {
+            Self::AllSystemSchemaTables(all_system_tables) => all_system_tables.table(name).await,
+            Self::CompactionSystemTables(compaction_sys_tables) => {
+                compaction_sys_tables.table(name).await
+            }
+        }
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        match self {
+            Self::AllSystemSchemaTables(all_system_tables) => all_system_tables.table_exist(name),
+            Self::CompactionSystemTables(compaction_sys_tables) => {
+                compaction_sys_tables.table_exist(name)
+            }
+        }
+    }
+}
+
+pub(crate) struct AllSystemSchemaTablesProvider {
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
 }
 
-impl std::fmt::Debug for SystemSchemaProvider {
+impl std::fmt::Debug for AllSystemSchemaTablesProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut keys = self.tables.keys().copied().collect::<Vec<_>>();
         keys.sort_unstable();
 
-        f.debug_struct("SystemSchemaProvider")
+        f.debug_struct("AllSystemSchemaTablesProvider")
             .field("tables", &keys.join(", "))
             .finish()
     }
 }
 
-impl SystemSchemaProvider {
+impl AllSystemSchemaTablesProvider {
     pub(crate) fn new(
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
@@ -77,57 +120,54 @@ impl SystemSchemaProvider {
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
         pro_config: Arc<RwLock<ProConfig>>,
         sys_events_store: Arc<SysEventStore>,
-        compactor_mode: bool,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
             query_log,
         ))));
         tables.insert(QUERIES_TABLE_NAME, queries);
-        if !compactor_mode {
-            let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
-                Arc::clone(&db_schema),
-                buffer.last_cache_provider(),
-            ))));
-            tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
-            let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
-                Arc::clone(&db_schema),
-                buffer.meta_cache_provider(),
-            ))));
-            tables.insert(META_CACHES_TABLE_NAME, meta_caches);
-            // pro tables:
-            tables.insert(
-                FILE_INDEX_TABLE_NAME,
-                Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
-                    buffer.catalog(),
-                    pro_config,
-                )))),
-            );
-            tables.insert(
-                PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
-                Arc::new(SystemTableProvider::new(Arc::new(
-                    ProcessingEnginePluginTable::new(
-                        db_schema
-                            .processing_engine_plugins
-                            .iter()
-                            .map(|(_name, call)| call.clone())
-                            .collect(),
-                    ),
-                ))),
-            );
-            tables.insert(
-                PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
-                Arc::new(SystemTableProvider::new(Arc::new(
-                    ProcessingEngineTriggerTable::new(
-                        db_schema
-                            .processing_engine_triggers
-                            .iter()
-                            .map(|(_name, trigger)| trigger.clone())
-                            .collect(),
-                    ),
-                ))),
-            );
-        }
+        let last_caches = Arc::new(SystemTableProvider::new(Arc::new(LastCachesTable::new(
+            Arc::clone(&db_schema),
+            buffer.last_cache_provider(),
+        ))));
+        tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
+        let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
+            Arc::clone(&db_schema),
+            buffer.meta_cache_provider(),
+        ))));
+        tables.insert(META_CACHES_TABLE_NAME, meta_caches);
+        // pro tables:
+        tables.insert(
+            FILE_INDEX_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
+                buffer.catalog(),
+                pro_config,
+            )))),
+        );
+        tables.insert(
+            PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                ProcessingEnginePluginTable::new(
+                    db_schema
+                        .processing_engine_plugins
+                        .iter()
+                        .map(|(_name, call)| call.clone())
+                        .collect(),
+                ),
+            ))),
+        );
+        tables.insert(
+            PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
+            Arc::new(SystemTableProvider::new(Arc::new(
+                ProcessingEngineTriggerTable::new(
+                    db_schema
+                        .processing_engine_triggers
+                        .iter()
+                        .map(|(_name, trigger)| trigger.clone())
+                        .collect(),
+                ),
+            ))),
+        );
         let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
             CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
         )));
@@ -150,7 +190,7 @@ impl SystemSchemaProvider {
 }
 
 #[async_trait]
-impl SchemaProvider for SystemSchemaProvider {
+impl SchemaProvider for AllSystemSchemaTablesProvider {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
