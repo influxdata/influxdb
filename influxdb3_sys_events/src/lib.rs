@@ -9,6 +9,7 @@ use arrow::{datatypes::Schema, error::ArrowError};
 use arrow_array::RecordBatch;
 use dashmap::DashMap;
 use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::info;
 pub mod events;
 
 const MAX_CAPACITY: usize = 10_000;
@@ -58,6 +59,7 @@ impl SysEventStore {
             time: self.time_provider.now().timestamp_nanos(),
             data: val,
         };
+        info!(sys_event = ?wrapped, "compaction sys event added to store");
         let mut buf = self
             .events
             .entry(TypeId::of::<RingBuffer<Event<E>>>())
