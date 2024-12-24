@@ -3,7 +3,7 @@
 use anyhow::{bail, Context};
 use clap_blocks::{
     memory_size::MemorySize,
-    object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
+    object_store::{ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
 };
 use datafusion_util::config::register_iox_object_store;
@@ -382,8 +382,10 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
-    let object_store: Arc<dyn ObjectStore> =
-        make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
+    let object_store: Arc<dyn ObjectStore> = config
+        .object_store_config
+        .make_object_store()
+        .map_err(Error::ObjectStoreParsing)?;
 
     let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(

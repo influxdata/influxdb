@@ -4,9 +4,6 @@
 [advisories]
 yanked = "deny"
 ignore = [
-    # dependent on arrow-* upgrading dependencies on lexical-core
-    # see https://github.com/apache/arrow-rs/pull/6401
-    "RUSTSEC-2023-0086",
     # dependent on datafusion-common moving away from instant
     # https://github.com/apache/datafusion/pull/13355
     "RUSTSEC-2024-0384",
@@ -29,7 +26,6 @@ allow = [
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
-    { allow = ["Unicode-DFS-2016"], name = "unicode-ident" },
     { allow = ["OpenSSL"], name = "ring" },
 ]
 
@@ -42,7 +38,7 @@ license-files = [
 ]
 
 [sources.allow-org]
-github = ["influxdata", "apache"]
+github = ["influxdata"]
 
 [bans]
 multiple-versions = "warn"
