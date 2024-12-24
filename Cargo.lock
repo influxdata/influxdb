@@ -3110,6 +3110,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "sha2",
+ "sysinfo 0.30.13",
  "test-log",
  "test_helpers",
  "thiserror 1.0.69",

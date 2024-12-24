@@ -139,7 +139,7 @@ impl WalObjectStore {
                     let snapshot_info = {
                         let mut buffer = self.flush_buffer.lock().await;
 
-                        match buffer.snapshot_tracker.snapshot() {
+                        match buffer.snapshot_tracker.snapshot(false) {
                             None => None,
                             Some(info) => {
                                 let semaphore = Arc::clone(&buffer.snapshot_semaphore);
@@ -178,7 +178,9 @@ impl WalObjectStore {
         self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
 
         // do the flush and wait for the snapshot if that's running
-        if let Some((snapshot_done, snapshot_info, snapshot_permit)) = self.flush_buffer().await {
+        if let Some((snapshot_done, snapshot_info, snapshot_permit)) =
+            self.flush_buffer(false).await
+        {
             let snapshot_details = snapshot_done.await.expect("snapshot should complete");
             assert_eq!(snapshot_info.snapshot_details, snapshot_details);
             self.remove_snapshot_wal_files(snapshot_info, snapshot_permit)
@@ -216,6 +218,7 @@ impl WalObjectStore {
 
     async fn flush_buffer(
         &self,
+        force_snapshot: bool,
     ) -> Option<(
         oneshot::Receiver<SnapshotDetails>,
         SnapshotInfo,
@@ -223,11 +226,12 @@ impl WalObjectStore {
     )> {
         let (wal_contents, responses, snapshot) = {
             let mut flush_buffer = self.flush_buffer.lock().await;
-            if flush_buffer.wal_buffer.is_empty() {
+            debug!(wal_buffer_empty = ?flush_buffer.wal_buffer.is_empty(), ">>> flushing buffer");
+            if !force_snapshot && flush_buffer.wal_buffer.is_empty() {
                 return None;
             }
             flush_buffer
-                .flush_buffer_into_contents_and_responses()
+                .flush_buffer_into_contents_and_responses(force_snapshot)
                 .await
         };
         info!(
@@ -279,6 +283,8 @@ impl WalObjectStore {
                 }
             }
         }
+
+        debug!(snapshot_info = ?wal_contents.snapshot, ">>> snapshot info");
 
         // now that we've persisted this latest notify and start the snapshot, if set
         let snapshot_response = match wal_contents.snapshot {
@@ -386,7 +392,17 @@ impl Wal for WalObjectStore {
         SnapshotInfo,
         OwnedSemaphorePermit,
     )> {
-        self.flush_buffer().await
+        self.flush_buffer(false).await
+    }
+
+    async fn force_flush_buffer(
+        &self,
+    ) -> Option<(
+        oneshot::Receiver<SnapshotDetails>,
+        SnapshotInfo,
+        OwnedSemaphorePermit,
+    )> {
+        self.flush_buffer(true).await
     }
 
     async fn cleanup_snapshot(
@@ -450,6 +466,7 @@ impl FlushBuffer {
     /// responses. If a snapshot should occur with this flush, a semaphore permit is also returned.
     async fn flush_buffer_into_contents_and_responses(
         &mut self,
+        force_snapshot: bool,
     ) -> (
         WalContents,
         Vec<oneshot::Sender<WriteResult>>,
@@ -457,14 +474,16 @@ impl FlushBuffer {
     ) {
         // convert into wal contents and responses and capture if a snapshot should be taken
         let (mut wal_contents, responses) = self.flush_buffer_with_responses();
-        self.snapshot_tracker.add_wal_period(WalPeriod {
-            wal_file_number: wal_contents.wal_file_number,
-            min_time: Timestamp::new(wal_contents.min_timestamp_ns),
-            max_time: Timestamp::new(wal_contents.max_timestamp_ns),
-        });
-
-        let snapshot = match self.snapshot_tracker.snapshot() {
+        if !force_snapshot {
+            self.snapshot_tracker.add_wal_period(WalPeriod {
+                wal_file_number: wal_contents.wal_file_number,
+                min_time: Timestamp::new(wal_contents.min_timestamp_ns),
+                max_time: Timestamp::new(wal_contents.max_timestamp_ns),
+            });
+        }
+        let snapshot = match self.snapshot_tracker.snapshot(force_snapshot) {
             Some(snapshot_info) => {
+                debug!(?snapshot_info, ">>> snapshot info");
                 wal_contents.snapshot = Some(snapshot_info.snapshot_details);
 
                 Some((snapshot_info, self.acquire_snapshot_permit().await))
@@ -767,7 +786,7 @@ mod tests {
         wal.buffer_op_unconfirmed(op2.clone()).await.unwrap();
 
         // create wal file 1
-        let ret = wal.flush_buffer().await;
+        let ret = wal.flush_buffer(false).await;
         assert!(ret.is_none());
         let file_1_contents = create::wal_contents(
             (1, 62_000_000_000, 1),
@@ -835,7 +854,7 @@ mod tests {
 
         // create wal file 2
         wal.buffer_op_unconfirmed(op2.clone()).await.unwrap();
-        assert!(wal.flush_buffer().await.is_none());
+        assert!(wal.flush_buffer(false).await.is_none());
 
         let file_2_contents = create::wal_contents(
             (62_000_000_000, 62_000_000_000, 2),
@@ -941,7 +960,8 @@ mod tests {
         });
         wal.buffer_op_unconfirmed(op3.clone()).await.unwrap();
 
-        let (snapshot_done, snapshot_info, snapshot_permit) = wal.flush_buffer().await.unwrap();
+        let (snapshot_done, snapshot_info, snapshot_permit) =
+            wal.flush_buffer(false).await.unwrap();
         let expected_info = SnapshotInfo {
             snapshot_details: SnapshotDetails {
                 snapshot_sequence_number: SnapshotSequenceNumber::new(1),
@@ -1066,7 +1086,7 @@ mod tests {
             None,
         );
 
-        assert!(wal.flush_buffer().await.is_none());
+        assert!(wal.flush_buffer(false).await.is_none());
         let notifier = notifier.as_any().downcast_ref::<TestNotifier>().unwrap();
         assert!(notifier.notified_writes.lock().is_empty());
 

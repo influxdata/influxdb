@@ -409,6 +409,41 @@ impl WriteBufferImpl {
     }
 }
 
+pub async fn check_mem_and_force_snapshot_loop(
+    write_buffer: Arc<WriteBufferImpl>,
+    memory_threshold_bytes: usize,
+    check_interval: Duration,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(check_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        loop {
+            interval.tick().await;
+            check_mem_and_force_snapshot(&write_buffer, memory_threshold_bytes).await;
+        }
+    })
+}
+
+async fn check_mem_and_force_snapshot(
+    write_buffer: &Arc<WriteBufferImpl>,
+    memory_threshold_bytes: usize,
+) {
+    let current_buffer_size_bytes = write_buffer.buffer.get_total_size_bytes();
+    debug!(
+        current_buffer_size_bytes,
+        memory_threshold_bytes, "checking buffer size and snapshotting"
+    );
+    if current_buffer_size_bytes >= memory_threshold_bytes {
+        debug!(
+            current_buffer_size_bytes,
+            memory_threshold_bytes, "forcing snapshot"
+        );
+        let wal = Arc::clone(&write_buffer.wal);
+        wal.force_flush_buffer_and_cleanup_snapshot().await;
+    }
+}
+
 pub fn parquet_chunk_from_file(
     parquet_file: &ParquetFile,
     table_schema: &Schema,
@@ -1006,6 +1041,7 @@ mod tests {
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn parse_lp_into_buffer() {
@@ -2504,6 +2540,62 @@ mod tests {
                 .unwrap()
                 .fetch()
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_check_mem_and_force_snapshot() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (write_buffer, _, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_10s(),
+                max_write_buffer_size: 100_000,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 10,
+            },
+        )
+        .await;
+
+        // do bunch of writes
+        let lp = "\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            ";
+
+        for i in 1..=20 {
+            do_writes(
+                "sample",
+                write_buffer.as_ref(),
+                &[TestWrite {
+                    lp,
+                    time_seconds: i,
+                }],
+            )
+            .await;
+        }
+
+        let total_buffer_size_bytes_before = write_buffer.buffer.get_total_size_bytes();
+        debug!(?total_buffer_size_bytes_before, ">>> total buffer size");
+
+        check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 100).await;
+
+        let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
+        debug!(?total_buffer_size_bytes_after, ">>> total buffer size");
+        assert!(total_buffer_size_bytes_before > total_buffer_size_bytes_after);
     }
 
     struct TestWrite<LP> {
