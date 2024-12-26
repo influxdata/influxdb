@@ -2272,15 +2272,15 @@ func TestDefaultPlanner_PlanOptimize_LargeMultiGeneration(t *testing.T) {
 	}
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
 	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
-	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	tsm, pLen, _ := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
@@ -2325,15 +2325,15 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGeneration(t *testing.T) {
 	}
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
 	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
-	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	tsm, pLen, gLen := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
@@ -2375,15 +2375,15 @@ func TestDefaultPlanner_PlanOptimize_SmallSingleGenerationUnderLevel4(t *testing
 	}
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
 	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-	require.Equal(t, 0, len(tsmP), "compaction group; Plan()")
-	require.Equal(t, int64(0), pLenP, "compaction group length; Plan()")
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	tsm, pLen, gLen := cp.PlanOptimize()
 	require.Equal(t, 1, len(tsm), "compaction group")
@@ -2432,14 +2432,15 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration(t *testing.T) {
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	_, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")
@@ -2472,19 +2473,20 @@ func TestDefaultPlanner_FullyCompacted_SmallSingleGeneration_Halt(t *testing.T) 
 	require.True(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-	require.Equal(t, int64(0), cgLen, "compaction group length")
-	require.Equal(t, int64(0), genLen, "generation count")
+	require.Zero(t, cgLen, "compaction group length")
+	require.Zero(t, genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2552,14 +2554,15 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationUnderAggressiveBlock
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	_, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")
@@ -2603,14 +2606,15 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationMaxAggressiveBlocks(
 	require.True(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
@@ -2656,14 +2660,15 @@ func TestDefaultPlanner_FullyCompacted_LargeSingleGenerationNoMaxAggrBlocks(t *t
 	require.True(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
@@ -2712,19 +2717,20 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBMaxAggrBlocks(t *
 	require.True(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	cgroup, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-	require.Equal(t, int64(0), cgLen, "compaction group length")
-	require.Equal(t, int64(0), genLen, "generation count")
+	require.Zero(t, cgLen, "compaction group length")
+	require.Zero(t, genLen, "generation count")
 }
 
 // This test is added to account for a single generation that has a group size
@@ -2768,14 +2774,15 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGenLessThen2GBNotMaxAggrBlocks(
 	require.False(t, compacted, "is fully compacted")
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	_, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")
@@ -2853,14 +2860,15 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGen2GBLastLevel2(t *testing.T) 
 	}
 
 	_, cgLen := cp.PlanLevel(1)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(1)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 	_, cgLen = cp.PlanLevel(2)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(2)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 	_, cgLen = cp.PlanLevel(3)
-	require.Equal(t, int64(0), cgLen, "compaction group length; PlanLevel(3)")
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-	_, cgLen = cp.Plan(time.Now().Add(-1))
-	require.Equal(t, int64(0), cgLen, "compaction group length; Plan()")
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
 
 	tsm, cgLen, genLen := cp.PlanOptimize()
 	require.Equal(t, int64(1), cgLen, "compaction group length")
