@@ -2876,6 +2876,66 @@ func TestDefaultPlanner_FullyCompacted_ManySingleGen2GBLastLevel2(t *testing.T) 
 	require.Equal(t, len(expFiles), len(tsm[0]), "tsm files in compaction group")
 }
 
+// This test will check to ensure that any TSM generations planned with the default planner
+// using Plan() and PlanLevel() over default block size are skipped.
+func TestDefaultPlanner_PlanOverAggressiveBlocks(t *testing.T) {
+	data := []tsm1.FileStat{
+		{
+			Path: "01-02.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		{
+			Path: "01-03.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		{
+			Path: "02-02.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		{
+			Path: "02-03.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		{
+			Path: "03-02.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		{
+			Path: "03-03.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+	}
+
+	fs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return data
+		},
+	}
+	blocks := []int{
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+	}
+	err := fs.SetBlockCounts(blocks)
+	require.NoError(t, err, "SetBlockCounts")
+
+	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
+}
+
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	data := []tsm1.FileStat{
 		{
