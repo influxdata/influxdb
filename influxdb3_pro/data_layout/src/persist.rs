@@ -9,7 +9,7 @@ use futures_util::{stream::StreamExt, TryFutureExt};
 use influxdb3_id::{DbId, TableId};
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -216,7 +216,10 @@ pub async fn load_compaction_summary_for_sequence(
     }
 }
 
-/// Get the bytes at the given path from the object store. Will retry forever until it gets the bytes.
+/// Get the bytes at the given path from the object store.
+///
+/// This will retry forever until it gets the bytes, unless a `NOT_FOUND` response is returned from
+/// the object store, in which case it will return `None`.
 pub async fn get_bytes_at_path(
     path: &ObjPath,
     object_store: Arc<dyn ObjectStore>,
@@ -229,11 +232,12 @@ pub async fn get_bytes_at_path(
 
         match maybe_bytes {
             Ok(bytes) => return Some(bytes),
-            Err(err) => {
-                if let object_store::Error::NotFound { .. } = err {
-                    warn!("File not found in object store: {}", path);
+            Err(error) => {
+                if let object_store::Error::NotFound { .. } = error {
+                    info!(%path, "File not found in object store");
                     return None;
                 }
+                warn!(%error, debug = ?error, %path, "Error reading file from object store");
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
         };
