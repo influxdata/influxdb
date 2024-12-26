@@ -2936,6 +2936,115 @@ func TestDefaultPlanner_PlanOverAggressiveBlocks(t *testing.T) {
 	require.Zero(t, pLenP, "compaction group length; Plan()")
 }
 
+// This test will mock a 'backfill' condition where we have a single
+// shard with many generations. The initial generation should be fully
+// compacted, but we have some new generations that are not. We need to ensure
+// the optimize planner will pick these up and compact everything together.
+func TestDefaultPlanner_BackfillMock(t *testing.T) {
+	// > 2 GB total group size
+	// 50% of files are at aggressive max block size
+	data := []tsm1.FileStat{
+		{
+			Path: "01-05.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "01-06.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "01-07.tsm1",
+			Size: 2048 * 1024 * 1024,
+		},
+		{
+			Path: "02-04.tsm1",
+			Size: 700 * 1024 * 1024,
+		},
+		{
+			Path: "02-05.tsm1",
+			Size: 500 * 1024 * 1024,
+		},
+		{
+			Path: "02-06.tsm1",
+			Size: 400 * 1024 * 1024,
+		},
+		{
+			Path: "03-02.tsm1",
+			Size: 700 * 1024 * 1024,
+		},
+		{
+			Path: "03-03.tsm1",
+			Size: 500 * 1024 * 1024,
+		},
+		{
+			Path: "03-04.tsm1",
+			Size: 400 * 1024 * 1024,
+		},
+		{
+			Path: "04-01.tsm1",
+			Size: 700 * 1024 * 1024,
+		},
+		{
+			Path: "04-02.tsm1",
+			Size: 500 * 1024 * 1024,
+		},
+		{
+			Path: "03-03.tsm1",
+			Size: 400 * 1024 * 1024,
+		},
+	}
+
+	fs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return data
+		},
+	}
+	blocks := []int{
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.AggressiveMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+
+		tsdb.DefaultMaxPointsPerBlock,
+		// Use some magic numbers but these are just small values for block counts
+		100,
+		10,
+	}
+	err := fs.SetBlockCounts(blocks)
+	require.NoError(t, err, "SetBlockCounts")
+
+	cp := tsm1.NewDefaultPlanner(fs, tsdb.DefaultCompactFullWriteColdDuration)
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+	tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+	require.Zero(t, len(tsmP), "compaction group; Plan()")
+	require.Zero(t, pLenP, "compaction group length; Plan()")
+
+	expFiles := make([]tsm1.FileStat, 0)
+	for _, file := range data {
+		expFiles = append(expFiles, file)
+	}
+
+	tsm, cgLen, genLen := cp.PlanOptimize()
+	require.Equal(t, len(expFiles), len(tsm[0]), "expected TSM files")
+	require.Equal(t, int64(1), cgLen, "compaction group length")
+	// Should pick up 4 generations for compaction
+	require.Equal(t, int64(4), genLen, "generation count")
+}
+
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	data := []tsm1.FileStat{
 		{
