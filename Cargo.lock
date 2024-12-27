@@ -2943,11 +2943,14 @@ name = "influxdb3_clap_blocks"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "datafusion",
  "futures",
  "humantime",
+ "iox_query",
  "libc",
  "observability_deps",
  "paste",
+ "test-log",
  "tokio",
 ]
 
