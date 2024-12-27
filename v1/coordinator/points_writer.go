@@ -255,6 +255,9 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 			// scope of the RP.
 			mapping.Dropped = append(mapping.Dropped, p)
 			continue
+		} else if len(sg.Shards) <= 0 {
+			// Shard groups should have at least one shard.
+			return nil, fmt.Errorf("shard group %d covering %s to %s has no shards", sg.ID, sg.StartTime, sg.EndTime)
 		}
 
 		sh := sg.ShardFor(p)
