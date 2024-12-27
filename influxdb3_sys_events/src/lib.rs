@@ -124,6 +124,19 @@ impl<T> RingBufferVec<T> {
         }
     }
 
+    pub fn in_order(&self) -> impl Iterator<Item = &T> {
+        let (head, tail) = self.buf.split_at(self.write_index);
+        tail.iter().chain(head.iter())
+    }
+
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
     fn push(&mut self, val: T) {
         if !self.is_at_max() {
             self.buf.push(val);
@@ -135,11 +148,6 @@ impl<T> RingBufferVec<T> {
 
     fn is_at_max(&mut self) -> bool {
         self.buf.len() >= self.max
-    }
-
-    pub fn in_order(&self) -> impl Iterator<Item = &T> {
-        let (head, tail) = self.buf.split_at(self.write_index);
-        tail.iter().chain(head.iter())
     }
 }
 
