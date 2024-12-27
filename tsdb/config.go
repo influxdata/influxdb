@@ -52,6 +52,10 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
+	// AggressiveMaxPointsPerBlock is used when we want to further compact blocks
+	// it is 100 times the default amount of points we use per block
+	AggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 100
+
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// This limit only applies to the "inmem" index.
 	DefaultMaxSeriesPerDatabase = 1000000
@@ -77,7 +81,19 @@ const (
 	// partition snapshot compactions that can run at one time.
 	// A value of 0 results in runtime.GOMAXPROCS(0).
 	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
+
+	// MaxTSMFileSize is the maximum size of TSM files.
+	MaxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 )
+
+var SingleGenerationReasonText string = SingleGenerationReason()
+
+// SingleGenerationReason outputs a log message for our single generation compaction
+// when checked for full compaction.
+// 1048576000 is a magic number for bytes per gigabyte.
+func SingleGenerationReason() string {
+	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), AggressiveMaxPointsPerBlock)
+}
 
 // Config holds the configuration for the tsbd package.
 type Config struct {
