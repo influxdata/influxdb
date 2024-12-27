@@ -8,9 +8,9 @@ use influxdb3_id::DbId;
 use influxdb3_write::{ParquetFile, WriteBuffer};
 use iox_system_tables::IoxSystemTable;
 
-use crate::system_tables::{
-    find_table_name_in_filter, table_name_predicate_error, PARQUET_FILES_TABLE_NAME,
-};
+use crate::system_tables::{find_table_name_in_filter, table_name_predicate_error};
+
+use super::PARQUET_FILES_TABLE_NAME;
 
 #[derive(Debug)]
 pub(super) struct ParquetFilesTable {
