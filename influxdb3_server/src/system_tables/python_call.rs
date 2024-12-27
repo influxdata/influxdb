@@ -1,4 +1,4 @@
-use arrow_array::{ArrayRef, RecordBatch, StringArray};
+use arrow_array::{ArrayRef, BooleanArray, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::common::Result;
@@ -94,6 +94,7 @@ fn trigger_schema() -> SchemaRef {
         Field::new("trigger_name", DataType::Utf8, false),
         Field::new("plugin_name", DataType::Utf8, false),
         Field::new("trigger_specification", DataType::Utf8, false),
+        Field::new("disabled", DataType::Boolean, false),
     ];
     Schema::new(columns).into()
 }
@@ -124,10 +125,16 @@ impl IoxSystemTable for ProcessingEngineTriggerTable {
             .iter()
             .map(|trigger| serde_json::to_string(&trigger.trigger).ok())
             .collect::<StringArray>();
+        let disabled = self
+            .triggers
+            .iter()
+            .map(|trigger| Some(trigger.disabled))
+            .collect::<BooleanArray>();
         let columns: Vec<ArrayRef> = vec![
             Arc::new(trigger_column),
             Arc::new(plugin_column),
             Arc::new(specification_column),
+            Arc::new(disabled),
         ];
         Ok(RecordBatch::try_new(Arc::clone(&self.schema), columns)?)
     }

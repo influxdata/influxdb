@@ -973,6 +973,19 @@ where
             .body(Body::empty())?)
     }
 
+    async fn delete_processing_engine_plugin(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let ProcessingEnginePluginDeleteRequest { db, plugin_name } =
+            if let Some(query) = req.uri().query() {
+                serde_urlencoded::from_str(query)?
+            } else {
+                self.read_body_json(req).await?
+            };
+        self.write_buffer.delete_plugin(&db, &plugin_name).await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
     async fn configure_processing_engine_trigger(
         &self,
         req: Request<Body>,
@@ -982,6 +995,7 @@ where
             plugin_name,
             trigger_name,
             trigger_specification,
+            disabled,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
@@ -993,13 +1007,47 @@ where
                 trigger_name.clone(),
                 plugin_name,
                 trigger_specification,
+                disabled,
             )
             .await?;
+        if !disabled {
+            self.write_buffer
+                .run_trigger(
+                    Arc::clone(&self.write_buffer),
+                    db.as_str(),
+                    trigger_name.as_str(),
+                )
+                .await?;
+        }
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn deactivate_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
         self.write_buffer
-            .run_trigger(
+            .deactivate_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+    async fn activate_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
+        self.write_buffer
+            .activate_trigger(
                 Arc::clone(&self.write_buffer),
-                db.as_str(),
-                trigger_name.as_str(),
+                delete_req.db.as_str(),
+                delete_req.trigger_name.as_str(),
             )
             .await?;
         Ok(Response::builder()
@@ -1441,6 +1489,12 @@ struct ProcessingEnginePluginCreateRequest {
     plugin_type: PluginType,
 }
 
+#[derive(Debug, Deserialize)]
+struct ProcessingEnginePluginDeleteRequest {
+    db: String,
+    plugin_name: String,
+}
+
 /// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
 #[derive(Debug, Deserialize)]
 struct ProcessEngineTriggerCreateRequest {
@@ -1448,6 +1502,13 @@ struct ProcessEngineTriggerCreateRequest {
     plugin_name: String,
     trigger_name: String,
     trigger_specification: TriggerSpecificationDefinition,
+    disabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessingEngineTriggerIdentifier {
+    db: String,
+    trigger_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1562,6 +1623,15 @@ pub(crate) async fn route_request<T: TimeProvider>(
         }
         (Method::POST, "/api/v3/configure/processing_engine_plugin") => {
             http_server.configure_processing_engine_plugin(req).await
+        }
+        (Method::DELETE, "/api/v3/configure/processing_engine_plugin") => {
+            http_server.delete_processing_engine_plugin(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/deactivate") => {
+            http_server.deactivate_processing_engine_trigger(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/activate") => {
+            http_server.activate_processing_engine_trigger(req).await
         }
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await

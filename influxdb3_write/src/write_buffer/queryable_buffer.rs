@@ -29,7 +29,7 @@ use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
 use observability_deps::tracing::{error, info};
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
 use schema::Schema;
@@ -37,7 +37,7 @@ use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot::Receiver;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -52,7 +52,7 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
-    plugin_event_tx: Mutex<Option<broadcast::Sender<PluginEvent>>>,
+    plugin_event_tx: Mutex<HashMap<String, mpsc::Sender<PluginEvent>>>,
 }
 
 pub struct QueryableBufferArgs {
@@ -91,7 +91,7 @@ impl QueryableBuffer {
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
-            plugin_event_tx: Mutex::new(None),
+            plugin_event_tx: Mutex::new(HashMap::new()),
         }
     }
 
@@ -388,26 +388,55 @@ impl QueryableBuffer {
     }
 
     #[cfg(feature = "system-py")]
-    pub(crate) fn subscribe_to_plugin_events(&self) -> broadcast::Receiver<PluginEvent> {
-        let mut sender = self.plugin_event_tx.lock();
+    pub(crate) async fn subscribe_to_plugin_events(
+        &self,
+        trigger_name: String,
+    ) -> mpsc::Receiver<PluginEvent> {
+        let mut senders = self.plugin_event_tx.lock().await;
 
-        if sender.is_none() {
-            let (tx, rx) = broadcast::channel(1024);
-            *sender = Some(tx);
-            return rx;
+        // TODO: should we be checking for replacements?
+        let (plugin_tx, plugin_rx) = mpsc::channel(4);
+        senders.insert(trigger_name, plugin_tx);
+        plugin_rx
+    }
+
+    /// Deactivates a running trigger by sending it a oneshot sender. It should send back a message and then immediately shut down.
+    pub(crate) async fn deactivate_trigger(
+        &self,
+        #[allow(unused)] trigger_name: String,
+    ) -> Result<(), anyhow::Error> {
+        #[cfg(feature = "system-py")]
+        {
+            let Some(sender) = self.plugin_event_tx.lock().await.remove(&trigger_name) else {
+                anyhow::bail!("no trigger named '{}' found", trigger_name);
+            };
+            let (oneshot_tx, oneshot_rx) = oneshot::channel();
+            sender.send(PluginEvent::Shutdown(oneshot_tx)).await?;
+            oneshot_rx.await?;
         }
-        sender.as_ref().unwrap().subscribe()
+        Ok(())
+    }
+
+    async fn send_to_plugins(&self, wal_contents: &WalContents) {
+        let senders = self.plugin_event_tx.lock().await;
+        if !senders.is_empty() {
+            let wal_contents = Arc::new(wal_contents.clone());
+            for (plugin, sender) in senders.iter() {
+                if let Err(err) = sender
+                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
+                    .await
+                {
+                    error!("failed to send plugin event to plugin {}: {}", plugin, err);
+                }
+            }
+        }
     }
 }
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
-    fn notify(&self, write: WalContents) {
-        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
-            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
-                error!(%err, "Error sending WAL content to plugins");
-            }
-        }
+    async fn notify(&self, write: WalContents) {
+        self.send_to_plugins(&write).await;
         self.buffer_contents(write)
     }
 
@@ -416,11 +445,7 @@ impl WalFileNotifier for QueryableBuffer {
         write: WalContents,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
-            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
-                error!(%err, "Error sending WAL content to plugins");
-            }
-        }
+        self.send_to_plugins(&write).await;
         self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
@@ -537,6 +562,9 @@ impl BufferState {
                             }
                             CatalogOp::CreatePlugin(_) => {}
                             CatalogOp::CreateTrigger(_) => {}
+                            CatalogOp::EnableTrigger(_) => {}
+                            CatalogOp::DisableTrigger(_) => {}
+                            CatalogOp::DeletePlugin(_) => {}
                         }
                     }
                 }
@@ -786,7 +814,7 @@ mod tests {
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         // write the lp into the buffer
-        queryable_buffer.notify(wal_contents);
+        queryable_buffer.notify(wal_contents).await;
 
         // now force a snapshot, persisting the data to parquet file. Also, buffer up a new write
         let snapshot_sequence_number = SnapshotSequenceNumber::new(1);
