@@ -1,6 +1,6 @@
 //! module for query executor
-use crate::query_planner::Planner;
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
+use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
 use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
@@ -380,11 +380,13 @@ impl Database {
         query_log: Arc<QueryLog>,
         sys_events_store: Arc<SysEventStore>,
     ) -> Self {
-        let system_schema_provider = Arc::new(SystemSchemaProvider::new(
-            Arc::clone(&db_schema),
-            Arc::clone(&query_log),
-            Arc::clone(&write_buffer),
-            Arc::clone(&sys_events_store),
+        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
+            AllSystemSchemaTablesProvider::new(
+                Arc::clone(&db_schema),
+                Arc::clone(&query_log),
+                Arc::clone(&write_buffer),
+                Arc::clone(&sys_events_store),
+            ),
         ));
         Self {
             db_schema,
@@ -640,7 +642,9 @@ mod tests {
     use parquet_file::storage::{ParquetStorage, StorageId};
 
     use crate::{
-        query_executor::QueryExecutorImpl, system_tables::table_name_predicate_error, QueryExecutor,
+        query_executor::QueryExecutorImpl,
+        system_tables::{table_name_predicate_error, PARQUET_FILES_TABLE_NAME},
+        QueryExecutor,
     };
 
     use super::CreateQueryExecutorArgs;
@@ -827,6 +831,9 @@ mod tests {
             .await
             .unwrap();
         let error: DataFusionError = stream.try_collect::<Vec<RecordBatch>>().await.unwrap_err();
-        assert_eq!(error.message(), table_name_predicate_error().message());
+        assert_eq!(
+            error.message(),
+            table_name_predicate_error(PARQUET_FILES_TABLE_NAME).message()
+        );
     }
 }
