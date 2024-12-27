@@ -1,9 +1,17 @@
 //! Produces the compacted data view from the snapshots of 1 or more hosts. Also keeps a unified
 //! `Catalog` with id mappings for each host to the compacted view.
 
-use crate::catalog::{CatalogSnapshotMarker, CompactedCatalog};
 use crate::compacted_data::CompactedData;
 use crate::planner::{CompactionPlanGroup, NextCompactionPlan};
+use crate::{
+    catalog::{CatalogSnapshotMarker, CompactedCatalog},
+    sys_events::{
+        compaction_completed::{self, PlanIdentifier},
+        compaction_planned,
+        snapshot_fetched::{FailedInfo, SuccessInfo},
+        CompactionEventStore,
+    },
+};
 use crate::{compact_files, CompactFilesArgs, ParquetCachePreFetcher};
 use datafusion::{common::instant::Instant, datasource::object_store::ObjectStoreUrl};
 use hashbrown::HashMap;
@@ -20,12 +28,6 @@ use influxdb3_pro_data_layout::{
 use influxdb3_pro_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, HostSnapshotMarker,
-};
-use influxdb3_sys_events::events::snapshot_fetched::{FailedInfo, SuccessInfo};
-use influxdb3_sys_events::events::{
-    compaction_completed::{self, PlanIdentifier},
-    compaction_planned::{self},
-    CompactionEventStore,
 };
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::SnapshotInfoFilePath;
@@ -922,8 +924,7 @@ mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_pro_data_layout::HostSnapshotMarker;
-    use influxdb3_sys_events::events::CompactionEvent;
-    use influxdb3_sys_events::{events::snapshot_fetched::SnapshotFetched, SysEventStore};
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use influxdb3_write::{persister::Persister, PersistedSnapshot};
     use iox_time::{MockProvider, Time};
@@ -931,9 +932,12 @@ mod tests {
     use observability_deps::tracing::debug;
     use pretty_assertions::assert_eq;
 
-    use crate::consumer::CompactedDataConsumer;
     use crate::producer::{load_all_snapshots, load_next_snapshot};
     use crate::test_helpers::TestWriter;
+    use crate::{
+        consumer::CompactedDataConsumer,
+        sys_events::{snapshot_fetched::SnapshotFetched, CompactionEvent},
+    };
 
     use super::*;
     use influxdb3_pro_data_layout::persist::{get_compaction_detail, get_generation_detail};

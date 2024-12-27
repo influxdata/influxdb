@@ -31,6 +31,7 @@ influxdb3_write = { path = "../../influxdb3_write" }
 # Crates.io dependencies
 anyhow.workspace = true
 arrow.workspace = true
+arrow-array.workspace = true
 arrow-schema.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
@@ -60,6 +61,7 @@ pretty_assertions.workspace = true
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_pro_buffer = { path = "../buffer" }
 influxdb3_server = { path = "../../influxdb3_server" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
 influxdb3_telemetry = { path = "../../influxdb3_telemetry" }
 influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
 serde_json.workspace = true

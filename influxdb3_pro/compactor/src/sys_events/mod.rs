@@ -6,17 +6,15 @@ use arrow::{
     error::ArrowError,
 };
 use arrow_array::{ArrayRef, RecordBatch};
+use influxdb3_sys_events::{Event, RingBuffer, SysEventStore, ToRecordBatch};
 use serde::Serialize;
 
-use crate::{
-    events::{
-        catalog_fetched::CatalogFetched,
-        compaction_completed::{PlanCompactionCompleted, PlanGroupCompactionCompleted},
-        compaction_consumed::CompactionConsumed,
-        compaction_planned::CompactionPlanned,
-        snapshot_fetched::SnapshotFetched,
-    },
-    Event, RingBuffer, SysEventStore, ToRecordBatch,
+use crate::sys_events::{
+    catalog_fetched::CatalogFetched,
+    compaction_completed::{PlanCompactionCompleted, PlanGroupCompactionCompleted},
+    compaction_consumed::CompactionConsumed,
+    compaction_planned::CompactionPlanned,
+    snapshot_fetched::SnapshotFetched,
 };
 
 pub mod catalog_fetched;

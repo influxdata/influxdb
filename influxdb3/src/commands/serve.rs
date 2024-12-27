@@ -24,9 +24,12 @@ use influxdb3_pro_buffer::{
     WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::compacted_data::{CompactedData, CompactedDataSystemTableView};
 use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
+use influxdb3_pro_compactor::{
+    compacted_data::{CompactedData, CompactedDataSystemTableView},
+    sys_events::CompactionEventStore,
+};
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_process::{
@@ -42,7 +45,7 @@ use influxdb3_server::{
     },
     serve, CommonServerState, QueryExecutor,
 };
-use influxdb3_sys_events::{events::CompactionEventStore, SysEventStore};
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{

@@ -75,6 +75,7 @@ pub mod compacted_data;
 pub mod consumer;
 pub mod planner;
 pub mod producer;
+pub mod sys_events;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CompactorError {

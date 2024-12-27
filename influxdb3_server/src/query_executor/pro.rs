@@ -365,16 +365,17 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
+    use influxdb3_pro_compactor::sys_events::{
+        catalog_fetched,
+        compaction_completed::{self, PlanIdentifier},
+        compaction_consumed, compaction_planned,
+        snapshot_fetched::{FailedInfo, SuccessInfo},
+        CompactionEventStore,
+    };
     use iox_time::Time;
     use observability_deps::tracing::debug;
 
     use crate::{query_executor::tests::setup, QueryExecutor};
-    use influxdb3_sys_events::events::snapshot_fetched::{FailedInfo, SuccessInfo};
-    use influxdb3_sys_events::events::{
-        catalog_fetched,
-        compaction_completed::{self, PlanIdentifier},
-        compaction_consumed, compaction_planned, CompactionEventStore,
-    };
 
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_snapshot_success() {

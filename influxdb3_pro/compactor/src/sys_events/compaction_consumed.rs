@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use serde::Serialize;
 
-use crate::events::{EventData, EventOutcome};
+use crate::sys_events::{EventData, EventOutcome};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {

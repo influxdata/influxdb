@@ -9,7 +9,6 @@ use influxdb3_catalog::catalog::{
 };
 use influxdb3_id::{DbId, SerdeVecMap};
 use influxdb3_pro_data_layout::persist::get_bytes_at_path;
-use influxdb3_sys_events::events::{catalog_fetched, CompactionEventStore};
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
@@ -23,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Instant};
 use thiserror::Error;
 use uuid::Uuid;
+
+use crate::sys_events::{catalog_fetched, CompactionEventStore};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -493,11 +494,10 @@ pub(crate) mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use crate::sys_events::{catalog_fetched::CatalogFetched, CompactionEvent};
+
     use super::*;
-    use influxdb3_sys_events::{
-        events::{catalog_fetched::CatalogFetched, CompactionEvent},
-        SysEventStore,
-    };
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::FieldDataType;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
