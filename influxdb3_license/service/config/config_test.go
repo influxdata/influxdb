@@ -3,9 +3,15 @@ package config
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestParse(t *testing.T) {
+	trustedProxies, err := parseCIDRs([]string{"127.0.0.1/32"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	tests := []struct {
 		name      string
 		args      []string
@@ -18,9 +24,21 @@ func TestParse(t *testing.T) {
 			args:    []string{},
 			envVars: map[string]string{},
 			expected: &Config{
-				HTTPAddr:  ":8080",
-				LogLevel:  "info",
-				LogFormat: "auto",
+				HTTPAddr:             ":8080",
+				LogLevel:             "info",
+				LogFormat:            "auto",
+				DBConnString:         "postgres://postgres:postgres@localhost:5432/influxdb_pro_license?sslmode=disable",
+				EmailDomain:          "mailgun.influxdata.com",
+				EmailAPIKey:          "log-only",
+				EmailVerificationURL: "http://localhost:8080",
+				EmailTemplateName:    "influxdb 3 enterprise verification",
+				EmailMaxRetries:      3,
+				PrivateKey:           "projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1",
+				PublicKey:            "gcloud-kms_global_clustered-licensing_signing-key_v1.pem",
+				TrialDuration:        2160 * 60 * 60 * 1000000000,
+				TrialEndDate:         time.Time{},
+				TrustedProxies:       []string{"127.0.0.1/32"},
+				trustedProxies:       trustedProxies,
 			},
 			expectErr: false,
 		},
@@ -29,9 +47,21 @@ func TestParse(t *testing.T) {
 			args:    []string{"--http-addr", "127.0.0.1:9000", "--log-level", "debug", "--log-format", "json"},
 			envVars: map[string]string{},
 			expected: &Config{
-				HTTPAddr:  "127.0.0.1:9000",
-				LogLevel:  "debug",
-				LogFormat: "json",
+				HTTPAddr:             "127.0.0.1:9000",
+				LogLevel:             "debug",
+				LogFormat:            "json",
+				DBConnString:         "postgres://postgres:postgres@localhost:5432/influxdb_pro_license?sslmode=disable",
+				EmailDomain:          "mailgun.influxdata.com",
+				EmailAPIKey:          "log-only",
+				EmailVerificationURL: "http://localhost:8080",
+				EmailTemplateName:    "influxdb 3 enterprise verification",
+				EmailMaxRetries:      3,
+				PrivateKey:           "projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1",
+				PublicKey:            "gcloud-kms_global_clustered-licensing_signing-key_v1.pem",
+				TrialDuration:        2160 * 60 * 60 * 1000000000,
+				TrialEndDate:         time.Time{},
+				TrustedProxies:       []string{"127.0.0.1/32"},
+				trustedProxies:       trustedProxies,
 			},
 			expectErr: false,
 		},
@@ -44,9 +74,21 @@ func TestParse(t *testing.T) {
 				"IFLX_PRO_LIC_LOG_FORMAT": "logfmt",
 			},
 			expected: &Config{
-				HTTPAddr:  "192.168.1.1:8081",
-				LogLevel:  "warn",
-				LogFormat: "logfmt",
+				HTTPAddr:             "192.168.1.1:8081",
+				LogLevel:             "warn",
+				LogFormat:            "logfmt",
+				DBConnString:         "postgres://postgres:postgres@localhost:5432/influxdb_pro_license?sslmode=disable",
+				EmailDomain:          "mailgun.influxdata.com",
+				EmailAPIKey:          "log-only",
+				EmailVerificationURL: "http://localhost:8080",
+				EmailTemplateName:    "influxdb 3 enterprise verification",
+				EmailMaxRetries:      3,
+				PrivateKey:           "projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1",
+				PublicKey:            "gcloud-kms_global_clustered-licensing_signing-key_v1.pem",
+				TrialDuration:        2160 * 60 * 60 * 1000000000,
+				TrialEndDate:         time.Time{},
+				TrustedProxies:       []string{"127.0.0.1/32"},
+				trustedProxies:       trustedProxies,
 			},
 			expectErr: false,
 		},

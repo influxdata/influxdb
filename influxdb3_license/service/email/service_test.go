@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 	"net"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 
 	"github.com/google/uuid"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/testutil"
@@ -207,7 +208,7 @@ func TestService_SendEmail(t *testing.T) {
 		VerificationToken: uuid.NewString(),
 		LicenseID:         license.ID,
 		TemplateName:      "template_name",
-		ToEmail:           user.Email,
+		To:                user.Email,
 		Subject:           "subject",
 		Body:              "body",
 		// This value of State should get overwritten with the DB
@@ -215,14 +216,24 @@ func TestService_SendEmail(t *testing.T) {
 		State: store.EmailStateSent,
 	}
 
+	tx, err = ts.store.BeginTx(ts.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Send the email the first time
-	if err := ts.svc.QueueEmail(email); err != nil {
+	if err := ts.svc.QueueEmail(ts.ctx, tx, email); err != nil {
 		t.Fatal(err)
 	}
 
 	// Check that the state of the email
 	if email.State != store.EmailStateScheduled {
 		t.Fatalf("expected email state to be Scheduled, got %s", email.State)
+	}
+
+	// Commit the db transaction
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
 	}
 
 	// Loop waiting for the send to complete and email to update
@@ -242,6 +253,8 @@ func TestService_SendEmail(t *testing.T) {
 		email, err = ts.store.GetEmailByID(ts.ctx, tx, email.ID)
 		if err != nil {
 			t.Fatal(err)
+		} else if email == nil {
+			t.Fatalf("email not found")
 		}
 
 		if email.SendCnt == 0 {
@@ -340,7 +353,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 			VerificationToken: uuid.NewString(),
 			LicenseID:         license.ID,
 			TemplateName:      "test_template",
-			ToEmail:           user.Email,
+			To:                user.Email,
 			Subject:           "Test Subject",
 			Body:              "Test Body",
 		}
@@ -358,7 +371,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 		// Try to send more emails than the user burst limit
 		for i := 0; i < ts.svc.cfg.UserRateLimitBurst+1; i++ {
 			email := createTestEmail(user, uip, license)
-			err := ts.svc.QueueEmail(email)
+			tx, err := ts.store.BeginTx(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			err = ts.svc.QueueEmail(ts.ctx, tx, email)
 			if i < ts.svc.cfg.UserRateLimitBurst {
 				if err != nil {
 					t.Errorf("expected email %d to be accepted, got error: %v", i+1, err)
@@ -367,6 +386,10 @@ func TestService_EmailRateLimits(t *testing.T) {
 				if err == nil || !errors.Is(err, ErrUserRateLimitExceeded) {
 					t.Errorf("expected user rate limit error, got: %v", err)
 				}
+			}
+
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
 			}
 		}
 	})
@@ -394,7 +417,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 		// Try to send emails from different users but same IP
 		for i, user := range users {
 			email := createTestEmail(user, uips[i], licenses[i])
-			err := ts.svc.QueueEmail(email)
+			tx, err := ts.store.BeginTx(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			err = ts.svc.QueueEmail(ts.ctx, tx, email)
 			if i < ts.svc.cfg.IPRateLimitBurst {
 				if err != nil {
 					t.Errorf("expected email %d to be accepted, got error: %v", i+1, err)
@@ -403,6 +432,10 @@ func TestService_EmailRateLimits(t *testing.T) {
 				if err == nil || !errors.Is(err, ErrIPRateLimitExceeded) {
 					t.Errorf("expected IP rate limit error, got: %v", err)
 				}
+			}
+
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
 			}
 		}
 	})
@@ -431,7 +464,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 		// Try to send all emails rapidly to trigger overall rate limit
 		gotExpErr := false
 		for i, email := range emails {
-			err := ts.svc.QueueEmail(email)
+			tx, err := ts.store.BeginTx(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			err = ts.svc.QueueEmail(ts.ctx, tx, email)
 			if i < len(emails)-1 {
 				if err != nil {
 					t.Fatalf("expected email %d to be accepted, got error: %v", i+1, err)
@@ -443,6 +482,10 @@ func TestService_EmailRateLimits(t *testing.T) {
 					gotExpErr = true
 					break
 				}
+			}
+
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
 			}
 		}
 
@@ -476,7 +519,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 
 		// Try to send all emails rapidly to trigger queue full error
 		for i, email := range emails {
-			err := ts.svc.QueueEmail(email)
+			tx, err := ts.store.BeginTx(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback() }()
+
+			err = ts.svc.QueueEmail(ts.ctx, tx, email)
 			switch err {
 			case nil:
 				// nothing to do
@@ -493,6 +542,10 @@ func TestService_EmailRateLimits(t *testing.T) {
 				}
 			default:
 				t.Fatalf("unexpected error while queueing email %d: %v", i, err)
+			}
+
+			if err := tx.Commit(); err != nil {
+				t.Fatal(err)
 			}
 		}
 

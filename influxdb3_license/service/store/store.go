@@ -2,10 +2,11 @@ package store
 
 import (
 	"context"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"net"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // User represents a user record from the database
@@ -21,8 +22,9 @@ type User struct {
 
 // UserIP represents a record in the user_ips table
 type UserIP struct {
-	IPAddr net.IP
-	UserID int64
+	IPAddr  net.IP
+	UserID  int64
+	Blocked bool
 }
 
 // EmailState describes the possible states an email can be in
@@ -53,9 +55,12 @@ type Email struct {
 	UserID            int64
 	UserIP            net.IP
 	VerificationToken string
+	VerifiedAt        time.Time
+	VerificationURL   string
 	LicenseID         int64
 	TemplateName      string
-	ToEmail           string
+	From              string
+	To                string
 	Subject           string
 	Body              string
 	State             EmailState
@@ -78,8 +83,9 @@ func LogEmail(msg string, e *Email, level zapcore.Level, logger *zap.Logger) {
 		zap.Int64("user_id", e.UserID),
 		zap.String("user_ip", e.UserIP.String()),
 		zap.String("verification_token", e.VerificationToken),
+		zap.String("verification_url", e.VerificationURL),
 		zap.Int64("license_id", e.LicenseID),
-		zap.String("to_email", e.ToEmail),
+		zap.String("to_email", e.To),
 		zap.String("state", string(e.State)),
 		zap.Time("scheduled_at", e.ScheduledAt),
 		zap.Int("send_cnt", e.SendCnt),
@@ -143,6 +149,7 @@ const (
 // License represents a license record
 type License struct {
 	ID         int64
+	UserID     int64
 	Email      string
 	HostID     string
 	InstanceID string
@@ -152,6 +159,28 @@ type License struct {
 	State      LicenseState
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+type VerificationStatus int
+
+const (
+	EmailNotFound VerificationStatus = iota
+	EmailVerified
+	EmailAlreadyVerified
+)
+
+// String provides human-readable descriptions of verification statuses
+func (s VerificationStatus) String() string {
+	switch s {
+	case EmailNotFound:
+		return "email not found"
+	case EmailVerified:
+		return "email verified"
+	case EmailAlreadyVerified:
+		return "email already verified"
+	default:
+		return "unknown status"
+	}
 }
 
 // Tx represents a database transaction
@@ -169,14 +198,18 @@ type Store interface {
 	CreateUser(ctx context.Context, tx Tx, user *User) error
 	UpdateUser(ctx context.Context, tx Tx, user *User) error
 	DeleteUser(ctx context.Context, tx Tx, id int64) error
-	GetUserByEmail(ctx context.Context, tx Tx, email string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	GetUserByEmailTx(ctx context.Context, tx Tx, email string) (*User, error)
+	MarkUserAsVerified(ctx context.Context, tx Tx, id int64) error
 
 	// UserIP operations
 	CreateUserIP(ctx context.Context, tx Tx, userIP *UserIP) error
 	DeleteUserIP(ctx context.Context, tx Tx, ipAddr net.IP, userID int64) error
-	GetUserIPsByUserID(ctx context.Context, tx Tx, userID int64) ([]*UserIP, error)
+	//GetIPsByUserID(ctx context.Context, tx Tx, userID int64) ([]*UserIP, error)
 	GetUserIDsByIPAddr(ctx context.Context, tx Tx, ipAddr net.IP) ([]int64, error)
-	BlockUserAndIP(ctx context.Context, tx Tx, ipAddr net.IP, userID int64) error
+	GetUserIPsByUserID(ctx context.Context, tx Tx, userID int64) ([]*UserIP, error)
+	BlockUserIP(ctx context.Context, tx Tx, ipAddr net.IP, userID int64) error
+	IsIPBlocked(ctx context.Context, ipAddr net.IP) (bool, error)
 
 	// Email operations
 	CreateEmail(ctx context.Context, tx Tx, email *Email) error
@@ -184,9 +217,11 @@ type Store interface {
 	DeleteEmail(ctx context.Context, tx Tx, id int64) error
 	DeleteAllEmails(ctx context.Context, tx Tx) error
 	GetEmailByID(ctx context.Context, tx Tx, id int64) (*Email, error)
+	GetEmailByVerificationToken(ctx context.Context, tx Tx, token string) (*Email, error)
 	GetScheduledEmailCnt(ctx context.Context, tx Tx) (int64, error)
 	GetScheduledEmailBatch(ctx context.Context, tx Tx, batchSize int) ([]*Email, error)
 	MarkEmailAsSent(ctx context.Context, tx Tx, email *Email) error
+	MarkEmailAsVerified(ctx context.Context, tx Tx, token string) (VerificationStatus, error)
 	MarkEmailAsFailed(ctx context.Context, tx Tx, id int64, errorMsg string) error
 
 	// License operations
@@ -194,5 +229,8 @@ type Store interface {
 	UpdateLicense(ctx context.Context, tx Tx, license *License) error
 	DeleteLicense(ctx context.Context, tx Tx, id int64) error
 	GetLicensesByEmail(ctx context.Context, tx Tx, email string) ([]*License, error)
+	GetLicenseCntByUserID(ctx context.Context, tx Tx, userID int64) (int64, error)
 	GetLicenseByInstanceID(ctx context.Context, tx Tx, instanceID string) (*License, error)
+	GetLicenseByID(ctx context.Context, tx Tx, id int64) (*License, error)
+	SetLicenseState(ctx context.Context, tx Tx, id int64, state LicenseState) error
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/testutil"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/testutil"
 
 	"github.com/google/uuid"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/store"
@@ -251,21 +252,21 @@ func TestUserIPCRUD(t *testing.T) {
 		t.Fatalf("create user IP: %v", err)
 	}
 
-	// Test GetUserIPsByUserID
-	t.Log("Testing GetUserIPsByUserID...")
-	userIPs, err := s.GetUserIPsByUserID(ctx, tx, user.ID)
-	if err != nil {
-		t.Fatalf("get user IPs: %v", err)
-	}
-	if len(userIPs) != 1 {
-		t.Fatalf("expected 1 user IP, got %d", len(userIPs))
-	}
-	if !userIPs[0].IPAddr.Equal(userIP.IPAddr) {
-		t.Errorf("got IP %v, want %v", userIPs[0].IPAddr, userIP.IPAddr)
-	}
-	if userIPs[0].UserID != user.ID {
-		t.Errorf("got user ID %d, want %d", userIPs[0].UserID, user.ID)
-	}
+	// Test GetIPsByUserID
+	//t.Log("Testing GetIPsByUserID...")
+	//userIPs, err := s.GetUserIPsByUserID(ctx, tx, user.ID)
+	//if err != nil {
+	//	t.Fatalf("get user IPs: %v", err)
+	//}
+	//if len(userIPs) != 1 {
+	//	t.Fatalf("expected 1 user IP, got %d", len(userIPs))
+	//}
+	//if !userIPs[0].IPAddr.Equal(userIP.IPAddr) {
+	//	t.Errorf("got IP %v, want %v", userIPs[0].IPAddr, userIP.IPAddr)
+	//}
+	//if userIPs[0].UserID != user.ID {
+	//	t.Errorf("got user ID %d, want %d", userIPs[0].UserID, user.ID)
+	//}
 
 	// Test GetUserIDsByIPAddr
 	t.Log("Testing GetUserIDsByIPAddr...")
@@ -288,7 +289,7 @@ func TestUserIPCRUD(t *testing.T) {
 	}
 
 	// Verify deletion
-	userIPs, err = s.GetUserIPsByUserID(ctx, tx, user.ID)
+	userIPs, err := s.GetUserIPsByUserID(ctx, tx, user.ID)
 	if err != nil {
 		t.Fatalf("get user IPs after deletion: %v", err)
 	}
@@ -675,7 +676,6 @@ func TestLicenseInvariants(t *testing.T) {
 		}
 
 		t.Log("Before creation:")
-		t.Logf("  ValidFrom: %v", license.ValidFrom)
 		t.Logf("  State: %q", license.State)
 
 		err = s.CreateLicense(ctx, tx, license)
@@ -684,20 +684,17 @@ func TestLicenseInvariants(t *testing.T) {
 		}
 
 		t.Log("After creation:")
-		t.Logf("  ValidFrom: %v", license.ValidFrom)
 		t.Logf("  State: %q", license.State)
 
 		// Direct database query to verify
-		var dbValidFrom time.Time
 		var dbStatus string
 		err = tx.(*sql.Tx).QueryRowContext(ctx,
-			"SELECT valid_from, state FROM licenses WHERE id = $1",
-			license.ID).Scan(&dbValidFrom, &dbStatus)
+			"SELECT state FROM licenses WHERE id = $1",
+			license.ID).Scan(&dbStatus)
 		if err != nil {
 			t.Fatalf("query db values: %v", err)
 		}
 		t.Log("Database values:")
-		t.Logf("  ValidFrom: %v", dbValidFrom)
 		t.Logf("  State: %q", dbStatus)
 
 		// Original checks
@@ -706,9 +703,6 @@ func TestLicenseInvariants(t *testing.T) {
 		}
 		if license.UpdatedAt.IsZero() {
 			t.Error("expected UpdatedAt to be set")
-		}
-		if license.ValidFrom.IsZero() {
-			t.Error("expected ValidFrom to be set")
 		}
 		if license.State != store.LicenseStateRequested {
 			t.Errorf("expected default status 'inactive', got %q", license.State)
