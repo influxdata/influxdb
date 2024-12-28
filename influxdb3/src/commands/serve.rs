@@ -3,7 +3,7 @@
 use anyhow::{bail, Context};
 use clap_blocks::{
     memory_size::MemorySize,
-    object_store::{make_object_store, ObjectStoreConfig, ObjectStoreType},
+    object_store::{ObjectStoreConfig, ObjectStoreType},
     socket_addr::SocketAddr,
 };
 use datafusion_util::config::register_iox_object_store;
@@ -15,7 +15,7 @@ use influxdb3_cache::{
     meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_clap_blocks::tokio::TokioDatafusionConfig;
+use influxdb3_clap_blocks::{datafusion::IoxQueryDatafusionConfig, tokio::TokioDatafusionConfig};
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
@@ -58,8 +58,8 @@ use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::time::Duration;
-use std::{collections::HashMap, path::Path, str::FromStr};
 use std::{num::NonZeroUsize, sync::Arc};
+use std::{path::Path, str::FromStr};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -150,6 +150,10 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) tokio_datafusion_config: TokioDatafusionConfig,
 
+    /// iox_query extended DataFusion config
+    #[clap(flatten)]
+    pub(crate) iox_query_datafusion_config: IoxQueryDatafusionConfig,
+
     /// Maximum size of HTTP requests.
     #[clap(
     long = "max-http-request-size",
@@ -189,16 +193,6 @@ pub struct Config {
     action
     )]
     pub exec_mem_pool_bytes: MemorySize,
-
-    /// DataFusion config.
-    #[clap(
-    long = "datafusion-config",
-    env = "INFLUXDB_IOX_DATAFUSION_CONFIG",
-    default_value = "",
-    value_parser = parse_datafusion_config,
-    action
-    )]
-    pub datafusion_config: HashMap<String, String>,
 
     /// bearer token to be set for requests
     #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
@@ -427,8 +421,10 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
-    let object_store: Arc<dyn ObjectStore> =
-        make_object_store(&config.object_store_config).map_err(Error::ObjectStoreParsing)?;
+    let object_store: Arc<dyn ObjectStore> = config
+        .object_store_config
+        .make_object_store()
+        .map_err(Error::ObjectStoreParsing)?;
 
     let (object_store, parquet_cache) = if !config.disable_parquet_mem_cache {
         let (object_store, parquet_cache) = create_cached_obj_store_and_oracle(
@@ -700,7 +696,7 @@ pub async fn command(config: Config) -> Result<()> {
                 CompactionSysTableQueryExecutorArgs {
                     exec: Arc::clone(&exec),
                     metrics: Arc::clone(&metrics),
-                    datafusion_config: Arc::new(config.datafusion_config),
+                    datafusion_config: Arc::new(config.iox_query_datafusion_config.build()),
                     query_log_size: config.query_log_size,
                     telemetry_store: Arc::clone(&telemetry_store),
                     sys_events_store: Arc::clone(&sys_events_store),
@@ -712,7 +708,7 @@ pub async fn command(config: Config) -> Result<()> {
                 write_buffer: Arc::clone(&write_buffer),
                 exec: Arc::clone(&exec),
                 metrics: Arc::clone(&metrics),
-                datafusion_config: Arc::new(config.datafusion_config),
+                datafusion_config: Arc::new(config.iox_query_datafusion_config.build()),
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
                 compacted_data: sys_table_compacted_data,
@@ -801,35 +797,4 @@ async fn setup_telemetry_store(
         telemetry_endpoint,
     )
     .await
-}
-
-fn parse_datafusion_config(
-    s: &str,
-) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Ok(HashMap::with_capacity(0));
-    }
-
-    let mut out = HashMap::new();
-    for part in s.split(',') {
-        let kv = part.trim().splitn(2, ':').collect::<Vec<_>>();
-        match kv.as_slice() {
-            [key, value] => {
-                let key_owned = key.trim().to_owned();
-                let value_owned = value.trim().to_owned();
-                let existed = out.insert(key_owned, value_owned).is_some();
-                if existed {
-                    return Err(format!("key '{key}' passed multiple times").into());
-                }
-            }
-            _ => {
-                return Err(
-                    format!("Invalid key value pair - expected 'KEY:VALUE' got '{s}'").into(),
-                );
-            }
-        }
-    }
-
-    Ok(out)
 }
