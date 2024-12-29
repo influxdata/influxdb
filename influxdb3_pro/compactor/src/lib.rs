@@ -62,6 +62,7 @@ use parquet::errors::ParquetError;
 use parquet_file::storage::ParquetExecInput;
 use schema::sort::SortKey;
 use schema::Schema;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::mem;
@@ -136,6 +137,7 @@ pub struct CompactFilesArgs {
     pub object_store_url: ObjectStoreUrl,
     pub exec: Arc<Executor>,
     pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pub datafusion_config: Arc<HashMap<String, String>>,
 }
 
 /// Compact `paths` together into one or more parquet files
@@ -154,6 +156,7 @@ pub async fn compact_files(
         object_store_url,
         exec,
         parquet_cache_prefetcher,
+        datafusion_config,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
     let dedupe_key: Vec<_> = table_def.schema.primary_key();
@@ -166,6 +169,7 @@ pub async fn compact_files(
         Arc::clone(&object_store),
         object_store_url,
         exec,
+        datafusion_config,
     )
     .await?;
 
@@ -200,6 +204,7 @@ async fn record_stream(
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
+    datafusion_config: Arc<HashMap<String, String>>,
 ) -> Result<SendableRecordBatchStream, CompactorError> {
     // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
     // This is a concept for IOx and the query planner can be clever about deduping data if data
@@ -255,8 +260,14 @@ async fn record_stream(
             sort_key,
         )
         .map_err(CompactorError::ReorgError)?;
-    exec.new_context()
-        .inner()
+    let ctx = {
+        let mut cfg = exec.new_session_config();
+        for (k, v) in datafusion_config.iter() {
+            cfg = cfg.with_config_option(k, v);
+        }
+        cfg.build()
+    };
+    ctx.inner()
         .execute_logical_plan(plan)
         .await
         .map_err(CompactorError::FailedLogicalPlan)?

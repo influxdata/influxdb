@@ -36,6 +36,7 @@ use influxdb3_write::PersistedSnapshot;
 use iox_query::exec::Executor;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
+use std::collections::HashMap as StdHashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +68,7 @@ pub struct CompactedDataProducer {
     pub object_store_url: ObjectStoreUrl,
     pub executor: Arc<Executor>,
     pub pro_config: Arc<tokio::sync::RwLock<ProConfig>>,
+    pub datafusion_config: Arc<StdHashMap<String, String>>,
     pub compacted_data: Arc<CompactedData>,
     parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
 
@@ -89,18 +91,34 @@ impl Debug for CompactedDataProducer {
     }
 }
 
+#[derive(Debug)]
+pub struct CompactedDataProducerArgs {
+    pub compactor_id: Arc<str>,
+    pub hosts: Vec<String>,
+    pub compaction_config: CompactionConfig,
+    pub pro_config: Arc<tokio::sync::RwLock<ProConfig>>,
+    pub datafusion_config: Arc<StdHashMap<String, String>>,
+    pub object_store: Arc<dyn ObjectStore>,
+    pub object_store_url: ObjectStoreUrl,
+    pub executor: Arc<Executor>,
+    pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pub sys_events_store: Arc<dyn CompactionEventStore>,
+}
+
 impl CompactedDataProducer {
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        compactor_id: Arc<str>,
-        hosts: Vec<String>,
-        compaction_config: CompactionConfig,
-        pro_config: Arc<tokio::sync::RwLock<ProConfig>>,
-        object_store: Arc<dyn ObjectStore>,
-        object_store_url: ObjectStoreUrl,
-        executor: Arc<Executor>,
-        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
-        sys_events_store: Arc<dyn CompactionEventStore>,
+        CompactedDataProducerArgs {
+            compactor_id,
+            hosts,
+            compaction_config,
+            pro_config,
+            datafusion_config,
+            object_store,
+            object_store_url,
+            executor,
+            parquet_cache_prefetcher,
+            sys_events_store,
+        }: CompactedDataProducerArgs,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
             Arc::clone(&compactor_id),
@@ -127,6 +145,7 @@ impl CompactedDataProducer {
             compacted_data: Arc::new(compacted_data),
             compaction_state: tokio::sync::Mutex::new(compaction_state),
             sys_events_store,
+            datafusion_config,
         })
     }
 
@@ -425,6 +444,7 @@ impl CompactedDataProducer {
             object_store_url: self.object_store_url.clone(),
             exec: Arc::clone(&self.executor),
             parquet_cache_prefetcher: self.parquet_cache_prefetcher.clone(),
+            datafusion_config: Arc::clone(&self.datafusion_config),
         };
 
         // TODO: if this fails, instead write a compaction detail with all the L1 files added to it
@@ -944,7 +964,6 @@ mod tests {
     use influxdb3_pro_data_layout::{CompactionDetailPath, Generation, GenerationDetailPath};
     use object_store::path::Path;
     use object_store::ObjectStore;
-    use tokio::sync::RwLock;
 
     #[tokio::test]
     async fn test_run_compaction() {
@@ -986,17 +1005,18 @@ mod tests {
             &time_provider,
         )));
 
-        let compactor = CompactedDataProducer::new(
-            "compactor-1".into(),
-            vec![host_id.into()],
-            CompactionConfig::default(),
-            Arc::new(RwLock::new(ProConfig::default())),
-            Arc::clone(&object_store),
-            writer.persister.object_store_url().clone(),
-            Arc::clone(&writer.exec),
-            None,
+        let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
+            compactor_id: "compactor-1".into(),
+            hosts: vec![host_id.into()],
+            compaction_config: CompactionConfig::default(),
+            pro_config: Default::default(),
+            datafusion_config: Default::default(),
+            object_store: Arc::clone(&object_store),
+            object_store_url: writer.persister.object_store_url().clone(),
+            executor: Arc::clone(&writer.exec),
+            parquet_cache_prefetcher: None,
             sys_events_store,
-        )
+        })
         .await
         .unwrap();
 
@@ -1198,17 +1218,18 @@ mod tests {
 
         let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
 
-        let compactor = CompactedDataProducer::new(
-            "compactor-1".into(),
-            vec![host_id.into()],
+        let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
+            compactor_id: "compactor-1".into(),
+            hosts: vec![host_id.into()],
             compaction_config,
-            Arc::new(RwLock::new(ProConfig::default())),
-            Arc::clone(&object_store),
-            writer.persister.object_store_url().clone(),
-            Arc::clone(&writer.exec),
-            None,
-            Arc::clone(&sys_events_store),
-        )
+            pro_config: Default::default(),
+            datafusion_config: Default::default(),
+            object_store: Arc::clone(&object_store),
+            object_store_url: writer.persister.object_store_url().clone(),
+            executor: Arc::clone(&writer.exec),
+            parquet_cache_prefetcher: None,
+            sys_events_store: Arc::clone(&sys_events_store),
+        })
         .await
         .unwrap();
 

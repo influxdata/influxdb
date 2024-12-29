@@ -146,6 +146,7 @@ async fn five_files_multiple_series_same_schema() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput {
         output_paths,
@@ -361,6 +362,7 @@ async fn two_files_two_series_and_same_schema() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput {
         output_paths,
@@ -519,6 +521,7 @@ async fn two_files_same_series_and_schema() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput {
         output_paths,
@@ -685,6 +688,7 @@ async fn two_files_similar_series_and_compatible_schema() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput {
         output_paths,
@@ -844,6 +848,7 @@ async fn deduplication_of_data() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput {
         output_paths,
@@ -997,6 +1002,7 @@ async fn compactor_casting() {
         object_store_url: persister.object_store_url().clone(),
         exec: make_exec(Arc::clone(&obj_store) as Arc<dyn ObjectStore>),
         parquet_cache_prefetcher,
+        datafusion_config: Default::default(),
     };
     let CompactorOutput { file_index, .. } = compact_files(args).await.unwrap();
 
