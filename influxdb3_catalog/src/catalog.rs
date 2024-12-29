@@ -823,6 +823,7 @@ pub struct TableDefinition {
     pub columns: IndexMap<ColumnId, ColumnDefinition>,
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Vec<ColumnId>,
+    pub series_key_names: Vec<Arc<str>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
     pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
     pub deleted: bool,
@@ -862,12 +863,18 @@ impl TableDefinition {
             );
             column_map.insert(*col_id, name.into());
         }
-        schema_builder.with_series_key(series_key.clone().into_iter().map(|id| {
-            column_map
-                .get_by_left(&id)
-                // NOTE: should this be an error instead of panic?
-                .expect("invalid column id in series key definition")
-        }));
+        let series_key_names = series_key
+            .clone()
+            .into_iter()
+            .map(|id| {
+                column_map
+                    .get_by_left(&id)
+                    .cloned()
+                    // NOTE: should this be an error instead of panic?
+                    .expect("invalid column id in series key definition")
+            })
+            .collect::<Vec<Arc<str>>>();
+        schema_builder.with_series_key(&series_key_names);
         let schema = schema_builder.build().expect("schema should be valid");
 
         Ok(Self {
@@ -877,6 +884,7 @@ impl TableDefinition {
             columns,
             column_map,
             series_key,
+            series_key_names,
             last_caches: HashMap::new(),
             meta_caches: HashMap::new(),
             deleted: false,
@@ -1103,11 +1111,12 @@ impl TableDefinition {
             .and_then(|id| self.columns.get(id).map(|def| (*id, def)))
     }
 
-    pub fn series_key(&self) -> Vec<String> {
-        self.series_key
-            .iter()
-            .map(|k| self.column_id_to_name_unchecked(k).to_string())
-            .collect()
+    pub fn series_key_ids(&self) -> &[ColumnId] {
+        &self.series_key
+    }
+
+    pub fn series_key_names(&self) -> &[Arc<str>] {
+        &self.series_key_names
     }
 }
 
