@@ -302,9 +302,11 @@ impl WriteBufferImpl {
         // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
 
-        // record metrics for lines written and bytes written, for valid lines
+        // record metrics for lines written, rejected, and bytes written
         self.metrics
             .record_lines(&db_name, result.line_count as u64);
+        self.metrics
+            .record_lines_rejected(&db_name, result.errors.len() as u64);
         self.metrics
             .record_bytes(&db_name, result.valid_bytes_count);
 
@@ -1002,7 +1004,9 @@ mod tests {
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, U64Counter};
-    use metrics::{WRITE_BYTES_TOTAL_NAME, WRITE_LINES_TOTAL_NAME};
+    use metrics::{
+        WRITE_BYTES_METRIC_NAME, WRITE_LINES_METRIC_NAME, WRITE_LINES_REJECTED_METRIC_NAME,
+    };
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
@@ -2387,7 +2391,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn write_metrics() {
         let object_store = Arc::new(InMemory::new());
         let (buf, metrics) = setup_with_metrics(
@@ -2397,10 +2401,13 @@ mod tests {
         )
         .await;
         let lines_observer = metrics
-            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_TOTAL_NAME)
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_METRIC_NAME)
+            .unwrap();
+        let lines_rejected_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_REJECTED_METRIC_NAME)
             .unwrap();
         let bytes_observer = metrics
-            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_TOTAL_NAME)
+            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_METRIC_NAME)
             .unwrap();
 
         let db_1 = "foo";
@@ -2424,6 +2431,13 @@ mod tests {
         assert_eq!(
             3,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            0,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_1)]))
                 .unwrap()
                 .fetch()
@@ -2455,6 +2469,13 @@ mod tests {
         assert_eq!(
             6,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            0,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_1)]))
                 .unwrap()
                 .fetch()
@@ -2491,6 +2512,13 @@ mod tests {
         assert_eq!(
             3,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            1,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_2)]))
                 .unwrap()
                 .fetch()
