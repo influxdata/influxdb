@@ -348,7 +348,6 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 		if err != nil {
 			e.Logger.Error("failed to watch log file", zap.Error(err))
 			closeQueryLogWriter(file, e)
-
 			return
 		}
 		defer watcher.Close()
@@ -359,7 +358,6 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 				if !ok {
 					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
 					closeQueryLogWriter(file, e)
-
 					return
 				}
 				e.Logger.Debug("event", zap.String("event", event.Name))
