@@ -66,6 +66,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -511,19 +512,15 @@ func (d *directIndex) Size() uint32 {
 }
 
 func (d *directIndex) Close() error {
+	errs := make([]error, 0, 3)
 	// Flush anything remaining in the index
-	if err := d.w.Flush(); err != nil {
-		return err
+	errs = append(errs, d.w.Flush())
+	if d.fd != nil {
+		// Close and remove the temporary index file
+		errs = append(errs, d.fd.Close())
+		errs = append(errs, os.Remove(d.fd.Name()))
 	}
-
-	if d.fd == nil {
-		return nil
-	}
-
-	if err := d.fd.Close(); err != nil {
-		return err
-	}
-	return os.Remove(d.fd.Name())
+	return errors.Join(errs...)
 }
 
 // Remove removes the index from any tempory storage
@@ -532,11 +529,14 @@ func (d *directIndex) Remove() error {
 		return nil
 	}
 
-	// Close the file handle to prevent leaking.  We ignore the error because
-	// we just want to cleanup and remove the file.
-	_ = d.fd.Close()
-
-	return os.Remove(d.fd.Name())
+	errs := make([]error, 0, 2)
+	// Close the file handle to prevent leaking.
+	// We don't let an error stop the removal.
+	if err := d.fd.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+		errs = append(errs, err)
+	}
+	errs = append(errs, os.Remove(d.fd.Name()))
+	return errors.Join(errs...)
 }
 
 // tsmWriter writes keys and values in the TSM format
@@ -756,25 +756,19 @@ func (t *tsmWriter) sync() error {
 }
 
 func (t *tsmWriter) Close() error {
-	if err := t.Flush(); err != nil {
-		return err
-	}
-
-	if err := t.index.Close(); err != nil {
-		return err
-	}
-
+	errs := make([]error, 0, 3)
+	errs = append(errs, t.Flush())
+	errs = append(errs, t.index.Close())
 	if c, ok := t.wrapped.(io.Closer); ok {
-		return c.Close()
+		errs = append(errs, c.Close())
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Remove removes any temporary storage used by the writer.
 func (t *tsmWriter) Remove() error {
-	if err := t.index.Remove(); err != nil {
-		return err
-	}
+	errs := make([]error, 0, 3)
+	errs = append(errs, t.index.Remove())
 
 	// nameCloser is the most permissive interface we can close the wrapped
 	// value with.
@@ -783,14 +777,16 @@ func (t *tsmWriter) Remove() error {
 		Name() string
 	}
 
+	// If the writer is not a memory buffer, we can remove the file.
 	if f, ok := t.wrapped.(nameCloser); ok {
-		// Close the file handle to prevent leaking.  We ignore the error because
-		// we just want to cleanup and remove the file.
-		_ = f.Close()
-
-		return os.Remove(f.Name())
+		// Close the file handle to prevent leaking.
+		if err := f.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			errs = append(errs, err)
+		}
+		// Remove the file
+		errs = append(errs, os.Remove(f.Name()))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (t *tsmWriter) Size() uint32 {

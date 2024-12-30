@@ -1064,7 +1064,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 
 		// We've hit the max file limit and there is more to write.  Create a new file
 		// and continue.
-		if err == errMaxFileExceeded || err == ErrMaxBlocksExceeded {
+		if errors.Is(err, errMaxFileExceeded) || errors.Is(err, ErrMaxBlocksExceeded) {
 			files = append(files, fileName)
 			logger.Debug("file size or block count exceeded, opening another output file", zap.String("output_file", fileName))
 			continue
@@ -1128,33 +1128,34 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 	// in memory.
 	if iter.EstimatedIndexSize() > 64*1024*1024 {
 		w, err = NewTSMWriterWithDiskBuffer(limitWriter)
-		if err != nil {
-			return err
-		}
 	} else {
 		w, err = NewTSMWriter(limitWriter)
-		if err != nil {
-			return err
-		}
 	}
-
+	if err != nil {
+		// Close the file and return if we can't create the TSMWriter
+		return errors.Join(err, fd.Close())
+	}
 	defer func() {
+		errs := make([]error, 0, 2)
+		errs = append(errs, err)
 		closeErr := w.Close()
 		if err == nil {
+			// Save closeErr as err for later checks
 			err = closeErr
 		}
+		errs = append(errs, closeErr)
 
 		// Check for errors where we should not remove the file
 		_, inProgress := err.(errCompactionInProgress)
-		maxBlocks := err == ErrMaxBlocksExceeded
-		maxFileSize := err == errMaxFileExceeded
+		maxBlocks := errors.Is(err, ErrMaxBlocksExceeded)
+		maxFileSize := errors.Is(err, errMaxFileExceeded)
 		if inProgress || maxBlocks || maxFileSize {
+			err = errors.Join(errs...)
 			return
+		} else if err != nil {
+			errs = append(errs, w.Remove())
 		}
-
-		if err != nil {
-			_ = w.Remove()
-		}
+		err = errors.Join(errs...)
 	}()
 
 	lastLogSize := w.Size()
