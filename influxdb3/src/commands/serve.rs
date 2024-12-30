@@ -567,7 +567,11 @@ pub async fn command(config: Config) -> Result<()> {
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
-                parquet_cache_prefetcher,
+                parquet_cache_prefetcher: if config.pro_config.mode.is_compactor() {
+                    None
+                } else {
+                    parquet_cache_prefetcher
+                },
                 sys_events_store: Arc::clone(&compaction_event_store),
             })
             .await?;
