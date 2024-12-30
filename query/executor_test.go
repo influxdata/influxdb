@@ -625,6 +625,98 @@ func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 	require.True(t, cont, "expected query output")
 }
 
+// Test to ensure that watcher creates new file on file rename
+func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
+	fileName := "test.log"
+
+	defer func() {
+		os.Remove(fileName)
+	}()
+
+	f, err := os.Create(fileName)
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
+	e := NewQueryExecutor()
+	e.WithLogWriter(e.Logger, fileName)
+
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err)
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+
+	dat, err := os.ReadFile(fileName)
+	require.NoError(t, err, "read file")
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
+
+	time.Sleep(100 * time.Millisecond)
+
+	err = os.Remove(fileName)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, err = os.Stat(fileName)
+	require.NoError(t, err)
+
+	dat, err = os.ReadFile(fileName)
+	require.NoError(t, err, "read file")
+	require.True(t, cont, "expected query output")
+}
+
+// Test to ensure that watcher creates new file on file rename
+func TestQueryExecutor_WriteQueryToLog_WatcherRenameFile(t *testing.T) {
+	fileName := "test.log"
+	newFileName := "foo.log"
+
+	defer func() {
+		os.Remove(fileName)
+		os.Remove(newFileName)
+	}()
+
+	f, err := os.Create(fileName)
+	require.NoError(t, err)
+	require.NotNil(t, f)
+
+	e := NewQueryExecutor()
+	e.WithLogWriter(e.Logger, fileName)
+
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err)
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+
+	dat, err := os.ReadFile(fileName)
+	require.NoError(t, err, "read file")
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
+
+	time.Sleep(100 * time.Millisecond)
+
+	err = os.Rename(fileName, newFileName)
+	require.NoError(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, err = os.Stat(fileName)
+	require.NoError(t, err)
+
+	dat, err = os.ReadFile(fileName)
+	require.NoError(t, err, "read file")
+	require.True(t, cont, "expected query output")
+}
+
 func discardOutput(results <-chan *query.Result) {
 	for range results {
 		// Read all results and discard.

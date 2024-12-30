@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -292,7 +293,7 @@ func (e *Executor) WithLogger(log *zap.Logger) {
 }
 
 func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, error) {
-	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		e.Logger.Error("failed to open log file", zap.Error(err))
 		return nil, err
@@ -315,12 +316,12 @@ func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, er
 	return logFile, nil
 }
 
-func closeQueryLogWriter(file *os.File, e *Executor) {
-	if err := file.Sync(); err != nil {
+func closeQueryLogWriter(fd uintptr, e *Executor) {
+	// Uses the file descriptor pointer since we can remove or rename files
+	if err := syscall.Fsync(int(fd)); err != nil {
 		e.Logger.Error("failed to sync log file", zap.Error(err))
-		return
 	}
-	if err := file.Close(); err != nil {
+	if err := syscall.Close(int(fd)); err != nil {
 		e.Logger.Error("failed to close log file", zap.Error(err))
 		return
 	}
@@ -340,14 +341,14 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
 			e.Logger.Error("failed to create log file watcher", zap.Error(err))
-			closeQueryLogWriter(file, e)
+			closeQueryLogWriter(file.Fd(), e)
 			return
 		}
 
 		err = watcher.Add(path)
 		if err != nil {
 			e.Logger.Error("failed to watch log file", zap.Error(err))
-			closeQueryLogWriter(file, e)
+			closeQueryLogWriter(file.Fd(), e)
 			return
 		}
 		defer watcher.Close()
@@ -357,17 +358,24 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 			case event, ok := <-watcher.Events:
 				if !ok {
 					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
-					closeQueryLogWriter(file, e)
+					closeQueryLogWriter(file.Fd(), e)
 					return
 				}
 				e.Logger.Debug("event", zap.String("event", event.Name))
 				if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
-					closeQueryLogWriter(file, e)
-
-					e.Logger.Debug("creating a new query log file; registered file was altered.", zap.String("event", event.Name), zap.String("path", path))
+					err = watcher.Remove(path)
+					e.Logger.Info("creating a new query log file; registered file was altered.", zap.String("event", event.Name), zap.String("path", path))
+					closeQueryLogWriter(file.Fd(), e)
 					file, err = initQueryLogWriter(log, e, path)
 					if err != nil {
 						e.Logger.Error("failed to create log file watcher", zap.Error(err))
+						return
+					}
+
+					err = watcher.Add(file.Name())
+					if err != nil {
+						e.Logger.Error("failed to watch log file", zap.Error(err))
+						closeQueryLogWriter(file.Fd(), e)
 						return
 					}
 				}
