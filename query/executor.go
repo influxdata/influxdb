@@ -329,12 +329,30 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
 			e.Logger.Error("failed to create log file watcher", zap.Error(err))
+			if err := file.Sync(); err != nil {
+				e.Logger.Error("failed to sync log file", zap.Error(err))
+				return
+			}
+			if err := file.Close(); err != nil {
+				e.Logger.Error("failed to close log file", zap.Error(err))
+				return
+			}
+
 			return
 		}
 
 		err = watcher.Add(path)
 		if err != nil {
 			e.Logger.Error("failed to watch log file", zap.Error(err))
+			if err := file.Sync(); err != nil {
+				e.Logger.Error("failed to sync log file", zap.Error(err))
+				return
+			}
+			if err := file.Close(); err != nil {
+				e.Logger.Error("failed to close log file", zap.Error(err))
+				return
+			}
+
 			return
 		}
 		defer watcher.Close()
@@ -344,6 +362,15 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 			case event, ok := <-watcher.Events:
 				if !ok {
 					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
+					if err := file.Sync(); err != nil {
+						e.Logger.Error("failed to sync log file", zap.Error(err))
+						return
+					}
+					if err := file.Close(); err != nil {
+						e.Logger.Error("failed to close log file", zap.Error(err))
+						return
+					}
+
 					return
 				}
 				e.Logger.Debug("event", zap.String("event", event.Name))
