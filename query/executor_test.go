@@ -3,6 +3,8 @@ package query_test
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -593,6 +595,34 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 			t.Errorf("%d. unexpected error: %s", i, result.Err)
 		}
 	}
+}
+
+func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err, "parse query")
+
+	f, err := os.CreateTemp("", "query-test.log")
+	require.NoError(t, err, "create temp file")
+
+	defer os.Remove(f.Name())
+
+	e := NewQueryExecutor()
+	e.WithLogWriter(e.Logger, f.Name())
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+	err = f.Close()
+	require.NoError(t, err, "close temp file")
+
+	dat, err := os.ReadFile(f.Name())
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
 }
 
 func discardOutput(results <-chan *query.Result) {

@@ -11,6 +11,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/mock v1.5.0

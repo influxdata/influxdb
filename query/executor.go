@@ -11,9 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -287,6 +289,84 @@ func (e *Executor) Close() error {
 func (e *Executor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
+}
+
+func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, error) {
+	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		e.Logger.Error("failed to open log file", zap.Error(err))
+		return nil, err
+	}
+
+	existingCore := log.Core()
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+
+	fileCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.Lock(logFile),
+		zapcore.InfoLevel,
+	)
+
+	newCore := zapcore.NewTee(existingCore, fileCore)
+	e.Logger = zap.New(newCore)
+	e.TaskManager.Logger = e.Logger
+
+	return logFile, nil
+}
+
+func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
+	var file *os.File
+	var err error
+
+	file, err = initQueryLogWriter(log, e, path)
+	if err != nil {
+		e.Logger.Error("failed to open log file", zap.Error(err))
+		return
+	}
+
+	go func() {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			e.Logger.Error("failed to create log file watcher", zap.Error(err))
+			return
+		}
+
+		err = watcher.Add(path)
+		if err != nil {
+			e.Logger.Error("failed to watch log file", zap.Error(err))
+			return
+		}
+		defer watcher.Close()
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
+					return
+				}
+				e.Logger.Debug("event", zap.String("event", event.Name))
+				if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
+					if err := file.Sync(); err != nil {
+						e.Logger.Error("failed to sync log file", zap.Error(err))
+						return
+					}
+					if err := file.Close(); err != nil {
+						e.Logger.Error("failed to close log file", zap.Error(err))
+						return
+					}
+
+					e.Logger.Debug("creating a new query log file; registered file was altered.", zap.String("event", event.Name), zap.String("path", path))
+					file, err = initQueryLogWriter(log, e, path)
+					if err != nil {
+						e.Logger.Error("failed to create log file watcher", zap.Error(err))
+						return
+					}
+				}
+			}
+		}
+	}()
 }
 
 // ExecuteQuery executes each statement within a query.
