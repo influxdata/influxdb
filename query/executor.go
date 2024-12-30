@@ -315,6 +315,17 @@ func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, er
 	return logFile, nil
 }
 
+func closeQueryLogWriter(file *os.File, e *Executor) {
+	if err := file.Sync(); err != nil {
+		e.Logger.Error("failed to sync log file", zap.Error(err))
+		return
+	}
+	if err := file.Close(); err != nil {
+		e.Logger.Error("failed to close log file", zap.Error(err))
+		return
+	}
+}
+
 func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 	var file *os.File
 	var err error
@@ -329,29 +340,14 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
 			e.Logger.Error("failed to create log file watcher", zap.Error(err))
-			if err := file.Sync(); err != nil {
-				e.Logger.Error("failed to sync log file", zap.Error(err))
-				return
-			}
-			if err := file.Close(); err != nil {
-				e.Logger.Error("failed to close log file", zap.Error(err))
-				return
-			}
-
+			closeQueryLogWriter(file, e)
 			return
 		}
 
 		err = watcher.Add(path)
 		if err != nil {
 			e.Logger.Error("failed to watch log file", zap.Error(err))
-			if err := file.Sync(); err != nil {
-				e.Logger.Error("failed to sync log file", zap.Error(err))
-				return
-			}
-			if err := file.Close(); err != nil {
-				e.Logger.Error("failed to close log file", zap.Error(err))
-				return
-			}
+			closeQueryLogWriter(file, e)
 
 			return
 		}
@@ -362,27 +358,13 @@ func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
 			case event, ok := <-watcher.Events:
 				if !ok {
 					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
-					if err := file.Sync(); err != nil {
-						e.Logger.Error("failed to sync log file", zap.Error(err))
-						return
-					}
-					if err := file.Close(); err != nil {
-						e.Logger.Error("failed to close log file", zap.Error(err))
-						return
-					}
+					closeQueryLogWriter(file, e)
 
 					return
 				}
 				e.Logger.Debug("event", zap.String("event", event.Name))
 				if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
-					if err := file.Sync(); err != nil {
-						e.Logger.Error("failed to sync log file", zap.Error(err))
-						return
-					}
-					if err := file.Close(); err != nil {
-						e.Logger.Error("failed to close log file", zap.Error(err))
-						return
-					}
+					closeQueryLogWriter(file, e)
 
 					e.Logger.Debug("creating a new query log file; registered file was altered.", zap.String("event", event.Name), zap.String("path", path))
 					file, err = initQueryLogWriter(log, e, path)
