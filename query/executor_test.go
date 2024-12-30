@@ -651,12 +651,12 @@ func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
 	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
 	require.True(t, cont, "expected query output")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	err = os.Remove(f.Name())
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	_, err = os.Stat(f.Name())
 	require.NoError(t, err)
