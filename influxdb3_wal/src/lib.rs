@@ -595,11 +595,6 @@ pub struct DeletePluginDefinition {
     pub plugin_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DeletePlugin {
-    pub plugin_name: String,
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
