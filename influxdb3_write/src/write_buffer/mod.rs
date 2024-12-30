@@ -319,48 +319,6 @@ impl WriteBufferImpl {
         })
     }
 
-    async fn write_lp_v3(
-        &self,
-        db_name: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> Result<BufferedWriteRequest> {
-        // validated lines will update the in-memory catalog, ensuring that all write operations
-        // past this point will be infallible
-        let result = WriteValidator::initialize(
-            db_name.clone(),
-            self.catalog(),
-            ingest_time.timestamp_nanos(),
-        )?
-        .v3_parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
-        .convert_lines_to_buffer(self.wal_config.gen1_duration);
-
-        // if there were catalog updates, ensure they get persisted to the wal, so they're
-        // replayed on restart
-        let mut ops = Vec::with_capacity(2);
-        if let Some(catalog_batch) = result.catalog_updates {
-            ops.push(WalOp::Catalog(catalog_batch));
-        }
-        ops.push(WalOp::Write(result.valid_data));
-
-        // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
-        // whatever the configured wal flush interval is set to) the buffer is flushed and all the
-        // data is persisted into a single wal file in the configured object store. Then the
-        // contents are sent to the configured notifier, which in this case is the queryable buffer.
-        // Thus, after this returns, the data is both durable and queryable.
-        self.wal.write_ops(ops).await?;
-
-        Ok(BufferedWriteRequest {
-            db_name,
-            invalid_lines: result.errors,
-            line_count: result.line_count,
-            field_count: result.field_count,
-            index_count: result.index_count,
-        })
-    }
-
     fn get_table_chunks(
         &self,
         database_name: &str,
@@ -470,18 +428,6 @@ impl Bufferer for WriteBufferImpl {
         precision: Precision,
     ) -> Result<BufferedWriteRequest> {
         self.write_lp(database, lp, ingest_time, accept_partial, precision)
-            .await
-    }
-
-    async fn write_lp_v3(
-        &self,
-        database: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> Result<BufferedWriteRequest> {
-        self.write_lp_v3(database, lp, ingest_time, accept_partial, precision)
             .await
     }
 
