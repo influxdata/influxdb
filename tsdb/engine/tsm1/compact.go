@@ -1068,7 +1068,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			files = append(files, fileName)
 			logger.Debug("file size or block count exceeded, opening another output file", zap.String("output_file", fileName))
 			continue
-		} else if err == ErrNoValues {
+		} else if errors.Is(err, ErrNoValues) {
 			logger.Debug("Dropping empty file", zap.String("output_file", fileName))
 			// If the file only contained tombstoned entries, then it would be a 0 length
 			// file that we can drop.
@@ -1180,7 +1180,7 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 		}
 
 		// Write the key and value
-		if err := w.WriteBlock(key, minTime, maxTime, block); err == ErrMaxBlocksExceeded {
+		if err := w.WriteBlock(key, minTime, maxTime, block); errors.Is(err, ErrMaxBlocksExceeded) {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}
@@ -1189,7 +1189,7 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 			return err
 		}
 
-		// If we have a max file size configured and we're over it, close out the file
+		// If we're over maxTSMFileSize, close out the file
 		// and return the error.
 		if w.Size() > maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
