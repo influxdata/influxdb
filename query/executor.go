@@ -233,6 +233,7 @@ type StatementNormalizer interface {
 
 // WatcherInterface is used for any file watch functionality using fsnotify
 type WatcherInterface interface {
+	New(e *Executor, path string, logger *zap.Logger)
 	FileChangeCapture() error
 	Close()
 }
@@ -251,8 +252,6 @@ type Executor struct {
 
 	// expvar-based stats.
 	stats *Statistics
-
-	watcher WatcherInterface
 
 	mu sync.Mutex
 }
@@ -306,6 +305,7 @@ type fileLogWatcher struct {
 	path     string
 	currFile *os.File
 	logger   *zap.Logger
+	executor *Executor
 }
 
 func newFileLogWatcher(logger *zap.Logger, path string) *fileLogWatcher {
@@ -372,10 +372,10 @@ func (f *fileLogWatcher) Close() {
 	}
 }
 
-func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx context.Context) error {
+func startFileLogWatcher(w WatcherInterface, e *Executor, path string, ctx context.Context) error {
 	fsnotif, err := fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("create watcher: %w", err)
+		return fmt.Errorf("create Watcher: %w", err)
 	}
 	defer fsnotif.Close()
 
@@ -387,13 +387,13 @@ func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx contex
 		select {
 		case event, ok := <-fsnotif.Events:
 			if !ok {
-				return fmt.Errorf("watcher event channel closed")
+				return fmt.Errorf("Watcher event channel closed")
 			}
 
 			f.logger.Debug("received file event", zap.String("event", event.Name))
 
 			if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
-				f.logger.Info("log file altered, creating new watcher",
+				f.logger.Info("log file altered, creating new Watcher",
 					zap.String("event", event.Name),
 					zap.String("path", path))
 
@@ -402,7 +402,6 @@ func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx contex
 				}
 
 				e.mu.Lock()
-				e.watcher = f
 				e.Logger = f.logger
 				e.TaskManager.Logger = e.Logger
 				e.mu.Unlock()
@@ -410,12 +409,12 @@ func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx contex
 
 		case err, ok := <-fsnotif.Errors:
 			if !ok {
-				return fmt.Errorf("watcher error channel closed")
+				return fmt.Errorf("Watcher error channel closed")
 			}
-			return fmt.Errorf("watcher error: %w", err)
+			return fmt.Errorf("Watcher error: %w", err)
 
 		case <-ctx.Done():
-			f.logger.Info("closing file watcher")
+			f.logger.Info("closing file Watcher")
 			return ctx.Err()
 		}
 	}
@@ -423,13 +422,6 @@ func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx contex
 
 func (e *Executor) WithLogWriter(ctx context.Context, log *zap.Logger, path string) {
 	errs, ctx := errgroup.WithContext(ctx)
-	flw := newFileLogWatcher(log, path)
-
-	e.mu.Lock()
-	e.watcher = flw
-	e.Logger = flw.logger
-	e.TaskManager.Logger = e.Logger
-	e.mu.Unlock()
 
 	errs.Go(func() error {
 		return startFileLogWatcher(flw, e, path, ctx)
@@ -438,7 +430,7 @@ func (e *Executor) WithLogWriter(ctx context.Context, log *zap.Logger, path stri
 	go func() {
 		err := errs.Wait()
 		if err != nil {
-			e.Logger.Error("file log watcher error", zap.Error(err))
+			e.Logger.Error("file log Watcher error", zap.Error(err))
 			return
 		}
 	}()

@@ -598,6 +598,20 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 	}
 }
 
+type mockWatcher struct {
+	changeEvents []int
+}
+
+func (m *mockWatcher) FileChangeCapture() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockWatcher) Close() {
+	//TODO implement me
+	panic("implement me")
+}
+
 func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err, "parse query")
@@ -608,6 +622,7 @@ func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	e := NewQueryExecutor()
+	e.Watcher = &mockWatcher{changeEvents: make([]int, 0)}
 	e.WithLogWriter(context.Background(), e.Logger, f.Name())
 
 	e.StatementExecutor = &StatementExecutor{
@@ -626,7 +641,7 @@ func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 	require.True(t, cont, "expected query output")
 }
 
-// Test to ensure that watcher creates new file on file rename
+// Test to ensure that Watcher creates new file on file rename
 func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
 	fileName := "test.log"
 
@@ -667,7 +682,7 @@ func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
 	require.True(t, cont, "expected query output")
 }
 
-// Test to ensure that watcher creates new file on file rename
+// Test to ensure that Watcher creates new file on file rename
 func TestQueryExecutor_WriteQueryToLog_WatcherRenameFile(t *testing.T) {
 	fileName := "test.log"
 
