@@ -124,6 +124,12 @@ pub enum BufferMode {
     Compactor,
 }
 
+impl BufferMode {
+    pub fn is_compactor(&self) -> bool {
+        matches!(self, Self::Compactor)
+    }
+}
+
 impl std::fmt::Display for BufferMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
