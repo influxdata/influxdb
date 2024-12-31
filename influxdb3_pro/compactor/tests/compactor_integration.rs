@@ -10,11 +10,10 @@ use futures::FutureExt;
 use hashbrown::HashMap;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::MetaCacheProvider;
-use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode};
 use influxdb3_pro_buffer::replica::ReplicationConfig;
 use influxdb3_pro_buffer::WriteBufferPro;
-use influxdb3_pro_compactor::producer::CompactedDataProducer;
+use influxdb3_pro_compactor::producer::{CompactedDataProducer, CompactedDataProducerArgs};
 use influxdb3_pro_compactor::{consumer::CompactedDataConsumer, sys_events::CompactionEventStore};
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_sys_events::SysEventStore;
@@ -34,7 +33,6 @@ use pretty_assertions::assert_eq;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 #[ignore = "flakey test as the 208 data point for some reason isn't always there (see comment below)"]
@@ -89,17 +87,18 @@ async fn two_writers_gen1_compaction() {
     let obj_store = Arc::new(InMemory::new());
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
-    let compaction_producer = CompactedDataProducer::new(
+    let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id,
-        vec!["writer1".to_string(), "writer2".to_string()],
+        hosts: vec!["writer1".to_string(), "writer2".to_string()],
         compaction_config,
-        Arc::new(RwLock::new(ProConfig::default())),
-        Arc::clone(&object_store),
-        writer1_persister.object_store_url().clone(),
-        Arc::clone(&exec),
+        pro_config: Default::default(),
+        datafusion_config: Default::default(),
+        object_store,
+        object_store_url: writer1_persister.object_store_url().clone(),
+        executor: Arc::clone(&exec),
         parquet_cache_prefetcher,
-        Arc::clone(&sys_events_store),
-    )
+        sys_events_store: Arc::clone(&sys_events_store),
+    })
     .await
     .unwrap();
 
@@ -266,17 +265,18 @@ async fn compact_consumer_picks_up_latest_summary() {
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
     let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
     let compaction_producer = Arc::new(
-        CompactedDataProducer::new(
-            Arc::clone(&compactor_id),
-            vec!["spock".to_string(), "tuvok".to_string()],
+        CompactedDataProducer::new(CompactedDataProducerArgs {
+            compactor_id: Arc::clone(&compactor_id),
+            hosts: vec!["spock".to_string(), "tuvok".to_string()],
             compaction_config,
-            Arc::new(RwLock::new(ProConfig::default())),
-            Arc::clone(&object_store),
-            persister.object_store_url().clone(),
-            Arc::clone(&exec),
-            None,
-            Arc::clone(&sys_events_store),
-        )
+            pro_config: Default::default(),
+            datafusion_config: Default::default(),
+            object_store: Arc::clone(&object_store),
+            object_store_url: persister.object_store_url().clone(),
+            executor: Arc::clone(&exec),
+            parquet_cache_prefetcher: None,
+            sys_events_store: Arc::clone(&sys_events_store),
+        })
         .await
         .unwrap(),
     );

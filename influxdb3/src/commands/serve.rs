@@ -24,11 +24,13 @@ use influxdb3_pro_buffer::{
     WriteBufferPro,
 };
 use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::consumer::CompactedDataConsumer;
 use influxdb3_pro_compactor::producer::CompactedDataProducer;
 use influxdb3_pro_compactor::{
     compacted_data::{CompactedData, CompactedDataSystemTableView},
     sys_events::CompactionEventStore,
+};
+use influxdb3_pro_compactor::{
+    consumer::CompactedDataConsumer, producer::CompactedDataProducerArgs,
 };
 use influxdb3_pro_data_layout::CompactionConfig;
 use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
@@ -532,6 +534,8 @@ pub async fn command(config: Config) -> Result<()> {
     let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
     let compaction_event_store = Arc::clone(&sys_events_store) as Arc<dyn CompactionEventStore>;
 
+    let datafusion_config = Arc::new(config.iox_query_datafusion_config.build());
+
     if let Some(compactor_id) = config.pro_config.compactor_id {
         if config.pro_config.run_compactions {
             let compaction_config = CompactionConfig::new(
@@ -554,17 +558,18 @@ pub async fn command(config: Config) -> Result<()> {
                 hosts
             };
 
-            let producer = CompactedDataProducer::new(
-                Arc::clone(&compactor_id),
+            let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
+                compactor_id,
                 hosts,
                 compaction_config,
-                Arc::clone(&pro_config),
-                Arc::clone(&object_store),
-                persister.object_store_url().clone(),
-                Arc::clone(&exec),
+                pro_config: Arc::clone(&pro_config),
+                datafusion_config: Arc::clone(&datafusion_config),
+                object_store: Arc::clone(&object_store),
+                object_store_url: persister.object_store_url().clone(),
+                executor: Arc::clone(&exec),
                 parquet_cache_prefetcher,
-                Arc::clone(&compaction_event_store),
-            )
+                sys_events_store: Arc::clone(&compaction_event_store),
+            })
             .await?;
 
             compacted_data = Some(Arc::clone(&producer.compacted_data));
@@ -696,7 +701,7 @@ pub async fn command(config: Config) -> Result<()> {
                 CompactionSysTableQueryExecutorArgs {
                     exec: Arc::clone(&exec),
                     metrics: Arc::clone(&metrics),
-                    datafusion_config: Arc::new(config.iox_query_datafusion_config.build()),
+                    datafusion_config,
                     query_log_size: config.query_log_size,
                     telemetry_store: Arc::clone(&telemetry_store),
                     sys_events_store: Arc::clone(&sys_events_store),
@@ -708,7 +713,7 @@ pub async fn command(config: Config) -> Result<()> {
                 write_buffer: Arc::clone(&write_buffer),
                 exec: Arc::clone(&exec),
                 metrics: Arc::clone(&metrics),
-                datafusion_config: Arc::new(config.iox_query_datafusion_config.build()),
+                datafusion_config,
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
                 compacted_data: sys_table_compacted_data,
