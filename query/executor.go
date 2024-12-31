@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/fsnotify/fsnotify"
+	"golang.org/x/sync/errgroup"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -231,6 +231,12 @@ type StatementNormalizer interface {
 	NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error
 }
 
+// WatcherInterface is used for any file watch functionality using fsnotify
+type WatcherInterface interface {
+	FileChangeCapture() error
+	Close()
+}
+
 // Executor executes every statement in an Query.
 type Executor struct {
 	// Used for executing a statement in the query.
@@ -245,6 +251,10 @@ type Executor struct {
 
 	// expvar-based stats.
 	stats *Statistics
+
+	watcher WatcherInterface
+
+	mu sync.Mutex
 }
 
 // NewExecutor returns a new instance of Executor.
@@ -292,14 +302,20 @@ func (e *Executor) WithLogger(log *zap.Logger) {
 	e.TaskManager.Logger = e.Logger
 }
 
-func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, error) {
+type fileLogWatcher struct {
+	path     string
+	currFile *os.File
+	logger   *zap.Logger
+}
+
+func newFileLogWatcher(logger *zap.Logger, path string) *fileLogWatcher {
 	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		e.Logger.Error("failed to open log file", zap.Error(err))
-		return nil, err
+		logger.Error("failed to open log file", zap.Error(err))
+		return nil
 	}
 
-	existingCore := log.Core()
+	existingCore := logger.Core()
 
 	encoderConfig := zap.NewProductionEncoderConfig()
 
@@ -310,76 +326,120 @@ func initQueryLogWriter(log *zap.Logger, e *Executor, path string) (*os.File, er
 	)
 
 	newCore := zapcore.NewTee(existingCore, fileCore)
-	e.Logger = zap.New(newCore)
-	e.TaskManager.Logger = e.Logger
+	logger = zap.New(newCore)
 
-	return logFile, nil
-}
-
-func closeQueryLogWriter(fd uintptr, e *Executor) {
-	// Uses the file descriptor pointer since we can remove or rename files
-	if err := syscall.Fsync(int(fd)); err != nil {
-		e.Logger.Error("failed to sync log file", zap.Error(err))
-	}
-	if err := syscall.Close(int(fd)); err != nil {
-		e.Logger.Error("failed to close log file", zap.Error(err))
-		return
+	return &fileLogWatcher{
+		logger:   logger,
+		path:     path,
+		currFile: logFile,
 	}
 }
 
-func (e *Executor) WithLogWriter(log *zap.Logger, path string) {
-	var file *os.File
-	var err error
+func (f *fileLogWatcher) FileChangeCapture() error {
+	// Todo: need to close existing file and set logging to a new file
+	f.Close()
 
-	file, err = initQueryLogWriter(log, e, path)
+	logFile, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		e.Logger.Error("failed to open log file", zap.Error(err))
+		f.logger.Error("failed to open log file", zap.Error(err))
+		return nil
+	}
+	f.currFile = logFile
+	existingCore := f.logger.Core()
+
+	encoderConfig := zap.NewProductionEncoderConfig()
+
+	fileCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.Lock(logFile),
+		zapcore.InfoLevel,
+	)
+
+	newCore := zapcore.NewTee(existingCore, fileCore)
+	f.logger = zap.New(newCore)
+
+	return nil
+}
+
+func (f *fileLogWatcher) Close() {
+	if err := f.currFile.Sync(); err != nil {
+		f.logger.Error("failed to sync log file", zap.Error(err))
 		return
 	}
+	if err := f.currFile.Close(); err != nil {
+		f.logger.Error("failed to close log file", zap.Error(err))
+		return
+	}
+}
+
+func startFileLogWatcher(f *fileLogWatcher, e *Executor, path string, ctx context.Context) error {
+	fsnotif, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("create watcher: %w", err)
+	}
+	defer fsnotif.Close()
+
+	if err := fsnotif.Add(path); err != nil {
+		return fmt.Errorf("add watch path: %w", err)
+	}
+
+	for {
+		select {
+		case event, ok := <-fsnotif.Events:
+			if !ok {
+				return fmt.Errorf("watcher event channel closed")
+			}
+
+			f.logger.Debug("received file event", zap.String("event", event.Name))
+
+			if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
+				f.logger.Info("log file altered, creating new watcher",
+					zap.String("event", event.Name),
+					zap.String("path", path))
+
+				if err := f.FileChangeCapture(); err != nil {
+					return fmt.Errorf("handle file change: %w", err)
+				}
+
+				e.mu.Lock()
+				e.watcher = f
+				e.Logger = f.logger
+				e.TaskManager.Logger = e.Logger
+				e.mu.Unlock()
+			}
+
+		case err, ok := <-fsnotif.Errors:
+			if !ok {
+				return fmt.Errorf("watcher error channel closed")
+			}
+			return fmt.Errorf("watcher error: %w", err)
+
+		case <-ctx.Done():
+			f.logger.Info("closing file watcher")
+			return ctx.Err()
+		}
+	}
+}
+
+func (e *Executor) WithLogWriter(ctx context.Context, log *zap.Logger, path string) {
+	errs, ctx := errgroup.WithContext(ctx)
+	flw := newFileLogWatcher(log, path)
+
+	e.mu.Lock()
+	e.watcher = flw
+	e.Logger = flw.logger
+	e.TaskManager.Logger = e.Logger
+	e.mu.Unlock()
+
+	errs.Go(func() error {
+		return startFileLogWatcher(flw, e, path, ctx)
+	})
 
 	go func() {
-		watcher, err := fsnotify.NewWatcher()
+		err := errs.Wait()
 		if err != nil {
-			e.Logger.Error("failed to create log file watcher", zap.Error(err))
-			closeQueryLogWriter(file.Fd(), e)
+			e.Logger.Error("file log watcher error", zap.Error(err))
 			return
-		}
-
-		err = watcher.Add(path)
-		if err != nil {
-			e.Logger.Error("failed to watch log file", zap.Error(err))
-			closeQueryLogWriter(file.Fd(), e)
-			return
-		}
-		defer watcher.Close()
-
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					e.Logger.Error("failed to watch log file", zap.String("event", event.Name))
-					closeQueryLogWriter(file.Fd(), e)
-					return
-				}
-				e.Logger.Debug("event", zap.String("event", event.Name))
-				if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
-					err = watcher.Remove(path)
-					e.Logger.Info("creating a new query log file; registered file was altered.", zap.String("event", event.Name), zap.String("path", path))
-					closeQueryLogWriter(file.Fd(), e)
-					file, err = initQueryLogWriter(log, e, path)
-					if err != nil {
-						e.Logger.Error("failed to create log file watcher", zap.Error(err))
-						return
-					}
-
-					err = watcher.Add(file.Name())
-					if err != nil {
-						e.Logger.Error("failed to watch log file", zap.Error(err))
-						closeQueryLogWriter(file.Fd(), e)
-						return
-					}
-				}
-			}
 		}
 	}()
 }

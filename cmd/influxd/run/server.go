@@ -489,7 +489,7 @@ func (s *Server) Open() error {
 	}
 	if s.config.Data.QueryLogPath != "" {
 		path := s.config.Data.QueryLogPath
-		s.QueryExecutor.WithLogWriter(s.Logger, path)
+		s.QueryExecutor.WithLogWriter(context.Background(), s.Logger, path)
 	}
 
 	s.PointsWriter.WithLogger(s.Logger)

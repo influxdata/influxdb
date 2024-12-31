@@ -1,6 +1,7 @@
 package query_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/stretchr/testify/require"
@@ -607,7 +608,7 @@ func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	e := NewQueryExecutor()
-	e.WithLogWriter(e.Logger, f.Name())
+	e.WithLogWriter(context.Background(), e.Logger, f.Name())
 
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
@@ -634,7 +635,7 @@ func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
 	require.NotNil(t, f)
 
 	e := NewQueryExecutor()
-	e.WithLogWriter(e.Logger, f.Name())
+	e.WithLogWriter(context.Background(), e.Logger, f.Name())
 
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err)
@@ -675,7 +676,7 @@ func TestQueryExecutor_WriteQueryToLog_WatcherRenameFile(t *testing.T) {
 	require.NotNil(t, f)
 
 	e := NewQueryExecutor()
-	e.WithLogWriter(e.Logger, f.Name())
+	e.WithLogWriter(context.Background(), e.Logger, f.Name())
 
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err)
