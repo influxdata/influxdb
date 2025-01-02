@@ -1,11 +1,10 @@
 ###
-# Dockerfile for the image used in the InfluxDB IOx CI tests
-# As of October 2020, it is rebuilt each night
+# Dockerfile for the image used in the InfluxDB 3 CI tests
 #
 # It expects to be run with the repo checked out locally.
 # for example:
 #
-# cd influxdb_iox
+# cd influxdb
 # docker build -f docker/Dockerfile.ci \
 #   --build-arg RUST_VERSION=$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml) .
 ##
