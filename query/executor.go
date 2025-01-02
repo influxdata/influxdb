@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -233,8 +232,9 @@ type StatementNormalizer interface {
 
 // WatcherInterface is used for any file watch functionality using fsnotify
 type WatcherInterface interface {
-	New(e *Executor, path string, logger *zap.Logger)
 	FileChangeCapture() error
+	GetLogger() *zap.Logger
+	GetLogPath() string
 	Close()
 }
 
@@ -301,78 +301,8 @@ func (e *Executor) WithLogger(log *zap.Logger) {
 	e.TaskManager.Logger = e.Logger
 }
 
-type fileLogWatcher struct {
-	path     string
-	currFile *os.File
-	logger   *zap.Logger
-	executor *Executor
-}
-
-func newFileLogWatcher(logger *zap.Logger, path string) *fileLogWatcher {
-	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		logger.Error("failed to open log file", zap.Error(err))
-		return nil
-	}
-
-	existingCore := logger.Core()
-
-	encoderConfig := zap.NewProductionEncoderConfig()
-
-	fileCore := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		zapcore.Lock(logFile),
-		zapcore.InfoLevel,
-	)
-
-	newCore := zapcore.NewTee(existingCore, fileCore)
-	logger = zap.New(newCore)
-
-	return &fileLogWatcher{
-		logger:   logger,
-		path:     path,
-		currFile: logFile,
-	}
-}
-
-func (f *fileLogWatcher) FileChangeCapture() error {
-	// Todo: need to close existing file and set logging to a new file
-	f.Close()
-
-	logFile, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		f.logger.Error("failed to open log file", zap.Error(err))
-		return nil
-	}
-	f.currFile = logFile
-	existingCore := f.logger.Core()
-
-	encoderConfig := zap.NewProductionEncoderConfig()
-
-	fileCore := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		zapcore.Lock(logFile),
-		zapcore.InfoLevel,
-	)
-
-	newCore := zapcore.NewTee(existingCore, fileCore)
-	f.logger = zap.New(newCore)
-
-	return nil
-}
-
-func (f *fileLogWatcher) Close() {
-	if err := f.currFile.Sync(); err != nil {
-		f.logger.Error("failed to sync log file", zap.Error(err))
-		return
-	}
-	if err := f.currFile.Close(); err != nil {
-		f.logger.Error("failed to close log file", zap.Error(err))
-		return
-	}
-}
-
-func startFileLogWatcher(w WatcherInterface, e *Executor, path string, ctx context.Context) error {
+func startFileLogWatcher(w WatcherInterface, e *Executor, ctx context.Context) error {
+	path := w.GetLogPath()
 	fsnotif, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("create Watcher: %w", err)
@@ -390,19 +320,19 @@ func startFileLogWatcher(w WatcherInterface, e *Executor, path string, ctx conte
 				return fmt.Errorf("Watcher event channel closed")
 			}
 
-			f.logger.Debug("received file event", zap.String("event", event.Name))
+			e.Logger.Debug("received file event", zap.String("event", event.Name))
 
 			if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
-				f.logger.Info("log file altered, creating new Watcher",
+				e.Logger.Info("log file altered, creating new Watcher",
 					zap.String("event", event.Name),
 					zap.String("path", path))
 
-				if err := f.FileChangeCapture(); err != nil {
+				if err := w.FileChangeCapture(); err != nil {
 					return fmt.Errorf("handle file change: %w", err)
 				}
 
 				e.mu.Lock()
-				e.Logger = f.logger
+				e.Logger = w.GetLogger()
 				e.TaskManager.Logger = e.Logger
 				e.mu.Unlock()
 			}
@@ -414,17 +344,20 @@ func startFileLogWatcher(w WatcherInterface, e *Executor, path string, ctx conte
 			return fmt.Errorf("Watcher error: %w", err)
 
 		case <-ctx.Done():
-			f.logger.Info("closing file Watcher")
+			e.Logger.Info("closing file Watcher")
 			return ctx.Err()
 		}
 	}
 }
 
-func (e *Executor) WithLogWriter(ctx context.Context, log *zap.Logger, path string) {
+func (e *Executor) WithLogWriter(w WatcherInterface, ctx context.Context) {
 	errs, ctx := errgroup.WithContext(ctx)
+	e.Logger.Info("starting file watcher", zap.String("path", w.GetLogPath()))
 
 	errs.Go(func() error {
-		return startFileLogWatcher(flw, e, path, ctx)
+		e.Logger = w.GetLogger()
+		e.TaskManager.Logger = e.Logger
+		return startFileLogWatcher(w, e, ctx)
 	})
 
 	go func() {

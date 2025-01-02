@@ -489,7 +489,8 @@ func (s *Server) Open() error {
 	}
 	if s.config.Data.QueryLogPath != "" {
 		path := s.config.Data.QueryLogPath
-		s.QueryExecutor.WithLogWriter(context.Background(), s.Logger, path)
+		flw := query.NewFileLogWatcher(s.QueryExecutor, path, s.Logger)
+		s.QueryExecutor.WithLogWriter(flw, context.Background())
 	}
 
 	s.PointsWriter.WithLogger(s.Logger)
