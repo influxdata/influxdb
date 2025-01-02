@@ -620,7 +620,7 @@ mod tests {
 
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
-    use datafusion::{assert_batches_sorted_eq, error::DataFusionError};
+    use datafusion::assert_batches_sorted_eq;
     use futures::TryStreamExt;
     use influxdb3_cache::{
         last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
@@ -641,11 +641,7 @@ mod tests {
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
 
-    use crate::{
-        query_executor::QueryExecutorImpl,
-        system_tables::{table_name_predicate_error, PARQUET_FILES_TABLE_NAME},
-        QueryExecutor,
-    };
+    use crate::{query_executor::QueryExecutorImpl, QueryExecutor};
 
     use super::CreateQueryExecutorArgs;
 
@@ -768,7 +764,10 @@ mod tests {
 
         let test_cases = [
             TestCase {
-                query: "SELECT table_name, size_bytes, row_count, min_time, max_time FROM system.parquet_files WHERE table_name = 'cpu'",
+                query: "\
+                    SELECT table_name, size_bytes, row_count, min_time, max_time \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'cpu'",
                 expected: &[
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
@@ -781,13 +780,53 @@ mod tests {
                 ],
             },
             TestCase {
-                query: "SELECT table_name, size_bytes, row_count, min_time, max_time FROM system.parquet_files WHERE table_name = 'mem'",
+                query: "\
+                    SELECT table_name, size_bytes, row_count, min_time, max_time \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'mem'",
                 expected: &[
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
                     "| mem        | 1956       | 2         | 0        | 10       |",
                     "| mem        | 1956       | 2         | 20       | 30       |",
+                    "| mem        | 1956       | 2         | 40       | 50       |",
+                    "| mem        | 1956       | 2         | 60       | 70       |",
+                    "+------------+------------+-----------+----------+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT table_name, size_bytes, row_count, min_time, max_time \
+                    FROM system.parquet_files",
+                expected: &[
+                    "+------------+------------+-----------+----------+----------+",
+                    "| table_name | size_bytes | row_count | min_time | max_time |",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| cpu        | 1956       | 2         | 0        | 10       |",
+                    "| cpu        | 1956       | 2         | 20       | 30       |",
+                    "| cpu        | 1956       | 2         | 40       | 50       |",
+                    "| cpu        | 1956       | 2         | 60       | 70       |",
+                    "| mem        | 1956       | 2         | 0        | 10       |",
+                    "| mem        | 1956       | 2         | 20       | 30       |",
+                    "| mem        | 1956       | 2         | 40       | 50       |",
+                    "| mem        | 1956       | 2         | 60       | 70       |",
+                    "+------------+------------+-----------+----------+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT table_name, size_bytes, row_count, min_time, max_time \
+                    FROM system.parquet_files \
+                    LIMIT 6",
+                expected: &[
+                    "+------------+------------+-----------+----------+----------+",
+                    "| table_name | size_bytes | row_count | min_time | max_time |",
+                    "+------------+------------+-----------+----------+----------+",
+                    "| cpu        | 1956       | 2         | 0        | 10       |",
+                    "| cpu        | 1956       | 2         | 20       | 30       |",
+                    "| cpu        | 1956       | 2         | 40       | 50       |",
+                    "| cpu        | 1956       | 2         | 60       | 70       |",
                     "| mem        | 1956       | 2         | 40       | 50       |",
                     "| mem        | 1956       | 2         | 60       | 70       |",
                     "+------------+------------+-----------+----------+----------+",
@@ -803,37 +842,5 @@ mod tests {
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
             assert_batches_sorted_eq!(t.expected, &batches);
         }
-    }
-
-    #[tokio::test]
-    async fn system_parquet_files_predicate_error() {
-        let (write_buffer, query_executor, time_provider) = setup().await;
-        // make some writes, so that we have a database that we can query against:
-        let db_name = "test_db";
-        let _ = write_buffer
-            .write_lp(
-                NamespaceName::new(db_name).unwrap(),
-                "cpu,host=a,region=us-east usage=0.1 1",
-                Time::from_timestamp_nanos(0),
-                false,
-                influxdb3_write::Precision::Nanosecond,
-            )
-            .await
-            .unwrap();
-
-        // Bump time to trick the persister into persisting to parquet:
-        time_provider.set(Time::from_timestamp(60 * 10, 0).unwrap());
-
-        // query without the `WHERE table_name =` clause to trigger the error:
-        let query = "SELECT * FROM system.parquet_files";
-        let stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
-            .await
-            .unwrap();
-        let error: DataFusionError = stream.try_collect::<Vec<RecordBatch>>().await.unwrap_err();
-        assert_eq!(
-            error.message(),
-            table_name_predicate_error(PARQUET_FILES_TABLE_NAME).message()
-        );
     }
 }
