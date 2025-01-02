@@ -34,8 +34,8 @@ use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
-    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
-    TriggerDefinition, TriggerSpecificationDefinition, WalContents,
+    object_store::WalObjectStore, DeleteDatabaseDefinition, DeleteTriggerDefinition,
+    PluginDefinition, PluginType, TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
@@ -78,7 +78,7 @@ pub enum Error {
         new: ColumnType,
     },
 
-    #[error("catalog update erorr {0}")]
+    #[error("catalog update error: {0}")]
     CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
 
     #[error("error from persister: {0}")]
@@ -909,6 +909,50 @@ impl ProcessingEngineManager for WriteBufferImpl {
         if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
             let wal_op = WalOp::Catalog(catalog_batch);
             self.wal.write_ops(vec![wal_op]).await?;
+        }
+        Ok(())
+    }
+
+    async fn delete_trigger(
+        &self,
+        db: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> crate::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db.to_string(),
+                })?;
+        let catalog_op = CatalogOp::DeleteTrigger(DeleteTriggerDefinition {
+            trigger_name: trigger_name.to_string(),
+            force,
+        });
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+
+        // Do this first to avoid a dangling running plugin.
+        // Potential edge-case of a plugin being stopped but not deleted,
+        // but should be okay given desire to force delete.
+        let needs_deactivate = force
+            && db_schema
+                .processing_engine_triggers
+                .get(trigger_name)
+                .is_some_and(|trigger| !trigger.disabled);
+
+        if needs_deactivate {
+            self.deactivate_trigger(db, trigger_name).await?;
+        }
+
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
         }
         Ok(())
     }

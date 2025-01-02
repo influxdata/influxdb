@@ -561,10 +561,11 @@ impl BufferState {
                                 }
                             }
                             CatalogOp::CreatePlugin(_) => {}
+                            CatalogOp::DeletePlugin(_) => {}
                             CatalogOp::CreateTrigger(_) => {}
+                            CatalogOp::DeleteTrigger(_) => {}
                             CatalogOp::EnableTrigger(_) => {}
                             CatalogOp::DisableTrigger(_) => {}
-                            CatalogOp::DeletePlugin(_) => {}
                         }
                     }
                 }

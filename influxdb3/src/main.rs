@@ -25,6 +25,7 @@ mod commands {
     pub mod last_cache;
     pub mod manage;
     pub mod meta_cache;
+    pub mod processing_engine;
     pub mod query;
     pub mod serve;
     pub mod token;
@@ -96,6 +97,9 @@ enum Command {
     /// Manage metadata caches
     MetaCache(commands::meta_cache::Config),
 
+    /// Manage processing engine plugins and triggers
+    ProcessingEngine(commands::processing_engine::Config),
+
     /// Manage database (delete only for the moment)
     Database(commands::manage::database::Config),
 
@@ -162,6 +166,12 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::MetaCache(config)) => {
                 if let Err(e) = commands::meta_cache::command(config).await {
                     eprintln!("Metadata Cache command faild: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::ProcessingEngine(config)) => {
+                if let Err(e) = commands::processing_engine::command(config).await {
+                    eprintln!("Processing engine command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

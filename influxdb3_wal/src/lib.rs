@@ -58,6 +58,9 @@ pub enum Error {
 
     #[error("invalid WAL file path")]
     InvalidWalFilePath,
+
+    #[error("failed to parse trigger from {}", trigger_spec)]
+    TriggerSpecificationParseError { trigger_spec: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -303,6 +306,7 @@ pub enum CatalogOp {
     CreatePlugin(PluginDefinition),
     DeletePlugin(DeletePluginDefinition),
     CreateTrigger(TriggerDefinition),
+    DeleteTrigger(DeleteTriggerDefinition),
     EnableTrigger(TriggerIdentifier),
     DisableTrigger(TriggerIdentifier),
 }
@@ -612,6 +616,13 @@ pub struct TriggerDefinition {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct DeleteTriggerDefinition {
+    pub trigger_name: String,
+    #[serde(default)]
+    pub force: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TriggerIdentifier {
     pub db_name: String,
     pub trigger_name: String,
@@ -622,6 +633,38 @@ pub struct TriggerIdentifier {
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
+}
+
+impl TriggerSpecificationDefinition {
+    pub fn from_string_rep(spec_str: &str) -> Result<TriggerSpecificationDefinition, Error> {
+        let spec_str = spec_str.trim();
+        match spec_str {
+            s if s.starts_with("table:") => {
+                let table_name = s.trim_start_matches("table:").trim();
+                if table_name.is_empty() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::SingleTableWalWrite {
+                    table_name: table_name.to_string(),
+                })
+            }
+            "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
+            _ => Err(Error::TriggerSpecificationParseError {
+                trigger_spec: spec_str.to_string(),
+            }),
+        }
+    }
+
+    pub fn string_rep(&self) -> String {
+        match self {
+            TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
+                format!("table:{}", table_name)
+            }
+            TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
+        }
+    }
 }
 
 #[serde_as]

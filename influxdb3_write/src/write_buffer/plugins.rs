@@ -52,6 +52,13 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         disabled: bool,
     ) -> crate::Result<(), write_buffer::Error>;
 
+    async fn delete_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> crate::Result<(), write_buffer::Error>;
+
     /// Starts running the trigger, which will run in the background.
     async fn run_trigger(
         &self,

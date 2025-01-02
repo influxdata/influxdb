@@ -1001,12 +1001,21 @@ where
         } else {
             self.read_body_json(req).await?
         };
+        let Ok(trigger_spec) =
+            TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
+        else {
+            return Err(Error::Catalog(
+                CatalogError::ProcessingEngineTriggerSpecParseError {
+                    trigger_spec: trigger_specification,
+                },
+            ));
+        };
         self.write_buffer
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
                 plugin_name,
-                trigger_specification,
+                trigger_spec,
                 disabled,
             )
             .await?;
@@ -1019,6 +1028,24 @@ where
                 )
                 .await?;
         }
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn delete_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let ProcessEngineTriggerDeleteRequest {
+            db,
+            trigger_name,
+            force,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .delete_trigger(&db, &trigger_name, force)
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
@@ -1501,8 +1528,16 @@ struct ProcessEngineTriggerCreateRequest {
     db: String,
     plugin_name: String,
     trigger_name: String,
-    trigger_specification: TriggerSpecificationDefinition,
+    trigger_specification: String,
     disabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessEngineTriggerDeleteRequest {
+    db: String,
+    trigger_name: String,
+    #[serde(default)]
+    force: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1635,6 +1670,9 @@ pub(crate) async fn route_request<T: TimeProvider>(
         }
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
+        }
+        (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
+            http_server.delete_processing_engine_trigger(req).await
         }
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
