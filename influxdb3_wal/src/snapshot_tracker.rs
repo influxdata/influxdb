@@ -6,6 +6,7 @@
 
 use crate::{Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalFileSequenceNumber};
 use data_types::Timestamp;
+use observability_deps::tracing::debug;
 
 /// A struct that tracks the WAL periods (files if using object store) and decides when to snapshot the WAL.
 #[derive(Debug)]
@@ -56,43 +57,59 @@ impl SnapshotTracker {
     /// In the case of data coming in for future times, we will be unable to snapshot older data.
     /// Over time this will back up the WAL. To guard against this, if the number of WAL periods
     /// is >= 3x the snapshot size, snapshot everything up to the last period.
-    pub(crate) fn snapshot(&mut self) -> Option<SnapshotInfo> {
-        if self.wal_periods.is_empty()
-            || self.wal_periods.len() < self.number_of_periods_to_snapshot_after()
-        {
+    pub(crate) fn snapshot(&mut self, force_snapshot: bool) -> Option<SnapshotInfo> {
+        debug!(
+            wal_periods = ?self.wal_periods,
+            wal_periods_len = ?self.wal_periods.len(),
+            num_snapshots_after = ?self.number_of_periods_to_snapshot_after(),
+            ">>> wal periods and snapshots"
+        );
+
+        if !self.should_run_snapshot(force_snapshot) {
             return None;
         }
 
         // if the number of wal periods is >= 3x the snapshot size, snapshot everything up to, but
         // not including, the last period:
-        if self.wal_periods.len() >= 3 * self.snapshot_size {
-            let n_periods_to_take = self.wal_periods.len() - 1;
-            let wal_periods: Vec<WalPeriod> =
-                self.wal_periods.drain(0..n_periods_to_take).collect();
-            let max_time = wal_periods
-                .iter()
-                .map(|period| period.max_time)
-                .max()
-                .unwrap();
-            let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
-                + self.gen1_duration.as_nanos();
-            let last_wal_sequence_number = wal_periods.last().unwrap().wal_file_number;
-
-            let snapshot_details = SnapshotDetails {
-                snapshot_sequence_number: self.increment_snapshot_sequence_number(),
-                end_time_marker: t.get(),
-                last_wal_sequence_number,
-            };
-
-            return Some(SnapshotInfo {
-                snapshot_details,
-                wal_periods,
-            });
+        let wal_periods_3_times_snapshot_size = self.wal_periods.len() >= 3 * self.snapshot_size;
+        if force_snapshot || wal_periods_3_times_snapshot_size {
+            debug!(
+                ?force_snapshot,
+                ?wal_periods_3_times_snapshot_size,
+                "snapshotting all leaving the last wal period (no time comparison)"
+            );
+            return self.snapshot_all_including_future_wal_periods();
         }
 
+        debug!(
+            ?force_snapshot,
+            ?wal_periods_3_times_snapshot_size,
+            "snapshotting all before last wal period (using last wal period time)"
+        );
+        // uses the last wal period's time and snapshots everything before that, leaving just
+        // the last wal period
+        self.snapshot_wal_periods_in_past()
+    }
+
+    fn should_run_snapshot(&mut self, force_snapshot: bool) -> bool {
+        if self.wal_periods.is_empty() {
+            return false;
+        }
+
+        // if force_snapshot is set, we don't need to check wal periods len or num periods we
+        // snapshot immediately
+        if !force_snapshot && self.wal_periods.len() < self.number_of_periods_to_snapshot_after() {
+            return false;
+        }
+
+        true
+    }
+
+    pub(crate) fn snapshot_wal_periods_in_past(&mut self) -> Option<SnapshotInfo> {
         let t = self.wal_periods.last().unwrap().max_time;
         // round the last timestamp down to the gen1_duration
         let t = t - (t.get() % self.gen1_duration.as_nanos());
+        debug!(timestamp_ns = ?t, gen1_duration_ns = ?self.gen1_duration.as_nanos(), ">>> last timestamp");
 
         // any wal period that has data before this time can be snapshot
         let periods_to_snapshot = self
@@ -101,6 +118,7 @@ impl SnapshotTracker {
             .take_while(|period| period.max_time < t)
             .cloned()
             .collect::<Vec<_>>();
+        debug!(?periods_to_snapshot, ">>> periods to snapshot");
 
         periods_to_snapshot.last().cloned().map(|period| {
             // remove the wal periods and return the snapshot details
@@ -115,6 +133,29 @@ impl SnapshotTracker {
                 },
                 wal_periods: periods_to_snapshot,
             }
+        })
+    }
+
+    fn snapshot_all_including_future_wal_periods(&mut self) -> Option<SnapshotInfo> {
+        let n_periods_to_take = self.wal_periods.len() - 1;
+        let wal_periods: Vec<WalPeriod> = self.wal_periods.drain(0..n_periods_to_take).collect();
+        let max_time = wal_periods
+            .iter()
+            .map(|period| period.max_time)
+            .max()
+            .unwrap();
+        let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
+            + self.gen1_duration.as_nanos();
+        let last_wal_sequence_number = wal_periods.last().unwrap().wal_file_number;
+        let snapshot_details = SnapshotDetails {
+            snapshot_sequence_number: self.increment_snapshot_sequence_number(),
+            end_time_marker: t.get(),
+            last_wal_sequence_number,
+        };
+
+        Some(SnapshotInfo {
+            snapshot_details,
+            wal_periods,
         })
     }
 
@@ -142,7 +183,7 @@ impl SnapshotTracker {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SnapshotInfo {
-    pub(crate) snapshot_details: SnapshotDetails,
+    pub snapshot_details: SnapshotDetails,
     pub(crate) wal_periods: Vec<WalPeriod>,
 }
 
@@ -209,14 +250,14 @@ mod tests {
             Timestamp::new(360_100000000),
         );
 
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p1.clone());
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p2.clone());
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p3.clone());
         assert_eq!(
-            tracker.snapshot(),
+            tracker.snapshot(false),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
                     snapshot_sequence_number: SnapshotSequenceNumber::new(1),
@@ -227,10 +268,10 @@ mod tests {
             })
         );
         tracker.add_wal_period(p4.clone());
-        assert_eq!(tracker.snapshot(), None);
+        assert_eq!(tracker.snapshot(false), None);
         tracker.add_wal_period(p5.clone());
         assert_eq!(
-            tracker.snapshot(),
+            tracker.snapshot(false),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
                     snapshot_sequence_number: SnapshotSequenceNumber::new(2),
@@ -245,7 +286,7 @@ mod tests {
 
         tracker.add_wal_period(p6.clone());
         assert_eq!(
-            tracker.snapshot(),
+            tracker.snapshot(false),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
                     snapshot_sequence_number: SnapshotSequenceNumber::new(3),
@@ -256,7 +297,7 @@ mod tests {
             })
         );
 
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
     }
 
     #[test]
@@ -296,15 +337,15 @@ mod tests {
         tracker.add_wal_period(p1.clone());
         tracker.add_wal_period(p2.clone());
         tracker.add_wal_period(p3.clone());
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p4.clone());
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p5.clone());
-        assert!(tracker.snapshot().is_none());
+        assert!(tracker.snapshot(false).is_none());
         tracker.add_wal_period(p6.clone());
 
         assert_eq!(
-            tracker.snapshot(),
+            tracker.snapshot(false),
             Some(SnapshotInfo {
                 snapshot_details: SnapshotDetails {
                     snapshot_sequence_number: SnapshotSequenceNumber::new(1),

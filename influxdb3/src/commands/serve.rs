@@ -27,7 +27,10 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     persister::Persister,
-    write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
+    write_buffer::{
+        check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles, WriteBufferImpl,
+        WriteBufferImplArgs,
+    },
     WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -37,7 +40,7 @@ use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{num::NonZeroUsize, sync::Arc};
-use std::{path::Path, str::FromStr};
+use std::{path::Path, str::FromStr, time::Duration};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -287,6 +290,16 @@ pub struct Config {
         action
     )]
     pub meta_cache_eviction_interval: humantime::Duration,
+
+    /// Threshold for internal buffer, can be either percentage or absolute value.
+    /// eg: 70% or 100000
+    #[clap(
+        long = "force-snapshot-mem-threshold",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        default_value = "70%",
+        action
+    )]
+    pub force_snapshot_mem_threshold: MemorySize,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -441,7 +454,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.host_identifier_prefix,
+        &config.host_identifier_prefix,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -485,6 +498,13 @@ pub async fn command(config: Config) -> Result<()> {
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
 
+    background_buffer_checker(
+        config.force_snapshot_mem_threshold.bytes(),
+        &write_buffer_impl,
+    )
+    .await;
+
+    debug!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
         catalog.instance_id(),
@@ -536,6 +556,19 @@ pub async fn command(config: Config) -> Result<()> {
     serve(server, frontend_shutdown, startup_timer).await?;
 
     Ok(())
+}
+
+async fn background_buffer_checker(
+    mem_threshold_bytes: usize,
+    write_buffer_impl: &Arc<WriteBufferImpl>,
+) {
+    debug!(mem_threshold_bytes, "setting up background buffer checker");
+    check_mem_and_force_snapshot_loop(
+        Arc::clone(write_buffer_impl),
+        mem_threshold_bytes,
+        Duration::from_secs(10),
+    )
+    .await;
 }
 
 async fn setup_telemetry_store(

@@ -139,7 +139,7 @@ impl WalObjectStore {
                     let snapshot_info = {
                         let mut buffer = self.flush_buffer.lock().await;
 
-                        match buffer.snapshot_tracker.snapshot() {
+                        match buffer.snapshot_tracker.snapshot(false) {
                             None => None,
                             Some(info) => {
                                 let semaphore = Arc::clone(&buffer.snapshot_semaphore);
@@ -280,6 +280,8 @@ impl WalObjectStore {
             }
         }
 
+        debug!(snapshot_info = ?wal_contents.snapshot, ">>> snapshot info");
+
         // now that we've persisted this latest notify and start the snapshot, if set
         let snapshot_response = match wal_contents.snapshot {
             Some(snapshot_details) => {
@@ -414,6 +416,14 @@ impl Wal for WalObjectStore {
             .last_snapshot_sequence_number()
     }
 
+    async fn snapshot_info(
+        &self,
+        force_snapshot: bool,
+    ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)> {
+        let mut buff = self.flush_buffer.lock().await;
+        buff.get_snapshot_info(force_snapshot).await
+    }
+
     async fn shutdown(&self) {
         self.shutdown().await
     }
@@ -446,6 +456,22 @@ impl FlushBuffer {
         self.snapshot_tracker.add_wal_period(wal_period);
     }
 
+    async fn get_snapshot_info(
+        &mut self,
+        force_snapshot: bool,
+    ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)> {
+        let maybe_snapshot = self.snapshot_tracker.snapshot(force_snapshot);
+
+        match maybe_snapshot {
+            Some(snapshot_info) => {
+                debug!(?snapshot_info, ">>> snapshot info");
+
+                Some((snapshot_info, self.acquire_snapshot_permit().await))
+            }
+            None => None,
+        }
+    }
+
     /// Converts the wal_buffer into contents and resets it. Returns the channels waiting for
     /// responses. If a snapshot should occur with this flush, a semaphore permit is also returned.
     async fn flush_buffer_into_contents_and_responses(
@@ -463,11 +489,10 @@ impl FlushBuffer {
             max_time: Timestamp::new(wal_contents.max_timestamp_ns),
         });
 
-        let snapshot = match self.snapshot_tracker.snapshot() {
-            Some(snapshot_info) => {
-                wal_contents.snapshot = Some(snapshot_info.snapshot_details);
-
-                Some((snapshot_info, self.acquire_snapshot_permit().await))
+        let snapshot = match self.get_snapshot_info(false).await {
+            Some(info) => {
+                wal_contents.snapshot = Some(info.0.snapshot_details);
+                Some(info)
             }
             None => None,
         };
@@ -1122,6 +1147,10 @@ mod tests {
 
         fn as_any(&self) -> &dyn Any {
             self
+        }
+
+        async fn snapshot(&self, _snapshot_details: SnapshotDetails) -> Receiver<SnapshotDetails> {
+            unimplemented!()
         }
     }
 }

@@ -17,7 +17,7 @@ use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::error;
+use observability_deps::tracing::{debug, error};
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -97,8 +97,44 @@ pub trait Wal: Debug + Send + Sync + 'static {
     /// Returns the last persisted wal file sequence number
     async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber;
 
+    /// Returns the snapshot info, if force snapshot is set it avoids checking
+    /// certain cases and returns snapshot info leaving only the last wal period
+    async fn snapshot_info(
+        &self,
+        force_snapshot: bool,
+    ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)>;
+
     /// Stop all writes to the WAL and flush the buffer to a WAL file.
     async fn shutdown(&self);
+
+    async fn flush_buffer_and_cleanup_snapshot(self: Arc<Self>) {
+        let cleanup_after_snapshot = self.flush_buffer().await;
+        self.cleanup_after_snapshot(cleanup_after_snapshot).await;
+    }
+
+    async fn cleanup_after_snapshot(
+        self: Arc<Self>,
+        cleanup_params: Option<(
+            oneshot::Receiver<SnapshotDetails>,
+            SnapshotInfo,
+            OwnedSemaphorePermit,
+        )>,
+    ) {
+        // handle snapshot cleanup outside of the flush loop
+        if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_params {
+            let arcd_wal = Arc::clone(&self);
+            tokio::spawn(async move {
+                let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+                assert_eq!(snapshot_info.snapshot_details, snapshot_details);
+
+                arcd_wal
+                    .cleanup_snapshot(snapshot_info, snapshot_permit)
+                    .await;
+            });
+        } else {
+            debug!("not flushed the buffer, no snapshot");
+        }
+    }
 }
 
 /// When the WAL persists a file with buffered ops, the contents are sent to this
@@ -113,6 +149,12 @@ pub trait WalFileNotifier: Debug + Send + Sync + 'static {
     async fn notify_and_snapshot(
         &self,
         write: WalContents,
+        snapshot_details: SnapshotDetails,
+    ) -> oneshot::Receiver<SnapshotDetails>;
+
+    /// Snapshot only, currently used to force the snapshot
+    async fn snapshot(
+        &self,
         snapshot_details: SnapshotDetails,
     ) -> oneshot::Receiver<SnapshotDetails>;
 
@@ -181,6 +223,10 @@ impl Gen1Duration {
 
     pub fn as_nanos(&self) -> i64 {
         self.0.as_nanos() as i64
+    }
+
+    pub fn new_10s() -> Self {
+        Self(Duration::from_secs(10))
     }
 
     pub fn new_1m() -> Self {
@@ -890,23 +936,8 @@ pub fn background_wal_flush<W: Wal>(
 
         loop {
             interval.tick().await;
-
-            let cleanup_after_snapshot = wal.flush_buffer().await;
-
-            // handle snapshot cleanup outside of the flush loop
-            if let Some((snapshot_complete, snapshot_info, snapshot_permit)) =
-                cleanup_after_snapshot
-            {
-                let snapshot_wal = Arc::clone(&wal);
-                tokio::spawn(async move {
-                    let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert_eq!(snapshot_info.snapshot_details, snapshot_details);
-
-                    snapshot_wal
-                        .cleanup_snapshot(snapshot_info, snapshot_permit)
-                        .await;
-                });
-            }
+            let wal = Arc::clone(&wal);
+            wal.flush_buffer_and_cleanup_snapshot().await;
         }
     })
 }

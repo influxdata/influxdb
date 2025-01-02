@@ -187,6 +187,9 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
+
+        debug!(?self.chunk_time_to_chunks, ">>> snapshot chunk_time_to_chunks");
+        debug!(?keys_to_remove, ">>> snapshot keys_to_remove");
         self.snapshotting_chunks = keys_to_remove
             .into_iter()
             .map(|chunk_time| {
@@ -203,6 +206,8 @@ impl TableBuffer {
             })
             .collect::<Vec<_>>();
 
+        debug!(?self.snapshotting_chunks, ">>> snapshotting_chunks");
+        debug!(?self.chunk_time_to_chunks, ">>> snapshot chunk_time_to_chunks after removal and snapshotting");
         self.snapshotting_chunks.clone()
     }
 
