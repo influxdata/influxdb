@@ -1,11 +1,10 @@
 use crate::write_buffer::PluginEvent;
 use crate::{write_buffer, WriteBuffer};
 use influxdb3_wal::{PluginType, TriggerDefinition, TriggerSpecificationDefinition};
-use observability_deps::tracing::warn;
 use std::fmt::Debug;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::sync::broadcast::error::RecvError;
+use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -18,6 +17,9 @@ pub enum Error {
 
     #[error(transparent)]
     WriteBufferError(#[from] write_buffer::Error),
+
+    #[error("failed to send shutdown message back")]
+    FailedToShutdown,
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -35,12 +37,19 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         plugin_type: PluginType,
     ) -> crate::Result<(), write_buffer::Error>;
 
+    async fn delete_plugin(
+        &self,
+        db: &str,
+        plugin_name: &str,
+    ) -> crate::Result<(), write_buffer::Error>;
+
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        disabled: bool,
     ) -> crate::Result<(), write_buffer::Error>;
 
     /// Starts running the trigger, which will run in the background.
@@ -50,6 +59,19 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         db_name: &str,
         trigger_name: &str,
     ) -> crate::Result<(), write_buffer::Error>;
+
+    async fn deactivate_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error>;
+
+    async fn activate_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error>;
 }
 
 #[cfg(feature = "system-py")]
@@ -72,31 +94,26 @@ pub(crate) fn run_plugin(
 
 pub(crate) struct PluginContext {
     // tokio channel for inputs
-    pub(crate) trigger_rx: tokio::sync::broadcast::Receiver<PluginEvent>,
+    pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
     // handler to write data back to the DB.
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
 }
 
 #[async_trait::async_trait]
 trait RunnablePlugin {
+    // Returns true if it should exit
     async fn process_event(
         &self,
         event: PluginEvent,
         write_buffer: Arc<dyn WriteBuffer>,
-    ) -> Result<(), Error>;
+    ) -> Result<bool, Error>;
     async fn run_plugin(&self, context: &mut PluginContext) -> Result<(), Error> {
-        loop {
-            match context.trigger_rx.recv().await {
-                Err(RecvError::Closed) => {
-                    break;
-                }
-                Err(RecvError::Lagged(_)) => {
-                    warn!("plugin lagged");
-                }
-                Ok(event) => {
-                    self.process_event(event, context.write_buffer.clone())
-                        .await?;
-                }
+        while let Some(event) = context.trigger_rx.recv().await {
+            if self
+                .process_event(event, context.write_buffer.clone())
+                .await?
+            {
+                break;
             }
         }
         Ok(())
@@ -124,7 +141,7 @@ mod python_plugin {
             &self,
             event: PluginEvent,
             write_buffer: Arc<dyn WriteBuffer>,
-        ) -> Result<(), Error> {
+        ) -> Result<bool, Error> {
             let Some(schema) = write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                 return Err(Error::MissingDb);
             };
@@ -168,6 +185,10 @@ mod python_plugin {
                         }
                     }
                 }
+                PluginEvent::Shutdown(sender) => {
+                    sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                    return Ok(true);
+                }
             }
             if !output_lines.is_empty() {
                 let ingest_time = SystemTime::now()
@@ -184,7 +205,7 @@ mod python_plugin {
                     .await?;
             }
 
-            Ok(())
+            Ok(false)
         }
     }
 }

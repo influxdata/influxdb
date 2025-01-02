@@ -106,7 +106,7 @@ pub trait Wal: Debug + Send + Sync + 'static {
 #[async_trait]
 pub trait WalFileNotifier: Debug + Send + Sync + 'static {
     /// Notify the handler that a new WAL file has been persisted with the given contents.
-    fn notify(&self, write: WalContents);
+    async fn notify(&self, write: WalContents);
 
     /// Notify the handler that a new WAL file has been persisted with the given contents and tell
     /// it to snapshot the data. The returned receiver will be signalled when the snapshot is complete.
@@ -301,7 +301,10 @@ pub enum CatalogOp {
     DeleteDatabase(DeleteDatabaseDefinition),
     DeleteTable(DeleteTableDefinition),
     CreatePlugin(PluginDefinition),
+    DeletePlugin(DeletePluginDefinition),
     CreateTrigger(TriggerDefinition),
+    EnableTrigger(TriggerIdentifier),
+    DisableTrigger(TriggerIdentifier),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -587,6 +590,11 @@ pub struct PluginDefinition {
     pub plugin_type: PluginType,
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct DeletePluginDefinition {
+    pub plugin_name: String,
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
@@ -600,6 +608,13 @@ pub struct TriggerDefinition {
     pub trigger: TriggerSpecificationDefinition,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
+    pub disabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct TriggerIdentifier {
+    pub db_name: String,
+    pub trigger_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
