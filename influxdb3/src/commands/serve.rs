@@ -46,7 +46,7 @@ use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
-/// The default name of the influxdb_iox data directory
+/// The default name of the influxdb data directory
 #[allow(dead_code)]
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 

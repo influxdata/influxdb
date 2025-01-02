@@ -1,4 +1,4 @@
-//! Entrypoint of InfluxDB IOx binary
+//! Entrypoint of the influxdb3_load_generator binary
 #![recursion_limit = "512"] // required for print_cpu
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
@@ -148,7 +148,10 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
                 _ => Builder::new_multi_thread()
                     .enable_all()
                     .thread_name_fn(move || {
-                        format!("IOx main {}", thread_counter.fetch_add(1, Ordering::SeqCst))
+                        format!(
+                            "inflxudb3_load_generator main {}",
+                            thread_counter.fetch_add(1, Ordering::SeqCst)
+                        )
                     })
                     .worker_threads(num_threads)
                     .build(),
