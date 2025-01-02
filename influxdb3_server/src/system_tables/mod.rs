@@ -171,7 +171,7 @@ impl SchemaProvider for AllSystemSchemaTablesProvider {
 /// ```sql
 /// SELECT * FROM system.parquet_files WHERE table_name = 'foo'
 /// ```
-pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<String> {
+pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<Arc<str>> {
     filters.map(|all_filters| {
         all_filters.iter().find_map(|f| match f {
             Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
@@ -181,7 +181,7 @@ pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<St
                             ScalarValue::Utf8(Some(s))
                             | ScalarValue::LargeUtf8(Some(s))
                             | ScalarValue::Utf8View(Some(s)),
-                        ) => Some(s.to_owned()),
+                        ) => Some(s.as_str().into()),
                         _ => None,
                     }
                 } else {
@@ -191,11 +191,4 @@ pub(crate) fn find_table_name_in_filter(filters: Option<Vec<Expr>>) -> Option<St
             _ => None,
         })
     })?
-}
-
-pub(crate) fn table_name_predicate_error(table_name: &str) -> DataFusionError {
-    DataFusionError::Plan(format!(
-        "must provide a {TABLE_NAME_PREDICATE} = '<table_name>' predicate in queries to \
-            {SYSTEM_SCHEMA_NAME}.{table_name}"
-    ))
 }
