@@ -347,6 +347,13 @@ impl Error {
                     .unwrap()
             }
             Self::PartialLpWrite(data) => {
+                let limit_hit = data.invalid_lines.iter().any(|err| {
+                    err.error_message
+                        .starts_with("Update to schema would exceed number of")
+                        || err
+                            .error_message
+                            .starts_with("Adding a new database would exceed limit of")
+                });
                 let err = ErrorMessage {
                     error: "partial write of line protocol occurred".into(),
                     data: Some(data.invalid_lines),
@@ -354,7 +361,11 @@ impl Error {
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
                 Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
+                    .status(if limit_hit {
+                        StatusCode::UNPROCESSABLE_ENTITY
+                    } else {
+                        StatusCode::BAD_REQUEST
+                    })
                     .body(body)
                     .unwrap()
             }

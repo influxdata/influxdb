@@ -76,7 +76,7 @@ async fn limits() -> Result<(), Error> {
     else {
         panic!("Did not error when adding 501st column");
     };
-    assert_eq!(code, StatusCode::BAD_REQUEST);
+    assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
 
     Ok(())
 }
