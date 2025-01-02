@@ -17,8 +17,6 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-var querylogMutex sync.Mutex
-
 var errUnexpected = errors.New("unexpected error")
 
 type StatementExecutor struct {
@@ -609,6 +607,7 @@ type mockWatcher struct {
 	tmpFile      *os.File
 	log          *zap.Logger
 	t            *testing.T
+	Mu           sync.Mutex
 }
 
 func newMockWatcher(t *testing.T, path string, tmpFile *os.File) *mockWatcher {
@@ -627,6 +626,7 @@ func newMockWatcher(t *testing.T, path string, tmpFile *os.File) *mockWatcher {
 		tmpFile:      tmpFile,
 		log:          logger,
 		t:            t,
+		Mu:           sync.Mutex{},
 	}
 }
 
@@ -639,6 +639,8 @@ func (m *mockWatcher) GetLogPath() string {
 }
 
 func (m *mockWatcher) FileChangeCapture() error {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
 	m.ChangeEvents = append(m.ChangeEvents, "file updated")
 	return nil
 }
@@ -648,8 +650,6 @@ func (m *mockWatcher) Close() {
 }
 
 func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
-	querylogMutex.Lock()
-	defer querylogMutex.Unlock()
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err, "parse query")
 
@@ -682,8 +682,6 @@ func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
 
 // Test to ensure that Watcher creates new file on file rename
 func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
-	querylogMutex.Lock()
-	defer querylogMutex.Unlock()
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err, "parse query")
 
@@ -719,13 +717,13 @@ func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
 	require.NoError(t, err, "remove temp file")
 	// sleep for a few ms because fsnotify needs to pick up event
 	time.Sleep(100 * time.Millisecond)
+	mockWatcher.Mu.Lock()
+	defer mockWatcher.Mu.Unlock()
 	require.Equal(t, 1, len(mockWatcher.ChangeEvents), "expected change events length")
 }
 
 // Test to ensure that Watcher creates new file on file rename
 func TestQueryExecutor_WriteQueryToLog_WatcherChangeFile(t *testing.T) {
-	querylogMutex.Lock()
-	defer querylogMutex.Unlock()
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	require.NoError(t, err, "parse query")
 
@@ -752,13 +750,19 @@ func TestQueryExecutor_WriteQueryToLog_WatcherChangeFile(t *testing.T) {
 	dat, err := os.ReadFile(f.Name())
 	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
 	require.True(t, cont, "expected query output")
+	mockWatcher.Mu.Lock()
 	require.Equal(t, 0, len(mockWatcher.ChangeEvents), "expected change events length")
+	mockWatcher.Mu.Unlock()
 
 	// Remove file -- there should be a change event now
-	os.Rename(f.Name(), f.Name()+".foo")
+	err = os.Rename(f.Name(), f.Name()+".foo")
+	require.NoError(t, err, "rename temp file")
 	// sleep for a few ms because fsnotify needs to pick up event
 	time.Sleep(100 * time.Millisecond)
+
+	mockWatcher.Mu.Lock()
 	require.Equal(t, 1, len(mockWatcher.ChangeEvents), "expected change events length")
+	mockWatcher.Mu.Unlock()
 	err = os.Remove(f.Name() + ".foo")
 	require.NoError(t, err, "remove temp file")
 }

@@ -2,6 +2,7 @@ package query
 
 import (
 	"os"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -12,6 +13,7 @@ type FileLogWatcher struct {
 	currFile *os.File
 	logger   *zap.Logger
 	executor *Executor
+	mu       sync.Mutex
 }
 
 func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger) *FileLogWatcher {
@@ -39,6 +41,7 @@ func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger) *FileLogWat
 		path:     path,
 		currFile: logFile,
 		executor: e,
+		mu:       sync.Mutex{},
 	}
 }
 
@@ -51,6 +54,8 @@ func (f *FileLogWatcher) GetLogPath() string {
 }
 
 func (f *FileLogWatcher) FileChangeCapture() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.Close()
 
 	logFile, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)

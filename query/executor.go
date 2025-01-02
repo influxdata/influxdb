@@ -327,11 +327,11 @@ func startFileLogWatcher(w WatcherInterface, e *Executor, ctx context.Context) e
 					zap.String("event", event.Name),
 					zap.String("path", path))
 
+				e.mu.Lock()
 				if err := w.FileChangeCapture(); err != nil {
 					return fmt.Errorf("handle file change: %w", err)
 				}
 
-				e.mu.Lock()
 				e.Logger = w.GetLogger()
 				e.TaskManager.Logger = e.Logger
 				e.mu.Unlock()
@@ -351,12 +351,15 @@ func startFileLogWatcher(w WatcherInterface, e *Executor, ctx context.Context) e
 }
 
 func (e *Executor) WithLogWriter(w WatcherInterface, ctx context.Context) {
-	errs, ctx := errgroup.WithContext(ctx)
 	e.Logger.Info("starting file watcher", zap.String("path", w.GetLogPath()))
+	errs, ctx := errgroup.WithContext(ctx)
+
+	e.mu.Lock()
+	e.Logger = w.GetLogger()
+	e.TaskManager.Logger = e.Logger
+	e.mu.Unlock()
 
 	errs.Go(func() error {
-		e.Logger = w.GetLogger()
-		e.TaskManager.Logger = e.Logger
 		return startFileLogWatcher(w, e, ctx)
 	})
 
