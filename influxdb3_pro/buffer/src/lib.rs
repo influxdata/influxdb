@@ -637,6 +637,55 @@ mod tests {
             &batches
         );
     }
+
+    #[test_log::test(tokio::test)]
+    async fn host_should_not_replicate_itself() {
+        // setup a single read_write host that replicates itself
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let object_store = Arc::new(InMemory::new());
+
+        let host_id = "skwisgaar";
+        let host = setup_read_write(
+            Arc::<MockProvider>::clone(&time_provider),
+            object_store,
+            host_id,
+            // pass in the host itself to be replicated (which we don't want it to do):
+            vec![host_id],
+        )
+        .await;
+
+        // write to the host:
+        do_writes(
+            "test_db",
+            &host,
+            &[TestWrite {
+                lp: format!("cpu,host={host_id} usage=99"),
+                time_seconds: 1,
+            }],
+        )
+        .await;
+
+        // allow host to replicate:
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // query the host:
+        let ctx = IOxSessionContext::with_testing();
+        let chunks = host
+            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
+            .unwrap();
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        // there should only be a single line, because the host didn't replicate itself:
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+---------------------+-------+",
+                "| host      | time                | usage |",
+                "+-----------+---------------------+-------+",
+                "| skwisgaar | 1970-01-01T00:00:01 | 99.0  |",
+                "+-----------+---------------------+-------+",
+            ],
+            &batches
+        );
+    }
 }
 
 #[cfg(test)]
