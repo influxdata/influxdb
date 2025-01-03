@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -115,11 +116,11 @@ func TestCompactor_CompactFullLastTimestamp(t *testing.T) {
 	}
 	f2 := MustWriteTSM(dir, 2, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2}, zap.NewNop())
@@ -172,11 +173,11 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err == nil {
@@ -282,11 +283,11 @@ func TestCompactor_DecodeError(t *testing.T) {
 	f.WriteAt([]byte("ffff"), 10) // skip over header
 	f.Close()
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 	if err == nil {
@@ -328,11 +329,11 @@ func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 
 	compactor.Open()
@@ -408,11 +409,11 @@ func TestCompactor_Compact_OverlappingBlocksMultiple(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 
 	compactor.Open()
@@ -622,11 +623,11 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 	compactor.Open()
 
@@ -724,11 +725,11 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 	compactor.Open()
 
@@ -827,11 +828,11 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 	compactor.Open()
 
@@ -935,11 +936,11 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 	}
 	f3 := MustWriteTSM(dir, 3, writes)
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Size = 2
 	compactor.Open()
 
@@ -1051,11 +1052,11 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	}
 	f2.Close()
 
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Open()
 
 	// Compact both files, should get 2 files back
@@ -1114,11 +1115,11 @@ func TestCompactor_CompactFull_InProgress(t *testing.T) {
 		assert.NoError(t, f2.WriteIndex(), "writing TSM file index for %s", f2Name)
 		return f2Name
 	}()
-	fs := &fakeFileStore{}
-	defer fs.Close()
+	ffs := &fakeFileStore{}
+	defer ffs.Close()
 	compactor := tsm1.NewCompactor()
 	compactor.Dir = dir
-	compactor.FileStore = fs
+	compactor.FileStore = ffs
 	compactor.Open()
 
 	expGen, expSeq, err := tsm1.DefaultParseFileName(f2Name)
@@ -1137,10 +1138,10 @@ func TestCompactor_CompactFull_InProgress(t *testing.T) {
 	assert.Errorf(t, err, "expected an error writing snapshot for %s", f2Name)
 	e := errors.Unwrap(err)
 	assert.NotNil(t, e, "expected an error wrapped by errCompactionInProgress")
-	assert.Truef(t, os.IsExist(e), "error did not indicate file existence: %v", e)
+	assert.Truef(t, errors.Is(e, fs.ErrExist), "error did not indicate file existence: %v", e)
 	pathErr := &os.PathError{}
 	assert.Truef(t, errors.As(e, &pathErr), "expected path error, got %v", e)
-	assert.Truef(t, os.IsExist(pathErr), "error did not indicate file existence: %v", pathErr)
+	assert.Truef(t, errors.Is(pathErr, fs.ErrExist), "error did not indicate file existence: %v", pathErr)
 }
 
 func newTSMKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*tsm1.TSMReader) (tsm1.KeyIterator, error) {
@@ -2586,14 +2587,14 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		},
 	}
 
-	fs := &fakeFileStore{
+	ffs := &fakeFileStore{
 		PathsFn: func() []tsm1.FileStat {
 			return testSet
 		},
 		blockCount: 1000,
 	}
 
-	cp := tsm1.NewDefaultPlanner(fs, time.Nanosecond)
+	cp := tsm1.NewDefaultPlanner(ffs, time.Nanosecond)
 	plan, pLen := cp.Plan(time.Now().Add(-time.Second))
 	// first verify that our test set would return files
 	if exp, got := 4, len(plan[0]); got != exp {
@@ -2652,9 +2653,9 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	}
 	cp.Release(plan)
 
-	cp.FileStore = fs
+	cp.FileStore = ffs
 	// ensure that it will plan if last modified has changed
-	fs.lastModified = time.Now()
+	ffs.lastModified = time.Now()
 
 	cGroups, pLen := cp.Plan(time.Now())
 	if exp, got := 4, len(cGroups[0]); got != exp {
@@ -2750,7 +2751,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		},
 	}
 
-	fs := &fakeFileStore{
+	ffs := &fakeFileStore{
 		PathsFn: func() []tsm1.FileStat {
 			return testSet
 		},
@@ -2758,7 +2759,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 	}
 
 	cp := tsm1.NewDefaultPlanner(
-		fs,
+		ffs,
 		time.Nanosecond,
 	)
 

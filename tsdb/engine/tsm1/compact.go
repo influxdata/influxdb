@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -1082,7 +1083,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			}
 			break
 		} else if errors.As(err, &eInProgress) {
-			if !os.IsExist(eInProgress.err) {
+			if !errors.Is(eInProgress.err, fs.ErrExist) {
 				logger.Error("error creating compaction file", zap.String("output_file", fileName), zap.Error(err))
 			} else {
 				// Don't clean up the file as another compaction is using it.  This should not happen as the
@@ -1154,7 +1155,7 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 		errs = append(errs, closeErr)
 
 		// Check for conditions where we should not remove the file
-		inProgress := errors.As(err, &eInProgress) && os.IsExist(eInProgress.err)
+		inProgress := errors.As(err, &eInProgress) && errors.Is(eInProgress.err, fs.ErrExist)
 		if (closeErr == nil) && (inProgress || rollToNext) {
 			// do not join errors, there is only the one.
 			return
