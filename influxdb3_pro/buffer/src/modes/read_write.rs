@@ -91,8 +91,12 @@ impl ReadWriteMode {
         let replicas = if let Some(ReplicationConfig {
             interval: replication_interval,
             hosts,
-        }) = replication_config
-        {
+        }) = replication_config.and_then(|mut config| {
+            // remove this host from the list of replicas if it was provided to prevent from
+            // replicating the local primary buffer.
+            config.hosts.retain(|h| h != host_id.as_ref());
+            (!config.hosts.is_empty()).then_some(config)
+        }) {
             Some(
                 Replicas::new(CreateReplicasArgs {
                     last_cache,
