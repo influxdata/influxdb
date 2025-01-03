@@ -35,14 +35,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "q", trailing_var_arg = true)]
 pub struct Config {
-    /// Common InfluxDB 3.0 config
+    /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
     /// The query language used to format the provided query string
     #[clap(
         value_enum,
-        long = "lang",
+        long = "language",
         short = 'l',
         default_value_t = QueryLanguage::Sql,
     )]
@@ -50,9 +50,9 @@ pub struct Config {
 
     /// The format in which to output the query
     ///
-    /// If `--fmt` is set to `parquet`, then you must also specify an output
+    /// If `--format` is set to `parquet`, then you must also specify an output
     /// file path with `--output`.
-    #[clap(value_enum, long = "fmt", default_value = "pretty")]
+    #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
     /// Put all query output into `output`

@@ -21,15 +21,14 @@ use trogging::{
 };
 
 mod commands {
+    pub mod activate;
     pub(crate) mod common;
-    pub mod last_cache;
-    pub mod manage;
-    pub mod meta_cache;
-    pub mod plugin_test;
-    pub mod processing_engine;
+    pub mod create;
+    pub mod deactivate;
+    pub mod delete;
     pub mod query;
     pub mod serve;
-    pub mod token;
+    pub mod test;
     pub mod write;
 }
 
@@ -44,25 +43,29 @@ version = &VERSION_STRING[..],
 disable_help_flag = true,
 arg(
 clap::Arg::new("help")
+.short('h')
 .long("help")
 .help("Print help information")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3.0 OSS server and command line tools",
-long_about = r#"InfluxDB 3.0 OSS server and command line tools
+about = "InfluxDB 3 Core server and command line tools",
+long_about = r#"InfluxDB 3 Core server and command line tools
 
 Examples:
-    # Run the InfluxDB 3.0 OSS server
+    # Run the InfluxDB 3 Core server
     influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
-    # Display all commands
+    # Display all commands short form
+    influxdb3 -h
+
+    # Display all commands long form
     influxdb3 --help
 
-    # Run the InfluxDB 3.0 OSS server with extra verbose logging
+    # Run the InfluxDB 3 Core server with extra verbose logging
     influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
-    # Run InfluxDB 3.0 OSS with full debug logging specified with LOG_FILTER
+    # Run InfluxDB 3 Core with full debug logging specified with LOG_FILTER
     LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 "#
 )]
@@ -80,35 +83,29 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// Run the InfluxDB 3.0 server
-    Serve(commands::serve::Config),
+    /// Activate a resource such as a trigger
+    Activate(commands::activate::Config),
 
-    /// Perform a query against a running InfluxDB 3.0 server
+    /// Create a resource such as a database or auth token
+    Create(commands::create::Config),
+
+    /// Deactivate a resource such as a trigger
+    Deactivate(commands::deactivate::Config),
+
+    /// Delete a resource such as a database or table
+    Delete(commands::delete::Config),
+
+    /// Perform a query against a running InfluxDB 3 Core server
     Query(commands::query::Config),
 
-    /// Perform a set of writes to a running InfluxDB 3.0 server
+    /// Run the InfluxDB 3 Core server
+    Serve(commands::serve::Config),
+
+    /// Test things, such as plugins, work the way you expect
+    Test(commands::test::Config),
+
+    /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
-
-    /// Manage tokens for your InfluxDB 3.0 server
-    Token(commands::token::Config),
-
-    /// Manage last-n-value caches
-    LastCache(commands::last_cache::Config),
-
-    /// Manage metadata caches
-    MetaCache(commands::meta_cache::Config),
-
-    /// Manage processing engine plugins and triggers
-    ProcessingEngine(commands::processing_engine::Config),
-
-    /// Manage database (delete only for the moment)
-    Database(commands::manage::database::Config),
-
-    /// Manage table (delete only for the moment)
-    Table(commands::manage::table::Config),
-
-    /// Test Python plugins for processing WAL writes, persistence Snapshots, requests, or scheduled tasks.
-    PluginTest(commands::plugin_test::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -134,12 +131,42 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            None => println!("command required, --help for help"),
+            None => println!("command required, -h/--help for help"),
+            Some(Command::Activate(config)) => {
+                if let Err(e) = commands::activate::command(config).await {
+                    eprintln!("Activate command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Create(config)) => {
+                if let Err(e) = commands::create::command(config).await {
+                    eprintln!("Create command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Deactivate(config)) => {
+                if let Err(e) = commands::deactivate::command(config).await {
+                    eprintln!("Deactivate command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Delete(config)) => {
+                if let Err(e) = commands::delete::command(config).await {
+                    eprintln!("Delete command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
             Some(Command::Serve(config)) => {
                 let _tracing_guard =
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Test(config)) => {
+                if let Err(e) = commands::test::command(config).await {
+                    eprintln!("Test command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -152,48 +179,6 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
                     eprintln!("Write command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::Token(config)) => {
-                if let Err(e) = commands::token::command(config) {
-                    eprintln!("Token command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::LastCache(config)) => {
-                if let Err(e) = commands::last_cache::command(config).await {
-                    eprintln!("Last Cache command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::MetaCache(config)) => {
-                if let Err(e) = commands::meta_cache::command(config).await {
-                    eprintln!("Metadata Cache command faild: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::ProcessingEngine(config)) => {
-                if let Err(e) = commands::processing_engine::command(config).await {
-                    eprintln!("Processing engine command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::Database(config)) => {
-                if let Err(e) = commands::manage::database::command(config).await {
-                    eprintln!("Database command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::Table(config)) => {
-                if let Err(e) = commands::manage::table::command(config).await {
-                    eprintln!("Table command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::PluginTest(config)) => {
-                if let Err(e) = commands::plugin_test::command(config).await {
-                    eprintln!("Plugin Test command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

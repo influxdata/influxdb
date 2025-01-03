@@ -9,7 +9,7 @@ use super::{common::InfluxDb3Config, query::QueryConfig, write::WriteConfig};
 
 #[derive(Debug, Parser)]
 pub(crate) struct Config {
-    /// Common InfluxDB 3.0 config
+    /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     common: InfluxDb3Config,
 
