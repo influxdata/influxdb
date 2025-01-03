@@ -35,7 +35,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "q", trailing_var_arg = true)]
 pub struct Config {
-    /// Common InfluxDB 3.0 config
+    /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 

@@ -84,14 +84,7 @@ async fn test_create_database() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run_with_confirmation(&[
-        "database",
-        "create",
-        "--dbname",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
+    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
 }
@@ -103,26 +96,13 @@ async fn test_create_database_limit() {
     let db_name = "foo";
     for i in 0..5 {
         let name = format!("{db_name}{i}");
-        let result = run_with_confirmation(&[
-            "database",
-            "create",
-            "--dbname",
-            &name,
-            "--host",
-            &server_addr,
-        ]);
+        let result = run_with_confirmation(&["create", "database", &name, "--host", &server_addr]);
         debug!(result = ?result, "create database");
         assert_contains!(&result, format!("Database \"{name}\" created successfully"));
     }
 
-    let result = run_with_confirmation_and_err(&[
-        "database",
-        "create",
-        "--dbname",
-        "foo5",
-        "--host",
-        &server_addr,
-    ]);
+    let result =
+        run_with_confirmation_and_err(&["create", "database", "foo5", "--host", &server_addr]);
     debug!(result = ?result, "create database");
     assert_contains!(
         &result,
@@ -143,14 +123,7 @@ async fn test_delete_database() {
         )
         .await
         .expect("write to db");
-    let result = run_with_confirmation(&[
-        "database",
-        "delete",
-        "--dbname",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
+    let result = run_with_confirmation(&["delete", "database", db_name, "--host", &server_addr]);
     debug!(result = ?result, "delete database");
     assert_contains!(&result, "Database \"foo\" deleted successfully");
 }
@@ -160,14 +133,8 @@ async fn test_delete_missing_database() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run_with_confirmation_and_err(&[
-        "database",
-        "delete",
-        "--dbname",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
+    let result =
+        run_with_confirmation_and_err(&["delete", "database", db_name, "--host", &server_addr]);
     debug!(result = ?result, "delete missing database");
     assert_contains!(&result, "404");
 }
@@ -178,23 +145,15 @@ async fn test_create_table() {
     let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
-    let result = run_with_confirmation(&[
-        "database",
-        "create",
-        "--dbname",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
+    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
     let result = run_with_confirmation(&[
-        "table",
         "create",
-        "--dbname",
-        db_name,
-        "--table",
+        "table",
         table_name,
+        "--database",
+        db_name,
         "--host",
         &server_addr,
         "--tags",
@@ -272,12 +231,11 @@ async fn test_delete_table() {
         .await
         .expect("write to db");
     let result = run_with_confirmation(&[
-        "table",
         "delete",
-        "--dbname",
-        db_name,
-        "--table",
+        "table",
         table_name,
+        "--database",
+        db_name,
         "--host",
         &server_addr,
     ]);
@@ -301,12 +259,11 @@ async fn test_delete_missing_table() {
         .expect("write to db");
 
     let result = run_with_confirmation_and_err(&[
-        "table",
         "delete",
-        "--dbname",
-        db_name,
-        "--table",
+        "table",
         "cpu",
+        "--database",
+        db_name,
         "--host",
         &server_addr,
     ]);
@@ -331,11 +288,11 @@ async fn test_create_delete_meta_cache() {
     let cache_name = "baz";
     // first create the cache:
     let result = run(&[
-        "meta-cache",
         "create",
+        "meta-cache",
         "--host",
         &server_addr,
-        "--dbname",
+        "--database",
         db_name,
         "--table",
         table_name,
@@ -347,11 +304,11 @@ async fn test_create_delete_meta_cache() {
     assert_contains!(&result, "new cache created");
     // doing the same thing over again will be a no-op
     let result = run(&[
-        "meta-cache",
         "create",
+        "meta-cache",
         "--host",
         &server_addr,
-        "--dbname",
+        "--database",
         db_name,
         "--table",
         table_name,
@@ -366,11 +323,11 @@ async fn test_create_delete_meta_cache() {
     );
     // now delete it:
     let result = run(&[
-        "meta-cache",
         "delete",
+        "meta-cache",
         "--host",
         &server_addr,
-        "--dbname",
+        "--database",
         db_name,
         "--table",
         table_name,
@@ -380,11 +337,11 @@ async fn test_create_delete_meta_cache() {
     assert_contains!(&result, "meta cache deleted successfully");
     // trying to delete again should result in an error as the cache no longer exists:
     let result = run_and_err(&[
-        "meta-cache",
         "delete",
+        "meta-cache",
         "--host",
         &server_addr,
-        "--dbname",
+        "--database",
         db_name,
         "--table",
         table_name,

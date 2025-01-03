@@ -45,8 +45,8 @@ clap::Arg::new("help")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3.0 Load Generator for writes and queries",
-long_about = r#"InfluxDB 3.0 Load Generator for writes and queries
+about = "InfluxDB 3 Core Load Generator for writes and queries",
+long_about = r#"InfluxDB 3 Core Load Generator for writes and queries
 
 Examples:
     # Run the write load generator
@@ -76,13 +76,13 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// Perform a query against a running InfluxDB 3.0 server
+    /// Perform a query against a running InfluxDB 3 Core server
     Query(commands::query::Config),
 
-    /// Perform a set of writes to a running InfluxDB 3.0 server
+    /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
 
-    /// Perform both writes and queries against a running InfluxDB 3.0 server
+    /// Perform both writes and queries against a running InfluxDB 3 Core server
     Full(commands::full::Config),
 }
 

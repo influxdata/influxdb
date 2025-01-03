@@ -1,18 +1,19 @@
-//! Entrypoint for InfluxDB 3.0 OSS Server
+//! Entrypoint for InfluxDB 3 Core Server
 
 use anyhow::{bail, Context};
-use clap_blocks::{
-    memory_size::MemorySize,
-    object_store::{ObjectStoreConfig, ObjectStoreType},
-    socket_addr::SocketAddr,
-};
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_clap_blocks::{datafusion::IoxQueryDatafusionConfig, tokio::TokioDatafusionConfig};
+use influxdb3_clap_blocks::{
+    datafusion::IoxQueryDatafusionConfig,
+    memory_size::MemorySize,
+    object_store::{ObjectStoreConfig, ObjectStoreType},
+    socket_addr::SocketAddr,
+    tokio::TokioDatafusionConfig,
+};
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -59,7 +60,7 @@ pub const DEFAULT_TELMETRY_ENDPOINT: &str =
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Cannot parse object store config: {0}")]
-    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+    ObjectStoreParsing(#[from] influxdb3_clap_blocks::object_store::ParseError),
 
     #[error("Tracing config error: {0}")]
     TracingConfig(#[from] trace_exporters::Error),
