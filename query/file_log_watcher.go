@@ -4,19 +4,21 @@ import (
 	"os"
 	"sync"
 
+	l "github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 type FileLogWatcher struct {
-	path     string
-	currFile *os.File
-	logger   *zap.Logger
-	executor *Executor
-	mu       sync.Mutex
+	path            string
+	currFile        *os.File
+	logger          *zap.Logger
+	formatterConfig string
+	executor        *Executor
+	mu              sync.Mutex
 }
 
-func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger) *FileLogWatcher {
+func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger, format string) *FileLogWatcher {
 	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		logger.Error("failed to open log file", zap.Error(err))
@@ -24,11 +26,14 @@ func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger) *FileLogWat
 	}
 
 	existingCore := logger.Core()
-
-	encoderConfig := zap.NewProductionEncoderConfig()
+	encoder, err := l.NewEncoder(format)
+	if err != nil {
+		logger.Error("failed to create log encoder", zap.Error(err), zap.String("format", format), zap.String("path", path))
+		return nil
+	}
 
 	fileCore := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
+		encoder,
 		zapcore.Lock(logFile),
 		zapcore.InfoLevel,
 	)
@@ -37,11 +42,12 @@ func NewFileLogWatcher(e *Executor, path string, logger *zap.Logger) *FileLogWat
 	logger = zap.New(newCore)
 
 	return &FileLogWatcher{
-		logger:   logger,
-		path:     path,
-		currFile: logFile,
-		executor: e,
-		mu:       sync.Mutex{},
+		logger:          logger,
+		path:            path,
+		currFile:        logFile,
+		executor:        e,
+		formatterConfig: format,
+		mu:              sync.Mutex{},
 	}
 }
 
@@ -60,16 +66,18 @@ func (f *FileLogWatcher) FileChangeCapture() error {
 
 	logFile, err := os.OpenFile(f.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		f.logger.Error("failed to open log file", zap.Error(err))
+		f.logger.Error("failed to open log file", zap.Error(err), zap.String("path", f.path))
 		return nil
 	}
 	f.currFile = logFile
 	existingCore := f.logger.Core()
-
-	encoderConfig := zap.NewProductionEncoderConfig()
+	encoder, err := l.NewEncoder(f.formatterConfig)
+	if err != nil {
+		return err
+	}
 
 	fileCore := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
+		encoder,
 		zapcore.Lock(logFile),
 		zapcore.InfoLevel,
 	)
@@ -82,11 +90,11 @@ func (f *FileLogWatcher) FileChangeCapture() error {
 
 func (f *FileLogWatcher) Close() {
 	if err := f.currFile.Sync(); err != nil {
-		f.logger.Error("failed to sync log file", zap.Error(err))
+		f.logger.Error("failed to sync log file", zap.Error(err), zap.String("path", f.path))
 		return
 	}
 	if err := f.currFile.Close(); err != nil {
-		f.logger.Error("failed to close log file", zap.Error(err))
+		f.logger.Error("failed to close log file", zap.Error(err), zap.String("path", f.path))
 		return
 	}
 }
