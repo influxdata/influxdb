@@ -1154,15 +1154,11 @@ func (c *Compactor) write(path string, iter KeyIterator, throttle bool, logger *
 		errs = append(errs, closeErr)
 
 		// Check for conditions where we should not remove the file
-		inProgress := errors.As(err, &eInProgress)
-		inProgress = inProgress && errors.Is(eInProgress.err, os.ErrExist)
-		maxBlocks := errors.Is(err, ErrMaxBlocksExceeded)
-		maxFileSize := errors.Is(err, errMaxFileExceeded)
-		if (closeErr == nil) && (inProgress || maxBlocks || maxFileSize) {
+		inProgress := errors.As(err, &eInProgress) && os.IsExist(eInProgress.err)
+		if (closeErr == nil) && (inProgress || rollToNext) {
 			// do not join errors, there is only the one.
-			// rollToNext was set in the main body of the method
 			return
-		} else if err != nil {
+		} else if err != nil || closeErr != nil {
 			// Remove the file, we have had a problem
 			errs = append(errs, w.Remove())
 		}
