@@ -400,7 +400,7 @@ async fn check_mem_and_force_snapshot(
             memory_threshold_bytes, "forcing snapshot"
         );
         let wal = Arc::clone(&write_buffer.wal);
-        let maybe_snapshot_info = wal.snapshot_info(true).await;
+        let maybe_snapshot_info = wal.snapshot_info_and_permit(true).await;
         match maybe_snapshot_info {
             Some((snapshot_info, permit)) => {
                 debug!(?snapshot_info, "Running snapshot");
@@ -408,7 +408,7 @@ async fn check_mem_and_force_snapshot(
                     .buffer
                     .snapshot(snapshot_info.snapshot_details)
                     .await;
-                wal.cleanup_after_snapshot(Some((snapshot_done, snapshot_info, permit)))
+                wal.cleanup_after_snapshot(snapshot_done, snapshot_info, permit)
                     .await;
             }
             None => {
@@ -2537,7 +2537,7 @@ mod tests {
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
-                gen1_duration: Gen1Duration::new_10s(),
+                gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100_000,
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 10,

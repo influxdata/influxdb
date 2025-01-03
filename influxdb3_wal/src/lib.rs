@@ -17,7 +17,6 @@ use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::{debug, error};
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -99,7 +98,7 @@ pub trait Wal: Debug + Send + Sync + 'static {
 
     /// Returns the snapshot info, if force snapshot is set it avoids checking
     /// certain cases and returns snapshot info leaving only the last wal period
-    async fn snapshot_info(
+    async fn snapshot_info_and_permit(
         &self,
         force_snapshot: bool,
     ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)>;
@@ -108,32 +107,27 @@ pub trait Wal: Debug + Send + Sync + 'static {
     async fn shutdown(&self);
 
     async fn flush_buffer_and_cleanup_snapshot(self: Arc<Self>) {
-        let cleanup_after_snapshot = self.flush_buffer().await;
-        self.cleanup_after_snapshot(cleanup_after_snapshot).await;
+        let maybe_snapshot = self.flush_buffer().await;
+        if let Some((snapshot_complete, snapshot_info, permit)) = maybe_snapshot {
+            self.cleanup_after_snapshot(snapshot_complete, snapshot_info, permit)
+                .await;
+        }
     }
 
     async fn cleanup_after_snapshot(
         self: Arc<Self>,
-        cleanup_params: Option<(
-            oneshot::Receiver<SnapshotDetails>,
-            SnapshotInfo,
-            OwnedSemaphorePermit,
-        )>,
+        snapshot_complete: oneshot::Receiver<SnapshotDetails>,
+        snapshot_info: SnapshotInfo,
+        permit: OwnedSemaphorePermit,
     ) {
         // handle snapshot cleanup outside of the flush loop
-        if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_params {
-            let arcd_wal = Arc::clone(&self);
-            tokio::spawn(async move {
-                let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                assert_eq!(snapshot_info.snapshot_details, snapshot_details);
+        let arcd_wal = Arc::clone(&self);
+        tokio::spawn(async move {
+            let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+            assert_eq!(snapshot_info.snapshot_details, snapshot_details);
 
-                arcd_wal
-                    .cleanup_snapshot(snapshot_info, snapshot_permit)
-                    .await;
-            });
-        } else {
-            debug!("not flushed the buffer, no snapshot");
-        }
+            arcd_wal.cleanup_snapshot(snapshot_info, permit).await;
+        });
     }
 }
 
@@ -223,10 +217,6 @@ impl Gen1Duration {
 
     pub fn as_nanos(&self) -> i64 {
         self.0.as_nanos() as i64
-    }
-
-    pub fn new_10s() -> Self {
-        Self(Duration::from_secs(10))
     }
 
     pub fn new_1m() -> Self {

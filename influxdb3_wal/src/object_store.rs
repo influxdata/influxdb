@@ -416,12 +416,12 @@ impl Wal for WalObjectStore {
             .last_snapshot_sequence_number()
     }
 
-    async fn snapshot_info(
+    async fn snapshot_info_and_permit(
         &self,
         force_snapshot: bool,
     ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)> {
         let mut buff = self.flush_buffer.lock().await;
-        buff.get_snapshot_info(force_snapshot).await
+        buff.get_snapshot_info_and_permit(force_snapshot).await
     }
 
     async fn shutdown(&self) {
@@ -456,7 +456,7 @@ impl FlushBuffer {
         self.snapshot_tracker.add_wal_period(wal_period);
     }
 
-    async fn get_snapshot_info(
+    async fn get_snapshot_info_and_permit(
         &mut self,
         force_snapshot: bool,
     ) -> Option<(SnapshotInfo, OwnedSemaphorePermit)> {
@@ -489,7 +489,7 @@ impl FlushBuffer {
             max_time: Timestamp::new(wal_contents.max_timestamp_ns),
         });
 
-        let snapshot = match self.get_snapshot_info(false).await {
+        let snapshot = match self.get_snapshot_info_and_permit(false).await {
             Some(info) => {
                 wal_contents.snapshot = Some(info.0.snapshot_details);
                 Some(info)

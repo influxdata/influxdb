@@ -78,7 +78,9 @@ impl SnapshotTracker {
                 ?wal_periods_3_times_snapshot_size,
                 "snapshotting all leaving the last wal period (no time comparison)"
             );
-            return self.snapshot_all_including_future_wal_periods();
+            // this snapshots all leaving the last wal period. This caters for any out of order
+            // wal periods.
+            return self.snapshot_all();
         }
 
         debug!(
@@ -87,8 +89,8 @@ impl SnapshotTracker {
             "snapshotting all before last wal period (using last wal period time)"
         );
         // uses the last wal period's time and snapshots everything before that, leaving just
-        // the last wal period
-        self.snapshot_wal_periods_in_past()
+        // the last wal period, this will cater for all the writes that came in order
+        self.snapshot_in_order_wal_periods()
     }
 
     fn should_run_snapshot(&mut self, force_snapshot: bool) -> bool {
@@ -105,7 +107,7 @@ impl SnapshotTracker {
         true
     }
 
-    pub(crate) fn snapshot_wal_periods_in_past(&mut self) -> Option<SnapshotInfo> {
+    pub(crate) fn snapshot_in_order_wal_periods(&mut self) -> Option<SnapshotInfo> {
         let t = self.wal_periods.last().unwrap().max_time;
         // round the last timestamp down to the gen1_duration
         let t = t - (t.get() % self.gen1_duration.as_nanos());
@@ -136,7 +138,7 @@ impl SnapshotTracker {
         })
     }
 
-    fn snapshot_all_including_future_wal_periods(&mut self) -> Option<SnapshotInfo> {
+    fn snapshot_all(&mut self) -> Option<SnapshotInfo> {
         let n_periods_to_take = self.wal_periods.len() - 1;
         let wal_periods: Vec<WalPeriod> = self.wal_periods.drain(0..n_periods_to_take).collect();
         let max_time = wal_periods
