@@ -33,7 +33,7 @@ pub struct CreateTableConfig {
     #[clap(long = "tags", required = true, num_args=0..)]
     tags: Vec<String>,
 
-    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, required = true, num_args=0..)]
+    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, num_args=0..)]
     fields: Vec<(String, DataType)>,
 
     #[clap(flatten)]

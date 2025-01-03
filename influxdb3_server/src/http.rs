@@ -251,10 +251,6 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
-            Self::WriteBuffer(err @ WriteBufferError::EmptyFields) => Response::builder()
-                .status(StatusCode::UNPROCESSABLE_ENTITY)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
                 err @ (CatalogError::TooManyDbs
                 | CatalogError::TooManyColumns
