@@ -11,9 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -228,6 +230,14 @@ type StatementNormalizer interface {
 	NormalizeStatement(stmt influxql.Statement, database, retentionPolicy string) error
 }
 
+// WatcherInterface is used for any file watch functionality using fsnotify
+type WatcherInterface interface {
+	FileChangeCapture() error
+	GetLogger() *zap.Logger
+	GetLogPath() string
+	Close()
+}
+
 // Executor executes every statement in an Query.
 type Executor struct {
 	// Used for executing a statement in the query.
@@ -242,6 +252,8 @@ type Executor struct {
 
 	// expvar-based stats.
 	stats *Statistics
+
+	mu sync.Mutex
 }
 
 // NewExecutor returns a new instance of Executor.
@@ -287,6 +299,77 @@ func (e *Executor) Close() error {
 func (e *Executor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
+}
+
+func startFileLogWatcher(w WatcherInterface, e *Executor, ctx context.Context) error {
+	path := w.GetLogPath()
+	fsnotif, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("create Watcher: %w", err)
+	}
+	defer fsnotif.Close()
+
+	if err := fsnotif.Add(path); err != nil {
+		return fmt.Errorf("add watch path: %w", err)
+	}
+
+	for {
+		select {
+		case event, ok := <-fsnotif.Events:
+			if !ok {
+				return fmt.Errorf("Watcher event channel closed")
+			}
+
+			e.Logger.Debug("received file event", zap.String("event", event.Name))
+
+			if event.Op == fsnotify.Remove || event.Op == fsnotify.Rename {
+				e.Logger.Info("log file altered, creating new Watcher",
+					zap.String("event", event.Name),
+					zap.String("path", path))
+
+				e.mu.Lock()
+				if err := w.FileChangeCapture(); err != nil {
+					return fmt.Errorf("handle file change: %w", err)
+				}
+
+				e.Logger = w.GetLogger()
+				e.TaskManager.Logger = e.Logger
+				e.mu.Unlock()
+			}
+
+		case err, ok := <-fsnotif.Errors:
+			if !ok {
+				return fmt.Errorf("Watcher error channel closed")
+			}
+			return fmt.Errorf("Watcher error: %w", err)
+
+		case <-ctx.Done():
+			e.Logger.Info("closing file Watcher")
+			return ctx.Err()
+		}
+	}
+}
+
+func (e *Executor) WithLogWriter(w WatcherInterface, ctx context.Context) {
+	e.Logger.Info("starting file watcher", zap.String("path", w.GetLogPath()))
+	errs, ctx := errgroup.WithContext(ctx)
+
+	e.mu.Lock()
+	e.Logger = w.GetLogger()
+	e.TaskManager.Logger = e.Logger
+	e.mu.Unlock()
+
+	errs.Go(func() error {
+		return startFileLogWatcher(w, e, ctx)
+	})
+
+	go func() {
+		err := errs.Wait()
+		if err != nil {
+			e.Logger.Error("file log Watcher error", zap.Error(err))
+			return
+		}
+	}()
 }
 
 // ExecuteQuery executes each statement within a query.

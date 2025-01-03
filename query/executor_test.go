@@ -1,9 +1,15 @@
 package query_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -593,6 +599,172 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 			t.Errorf("%d. unexpected error: %s", i, result.Err)
 		}
 	}
+}
+
+type mockWatcher struct {
+	ChangeEvents []string
+	path         string
+	tmpFile      *os.File
+	log          *zap.Logger
+	t            *testing.T
+	Mu           sync.Mutex
+}
+
+func newMockWatcher(t *testing.T, path string, tmpFile *os.File) *mockWatcher {
+	encoderConfig := zap.NewProductionEncoderConfig()
+
+	fileCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.Lock(tmpFile),
+		zapcore.InfoLevel,
+	)
+
+	logger := zap.New(fileCore)
+	return &mockWatcher{
+		ChangeEvents: make([]string, 0),
+		path:         path,
+		tmpFile:      tmpFile,
+		log:          logger,
+		t:            t,
+		Mu:           sync.Mutex{},
+	}
+}
+
+func (m *mockWatcher) GetLogger() *zap.Logger {
+	return m.log
+}
+
+func (m *mockWatcher) GetLogPath() string {
+	return m.path
+}
+
+func (m *mockWatcher) FileChangeCapture() error {
+	m.Mu.Lock()
+	defer m.Mu.Unlock()
+	m.ChangeEvents = append(m.ChangeEvents, "file updated")
+	return nil
+}
+
+func (m *mockWatcher) Close() {
+	return
+}
+
+func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err, "parse query")
+
+	f, err := os.CreateTemp("", "query-test.1.log")
+	require.NoError(t, err, "create temp file")
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	e := NewQueryExecutor()
+	mockWatcher := newMockWatcher(t, f.Name(), f)
+	e.WithLogWriter(mockWatcher, context.Background())
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	dat, err := os.ReadFile(f.Name())
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
+	err = os.Remove(f.Name())
+	require.NoError(t, err, "remove temp file")
+}
+
+// Test to ensure that Watcher creates new file on file rename
+func TestQueryExecutor_WriteQueryToLog_WatcherRemoveFile(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err, "parse query")
+
+	f, err := os.CreateTemp("", "query-test.2.log")
+	require.NoError(t, err, "create temp file")
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	e := NewQueryExecutor()
+	mockWatcher := newMockWatcher(t, f.Name(), f)
+	e.WithLogWriter(mockWatcher, context.Background())
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	dat, err := os.ReadFile(f.Name())
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
+	require.Equal(t, 0, len(mockWatcher.ChangeEvents), "expected change events length")
+
+	err = f.Close()
+	require.NoError(t, err, "close temp file")
+	// Remove file -- there should be a change event now
+	err = os.Remove(f.Name())
+	require.NoError(t, err, "remove temp file")
+	// sleep for a few ms because fsnotify needs to pick up event
+	time.Sleep(100 * time.Millisecond)
+	mockWatcher.Mu.Lock()
+	defer mockWatcher.Mu.Unlock()
+	require.Equal(t, 1, len(mockWatcher.ChangeEvents), "expected change events length")
+}
+
+// Test to ensure that Watcher creates new file on file rename
+func TestQueryExecutor_WriteQueryToLog_WatcherChangeFile(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err, "parse query")
+
+	f, err := os.CreateTemp("", "query-test.3.log")
+	require.NoError(t, err, "create temp file")
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	e := NewQueryExecutor()
+	mockWatcher := newMockWatcher(t, f.Name(), f)
+	e.WithLogWriter(mockWatcher, context.Background())
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+	err = f.Sync()
+	require.NoError(t, err, "sync temp file")
+
+	dat, err := os.ReadFile(f.Name())
+	cont := strings.Contains(string(dat), "SELECT count(value) FROM cpu")
+	require.True(t, cont, "expected query output")
+	mockWatcher.Mu.Lock()
+	require.Equal(t, 0, len(mockWatcher.ChangeEvents), "expected change events length")
+	mockWatcher.Mu.Unlock()
+
+	// Remove file -- there should be a change event now
+	err = os.Rename(f.Name(), f.Name()+".foo")
+	require.NoError(t, err, "rename temp file")
+	// sleep for a few ms because fsnotify needs to pick up event
+	time.Sleep(100 * time.Millisecond)
+
+	mockWatcher.Mu.Lock()
+	require.Equal(t, 1, len(mockWatcher.ChangeEvents), "expected change events length")
+	mockWatcher.Mu.Unlock()
+	err = os.Remove(f.Name() + ".foo")
+	require.NoError(t, err, "remove temp file")
 }
 
 func discardOutput(results <-chan *query.Result) {
