@@ -65,6 +65,10 @@ func (e errCompactionInProgress) Error() string {
 	return "compaction in progress"
 }
 
+func (e errCompactionInProgress) Unwrap() error {
+	return e.err
+}
+
 type errCompactionAborted struct {
 	err error
 }
@@ -1078,7 +1082,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			}
 			break
 		} else if errors.As(err, &eInProgress) {
-			if !errors.Is(eInProgress, os.ErrExist) {
+			if !os.IsExist(eInProgress.err) {
 				logger.Error("error creating compaction file", zap.String("output_file", fileName), zap.Error(err))
 			} else {
 				// Don't clean up the file as another compaction is using it.  This should not happen as the

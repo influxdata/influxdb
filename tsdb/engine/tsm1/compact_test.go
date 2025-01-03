@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
@@ -1084,6 +1086,61 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	if gotSeq != expSeq {
 		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
+}
+
+func TestCompactor_CompactFull_InProgress(t *testing.T) {
+	// This test creates a lot of data and causes timeout failures for these envs
+	if testing.Short() || os.Getenv("CI") != "" || os.Getenv("GORACE") != "" {
+		t.Skip("Skipping in progress compaction test")
+	}
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	f2Name := func() string {
+		values := make([]tsm1.Value, 1000)
+
+		// Write a new file with 2 blocks
+		f2, f2Name := MustTSMWriter(dir, 2)
+		defer func() {
+			assert.NoError(t, f2.Close(), "closing TSM file %s", f2Name)
+		}()
+		for i := 0; i < 2; i++ {
+			values = values[:0]
+			for j := 0; j < 1000; j++ {
+				values = append(values, tsm1.NewValue(int64(i*1000+j), int64(1)))
+			}
+			assert.NoError(t, f2.Write([]byte("cpu,host=A#!~#value"), values), "writing TSM file: %s", f2Name)
+		}
+		assert.NoError(t, f2.WriteIndex(), "writing TSM file index for %s", f2Name)
+		return f2Name
+	}()
+	fs := &fakeFileStore{}
+	defer fs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+	compactor.Open()
+
+	expGen, expSeq, err := tsm1.DefaultParseFileName(f2Name)
+	assert.NoError(t, err, "unexpected error parsing file name %s", f2Name)
+	expSeq = expSeq + 1
+
+	fileName := filepath.Join(compactor.Dir, tsm1.DefaultFormatFileName(expGen, expSeq)+"."+tsm1.TSMFileExtension+"."+tsm1.TmpTSMFileExtension)
+
+	// Create a temp file to simulate an in progress compaction
+	f, err := os.Create(fileName)
+	assert.NoError(t, err, "creating in-progress compaction file %s", fileName)
+	defer func() {
+		assert.NoError(t, f.Close(), "closing in-progress compaction file %s", fileName)
+	}()
+	_, err = compactor.CompactFull([]string{f2Name}, zap.NewNop())
+	assert.Errorf(t, err, "expected an error writing snapshot for %s", f2Name)
+	e := errors.Unwrap(err)
+	assert.NotNil(t, e, "expected an error wrapped by errCompactionInProgress")
+	assert.Truef(t, os.IsExist(e), "error did not indicate file existence: %v", e)
+	pathErr := &os.PathError{}
+	assert.Truef(t, errors.As(e, &pathErr), "expected path error, got %v", e)
+	assert.Truef(t, os.IsExist(pathErr), "error did not indicate file existence: %v", pathErr)
 }
 
 func newTSMKeyIterator(size int, fast bool, interrupt chan struct{}, readers ...*tsm1.TSMReader) (tsm1.KeyIterator, error) {
