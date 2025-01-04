@@ -1,7 +1,7 @@
 -- filename: 000001_initial_setup.up.postgres.sql
 -- description: Initial setup for the InfluxDB 3 Pro license service
 
--- Table to stor users
+-- Table to store users
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
@@ -19,7 +19,8 @@ CREATE TABLE user_ips (
     ipaddr inet,
     user_id BIGSERIAL,
     blocked BOOLEAN NOT NULL DEFAULT FALSE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT unique_ipaddr_user_id UNIQUE (ipaddr, user_id)
 );
 
 CREATE INDEX idx_user_ips_ipaddr ON user_ips(ipaddr);
@@ -34,8 +35,11 @@ CREATE TABLE emails (
     user_id BIGSERIAL NOT NULL,
     user_ip inet NOT NULL,
     verification_token UUID NOT NULL,
+    verification_url TEXT NOT NULL,
+    verified_at TIMESTAMP WITH TIME ZONE,
     license_id BIGSERIAL NOT NULL,
     email_template_name VARCHAR(255),
+    from_email VARCHAR(255) NOT NULL,
     to_email VARCHAR(255) NOT NULL,
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
@@ -74,14 +78,15 @@ CREATE INDEX idx_emails_delivery_srvc_id ON emails(delivery_srvc_id)
 -- Enum of valid license states
 CREATE TYPE license_state_enum AS ENUM ('requested', 'active', 'inactive');
 
--- Table to stor users' licenses
+-- Table to store users' licenses
 CREATE TABLE licenses (
     id BIGSERIAL PRIMARY KEY,
+    user_id BIGSERIAL NOT NULL,
     email VARCHAR(255) NOT NULL,
     host_id TEXT NOT NULL,
     instance_id UUID NOT NULL,
     license_key TEXT NOT NULL,
-    valid_from TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
     valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
     state license_state_enum NOT NULL DEFAULT 'requested',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -91,5 +96,6 @@ CREATE TABLE licenses (
 );
 
 CREATE INDEX idx_licenses_instance ON licenses(instance_id);
+CREATE INDEX idx_licenses_user_id ON licenses(user_id);
 CREATE INDEX idx_licenses_email ON licenses(email);
 CREATE INDEX idx_licenses_state ON licenses(state);

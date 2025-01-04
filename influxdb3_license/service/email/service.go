@@ -19,6 +19,7 @@ var (
 	DomainDefault                     string     = "mailgun.influxdata.com"
 	TemplateNameDefault               string     = "influxdb-pro-trial-license"
 	MaxEmailsPerUserPerLicenseDefault int        = 3
+	MaxSendAttempts                   int        = 3
 	RateLimitDefault                  rate.Limit = rate.Every(1 * time.Second)
 	RateLimitBurstDefault             int        = 100
 	UserRateLimitDefault              rate.Limit = rate.Every(10 * time.Minute)
@@ -51,6 +52,7 @@ type Mailer interface {
 type Config struct {
 	Domain                     string
 	EmailTemplateName          string
+	MaxSendAttempts            int
 	MaxEmailsPerUserPerLicense int
 	RateLimit                  rate.Limit
 	RateLimitBurst             int
@@ -69,6 +71,7 @@ func DefaultConfig(mailer Mailer, store store.Store, logger *zap.Logger) *Config
 	return &Config{
 		Domain:                     DomainDefault,
 		EmailTemplateName:          TemplateNameDefault,
+		MaxSendAttempts:            MaxSendAttempts,
 		MaxEmailsPerUserPerLicense: MaxEmailsPerUserPerLicenseDefault,
 		RateLimit:                  RateLimitDefault,
 		RateLimitBurst:             RateLimitBurstDefault,
@@ -201,20 +204,25 @@ func (s *Service) Stop() {
 //	    because the overall rate limit has been exceeded long enough to
 //	    overflow the queue.
 //	Other errors possible - email not added to queue
-func (s *Service) QueueEmail(email *store.Email) error {
+func (s *Service) QueueEmail(ctx context.Context, tx store.Tx, email *store.Email) error {
 	log, logEnd := logger.NewOperation(s.logger, "QueueEmail", "email_service")
 	defer logEnd()
 
-	ctx := context.Background()
-	tx, err := s.store.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func(tx store.Tx) {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			log.Error("failed to rollback transaction", zap.Error(err))
+	var doCommit bool
+	var err error
+	if tx == nil {
+		ctx := context.Background()
+		tx, err = s.store.BeginTx(ctx)
+		if err != nil {
+			return err
 		}
-	}(tx)
+		defer func(tx store.Tx) {
+			if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				log.Error("failed to rollback transaction", zap.Error(err))
+			}
+		}(tx)
+		doCommit = true
+	}
 
 	// Check rate limits before adding the email to the emails table in the
 	// database to avoid filling the database with spam.
@@ -261,13 +269,15 @@ func (s *Service) QueueEmail(email *store.Email) error {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		log.Error("QueueEmail: failed to commit transaction", zap.Error(err))
-		return err
+	if doCommit {
+		if err := tx.Commit(); err != nil {
+			log.Error("QueueEmail: failed to commit transaction", zap.Error(err))
+			return err
+		}
 	}
 
 	log.Info("QueueEmail: emailed queued",
-		zap.String("to_email", email.ToEmail),
+		zap.String("to_email", email.To),
 		zap.String("ip_address", email.UserIP.String()),
 		zap.String("verification_token", email.VerificationToken))
 
@@ -325,9 +335,24 @@ func (s *Service) processEmailQueue() {
 	log.Debug("processEmailQueue: processing emails", zap.Int("batch-sz", len(emails)))
 
 	for _, email := range emails {
+		if email.SendCnt >= s.cfg.MaxEmailsPerUserPerLicense {
+			// This send would (further) exceed the max. Log it and mark it as sent.
+			store.LogEmail("processEmailQueue: skipping send to avoid spamming user", email, zapcore.WarnLevel, log)
+			if err := s.store.MarkEmailAsSent(ctx, tx, email); err != nil {
+				store.LogEmail("processEmailQueue: failed to mark email sent", email, zapcore.ErrorLevel, log)
+			}
+			continue
+		} else if email.SendFailCnt > s.cfg.MaxSendAttempts {
+			// This email has failed to send multiple times. Log it and mark it as failed.
+			store.LogEmail("processEmailQueue: skipping send due to multiple failures", email, zapcore.WarnLevel, log)
+			if err := s.store.MarkEmailAsFailed(ctx, tx, email.ID, "too many failed send attempts"); err != nil {
+				store.LogEmail("processEmailQueue: failed to mark email failed", email, zapcore.ErrorLevel, log)
+			}
+			continue
+		}
+
 		if err := s.sendMail(email, ctx, tx, log); err != nil {
 			store.LogEmail("processEmailQueue: failed to send email", email, zapcore.ErrorLevel, log)
-			return
 		}
 	}
 
@@ -339,31 +364,25 @@ func (s *Service) processEmailQueue() {
 
 // sendMail uses the Mailer to send a single email and update the database
 func (s *Service) sendMail(email *store.Email, ctx context.Context, tx store.Tx, log *zap.Logger) error {
-	//log, logEnd := logger.NewOperation(s.logger, "sendMail: email service sending email", "email_service")
-	//defer logEnd()
-
-	// Check if we've already sent this email to the user the max allowed
-	// times. This is to guard against accidentally spamming a user with
-	// the same email too many times but does allow it to be sent a few
-	// times just in case it got stuck in spam or the user accidentally
-	// deleted it the first time, etc. The calling code should filter
-	// these out but this is an extra safety measure.
-	if email.SendCnt >= s.cfg.MaxEmailsPerUserPerLicense {
-		// This send would (further) exceed the max. Log it and return.
-		log.Info("sendEmail: skipping send to avoid spamming user",
-			zap.String("email", email.ToEmail),
-			zap.String("verification_token", email.VerificationToken),
-			zap.Int64("license_id", email.LicenseID),
-			zap.Int("times_sent", email.SendCnt),
-			zap.Int("send_limit", s.cfg.MaxEmailsPerUserPerLicense),
-			zap.Int("send_fails", email.SendFailCnt),
-		)
-	}
-
 	// Send the email
 	resp, id, err := s.mailer.SendMail(ctx, email)
 	if err != nil {
-		store.LogEmail("sendMail: failed to send email", email, zapcore.WarnLevel, log)
+		email.SendFailCnt++
+		email.LastErrMsg = err.Error()
+
+		if email.SendFailCnt > s.cfg.MaxSendAttempts {
+			store.LogEmail("sendMail: failed to send email (too many attempts)", email, zapcore.ErrorLevel, log)
+			if err := s.store.MarkEmailAsFailed(ctx, tx, email.ID, err.Error()); err != nil {
+				store.LogEmail("sendMail: failed to mark email failed", email, zapcore.ErrorLevel, log)
+			}
+		} else {
+			store.LogEmail("sendMail: failed to send email, rescheduling for another try", email, zapcore.WarnLevel, log)
+			email.ScheduledAt = time.Now().Add(time.Duration(email.SendFailCnt) * 30 * time.Second)
+			if err := s.store.UpdateEmail(ctx, tx, email); err != nil {
+				store.LogEmail("sendMail: failed to update email", email, zapcore.ErrorLevel, log)
+			}
+		}
+
 		return err
 	}
 

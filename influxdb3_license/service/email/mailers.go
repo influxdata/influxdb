@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/store"
 	"github.com/mailgun/mailgun-go/v4"
@@ -26,8 +27,16 @@ func NewMailgun(domain string, apiKey string) *Mailgun {
 }
 
 // SendMail implements the SendMail method of the Mailer interface
-func (m Mailgun) SendMail(ctx context.Context, email *store.Email, from string) (resp string, id string, err error) {
-	msg := mailgun.NewMessage(from, email.Subject, email.Body, email.ToEmail)
+func (m Mailgun) SendMail(ctx context.Context, email *store.Email) (resp string, id string, err error) {
+	msg := mailgun.NewMessage(email.From, email.Subject, email.Body, email.To)
+
+	if email.TemplateName != "" {
+		msg.SetTemplate(email.TemplateName)
+		if err := msg.AddVariable("verificationLink", email.VerificationURL); err != nil {
+			return "", "", err
+		}
+	}
+
 	resp, id, err = m.mg.Send(ctx, msg)
 	return
 }
