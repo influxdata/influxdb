@@ -80,6 +80,71 @@ pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_show_databases() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let output = run_with_confirmation(&["create", "database", "foo", "--host", &server_addr]);
+    debug!(output, "create database");
+    let output = run_with_confirmation(&["create", "database", "bar", "--host", &server_addr]);
+    debug!(output, "create database");
+    let output = run(&["show", "databases", "--host", &server_addr]);
+    assert_eq!(
+        "\
+        +---------------+\n\
+        | iox::database |\n\
+        +---------------+\n\
+        | bar           |\n\
+        | foo           |\n\
+        +---------------+\
+        ",
+        output
+    );
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "json",
+    ]);
+    assert_eq!(
+        r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
+        output
+    );
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "csv",
+    ]);
+    assert_eq!(
+        "\
+        iox::database\n\
+        bar\n\
+        foo\
+        ",
+        output
+    );
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "json_lines",
+    ]);
+    assert_eq!(
+        "\
+        {\"iox::database\":\"bar\"}\n\
+        {\"iox::database\":\"foo\"}\
+        ",
+        output
+    );
+}
+
+#[test_log::test(tokio::test)]
 async fn test_create_database() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();

@@ -326,6 +326,14 @@ impl Client {
         }
     }
 
+    /// Compose a request to the `GET /api/v3/configure/database` API
+    pub fn api_v3_configure_db_show(&self) -> ShowDatabasesRequestBuilder<'_> {
+        ShowDatabasesRequestBuilder {
+            client: self,
+            format: Format::Json,
+        }
+    }
+
     /// Make a request to the `POST /api/v3/configure/database` API
     pub async fn api_v3_configure_db_create(&self, db: impl Into<String> + Send) -> Result<()> {
         let api_path = "/api/v3/configure/database";
@@ -810,7 +818,8 @@ impl Display for QueryKind {
     }
 }
 
-/// Output format to request from the server in the `/api/v3/query_sql` API
+/// Output format to request from the server when producing results from APIs that use the
+/// query executor, e.g., `/api/v3/query_sql` and `GET /api/v3/configure/database`
 #[derive(Debug, Serialize, Copy, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum Format {
@@ -820,6 +829,44 @@ pub enum Format {
     Csv,
     Parquet,
     Pretty,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ShowDatabasesRequestBuilder<'c> {
+    #[serde(skip_serializing)]
+    client: &'c Client,
+    format: Format,
+}
+
+impl<'c> ShowDatabasesRequestBuilder<'c> {
+    /// Specify the [`Format`] of the returned `Bytes`
+    pub fn with_format(mut self, format: Format) -> Self {
+        self.format = format;
+        self
+    }
+
+    /// Send the request, returning the raw [`Bytes`] in the response from the server
+    pub async fn send(self) -> Result<Bytes> {
+        let url = self.client.base_url.join("/api/v3/configure/database")?;
+        let mut req = self.client.http_client.get(url).query(&self);
+        if let Some(token) = &self.client.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::GET, "/api/v3/configure/database", src))?;
+        let status = resp.status();
+        let content = resp.bytes().await.map_err(Error::Bytes)?;
+
+        match status {
+            StatusCode::OK => Ok(content),
+            code => Err(Error::ApiError {
+                code,
+                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]

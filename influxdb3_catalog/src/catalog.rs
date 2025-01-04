@@ -269,11 +269,13 @@ impl Catalog {
             .map(|db| (*db_id, Arc::clone(db)))
     }
 
+    /// List names of databases that have not been deleted
     pub fn db_names(&self) -> Vec<String> {
         self.inner
             .read()
             .databases
             .values()
+            .filter(|db| !db.deleted)
             .map(|db| db.name.to_string())
             .collect()
     }

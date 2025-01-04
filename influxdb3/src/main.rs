@@ -26,6 +26,7 @@ mod commands {
     pub mod delete;
     pub mod query;
     pub mod serve;
+    pub mod show;
     pub mod write;
 }
 
@@ -80,6 +81,9 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
+    /// Show active resources on the InfluxDB 3 Core server
+    Show(commands::show::Config),
+
     /// Create a resource such as a database or auth token
     Create(commands::create::Config),
 
@@ -120,6 +124,12 @@ fn main() -> Result<(), std::io::Error> {
 
         match config.command {
             None => println!("command required, -h/--help for help"),
+            Some(Command::Show(config)) => {
+                if let Err(e) = commands::show::command(config).await {
+                    eprintln!("Show command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
             Some(Command::Create(config)) => {
                 if let Err(e) = commands::create::command(config).await {
                     eprintln!("Create command failed: {e}");
