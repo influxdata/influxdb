@@ -51,7 +51,6 @@ use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path as ObjPath;
 use object_store::MultipartUpload;
-use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
@@ -88,6 +87,8 @@ pub enum CompactorError {
     NoCompactedFiles,
     #[error("Failed to put data into obj store: {0}")]
     FailedPut(object_store::Error),
+    #[error("Failed metadata request to object store: {0}")]
+    FailedHead(object_store::Error),
     #[error("Failed get to obj store: {0}")]
     FailedGet(object_store::Error),
     #[error("Failed to create a new AsyncArrowWriter: {0}")]
@@ -217,20 +218,13 @@ async fn record_stream(
 
     let mut chunks = Vec::new();
     for (id, location) in paths.iter().enumerate() {
-        let meta = object_store
-            .get(location)
+        let object_meta = object_store
+            .head(location)
             .await
-            .map_err(CompactorError::FailedGet)?
-            .meta;
+            .map_err(CompactorError::FailedHead)?;
         let parquet_exec = ParquetExecInput {
             object_store_url: object_store_url.clone(),
-            object_meta: ObjectMeta {
-                location: location.clone(),
-                last_modified: meta.last_modified,
-                size: meta.size,
-                e_tag: meta.e_tag,
-                version: meta.version,
-            },
+            object_meta,
             object_store: Arc::clone(&object_store),
         };
 
