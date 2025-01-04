@@ -14,6 +14,7 @@ influxdb3_catalog = {path = "../influxdb3_catalog"}
 async-trait.workspace = true
 schema.workspace = true
 parking_lot.workspace = true
+log = "0.4.22"
 
 [dependencies.pyo3]
 version = "0.23.3"
