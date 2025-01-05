@@ -81,7 +81,7 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// Show active resources on the InfluxDB 3 Core server
+    /// List resources on the InfluxDB 3 Core server
     Show(commands::show::Config),
 
     /// Create a resource such as a database or auth token
