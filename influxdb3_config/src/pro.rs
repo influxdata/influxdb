@@ -27,7 +27,7 @@ impl Index {
 }
 
 impl super::Config for ProConfig {
-    const PATH: &'static str = "/pro/config.json";
+    const PATH: &'static str = "/enterprise/config.json";
 }
 
 impl ProConfig {
