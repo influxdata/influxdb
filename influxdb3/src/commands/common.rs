@@ -24,7 +24,32 @@ pub struct InfluxDb3Config {
     pub auth_token: Option<Secret<String>>,
 }
 
-/// A clap argument privided as a list of items separated by `SEPARATOR`, which by default is a ','
+// A clap argument provided as a key/value pair separated by `SEPARATOR`, which by default is a '='
+#[derive(Debug, Clone)]
+pub struct SeparatedKeyValue<K, V, const SEPARATOR: char = '='>(pub (K, V));
+
+impl<K, V, const SEPARATOR: char> FromStr for SeparatedKeyValue<K, V, SEPARATOR>
+where
+    K: FromStr<Err: Into<anyhow::Error>>,
+    V: FromStr<Err: Into<anyhow::Error>>,
+{
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split(SEPARATOR);
+        let key = parts.next().ok_or_else(|| anyhow::anyhow!("missing key"))?;
+        let value = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("missing value"))?;
+
+        Ok(Self((
+            key.parse().map_err(Into::into)?,
+            value.parse().map_err(Into::into)?,
+        )))
+    }
+}
+
+/// A clap argument provided as a list of items separated by `SEPARATOR`, which by default is a ','
 #[derive(Debug, Clone)]
 pub struct SeparatedList<T, const SEPARATOR: char = ','>(pub Vec<T>);
 

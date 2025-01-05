@@ -701,6 +701,7 @@ mod tests {
             },
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();

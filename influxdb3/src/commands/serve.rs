@@ -37,7 +37,10 @@ use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{num::NonZeroUsize, sync::Arc};
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -287,6 +290,10 @@ pub struct Config {
         action
     )]
     pub meta_cache_eviction_interval: humantime::Duration,
+
+    /// The local directory that has python plugins and their test files.
+    #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
+    pub plugin_dir: Option<PathBuf>,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -481,6 +488,7 @@ pub async fn command(config: Config) -> Result<()> {
         wal_config,
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
+        plugin_dir: config.plugin_dir,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
