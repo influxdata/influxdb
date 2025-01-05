@@ -5,6 +5,7 @@ use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
+use arrow_array::BooleanArray;
 use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
@@ -186,14 +187,26 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 
     fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
-        let mut databases = self.catalog.db_names();
+        let mut databases = self.catalog.list_db_schema();
         // sort them to ensure consistent order:
-        databases.sort_unstable();
-        let databases = StringArray::from(databases);
-        let schema =
-            DatafusionSchema::new(vec![Field::new("iox::database", DataType::Utf8, false)]);
-        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(databases)])
-            .map_err(Error::DatabasesToRecordBatch)?;
+        databases.sort_unstable_by(|a, b| a.name.cmp(&b.name));
+        let names: StringArray = databases
+            .iter()
+            .map(|db| db.name.as_ref())
+            .collect::<Vec<&str>>()
+            .into();
+        let deleted: BooleanArray = databases
+            .iter()
+            .map(|db| db.deleted)
+            .collect::<Vec<bool>>()
+            .into();
+        let schema = DatafusionSchema::new(vec![
+            Field::new("iox::database", DataType::Utf8, false),
+            Field::new("deleted", DataType::Boolean, false),
+        ]);
+        let batch =
+            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(names), Arc::new(deleted)])
+                .map_err(Error::DatabasesToRecordBatch)?;
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 

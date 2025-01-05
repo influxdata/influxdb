@@ -90,12 +90,12 @@ async fn test_show_databases() {
     let output = run(&["show", "databases", "--host", &server_addr]);
     assert_eq!(
         "\
-        +---------------+\n\
-        | iox::database |\n\
-        +---------------+\n\
-        | bar           |\n\
-        | foo           |\n\
-        +---------------+\
+        +---------------+---------+\n\
+        | iox::database | deleted |\n\
+        +---------------+---------+\n\
+        | bar           | false   |\n\
+        | foo           | false   |\n\
+        +---------------+---------+\
         ",
         output
     );
@@ -108,7 +108,7 @@ async fn test_show_databases() {
         "json",
     ]);
     assert_eq!(
-        r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
+        r#"[{"iox::database":"bar","deleted":false},{"iox::database":"foo","deleted":false}]"#,
         output
     );
     let output = run(&[
@@ -121,9 +121,9 @@ async fn test_show_databases() {
     ]);
     assert_eq!(
         "\
-        iox::database\n\
-        bar\n\
-        foo\
+        iox::database,deleted\n\
+        bar,false\n\
+        foo,false\
         ",
         output
     );
@@ -137,11 +137,15 @@ async fn test_show_databases() {
     ]);
     assert_eq!(
         "\
-        {\"iox::database\":\"bar\"}\n\
-        {\"iox::database\":\"foo\"}\
+        {\"iox::database\":\"bar\",\"deleted\":false}\n\
+        {\"iox::database\":\"foo\",\"deleted\":false}\
         ",
         output
     );
+    run_with_confirmation(&["delete", "database", "foo", "--host", &server_addr]);
+    let output = run(&["show", "databases", "--host", &server_addr]);
+    // don't assert on actual output since it contains a time stamp which would be flaky
+    assert_contains!(output, "foo-");
 }
 
 #[test_log::test(tokio::test)]
