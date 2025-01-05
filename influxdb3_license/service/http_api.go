@@ -23,7 +23,9 @@ import (
 )
 
 var (
-	ErrInvalidIP = errors.New("invalid IP address")
+	ErrInvalidIP            = errors.New("invalid IP address")
+	ErrLicenseAlreadyExists = errors.New("license already exists")
+	ErrInstanceIDCollision  = errors.New("instance ID collision")
 )
 
 type contextKey int
@@ -160,6 +162,13 @@ func (h *HTTPHandler) handlePostLicenses(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// Ensure that user is verified
+	if user.VerifiedAt == nil || user.VerifiedAt.IsZero() {
+		log.Info("user is not verified", zap.String("email", to))
+		http.Error(w, "bad request - please verify your email address", http.StatusBadRequest)
+		return
+	}
+
 	// User isn't blocked so create a license for them.
 	h.handleExistingUserNewLicense(w, r, log, user)
 }
@@ -293,6 +302,18 @@ func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log 
 	// Create a license for the user
 	licenseID, err := h.createLicense(r.Context(), tx, user)
 	if err != nil {
+		if errors.Is(err, ErrLicenseAlreadyExists) {
+			log.Info("license already exists for user", zap.String("email", user.Email), zap.Error(err))
+			// If the license already exists, we can just return the existing license
+			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", to, r.Context().Value(instanceIDKey).(string)))
+			w.WriteHeader(http.StatusCreated)
+			return
+		} else if errors.Is(err, ErrInstanceIDCollision) {
+			log.Error("instance ID already exists for another user", zap.String("email", user.Email), zap.Error(err))
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+
 		log.Error("error creating license", zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
 		return
@@ -372,34 +393,20 @@ func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// See if the user already has a license for this instance ID
-	instanceID := r.Context().Value(instanceIDKey).(string)
-	lic, err := h.store.GetLicenseByInstanceID(r.Context(), tx, instanceID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		log.Error("error getting license by instance ID", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	} else if lic != nil {
-		if lic.Email != user.Email {
-			log.Error("license already exists for instance ID",
-				zap.String("existing-email", lic.Email),
-				zap.String("new-email", user.Email),
-				zap.String("instance-id", instanceID),
-				zap.Int64("license-id", lic.ID),
-			)
+	// Create another license for his user in the database
+	licID, err := h.createLicense(r.Context(), tx, user)
+	if err != nil {
+		if errors.Is(err, ErrLicenseAlreadyExists) {
+			// If the license already exists, we can just return the existing license
+			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", user.Email, r.Context().Value(instanceIDKey).(string)))
+			w.WriteHeader(http.StatusCreated)
+			return
+		} else if errors.Is(err, ErrInstanceIDCollision) {
+			log.Error("instance ID already exists for another user", zap.String("email", user.Email), zap.Error(err))
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 
-		// License already exists for this user and instance ID
-		// so just return the location of the license
-		w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", user.Email, instanceID))
-		w.WriteHeader(http.StatusCreated)
-	}
-
-	// Create another license for his user in the database
-	licID, err := h.createLicense(r.Context(), tx, user)
-	if err != nil {
 		log.Error("error creating license for existing user", zap.Int64("user-id", user.ID), zap.String("email", user.Email), zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
 		return
@@ -422,6 +429,7 @@ func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *htt
 
 	// Send a response to the client with Location header to download
 	// the license
+	instanceID := r.Context().Value(instanceIDKey).(string)
 	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", user.Email, instanceID))
 	w.WriteHeader(http.StatusCreated)
 }
@@ -544,16 +552,35 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	hostID := ctx.Value(hostIDKey).(string)
 	instanceID := ctx.Value(instanceIDKey).(string)
 
+	// Check if the user already has a license for this host ID
+	lic, err := h.store.GetLicenseByEmailAndHostID(ctx, tx, user.Email, hostID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return -1, fmt.Errorf("createLicense: error getting license by host ID: %w", err)
+	} else if lic != nil {
+		return -1, fmt.Errorf("createLicense: %w: host ID: %s", ErrLicenseAlreadyExists, hostID)
+	}
+
+	// Check if the user already has a license for this instance ID
+	lic, err = h.store.GetLicenseByInstanceID(ctx, tx, instanceID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return -1, fmt.Errorf("createLicense: error getting license by instance ID: %w", err)
+	} else if lic != nil {
+		if lic.Email != user.Email {
+			return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrInstanceIDCollision, instanceID)
+		}
+		return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrLicenseAlreadyExists, instanceID)
+	}
+
 	// create a signed license token
 	now, dur := h.trialLicenseDuration()
 
 	token, err := h.lic.Create(user.Email, hostID, instanceID, dur)
 	if err != nil {
-		return -1, fmt.Errorf("error creating signed license token: %w", err)
+		return -1, fmt.Errorf("createLicense: error creating signed license token: %w", err)
 	}
 
 	// Save the license in the database
-	lic := &store.License{
+	lic = &store.License{
 		UserID:     user.ID,
 		Email:      user.Email,
 		HostID:     hostID,
@@ -565,7 +592,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	}
 
 	if err := h.store.CreateLicense(ctx, tx, lic); err != nil {
-		return -1, fmt.Errorf("error creating license in database: %w", err)
+		return -1, fmt.Errorf("createLicense: error creating license in database: %w", err)
 	}
 
 	return lic.ID, nil

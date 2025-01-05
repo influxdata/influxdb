@@ -925,6 +925,59 @@ func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email strin
 	return licenses, nil
 }
 
+func (s *Store) GetLicenseByEmailAndHostID(ctx context.Context, tx store.Tx, email, hostID string) (*store.License, error) {
+	doCommit := false
+	var err error
+	if tx == nil {
+		tx, err = s.BeginTx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("beginning transaction: %w", err)
+		}
+		defer func() {
+			_ = tx.Rollback()
+		}()
+		doCommit = true
+	}
+
+	var license store.License
+
+	query := `
+		SELECT id, user_id, email, host_id, instance_id, license_key, valid_from,
+			   valid_until, state, created_at, updated_at
+		FROM licenses
+		WHERE email = $1 AND host_id = $2`
+
+	sqlTx := tx.(*sql.Tx)
+	err = sqlTx.QueryRowContext(ctx, query, email, hostID).Scan(
+		&license.ID,
+		&license.UserID,
+		&license.Email,
+		&license.HostID,
+		&license.InstanceID,
+		&license.LicenseKey,
+		&license.ValidFrom,
+		&license.ValidUntil,
+		&license.State,
+		&license.CreatedAt,
+		&license.UpdatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting license by host ID: %w", err)
+	}
+
+	if doCommit {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("committing transaction: %w", err)
+		}
+	}
+
+	return &license, nil
+}
+
 func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanceID string) (*store.License, error) {
 	doCommit := false
 	var err error
