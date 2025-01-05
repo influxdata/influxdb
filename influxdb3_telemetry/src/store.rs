@@ -193,7 +193,7 @@ impl TelemetryStoreInner {
             instance_id: self.instance_id.clone(),
             storage_type: self.storage_type.clone(),
             cores: self.cores,
-            product_type: "Pro",
+            product_type: "Enterprise",
             uptime_secs: self.start_timer.elapsed().as_secs(),
 
             cpu_utilization_percent_min_1m: self.cpu.utilization.min,
