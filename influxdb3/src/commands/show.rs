@@ -11,7 +11,7 @@ pub struct Config {
 
 #[derive(Debug, Parser)]
 pub enum SubCommand {
-    /// List databases that have not been marked as deleted
+    /// List databases
     Databases(DatabaseConfig),
 }
 
