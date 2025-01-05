@@ -36,7 +36,7 @@ psql -h localhost -U postgres -d influxdb3_ent_licenses < store/migrations/00000
 ```
 
 #### Run the service
-The default config should work as long as port 8080 is available. If it's not, you'll need to change the default config. To see available configuration options, run...
+The default config should work as long as port 8687 is available. If it's not, you'll need to change the default config. To see available configuration options, run...
 ```
 ./license_service -h
 ```
@@ -46,13 +46,13 @@ Usage: license_service [flags]
 
 Flags:
   -h, --help                                                                                                 Show context-sensitive help.
-      --http-addr=":8080"                                                                                    Address:port of the HTTP API ($IFLX_PRO_LIC_HTTP_ADDR)
+      --http-addr=":8687"                                                                                    Address:port of the HTTP API ($IFLX_PRO_LIC_HTTP_ADDR)
       --log-level="info"                                                                                     Log level: error, warn, info (default), debug ($IFLX_PRO_LIC_LOG_LEVEL)
       --log-format="auto"                                                                                    Log format: auto, logfmt, json ($IFLX_PRO_LIC_LOG_FORMAT)
       --db-conn-string="postgres://postgres:postgres@localhost:5432/influxdb_pro_license?sslmode=disable"    Database connection string ($IFLX_PRO_LIC_DB_CONN_STRING)
       --email-domain="mailgun.influxdata.com"                                                                Email domain name ($IFLX_PRO_LIC_EMAIL_DOMAIN)
       --email-api-key="log-only"                                                                             Email api key ($IFLX_PRO_LIC_EMAIL_API_KEY)
-      --email-verification-url="http://localhost:8080"                                                       Email verification base URL ($IFLX_PRO_LIC_EMAIL_VERIFICATION_URL)
+      --email-verification-url="http://localhost:8687"                                                       Email verification base URL ($IFLX_PRO_LIC_EMAIL_VERIFICATION_URL)
       --email-template-name="influxdb 3 enterprise verification"                                             Email template name ($IFLX_PRO_LIC_EMAIL_TEMPLATE_NAME)
       --email-max-retries=3                                                                                  Maximum number of email retries ($IFLX_PRO_LIC_EMAIL_MAX_RETRIES)
       --private-key="projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1"
@@ -75,7 +75,7 @@ You will need the `gcloud` CLI tools installed locally and you will need authent
 Create a new user and request a license:
 
 ```
-curl -X POST "http://localhost:8080/licenses" \
+curl -X POST "http://localhost:8687/licenses" \
      -d "email=david@influxdata.com" \
      -d "host-id=influxdbpro1" \
      -d "instance-id=`uuidgen`"
@@ -83,7 +83,7 @@ curl -X POST "http://localhost:8080/licenses" \
 
 You can also use an email address like `david+test1@influxdata.com`:
 ```
-curl -X POST "http://localhost:8080/licenses" \
+curl -X POST "http://localhost:8687/licenses" \
      -d "email=david%2Btest1@influxdata.com" \
      -d "host-id=influxdbpro2" \
      -d "instance-id=`uuidgen`"

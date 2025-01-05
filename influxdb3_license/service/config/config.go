@@ -10,13 +10,13 @@ import (
 
 // Config represents the configuration of the service
 type Config struct {
-	HTTPAddr             string        `help:"Address:port of the HTTP API" env:"IFLX_PRO_LIC_HTTP_ADDR" default:":8080"`
+	HTTPAddr             string        `help:"Address:port of the HTTP API" env:"IFLX_PRO_LIC_HTTP_ADDR" default:":8687"`
 	LogLevel             string        `help:"Log level: error, warn, info (default), debug" env:"IFLX_PRO_LIC_LOG_LEVEL" default:"info"`
 	LogFormat            string        `help:"Log format: auto, logfmt, json" env:"IFLX_PRO_LIC_LOG_FORMAT" default:"auto"`
 	DBConnString         string        `help:"Database connection string" env:"IFLX_PRO_LIC_DB_CONN_STRING" default:"postgres://postgres:postgres@localhost:5432/influxdb_pro_license?sslmode=disable"`
 	EmailDomain          string        `help:"Email domain name" env:"IFLX_PRO_LIC_EMAIL_DOMAIN" default:"mailgun.influxdata.com"`
 	EmailAPIKey          string        `help:"Email api key" env:"IFLX_PRO_LIC_EMAIL_API_KEY" default:"log-only"`
-	EmailVerificationURL string        `help:"Email verification base URL" env:"IFLX_PRO_LIC_EMAIL_VERIFICATION_URL" default:"http://localhost:8080"`
+	EmailVerificationURL string        `help:"Email verification base URL" env:"IFLX_PRO_LIC_EMAIL_VERIFICATION_URL" default:"http://localhost:8687"`
 	EmailTemplateName    string        `help:"Email template name" env:"IFLX_PRO_LIC_EMAIL_TEMPLATE_NAME" default:"influxdb 3 enterprise verification"`
 	EmailMaxRetries      int           `help:"Maximum number of email retries" env:"IFLX_PRO_LIC_EMAIL_MAX_RETRIES" default:"3"`
 	PrivateKey           string        `help:"Private key path" env:"IFLX_PRO_LIC_PRIVATE_KEY" default:"projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1"`

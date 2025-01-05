@@ -364,7 +364,7 @@ func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *htt
 	// Create a record for the user's IP address if it doesn't already exist
 	userIP := &store.UserIP{
 		UserID: user.ID,
-		IPAddr: net.ParseIP(r.RemoteAddr),
+		IPAddr: r.Context().Value(realIPKey).(net.IP),
 	}
 	if err := h.store.CreateUserIP(r.Context(), tx, userIP); err != nil {
 		log.Error("error creating user ip", zap.Error(err))

@@ -298,6 +298,7 @@ func (s *Service) runBackground() {
 		case <-s.ticker.C:
 			s.processEmailQueue()
 			s.pruneRateLimiters()
+			s.deactivateExpiredLicenses()
 		case <-s.doneCh:
 			return
 		}
@@ -495,5 +496,32 @@ func (s *Service) pruneRateLimiters() {
 		s.logger.Info("pruned ip rate limiters",
 			zap.Int("num_ip_limiters_after_prune", numIPLimitersAfter),
 			zap.Int("num_ip_limiters_before_prune", numIPLimitersBefore))
+	}
+}
+
+// deactivateExpiredLicenses marks any licenses that have expired as invalid
+func (s *Service) deactivateExpiredLicenses() {
+	log, logEnd := logger.NewOperation(s.logger, "deactivateExpiredLicenses", "email_service")
+	defer logEnd()
+
+	ctx := context.Background()
+	tx, err := s.store.BeginTx(ctx)
+	if err != nil {
+		log.Error("deactivateExpiredLicenses: failed to start transaction", zap.Error(err))
+		return
+	}
+	defer func(tx store.Tx) {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			log.Error("deactivateExpiredLicenses: failed to rollback transaction", zap.Error(err))
+		}
+	}(tx)
+
+	if err := s.store.DeactivateExpiredLicenses(ctx, tx); err != nil {
+		log.Error("deactivateExpiredLicenses: failed to deactivate expired licenses", zap.Error(err))
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Error("deactivateExpiredLicenses: failed to commit transaction", zap.Error(err))
 	}
 }
