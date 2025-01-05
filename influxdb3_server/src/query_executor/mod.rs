@@ -5,7 +5,7 @@ use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use arrow_array::BooleanArray;
+use arrow_array::{Array, BooleanArray};
 use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
@@ -39,6 +39,7 @@ use metric::Registry;
 use observability_deps::tracing::{debug, info};
 use schema::Schema;
 use std::any::Any;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -186,27 +187,42 @@ impl QueryExecutor for QueryExecutorImpl {
         }
     }
 
-    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
+    fn show_databases(
+        &self,
+        include_deleted: bool,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
         let mut databases = self.catalog.list_db_schema();
-        // sort them to ensure consistent order:
-        databases.sort_unstable_by(|a, b| a.name.cmp(&b.name));
+        // sort them to ensure consistent order, first by deleted, then by name:
+        databases.sort_unstable_by(|a, b| match a.deleted.cmp(&b.deleted) {
+            Ordering::Equal => a.name.cmp(&b.name),
+            ordering => ordering,
+        });
+        if !include_deleted {
+            databases.retain(|db| !db.deleted);
+        }
+        let mut fields = Vec::with_capacity(2);
+        fields.push(Field::new("iox::database", DataType::Utf8, false));
+        let mut arrays = Vec::with_capacity(2);
         let names: StringArray = databases
             .iter()
             .map(|db| db.name.as_ref())
             .collect::<Vec<&str>>()
             .into();
-        let deleted: BooleanArray = databases
-            .iter()
-            .map(|db| db.deleted)
-            .collect::<Vec<bool>>()
-            .into();
-        let schema = DatafusionSchema::new(vec![
-            Field::new("iox::database", DataType::Utf8, false),
-            Field::new("deleted", DataType::Boolean, false),
-        ]);
-        let batch =
-            RecordBatch::try_new(Arc::new(schema), vec![Arc::new(names), Arc::new(deleted)])
-                .map_err(Error::DatabasesToRecordBatch)?;
+        let names = Arc::new(names) as Arc<dyn Array>;
+        arrays.push(names);
+        if include_deleted {
+            fields.push(Field::new("deleted", DataType::Boolean, false));
+            let deleted: BooleanArray = databases
+                .iter()
+                .map(|db| db.deleted)
+                .collect::<Vec<bool>>()
+                .into();
+            let deleted = Arc::new(deleted);
+            arrays.push(deleted);
+        }
+        let schema = DatafusionSchema::new(fields);
+        let batch = RecordBatch::try_new(Arc::new(schema), arrays)
+            .map_err(Error::DatabasesToRecordBatch)?;
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 

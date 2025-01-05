@@ -30,6 +30,10 @@ pub struct DatabaseConfig {
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     auth_token: Option<Secret<String>>,
 
+    /// Include databases that were marked as deleted in the output
+    #[clap(long = "show-deleted", default_value = "false")]
+    show_deleted: bool,
+
     /// The format in which to output the list of databases
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
@@ -60,6 +64,7 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Databases(DatabaseConfig {
             host_url,
             auth_token,
+            show_deleted,
             output_format,
         }) => {
             let mut client = influxdb3_client::Client::new(host_url)?;
@@ -71,6 +76,7 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             let resp_bytes = client
                 .api_v3_configure_db_show()
                 .with_format(output_format.into())
+                .with_show_deleted(show_deleted)
                 .send()
                 .await?;
 

@@ -330,6 +330,7 @@ impl Client {
     pub fn api_v3_configure_db_show(&self) -> ShowDatabasesRequestBuilder<'_> {
         ShowDatabasesRequestBuilder {
             client: self,
+            show_deleted: false,
             format: Format::Json,
         }
     }
@@ -836,9 +837,16 @@ pub struct ShowDatabasesRequestBuilder<'c> {
     #[serde(skip_serializing)]
     client: &'c Client,
     format: Format,
+    show_deleted: bool,
 }
 
 impl<'c> ShowDatabasesRequestBuilder<'c> {
+    /// Specify whether or not to show deleted databases in the output
+    pub fn with_show_deleted(mut self, show_deleted: bool) -> Self {
+        self.show_deleted = show_deleted;
+        self
+    }
+
     /// Specify the [`Format`] of the returned `Bytes`
     pub fn with_format(mut self, format: Format) -> Self {
         self.format = format;

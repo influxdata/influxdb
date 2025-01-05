@@ -730,7 +730,7 @@ where
         };
 
         if statement.statement().is_show_databases() {
-            self.query_executor.show_databases()
+            self.query_executor.show_databases(true)
         } else if statement.statement().is_show_retention_policies() {
             self.query_executor
                 .show_retention_policies(database.as_deref(), None)
@@ -1068,8 +1068,11 @@ where
 
     async fn show_databases(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
-        let ShowDatabasesRequest { format } = serde_urlencoded::from_str(query)?;
-        let stream = self.query_executor.show_databases()?;
+        let ShowDatabasesRequest {
+            format,
+            show_deleted,
+        } = serde_urlencoded::from_str(query)?;
+        let stream = self.query_executor.show_databases(show_deleted)?;
         Response::builder()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, format.as_content_type())
@@ -1537,6 +1540,8 @@ struct ProcessingEngineTriggerIdentifier {
 #[derive(Debug, Deserialize)]
 struct ShowDatabasesRequest {
     format: QueryFormat,
+    #[serde(default)]
+    show_deleted: bool,
 }
 
 #[derive(Debug, Deserialize)]

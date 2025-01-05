@@ -90,12 +90,12 @@ async fn test_show_databases() {
     let output = run(&["show", "databases", "--host", &server_addr]);
     assert_eq!(
         "\
-        +---------------+---------+\n\
-        | iox::database | deleted |\n\
-        +---------------+---------+\n\
-        | bar           | false   |\n\
-        | foo           | false   |\n\
-        +---------------+---------+\
+        +---------------+\n\
+        | iox::database |\n\
+        +---------------+\n\
+        | bar           |\n\
+        | foo           |\n\
+        +---------------+\
         ",
         output
     );
@@ -108,7 +108,7 @@ async fn test_show_databases() {
         "json",
     ]);
     assert_eq!(
-        r#"[{"iox::database":"bar","deleted":false},{"iox::database":"foo","deleted":false}]"#,
+        r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
         output
     );
     let output = run(&[
@@ -121,9 +121,9 @@ async fn test_show_databases() {
     ]);
     assert_eq!(
         "\
-        iox::database,deleted\n\
-        bar,false\n\
-        foo,false\
+        iox::database\n\
+        bar\n\
+        foo\
         ",
         output
     );
@@ -137,13 +137,29 @@ async fn test_show_databases() {
     ]);
     assert_eq!(
         "\
-        {\"iox::database\":\"bar\",\"deleted\":false}\n\
-        {\"iox::database\":\"foo\",\"deleted\":false}\
+        {\"iox::database\":\"bar\"}\n\
+        {\"iox::database\":\"foo\"}\
         ",
         output
     );
     run_with_confirmation(&["delete", "database", "foo", "--host", &server_addr]);
     let output = run(&["show", "databases", "--host", &server_addr]);
+    assert_eq!(
+        "\
+        +---------------+\n\
+        | iox::database |\n\
+        +---------------+\n\
+        | bar           |\n\
+        +---------------+",
+        output
+    );
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--show-deleted",
+    ]);
     // don't assert on actual output since it contains a time stamp which would be flaky
     assert_contains!(output, "foo-");
 }
