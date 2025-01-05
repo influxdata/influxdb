@@ -233,4 +233,5 @@ type Store interface {
 	GetLicenseByInstanceID(ctx context.Context, tx Tx, instanceID string) (*License, error)
 	GetLicenseByID(ctx context.Context, tx Tx, id int64) (*License, error)
 	SetLicenseState(ctx context.Context, tx Tx, id int64, state LicenseState) error
+	DeactivateExpiredLicenses(ctx context.Context, tx Tx) error
 }

@@ -1049,3 +1049,17 @@ func (s *Store) SetLicenseState(ctx context.Context, tx store.Tx, id int64, stat
 	}
 	return nil
 }
+
+func (s *Store) DeactivateExpiredLicenses(ctx context.Context, tx store.Tx) error {
+	query := `
+		UPDATE licenses
+		SET state = 'inactive', updated_at = NOW()
+		WHERE valid_until < NOW()`
+
+	sqlTx := tx.(*sql.Tx)
+	if _, err := sqlTx.ExecContext(ctx, query); err != nil {
+		return fmt.Errorf("deactivating expired licenses: %w", err)
+	}
+
+	return nil
+}
