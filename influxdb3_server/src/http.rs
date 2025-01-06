@@ -1669,9 +1669,6 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
         }
-        (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
-            http_server.deactivate_processing_engine_trigger(req).await
-        }
         (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
