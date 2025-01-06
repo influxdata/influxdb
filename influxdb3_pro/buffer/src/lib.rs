@@ -269,7 +269,7 @@ mod tests {
     };
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::{persister::Persister, Bufferer, ChunkContainer};
+    use influxdb3_write::{persister::Persister, Bufferer, ChunkContainer, DatabaseManager};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
@@ -685,6 +685,114 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn create_db_and_table_on_separate_write_hosts() {
+        // setup globals:
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let object_store = Arc::new(InMemory::new());
+
+        // create two read_write nodes simultaneously that replicate each other:
+        struct Config {
+            host_id: &'static str,
+            replicas: &'static [&'static str],
+        }
+        let mut handles = vec![];
+        for Config { host_id, replicas } in [
+            Config {
+                host_id: "holt",
+                replicas: &["cheddar"],
+            },
+            Config {
+                host_id: "cheddar",
+                replicas: &["holt"],
+            },
+        ] {
+            let tp = Arc::clone(&time_provider);
+            let os = Arc::clone(&object_store);
+            let h = tokio::spawn(setup_read_write(tp, os, host_id, replicas.into()));
+            handles.push(h);
+        }
+        let hosts: Vec<Arc<WriteBufferPro<ReadWriteMode>>> = try_join_all(handles)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+
+        // create the db on the first host:
+        hosts[0]
+            .create_database("foo".to_string())
+            .await
+            .expect("create database foo");
+
+        // now create the table on the second host:
+        hosts[1]
+            .create_table(
+                "foo".to_string(),
+                "bar".to_string(),
+                vec!["tag1".to_string()],
+                vec![("field1".to_string(), "uint64".into())],
+            )
+            .await
+            .expect("create table bar on database foo");
+
+        // now write to each node simultaneously, to the same table/db:
+        let mut handles = vec![];
+        for (i, host) in hosts.iter().enumerate() {
+            let host_cloned = Arc::clone(host);
+            let handle = tokio::spawn(async move {
+                do_writes(
+                    "foo",
+                    host_cloned.as_ref(),
+                    &[
+                        TestWrite {
+                            lp: format!("bar,tag1={i} field1=1u"),
+                            time_seconds: 1,
+                        },
+                        TestWrite {
+                            lp: format!("bar,tag1={i} field1=2u"),
+                            time_seconds: 2,
+                        },
+                        TestWrite {
+                            lp: format!("bar,tag1={i} field1=3u"),
+                            time_seconds: 3,
+                        },
+                    ],
+                )
+                .await
+            });
+            handles.push(handle);
+        }
+        try_join_all(handles).await.unwrap();
+
+        // allow hosts to replicate each other:
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // do a query to check that results are there from each host (on each host):
+        let ctx = IOxSessionContext::with_testing();
+        for host in hosts {
+            let chunks = host
+                .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
+                .unwrap();
+            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+            assert_batches_sorted_eq!(
+                [
+                    "+--------+------+---------------------+",
+                    "| field1 | tag1 | time                |",
+                    "+--------+------+---------------------+",
+                    "| 1      | 0    | 1970-01-01T00:00:01 |",
+                    "| 1      | 1    | 1970-01-01T00:00:01 |",
+                    "| 2      | 0    | 1970-01-01T00:00:02 |",
+                    "| 2      | 1    | 1970-01-01T00:00:02 |",
+                    "| 3      | 0    | 1970-01-01T00:00:03 |",
+                    "| 3      | 1    | 1970-01-01T00:00:03 |",
+                    "+--------+------+---------------------+",
+                ],
+                &batches
+            );
+        }
     }
 }
 
