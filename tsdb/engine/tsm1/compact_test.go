@@ -14,8 +14,8 @@ import (
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -3256,7 +3256,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 
 	err := ffs.SetBlockCounts([]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock})
 	require.NoError(t, err, "SetBlockCounts")
-  
+
 	cp := tsm1.NewDefaultPlanner(ffs, time.Nanosecond)
 
 	plan, pLen := cp.Plan(time.Now().Add(-time.Second))
@@ -3441,7 +3441,7 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		bcs = append(bcs, 100)
 	}
 
-	err := fs.SetBlockCounts(bcs)
+	err := ffs.SetBlockCounts(bcs)
 	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(
