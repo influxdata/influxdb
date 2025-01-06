@@ -17,6 +17,8 @@ use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
+#[cfg(feature = "system-py")]
+use anyhow::Context;
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
@@ -57,6 +59,7 @@ use parquet_file::storage::ParquetExecInput;
 use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -65,6 +68,7 @@ use tokio::sync::watch::Receiver;
 
 #[cfg(feature = "system-py")]
 use crate::write_buffer::plugins::PluginContext;
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -128,6 +132,12 @@ pub enum Error {
 
     #[error("error in metadata cache: {0}")]
     MetaCacheError(#[from] meta_cache::ProviderError),
+
+    #[error("error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
+
+    #[error("reading plugin file: {0}")]
+    ReadPluginError(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -155,6 +165,8 @@ pub struct WriteBufferImpl {
     metrics: WriteMetrics,
     meta_cache: Arc<MetaCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
+    #[allow(dead_code)]
+    plugin_dir: Option<PathBuf>,
 }
 
 /// The maximum number of snapshots to load on start
@@ -171,6 +183,7 @@ pub struct WriteBufferImplArgs {
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub metric_registry: Arc<Registry>,
+    pub plugin_dir: Option<PathBuf>,
 }
 
 impl WriteBufferImpl {
@@ -185,6 +198,7 @@ impl WriteBufferImpl {
             wal_config,
             parquet_cache,
             metric_registry,
+            plugin_dir,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -243,6 +257,7 @@ impl WriteBufferImpl {
             persisted_files,
             buffer: queryable_buffer,
             metrics: WriteMetrics::new(&metric_registry),
+            plugin_dir,
         });
         let write_buffer: Arc<dyn WriteBuffer> = result.clone();
         let triggers = result.catalog().triggers();
@@ -361,6 +376,13 @@ impl WriteBufferImpl {
         }
 
         Ok(chunks)
+    }
+
+    #[cfg(feature = "system-py")]
+    fn read_plugin_code(&self, name: &str) -> Result<String> {
+        let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
+        let path = plugin_dir.join(format!("{}.py", name));
+        Ok(std::fs::read_to_string(path)?)
     }
 }
 
@@ -1081,6 +1103,28 @@ impl ProcessingEngineManager for WriteBufferImpl {
             .await?;
         Ok(())
     }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> crate::Result<WalPluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.name)?;
+
+            return Ok(plugins::run_test_wal_plugin(now, catalog, code, request).unwrap());
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
 }
 
 #[allow(unused)]
@@ -1171,6 +1215,7 @@ mod tests {
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1255,6 +1300,7 @@ mod tests {
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1323,6 +1369,7 @@ mod tests {
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
+                plugin_dir: None,
             })
             .await
             .unwrap()
@@ -1550,6 +1597,7 @@ mod tests {
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -2814,6 +2862,7 @@ mod tests {
             wal_config,
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
+            plugin_dir: None,
         })
         .await
         .unwrap();

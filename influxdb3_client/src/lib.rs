@@ -1,7 +1,10 @@
+pub mod plugin_development;
+
 use std::{
     collections::HashMap, fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration,
 };
 
+use crate::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use bytes::Bytes;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, Method, StatusCode};
@@ -694,6 +697,35 @@ impl Client {
                 code,
                 message: resp.text().await.map_err(Error::Text)?,
             }),
+        }
+    }
+
+    /// Make a request to the `POST /api/v3/plugin_test/wal` API
+    pub async fn wal_plugin_test(
+        &self,
+        wal_plugin_test_request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse> {
+        let api_path = "/api/v3/plugin_test/wal";
+
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self.http_client.post(url).json(&wal_plugin_test_request);
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+
+        if resp.status().is_success() {
+            resp.json().await.map_err(Error::Json)
+        } else {
+            Err(Error::ApiError {
+                code: resp.status(),
+                message: resp.text().await.map_err(Error::Text)?,
+            })
         }
     }
 
