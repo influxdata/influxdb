@@ -132,7 +132,6 @@ mod tests {
                 min_time_ns: 0,
                 max_time_ns: 10,
             })],
-            snapshot: None,
         };
 
         let bytes = serialize_to_file_bytes(&contents).unwrap();

@@ -3183,6 +3183,7 @@ dependencies = [
  "schema",
  "serde",
  "serde_with",
+ "test-log",
  "thiserror 1.0.69",
  "tokio",
 ]

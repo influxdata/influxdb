@@ -165,6 +165,8 @@ mod python_plugin {
                                 }
                             }
                             WalOp::Catalog(_) => {}
+                            WalOp::ForcedSnapshot(_) => {}
+                            WalOp::Snapshot(_) => {}
                         }
                     }
                 }

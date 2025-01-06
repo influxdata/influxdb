@@ -196,6 +196,7 @@ impl WriteBufferImpl {
         let persisted_snapshots = persister
             .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
             .await?;
+        debug!(?persisted_snapshots, ">>> all persisted snapshots");
         let last_wal_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.wal_file_sequence_number);
@@ -400,21 +401,7 @@ async fn check_mem_and_force_snapshot(
             memory_threshold_bytes, "forcing snapshot"
         );
         let wal = Arc::clone(&write_buffer.wal);
-        let maybe_snapshot_info = wal.snapshot_info_and_permit(true).await;
-        match maybe_snapshot_info {
-            Some((snapshot_info, permit)) => {
-                debug!(?snapshot_info, "Running snapshot");
-                let snapshot_done = write_buffer
-                    .buffer
-                    .snapshot(snapshot_info.snapshot_details)
-                    .await;
-                wal.cleanup_after_snapshot(snapshot_done, snapshot_info, permit)
-                    .await;
-            }
-            None => {
-                debug!("No info to snapshot");
-            }
-        }
+        wal.force_flush_buffer().await;
     }
 }
 
@@ -1769,7 +1756,7 @@ mod tests {
     /// This is the reproducer for [#25277][see]
     ///
     /// [see]: https://github.com/influxdata/influxdb/issues/25277
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let wal_config = WalConfig {

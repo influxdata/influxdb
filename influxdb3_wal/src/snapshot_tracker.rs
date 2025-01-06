@@ -57,7 +57,7 @@ impl SnapshotTracker {
     /// In the case of data coming in for future times, we will be unable to snapshot older data.
     /// Over time this will back up the WAL. To guard against this, if the number of WAL periods
     /// is >= 3x the snapshot size, snapshot everything up to the last period.
-    pub(crate) fn snapshot(&mut self, force_snapshot: bool) -> Option<SnapshotInfo> {
+    pub(crate) fn snapshot(&mut self, force_snapshot: bool) -> Option<SnapshotDetails> {
         debug!(
             wal_periods = ?self.wal_periods,
             wal_periods_len = ?self.wal_periods.len(),
@@ -107,7 +107,7 @@ impl SnapshotTracker {
         true
     }
 
-    pub(crate) fn snapshot_in_order_wal_periods(&mut self) -> Option<SnapshotInfo> {
+    pub(crate) fn snapshot_in_order_wal_periods(&mut self) -> Option<SnapshotDetails> {
         let t = self.wal_periods.last().unwrap().max_time;
         // round the last timestamp down to the gen1_duration
         let t = t - (t.get() % self.gen1_duration.as_nanos());
@@ -121,24 +121,30 @@ impl SnapshotTracker {
             .cloned()
             .collect::<Vec<_>>();
         debug!(?periods_to_snapshot, ">>> periods to snapshot");
+        let first_wal_file_number = periods_to_snapshot
+            .iter()
+            .peekable()
+            .peek()
+            .map(|period| period.wal_file_number)?;
 
-        periods_to_snapshot.last().cloned().map(|period| {
-            // remove the wal periods and return the snapshot details
-            self.wal_periods
-                .retain(|p| p.wal_file_number > period.wal_file_number);
+        let last_wal_file_number = periods_to_snapshot
+            .iter()
+            .last()
+            .map(|period| period.wal_file_number)?;
 
-            SnapshotInfo {
-                snapshot_details: SnapshotDetails {
-                    snapshot_sequence_number: self.increment_snapshot_sequence_number(),
-                    end_time_marker: t.get(),
-                    last_wal_sequence_number: period.wal_file_number,
-                },
-                wal_periods: periods_to_snapshot,
-            }
+        // remove the wal periods and return the snapshot details
+        self.wal_periods
+            .retain(|p| p.wal_file_number > last_wal_file_number);
+
+        Some(SnapshotDetails {
+            snapshot_sequence_number: self.increment_snapshot_sequence_number(),
+            end_time_marker: t.get(),
+            first_wal_sequence_number: first_wal_file_number,
+            last_wal_sequence_number: last_wal_file_number,
         })
     }
 
-    fn snapshot_all(&mut self) -> Option<SnapshotInfo> {
+    fn snapshot_all(&mut self) -> Option<SnapshotDetails> {
         let n_periods_to_take = self.wal_periods.len() - 1;
         let wal_periods: Vec<WalPeriod> = self.wal_periods.drain(0..n_periods_to_take).collect();
         let max_time = wal_periods
@@ -148,17 +154,16 @@ impl SnapshotTracker {
             .unwrap();
         let t = max_time - (max_time.get() % self.gen1_duration.as_nanos())
             + self.gen1_duration.as_nanos();
-        let last_wal_sequence_number = wal_periods.last().unwrap().wal_file_number;
+        let first_wal_sequence_number = wal_periods.first()?.wal_file_number;
+        let last_wal_sequence_number = wal_periods.last()?.wal_file_number;
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number: self.increment_snapshot_sequence_number(),
             end_time_marker: t.get(),
+            first_wal_sequence_number,
             last_wal_sequence_number,
         };
 
-        Some(SnapshotInfo {
-            snapshot_details,
-            wal_periods,
-        })
+        Some(snapshot_details)
     }
 
     /// The number of wal periods we need to see before we attempt a snapshot. This is to ensure that we
@@ -183,11 +188,11 @@ impl SnapshotTracker {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct SnapshotInfo {
-    pub snapshot_details: SnapshotDetails,
-    pub(crate) wal_periods: Vec<WalPeriod>,
-}
+// #[derive(Debug, Eq, PartialEq)]
+// pub struct SnapshotInfo {
+//     pub snapshot_details: SnapshotDetails,
+//     pub(crate) wal_periods: Vec<WalPeriod>,
+// }
 
 /// A struct that represents a period of time in the WAL. This is used to track the data timestamps
 /// and sequence numbers for each period of the WAL (which will be a file in object store, if enabled).
@@ -260,13 +265,11 @@ mod tests {
         tracker.add_wal_period(p3.clone());
         assert_eq!(
             tracker.snapshot(false),
-            Some(SnapshotInfo {
-                snapshot_details: SnapshotDetails {
-                    snapshot_sequence_number: SnapshotSequenceNumber::new(1),
-                    end_time_marker: 120_000000000,
-                    last_wal_sequence_number: WalFileSequenceNumber::new(2)
-                },
-                wal_periods: vec![p1, p2],
+            Some(SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+                end_time_marker: 120_000000000,
+                first_wal_sequence_number: WalFileSequenceNumber::new(1),
+                last_wal_sequence_number: WalFileSequenceNumber::new(2),
             })
         );
         tracker.add_wal_period(p4.clone());
@@ -274,13 +277,11 @@ mod tests {
         tracker.add_wal_period(p5.clone());
         assert_eq!(
             tracker.snapshot(false),
-            Some(SnapshotInfo {
-                snapshot_details: SnapshotDetails {
-                    snapshot_sequence_number: SnapshotSequenceNumber::new(2),
-                    end_time_marker: 240_000000000,
-                    last_wal_sequence_number: WalFileSequenceNumber::new(3)
-                },
-                wal_periods: vec![p3]
+            Some(SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(2),
+                end_time_marker: 240_000000000,
+                first_wal_sequence_number: WalFileSequenceNumber::new(3),
+                last_wal_sequence_number: WalFileSequenceNumber::new(3)
             })
         );
 
@@ -289,13 +290,11 @@ mod tests {
         tracker.add_wal_period(p6.clone());
         assert_eq!(
             tracker.snapshot(false),
-            Some(SnapshotInfo {
-                snapshot_details: SnapshotDetails {
-                    snapshot_sequence_number: SnapshotSequenceNumber::new(3),
-                    end_time_marker: 360_000000000,
-                    last_wal_sequence_number: WalFileSequenceNumber::new(5)
-                },
-                wal_periods: vec![p4, p5]
+            Some(SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(3),
+                end_time_marker: 360_000000000,
+                first_wal_sequence_number: WalFileSequenceNumber::new(4),
+                last_wal_sequence_number: WalFileSequenceNumber::new(5)
             })
         );
 
@@ -348,13 +347,11 @@ mod tests {
 
         assert_eq!(
             tracker.snapshot(false),
-            Some(SnapshotInfo {
-                snapshot_details: SnapshotDetails {
-                    snapshot_sequence_number: SnapshotSequenceNumber::new(1),
-                    end_time_marker: 360000000000,
-                    last_wal_sequence_number: WalFileSequenceNumber::new(5)
-                },
-                wal_periods: vec![p1, p2, p3, p4, p5]
+            Some(SnapshotDetails {
+                snapshot_sequence_number: SnapshotSequenceNumber::new(1),
+                end_time_marker: 360000000000,
+                first_wal_sequence_number: WalFileSequenceNumber::new(1),
+                last_wal_sequence_number: WalFileSequenceNumber::new(5),
             })
         );
     }

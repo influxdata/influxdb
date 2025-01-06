@@ -18,7 +18,6 @@ pub fn wal_contents(
         max_timestamp_ns,
         wal_file_number: WalFileSequenceNumber::new(wal_file_number),
         ops: ops.into_iter().collect(),
-        snapshot: None,
     }
 }
 
@@ -29,13 +28,14 @@ pub fn wal_contents_with_snapshot(
     ops: impl IntoIterator<Item = WalOp>,
     snapshot: SnapshotDetails,
 ) -> WalContents {
+    let mut wal_ops: Vec<WalOp> = ops.into_iter().collect();
+    wal_ops.push(WalOp::Snapshot(snapshot));
     WalContents {
         persist_timestamp_ms: 0,
         min_timestamp_ns,
         max_timestamp_ns,
         wal_file_number: WalFileSequenceNumber::new(wal_file_number),
-        ops: ops.into_iter().collect(),
-        snapshot: Some(snapshot),
+        ops: wal_ops,
     }
 }
 

@@ -319,6 +319,8 @@ impl LastCacheProvider {
                     }
                 }
                 WalOp::Catalog(_) => (),
+                WalOp::ForcedSnapshot(_) => (),
+                WalOp::Snapshot(_) => (),
             }
         }
     }

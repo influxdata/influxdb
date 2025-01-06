@@ -241,9 +241,10 @@ impl QueryableBuffer {
             }
 
             info!(
-                "persisting {} chunks for wal number {}",
+                "persisting {} chunks for wal number {} and snapshot seq num {}",
                 persist_jobs.len(),
                 snapshot_details.last_wal_sequence_number.as_u64(),
+                snapshot_details.snapshot_sequence_number.as_u64(),
             );
             let (persisted_snapshot, cache_notifiers) = persist_parquet_files_and_get_summary(
                 &persister,
@@ -456,38 +457,48 @@ async fn persist_parquet_files_and_get_summary(
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
-    fn notify(&self, write: WalContents) {
-        if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
-            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
-                error!(%err, "Error sending WAL content to plugins");
-            }
-        }
-        self.buffer_contents(write)
-    }
-
-    async fn notify_and_snapshot(
+    async fn notify(
         &self,
-        write: WalContents,
-        snapshot_details: SnapshotDetails,
-    ) -> Receiver<SnapshotDetails> {
+        wal_contents: WalContents,
+        do_snapshot: bool,
+    ) -> Option<Receiver<SnapshotDetails>> {
         if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
-            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+            if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(
+                wal_contents.clone(),
+            ))) {
                 error!(%err, "Error sending WAL content to plugins");
             }
         }
-        self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
-            .await
+
+        if do_snapshot {
+            if let Some(snapshot_details) = wal_contents.find_snapshot_details() {
+                return Some(
+                    self.buffer_contents_and_persist_snapshotted_data(
+                        wal_contents,
+                        snapshot_details,
+                    )
+                    .await,
+                );
+            }
+        }
+        self.buffer_contents(wal_contents);
+        None
     }
 
-    async fn snapshot(&self, snapshot_details: SnapshotDetails) -> Receiver<SnapshotDetails> {
-        let persist_jobs = self.prepare_persist_jobs_from_chunks(
-            snapshot_details.end_time_marker,
-            snapshot_details.last_wal_sequence_number,
-            None,
-        );
-        self.snapshot_data_and_clear_buffer(persist_jobs, snapshot_details)
-            .await
-    }
+    // // deprecate
+    // async fn notify_and_snapshot(
+    //     &self,
+    //     write: WalContents,
+    //     snapshot_details: SnapshotDetails,
+    // ) -> Receiver<SnapshotDetails> {
+    //     if let Some(sender) = self.plugin_event_tx.lock().as_ref() {
+    //         if let Err(err) = sender.send(PluginEvent::WriteWalContents(Arc::new(write.clone()))) {
+    //             error!(%err, "Error sending WAL content to plugins");
+    //         }
+    //     }
+    //     self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
+    //         .await
+    // }
 
     fn as_any(&self) -> &dyn Any {
         self
@@ -604,6 +615,8 @@ impl BufferState {
                         }
                     }
                 }
+                WalOp::ForcedSnapshot(_) => {}
+                WalOp::Snapshot(_) => {}
             }
         }
     }
@@ -640,6 +653,7 @@ impl BufferState {
                 TableBuffer::new(index_columns, SortKey::from_columns(sort_key))
             });
             for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
+                debug!(">>> adding to table chunks");
                 table_buffer.buffer_chunk(chunk_time, chunk.rows);
             }
         }
@@ -854,19 +868,19 @@ mod tests {
             max_timestamp_ns: batch.max_time_ns,
             wal_file_number: WalFileSequenceNumber::new(1),
             ops: vec![WalOp::Write(batch)],
-            snapshot: None,
         };
         let end_time =
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         // write the lp into the buffer
-        queryable_buffer.notify(wal_contents);
+        queryable_buffer.notify(wal_contents, true).await;
 
         // now force a snapshot, persisting the data to parquet file. Also, buffer up a new write
         let snapshot_sequence_number = SnapshotSequenceNumber::new(1);
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(1),
             last_wal_sequence_number: WalFileSequenceNumber::new(2),
         };
 
@@ -884,15 +898,12 @@ mod tests {
             min_timestamp_ns: batch.min_time_ns,
             max_timestamp_ns: batch.max_time_ns,
             wal_file_number: WalFileSequenceNumber::new(2),
-            ops: vec![WalOp::Write(batch)],
-            snapshot: None,
+            ops: vec![WalOp::Write(batch), WalOp::Snapshot(snapshot_details)],
         };
         let end_time =
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
-        let details = queryable_buffer
-            .notify_and_snapshot(wal_contents, snapshot_details)
-            .await;
+        let details = queryable_buffer.notify(wal_contents, true).await.unwrap();
         let _details = details.await.unwrap();
 
         // validate we have a single persisted file
@@ -908,21 +919,22 @@ mod tests {
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(3),
             last_wal_sequence_number: WalFileSequenceNumber::new(3),
         };
         queryable_buffer
-            .notify_and_snapshot(
+            .notify(
                 WalContents {
                     persist_timestamp_ms: 0,
                     min_timestamp_ns: 0,
                     max_timestamp_ns: 0,
                     wal_file_number: WalFileSequenceNumber::new(3),
-                    ops: vec![],
-                    snapshot: Some(snapshot_details),
+                    ops: vec![WalOp::Snapshot(snapshot_details)],
                 },
-                snapshot_details,
+                true,
             )
             .await
+            .unwrap()
             .await
             .unwrap();
 
