@@ -671,6 +671,7 @@ impl DatabaseManager for WriteBufferImpl {
         }
         Ok(())
     }
+
     async fn create_table(
         &self,
         db: String,
@@ -678,12 +679,15 @@ impl DatabaseManager for WriteBufferImpl {
         tags: Vec<String>,
         fields: Vec<(String, String)>,
     ) -> Result<(), self::Error> {
-        let (db_id, db_schema) =
-            self.catalog
-                .db_id_and_schema(&db)
-                .ok_or_else(|| self::Error::DatabaseNotFound {
-                    db_name: db.to_owned(),
-                })?;
+        // get the database schema or create it if it does not yet exist:
+        let (db_id, db_schema) = match self.catalog.db_id_and_schema(&db) {
+            Some((db_id, db_schema)) => (db_id, db_schema),
+            None => {
+                let db_schema = self.catalog.db_or_create(&db)?;
+                let db_id = db_schema.id;
+                (db_id, db_schema)
+            }
+        };
 
         let table_id = TableId::new();
         let table_name = table.into();
