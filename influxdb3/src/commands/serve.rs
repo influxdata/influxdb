@@ -544,7 +544,12 @@ pub async fn command(config: Config) -> Result<()> {
     let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
     let compaction_event_store = Arc::clone(&sys_events_store) as Arc<dyn CompactionEventStore>;
 
-    let datafusion_config = Arc::new(config.iox_query_datafusion_config.build());
+    // The compactor disables cached parquet loader so it can stream row groups and does not
+    // cache entire parquet files in memory at once. So, we override the inputted configuration
+    // which defaults to using the cached loader:
+    let mut compactor_datafusion_config = config.iox_query_datafusion_config.clone();
+    compactor_datafusion_config.use_cached_parquet_loader = false;
+    let compactor_datafusion_config = Arc::new(compactor_datafusion_config.build());
 
     if let Some(compactor_id) = config.pro_config.compactor_id {
         if config.pro_config.run_compactions {
@@ -574,7 +579,7 @@ pub async fn command(config: Config) -> Result<()> {
                 hosts,
                 compaction_config,
                 pro_config: Arc::clone(&pro_config),
-                datafusion_config: Arc::clone(&datafusion_config),
+                datafusion_config: compactor_datafusion_config,
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
@@ -607,6 +612,8 @@ pub async fn command(config: Config) -> Result<()> {
             });
         }
     }
+
+    let datafusion_config = Arc::new(config.iox_query_datafusion_config.build());
 
     let time_provider = Arc::new(SystemProvider::new());
 
