@@ -19,7 +19,7 @@ use super::common::InfluxDb3Config;
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "w", trailing_var_arg = true)]
 pub(crate) struct Config {
-    /// Common InfluxDB 3.0 config
+    /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     common: InfluxDb3Config,
 

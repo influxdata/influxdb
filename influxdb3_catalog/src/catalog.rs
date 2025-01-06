@@ -188,11 +188,11 @@ impl Serialize for Catalog {
 }
 
 impl Catalog {
-    /// Limit for the number of Databases that InfluxDB 3.0 OSS can have
+    /// Limit for the number of Databases that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_DBS_LIMIT: usize = 5;
-    /// Limit for the number of columns per table that InfluxDB 3.0 OSS can have
+    /// Limit for the number of columns per table that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
-    /// Limit for the number of tables across all DBs that InfluxDB 3.0 OSS can have
+    /// Limit for the number of tables across all DBs that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
     pub fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {

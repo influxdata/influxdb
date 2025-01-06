@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 # Core Crates
 authz.workspace = true
-clap_blocks.workspace = true
 datafusion_util.workspace = true
 iox_query.workspace = true
 iox_time.workspace = true
@@ -63,9 +62,9 @@ console-subscriber = { version = "0.1.10", optional = true, features = ["parking
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 
-azure = ["clap_blocks/azure"] # Optional Azure Object store support
-gcp = ["clap_blocks/gcp"] # Optional GCP object store support
-aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
+azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
+gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support
+aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
