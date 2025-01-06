@@ -411,30 +411,31 @@ func (h *Handler) Close() {
 
 // Statistics maintains statistics for the httpd service.
 type Statistics struct {
-	Requests                     int64
-	CQRequests                   int64
-	QueryRequests                int64
-	WriteRequests                int64
-	PingRequests                 int64
-	StatusRequests               int64
-	WriteRequestBytesReceived    int64
-	QueryRequestBytesTransmitted int64
-	PointsWrittenOK              int64
-	PointsWrittenDropped         int64
-	PointsWrittenFail            int64
-	AuthenticationFailures       int64
-	RequestDuration              int64
-	QueryRequestDuration         int64
-	WriteRequestDuration         int64
-	ActiveRequests               int64
-	ActiveWriteRequests          int64
-	ClientErrors                 int64
-	ServerErrors                 int64
-	RecoveredPanics              int64
-	PromWriteRequests            int64
-	PromReadRequests             int64
-	FluxQueryRequests            int64
-	FluxQueryRequestDuration     int64
+	Requests                         int64
+	CQRequests                       int64
+	QueryRequests                    int64
+	WriteRequests                    int64
+	PingRequests                     int64
+	StatusRequests                   int64
+	WriteRequestBytesReceived        int64
+	QueryRequestBytesTransmitted     int64
+	PointsWrittenOK                  int64
+	PointsWrittenDropped             int64
+	PointsWrittenFail                int64
+	AuthenticationFailures           int64
+	RequestDuration                  int64
+	QueryRequestDuration             int64
+	WriteRequestDuration             int64
+	ActiveRequests                   int64
+	ActiveWriteRequests              int64
+	ClientErrors                     int64
+	ServerErrors                     int64
+	RecoveredPanics                  int64
+	PromWriteRequests                int64
+	PromReadRequests                 int64
+	FluxQueryRequests                int64
+	FluxQueryRequestDuration         int64
+	FluxQueryRequestBytesTransmitted int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -443,29 +444,30 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 		Name: "httpd",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statRequest:                      atomic.LoadInt64(&h.stats.Requests),
-			statQueryRequest:                 atomic.LoadInt64(&h.stats.QueryRequests),
-			statWriteRequest:                 atomic.LoadInt64(&h.stats.WriteRequests),
-			statPingRequest:                  atomic.LoadInt64(&h.stats.PingRequests),
-			statStatusRequest:                atomic.LoadInt64(&h.stats.StatusRequests),
-			statWriteRequestBytesReceived:    atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
-			statQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
-			statPointsWrittenOK:              atomic.LoadInt64(&h.stats.PointsWrittenOK),
-			statPointsWrittenDropped:         atomic.LoadInt64(&h.stats.PointsWrittenDropped),
-			statPointsWrittenFail:            atomic.LoadInt64(&h.stats.PointsWrittenFail),
-			statAuthFail:                     atomic.LoadInt64(&h.stats.AuthenticationFailures),
-			statRequestDuration:              atomic.LoadInt64(&h.stats.RequestDuration),
-			statQueryRequestDuration:         atomic.LoadInt64(&h.stats.QueryRequestDuration),
-			statWriteRequestDuration:         atomic.LoadInt64(&h.stats.WriteRequestDuration),
-			statRequestsActive:               atomic.LoadInt64(&h.stats.ActiveRequests),
-			statWriteRequestsActive:          atomic.LoadInt64(&h.stats.ActiveWriteRequests),
-			statClientError:                  atomic.LoadInt64(&h.stats.ClientErrors),
-			statServerError:                  atomic.LoadInt64(&h.stats.ServerErrors),
-			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
-			statPromWriteRequest:             atomic.LoadInt64(&h.stats.PromWriteRequests),
-			statPromReadRequest:              atomic.LoadInt64(&h.stats.PromReadRequests),
-			statFluxQueryRequests:            atomic.LoadInt64(&h.stats.FluxQueryRequests),
-			statFluxQueryRequestDuration:     atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
+			statRequest:                          atomic.LoadInt64(&h.stats.Requests),
+			statQueryRequest:                     atomic.LoadInt64(&h.stats.QueryRequests),
+			statWriteRequest:                     atomic.LoadInt64(&h.stats.WriteRequests),
+			statPingRequest:                      atomic.LoadInt64(&h.stats.PingRequests),
+			statStatusRequest:                    atomic.LoadInt64(&h.stats.StatusRequests),
+			statWriteRequestBytesReceived:        atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
+			statQueryRequestBytesTransmitted:     atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
+			statPointsWrittenOK:                  atomic.LoadInt64(&h.stats.PointsWrittenOK),
+			statPointsWrittenDropped:             atomic.LoadInt64(&h.stats.PointsWrittenDropped),
+			statPointsWrittenFail:                atomic.LoadInt64(&h.stats.PointsWrittenFail),
+			statAuthFail:                         atomic.LoadInt64(&h.stats.AuthenticationFailures),
+			statRequestDuration:                  atomic.LoadInt64(&h.stats.RequestDuration),
+			statQueryRequestDuration:             atomic.LoadInt64(&h.stats.QueryRequestDuration),
+			statWriteRequestDuration:             atomic.LoadInt64(&h.stats.WriteRequestDuration),
+			statRequestsActive:                   atomic.LoadInt64(&h.stats.ActiveRequests),
+			statWriteRequestsActive:              atomic.LoadInt64(&h.stats.ActiveWriteRequests),
+			statClientError:                      atomic.LoadInt64(&h.stats.ClientErrors),
+			statServerError:                      atomic.LoadInt64(&h.stats.ServerErrors),
+			statRecoveredPanics:                  atomic.LoadInt64(&h.stats.RecoveredPanics),
+			statPromWriteRequest:                 atomic.LoadInt64(&h.stats.PromWriteRequests),
+			statPromReadRequest:                  atomic.LoadInt64(&h.stats.PromReadRequests),
+			statFluxQueryRequests:                atomic.LoadInt64(&h.stats.FluxQueryRequests),
+			statFluxQueryRequestDuration:         atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
+			statFluxQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.FluxQueryRequestBytesTransmitted),
 		},
 	}}
 }
@@ -2161,6 +2163,8 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 			if n == 0 {
 				// If the encoder did not write anything, we can write an error header.
 				h.httpError(w, err.Error(), http.StatusInternalServerError)
+			} else {
+				atomic.AddInt64(&h.stats.FluxQueryRequestBytesTransmitted, int64(n))
 			}
 		}
 	}
