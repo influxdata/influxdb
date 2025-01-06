@@ -9,8 +9,6 @@ pub struct WalPluginTestRequest {
     pub name: String,
     pub input_lp: Option<String>,
     pub input_file: Option<String>,
-    pub save_output_to_file: Option<String>,
-    pub validate_output_file: Option<String>,
     pub input_arguments: Option<HashMap<String, String>>,
 }
 

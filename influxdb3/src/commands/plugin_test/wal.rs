@@ -24,12 +24,6 @@ pub struct WalPluginTest {
     /// If given, pass this file of LP as input from on the server `<plugin-dir>/<name>_test/<input-file>`
     #[clap(long = "file")]
     pub input_file: Option<String>,
-    /// If given, save the output to this file on the server in `<plugin-dir>/<name>_test/<save-output-to-file>`
-    #[clap(long = "save-output-to-file")]
-    pub save_output_to_file: Option<String>,
-    /// If given, validate the output against this file on the server in `<plugin-dir>/<name>_test/<validate-output-file>`
-    #[clap(long = "validate-output-file")]
-    pub validate_output_file: Option<String>,
     /// If given pass this map of string key/value pairs as input arguments
     #[clap(long = "input-arguments")]
     pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
@@ -47,8 +41,6 @@ impl From<WalPluginTest> for WalPluginTestRequest {
             name: val.name,
             input_lp: val.input_lp,
             input_file: val.input_file,
-            save_output_to_file: val.save_output_to_file,
-            validate_output_file: val.validate_output_file,
             input_arguments,
         }
     }

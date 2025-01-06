@@ -238,8 +238,10 @@ pub(crate) fn run_test_wal_plugin(
     use data_types::NamespaceName;
     use influxdb3_wal::Gen1Duration;
 
+    const TEST_NAMESPACE: &str = "_testdb";
+
+    let namespace = NamespaceName::new(TEST_NAMESPACE).unwrap();
     // parse the lp into a write batch
-    let namespace = NamespaceName::new("_testdb").unwrap();
     let validator = WriteValidator::initialize(
         namespace.clone(),
         Arc::clone(&catalog),
@@ -394,15 +396,13 @@ def process_writes(influxdb3_local, table_batches, args=None):
             name: "test".into(),
             input_lp: Some(lp),
             input_file: None,
-            save_output_to_file: None,
-            validate_output_file: None,
             input_arguments: Some(HashMap::from([(
                 String::from("arg1"),
                 String::from("val1"),
             )])),
         };
 
-        let reesponse =
+        let response =
             run_test_wal_plugin(now, Arc::new(catalog), code.to_string(), request).unwrap();
 
         let expected_log_lines = vec![
@@ -412,20 +412,20 @@ def process_writes(influxdb3_local, table_batches, args=None):
             "INFO: table: mem", "INFO: row: {'time': 120, 'fields': [{'name': 'host', 'value': 'B'}, {'name': 'user', 'value': 43.1}]}",
             "INFO: done",
         ].into_iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(reesponse.log_lines, expected_log_lines);
+        assert_eq!(response.log_lines, expected_log_lines);
 
         let expected_testdb_lines = vec![
             "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""
                 .to_string(),
         ];
         assert_eq!(
-            reesponse.database_writes.get("_testdb").unwrap(),
+            response.database_writes.get("_testdb").unwrap(),
             &expected_testdb_lines
         );
         let expected_mytestdb_lines =
             vec!["other_table other_field=1i,other_field2=3.14 1302".to_string()];
         assert_eq!(
-            reesponse.database_writes.get("mytestdb").unwrap(),
+            response.database_writes.get("mytestdb").unwrap(),
             &expected_mytestdb_lines
         );
     }
@@ -477,8 +477,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
             name: "test".into(),
             input_lp: Some(lp),
             input_file: None,
-            save_output_to_file: None,
-            validate_output_file: None,
             input_arguments: None,
         };
 
