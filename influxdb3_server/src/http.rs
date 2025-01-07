@@ -477,6 +477,24 @@ impl<T> HttpApi<T> {
     }
 }
 
+fn expired_license() -> Option<Response<Body>> {
+    if crate::EXPIRED_LICENSE.load(std::sync::atomic::Ordering::Relaxed) {
+        #[derive(Debug, Serialize)]
+        struct ExpiredLicense {
+            error: &'static str,
+        }
+        let el = ExpiredLicense {
+            error: "License is expired. Please update your license and place it in the object store under enterprise/license"
+        };
+
+        let body = Body::from(serde_json::to_string(&el).unwrap());
+        // Return a 403 FORBIDDEN if the license is expired for this route
+        Some(Response::builder().status(403).body(body).unwrap())
+    } else {
+        None
+    }
+}
+
 impl<T> HttpApi<T>
 where
     T: TimeProvider,
@@ -531,6 +549,9 @@ where
     }
 
     async fn query_sql(&self, req: Request<Body>) -> Result<Response<Body>> {
+        if let Some(res) = expired_license() {
+            return Ok(res);
+        }
         let QueryRequest {
             database,
             query_str,
@@ -553,6 +574,9 @@ where
     }
 
     async fn query_influxql(&self, req: Request<Body>) -> Result<Response<Body>> {
+        if let Some(res) = expired_license() {
+            return Ok(res);
+        }
         let QueryRequest {
             database,
             query_str,

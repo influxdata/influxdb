@@ -74,6 +74,17 @@ use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
+#[cfg(not(feature = "no_license"))]
+use {
+    influxdb3_server::EXPIRED_LICENSE,
+    jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation},
+    object_store::path::Path as ObjPath,
+    object_store::PutPayload,
+    serde::{Deserialize, Serialize},
+    std::sync::atomic::Ordering,
+    std::time::SystemTime,
+    std::time::UNIX_EPOCH,
+};
 
 /// The default name of the influxdb data directory
 #[allow(dead_code)]
@@ -136,6 +147,20 @@ pub enum Error {
 
     #[error("Must have `compaction-hosts` specfied if running in compactor mode")]
     CompactorModeWithoutHosts,
+
+    #[error("IO Error occurred: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Failed to make a request: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("Failed to get a valid license. Please try again.")]
+    LicenseTimeout,
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("Failed to make a well formed request to get the license")]
+    BadLicenseRequest,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -521,6 +546,17 @@ pub async fn command(config: Config) -> Result<()> {
     );
     info!(instance_id = ?catalog.instance_id(), "catalog initialized");
 
+    #[cfg(not(feature = "no_license"))]
+    {
+        load_and_validate_license(
+            Arc::clone(&object_store),
+            config.host_identifier_prefix.clone(),
+            catalog.instance_id(),
+        )
+        .await?;
+        info!("valid license found, happy data crunching");
+    }
+
     let enterprise_config = match EnterpriseConfig::load(&object_store).await {
         Ok(config) => Arc::new(RwLock::new(config)),
         // If the config is not found we should create it
@@ -829,3 +865,219 @@ async fn setup_telemetry_store(
     )
     .await
 }
+
+#[cfg(not(feature = "no_license"))]
+async fn load_and_validate_license(
+    object_store: Arc<dyn ObjectStore>,
+    host_id: String,
+    instance_id: Arc<str>,
+) -> Result<()> {
+    let license_path: ObjPath = format!("{host_id}/license").into();
+    let license = match object_store.get(&license_path).await {
+        Ok(get_result) => get_result.bytes().await?,
+        // The license does not exist so we need to create one
+        Err(object_store::Error::NotFound { .. }) => {
+            println!(
+                "\nWelcome to InfluxDB Enterprise\n\
+                 No license file was detected. Please enter your email: \
+            "
+            );
+            let mut email = String::new();
+            let stdin = std::io::stdin();
+            stdin.read_line(&mut email)?;
+            let email = email.trim();
+
+            let client = reqwest::Client::new();
+            let resp = client
+                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&host-id={host_id}"))
+            .send()
+            .await?;
+
+            if resp.status() == 400 {
+                return Err(Error::BadLicenseRequest);
+            }
+
+            //TODO: Handle url for local vs actual production code
+            let poll_url = format!(
+                "https://licenses.enterprise.influxdata.com{}",
+                resp.headers()
+                    .get("Location")
+                    .expect("Location header to be present")
+                    .to_str()
+                    .expect("Location header to be a valid utf-8 string")
+            );
+            let start = Instant::now();
+            loop {
+                // If 20 minutes have passed timeout and return an error
+                let duration = start.duration_since(Instant::now()).as_secs();
+                if duration > (20 * 60) {
+                    return Err(Error::LicenseTimeout);
+                }
+
+                let resp = client.get(&poll_url).send().await?;
+                match resp.status().as_u16() {
+                    404 => {
+                        dbg!(&resp);
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+                    200 => {
+                        let license = resp.bytes().await?;
+                        object_store
+                            .put(&license_path, PutPayload::from_bytes(license.clone()))
+                            .await?;
+                        break license;
+                    }
+                    400 => return Err(Error::BadLicenseRequest),
+                    _ => unreachable!(),
+                }
+            }
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let license = std::str::from_utf8(&license).expect("License file is valid utf-8");
+    let kid = decode_header(license)
+        .expect("License file is a valid JWT")
+        .kid
+        .expect("The kid field exists in the JWT Header");
+    let key = SIGNING_KEYS[&kid];
+
+    let claims = decode::<Claims>(
+        license,
+        &DecodingKey::from_ec_pem(key).expect("The signing keys are in ec pem format"),
+        &Validation::new(Algorithm::ES256),
+    )
+    .expect("The license JWT could be decoded")
+    .claims;
+
+    if SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Now is greater than the Epoch")
+        .as_secs()
+        > claims.license_exp
+    {
+        error!("License is expired please acquire a new one. Queries will be disabled");
+        influxdb3_server::EXPIRED_LICENSE.store(true, std::sync::atomic::Ordering::Relaxed);
+    } else if host_id != claims.host_id {
+        eprintln!("Invalid host_id for license");
+        std::process::exit(1);
+    }
+
+    async fn recurring_license_validation_check(
+        mut claims: Claims,
+        host_id: String,
+        license_path: ObjPath,
+        object_store: Arc<dyn ObjectStore>,
+    ) {
+        loop {
+            // Check license once a day if not expired otherwise check every minute
+            if EXPIRED_LICENSE.load(Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                error!("License is expired please acquire a new one. Queries will be disabled. Will check for valid license every minute");
+                let Ok(result) = object_store.get(&license_path).await else {
+                    continue;
+                };
+                let Ok(license) = result.bytes().await else {
+                    continue;
+                };
+                let license = std::str::from_utf8(&license).expect("License file is valid utf-8");
+                let kid = decode_header(license)
+                    .expect("License file is a valid JWT")
+                    .kid
+                    .expect("The kid field exists in the JWT Header");
+                let key = SIGNING_KEYS[&kid];
+
+                claims = decode::<Claims>(
+                    license,
+                    &DecodingKey::from_ec_pem(key).expect("The signing keys are in ec pem format"),
+                    &Validation::new(Algorithm::ES256),
+                )
+                .expect("The license JWT could be decoded")
+                .claims;
+            } else {
+                tokio::time::sleep(Duration::from_secs(60 * 60 * 24)).await;
+            }
+
+            if SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Now is greater than the Epoch")
+                .as_secs()
+                > claims.license_exp
+            {
+                EXPIRED_LICENSE.store(true, Ordering::Relaxed);
+            } else if host_id != claims.host_id {
+                error!("Invalid host_id for license. Aborting process.");
+                std::process::exit(1);
+            } else {
+                EXPIRED_LICENSE.store(false, Ordering::Relaxed);
+            }
+        }
+    }
+    tokio::task::spawn(recurring_license_validation_check(
+        claims,
+        host_id,
+        license_path,
+        object_store,
+    ));
+
+    Ok(())
+}
+
+#[cfg(not(feature = "no_license"))]
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    email: String,
+    exp: u64,
+    host_id: String,
+    iat: u64,
+    instance_id: String,
+    iss: String,
+    license_exp: u64,
+}
+
+#[cfg(not(feature = "no_license"))]
+static SIGNING_KEYS: phf::Map<&'static str, &[u8]> = phf::phf_map! {
+    "gcloud-kms_global_clustered-licensing_signing-key-2_v1.pem" => include_bytes!(
+        "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_clustered-licensing_signing-key-2_v1.pem"
+    ),
+     "gcloud-kms_global_clustered-licensing_signing-key-3_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_clustered-licensing_signing-key-3_v1.pem"
+     ),
+     "gcloud-kms_global_clustered-licensing_signing-key-4_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_clustered-licensing_signing-key-4_v1.pem"
+     ),
+     "gcloud-kms_global_clustered-licensing_signing-key_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_clustered-licensing_signing-key_v1.pem"
+     ),
+     "gcloud-kms_global_pro-licensing_signing-key-1_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_pro-licensing_signing-key-1_v1.pem"
+     ),
+     "gcloud-kms_global_pro-licensing_signing-key-2_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_pro-licensing_signing-key-2_v1.pem"
+     ),
+     "gcloud-kms_global_pro-licensing_signing-key-3_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_pro-licensing_signing-key-3_v1.pem"
+     ),
+     "gcloud-kms_global_test-key_test-key_v1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/gcloud-kms_global_test-key_test-key_v1.pem"
+     ),
+     "influxdb-clustered-license-server_self-managed_public_20240318_1.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/influxdb-clustered-license-server_self-managed_public_20240318_1.pem"
+     ),
+     "influxdb-clustered-license-server_self-managed_public_20240318_2.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/influxdb-clustered-license-server_self-managed_public_20240318_2.pem"
+     ),
+     "influxdb-clustered-license-server_self-managed_public_20240318_3.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/influxdb-clustered-license-server_self-managed_public_20240318_3.pem"
+     ),
+     "influxdb-clustered-license-server_self-managed_public_20240318_4.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/influxdb-clustered-license-server_self-managed_public_20240318_4.pem"
+     ),
+     "self-managed_test_private-key.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/self-managed_test_private-key.pem"
+     ),
+     "self-managed_test_public-key.pem" => include_bytes!(
+         "../../../influxdb3_license/service/keyring/keys/self-managed_test_public-key.pem"
+     ),
+};

@@ -41,6 +41,7 @@ use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -57,6 +58,8 @@ use trace_http::metrics::RequestMetrics;
 use trace_http::tower::TraceLayer;
 
 const TRACE_SERVER_NAME: &str = "influxdb3_http";
+
+pub static EXPIRED_LICENSE: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Error)]
 pub enum Error {

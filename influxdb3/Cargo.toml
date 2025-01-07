@@ -53,11 +53,15 @@ futures.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
 humantime.workspace = true
+jsonwebtoken.workspace = true
 libc.workspace = true
 num_cpus.workspace = true
 parking_lot.workspace = true
+phf.workspace = true
 rand.workspace = true
+reqwest.workspace = true
 secrecy.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
@@ -75,6 +79,7 @@ default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support
 aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
+no_license = [] # Compile influxdb3 enterprise to run without a license check, only enable for dev builds. Off by default
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
