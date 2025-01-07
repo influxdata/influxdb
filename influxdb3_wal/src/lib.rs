@@ -1,4 +1,4 @@
-//! This crate provides a Write Ahead Log (WAL) for InfluxDB 3.0. The WAL is used to buffer writes
+//! This crate provides a Write Ahead Log (WAL) for InfluxDB 3 Core. The WAL is used to buffer writes
 //! in memory and persist them as individual files in an object store. The WAL is used to make
 //! writes durable until they can be written in larger batches as Parquet files and other snapshot and
 //! index files in object storage.
@@ -57,6 +57,9 @@ pub enum Error {
 
     #[error("invalid WAL file path")]
     InvalidWalFilePath,
+
+    #[error("failed to parse trigger from {}", trigger_spec)]
+    TriggerSpecificationParseError { trigger_spec: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -105,7 +108,7 @@ pub trait Wal: Debug + Send + Sync + 'static {
 #[async_trait]
 pub trait WalFileNotifier: Debug + Send + Sync + 'static {
     /// Notify the handler that a new WAL file has been persisted with the given contents.
-    fn notify(&self, write: WalContents);
+    async fn notify(&self, write: WalContents);
 
     /// Notify the handler that a new WAL file has been persisted with the given contents and tell
     /// it to snapshot the data. The returned receiver will be signalled when the snapshot is complete.
@@ -300,7 +303,11 @@ pub enum CatalogOp {
     DeleteDatabase(DeleteDatabaseDefinition),
     DeleteTable(DeleteTableDefinition),
     CreatePlugin(PluginDefinition),
+    DeletePlugin(DeletePluginDefinition),
     CreateTrigger(TriggerDefinition),
+    DeleteTrigger(DeleteTriggerDefinition),
+    EnableTrigger(TriggerIdentifier),
+    DisableTrigger(TriggerIdentifier),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -586,6 +593,11 @@ pub struct PluginDefinition {
     pub plugin_type: PluginType,
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct DeletePluginDefinition {
+    pub plugin_name: String,
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
@@ -599,6 +611,20 @@ pub struct TriggerDefinition {
     pub trigger: TriggerSpecificationDefinition,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
+    pub disabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct DeleteTriggerDefinition {
+    pub trigger_name: String,
+    #[serde(default)]
+    pub force: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct TriggerIdentifier {
+    pub db_name: String,
+    pub trigger_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -606,6 +632,38 @@ pub struct TriggerDefinition {
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
+}
+
+impl TriggerSpecificationDefinition {
+    pub fn from_string_rep(spec_str: &str) -> Result<TriggerSpecificationDefinition, Error> {
+        let spec_str = spec_str.trim();
+        match spec_str {
+            s if s.starts_with("table:") => {
+                let table_name = s.trim_start_matches("table:").trim();
+                if table_name.is_empty() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::SingleTableWalWrite {
+                    table_name: table_name.to_string(),
+                })
+            }
+            "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
+            _ => Err(Error::TriggerSpecificationParseError {
+                trigger_spec: spec_str.to_string(),
+            }),
+        }
+    }
+
+    pub fn string_rep(&self) -> String {
+        match self {
+            TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
+                format!("table:{}", table_name)
+            }
+            TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
+        }
+    }
 }
 
 #[serde_as]

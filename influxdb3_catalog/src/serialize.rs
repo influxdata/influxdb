@@ -105,6 +105,7 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                         plugin_name: plugin.plugin_name.to_string(),
                         plugin,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
+                        disabled: trigger.disabled,
                     },
                 )
             })
@@ -171,6 +172,7 @@ struct ProcessingEngineTriggerSnapshot {
     pub trigger_name: String,
     pub plugin_name: String,
     pub trigger_specification: String,
+    pub disabled: bool,
 }
 
 /// Representation of Arrow's `DataType` for table snapshots.
@@ -434,6 +436,7 @@ impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
             plugin_name: trigger.plugin_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
+            disabled: trigger.disabled,
         }
     }
 }

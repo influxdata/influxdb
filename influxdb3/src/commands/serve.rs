@@ -1,11 +1,6 @@
-//! Entrypoint for InfluxDB 3.0 OSS Server
+//! Entrypoint for InfluxDB 3 Core Server
 
 use anyhow::{bail, Context};
-use clap_blocks::{
-    memory_size::MemorySize,
-    object_store::{ObjectStoreConfig, ObjectStoreType},
-    socket_addr::SocketAddr,
-};
 use datafusion_util::config::register_iox_object_store;
 use futures::future::join_all;
 use futures::future::FutureExt;
@@ -15,7 +10,13 @@ use influxdb3_cache::{
     meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_clap_blocks::{datafusion::IoxQueryDatafusionConfig, tokio::TokioDatafusionConfig};
+use influxdb3_clap_blocks::{
+    datafusion::IoxQueryDatafusionConfig,
+    memory_size::MemorySize,
+    object_store::{ObjectStoreConfig, ObjectStoreType},
+    socket_addr::SocketAddr,
+    tokio::TokioDatafusionConfig,
+};
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::ProConfig;
 use influxdb3_pro_buffer::{
@@ -61,7 +62,10 @@ use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::time::Duration;
 use std::{num::NonZeroUsize, sync::Arc};
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -71,7 +75,7 @@ use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
-/// The default name of the influxdb_iox data directory
+/// The default name of the influxdb data directory
 #[allow(dead_code)]
 pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 
@@ -84,7 +88,7 @@ pub const DEFAULT_TELMETRY_ENDPOINT: &str =
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Cannot parse object store config: {0}")]
-    ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
+    ObjectStoreParsing(#[from] influxdb3_clap_blocks::object_store::ParseError),
 
     #[error("Access of Object Store failed: {0}")]
     ObjectStore(#[from] object_store::Error),
@@ -330,6 +334,10 @@ pub struct Config {
         action
     )]
     pub meta_cache_eviction_interval: humantime::Duration,
+
+    /// The local directory that has python plugins and their test files.
+    #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
+    pub plugin_dir: Option<PathBuf>,
 }
 
 /// The interval to check for new snapshots from hosts to compact data from. This will do an S3
@@ -661,6 +669,7 @@ pub async fn command(config: Config) -> Result<()> {
                         replication_config: replica_config,
                         parquet_cache: parquet_cache.clone(),
                         compacted_data: compacted_data.clone(),
+                        plugin_dir: config.plugin_dir,
                     })
                     .await
                     .map_err(Error::WriteBufferInit)?,

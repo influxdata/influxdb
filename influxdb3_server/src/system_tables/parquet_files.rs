@@ -8,9 +8,7 @@ use influxdb3_id::DbId;
 use influxdb3_write::{ParquetFile, WriteBuffer};
 use iox_system_tables::IoxSystemTable;
 
-use crate::system_tables::{find_table_name_in_filter, table_name_predicate_error};
-
-use super::PARQUET_FILES_TABLE_NAME;
+use crate::system_tables::find_table_name_in_filter;
 
 #[derive(Debug)]
 pub(super) struct ParquetFilesTable {
@@ -50,68 +48,88 @@ impl IoxSystemTable for ParquetFilesTable {
     async fn scan(
         &self,
         filters: Option<Vec<Expr>>,
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
         let schema = self.schema();
+        let limit = limit.unwrap_or(usize::MAX);
 
         // extract `table_name` from filters
-        let table_name = find_table_name_in_filter(filters)
-            .ok_or_else(|| table_name_predicate_error(PARQUET_FILES_TABLE_NAME))?;
+        let table_name = find_table_name_in_filter(filters);
 
-        let parquet_files: Vec<ParquetFile> = self.buffer.parquet_files(
-            self.db_id,
-            self.buffer
+        let parquet_files = if let Some(table_name) = table_name {
+            let table_id = self
+                .buffer
                 .catalog()
                 .db_schema_by_id(&self.db_id)
                 .expect("db exists")
-                .table_name_to_id(table_name.as_str())
-                .expect("table exists"),
-        );
+                .table_name_to_id(Arc::clone(&table_name))
+                .expect("table exists");
+            self.buffer
+                .parquet_files(self.db_id, table_id)
+                .into_iter()
+                .map(|file| (Arc::clone(&table_name), file))
+                .collect()
+        } else {
+            self.buffer
+                .catalog()
+                .list_db_schema()
+                .iter()
+                .flat_map(|db| db.tables())
+                .flat_map(|table_def| {
+                    self.buffer
+                        .parquet_files(self.db_id, table_def.table_id)
+                        .into_iter()
+                        .map(move |file| (Arc::clone(&table_def.table_name), file))
+                })
+                .take(limit)
+                .collect()
+        };
 
-        from_parquet_files(&table_name, schema, parquet_files)
+        from_parquet_files(schema, parquet_files)
     }
 }
 
+/// Produce a record batch listing parquet file information based on the given `schema` and
+/// `parquet_files`, a list of table name and parquet file pairs.
 fn from_parquet_files(
-    table_name: &str,
     schema: SchemaRef,
-    parquet_files: Vec<ParquetFile>,
+    parquet_files: Vec<(Arc<str>, ParquetFile)>,
 ) -> Result<RecordBatch, DataFusionError> {
     let columns: Vec<ArrayRef> = vec![
         Arc::new(
-            vec![table_name; parquet_files.len()]
+            parquet_files
                 .iter()
-                .map(|s| Some(s.to_string()))
+                .map(|(table_name, _)| Some(table_name))
                 .collect::<StringArray>(),
         ),
         Arc::new(
             parquet_files
                 .iter()
-                .map(|f| Some(f.path.to_string()))
+                .map(|(_, f)| Some(f.path.to_string()))
                 .collect::<StringArray>(),
         ),
         Arc::new(
             parquet_files
                 .iter()
-                .map(|f| Some(f.size_bytes))
+                .map(|(_, f)| Some(f.size_bytes))
                 .collect::<UInt64Array>(),
         ),
         Arc::new(
             parquet_files
                 .iter()
-                .map(|f| Some(f.row_count))
+                .map(|(_, f)| Some(f.row_count))
                 .collect::<UInt64Array>(),
         ),
         Arc::new(
             parquet_files
                 .iter()
-                .map(|f| Some(f.min_time))
+                .map(|(_, f)| Some(f.min_time))
                 .collect::<Int64Array>(),
         ),
         Arc::new(
             parquet_files
                 .iter()
-                .map(|f| Some(f.max_time))
+                .map(|(_, f)| Some(f.max_time))
                 .collect::<Int64Array>(),
         ),
     ];

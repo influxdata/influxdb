@@ -11,9 +11,7 @@ use influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult;
 use iox_system_tables::IoxSystemTable;
 use observability_deps::tracing::debug;
 
-use crate::system_tables::{
-    find_table_name_in_filter, table_name_predicate_error, COMPACTED_DATA_TABLE_NAME,
-};
+use crate::system_tables::{find_table_name_in_filter, COMPACTED_DATA_TABLE_NAME};
 
 #[derive(Debug)]
 pub(crate) struct CompactedDataTable {
@@ -89,12 +87,15 @@ impl IoxSystemTable for CompactedDataTable {
             .ok_or_else(compaction_not_setup_error)?;
 
         debug!(filters = ?filters, ">>>> all filters");
-        let table_name = find_table_name_in_filter(filters)
-            .ok_or_else(|| table_name_predicate_error(COMPACTED_DATA_TABLE_NAME))?;
+        let table_name = find_table_name_in_filter(filters).ok_or_else(|| {
+            DataFusionError::External(
+                format!("{COMPACTED_DATA_TABLE_NAME} table not found in filters").into(),
+            )
+        })?;
 
         let _ = self
             .db_schema
-            .table_name_to_id(table_name.as_str())
+            .table_name_to_id(table_name.clone())
             .ok_or_else(table_not_found_error)?;
 
         let results = data.query(self.db_schema.name.as_ref(), &table_name);
@@ -333,9 +334,6 @@ mod tests {
         info!(res = ?result, "Result from scanning");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert_eq!(
-            "must provide a table_name = '<table_name>' predicate in queries to system.compacted_data".to_owned(),
-            err.message()
-        );
+        assert_eq!("compacted_data table not found in filters", err.message());
     }
 }

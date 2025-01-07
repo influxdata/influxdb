@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use crate::replica::{CreateReplicasArgs, Replicas, ReplicationConfig};
 use async_trait::async_trait;
@@ -9,6 +9,7 @@ use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::{
@@ -55,6 +56,7 @@ pub struct CreateReadWriteModeArgs {
     pub replication_config: Option<ReplicationConfig>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
+    pub plugin_dir: Option<PathBuf>,
 }
 
 impl ReadWriteMode {
@@ -72,6 +74,7 @@ impl ReadWriteMode {
             replication_config,
             parquet_cache,
             compacted_data,
+            plugin_dir,
         }: CreateReadWriteModeArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
@@ -85,6 +88,7 @@ impl ReadWriteMode {
             wal_config,
             parquet_cache: parquet_cache.clone(),
             metric_registry: Arc::clone(&metric_registry),
+            plugin_dir,
         })
         .await?;
 
@@ -143,20 +147,6 @@ impl Bufferer for ReadWriteMode {
         // Writes go to the primary buffer, so this only relies on that
         self.primary
             .write_lp(database, lp, ingest_time, accept_partial, precision)
-            .await
-    }
-
-    async fn write_lp_v3(
-        &self,
-        database: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> write_buffer::Result<BufferedWriteRequest> {
-        // Writes go to the primary buffer, so this only relies on that
-        self.primary
-            .write_lp_v3(database, lp, ingest_time, accept_partial, precision)
             .await
     }
 
@@ -409,15 +399,56 @@ impl ProcessingEngineManager for ReadWriteMode {
             .await
     }
 
+    async fn delete_plugin(&self, db: &str, plugin_name: &str) -> Result<(), write_buffer::Error> {
+        self.primary.delete_plugin(db, plugin_name).await
+    }
+
+    async fn activate_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary
+            .activate_trigger(write_buffer, db_name, trigger_name)
+            .await
+    }
+
+    async fn deactivate_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary.deactivate_trigger(db_name, trigger_name).await
+    }
+
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        disabled: bool,
     ) -> Result<(), write_buffer::Error> {
         self.primary
-            .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .insert_trigger(
+                db_name,
+                trigger_name,
+                plugin_name,
+                trigger_specification,
+                disabled,
+            )
+            .await
+    }
+
+    async fn delete_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> Result<(), write_buffer::Error> {
+        self.primary
+            .delete_trigger(db_name, trigger_name, force)
             .await
     }
 
@@ -430,6 +461,13 @@ impl ProcessingEngineManager for ReadWriteMode {
         self.primary
             .run_trigger(write_buffer, db_name, trigger_name)
             .await
+    }
+
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
+        self.primary.test_wal_plugin(request).await
     }
 }
 

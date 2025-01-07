@@ -2569,6 +2569,7 @@ mod tests {
             wal_config,
             parquet_cache: None,
             metric_registry,
+            plugin_dir: None,
         })
         .await
         .unwrap()

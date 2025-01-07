@@ -8,6 +8,7 @@ use influxdb3_cache::{
     meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
@@ -78,19 +79,6 @@ impl<Mode: Bufferer> Bufferer for WriteBufferPro<Mode> {
     ) -> WriteBufferResult<BufferedWriteRequest> {
         self.mode
             .write_lp(database, lp, ingest_time, accept_partial, precision)
-            .await
-    }
-
-    async fn write_lp_v3(
-        &self,
-        database: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> WriteBufferResult<BufferedWriteRequest> {
-        self.mode
-            .write_lp_v3(database, lp, ingest_time, accept_partial, precision)
             .await
     }
 
@@ -230,16 +218,55 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferPro<M
             .await
     }
 
+    async fn delete_plugin(&self, db: &str, plugin_name: &str) -> Result<(), write_buffer::Error> {
+        self.mode.delete_plugin(db, plugin_name).await
+    }
+
+    async fn activate_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode
+            .activate_trigger(write_buffer, db_name, trigger_name)
+            .await
+    }
+
+    async fn deactivate_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode.deactivate_trigger(db_name, trigger_name).await
+    }
+
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        disabled: bool,
     ) -> Result<(), write_buffer::Error> {
         self.mode
-            .insert_trigger(db_name, trigger_name, plugin_name, trigger_specification)
+            .insert_trigger(
+                db_name,
+                trigger_name,
+                plugin_name,
+                trigger_specification,
+                disabled,
+            )
             .await
+    }
+
+    async fn delete_trigger(
+        &self,
+        db: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> Result<(), write_buffer::Error> {
+        self.mode.delete_trigger(db, trigger_name, force).await
     }
 
     async fn run_trigger(
@@ -251,6 +278,13 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferPro<M
         self.mode
             .run_trigger(write_buffer, db_name, trigger_name)
             .await
+    }
+
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
+        self.mode.test_wal_plugin(request).await
     }
 }
 
@@ -328,6 +362,7 @@ mod tests {
             replication_config: None,
             parquet_cache: None,
             compacted_data: None,
+            plugin_dir: None,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -437,6 +472,7 @@ mod tests {
             replication_config: None,
             parquet_cache: Some(parquet_cache),
             compacted_data: None,
+            plugin_dir: None,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -937,6 +973,7 @@ mod test_helpers {
             replication_config,
             parquet_cache: None,
             compacted_data: None,
+            plugin_dir: None,
         })
         .await
         .unwrap()

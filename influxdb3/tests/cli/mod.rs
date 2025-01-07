@@ -42,7 +42,7 @@ async fn configure_file_index() {
     let query = || {
         CLI::run(&[
             "query",
-            "-h",
+            "-H",
             addr.as_str(),
             "-d",
             "gundam",
@@ -52,7 +52,7 @@ async fn configure_file_index() {
     CLI::run(&[
         "file-index",
         "create",
-        "-h",
+        "-H",
         addr.as_str(),
         "-d",
         "gundam",
@@ -74,7 +74,7 @@ async fn configure_file_index() {
     CLI::run(&[
         "file-index",
         "create",
-        "-h",
+        "-H",
         addr.as_str(),
         "-d",
         "gundam",
@@ -94,7 +94,7 @@ async fn configure_file_index() {
     CLI::run(&[
         "file-index",
         "create",
-        "-h",
+        "-H",
         addr.as_str(),
         "-d",
         "gundam",
@@ -116,7 +116,7 @@ async fn configure_file_index() {
     CLI::run(&[
         "file-index",
         "delete",
-        "-h",
+        "-H",
         addr.as_str(),
         "-d",
         "gundam",
@@ -133,7 +133,7 @@ async fn configure_file_index() {
          +---------------+------------+----------------+------------------+",
         query()
     );
-    CLI::run(&["file-index", "delete", "-h", addr.as_str(), "-d", "gundam"]);
+    CLI::run(&["file-index", "delete", "-H", addr.as_str(), "-d", "gundam"]);
     assert_eq!(
         "\
          ++\n\

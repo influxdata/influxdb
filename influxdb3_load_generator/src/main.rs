@@ -1,4 +1,4 @@
-//! Entrypoint of InfluxDB IOx binary
+//! Entrypoint of the influxdb3_load_generator binary
 #![recursion_limit = "512"] // required for print_cpu
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![warn(
@@ -45,8 +45,8 @@ clap::Arg::new("help")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3.0 Load Generator for writes and queries",
-long_about = r#"InfluxDB 3.0 Load Generator for writes and queries
+about = "InfluxDB 3 Core Load Generator for writes and queries",
+long_about = r#"InfluxDB 3 Core Load Generator for writes and queries
 
 Examples:
     # Run the write load generator
@@ -76,13 +76,13 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// Perform a query against a running InfluxDB 3.0 server
+    /// Perform a query against a running InfluxDB 3 Core server
     Query(commands::query::Config),
 
-    /// Perform a set of writes to a running InfluxDB 3.0 server
+    /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
 
-    /// Perform both writes and queries against a running InfluxDB 3.0 server
+    /// Perform both writes and queries against a running InfluxDB 3 Core server
     Full(commands::full::Config),
 }
 
@@ -148,7 +148,10 @@ fn get_runtime(num_threads: Option<usize>) -> Result<Runtime, std::io::Error> {
                 _ => Builder::new_multi_thread()
                     .enable_all()
                     .thread_name_fn(move || {
-                        format!("IOx main {}", thread_counter.fetch_add(1, Ordering::SeqCst))
+                        format!(
+                            "inflxudb3_load_generator main {}",
+                            thread_counter.fetch_add(1, Ordering::SeqCst)
+                        )
                     })
                     .worker_threads(num_threads)
                     .build(),

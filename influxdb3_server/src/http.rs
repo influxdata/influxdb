@@ -218,6 +218,9 @@ pub enum Error {
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
+
+    #[error("Python plugins not enabled on this server")]
+    PythonPluginsNotEnabled,
 }
 
 #[derive(Debug, Error)]
@@ -264,10 +267,6 @@ impl Error {
                 .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
-            Self::WriteBuffer(err @ WriteBufferError::EmptyFields) => Response::builder()
-                .status(StatusCode::UNPROCESSABLE_ENTITY)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
@@ -362,6 +361,13 @@ impl Error {
                     .unwrap()
             }
             Self::PartialLpWrite(data) => {
+                let limit_hit = data.invalid_lines.iter().any(|err| {
+                    err.error_message
+                        .starts_with("Update to schema would exceed number of")
+                        || err
+                            .error_message
+                            .starts_with("Adding a new database would exceed limit of")
+                });
                 let err = ErrorMessage {
                     error: "partial write of line protocol occurred".into(),
                     data: Some(data.invalid_lines),
@@ -369,7 +375,11 @@ impl Error {
                 let serialized = serde_json::to_string(&err).unwrap();
                 let body = Body::from(serialized);
                 Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
+                    .status(if limit_hit {
+                        StatusCode::UNPROCESSABLE_ENTITY
+                    } else {
+                        StatusCode::BAD_REQUEST
+                    })
                     .body(body)
                     .unwrap()
             }
@@ -474,13 +484,7 @@ where
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false, false).await
-    }
-
-    async fn write_v3(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
-        let params: WriteParams = serde_urlencoded::from_str(query)?;
-        self.write_lp_inner(params, req, false, true).await
+        self.write_lp_inner(params, req, false).await
     }
 
     async fn write_lp_inner(
@@ -488,7 +492,6 @@ where
         params: WriteParams,
         req: Request<Body>,
         accept_rp: bool,
-        use_v3: bool,
     ) -> Result<Response<Body>> {
         validate_db_name(&params.db, accept_rp)?;
         info!("write_lp to {}", params.db);
@@ -500,27 +503,16 @@ where
 
         let default_time = self.time_provider.now();
 
-        let result = if use_v3 {
-            self.write_buffer
-                .write_lp_v3(
-                    database,
-                    body,
-                    default_time,
-                    params.accept_partial,
-                    params.precision,
-                )
-                .await?
-        } else {
-            self.write_buffer
-                .write_lp(
-                    database,
-                    body,
-                    default_time,
-                    params.accept_partial,
-                    params.precision,
-                )
-                .await?
-        };
+        let result = self
+            .write_buffer
+            .write_lp(
+                database,
+                body,
+                default_time,
+                params.accept_partial,
+                params.precision,
+            )
+            .await?;
 
         let num_lines = result.line_count;
         let payload_size = body.len();
@@ -760,7 +752,7 @@ where
         };
 
         if statement.statement().is_show_databases() {
-            self.query_executor.show_databases()
+            self.query_executor.show_databases(true)
         } else if statement.statement().is_show_retention_policies() {
             self.query_executor
                 .show_retention_policies(database.as_deref(), None)
@@ -1014,6 +1006,19 @@ where
             .body(Body::empty())?)
     }
 
+    async fn delete_processing_engine_plugin(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let ProcessingEnginePluginDeleteRequest { db, plugin_name } =
+            if let Some(query) = req.uri().query() {
+                serde_urlencoded::from_str(query)?
+            } else {
+                self.read_body_json(req).await?
+            };
+        self.write_buffer.delete_plugin(&db, &plugin_name).await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
     async fn configure_processing_engine_trigger(
         &self,
         req: Request<Body>,
@@ -1023,29 +1028,105 @@ where
             plugin_name,
             trigger_name,
             trigger_specification,
+            disabled,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
+        };
+        let Ok(trigger_spec) =
+            TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
+        else {
+            return Err(Error::Catalog(
+                CatalogError::ProcessingEngineTriggerSpecParseError {
+                    trigger_spec: trigger_specification,
+                },
+            ));
         };
         self.write_buffer
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
                 plugin_name,
-                trigger_specification,
+                trigger_spec,
+                disabled,
             )
             .await?;
+        if !disabled {
+            self.write_buffer
+                .run_trigger(
+                    Arc::clone(&self.write_buffer),
+                    db.as_str(),
+                    trigger_name.as_str(),
+                )
+                .await?;
+        }
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn delete_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let ProcessEngineTriggerDeleteRequest {
+            db,
+            trigger_name,
+            force,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
         self.write_buffer
-            .run_trigger(
+            .delete_trigger(&db, &trigger_name, force)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn deactivate_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
+        self.write_buffer
+            .deactivate_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+    async fn activate_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
+        self.write_buffer
+            .activate_trigger(
                 Arc::clone(&self.write_buffer),
-                db.as_str(),
-                trigger_name.as_str(),
+                delete_req.db.as_str(),
+                delete_req.trigger_name.as_str(),
             )
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
+    }
+
+    async fn show_databases(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let ShowDatabasesRequest {
+            format,
+            show_deleted,
+        } = serde_urlencoded::from_str(query)?;
+        let stream = self.query_executor.show_databases(show_deleted)?;
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(record_batch_stream_to_body(stream, format).await?)
+            .map_err(Into::into)
     }
 
     async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -1055,6 +1136,31 @@ where
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
+    }
+
+    /// Endpoint for testing a plugin that will be trigger on WAL writes.
+    #[cfg(feature = "system-py")]
+    async fn test_processing_engine_wal_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let request: influxdb3_client::plugin_development::WalPluginTestRequest =
+            self.read_body_json(req).await?;
+
+        let output = self.write_buffer.test_wal_plugin(request).await?;
+        let body = serde_json::to_string(&output)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(body))?)
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn test_processing_engine_wal_plugin(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
     }
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -1286,6 +1392,7 @@ pub(crate) enum QueryFormat {
     Csv,
     Pretty,
     Json,
+    #[serde(alias = "jsonl")]
     JsonLines,
 }
 
@@ -1482,13 +1589,41 @@ struct ProcessingEnginePluginCreateRequest {
     plugin_type: PluginType,
 }
 
+#[derive(Debug, Deserialize)]
+struct ProcessingEnginePluginDeleteRequest {
+    db: String,
+    plugin_name: String,
+}
+
 /// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
 #[derive(Debug, Deserialize)]
 struct ProcessEngineTriggerCreateRequest {
     db: String,
     plugin_name: String,
     trigger_name: String,
-    trigger_specification: TriggerSpecificationDefinition,
+    trigger_specification: String,
+    disabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessEngineTriggerDeleteRequest {
+    db: String,
+    trigger_name: String,
+    #[serde(default)]
+    force: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessingEngineTriggerIdentifier {
+    db: String,
+    trigger_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ShowDatabasesRequest {
+    format: QueryFormat,
+    #[serde(default)]
+    show_deleted: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1570,7 +1705,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, true, false).await
+            http_server.write_lp_inner(params, req, true).await
         }
         (Method::POST, "/api/v2/write") => {
             let params = match http_server.legacy_write_param_unifier.parse_v2(&req).await {
@@ -1578,7 +1713,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
                 Err(e) => return Ok(legacy_write_error_to_response(e)),
             };
 
-            http_server.write_lp_inner(params, req, false, false).await
+            http_server.write_lp_inner(params, req, false).await
         }
         (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
         (Method::POST, "/api/v3/pro/configure/file_index") => {
@@ -1587,7 +1722,6 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::DELETE, "/api/v3/pro/configure/file_index") => {
             http_server.configure_file_index_delete(req).await
         }
-        (Method::POST, "/api/v3/write") => http_server.write_v3(req).await,
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,
         (Method::GET | Method::POST, "/api/v3/query_sql") => http_server.query_sql(req).await,
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
@@ -1612,14 +1746,30 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::POST, "/api/v3/configure/processing_engine_plugin") => {
             http_server.configure_processing_engine_plugin(req).await
         }
+        (Method::DELETE, "/api/v3/configure/processing_engine_plugin") => {
+            http_server.delete_processing_engine_plugin(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/deactivate") => {
+            http_server.deactivate_processing_engine_trigger(req).await
+        }
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/activate") => {
+            http_server.activate_processing_engine_trigger(req).await
+        }
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
         }
+        (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
+            http_server.delete_processing_engine_trigger(req).await
+        }
+        (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
         (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,
         // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
+        (Method::POST, "/api/v3/plugin_test/wal") => {
+            http_server.test_processing_engine_wal_plugin(req).await
+        }
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

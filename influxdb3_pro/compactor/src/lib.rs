@@ -881,7 +881,7 @@ mod test_helpers {
             let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 
             // write the lp into the buffer
-            queryable_buffer.notify(wal_contents);
+            queryable_buffer.notify(wal_contents).await;
             self.snapshot_sequence_number = self.snapshot_sequence_number.next();
             let snapshot_details = SnapshotDetails {
                 snapshot_sequence_number: self.snapshot_sequence_number,

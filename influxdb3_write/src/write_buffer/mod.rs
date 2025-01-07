@@ -18,6 +18,8 @@ use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
+#[cfg(feature = "system-py")]
+use anyhow::Context;
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
@@ -31,13 +33,12 @@ use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog;
+use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::FieldDataType;
-use influxdb3_wal::TableDefinition;
 use influxdb3_wal::{
-    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
-    TriggerDefinition, TriggerSpecificationDefinition, WalContents,
+    object_store::WalObjectStore, DeleteDatabaseDefinition, DeleteTriggerDefinition,
+    PluginDefinition, PluginType, TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
@@ -45,6 +46,8 @@ use influxdb3_wal::{
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
+use influxdb3_wal::{DeletePluginDefinition, TableDefinition};
+use influxdb3_wal::{FieldDataType, TriggerIdentifier};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -57,16 +60,16 @@ use parquet_file::storage::ParquetExecInput;
 use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use tokio::sync::watch::Receiver;
 
 #[cfg(feature = "system-py")]
-use {
-    crate::write_buffer::plugins::PluginContext,
-    influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound,
-};
+use crate::write_buffer::plugins::PluginContext;
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -80,7 +83,7 @@ pub enum Error {
         new: ColumnType,
     },
 
-    #[error("catalog update erorr {0}")]
+    #[error("catalog update error: {0}")]
     CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
 
     #[error("error from persister: {0}")]
@@ -103,10 +106,6 @@ pub enum Error {
 
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
-
-    // This error is exclusive to the table creation API
-    #[error("table creation failed due to no fields")]
-    EmptyFields,
 
     #[error("tried accessing database that does not exist")]
     DbDoesNotExist,
@@ -137,6 +136,12 @@ pub enum Error {
 
     #[error("cannot write to a compactor-only server")]
     NoWriteInCompactorOnly,
+
+    #[error("error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
+
+    #[error("reading plugin file: {0}")]
+    ReadPluginError(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -164,6 +169,8 @@ pub struct WriteBufferImpl {
     metrics: WriteMetrics,
     meta_cache: Arc<MetaCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
+    #[allow(dead_code)]
+    plugin_dir: Option<PathBuf>,
 }
 
 /// The maximum number of snapshots to load on start
@@ -180,6 +187,7 @@ pub struct WriteBufferImplArgs {
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub metric_registry: Arc<Registry>,
+    pub plugin_dir: Option<PathBuf>,
 }
 
 impl WriteBufferImpl {
@@ -194,6 +202,7 @@ impl WriteBufferImpl {
             wal_config,
             parquet_cache,
             metric_registry,
+            plugin_dir,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -252,6 +261,7 @@ impl WriteBufferImpl {
             persisted_files,
             buffer: queryable_buffer,
             metrics: WriteMetrics::new(&metric_registry),
+            plugin_dir,
         });
         let write_buffer: Arc<dyn WriteBuffer> = result.clone();
         let triggers = result.catalog().triggers();
@@ -310,53 +320,13 @@ impl WriteBufferImpl {
         // Thus, after this returns, the data is both durable and queryable.
         self.wal.write_ops(ops).await?;
 
-        // record metrics for lines written and bytes written, for valid lines
+        // record metrics for lines written, rejected, and bytes written
         self.metrics
             .record_lines(&db_name, result.line_count as u64);
         self.metrics
+            .record_lines_rejected(&db_name, result.errors.len() as u64);
+        self.metrics
             .record_bytes(&db_name, result.valid_bytes_count);
-
-        Ok(BufferedWriteRequest {
-            db_name,
-            invalid_lines: result.errors,
-            line_count: result.line_count,
-            field_count: result.field_count,
-            index_count: result.index_count,
-        })
-    }
-
-    async fn write_lp_v3(
-        &self,
-        db_name: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> Result<BufferedWriteRequest> {
-        // validated lines will update the in-memory catalog, ensuring that all write operations
-        // past this point will be infallible
-        let result = WriteValidator::initialize(
-            db_name.clone(),
-            self.catalog(),
-            ingest_time.timestamp_nanos(),
-        )?
-        .v3_parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
-        .convert_lines_to_buffer(self.wal_config.gen1_duration);
-
-        // if there were catalog updates, ensure they get persisted to the wal, so they're
-        // replayed on restart
-        let mut ops = Vec::with_capacity(2);
-        if let Some(catalog_batch) = result.catalog_updates {
-            ops.push(WalOp::Catalog(catalog_batch));
-        }
-        ops.push(WalOp::Write(result.valid_data));
-
-        // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
-        // whatever the configured wal flush interval is set to) the buffer is flushed and all the
-        // data is persisted into a single wal file in the configured object store. Then the
-        // contents are sent to the configured notifier, which in this case is the queryable buffer.
-        // Thus, after this returns, the data is both durable and queryable.
-        self.wal.write_ops(ops).await?;
 
         Ok(BufferedWriteRequest {
             db_name,
@@ -414,6 +384,13 @@ impl WriteBufferImpl {
         }
 
         Ok(chunks)
+    }
+
+    #[cfg(feature = "system-py")]
+    fn read_plugin_code(&self, name: &str) -> Result<String> {
+        let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
+        let path = plugin_dir.join(format!("{}.py", name));
+        Ok(std::fs::read_to_string(path)?)
     }
 }
 
@@ -476,18 +453,6 @@ impl Bufferer for WriteBufferImpl {
         precision: Precision,
     ) -> Result<BufferedWriteRequest> {
         self.write_lp(database, lp, ingest_time, accept_partial, precision)
-            .await
-    }
-
-    async fn write_lp_v3(
-        &self,
-        database: NamespaceName<'static>,
-        lp: &str,
-        ingest_time: Time,
-        accept_partial: bool,
-        precision: Precision,
-    ) -> Result<BufferedWriteRequest> {
-        self.write_lp_v3(database, lp, ingest_time, accept_partial, precision)
             .await
     }
 
@@ -744,10 +709,6 @@ impl DatabaseManager for WriteBufferImpl {
         tags: Vec<String>,
         fields: Vec<(String, String)>,
     ) -> Result<(), self::Error> {
-        if fields.is_empty() {
-            return Err(self::Error::EmptyFields);
-        }
-
         // get the database schema or create it if it does not yet exist:
         let (db_id, db_schema) = match self.catalog.db_id_and_schema(&db) {
             Some((db_id, db_schema)) => (db_id, db_schema),
@@ -913,12 +874,38 @@ impl ProcessingEngineManager for WriteBufferImpl {
         Ok(())
     }
 
+    async fn delete_plugin(&self, db: &str, plugin_name: &str) -> crate::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db.to_string(),
+                })?;
+        let catalog_op = CatalogOp::DeletePlugin(DeletePluginDefinition {
+            plugin_name: plugin_name.to_string(),
+        });
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        disabled: bool,
     ) -> crate::Result<(), Error> {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
             return Err(Error::DatabaseNotFound {
@@ -937,6 +924,7 @@ impl ProcessingEngineManager for WriteBufferImpl {
             plugin_name,
             plugin: plugin.clone(),
             trigger: trigger_specification,
+            disabled,
         });
         let creation_time = self.time_provider.now();
         let catalog_batch = CatalogBatch {
@@ -948,6 +936,50 @@ impl ProcessingEngineManager for WriteBufferImpl {
         if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
             let wal_op = WalOp::Catalog(catalog_batch);
             self.wal.write_ops(vec![wal_op]).await?;
+        }
+        Ok(())
+    }
+
+    async fn delete_trigger(
+        &self,
+        db: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> crate::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db.to_string(),
+                })?;
+        let catalog_op = CatalogOp::DeleteTrigger(DeleteTriggerDefinition {
+            trigger_name: trigger_name.to_string(),
+            force,
+        });
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+
+        // Do this first to avoid a dangling running plugin.
+        // Potential edge-case of a plugin being stopped but not deleted,
+        // but should be okay given desire to force delete.
+        let needs_deactivate = force
+            && db_schema
+                .processing_engine_triggers
+                .get(trigger_name)
+                .is_some_and(|trigger| !trigger.disabled);
+
+        if needs_deactivate {
+            self.deactivate_trigger(db, trigger_name).await?;
+        }
+
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
         }
         Ok(())
     }
@@ -975,7 +1007,10 @@ impl ProcessingEngineManager for WriteBufferImpl {
                     trigger_name: trigger_name.to_string(),
                 })?
                 .clone();
-            let trigger_rx = self.buffer.subscribe_to_plugin_events();
+            let trigger_rx = self
+                .buffer
+                .subscribe_to_plugin_events(trigger_name.to_string())
+                .await;
             let plugin_context = PluginContext {
                 trigger_rx,
                 write_buffer,
@@ -985,12 +1020,125 @@ impl ProcessingEngineManager for WriteBufferImpl {
 
         Ok(())
     }
+
+    async fn deactivate_trigger(
+        &self,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> std::result::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db_name)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db_name.to_string(),
+                })?;
+        let trigger = db_schema
+            .processing_engine_triggers
+            .get(trigger_name)
+            .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                database_name: db_name.to_string(),
+                trigger_name: trigger_name.to_string(),
+            })?;
+        // Already disabled, so this is a no-op
+        if trigger.disabled {
+            return Ok(());
+        };
+
+        let mut deactivated = trigger.clone();
+        deactivated.disabled = true;
+        let catalog_op = CatalogOp::DisableTrigger(TriggerIdentifier {
+            db_name: db_name.to_string(),
+            trigger_name: trigger_name.to_string(),
+        });
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(CatalogBatch {
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            ops: vec![catalog_op],
+        })? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
+        // TODO: handle processing engine errors
+        self.buffer
+            .deactivate_trigger(trigger_name.to_string())
+            .await
+            .unwrap();
+        Ok(())
+    }
+
+    async fn activate_trigger(
+        &self,
+        write_buffer: Arc<dyn WriteBuffer>,
+        db_name: &str,
+        trigger_name: &str,
+    ) -> std::result::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db_name)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db_name.to_string(),
+                })?;
+        let trigger = db_schema
+            .processing_engine_triggers
+            .get(trigger_name)
+            .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                database_name: db_name.to_string(),
+                trigger_name: trigger_name.to_string(),
+            })?;
+        // Already disabled, so this is a no-op
+        if !trigger.disabled {
+            return Ok(());
+        };
+
+        let mut activated = trigger.clone();
+        activated.disabled = false;
+        let catalog_op = CatalogOp::EnableTrigger(TriggerIdentifier {
+            db_name: db_name.to_string(),
+            trigger_name: trigger_name.to_string(),
+        });
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(CatalogBatch {
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            ops: vec![catalog_op],
+        })? {
+            let wal_op = WalOp::Catalog(catalog_batch);
+            self.wal.write_ops(vec![wal_op]).await?;
+        }
+
+        self.run_trigger(write_buffer, db_name, trigger_name)
+            .await?;
+        Ok(())
+    }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> crate::Result<WalPluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.name)?;
+
+            return Ok(plugins::run_test_wal_plugin(now, catalog, code, request).unwrap());
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
 }
 
-#[derive(Clone)]
 #[allow(unused)]
 pub(crate) enum PluginEvent {
     WriteWalContents(Arc<WalContents>),
+    Shutdown(oneshot::Sender<()>),
 }
 
 impl WriteBuffer for WriteBufferImpl {}
@@ -1015,7 +1163,9 @@ mod tests {
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, U64Counter};
-    use metrics::{WRITE_BYTES_TOTAL_NAME, WRITE_LINES_TOTAL_NAME};
+    use metrics::{
+        WRITE_BYTES_METRIC_NAME, WRITE_LINES_METRIC_NAME, WRITE_LINES_REJECTED_METRIC_NAME,
+    };
     use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
     use object_store::{ObjectStore, PutPayload};
@@ -1073,6 +1223,7 @@ mod tests {
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1157,6 +1308,7 @@ mod tests {
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1225,6 +1377,7 @@ mod tests {
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
+                plugin_dir: None,
             })
             .await
             .unwrap()
@@ -1452,6 +1605,7 @@ mod tests {
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -2400,7 +2554,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn write_metrics() {
         let object_store = Arc::new(InMemory::new());
         let (buf, metrics) = setup_with_metrics(
@@ -2410,10 +2564,13 @@ mod tests {
         )
         .await;
         let lines_observer = metrics
-            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_TOTAL_NAME)
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_METRIC_NAME)
+            .unwrap();
+        let lines_rejected_observer = metrics
+            .get_instrument::<Metric<U64Counter>>(WRITE_LINES_REJECTED_METRIC_NAME)
             .unwrap();
         let bytes_observer = metrics
-            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_TOTAL_NAME)
+            .get_instrument::<Metric<U64Counter>>(WRITE_BYTES_METRIC_NAME)
             .unwrap();
 
         let db_1 = "foo";
@@ -2437,6 +2594,13 @@ mod tests {
         assert_eq!(
             3,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            0,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_1)]))
                 .unwrap()
                 .fetch()
@@ -2468,6 +2632,13 @@ mod tests {
         assert_eq!(
             6,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_1)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            0,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_1)]))
                 .unwrap()
                 .fetch()
@@ -2504,6 +2675,13 @@ mod tests {
         assert_eq!(
             3,
             lines_observer
+                .get_observer(&Attributes::from(&[("db", db_2)]))
+                .unwrap()
+                .fetch()
+        );
+        assert_eq!(
+            1,
+            lines_rejected_observer
                 .get_observer(&Attributes::from(&[("db", db_2)]))
                 .unwrap()
                 .fetch()
@@ -2692,6 +2870,7 @@ mod tests {
             wal_config,
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -2719,5 +2898,392 @@ mod tests {
             batches.extend(chunk);
         }
         batches
+    }
+
+    #[tokio::test]
+    async fn test_create_plugin() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        let empty_udf = r#"def example(iterator, output):
+                                   return"#;
+
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "my_plugin".to_string(),
+                empty_udf.to_string(),
+                "example".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        let plugin = write_buffer
+            .catalog
+            .db_schema("foo")
+            .expect("should have db named foo")
+            .processing_engine_plugins
+            .get("my_plugin")
+            .unwrap()
+            .clone();
+        let expected = PluginDefinition {
+            plugin_name: "my_plugin".to_string(),
+            code: empty_udf.to_string(),
+            function_name: "example".to_string(),
+            plugin_type: PluginType::WalRows,
+        };
+        assert_eq!(expected, plugin);
+
+        // confirm that creating it again is a no-op.
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "my_plugin".to_string(),
+                empty_udf.to_string(),
+                "example".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        // confirm that a different argument is an error
+        let Err(Error::CatalogUpdateError(catalog::Error::ProcessingEngineCallExists { .. })) =
+            write_buffer
+                .insert_plugin(
+                    "foo",
+                    "my_plugin".to_string(),
+                    empty_udf.to_string(),
+                    "bad_example".to_string(),
+                    PluginType::WalRows,
+                )
+                .await
+        else {
+            panic!("failed to insert plugin");
+        };
+
+        // Confirm the same contents can be added to a new name.
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "my_second_plugin".to_string(),
+                empty_udf.to_string(),
+                "example".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+        Ok(())
+    }
+    #[tokio::test]
+    async fn test_delete_plugin() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        // Create the DB by inserting a line.
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        // First create a plugin
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "test_plugin".to_string(),
+                "def process(iterator, output): pass".to_string(),
+                "process".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        // Then delete it
+        write_buffer.delete_plugin("foo", "test_plugin").await?;
+
+        // Verify plugin is gone from schema
+        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        assert!(!schema.processing_engine_plugins.contains_key("test_plugin"));
+
+        // Verify we can add a newly named plugin
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "test_plugin".to_string(),
+                "def new_process(iterator, output): pass".to_string(),
+                "new_process".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_plugin_with_active_trigger() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        // Create the DB by inserting a line.
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        // Create a plugin
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "test_plugin".to_string(),
+                "def process(iterator, output): pass".to_string(),
+                "process".to_string(),
+                PluginType::WalRows,
+            )
+            .await
+            .unwrap();
+
+        // Create a trigger using the plugin
+        write_buffer
+            .insert_trigger(
+                "foo",
+                "test_trigger".to_string(),
+                "test_plugin".to_string(),
+                TriggerSpecificationDefinition::AllTablesWalWrite,
+                false,
+            )
+            .await
+            .unwrap();
+
+        // Try to delete the plugin - should fail because trigger exists
+        let result = write_buffer.delete_plugin("foo", "test_plugin").await;
+        assert!(matches!(
+            result,
+            Err(Error::CatalogUpdateError(catalog::Error::ProcessingEnginePluginInUse {
+                database_name,
+                plugin_name,
+                trigger_name,
+            })) if database_name == "foo" && plugin_name == "test_plugin" && trigger_name == "test_trigger"
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_trigger_lifecycle() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        // convert to Arc<WriteBuffer>
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer.clone();
+
+        // Create the DB by inserting a line.
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        // Create a plugin
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "test_plugin".to_string(),
+                "def process(iterator, output): pass".to_string(),
+                "process".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        // Create an enabled trigger
+        write_buffer
+            .insert_trigger(
+                "foo",
+                "test_trigger".to_string(),
+                "test_plugin".to_string(),
+                TriggerSpecificationDefinition::AllTablesWalWrite,
+                false,
+            )
+            .await?;
+        // Run the trigger
+        write_buffer
+            .run_trigger(Arc::clone(&write_buffer), "foo", "test_trigger")
+            .await?;
+
+        // Deactivate the trigger
+        let result = write_buffer.deactivate_trigger("foo", "test_trigger").await;
+        assert!(result.is_ok());
+
+        // Verify trigger is disabled in schema
+        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let trigger = schema
+            .processing_engine_triggers
+            .get("test_trigger")
+            .unwrap();
+        assert!(trigger.disabled);
+
+        // Activate the trigger
+        let result = write_buffer
+            .activate_trigger(Arc::clone(&write_buffer), "foo", "test_trigger")
+            .await;
+        assert!(result.is_ok());
+
+        // Verify trigger is enabled and running
+        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let trigger = schema
+            .processing_engine_triggers
+            .get("test_trigger")
+            .unwrap();
+        assert!(!trigger.disabled);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_disabled_trigger() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        // Create the DB by inserting a line.
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        // Create a plugin
+        write_buffer
+            .insert_plugin(
+                "foo",
+                "test_plugin".to_string(),
+                "def process(iterator, output): pass".to_string(),
+                "process".to_string(),
+                PluginType::WalRows,
+            )
+            .await?;
+
+        // Create a disabled trigger
+        write_buffer
+            .insert_trigger(
+                "foo",
+                "test_trigger".to_string(),
+                "test_plugin".to_string(),
+                TriggerSpecificationDefinition::AllTablesWalWrite,
+                true,
+            )
+            .await?;
+
+        // Verify trigger is created but disabled
+        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let trigger = schema
+            .processing_engine_triggers
+            .get("test_trigger")
+            .unwrap();
+        assert!(trigger.disabled);
+
+        // Verify trigger is not in active triggers list
+        assert!(write_buffer.catalog().triggers().is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_activate_nonexistent_trigger() -> Result<()> {
+        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
+        let test_store = Arc::new(InMemory::new());
+        let wal_config = WalConfig {
+            gen1_duration: Gen1Duration::new_1m(),
+            max_write_buffer_size: 100,
+            flush_interval: Duration::from_millis(10),
+            snapshot_size: 1,
+        };
+        let (write_buffer, _, _) =
+            setup_cache_optional(start_time, test_store, wal_config, false).await;
+
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer.clone();
+
+        // Create the DB by inserting a line.
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
+                start_time,
+                false,
+                Precision::Nanosecond,
+            )
+            .await?;
+
+        let result = write_buffer
+            .activate_trigger(Arc::clone(&write_buffer), "foo", "nonexistent_trigger")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(Error::CatalogUpdateError(catalog::Error::ProcessingEngineTriggerNotFound {
+                database_name,
+                trigger_name,
+            })) if database_name == "foo" && trigger_name == "nonexistent_trigger"
+        ));
+        Ok(())
     }
 }

@@ -11,6 +11,7 @@ use influxdb3_cache::{
     meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
     LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
@@ -36,17 +37,6 @@ pub struct CompactorMode {}
 #[async_trait]
 impl Bufferer for CompactorMode {
     async fn write_lp(
-        &self,
-        _database: NamespaceName<'static>,
-        _lp: &str,
-        _ingest_time: Time,
-        _accept_partial: bool,
-        _precision: Precision,
-    ) -> WriteBufferResult<BufferedWriteRequest> {
-        Err(WriteBufferError::NoWriteInCompactorOnly)
-    }
-
-    async fn write_lp_v3(
         &self,
         _database: NamespaceName<'static>,
         _lp: &str,
@@ -179,14 +169,49 @@ impl ProcessingEngineManager for CompactorMode {
         unimplemented!("cannot insert processing engine plugin in CompactorMode")
     }
 
+    async fn delete_plugin(
+        &self,
+        _db: &str,
+        _plugin_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot delete processing engine plugin in CompactorMode")
+    }
+
+    async fn activate_trigger(
+        &self,
+        _write_buffer: Arc<dyn WriteBuffer>,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot activate trigger in CompactorMode")
+    }
+
+    async fn deactivate_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot activate trigger in CompactorMode")
+    }
+
     async fn insert_trigger(
         &self,
         _db_name: &str,
         _trigger_name: String,
         _plugin_name: String,
         _trigger_specification: TriggerSpecificationDefinition,
+        _disabled: bool,
     ) -> Result<(), write_buffer::Error> {
         unimplemented!("cannot insert processing engine trigger in CompactorMode")
+    }
+
+    async fn delete_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: &str,
+        _force: bool,
+    ) -> Result<(), write_buffer::Error> {
+        unimplemented!("cannot delete processing engine trigger in CompactorMode")
     }
 
     async fn run_trigger(
@@ -196,6 +221,12 @@ impl ProcessingEngineManager for CompactorMode {
         _trigger_name: &str,
     ) -> Result<(), write_buffer::Error> {
         unimplemented!("cannot run processing engine trigger in CompactorMode")
+    }
+    async fn test_wal_plugin(
+        &self,
+        _request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
+        unimplemented!("cannot test wal plugin in CompactorMode")
     }
 }
 
