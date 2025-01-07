@@ -19,8 +19,8 @@ type Config struct {
 	EmailVerificationURL string        `help:"Email verification base URL" env:"IFLX_PRO_LIC_EMAIL_VERIFICATION_URL" default:"http://localhost:8687"`
 	EmailTemplateName    string        `help:"Email template name" env:"IFLX_PRO_LIC_EMAIL_TEMPLATE_NAME" default:"influxdb 3 enterprise verification"`
 	EmailMaxRetries      int           `help:"Maximum number of email retries" env:"IFLX_PRO_LIC_EMAIL_MAX_RETRIES" default:"3"`
-	PrivateKey           string        `help:"Private key path" env:"IFLX_PRO_LIC_PRIVATE_KEY" default:"projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1"`
-	PublicKey            string        `help:"Public key path" env:"IFLX_PRO_LIC_PUBLIC_KEY" default:"gcloud-kms_global_clustered-licensing_signing-key_v1.pem"`
+	PrivateKey           string        `help:"Private key path" env:"IFLX_PRO_LIC_PRIVATE_KEY" default:"projects/influxdata-v3-pro-licensing/locations/global/keyRings/pro-licensing/cryptoKeys/signing-key-1/cryptoKeyVersions/1"`
+	PublicKey            string        `help:"Public key path" env:"IFLX_PRO_LIC_PUBLIC_KEY" default:"gcloud-kms_global_pro-licensing_signing-key-1_v1.pem"`
 	TrialDuration        time.Duration `help:"Trial license duration (e.g. 2160h for 90 days)" env:"IFLX_PRO_LIC_TRIAL_DURATION" default:"2160h"`
 	TrialEndDate         time.Time     `help:"A fixed date that all trials end. Ignored if empty or expired and TrialDuration used instead" env:"IFLX_PRO_LIC_TRIAL_END_DATE"`
 	TrustedProxies       []string      `help:"Trusted proxy CIDR ranges (e.g., '10.0.0.0/8,172.16.0.0/12')" env:"IFLX_PRO_LIC_TRUSTED_PROXIES" default:"127.0.0.1/32"`
