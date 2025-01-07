@@ -399,13 +399,15 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
+        host_id = %config.host_identifier_prefix,
+        mode = %config.pro_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID.as_ref() as &str,
         num_cpus,
-        %build_malloc_conf,
-        "InfluxDB3 OSS server starting",
+        "InfluxDB 3 Enterprise server starting",
     );
+    debug!(%build_malloc_conf, "build configuration");
 
     let metrics = setup_metric_registry();
 
@@ -507,7 +509,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
-    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
+    info!(instance_id = ?catalog.instance_id(), "catalog initialized");
 
     let pro_config = match ProConfig::load(&object_store).await {
         Ok(config) => Arc::new(RwLock::new(config)),
@@ -577,7 +579,6 @@ pub async fn command(config: Config) -> Result<()> {
             .await?;
 
             compacted_data = Some(Arc::clone(&producer.compacted_data));
-            debug!("Setting up compaction producer");
             compaction_producer = Some(Arc::new(producer));
         } else {
             let consumer = CompactedDataConsumer::new(
