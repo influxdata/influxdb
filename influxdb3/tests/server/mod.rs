@@ -1,5 +1,5 @@
 use std::{
-    net::{SocketAddr, SocketAddrV4, TcpListener},
+    io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
     time::Duration,
 };
@@ -106,7 +106,7 @@ impl ConfigProvider for TestConfig {
 /// except for the `influxdb3_write` crate, which will emit logs at the `DEBUG` level.
 pub struct TestServer {
     auth_token: Option<String>,
-    bind_addr: SocketAddr,
+    bind_addr: String,
     server_process: Child,
     http_client: reqwest::Client,
 }
@@ -126,23 +126,56 @@ impl TestServer {
     }
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
-        let bind_addr = get_local_bind_addr();
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
-        let mut command = command
+        let command = command
             .arg("serve")
-            .args(["--http-bind", &bind_addr.to_string()])
+            // bind to port 0 to get a random port assigned:
+            .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
-            .args(config.as_args());
+            .args(config.as_args())
+            .stdout(Stdio::piped());
 
         // If TEST_LOG env var is not defined, discard stdout/stderr, otherwise, pass it to the
         // inner binary in the "LOG_FILTER" env var:
-        command = match std::env::var("TEST_LOG") {
-            Ok(val) => command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val }),
-            Err(_) => command.stdout(Stdio::null()).stderr(Stdio::null()),
+        let emit_logs = if let Ok(val) = std::env::var("TEST_LOG") {
+            command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val });
+            true
+        } else {
+            false
         };
 
-        let server_process = command.spawn().expect("spawn the influxdb3 server process");
+        let mut server_process = command.spawn().expect("spawn the influxdb3 server process");
+
+        // pipe stdout so we can get the randomly assigned port from the log output:
+        let process_stdout = server_process
+            .stdout
+            .take()
+            .expect("should acquire stdout from process");
+
+        let mut lines = BufReader::new(process_stdout).lines();
+        let bind_addr = loop {
+            let Some(Ok(line)) = lines.next() else {
+                panic!("stdout closed unexpectedly");
+            };
+            if emit_logs {
+                println!("{line}");
+            }
+            if line.contains("startup time") {
+                if let Some(address) = line.split("address=").last() {
+                    break address.to_string();
+                }
+            }
+        };
+
+        tokio::task::spawn_blocking(move || {
+            for line in lines {
+                let line = line.expect("io error while getting line from stdout");
+                if emit_logs {
+                    println!("{line}");
+                }
+            }
+        });
 
         let server = Self {
             auth_token: config.auth_token().map(|s| s.to_owned()),
@@ -369,22 +402,6 @@ impl TestServer {
             .await
             .expect("failed to send request to delete metadata cache")
     }
-}
-
-/// Get an available bind address on localhost
-///
-/// This binds a [`TcpListener`] to 127.0.0.1:0, which will randomly
-/// select an available port, and produces the resulting local address.
-/// The [`TcpListener`] is dropped at the end of the function, thus
-/// freeing the port for use by the caller.
-fn get_local_bind_addr() -> SocketAddr {
-    let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
-    let port = 0;
-    let addr = SocketAddrV4::new(ip, port);
-    TcpListener::bind(addr)
-        .expect("bind to a socket address")
-        .local_addr()
-        .expect("get local address")
 }
 
 /// Write to the server with the line protocol

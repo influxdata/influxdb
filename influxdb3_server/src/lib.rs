@@ -227,7 +227,11 @@ where
     let addr = AddrIncoming::from_listener(server.listener)?;
     let timer_end = Instant::now();
     let startup_time = timer_end.duration_since(startup_timer);
-    info!("Server Startup Time: {}ms", startup_time.as_millis());
+    info!(
+        address = %addr.local_addr(),
+        "startup time: {}ms",
+        startup_time.as_millis()
+    );
     hyper::server::Builder::new(addr, Http::new())
         .tcp_nodelay(true)
         .serve(hybrid_make_service)
