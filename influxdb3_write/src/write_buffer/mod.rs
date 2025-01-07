@@ -17,6 +17,8 @@ use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
+#[cfg(feature = "system-py")]
+use anyhow::Context;
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
@@ -34,8 +36,8 @@ use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{
-    object_store::WalObjectStore, DeleteDatabaseDefinition, PluginDefinition, PluginType,
-    TriggerDefinition, TriggerSpecificationDefinition, WalContents,
+    object_store::WalObjectStore, DeleteDatabaseDefinition, DeleteTriggerDefinition,
+    PluginDefinition, PluginType, TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
@@ -57,6 +59,7 @@ use parquet_file::storage::ParquetExecInput;
 use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -65,6 +68,7 @@ use tokio::sync::watch::Receiver;
 
 #[cfg(feature = "system-py")]
 use crate::write_buffer::plugins::PluginContext;
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -78,7 +82,7 @@ pub enum Error {
         new: ColumnType,
     },
 
-    #[error("catalog update erorr {0}")]
+    #[error("catalog update error: {0}")]
     CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
 
     #[error("error from persister: {0}")]
@@ -101,10 +105,6 @@ pub enum Error {
 
     #[error("table not found {table_name:?} in db {db_name:?}")]
     TableNotFound { db_name: String, table_name: String },
-
-    // This error is exclusive to the table creation API
-    #[error("table creation failed due to no fields")]
-    EmptyFields,
 
     #[error("tried accessing database that does not exist")]
     DbDoesNotExist,
@@ -132,6 +132,12 @@ pub enum Error {
 
     #[error("error in metadata cache: {0}")]
     MetaCacheError(#[from] meta_cache::ProviderError),
+
+    #[error("error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
+
+    #[error("reading plugin file: {0}")]
+    ReadPluginError(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,6 +165,8 @@ pub struct WriteBufferImpl {
     metrics: WriteMetrics,
     meta_cache: Arc<MetaCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
+    #[allow(dead_code)]
+    plugin_dir: Option<PathBuf>,
 }
 
 /// The maximum number of snapshots to load on start
@@ -175,6 +183,7 @@ pub struct WriteBufferImplArgs {
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub metric_registry: Arc<Registry>,
+    pub plugin_dir: Option<PathBuf>,
 }
 
 impl WriteBufferImpl {
@@ -189,6 +198,7 @@ impl WriteBufferImpl {
             wal_config,
             parquet_cache,
             metric_registry,
+            plugin_dir,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -247,6 +257,7 @@ impl WriteBufferImpl {
             persisted_files,
             buffer: queryable_buffer,
             metrics: WriteMetrics::new(&metric_registry),
+            plugin_dir,
         });
         let write_buffer: Arc<dyn WriteBuffer> = result.clone();
         let triggers = result.catalog().triggers();
@@ -365,6 +376,13 @@ impl WriteBufferImpl {
         }
 
         Ok(chunks)
+    }
+
+    #[cfg(feature = "system-py")]
+    fn read_plugin_code(&self, name: &str) -> Result<String> {
+        let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
+        let path = plugin_dir.join(format!("{}.py", name));
+        Ok(std::fs::read_to_string(path)?)
     }
 }
 
@@ -675,6 +693,7 @@ impl DatabaseManager for WriteBufferImpl {
         }
         Ok(())
     }
+
     async fn create_table(
         &self,
         db: String,
@@ -682,15 +701,15 @@ impl DatabaseManager for WriteBufferImpl {
         tags: Vec<String>,
         fields: Vec<(String, String)>,
     ) -> Result<(), self::Error> {
-        if fields.is_empty() {
-            return Err(self::Error::EmptyFields);
-        }
-        let (db_id, db_schema) =
-            self.catalog
-                .db_id_and_schema(&db)
-                .ok_or_else(|| self::Error::DatabaseNotFound {
-                    db_name: db.to_owned(),
-                })?;
+        // get the database schema or create it if it does not yet exist:
+        let (db_id, db_schema) = match self.catalog.db_id_and_schema(&db) {
+            Some((db_id, db_schema)) => (db_id, db_schema),
+            None => {
+                let db_schema = self.catalog.db_or_create(&db)?;
+                let db_id = db_schema.id;
+                (db_id, db_schema)
+            }
+        };
 
         let table_id = TableId::new();
         let table_name = table.into();
@@ -913,6 +932,50 @@ impl ProcessingEngineManager for WriteBufferImpl {
         Ok(())
     }
 
+    async fn delete_trigger(
+        &self,
+        db: &str,
+        trigger_name: &str,
+        force: bool,
+    ) -> crate::Result<(), Error> {
+        let (db_id, db_schema) =
+            self.catalog
+                .db_id_and_schema(db)
+                .ok_or_else(|| Error::DatabaseNotFound {
+                    db_name: db.to_string(),
+                })?;
+        let catalog_op = CatalogOp::DeleteTrigger(DeleteTriggerDefinition {
+            trigger_name: trigger_name.to_string(),
+            force,
+        });
+        let catalog_batch = CatalogBatch {
+            time_ns: self.time_provider.now().timestamp_nanos(),
+            database_id: db_id,
+            database_name: Arc::clone(&db_schema.name),
+            ops: vec![catalog_op],
+        };
+
+        // Do this first to avoid a dangling running plugin.
+        // Potential edge-case of a plugin being stopped but not deleted,
+        // but should be okay given desire to force delete.
+        let needs_deactivate = force
+            && db_schema
+                .processing_engine_triggers
+                .get(trigger_name)
+                .is_some_and(|trigger| !trigger.disabled);
+
+        if needs_deactivate {
+            self.deactivate_trigger(db, trigger_name).await?;
+        }
+
+        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(catalog_batch)? {
+            self.wal
+                .write_ops(vec![WalOp::Catalog(catalog_batch)])
+                .await?;
+        }
+        Ok(())
+    }
+
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn run_trigger(
         &self,
@@ -1040,6 +1103,28 @@ impl ProcessingEngineManager for WriteBufferImpl {
             .await?;
         Ok(())
     }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_wal_plugin(
+        &self,
+        request: WalPluginTestRequest,
+    ) -> crate::Result<WalPluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.name)?;
+
+            return Ok(plugins::run_test_wal_plugin(now, catalog, code, request).unwrap());
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
 }
 
 #[allow(unused)]
@@ -1130,6 +1215,7 @@ mod tests {
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1214,6 +1300,7 @@ mod tests {
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -1282,6 +1369,7 @@ mod tests {
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
+                plugin_dir: None,
             })
             .await
             .unwrap()
@@ -1509,6 +1597,7 @@ mod tests {
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -2773,6 +2862,7 @@ mod tests {
             wal_config,
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
+            plugin_dir: None,
         })
         .await
         .unwrap();

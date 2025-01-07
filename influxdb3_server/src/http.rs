@@ -207,6 +207,9 @@ pub enum Error {
 
     #[error(transparent)]
     Catalog(#[from] CatalogError),
+
+    #[error("Python plugins not enabled on this server")]
+    PythonPluginsNotEnabled,
 }
 
 #[derive(Debug, Error)]
@@ -249,10 +252,6 @@ impl Error {
                 .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::DatabaseExists(_)) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
-            Self::WriteBuffer(err @ WriteBufferError::EmptyFields) => Response::builder()
-                .status(StatusCode::UNPROCESSABLE_ENTITY)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
             Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
@@ -1012,12 +1011,21 @@ where
         } else {
             self.read_body_json(req).await?
         };
+        let Ok(trigger_spec) =
+            TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
+        else {
+            return Err(Error::Catalog(
+                CatalogError::ProcessingEngineTriggerSpecParseError {
+                    trigger_spec: trigger_specification,
+                },
+            ));
+        };
         self.write_buffer
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
                 plugin_name,
-                trigger_specification,
+                trigger_spec,
                 disabled,
             )
             .await?;
@@ -1030,6 +1038,24 @@ where
                 )
                 .await?;
         }
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn delete_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let ProcessEngineTriggerDeleteRequest {
+            db,
+            trigger_name,
+            force,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        self.write_buffer
+            .delete_trigger(&db, &trigger_name, force)
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
@@ -1087,6 +1113,31 @@ where
             .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap())
+    }
+
+    /// Endpoint for testing a plugin that will be trigger on WAL writes.
+    #[cfg(feature = "system-py")]
+    async fn test_processing_engine_wal_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let request: influxdb3_client::plugin_development::WalPluginTestRequest =
+            self.read_body_json(req).await?;
+
+        let output = self.write_buffer.test_wal_plugin(request).await?;
+        let body = serde_json::to_string(&output)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(body))?)
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn test_processing_engine_wal_plugin(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
     }
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -1527,8 +1578,16 @@ struct ProcessEngineTriggerCreateRequest {
     db: String,
     plugin_name: String,
     trigger_name: String,
-    trigger_specification: TriggerSpecificationDefinition,
+    trigger_specification: String,
     disabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessEngineTriggerDeleteRequest {
+    db: String,
+    trigger_name: String,
+    #[serde(default)]
+    force: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1669,12 +1728,18 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await
         }
+        (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
+            http_server.delete_processing_engine_trigger(req).await
+        }
         (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
         (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,
         // TODO: make table delete to use path param (DELETE db/foodb/table/bar)
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
+        (Method::POST, "/api/v3/plugin_test/wal") => {
+            http_server.test_processing_engine_wal_plugin(req).await
+        }
         _ => {
             let body = Body::from("not found");
             Ok(Response::builder()

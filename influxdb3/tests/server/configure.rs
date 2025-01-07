@@ -1114,7 +1114,45 @@ async fn api_v3_configure_table_create_no_fields() {
         .send()
         .await
         .expect("create table call failed");
-    assert_eq!(StatusCode::UNPROCESSABLE_ENTITY, resp.status());
+    assert_eq!(StatusCode::OK, resp.status());
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(result, json!([]));
+    server
+        .write_lp_to_db(
+            "foo",
+            "bar,one=1,two=2 new_field=0 1000",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+    let result = server
+        .api_v3_query_sql(&[
+            ("db", "foo"),
+            ("q", "SELECT * FROM bar"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        json!([{
+            "one": "1",
+            "two": "2",
+            "new_field": 0.0,
+            "time": "1970-01-01T00:16:40"
+        }])
+    );
 }
 
 #[test_log::test(tokio::test)]

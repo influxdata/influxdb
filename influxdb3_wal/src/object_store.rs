@@ -132,6 +132,14 @@ impl WalObjectStore {
                     Timestamp::new(wal_contents.max_timestamp_ns),
                 ));
 
+            info!(
+                n_ops = %wal_contents.ops.len(),
+                min_timestamp_ns = %wal_contents.min_timestamp_ns,
+                max_timestamp_ns = %wal_contents.max_timestamp_ns,
+                wal_file_number = %wal_contents.wal_file_number,
+                "replaying WAL file"
+            );
+
             match wal_contents.snapshot {
                 // This branch uses so much time
                 None => self.file_notifier.notify(wal_contents).await,

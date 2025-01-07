@@ -42,7 +42,7 @@ pub struct Config {
     /// The query language used to format the provided query string
     #[clap(
         value_enum,
-        long = "lang",
+        long = "language",
         short = 'l',
         default_value_t = QueryLanguage::Sql,
     )]
@@ -50,9 +50,9 @@ pub struct Config {
 
     /// The format in which to output the query
     ///
-    /// If `--fmt` is set to `parquet`, then you must also specify an output
+    /// If `--format` is set to `parquet`, then you must also specify an output
     /// file path with `--output`.
-    #[clap(value_enum, long = "fmt", default_value = "pretty")]
+    #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
 
     /// Put all query output into `output`

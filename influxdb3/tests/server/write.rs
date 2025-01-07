@@ -46,8 +46,20 @@ async fn api_v1_write_request_parsing() {
         },
         TestCase {
             db: Some("foo"),
+            precision: Some("u"),
+            rp: Some("autogen"),
+            expected: StatusCode::NO_CONTENT,
+        },
+        TestCase {
+            db: Some("foo"),
             precision: Some("us"),
             rp: None,
+            expected: StatusCode::NO_CONTENT,
+        },
+        TestCase {
+            db: Some("foo"),
+            precision: Some("n"),
+            rp: Some("autogen"),
             expected: StatusCode::NO_CONTENT,
         },
         TestCase {
@@ -198,6 +210,18 @@ async fn api_v2_write_request_parsing() {
             org: None,
             bucket: Some("foo"),
             precision: Some("us"),
+            expected: StatusCode::NO_CONTENT,
+        },
+        TestCase {
+            org: None,
+            bucket: Some("foo"),
+            precision: Some("u"),
+            expected: StatusCode::NO_CONTENT,
+        },
+        TestCase {
+            org: None,
+            bucket: Some("foo"),
+            precision: Some("n"),
             expected: StatusCode::NO_CONTENT,
         },
         TestCase {

@@ -21,12 +21,15 @@ use trogging::{
 };
 
 mod commands {
+    pub mod activate;
     pub(crate) mod common;
     pub mod create;
+    pub mod deactivate;
     pub mod delete;
     pub mod query;
     pub mod serve;
     pub mod show;
+    pub mod test;
     pub mod write;
 }
 
@@ -81,11 +84,14 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// List resources on the InfluxDB 3 Core server
-    Show(commands::show::Config),
+    /// Activate a resource such as a trigger
+    Activate(commands::activate::Config),
 
     /// Create a resource such as a database or auth token
     Create(commands::create::Config),
+
+    /// Deactivate a resource such as a trigger
+    Deactivate(commands::deactivate::Config),
 
     /// Delete a resource such as a database or table
     Delete(commands::delete::Config),
@@ -95,6 +101,12 @@ enum Command {
 
     /// Run the InfluxDB 3 Core server
     Serve(commands::serve::Config),
+
+    /// List resources on the InfluxDB 3 Core server
+    Show(commands::show::Config),
+
+    /// Test things, such as plugins, work the way you expect
+    Test(commands::test::Config),
 
     /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
@@ -124,15 +136,21 @@ fn main() -> Result<(), std::io::Error> {
 
         match config.command {
             None => println!("command required, -h/--help for help"),
-            Some(Command::Show(config)) => {
-                if let Err(e) = commands::show::command(config).await {
-                    eprintln!("Show command failed: {e}");
+            Some(Command::Activate(config)) => {
+                if let Err(e) = commands::activate::command(config).await {
+                    eprintln!("Activate command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Create(config)) => {
                 if let Err(e) = commands::create::command(config).await {
                     eprintln!("Create command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Deactivate(config)) => {
+                if let Err(e) = commands::deactivate::command(config).await {
+                    eprintln!("Deactivate command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -147,6 +165,18 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Show(config)) => {
+                if let Err(e) = commands::show::command(config).await {
+                    eprintln!("Show command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Test(config)) => {
+                if let Err(e) = commands::test::command(config).await {
+                    eprintln!("Test command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

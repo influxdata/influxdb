@@ -1,7 +1,10 @@
+pub mod plugin_development;
+
 use std::{
     collections::HashMap, fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration,
 };
 
+use crate::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use bytes::Bytes;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, Method, StatusCode};
@@ -472,6 +475,266 @@ impl Client {
                 code,
                 message: resp.text().await.map_err(Error::Text)?,
             }),
+        }
+    }
+
+    /// Make a request to the `POST /api/v3/configure/processing_engine_plugin` API
+    pub async fn api_v3_configure_processing_engine_plugin_create(
+        &self,
+        db: impl Into<String> + Send,
+        plugin_name: impl Into<String> + Send,
+        code: impl Into<String> + Send,
+        function_name: impl Into<String> + Send,
+        plugin_type: impl Into<String> + Send,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_plugin";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            plugin_name: String,
+            code: String,
+            function_name: String,
+            plugin_type: String,
+        }
+
+        let mut req = self.http_client.post(url).json(&Req {
+            db: db.into(),
+            plugin_name: plugin_name.into(),
+            code: code.into(),
+            function_name: function_name.into(),
+            plugin_type: plugin_type.into(),
+        });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+    /// Make a request to the `DELETE /api/v3/configure/processing_engine_plugin` API
+    pub async fn api_v3_configure_processing_engine_plugin_delete(
+        &self,
+        db: impl Into<String> + Send,
+        plugin_name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_plugin";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            plugin_name: String,
+        }
+
+        let mut req = self.http_client.delete(url).json(&Req {
+            db: db.into(),
+            plugin_name: plugin_name.into(),
+        });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger`
+    pub async fn api_v3_configure_processing_engine_trigger_create(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        plugin_name: impl Into<String> + Send,
+        trigger_spec: impl Into<String> + Send,
+        disabled: bool,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_trigger";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            trigger_name: String,
+            plugin_name: String,
+            trigger_specification: String,
+            disabled: bool,
+        }
+        let mut req = self.http_client.post(url).json(&Req {
+            db: db.into(),
+            trigger_name: trigger_name.into(),
+            plugin_name: plugin_name.into(),
+            trigger_specification: trigger_spec.into(),
+            disabled,
+        });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+    /// Make a request to `DELETE /api/v3/configure/processing_engine_trigger`
+    pub async fn api_v3_configure_processing_engine_trigger_delete(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+        force: bool,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_trigger";
+
+        let url = self.base_url.join(api_path)?;
+
+        #[derive(Serialize)]
+        struct Req {
+            db: String,
+            trigger_name: String,
+            force: bool,
+        }
+
+        let mut req = self.http_client.delete(url).json(&Req {
+            db: db.into(),
+            trigger_name: trigger_name.into(),
+            force,
+        });
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/activate`
+    pub async fn api_v3_configure_processing_engine_trigger_activate(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_trigger/activate";
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self
+            .http_client
+            .post(url)
+            .query(&[("db", db.into()), ("trigger_name", trigger_name.into())]);
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/deactivate`
+    pub async fn api_v3_configure_processing_engine_trigger_deactivate(
+        &self,
+        db: impl Into<String> + Send,
+        trigger_name: impl Into<String> + Send,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/processing_engine_trigger/deactivate";
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self
+            .http_client
+            .post(url)
+            .query(&[("db", db.into()), ("trigger_name", trigger_name.into())]);
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Make a request to the `POST /api/v3/plugin_test/wal` API
+    pub async fn wal_plugin_test(
+        &self,
+        wal_plugin_test_request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse> {
+        let api_path = "/api/v3/plugin_test/wal";
+
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self.http_client.post(url).json(&wal_plugin_test_request);
+
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+
+        if resp.status().is_success() {
+            resp.json().await.map_err(Error::Json)
+        } else {
+            Err(Error::ApiError {
+                code: resp.status(),
+                message: resp.text().await.map_err(Error::Text)?,
+            })
         }
     }
 

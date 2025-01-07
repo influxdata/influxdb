@@ -2,7 +2,7 @@
 
 use crate::catalog::Error::{
     CatalogUpdatedElsewhere, ProcessingEngineCallExists, ProcessingEngineTriggerExists,
-    TableNotFound,
+    ProcessingEngineTriggerRunning, TableNotFound,
 };
 use bimap::{BiHashMap, Overwritten};
 use hashbrown::HashMap;
@@ -10,13 +10,13 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeletePluginDefinition,
-    DeleteTableDefinition, FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete,
-    MetaCacheDefinition, MetaCacheDelete, OrderedCatalogBatch, PluginDefinition, TriggerDefinition,
-    TriggerIdentifier,
+    DeleteTableDefinition, DeleteTriggerDefinition, FieldAdditions, FieldDefinition,
+    LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
+    OrderedCatalogBatch, PluginDefinition, TriggerDefinition, TriggerIdentifier,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
@@ -101,6 +101,12 @@ pub enum Error {
     },
 
     #[error(
+        "Cannot delete running plugin {}. Disable it first or use --force.",
+        trigger_name
+    )]
+    ProcessingEngineTriggerRunning { trigger_name: String },
+
+    #[error(
         "Cannot delete plugin {} in database {} because it is used by trigger {}",
         plugin_name,
         database_name,
@@ -133,6 +139,8 @@ pub enum Error {
         database_name: String,
         trigger_name: String,
     },
+    #[error("failed to parse trigger from {}", trigger_spec)]
+    ProcessingEngineTriggerSpecParseError { trigger_spec: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -716,6 +724,7 @@ impl UpdateDatabaseSchema for CatalogOp {
             CatalogOp::DeletePlugin(delete_plugin) => delete_plugin.update_schema(schema),
             CatalogOp::CreatePlugin(create_plugin) => create_plugin.update_schema(schema),
             CatalogOp::CreateTrigger(create_trigger) => create_trigger.update_schema(schema),
+            CatalogOp::DeleteTrigger(delete_trigger) => delete_trigger.update_schema(schema),
             CatalogOp::EnableTrigger(trigger_identifier) => {
                 EnableTrigger(trigger_identifier.clone()).update_schema(schema)
             }
@@ -905,6 +914,33 @@ impl UpdateDatabaseSchema for TriggerDefinition {
             .to_mut()
             .processing_engine_triggers
             .insert(self.trigger_name.to_string(), self.clone());
+        Ok(schema)
+    }
+}
+
+impl UpdateDatabaseSchema for DeleteTriggerDefinition {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let Some(trigger) = schema.processing_engine_triggers.get(&self.trigger_name) else {
+            // deleting a non-existent trigger is a no-op to make it idempotent.
+            return Ok(schema);
+        };
+        if !trigger.disabled && !self.force {
+            if self.force {
+                warn!("deleting running trigger {}", self.trigger_name);
+            } else {
+                return Err(ProcessingEngineTriggerRunning {
+                    trigger_name: self.trigger_name.to_string(),
+                });
+            }
+        }
+        schema
+            .to_mut()
+            .processing_engine_triggers
+            .remove(&self.trigger_name);
+
         Ok(schema)
     }
 }
