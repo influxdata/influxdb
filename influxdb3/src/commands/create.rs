@@ -30,6 +30,15 @@ impl Config {
                 auth_token,
                 ..
             })
+            | SubCommand::FileIndex(FileIndexConfig {
+                influxdb3_config:
+                    InfluxDb3Config {
+                        host_url,
+                        auth_token,
+                        ..
+                    },
+                ..
+            })
             | SubCommand::LastCache(LastCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {
@@ -90,6 +99,9 @@ impl Config {
 pub enum SubCommand {
     /// Create a new database
     Database(DatabaseConfig),
+    /// Create a new file index for a database or table
+    #[clap(name = "file_index")]
+    FileIndex(FileIndexConfig),
     /// Create a new last value cache
     #[clap(name = "last_cache")]
     LastCache(LastCacheConfig),
@@ -126,6 +138,21 @@ pub struct DatabaseConfig {
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
 }
+
+#[derive(Debug, clap::Args)]
+pub struct FileIndexConfig {
+    /// Common InfluxDB 3.0 config
+    #[clap(flatten)]
+    influxdb3_config: InfluxDb3Config,
+
+    #[arg(short, long)]
+    /// The table to apply the file index too
+    table: Option<String>,
+    #[arg(required = true)]
+    /// The columns to use for the file index
+    columns: Vec<String>,
+}
+
 #[derive(Debug, clap::Args)]
 pub struct LastCacheConfig {
     #[clap(flatten)]
@@ -260,6 +287,15 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             client.api_v3_configure_db_create(&database_name).await?;
 
             println!("Database {:?} created successfully", &database_name);
+        }
+        SubCommand::FileIndex(FileIndexConfig {
+            influxdb3_config: InfluxDb3Config { database_name, .. },
+            table,
+            columns,
+        }) => {
+            client
+                .api_v3_configure_file_index_create_or_update(database_name, table, columns)
+                .await?
         }
         SubCommand::LastCache(LastCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },

@@ -20,6 +20,15 @@ impl Config {
                 auth_token,
                 ..
             })
+            | SubCommand::FileIndex(FileIndexConfig {
+                influxdb3_config:
+                    InfluxDb3Config {
+                        host_url,
+                        auth_token,
+                        ..
+                    },
+                ..
+            })
             | SubCommand::LastCache(LastCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {
@@ -79,6 +88,9 @@ impl Config {
 pub enum SubCommand {
     /// Delete a database
     Database(DatabaseConfig),
+    /// Delete a file index
+    #[clap(name = "file_index")]
+    FileIndex(FileIndexConfig),
     /// Delete a last value cache
     #[clap(name = "last_cache")]
     LastCache(LastCacheConfig),
@@ -111,6 +123,16 @@ pub struct DatabaseConfig {
     /// The name of the database to be deleted
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct FileIndexConfig {
+    /// Common InfluxDB 3.0 config
+    #[clap(flatten)]
+    influxdb3_config: InfluxDb3Config,
+    #[arg(short, long)]
+    /// The table to delete the file index from
+    table: Option<String>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -191,6 +213,14 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
                 println!("Database {:?} deleted successfully", &database_name);
             }
+        }
+        SubCommand::FileIndex(FileIndexConfig {
+            influxdb3_config: InfluxDb3Config { database_name, .. },
+            table,
+        }) => {
+            client
+                .api_v3_configure_file_index_delete(database_name, table)
+                .await?
         }
         SubCommand::LastCache(LastCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },

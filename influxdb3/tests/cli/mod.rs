@@ -50,8 +50,8 @@ async fn configure_file_index() {
         ])
     };
     CLI::run(&[
-        "file-index",
         "create",
+        "file_index",
         "-H",
         addr.as_str(),
         "-d",
@@ -72,8 +72,8 @@ async fn configure_file_index() {
         query()
     );
     CLI::run(&[
-        "file-index",
         "create",
+        "file_index",
         "-H",
         addr.as_str(),
         "-d",
@@ -92,8 +92,8 @@ async fn configure_file_index() {
     );
 
     CLI::run(&[
-        "file-index",
         "create",
+        "file_index",
         "-H",
         addr.as_str(),
         "-d",
@@ -114,8 +114,8 @@ async fn configure_file_index() {
         query()
     );
     CLI::run(&[
-        "file-index",
         "delete",
+        "file_index",
         "-H",
         addr.as_str(),
         "-d",
@@ -133,7 +133,7 @@ async fn configure_file_index() {
          +---------------+------------+----------------+------------------+",
         query()
     );
-    CLI::run(&["file-index", "delete", "-H", addr.as_str(), "-d", "gundam"]);
+    CLI::run(&["delete", "file_index", "-H", addr.as_str(), "-d", "gundam"]);
     assert_eq!(
         "\
          ++\n\

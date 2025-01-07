@@ -95,7 +95,7 @@ impl IoxSystemTable for CompactedDataTable {
 
         let _ = self
             .db_schema
-            .table_name_to_id(table_name.clone())
+            .table_name_to_id(Arc::clone(&table_name))
             .ok_or_else(table_not_found_error)?;
 
         let results = data.query(self.db_schema.name.as_ref(), &table_name);

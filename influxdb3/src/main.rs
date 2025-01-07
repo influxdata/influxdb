@@ -26,7 +26,6 @@ mod commands {
     pub mod create;
     pub mod deactivate;
     pub mod delete;
-    pub mod file_index;
     pub mod query;
     pub mod serve;
     pub mod show;
@@ -111,9 +110,6 @@ enum Command {
 
     /// Perform a set of writes to a running InfluxDB 3 Core server
     Write(commands::write::Config),
-
-    /// Manage the file index
-    FileIndex(commands::file_index::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -193,12 +189,6 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Write(config)) => {
                 if let Err(e) = commands::write::command(config).await {
                     eprintln!("Write command failed: {e}");
-                    std::process::exit(ReturnCode::Failure as _)
-                }
-            }
-            Some(Command::FileIndex(config)) => {
-                if let Err(e) = commands::file_index::command(config).await {
-                    eprintln!("Configure command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
