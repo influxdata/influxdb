@@ -1,0 +1,5 @@
+terraform*/
+*.md
+.DS_Store
+.vscode
+.git
