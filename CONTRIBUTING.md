@@ -34,7 +34,7 @@ For features we don't plan to support we will close the feature request ticket (
 
 ## Contributing Changes
 
-InfluxDB IOx is written mostly in idiomatic Rust—please see the [Style Guide] for more details.
+InfluxDB 3 is written mostly in idiomatic Rust—please see the [Style Guide] for more details.
 All code must adhere to the `rustfmt` format, and pass all of the `clippy` checks we run in CI (there are more details further down this README).
 
 [Style Guide]: docs/style_guide.md
@@ -54,7 +54,7 @@ If you're planning to submit significant changes, even if it relates to existing
 The easiest way to do this is to open up a new ticket, describing the changes you plan to make and *why* you plan to make them. Changes that may seem obviously good to you, are not always obvious to everyone else.
 Example of changes where we would encourage up-front communication:
 
-* new IOx features;
+* new InfluxDB 3 features;
 * significant refactors that move code between modules/crates etc;
 * performance improvements involving new concurrency patterns or the use of `unsafe` code;
 * API-breaking changes, or changes that require a data migration;
@@ -68,7 +68,7 @@ Further, please don't expect us to accept significant changes without new test c
 
 To open a PR you will need to have a Github account.
 Fork the `influxdb` repo and work on a branch on your fork.
-When you have completed your changes, or you want some incremental feedback make a Pull Request to InfluxDB IOx [here].
+When you have completed your changes, or you want some incremental feedback make a Pull Request to InfluxDB [here].
 
 If you want to discuss some work in progress then please prefix `[WIP]` to the
 PR title.
@@ -197,4 +197,4 @@ cargo clippy --all-targets --workspace -- -D warnings
 
 ## Distributed Tracing
 
-See [tracing.md](docs/tracing.md) for more information on the distributed tracing functionality within IOx
+See [tracing.md](docs/tracing.md) for more information on the distributed tracing functionality within InfluxDB 3

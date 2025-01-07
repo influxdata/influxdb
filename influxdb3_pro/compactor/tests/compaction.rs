@@ -68,6 +68,7 @@ async fn five_files_multiple_series_same_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -295,6 +296,7 @@ async fn two_files_two_series_and_same_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -454,6 +456,7 @@ async fn two_files_same_series_and_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -599,6 +602,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -781,6 +785,7 @@ async fn deduplication_of_data() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -915,6 +920,7 @@ async fn compactor_casting() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
+            plugin_dir: None,
         })
         .await
         .unwrap(),

@@ -9,6 +9,7 @@ use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_pro_compactor::compacted_data::CompactedData;
 use influxdb3_wal::{
@@ -87,17 +88,6 @@ impl ReadMode {
 #[async_trait]
 impl Bufferer for ReadMode {
     async fn write_lp(
-        &self,
-        _database: NamespaceName<'static>,
-        _lp: &str,
-        _ingest_time: Time,
-        _accept_partial: bool,
-        _precision: Precision,
-    ) -> WriteBufferResult<BufferedWriteRequest> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn write_lp_v3(
         &self,
         _database: NamespaceName<'static>,
         _lp: &str,
@@ -290,12 +280,47 @@ impl ProcessingEngineManager for ReadMode {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 
+    async fn delete_plugin(
+        &self,
+        _db: &str,
+        _plugin_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn activate_trigger(
+        &self,
+        _write_buffer: Arc<dyn WriteBuffer>,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn deactivate_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: &str,
+    ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
     async fn insert_trigger(
         &self,
         _db_name: &str,
         _trigger_name: String,
         _plugin_name: String,
         _trigger_specification: TriggerSpecificationDefinition,
+        _disabled: bool,
+    ) -> Result<(), write_buffer::Error> {
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn delete_trigger(
+        &self,
+        _db_name: &str,
+        _trigger_name: &str,
+        _force: bool,
     ) -> Result<(), write_buffer::Error> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
@@ -307,6 +332,13 @@ impl ProcessingEngineManager for ReadMode {
         _trigger_name: &str,
     ) -> Result<(), write_buffer::Error> {
         // TODO - should be able to run triggers in read mode
+        Err(WriteBufferError::NoWriteInReadOnly)
+    }
+
+    async fn test_wal_plugin(
+        &self,
+        _request: WalPluginTestRequest,
+    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 }

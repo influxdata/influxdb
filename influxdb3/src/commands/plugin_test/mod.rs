@@ -1,7 +1,6 @@
 use std::error::Error;
 
-pub mod create;
-pub mod delete;
+pub mod wal;
 
 #[derive(Debug, clap::Parser)]
 pub(crate) struct Config {
@@ -11,16 +10,12 @@ pub(crate) struct Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Create a new metadata cache
-    Create(create::Config),
-
-    /// Delete a metadata cache
-    Delete(delete::Config),
+    /// Test a plugin triggered by WAL writes
+    Wal(wal::Config),
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
     match config.command {
-        Command::Create(config) => create::command(config).await,
-        Command::Delete(config) => delete::command(config).await,
+        Command::Wal(config) => wal::command(config).await,
     }
 }

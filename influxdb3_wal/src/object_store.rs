@@ -132,9 +132,17 @@ impl WalObjectStore {
                     Timestamp::new(wal_contents.max_timestamp_ns),
                 ));
 
+            info!(
+                n_ops = %wal_contents.ops.len(),
+                min_timestamp_ns = %wal_contents.min_timestamp_ns,
+                max_timestamp_ns = %wal_contents.max_timestamp_ns,
+                wal_file_number = %wal_contents.wal_file_number,
+                "replaying WAL file"
+            );
+
             match wal_contents.snapshot {
                 // This branch uses so much time
-                None => self.file_notifier.notify(wal_contents),
+                None => self.file_notifier.notify(wal_contents).await,
                 Some(snapshot_details) => {
                     let snapshot_info = {
                         let mut buffer = self.flush_buffer.lock().await;
@@ -151,7 +159,7 @@ impl WalObjectStore {
                     if snapshot_details.snapshot_sequence_number <= last_snapshot_sequence_number {
                         // Instead just notify about the WAL, as this snapshot has already been taken
                         // and WAL files may have been cleared.
-                        self.file_notifier.notify(wal_contents);
+                        self.file_notifier.notify(wal_contents).await;
                     } else {
                         let snapshot_done = self
                             .file_notifier
@@ -298,7 +306,7 @@ impl WalObjectStore {
                     "notify sent to buffer for wal file {}",
                     wal_contents.wal_file_number.as_u64()
                 );
-                self.file_notifier.notify(wal_contents);
+                self.file_notifier.notify(wal_contents).await;
                 None
             }
         };
@@ -1101,7 +1109,7 @@ mod tests {
 
     #[async_trait]
     impl WalFileNotifier for TestNotifier {
-        fn notify(&self, write: WalContents) {
+        async fn notify(&self, write: WalContents) {
             self.notified_writes.lock().push(write);
         }
 

@@ -2,20 +2,21 @@
 
 use crate::catalog::Error::{
     CatalogUpdatedElsewhere, ProcessingEngineCallExists, ProcessingEngineTriggerExists,
-    TableNotFound,
+    ProcessingEngineTriggerRunning, TableNotFound,
 };
 use bimap::{BiHashMap, Overwritten};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition, FieldAdditions,
-    FieldDefinition, LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
-    OrderedCatalogBatch, PluginDefinition, TriggerDefinition,
+    CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeletePluginDefinition,
+    DeleteTableDefinition, DeleteTriggerDefinition, FieldAdditions, FieldDefinition,
+    LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
+    OrderedCatalogBatch, PluginDefinition, TriggerDefinition, TriggerIdentifier,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
@@ -105,6 +106,24 @@ pub enum Error {
     },
 
     #[error(
+        "Cannot delete running plugin {}. Disable it first or use --force.",
+        trigger_name
+    )]
+    ProcessingEngineTriggerRunning { trigger_name: String },
+
+    #[error(
+        "Cannot delete plugin {} in database {} because it is used by trigger {}",
+        plugin_name,
+        database_name,
+        trigger_name
+    )]
+    ProcessingEnginePluginInUse {
+        database_name: String,
+        plugin_name: String,
+        trigger_name: String,
+    },
+
+    #[error(
         "Processing Engine Plugin {} not in DB schema for {}",
         plugin_name,
         database_name
@@ -125,6 +144,8 @@ pub enum Error {
         database_name: String,
         trigger_name: String,
     },
+    #[error("failed to parse trigger from {}", trigger_spec)]
+    ProcessingEngineTriggerSpecParseError { trigger_spec: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -172,11 +193,11 @@ impl Serialize for Catalog {
 }
 
 impl Catalog {
-    /// Limit for the number of Databases that InfluxDB 3.0 OSS can have
+    /// Limit for the number of Databases that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_DBS_LIMIT: usize = 5;
-    /// Limit for the number of columns per table that InfluxDB 3.0 OSS can have
+    /// Limit for the number of columns per table that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
-    /// Limit for the number of tables across all DBs that InfluxDB 3.0 OSS can have
+    /// Limit for the number of tables across all DBs that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
     pub fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
@@ -261,11 +282,13 @@ impl Catalog {
             .map(|db| (*db_id, Arc::clone(db)))
     }
 
+    /// List names of databases that have not been deleted
     pub fn db_names(&self) -> Vec<String> {
         self.inner
             .read()
             .databases
             .values()
+            .filter(|db| !db.deleted)
             .map(|db| db.name.to_string())
             .collect()
     }
@@ -322,8 +345,14 @@ impl Catalog {
             .flat_map(|schema| {
                 schema
                     .processing_engine_triggers
-                    .keys()
-                    .map(move |key| (schema.name.to_string(), key.to_string()))
+                    .iter()
+                    .filter_map(move |(key, trigger)| {
+                        if trigger.disabled {
+                            None
+                        } else {
+                            Some((schema.name.to_string(), key.to_string()))
+                        }
+                    })
             })
             .collect();
         result
@@ -697,8 +726,16 @@ impl UpdateDatabaseSchema for CatalogOp {
             }
             CatalogOp::DeleteDatabase(delete_database) => delete_database.update_schema(schema),
             CatalogOp::DeleteTable(delete_table) => delete_table.update_schema(schema),
+            CatalogOp::DeletePlugin(delete_plugin) => delete_plugin.update_schema(schema),
             CatalogOp::CreatePlugin(create_plugin) => create_plugin.update_schema(schema),
             CatalogOp::CreateTrigger(create_trigger) => create_trigger.update_schema(schema),
+            CatalogOp::DeleteTrigger(delete_trigger) => delete_trigger.update_schema(schema),
+            CatalogOp::EnableTrigger(trigger_identifier) => {
+                EnableTrigger(trigger_identifier.clone()).update_schema(schema)
+            }
+            CatalogOp::DisableTrigger(trigger_identifier) => {
+                DisableTrigger(trigger_identifier.clone()).update_schema(schema)
+            }
         }
     }
 }
@@ -765,6 +802,29 @@ impl UpdateDatabaseSchema for DeleteTableDefinition {
     }
 }
 
+impl UpdateDatabaseSchema for DeletePluginDefinition {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        // check that there aren't any triggers with this name.
+        for (trigger_name, trigger) in &schema.processing_engine_triggers {
+            if trigger.plugin_name == self.plugin_name {
+                return Err(Error::ProcessingEnginePluginInUse {
+                    database_name: schema.name.to_string(),
+                    plugin_name: self.plugin_name.to_string(),
+                    trigger_name: trigger_name.to_string(),
+                });
+            }
+        }
+        schema
+            .to_mut()
+            .processing_engine_plugins
+            .remove(&self.plugin_name);
+        Ok(schema)
+    }
+}
+
 impl UpdateDatabaseSchema for PluginDefinition {
     fn update_schema<'a>(
         &self,
@@ -786,6 +846,57 @@ impl UpdateDatabaseSchema for PluginDefinition {
             }
         }
 
+        Ok(schema)
+    }
+}
+
+struct EnableTrigger(TriggerIdentifier);
+struct DisableTrigger(TriggerIdentifier);
+
+impl UpdateDatabaseSchema for EnableTrigger {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
+            return Err(Error::ProcessingEngineTriggerNotFound {
+                database_name: self.0.db_name.to_string(),
+                trigger_name: self.0.trigger_name.to_string(),
+            });
+        };
+        if !trigger.disabled {
+            return Ok(schema);
+        }
+        let mut_trigger = schema
+            .to_mut()
+            .processing_engine_triggers
+            .get_mut(&self.0.trigger_name)
+            .expect("already checked containment");
+        mut_trigger.disabled = false;
+        Ok(schema)
+    }
+}
+
+impl UpdateDatabaseSchema for DisableTrigger {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
+            return Err(Error::ProcessingEngineTriggerNotFound {
+                database_name: self.0.db_name.to_string(),
+                trigger_name: self.0.trigger_name.to_string(),
+            });
+        };
+        if trigger.disabled {
+            return Ok(schema);
+        }
+        let mut_trigger = schema
+            .to_mut()
+            .processing_engine_triggers
+            .get_mut(&self.0.trigger_name)
+            .expect("already checked containment");
+        mut_trigger.disabled = true;
         Ok(schema)
     }
 }
@@ -812,6 +923,33 @@ impl UpdateDatabaseSchema for TriggerDefinition {
     }
 }
 
+impl UpdateDatabaseSchema for DeleteTriggerDefinition {
+    fn update_schema<'a>(
+        &self,
+        mut schema: Cow<'a, DatabaseSchema>,
+    ) -> Result<Cow<'a, DatabaseSchema>> {
+        let Some(trigger) = schema.processing_engine_triggers.get(&self.trigger_name) else {
+            // deleting a non-existent trigger is a no-op to make it idempotent.
+            return Ok(schema);
+        };
+        if !trigger.disabled && !self.force {
+            if self.force {
+                warn!("deleting running trigger {}", self.trigger_name);
+            } else {
+                return Err(ProcessingEngineTriggerRunning {
+                    trigger_name: self.trigger_name.to_string(),
+                });
+            }
+        }
+        schema
+            .to_mut()
+            .processing_engine_triggers
+            .remove(&self.trigger_name);
+
+        Ok(schema)
+    }
+}
+
 fn make_new_name_using_deleted_time(name: &str, deletion_time: Time) -> Arc<str> {
     Arc::from(format!(
         "{}-{}",
@@ -828,6 +966,7 @@ pub struct TableDefinition {
     pub columns: IndexMap<ColumnId, ColumnDefinition>,
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Vec<ColumnId>,
+    pub series_key_names: Vec<Arc<str>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
     pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
     pub deleted: bool,
@@ -867,12 +1006,18 @@ impl TableDefinition {
             );
             column_map.insert(*col_id, name.into());
         }
-        schema_builder.with_series_key(series_key.clone().into_iter().map(|id| {
-            column_map
-                .get_by_left(&id)
-                // NOTE: should this be an error instead of panic?
-                .expect("invalid column id in series key definition")
-        }));
+        let series_key_names = series_key
+            .clone()
+            .into_iter()
+            .map(|id| {
+                column_map
+                    .get_by_left(&id)
+                    .cloned()
+                    // NOTE: should this be an error instead of panic?
+                    .expect("invalid column id in series key definition")
+            })
+            .collect::<Vec<Arc<str>>>();
+        schema_builder.with_series_key(&series_key_names);
         let schema = schema_builder.build().expect("schema should be valid");
 
         Ok(Self {
@@ -882,6 +1027,7 @@ impl TableDefinition {
             columns,
             column_map,
             series_key,
+            series_key_names,
             last_caches: HashMap::new(),
             meta_caches: HashMap::new(),
             deleted: false,
@@ -1108,11 +1254,12 @@ impl TableDefinition {
             .and_then(|id| self.columns.get(id).map(|def| (*id, def)))
     }
 
-    pub fn series_key(&self) -> Vec<String> {
-        self.series_key
-            .iter()
-            .map(|k| self.column_id_to_name_unchecked(k).to_string())
-            .collect()
+    pub fn series_key_ids(&self) -> &[ColumnId] {
+        &self.series_key
+    }
+
+    pub fn series_key_names(&self) -> &[Arc<str>] {
+        &self.series_key_names
     }
 }
 

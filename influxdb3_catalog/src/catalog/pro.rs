@@ -244,6 +244,19 @@ impl TableDefinition {
                 )
                 .collect::<Result<Vec<ColumnId>>>()?;
 
+        // get the names of all the series keys
+        let series_key_names = series_key
+            .clone()
+            .into_iter()
+            .map(|id| {
+                column_map
+                    .get_by_left(&id)
+                    .cloned()
+                    // NOTE: should this be an error instead of panic?
+                    .expect("invalid column id in series key definition")
+            })
+            .collect::<Vec<Arc<str>>>();
+
         // map the ids from last cache definitions
         let mut last_caches = HashMap::new();
         for (name, lc) in &other.last_caches {
@@ -271,6 +284,7 @@ impl TableDefinition {
                 columns,
                 column_map,
                 series_key,
+                series_key_names,
                 last_caches,
                 meta_caches,
                 deleted: other.deleted,
@@ -866,6 +880,18 @@ impl CatalogIdMap {
             }
             CatalogOp::CreateTrigger(create_trigger) => {
                 Mapped::Ignore(CatalogOp::CreateTrigger(create_trigger))
+            }
+            CatalogOp::DeletePlugin(delete_plugin) => {
+                Mapped::Ignore(CatalogOp::DeletePlugin(delete_plugin))
+            }
+            CatalogOp::DeleteTrigger(delete_trigger) => {
+                Mapped::Ignore(CatalogOp::DeleteTrigger(delete_trigger))
+            }
+            CatalogOp::EnableTrigger(enable_trigger) => {
+                Mapped::Ignore(CatalogOp::EnableTrigger(enable_trigger))
+            }
+            CatalogOp::DisableTrigger(disable_trigger) => {
+                Mapped::Ignore(CatalogOp::DisableTrigger(disable_trigger))
             }
         };
         Ok(mapped_op)

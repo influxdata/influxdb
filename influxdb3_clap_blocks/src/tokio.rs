@@ -177,7 +177,7 @@ macro_rules! tokio_rt_config {
                     let thread_counter = Arc::new(AtomicUsize::new(1));
                     let name = name.to_owned();
                     builder.thread_name_fn(move || {
-                        format!("InfluxDB 3.0 Tokio {} {}", name, thread_counter.fetch_add(1, Ordering::SeqCst))
+                        format!("InfluxDB 3 Core Tokio {} {}", name, thread_counter.fetch_add(1, Ordering::SeqCst))
                     });
 
                     // worker thread count
@@ -286,7 +286,7 @@ mod tests {
                 .builder()
                 .unwrap(),
             || {
-                assert_thread_name("InfluxDB 3.0 Tokio IO");
+                assert_thread_name("InfluxDB 3 Core Tokio IO");
             },
         );
         assert_runtime_thread_property(
@@ -294,7 +294,7 @@ mod tests {
                 .builder()
                 .unwrap(),
             || {
-                assert_thread_name("InfluxDB 3.0 Tokio Datafusion");
+                assert_thread_name("InfluxDB 3 Core Tokio Datafusion");
             },
         );
         assert_runtime_thread_property(
@@ -302,7 +302,7 @@ mod tests {
                 .builder_with_name("foo")
                 .unwrap(),
             || {
-                assert_thread_name("InfluxDB 3.0 Tokio foo");
+                assert_thread_name("InfluxDB 3 Core Tokio foo");
             },
         );
     }

@@ -130,7 +130,10 @@ impl QueryExecutor for CompactionSysTableQueryExecutorImpl {
         .await
     }
 
-    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error> {
+    fn show_databases(
+        &self,
+        _include_deleted: bool,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
         Err(Error::MethodNotImplemented)
     }
 

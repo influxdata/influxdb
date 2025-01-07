@@ -347,12 +347,13 @@ async fn api_v3_query_influxql() {
         TestCase {
             database: None,
             query: "SHOW DATABASES",
-            expected: "+---------------+\n\
-                    | iox::database |\n\
-                    +---------------+\n\
-                    | bar           |\n\
-                    | foo           |\n\
-                    +---------------+",
+            expected: "\
+                    +---------------+---------+\n\
+                    | iox::database | deleted |\n\
+                    +---------------+---------+\n\
+                    | bar           | false   |\n\
+                    | foo           | false   |\n\
+                    +---------------+---------+",
         },
         TestCase {
             database: None,
@@ -660,6 +661,7 @@ async fn api_v3_query_json_format() {
             query: "SHOW DATABASES",
             expected: json!([
                 {
+                  "deleted": false,
                   "iox::database": "foo",
                 },
             ]),
@@ -764,7 +766,7 @@ async fn api_v3_query_jsonl_format() {
         TestCase {
             database: None,
             query: "SHOW DATABASES",
-            expected: "{\"iox::database\":\"foo\"}\n".into(),
+            expected: "{\"iox::database\":\"foo\",\"deleted\":false}\n".into(),
         },
         TestCase {
             database: None,

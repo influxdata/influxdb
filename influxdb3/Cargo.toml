@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 # Core Crates
 authz.workspace = true
-clap_blocks.workspace = true
 datafusion_util.workspace = true
 executor.workspace = true
 iox_query.workspace = true
@@ -73,9 +72,9 @@ console-subscriber = { version = "0.1.10", optional = true, features = ["parking
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
 
-azure = ["clap_blocks/azure"] # Optional Azure Object store support
-gcp = ["clap_blocks/gcp"] # Optional GCP object store support
-aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
+azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
+gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support
+aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #
@@ -84,7 +83,7 @@ tokio_console = ["console-subscriber", "tokio/tracing", "observability_deps/rele
 
 # Use jemalloc as the default allocator.
 jemalloc_replacing_malloc = ["influxdb3_process/jemalloc_replacing_malloc"]
-system-py = ["influxdb3_write/system-py"]
+system-py = ["influxdb3_write/system-py", "influxdb3_server/system-py"]
 
 [dev-dependencies]
 # Core Crates

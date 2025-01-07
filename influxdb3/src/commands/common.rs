@@ -1,30 +1,56 @@
-use std::str::FromStr;
-
 use clap::Parser;
 use secrecy::Secret;
+use std::error::Error;
+use std::fmt::Display;
+use std::str::FromStr;
 use url::Url;
 
 #[derive(Debug, Parser)]
 pub struct InfluxDb3Config {
-    /// The host URL of the running InfluxDB 3.0 server
+    /// The host URL of the running InfluxDB 3 Core server
     #[clap(
-        short = 'h',
+        short = 'H',
         long = "host",
         env = "INFLUXDB3_HOST_URL",
         default_value = "http://127.0.0.1:8181"
     )]
     pub host_url: Url,
 
-    /// The database name to run the query against
-    #[clap(short = 'd', long = "dbname", env = "INFLUXDB3_DATABASE_NAME")]
+    /// The name of the database to operate on
+    #[clap(short = 'd', long = "database", env = "INFLUXDB3_DATABASE_NAME")]
     pub database_name: String,
 
-    /// The token for authentication with the InfluxDB 3.0 server
+    /// The token for authentication with the InfluxDB 3 Core server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub auth_token: Option<Secret<String>>,
 }
 
-/// A clap argument privided as a list of items separated by `SEPARATOR`, which by default is a ','
+// A clap argument provided as a key/value pair separated by `SEPARATOR`, which by default is a '='
+#[derive(Debug, Clone)]
+pub struct SeparatedKeyValue<K, V, const SEPARATOR: char = '='>(pub (K, V));
+
+impl<K, V, const SEPARATOR: char> FromStr for SeparatedKeyValue<K, V, SEPARATOR>
+where
+    K: FromStr<Err: Into<anyhow::Error>>,
+    V: FromStr<Err: Into<anyhow::Error>>,
+{
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split(SEPARATOR);
+        let key = parts.next().ok_or_else(|| anyhow::anyhow!("missing key"))?;
+        let value = parts
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("missing value"))?;
+
+        Ok(Self((
+            key.parse().map_err(Into::into)?,
+            value.parse().map_err(Into::into)?,
+        )))
+    }
+}
+
+/// A clap argument provided as a list of items separated by `SEPARATOR`, which by default is a ','
 #[derive(Debug, Clone)]
 pub struct SeparatedList<T, const SEPARATOR: char = ','>(pub Vec<T>);
 
@@ -51,4 +77,62 @@ impl<T, const SEPARATOR: char> IntoIterator for SeparatedList<T, SEPARATOR> {
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
+}
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum DataType {
+    Int64,
+    Uint64,
+    Float64,
+    Utf8,
+    Bool,
+}
+
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[error("{0} is not a valid data type, values are int64, uint64, float64, utf8, and bool")]
+pub struct ParseDataTypeError(String);
+
+impl FromStr for DataType {
+    type Err = ParseDataTypeError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "int64" => Ok(Self::Int64),
+            "uint64" => Ok(Self::Uint64),
+            "float64" => Ok(Self::Float64),
+            "utf8" => Ok(Self::Utf8),
+            "bool" => Ok(Self::Bool),
+            _ => Err(ParseDataTypeError(s.into())),
+        }
+    }
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Int64 => write!(f, "int64"),
+            Self::Uint64 => write!(f, "uint64"),
+            Self::Float64 => write!(f, "float64"),
+            Self::Utf8 => write!(f, "utf8"),
+            Self::Bool => write!(f, "bool"),
+        }
+    }
+}
+
+impl From<DataType> for String {
+    fn from(data: DataType) -> Self {
+        data.to_string()
+    }
+}
+
+/// Parse a single key-value pair
+pub fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
+where
+    T: std::str::FromStr,
+    T::Err: Error + Send + Sync + 'static,
+    U: std::str::FromStr,
+    U::Err: Error + Send + Sync + 'static,
+{
+    let pos = s
+        .find(':')
+        .ok_or_else(|| format!("invalid FIELD:VALUE. No `:` found in `{s}`"))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }

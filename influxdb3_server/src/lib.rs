@@ -1,4 +1,4 @@
-//! InfluxDB 3.0 OSS server implementation
+//! InfluxDB 3 Core server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
@@ -153,7 +153,10 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, Self::Error>;
 
-    fn show_databases(&self) -> Result<SendableRecordBatchStream, Self::Error>;
+    fn show_databases(
+        &self,
+        include_deleted: bool,
+    ) -> Result<SendableRecordBatchStream, Self::Error>;
 
     async fn show_retention_policies(
         &self,
@@ -828,6 +831,7 @@ mod tests {
                 wal_config: WalConfig::test_config(),
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
+                plugin_dir: None,
             },
         )
         .await
