@@ -776,7 +776,10 @@ async fn api_v3_configure_db_delete() {
         .await
         .unwrap();
     debug!(result = ?result, ">> RESULT");
-    assert_eq!(json!([{ "iox::database": "foo" } ]), result);
+    assert_eq!(
+        json!([{ "deleted": false, "iox::database": "foo" } ]),
+        result
+    );
 
     let resp = client
         .delete(&url)

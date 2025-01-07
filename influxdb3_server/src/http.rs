@@ -729,7 +729,7 @@ where
         };
 
         if statement.statement().is_show_databases() {
-            self.query_executor.show_databases()
+            self.query_executor.show_databases(true)
         } else if statement.statement().is_show_retention_policies() {
             self.query_executor
                 .show_retention_policies(database.as_deref(), None)
@@ -1092,6 +1092,20 @@ where
             .body(Body::empty())?)
     }
 
+    async fn show_databases(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let ShowDatabasesRequest {
+            format,
+            show_deleted,
+        } = serde_urlencoded::from_str(query)?;
+        let stream = self.query_executor.show_databases(show_deleted)?;
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(CONTENT_TYPE, format.as_content_type())
+            .body(record_batch_stream_to_body(stream, format).await?)
+            .map_err(Into::into)
+    }
+
     async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
         self.write_buffer.create_database(db).await?;
@@ -1355,6 +1369,7 @@ pub(crate) enum QueryFormat {
     Csv,
     Pretty,
     Json,
+    #[serde(alias = "jsonl")]
     JsonLines,
 }
 
@@ -1582,6 +1597,13 @@ struct ProcessingEngineTriggerIdentifier {
 }
 
 #[derive(Debug, Deserialize)]
+struct ShowDatabasesRequest {
+    format: QueryFormat,
+    #[serde(default)]
+    show_deleted: bool,
+}
+
+#[derive(Debug, Deserialize)]
 struct CreateDatabaseRequest {
     db: String,
 }
@@ -1709,6 +1731,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
             http_server.delete_processing_engine_trigger(req).await
         }
+        (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
         (Method::DELETE, "/api/v3/configure/database") => http_server.delete_database(req).await,
         (Method::POST, "/api/v3/configure/table") => http_server.create_table(req).await,

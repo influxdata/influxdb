@@ -28,6 +28,7 @@ mod commands {
     pub mod delete;
     pub mod query;
     pub mod serve;
+    pub mod show;
     pub mod test;
     pub mod write;
 }
@@ -101,6 +102,9 @@ enum Command {
     /// Run the InfluxDB 3 Core server
     Serve(commands::serve::Config),
 
+    /// List resources on the InfluxDB 3 Core server
+    Show(commands::show::Config),
+
     /// Test things, such as plugins, work the way you expect
     Test(commands::test::Config),
 
@@ -161,6 +165,12 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Show(config)) => {
+                if let Err(e) = commands::show::command(config).await {
+                    eprintln!("Show command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
