@@ -360,13 +360,14 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
+        host_id = %config.host_identifier_prefix,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID.as_ref() as &str,
         num_cpus,
-        %build_malloc_conf,
-        "InfluxDB3 OSS server starting",
+        "InfluxDB 3 Core server starting",
     );
+    debug!(%build_malloc_conf, "build configuration");
 
     let metrics = setup_metric_registry();
 
@@ -464,7 +465,7 @@ pub async fn command(config: Config) -> Result<()> {
             .await
             .map_err(Error::InitializePersistedCatalog)?,
     );
-    info!(instance_id = ?catalog.instance_id(), "Catalog initialized with");
+    info!(instance_id = ?catalog.instance_id(), "catalog initialized");
 
     let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&catalog) as _,
