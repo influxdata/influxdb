@@ -565,6 +565,7 @@ impl ReplicatedBuffer {
 
     async fn replay(&self) -> Result<()> {
         let paths = self.load_existing_wal_paths().await?;
+        let last_path = paths.last().cloned();
         // track some information about the paths loaded for this replicated host
         info!(
             from_host = self.host_identifier_prefix,
@@ -574,8 +575,23 @@ impl ReplicatedBuffer {
             "loaded existing wal paths from object store"
         );
 
-        for path in &paths {
-            self.replay_wal_file(path).await?;
+        // fetch WAL files from object store in parallel:
+        let mut fetch_handles = Vec::new();
+        for path in paths {
+            let object_store = Arc::clone(&self.object_store);
+            fetch_handles.push(tokio::spawn(async move {
+                get_wal_contents_from_object_store(object_store, path.clone())
+                    .await
+                    .map(|wal_contents| (path, wal_contents))
+            }));
+        }
+
+        // process WAL files in series:
+        for handle in fetch_handles {
+            let (path, wal_contents) = handle
+                .await
+                .context("failed to complete task to fetch wal contents")??;
+            self.replay_wal_file(wal_contents).await?;
             info!(
                 from_host = self.host_identifier_prefix,
                 wal_file_path = %path,
@@ -583,9 +599,9 @@ impl ReplicatedBuffer {
             );
         }
 
-        if let Some(path) = paths.last() {
+        if let Some(path) = last_path {
             let wal_number =
-                WalFileSequenceNumber::try_from(path).context("invalid wal file path")?;
+                WalFileSequenceNumber::try_from(&path).context("invalid wal file path")?;
             self.last_wal_file_sequence_number
                 .lock()
                 .await
@@ -622,24 +638,20 @@ impl ReplicatedBuffer {
         Ok(paths)
     }
 
-    /// Replay the WAL file at the given `path`.
+    /// Replay the given [`WalContents`].
     ///
-    /// This will fetch the contents of the WAL file from the object store, map identifiers within
-    /// the `WalContents` of the file from those on the replicated host to those of the local
-    /// catalog, then apply the `WalContents` to the local buffer, handling snapshots if present.
+    /// This will map identifiers within the `WalContents`, i.e., those on the replicated host, to
+    /// those of the local catalog, then apply the `WalContents` to the local buffer, handling
+    /// snapshots if present.
+    ///
+    /// If this replicated buffer is running on a write-enabled host, any catalog batches will be
+    /// extracted from the `WalContents` and written to the local pirimary buffer's WAL.
     ///
     /// The `calculate_ttbr` argument will determine if the time to be readable (TTBR) for the
     /// contents of the replayed file is recorded in the metric registry. This is optional so that
     /// we can avoid calculating TTBR when replaying WAL files on server startup, as the resulting
     /// values would likely skew the metric distribution.
-    async fn replay_wal_file(&self, path: &Path) -> Result<()> {
-        let obj = self.object_store.get(path).await?;
-        let file_bytes = obj
-            .bytes()
-            .await
-            .context("failed to collect data for known file into bytes")?;
-        let wal_contents = verify_file_type_and_deserialize(file_bytes)
-            .context("failed to verify and deserialize wal file contents")?;
+    async fn replay_wal_file(&self, wal_contents: WalContents) -> Result<()> {
         let persist_time_ms = wal_contents.persist_timestamp_ms;
 
         let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
@@ -860,6 +872,20 @@ impl ReplicatedBuffer {
     }
 }
 
+async fn get_wal_contents_from_object_store(
+    object_store: Arc<dyn ObjectStore>,
+    path: Path,
+) -> Result<WalContents> {
+    let obj = object_store.get(&path).await?;
+    let file_bytes = obj
+        .bytes()
+        .await
+        .context("failed to collect data for known file into bytes")?;
+    verify_file_type_and_deserialize(file_bytes)
+        .context("failed to verify and deserialize wal file contents")
+        .map_err(Into::into)
+}
+
 fn background_replication_interval(
     replicated_buffer: Arc<ReplicatedBuffer>,
     interval: Duration,
@@ -878,8 +904,33 @@ fn background_replication_interval(
                 'inner: loop {
                     wal_number = wal_number.next();
                     let wal_path = wal_path(&replicated_buffer.host_identifier_prefix, wal_number);
+                    let wal_contents = match get_wal_contents_from_object_store(
+                        Arc::clone(&replicated_buffer.object_store),
+                        wal_path.clone(),
+                    )
+                    .await
+                    {
+                        Ok(w) => w,
+                        Err(error) => {
+                            match error {
+                                // When the file is not found, we assume that it hasn't been created
+                                // yet, so do nothing. Logging NOT_FOUND could get noisy.
+                                Error::ObjectStore(object_store::Error::NotFound { .. }) => {}
+                                // Otherwise, we log the error:
+                                error => {
+                                    error!(
+                                        %error,
+                                        from_host = replicated_buffer.host_identifier_prefix,
+                                        wal_file_path = %wal_path,
+                                        "failed to fetch next WAL file"
+                                    );
+                                }
+                            }
+                            break 'inner;
+                        }
+                    };
 
-                    match replicated_buffer.replay_wal_file(&wal_path).await {
+                    match replicated_buffer.replay_wal_file(wal_contents).await {
                         Ok(_) => {
                             info!(
                                 from_host = replicated_buffer.host_identifier_prefix,
@@ -891,19 +942,12 @@ fn background_replication_interval(
                             // WAL files if they exist...
                         }
                         Err(error) => {
-                            match error {
-                                // When the file is not found, we assume that it hasn't been created
-                                // yet, so do nothing. Logging NOT_FOUND could get noisy.
-                                Error::ObjectStore(object_store::Error::NotFound { .. }) => {}
-                                // Otherwise, we log the error:
-                                error => {
-                                    error!(
-                                        %error,
-                                        from_host = replicated_buffer.host_identifier_prefix,
-                                        "failed to fetch and replay next WAL file"
-                                    );
-                                }
-                            }
+                            error!(
+                                %error,
+                                from_host = replicated_buffer.host_identifier_prefix,
+                                wal_file_path = %wal_path,
+                                "failed to replay next WAL file"
+                            );
                             break 'inner;
                         }
                     }
