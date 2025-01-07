@@ -643,23 +643,7 @@ impl ReplicatedBuffer {
         let persist_time_ms = wal_contents.persist_timestamp_ms;
 
         let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
-        if let Some(wal) = self.wal.as_ref() {
-            let catalog_ops: Vec<WalOp> = wal_contents
-                .ops
-                .iter()
-                .filter(|op| op.as_catalog().is_some())
-                .cloned()
-                .collect();
-            if !catalog_ops.is_empty() {
-                info!(
-                    from_host = self.host_identifier_prefix,
-                    "writing catalog ops from replicated host to local WAL"
-                );
-                wal.write_ops(catalog_ops)
-                    .await
-                    .context("failed to write replicated catalog ops to local WAL")?;
-            }
-        }
+        self.apply_catalog_batches_to_local(&wal_contents).await?;
 
         match wal_contents.snapshot {
             None => self.buffer_wal_contents(wal_contents),
@@ -668,7 +652,57 @@ impl ReplicatedBuffer {
             }
         }
 
-        // record the current time after the wal contents have been buffered:
+        self.record_ttbr(persist_time_ms);
+
+        Ok(())
+    }
+
+    /// Apply catalog batches from a WAL file to the local catalog if this replica is tied to a
+    /// local primary buffer that has a WAL
+    ///
+    /// This is to ensure that catalog updates received by other replicated hosts are also made
+    /// durable on the local host
+    ///
+    /// Replicated catalog batches are extracted from the mapped [`WalContents`] and filtered to
+    /// remove any that would not actually change the local catalog to prevent insertion of ops
+    /// to the local WAL that make changes that were already applied locally or by other replicas.
+    async fn apply_catalog_batches_to_local(
+        &self,
+        mapped_wal_contents: &WalContents,
+    ) -> Result<()> {
+        let Some(wal) = self.wal.as_ref() else {
+            return Ok(());
+        };
+        let catalog_ops: Vec<WalOp> = mapped_wal_contents
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                WalOp::Write(_) => None,
+                WalOp::Catalog(ordered_catalog_batch) => Some(
+                    self.catalog
+                        .catalog
+                        .apply_catalog_batch(ordered_catalog_batch.clone().batch())
+                        .transpose()?
+                        .map(WalOp::Catalog)
+                        .context("failed to apply and order the replicated catalog batch")
+                        .map_err(Into::into),
+                ),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        if !catalog_ops.is_empty() {
+            info!(
+                from_host = self.host_identifier_prefix,
+                "writing catalog ops from replicated host to local WAL"
+            );
+            wal.write_ops(catalog_ops)
+                .await
+                .context("failed to write replicated catalog ops to local WAL")?;
+        }
+        Ok(())
+    }
+
+    /// Record the time to be readable (TTBR) for a WAL file's content
+    fn record_ttbr(&self, persist_time_ms: i64) {
         let now_time = self.time_provider.now();
 
         let Some(persist_time) = Time::from_timestamp_millis(persist_time_ms) else {
@@ -677,7 +711,7 @@ impl ReplicatedBuffer {
                 %persist_time_ms,
                 "the millisecond persist timestamp in the replayed wal file was out-of-range or invalid"
             );
-            return Ok(());
+            return;
         };
 
         // track TTBR:
@@ -692,8 +726,6 @@ impl ReplicatedBuffer {
                 );
             }
         }
-
-        Ok(())
     }
 
     fn buffer_wal_contents(&self, wal_contents: WalContents) {
@@ -865,7 +897,11 @@ fn background_replication_interval(
                                 Error::ObjectStore(object_store::Error::NotFound { .. }) => {}
                                 // Otherwise, we log the error:
                                 error => {
-                                    error!(%error, "failed to fetch and replay next WAL file");
+                                    error!(
+                                        %error,
+                                        from_host = replicated_buffer.host_identifier_prefix,
+                                        "failed to fetch and replay next WAL file"
+                                    );
                                 }
                             }
                             break 'inner;
@@ -878,7 +914,11 @@ fn background_replication_interval(
                 // prevent a deadlock:
                 drop(last_wal_number);
                 if let Err(error) = replicated_buffer.replay().await {
-                    error!(%error, "failed to replay replicated buffer on replication interval");
+                    error!(
+                        %error,
+                        from_host = replicated_buffer.host_identifier_prefix,
+                        "failed to replay replicated buffer on replication interval"
+                    );
                 }
             }
         }
