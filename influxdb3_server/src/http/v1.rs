@@ -45,21 +45,31 @@ where
     /// or 10,000. For InfluxQL queries that select from multiple measurements, chunks
     /// will be split on the `chunk_size`, or series, whichever comes first.
     pub(super) async fn v1_query(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let params = QueryParams::from_request(&req)?;
-        info!(?params, "handle v1 query API");
-        let QueryParams {
+        // extract params first from URI:
+        let uri_params = QueryParams::from_request_uri(&req)?;
+        // determine the format from the request headers now because we need to consume req to get
+        // the body:
+        let mut format = QueryFormat::from_request(&req)?;
+        // now get the parameters provided in the body:
+        let body = self.read_body(req).await?;
+        let body_params = serde_urlencoded::from_bytes::<QueryParams>(&body)?;
+        // now combine them, overwriting parameters from the uri with those from the body:
+        let combined_params = body_params.combine(uri_params);
+        // qualify the combination to ensure there is a query string:
+        let qualified_params = combined_params.qualify()?;
+        info!(?qualified_params, "handle v1 query API");
+
+        let QualifiedQueryParams {
             chunk_size,
-            chunked,
             database,
             epoch,
             pretty,
             query,
-        } = params;
+        } = qualified_params;
 
-        let format = QueryFormat::from_request(&req, pretty)?;
-        info!(?format, "handle v1 format API");
-
-        let chunk_size = chunked.then(|| chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
+        if pretty {
+            format = format.to_pretty();
+        }
 
         // TODO - Currently not supporting parameterized queries, see
         //        https://github.com/influxdata/influxdb/issues/24805
@@ -76,15 +86,18 @@ where
     }
 }
 
-/// Query parameters for the v1/query API
+/// Query parameters for the v1 /query API
 ///
-/// The original API supports a `u` parameter, for "username", as well as a `p`,
-/// for "password". The password is extracted upstream, and username is ignored.
+/// The original API supports a `u` parameter, for "username", as well as a `p`, for "password".
+/// The password is extracted upstream, and username is ignored.
+///
+/// This makes all fields optional, so that the params can be parsed from both the request URI as
+/// well as the request body, and then combined. This must be qualified via [`QueryParams::qualify`]
+/// to ensure validity of the incoming request.
 #[derive(Debug, Deserialize)]
 struct QueryParams {
     /// Chunk the response into chunks of size `chunk_size`, or 10,000, or by series
-    #[serde(default)]
-    chunked: bool,
+    chunked: Option<bool>,
     /// Define the number of records that will go into a chunk
     chunk_size: Option<usize>,
     /// Database to perform the query against
@@ -96,19 +109,59 @@ struct QueryParams {
     #[allow(dead_code)]
     epoch: Option<Precision>,
     /// Format the JSON outputted in pretty format
-    #[serde(default)]
-    pretty: bool,
+    pretty: Option<bool>,
     /// The InfluxQL query string
+    ///
+    /// This is optional only for deserialization, since we first extract from the request URI
+    /// then from the body and combine the two sources.
     #[serde(rename = "q")]
-    query: String,
+    query: Option<String>,
 }
 
 impl QueryParams {
     /// Extract [`QueryParams`] from an HTTP [`Request`]
-    fn from_request(req: &Request<Body>) -> Result<Self> {
-        let query = req.uri().query().ok_or(Error::MissingQueryParams)?;
+    fn from_request_uri(req: &Request<Body>) -> Result<Self> {
+        let query = req.uri().query().unwrap_or_default();
         serde_urlencoded::from_str(query).map_err(Into::into)
     }
+
+    /// Combine two [`QueryParams`] objects, prioritizing values in `self` over `other`.
+    fn combine(self, other: Self) -> Self {
+        Self {
+            chunked: self.chunked.or(other.chunked),
+            chunk_size: self.chunk_size.or(other.chunk_size),
+            database: self.database.or(other.database),
+            epoch: self.epoch.or(other.epoch),
+            pretty: self.pretty.or(other.pretty),
+            query: self.query.or(other.query),
+        }
+    }
+
+    /// Qualify this [`QueryParams`] to determine chunk size and ensure a query string was provided
+    fn qualify(self) -> Result<QualifiedQueryParams> {
+        let chunk_size = self
+            .chunked
+            .unwrap_or_default()
+            .then(|| self.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE));
+        let query = self.query.ok_or(Error::MissingQueryV1Params)?;
+        Ok(QualifiedQueryParams {
+            chunk_size,
+            database: self.database,
+            epoch: self.epoch,
+            pretty: self.pretty.unwrap_or_default(),
+            query,
+        })
+    }
+}
+
+/// Qualified version of [`QueryParams`]
+#[derive(Debug)]
+struct QualifiedQueryParams {
+    chunk_size: Option<usize>,
+    database: Option<String>,
+    epoch: Option<Precision>,
+    pretty: bool,
+    query: String,
 }
 
 /// Enum representing the query format for the v1/query API.
@@ -148,30 +201,27 @@ impl QueryFormat {
 
     /// Extracts the [`QueryFormat`] from an HTTP [`Request`].
     ///
-    /// Parses the HTTP request to determine the desired query format. The `pretty`
-    /// parameter indicates if the pretty format is requested via a query parameter.
     /// The function inspects the `Accept` header of the request to determine the
     /// format, defaulting to JSON if no specific format is requested. If the format
     /// is invalid or non-UTF8, an error is returned.
-    fn from_request(req: &Request<Body>, pretty: bool) -> Result<Self> {
+    fn from_request(req: &Request<Body>) -> Result<Self> {
         let mime_type = req.headers().get(ACCEPT).map(HeaderValue::as_bytes);
-
         match mime_type {
             Some(b"application/csv" | b"text/csv") => Ok(Self::Csv),
-            Some(b"application/json" | b"*/*") | None => {
-                // If no specific format is requested via the Accept header,
-                // and the 'pretty' parameter is true, use the pretty JSON format.
-                // Otherwise, default to the regular JSON format.
-                if pretty {
-                    Ok(Self::JsonPretty)
-                } else {
-                    Ok(Self::Json)
-                }
-            }
+            // the default is JSON:
+            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
                 Ok(s) => Err(Error::InvalidMimeType(s)),
                 Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
+        }
+    }
+
+    /// Convert this from JSON to pretty printed JSON
+    fn to_pretty(self) -> Self {
+        match self {
+            Self::Csv => Self::Csv,
+            Self::Json | Self::JsonPretty => Self::JsonPretty,
         }
     }
 }
