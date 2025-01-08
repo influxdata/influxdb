@@ -8,7 +8,6 @@ pub mod object_store;
 pub mod serialize;
 mod snapshot_tracker;
 
-use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
@@ -83,14 +82,26 @@ pub trait Wal: Debug + Send + Sync + 'static {
         &self,
     ) -> Option<(
         oneshot::Receiver<SnapshotDetails>,
-        SnapshotInfo,
+        SnapshotDetails,
+        OwnedSemaphorePermit,
+    )>;
+
+    /// This is similar to flush buffer but it allows for snapshot to be done immediately rather
+    /// than waiting for wal periods to stack up in [`snapshot_tracker::SnapshotTracker`].
+    /// Because forcing flush buffer can happen with no ops in wal buffer this call will add
+    /// a [`WalOp::Noop`] into the wal buffer if it is empty and then carry on with snapshotting.
+    async fn force_flush_buffer(
+        &self,
+    ) -> Option<(
+        oneshot::Receiver<SnapshotDetails>,
+        SnapshotDetails,
         OwnedSemaphorePermit,
     )>;
 
     /// Removes any snapshot wal files
     async fn cleanup_snapshot(
         &self,
-        snapshot_details: SnapshotInfo,
+        snapshot_details: SnapshotDetails,
         snapshot_permit: OwnedSemaphorePermit,
     );
 
@@ -218,6 +229,7 @@ impl Default for Gen1Duration {
 pub enum WalOp {
     Write(WriteBatch),
     Catalog(OrderedCatalogBatch),
+    Noop(i64),
 }
 
 impl PartialOrd for WalOp {
@@ -240,6 +252,11 @@ impl Ord for WalOp {
 
             // For two Write ops, consider them equal
             (WalOp::Write(_), WalOp::Write(_)) => Ordering::Equal,
+            // all noops should stay where they are no need to reorder them
+            // the noop at the moment at least should appear only in cases
+            // when there are no other ops in wal buffer.
+            (_, WalOp::Noop(_)) => Ordering::Equal,
+            (WalOp::Noop(_), _) => Ordering::Equal,
         }
     }
 }
@@ -249,6 +266,7 @@ impl WalOp {
         match self {
             WalOp::Write(w) => Some(w),
             WalOp::Catalog(_) => None,
+            WalOp::Noop(_) => None,
         }
     }
 
@@ -256,6 +274,7 @@ impl WalOp {
         match self {
             WalOp::Write(_) => None,
             WalOp::Catalog(c) => Some(&c.catalog),
+            WalOp::Noop(_) => None,
         }
     }
 }
@@ -867,6 +886,10 @@ impl WalContents {
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty() && self.snapshot.is_none()
     }
+
+    pub fn has_only_no_op(&self) -> bool {
+        self.ops.len() == 1 && matches!(self.ops.first().unwrap(), WalOp::Noop(_))
+    }
 }
 
 #[derive(
@@ -934,8 +957,12 @@ pub struct SnapshotDetails {
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// All chunks with data before this time can be snapshot and persisted
     pub end_time_marker: i64,
+    /// All wal files with a sequence number >= to this can be deleted once snapshotting is complete
+    pub first_wal_sequence_number: WalFileSequenceNumber,
     /// All wal files with a sequence number <= to this can be deleted once snapshotting is complete
     pub last_wal_sequence_number: WalFileSequenceNumber,
+    // both forced and 3 times snapshot size should set this flag
+    pub forced: bool,
 }
 
 pub fn background_wal_flush<W: Wal>(
@@ -958,7 +985,7 @@ pub fn background_wal_flush<W: Wal>(
                 let snapshot_wal = Arc::clone(&wal);
                 tokio::spawn(async move {
                     let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert_eq!(snapshot_info.snapshot_details, snapshot_details);
+                    assert_eq!(snapshot_info, snapshot_details);
 
                     snapshot_wal
                         .cleanup_snapshot(snapshot_info, snapshot_permit)
