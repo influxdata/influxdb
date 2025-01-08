@@ -1216,7 +1216,8 @@ mod tests {
                 &time_provider,
             )));
 
-        let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+        let compaction_config =
+            CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
 
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
             compactor_id: "compactor-1".into(),

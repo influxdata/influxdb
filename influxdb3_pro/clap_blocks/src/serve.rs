@@ -73,6 +73,17 @@ pub struct ProServeConfig {
     )]
     pub compaction_row_limit: usize,
 
+    /// Set the maximum number of files that will be included in any compaction plan.
+    ///
+    /// This will limit memory usage during higher generation compactions.
+    #[clap(
+        long = "compaction-max-num-files-per-plan",
+        env = "INFLUXDB3_PRO_COMPACTION_MAX_NUM_FILES_PER_PLAN",
+        default_value = "500",
+        action
+    )]
+    pub compaction_max_num_files_per_plan: usize,
+
     /// This is the duration of the first level of compaction (gen2). Later levels of compaction
     /// will be multiples of this duration. This number should be equal to or greater than
     /// the gen1 duration. The default is 20m, which is 2x the default gen1 duration of 10m.
