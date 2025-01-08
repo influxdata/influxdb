@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
+use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
 use authz::Authorizer;
+use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_write::{persister::Persister, WriteBuffer};
 use tokio::net::TcpListener;
-
-use crate::{
-    auth::DefaultAuthorizer, http::HttpApi, query_executor, CommonServerState, QueryExecutor,
-    Server,
-};
 
 #[derive(Debug)]
 pub struct ServerBuilder<W, Q, P, T, L> {
@@ -55,7 +52,7 @@ pub struct WithWriteBuf(Arc<dyn WriteBuffer>);
 #[derive(Debug)]
 pub struct NoQueryExec;
 #[derive(Debug)]
-pub struct WithQueryExec(Arc<dyn QueryExecutor<Error = query_executor::Error>>);
+pub struct WithQueryExec(Arc<dyn QueryExecutor>);
 #[derive(Debug)]
 pub struct NoPersister;
 #[derive(Debug)]
@@ -87,7 +84,7 @@ impl<Q, P, T, L> ServerBuilder<NoWriteBuf, Q, P, T, L> {
 impl<W, P, T, L> ServerBuilder<W, NoQueryExec, P, T, L> {
     pub fn query_executor(
         self,
-        qe: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+        qe: Arc<dyn QueryExecutor>,
     ) -> ServerBuilder<W, WithQueryExec, P, T, L> {
         ServerBuilder {
             common_state: self.common_state,

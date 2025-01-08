@@ -1,6 +1,7 @@
-use crate::write_buffer::PluginEvent;
+use crate::write_buffer::{plugins, PluginEvent};
 use crate::{write_buffer, WriteBuffer};
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{PluginType, TriggerDefinition, TriggerSpecificationDefinition};
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -9,6 +10,9 @@ use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid database {0}")]
+    InvalidDatabase(String),
+
     #[error("couldn't find db")]
     MissingDb,
 
@@ -24,6 +28,9 @@ pub enum Error {
 
     #[error(transparent)]
     AnyhowError(#[from] anyhow::Error),
+
+    #[error("reading plugin file: {0}")]
+    ReadPluginError(#[from] std::io::Error),
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -87,7 +94,8 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
-    ) -> crate::Result<WalPluginTestResponse, write_buffer::Error>;
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> crate::Result<WalPluginTestResponse, plugins::Error>;
 }
 
 #[cfg(feature = "system-py")]
@@ -231,6 +239,7 @@ mod python_plugin {
 pub(crate) fn run_test_wal_plugin(
     now_time: iox_time::Time,
     catalog: Arc<influxdb3_catalog::catalog::Catalog>,
+    query_executor: Arc<dyn QueryExecutor>,
     code: String,
     request: WalPluginTestRequest,
 ) -> Result<WalPluginTestResponse, Error> {
@@ -239,9 +248,9 @@ pub(crate) fn run_test_wal_plugin(
     use data_types::NamespaceName;
     use influxdb3_wal::Gen1Duration;
 
-    const TEST_NAMESPACE: &str = "_testdb";
-
-    let namespace = NamespaceName::new(TEST_NAMESPACE).unwrap();
+    let database = request.database;
+    let namespace = NamespaceName::new(database.clone())
+        .map_err(|_e| Error::InvalidDatabase(database.clone()))?;
     // parse the lp into a write batch
     let validator = WriteValidator::initialize(
         namespace.clone(),
@@ -249,19 +258,19 @@ pub(crate) fn run_test_wal_plugin(
         now_time.timestamp_nanos(),
     )?;
     let data = validator.v1_parse_lines_and_update_schema(
-        &request.input_lp.unwrap(),
+        &request.input_lp,
         false,
         now_time,
         Precision::Nanosecond,
     )?;
     let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
-    let db = catalog.db_schema("_testdb").unwrap();
+    let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_python_with_batch(
         &code,
         &data.valid_data,
         db,
-        Arc::clone(&catalog),
+        query_executor,
         request.input_arguments,
     )?;
 
@@ -336,7 +345,7 @@ pub(crate) fn run_test_wal_plugin(
 
     let log_lines = plugin_return_state.log();
     let mut database_writes = plugin_return_state.write_db_lines;
-    database_writes.insert("_testdb".to_string(), plugin_return_state.write_back_lines);
+    database_writes.insert(database, plugin_return_state.write_back_lines);
 
     Ok(WalPluginTestResponse {
         log_lines,
@@ -353,6 +362,7 @@ mod tests {
     use crate::Precision;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use iox_time::Time;
     use std::collections::HashMap;
 
@@ -394,25 +404,32 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .join("\n");
 
         let request = WalPluginTestRequest {
-            name: "test".into(),
-            input_lp: Some(lp),
-            input_file: None,
+            filename: "test".into(),
+            database: "_testdb".into(),
+            input_lp: lp,
             input_arguments: Some(HashMap::from([(
                 String::from("arg1"),
                 String::from("val1"),
             )])),
         };
 
+        let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
+
         let response =
-            run_test_wal_plugin(now, Arc::new(catalog), code.to_string(), request).unwrap();
+            run_test_wal_plugin(now, Arc::new(catalog), executor, code.to_string(), request)
+                .unwrap();
 
         let expected_log_lines = vec![
             "INFO: arg1: val1",
             "INFO: table: cpu",
-            "INFO: row: {'time': 100, 'fields': [{'name': 'host', 'value': 'A'}, {'name': 'region', 'value': 'west'}, {'name': 'usage', 'value': 1}, {'name': 'system', 'value': 23.2}]}",
-            "INFO: table: mem", "INFO: row: {'time': 120, 'fields': [{'name': 'host', 'value': 'B'}, {'name': 'user', 'value': 43.1}]}",
+            "INFO: row: {'host': 'A', 'region': 'west', 'usage': 1, 'system': 23.2, 'time': 100}",
+            "INFO: table: mem",
+            "INFO: row: {'host': 'B', 'user': 43.1, 'time': 120}",
             "INFO: done",
-        ].into_iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
         assert_eq!(response.log_lines, expected_log_lines);
 
         let expected_testdb_lines = vec![
@@ -475,14 +492,22 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let lp = ["mem,host=B user=43.1 120"].join("\n");
 
         let request = WalPluginTestRequest {
-            name: "test".into(),
-            input_lp: Some(lp),
-            input_file: None,
+            filename: "test".into(),
+            database: "_testdb".into(),
+            input_lp: lp,
             input_arguments: None,
         };
 
-        let reesponse =
-            run_test_wal_plugin(now, Arc::clone(&catalog), code.to_string(), request).unwrap();
+        let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
+
+        let reesponse = run_test_wal_plugin(
+            now,
+            Arc::clone(&catalog),
+            executor,
+            code.to_string(),
+            request,
+        )
+        .unwrap();
 
         let expected_testdb_lines = vec![
             "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""

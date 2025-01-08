@@ -23,16 +23,12 @@ mod system_tables;
 use crate::grpc::make_flight_server;
 use crate::http::route_request;
 use crate::http::HttpApi;
-use async_trait::async_trait;
 use authz::Authorizer;
-use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
-use iox_query::QueryDatabase;
-use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
@@ -45,9 +41,7 @@ use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
-use trace::ctx::SpanContext;
 use trace::TraceCollector;
-use trace_http::ctx::RequestLogContext;
 use trace_http::ctx::TraceHeaderParser;
 use trace_http::metrics::MetricFamily;
 use trace_http::metrics::RequestMetrics;
@@ -128,49 +122,6 @@ pub struct Server<T> {
     persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
-}
-
-#[async_trait]
-pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
-    type Error;
-
-    async fn query(
-        &self,
-        database: &str,
-        q: &str,
-        params: Option<StatementParams>,
-        kind: QueryKind,
-        span_ctx: Option<SpanContext>,
-        external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    fn show_databases(
-        &self,
-        include_deleted: bool,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    async fn show_retention_policies(
-        &self,
-        database: Option<&str>,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum QueryKind {
-    Sql,
-    InfluxQl,
-}
-
-impl QueryKind {
-    pub(crate) fn query_type(&self) -> &'static str {
-        match self {
-            Self::Sql => "sql",
-            Self::InfluxQl => "influxql",
-        }
-    }
 }
 
 impl<T> Server<T> {

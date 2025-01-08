@@ -1,11 +1,20 @@
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+use arrow_array::types::Int32Type;
+use arrow_array::{
+    BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
+    TimestampNanosecondArray, UInt64Array,
+};
+use arrow_schema::DataType;
+use futures::TryStreamExt;
+use influxdb3_catalog::catalog::{DatabaseSchema, TableDefinition};
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
 use influxdb3_wal::{FieldData, Row, WriteBatch};
+use iox_query_params::StatementParams;
 use parking_lot::Mutex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::{PyAnyMethods, PyModule, PyModuleMethods};
 use pyo3::types::{PyDict, PyList};
 use pyo3::{
-    pyclass, pymethods, pymodule, Bound, IntoPyObject, PyAny, PyErr, PyObject, PyResult, Python,
+    pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyErr, PyObject, PyResult, Python,
 };
 use schema::InfluxColumnType;
 use std::collections::HashMap;
@@ -190,8 +199,8 @@ impl PyWriteBatch {
 #[pyclass]
 #[derive(Debug)]
 struct PyPluginCallApi {
-    _schema: Arc<DatabaseSchema>,
-    _catalog: Arc<Catalog>,
+    db_schema: Arc<DatabaseSchema>,
+    query_executor: Arc<dyn QueryExecutor>,
     return_state: Arc<Mutex<PluginReturnState>>,
 }
 
@@ -279,6 +288,127 @@ impl PyPluginCallApi {
             .push(line_str);
 
         Ok(())
+    }
+
+    #[pyo3(signature = (query, args=None))]
+    fn query_rows(
+        &self,
+        query: String,
+        args: Option<HashMap<String, String>>,
+    ) -> PyResult<Py<PyList>> {
+        let query_executor = Arc::clone(&self.query_executor);
+        let db_schema_name = Arc::clone(&self.db_schema.name);
+
+        let params = args.map(|args| {
+            let mut params = StatementParams::new();
+            for (key, value) in args {
+                params.insert(key, value);
+            }
+            params
+        });
+
+        // Spawn the async task
+        let handle = tokio::spawn(async move {
+            let res = query_executor
+                .query(
+                    db_schema_name.as_ref(),
+                    &query,
+                    params,
+                    QueryKind::Sql,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e| PyValueError::new_err(format!("Error executing query: {}", e)))?;
+
+            res.try_collect().await.map_err(|e| {
+                PyValueError::new_err(format!("Error collecting query results: {}", e))
+            })
+        });
+
+        // Block the current thread until the async task completes
+        let res =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(handle));
+
+        let res =
+            res.map_err(|e| PyValueError::new_err(format!("Error executing query: {}", e)))?;
+
+        let batches: Vec<RecordBatch> = res
+            .map_err(|e| PyValueError::new_err(format!("Error collecting query results: {}", e)))?;
+
+        Python::with_gil(|py| {
+            let mut rows: Vec<PyObject> = Vec::new();
+
+            for batch in batches {
+                let num_rows = batch.num_rows();
+                let schema = batch.schema();
+
+                for row_idx in 0..num_rows {
+                    let row = PyDict::new(py);
+                    for col_idx in 0..schema.fields().len() {
+                        let field = schema.field(col_idx);
+                        let field_name = field.name().as_str();
+
+                        let array = batch.column(col_idx);
+
+                        match array.data_type() {
+                            DataType::Int64 => {
+                                let array = array.as_any().downcast_ref::<Int64Array>().unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::UInt64 => {
+                                let array = array.as_any().downcast_ref::<UInt64Array>().unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::Float64 => {
+                                let array = array.as_any().downcast_ref::<Float64Array>().unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::Utf8 => {
+                                let array = array.as_any().downcast_ref::<StringArray>().unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::Boolean => {
+                                let array = array.as_any().downcast_ref::<BooleanArray>().unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::Timestamp(_, _) => {
+                                let array = array
+                                    .as_any()
+                                    .downcast_ref::<TimestampNanosecondArray>()
+                                    .unwrap();
+                                row.set_item(field_name, array.value(row_idx))?;
+                            }
+                            DataType::Dictionary(_, _) => {
+                                let col = array
+                                    .as_any()
+                                    .downcast_ref::<DictionaryArray<Int32Type>>()
+                                    .expect("unexpected datatype");
+
+                                let values = col.values();
+                                let values = values
+                                    .as_any()
+                                    .downcast_ref::<StringArray>()
+                                    .expect("unexpected datatype");
+
+                                let val = values.value(row_idx).to_string();
+                                row.set_item(field_name, val)?;
+                            }
+                            _ => {
+                                return Err(PyValueError::new_err(format!(
+                                    "Unsupported data type: {:?}",
+                                    array.data_type()
+                                )))
+                            }
+                        }
+                    }
+                    rows.push(row.into());
+                }
+            }
+
+            let list = PyList::new(py, rows)?.unbind();
+            Ok(list)
+        })
     }
 }
 
@@ -384,7 +514,7 @@ pub fn execute_python_with_batch(
     code: &str,
     write_batch: &WriteBatch,
     schema: Arc<DatabaseSchema>,
-    catalog: Arc<Catalog>,
+    query_executor: Arc<dyn QueryExecutor>,
     args: Option<HashMap<String, String>>,
 ) -> PyResult<PluginReturnState> {
     Python::with_gil(|py| {
@@ -411,50 +541,36 @@ pub fn execute_python_with_batch(
             for chunk in table_chunks.chunk_time_to_chunk.values() {
                 for row in &chunk.rows {
                     let py_row = PyDict::new(py);
-                    py_row.set_item("time", row.time).unwrap();
-                    let mut fields = Vec::with_capacity(row.fields.len());
+
                     for field in &row.fields {
                         let field_name = table_def.column_id_to_name(&field.id).unwrap();
-                        if field_name.as_ref() == "time" {
-                            continue;
-                        }
-                        let py_field = PyDict::new(py);
-                        py_field.set_item("name", field_name.as_ref()).unwrap();
-
                         match &field.value {
                             FieldData::String(s) => {
-                                py_field.set_item("value", s.as_str()).unwrap();
+                                py_row.set_item(field_name.as_ref(), s.as_str()).unwrap();
                             }
                             FieldData::Integer(i) => {
-                                py_field.set_item("value", i).unwrap();
+                                py_row.set_item(field_name.as_ref(), i).unwrap();
                             }
                             FieldData::UInteger(u) => {
-                                py_field.set_item("value", u).unwrap();
+                                py_row.set_item(field_name.as_ref(), u).unwrap();
                             }
                             FieldData::Float(f) => {
-                                py_field.set_item("value", f).unwrap();
+                                py_row.set_item(field_name.as_ref(), f).unwrap();
                             }
                             FieldData::Boolean(b) => {
-                                py_field.set_item("value", b).unwrap();
+                                py_row.set_item(field_name.as_ref(), b).unwrap();
                             }
                             FieldData::Tag(t) => {
-                                py_field.set_item("value", t.as_str()).unwrap();
+                                py_row.set_item(field_name.as_ref(), t.as_str()).unwrap();
                             }
                             FieldData::Key(k) => {
-                                py_field.set_item("value", k.as_str()).unwrap();
+                                py_row.set_item(field_name.as_ref(), k.as_str()).unwrap();
                             }
-                            FieldData::Timestamp(_) => {
-                                // return an error, this shouldn't happen
-                                return Err(PyValueError::new_err(
-                                    "Timestamps should be in the time field",
-                                ));
+                            FieldData::Timestamp(t) => {
+                                py_row.set_item(field_name.as_ref(), t).unwrap();
                             }
                         };
-
-                        fields.push(py_field.unbind());
                     }
-                    let fields = PyList::new(py, fields).unwrap();
-                    py_row.set_item("fields", fields.unbind()).unwrap();
 
                     rows.push(py_row.into());
                 }
@@ -469,8 +585,8 @@ pub fn execute_python_with_batch(
         let py_batches = PyList::new(py, table_batches).unwrap();
 
         let api = PyPluginCallApi {
-            _schema: schema,
-            _catalog: catalog,
+            db_schema: schema,
+            query_executor,
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -492,6 +608,7 @@ pub fn execute_python_with_batch(
             Some(&globals),
             None,
         )?;
+
         py_func.call1((local_api, py_batches.unbind(), args))?;
 
         // swap with an empty return state to avoid cloning
