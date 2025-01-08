@@ -134,10 +134,10 @@ impl TestServer {
             .args(config.as_args())
             .stdout(Stdio::piped());
 
-        // If TEST_LOG env var is not defined, discard stdout/stderr, otherwise, pass it to the
-        // inner binary in the "LOG_FILTER" env var:
-        let emit_logs = if let Ok(val) = std::env::var("TEST_LOG") {
-            command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val });
+        // Use the TEST_LOG env var to determine if logs are emitted from the spawned process
+        let emit_logs = if std::env::var("TEST_LOG").is_ok() {
+            // use "info" filter, as would be used in production:
+            command.env("LOG_FILTER", "info");
             true
         } else {
             false
