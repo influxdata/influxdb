@@ -131,6 +131,10 @@ pub enum Error {
     #[error("missing query parameters 'db' and 'q'")]
     MissingQueryParams,
 
+    /// Missing the `q` parameter in the v1 /query API
+    #[error("missing query parameter 'q'")]
+    MissingQueryV1Params,
+
     /// MIssing parameters for write
     #[error("missing query parameter 'db'")]
     MissingWriteParams,
@@ -405,6 +409,13 @@ impl Error {
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             Self::SerdeUrlDecoding(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::MissingQueryParams
+            | Self::MissingQueryV1Params
+            | Self::MissingWriteParams
+            | Self::MissingDeleteDatabaseParams => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
@@ -1697,7 +1708,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
             http_server.query_influxql(req).await
         }
-        (Method::GET, "/query") => http_server.v1_query(req).await,
+        (Method::GET | Method::POST, "/query") => http_server.v1_query(req).await,
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
