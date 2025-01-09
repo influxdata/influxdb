@@ -99,7 +99,7 @@ prost-build = "0.12.6"
 prost-types = "0.12.6"
 proptest = { version = "1", default-features = false, features = ["std"] }
 rand = "0.8.5"
-reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
+reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json", "blocking"] }
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
 # serde_json is set to 1.0.127 to prevent a conflict with core, if that gets updated upstream, this
