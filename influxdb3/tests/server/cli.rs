@@ -791,3 +791,12 @@ def process_rows(iterator, output):
     debug!(result = ?result, "create table-specific trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
 }
+
+#[test]
+fn test_create_token() {
+    let result = run_with_confirmation(&["create", "token"]);
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+}
