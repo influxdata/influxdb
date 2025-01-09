@@ -194,11 +194,11 @@ impl Serialize for Catalog {
 
 impl Catalog {
     /// Limit for the number of Databases that InfluxDB 3 Enterprise can have
-    pub(crate) const NUM_DBS_LIMIT: usize = 5;
+    pub(crate) const NUM_DBS_LIMIT: usize = 100;
     /// Limit for the number of columns per table that InfluxDB 3 Enterprise can have
     pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
     /// Limit for the number of tables across all DBs that InfluxDB 3 Enterprise can have
-    pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
+    pub(crate) const NUM_TABLES_LIMIT: usize = 4000;
 
     pub fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
@@ -2043,7 +2043,7 @@ mod tests {
             dbs.push((db_id, db_name));
         }
         // check the count of databases:
-        assert_eq!(5, catalog.inner.read().database_count());
+        assert_eq!(100, catalog.inner.read().database_count());
         // now create another database, this should NOT be allowed:
         let db_id = DbId::new();
         let db_name = "a-database-too-far";
@@ -2088,7 +2088,7 @@ mod tests {
             ))
             .unwrap();
         // check again, count should have gone down:
-        assert_eq!(4, catalog.inner.read().database_count());
+        assert_eq!(99, catalog.inner.read().database_count());
         // now create another database (using same name as the deleted one), this should be allowed:
         let db_id = DbId::new();
         catalog
@@ -2118,7 +2118,7 @@ mod tests {
             ))
             .expect("can create a database again");
         // check new count:
-        assert_eq!(5, catalog.inner.read().database_count());
+        assert_eq!(100, catalog.inner.read().database_count());
     }
 
     #[test]
@@ -2170,7 +2170,7 @@ mod tests {
                 .unwrap();
             tables.push((table_id, table_name));
         }
-        assert_eq!(2_000, catalog.inner.read().table_count());
+        assert_eq!(4_000, catalog.inner.read().table_count());
         // should not be able to create another table:
         let table_id = TableId::new();
         let table_name = Arc::<str>::from("a-table-too-far");
@@ -2216,7 +2216,7 @@ mod tests {
                 })],
             ))
             .unwrap();
-        assert_eq!(1_999, catalog.inner.read().table_count());
+        assert_eq!(3_999, catalog.inner.read().table_count());
         // now create it again, this should be allowed:
         catalog
             .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
@@ -2244,6 +2244,6 @@ mod tests {
                 )],
             ))
             .unwrap();
-        assert_eq!(2_000, catalog.inner.read().table_count());
+        assert_eq!(4_000, catalog.inner.read().table_count());
     }
 }

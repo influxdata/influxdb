@@ -186,7 +186,7 @@ async fn test_create_database_limit() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    for i in 0..5 {
+    for i in 0..100 {
         let name = format!("{db_name}{i}");
         let result = run_with_confirmation(&["create", "database", &name, "--host", &server_addr]);
         debug!(result = ?result, "create database");
@@ -194,11 +194,11 @@ async fn test_create_database_limit() {
     }
 
     let result =
-        run_with_confirmation_and_err(&["create", "database", "foo5", "--host", &server_addr]);
+        run_with_confirmation_and_err(&["create", "database", "foo100", "--host", &server_addr]);
     debug!(result = ?result, "create database");
     assert_contains!(
         &result,
-        "Adding a new database would exceed limit of 5 databases"
+        "Adding a new database would exceed limit of 100 databases"
     );
 }
 

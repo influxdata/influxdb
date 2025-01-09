@@ -8,10 +8,10 @@ async fn limits() -> Result<(), Error> {
     let server = TestServer::spawn().await;
 
     // Test that a server can't have more than 5 DBs
-    for db in ["one", "two", "three", "four", "five"] {
+    for db in 0..100 {
         server
             .write_lp_to_db(
-                db,
+                &format!("DB_{db}"),
                 "cpu,host=s1,region=us-east usage=0.9 1\n",
                 Precision::Nanosecond,
             )
@@ -20,19 +20,19 @@ async fn limits() -> Result<(), Error> {
 
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
-            "six",
+            "DB_100",
             "cpu,host=s1,region=us-east usage=0.9 1\n",
             Precision::Nanosecond,
         )
         .await
     else {
-        panic!("Did not error when adding 6th db");
+        panic!("Did not error when adding 101st db");
     };
     assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
 
-    // Test that the server can't have more than 2000 tables
-    // First create the other needed 1995 tables
-    let table_lp = (0..1995).fold(String::new(), |mut acc, i| {
+    // Test that the server can't have more than 4000 tables
+    // First create the other needed 3900 tables
+    let table_lp = (0..3900).fold(String::new(), |mut acc, i| {
         acc.push_str("cpu");
         acc.push_str(&i.to_string());
         acc.push_str(",host=s1,region=us-east usage=0.9 1\n");
@@ -40,18 +40,18 @@ async fn limits() -> Result<(), Error> {
     });
 
     server
-        .write_lp_to_db("one", &table_lp, Precision::Nanosecond)
+        .write_lp_to_db("DB_1", &table_lp, Precision::Nanosecond)
         .await?;
 
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
-            "six",
-            "cpu2000,host=s1,region=us-east usage=0.9 1\n",
+            "DB_1",
+            "cpu4000,host=s1,region=us-east usage=0.9 1\n",
             Precision::Nanosecond,
         )
         .await
     else {
-        panic!("Did not error when adding 2001st table");
+        panic!("Did not error when adding 4001st table");
     };
     assert_eq!(code, StatusCode::UNPROCESSABLE_ENTITY);
 
@@ -67,11 +67,11 @@ async fn limits() -> Result<(), Error> {
     lp_501.push_str(",column501=1 0\n");
 
     server
-        .write_lp_to_db("one", &lp_500, Precision::Nanosecond)
+        .write_lp_to_db("DB_1", &lp_500, Precision::Nanosecond)
         .await?;
 
     let Err(Error::ApiError { code, .. }) = server
-        .write_lp_to_db("one", &lp_501, Precision::Nanosecond)
+        .write_lp_to_db("DB_1", &lp_501, Precision::Nanosecond)
         .await
     else {
         panic!("Did not error when adding 501st column");

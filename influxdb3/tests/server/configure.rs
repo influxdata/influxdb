@@ -940,7 +940,7 @@ async fn api_v3_configure_db_create_db_hit_limit() {
         "{base}/api/v3/configure/database",
         base = server.client_addr()
     );
-    for i in 0..5 {
+    for i in 0..100 {
         let resp = client
             .post(&url)
             .json(&json!({ "db": format!("foo{i}") }))
@@ -952,7 +952,7 @@ async fn api_v3_configure_db_create_db_hit_limit() {
 
     let resp = client
         .post(&url)
-        .json(&json!({ "db": "foo5" }))
+        .json(&json!({ "db": "foo100" }))
         .send()
         .await
         .expect("create database succeeded");
