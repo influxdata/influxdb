@@ -42,6 +42,7 @@ use influxdb3_pro_data_layout::{CompactedFilePath, Generation};
 use influxdb3_pro_index::FileIndex;
 use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_write::chunk::ParquetChunk;
+use influxdb3_write::persister::ROW_GROUP_WRITE_SIZE;
 use influxdb3_write::ParquetFile;
 use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::chunk_statistics::NoColumnRanges;
@@ -55,9 +56,11 @@ use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
 use observability_deps::tracing::error;
+use parquet::arrow::arrow_writer::ArrowWriterOptions;
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
+use parquet::file::properties::WriterProperties;
 use parquet_file::storage::ParquetExecInput;
 use schema::sort::SortKey;
 use schema::Schema;
@@ -277,6 +280,8 @@ struct SeriesWriter {
     object_store: Arc<dyn ObjectStore>,
     /// the target size of each output file
     limit: usize,
+    /// The number of rows written to the current file
+    current_row_count: usize,
     /// Rows from the previous record batch that were in the last series, if any
     last_batch: Option<RecordBatch>,
     /// The currently open writer
@@ -336,6 +341,7 @@ impl SeriesWriter {
             table_def,
             object_store,
             limit,
+            current_row_count: 0,
             last_batch: None,
             writer: None,
             output_paths: Vec::new(),
@@ -394,13 +400,12 @@ impl SeriesWriter {
         }
 
         // if there is space remaining within the limit for this writer, write the whole batch.
-        if writer.in_progress_rows() + batch.num_rows() <= self.limit {
+        if self.current_row_count + batch.num_rows() <= self.limit {
             writer
                 .write(&batch)
                 .await
                 .map_err(CompactorError::WriteArrowWriter)?;
-            self.index_record_batch(&batch)?;
-            self.last_batch = Some(batch);
+            self.index_and_update_last_batch(batch)?;
             self.writer = Some(writer);
             return Ok(());
         }
@@ -437,8 +442,7 @@ impl SeriesWriter {
                     .write(&batch)
                     .await
                     .map_err(CompactorError::WriteArrowWriter)?;
-                self.index_record_batch(&batch)?;
-                self.last_batch = Some(batch);
+                self.index_and_update_last_batch(batch)?;
                 self.writer = Some(writer);
                 return Ok(());
             }
@@ -447,7 +451,7 @@ impl SeriesWriter {
             // the next iteration of the loop we'll write out the batch into the writer.
             1 if !same_series => {
                 self.set_leftover_batch(batch);
-                if writer.in_progress_rows() >= self.limit {
+                if self.current_row_count >= self.limit {
                     self.close(writer).await?;
                     return Ok(());
                 }
@@ -465,15 +469,14 @@ impl SeriesWriter {
                     .await
                     .map_err(CompactorError::WriteArrowWriter)?;
 
-                self.index_record_batch(&slice)?;
-                self.last_batch = Some(slice);
+                self.index_and_update_last_batch(slice)?;
 
                 let batch_slice = batch.slice(len, batch.num_rows() - len);
                 if batch_slice.num_rows() > 0 {
                     self.set_leftover_batch(batch_slice);
                 }
 
-                if writer.in_progress_rows() + next_len > self.limit {
+                if self.current_row_count + next_len > self.limit {
                     self.close(writer).await?;
                     return Ok(());
                 }
@@ -482,6 +485,14 @@ impl SeriesWriter {
             }
         }
 
+        Ok(())
+    }
+
+    /// Helper for updating the index, last record batch, and incrementing the current row count
+    fn index_and_update_last_batch(&mut self, batch: RecordBatch) -> Result<(), CompactorError> {
+        self.index_record_batch(&batch)?;
+        self.current_row_count += batch.num_rows();
+        self.last_batch = Some(batch);
         Ok(())
     }
 
@@ -507,10 +518,16 @@ impl SeriesWriter {
                     .put_multipart(path.as_object_store_path())
                     .await
                     .map_err(CompactorError::FailedPut)?;
-                let writer = AsyncArrowWriter::try_new(
+                let options = ArrowWriterOptions::new().with_properties(
+                    WriterProperties::builder()
+                        .set_compression(parquet::basic::Compression::ZSTD(Default::default()))
+                        .set_max_row_group_size(ROW_GROUP_WRITE_SIZE)
+                        .build(),
+                );
+                let writer = AsyncArrowWriter::try_new_with_options(
                     AsyncMultiPart::new(obj_store_multipart),
                     self.record_batches.schema.as_arrow(),
-                    None,
+                    options,
                 )
                 .map_err(CompactorError::NewArrowWriter)?;
                 self.output_paths.push(path.as_object_store_path().clone());
@@ -570,6 +587,7 @@ impl SeriesWriter {
         Ok(())
     }
 
+    /// Flush and close the writer and reset the current row count
     async fn close(
         &mut self,
         mut writer: AsyncArrowWriter<AsyncMultiPart>,
@@ -605,6 +623,8 @@ impl SeriesWriter {
             min_time: self.min_time,
             max_time: self.max_time,
         });
+
+        self.current_row_count = 0;
 
         Ok(())
     }
