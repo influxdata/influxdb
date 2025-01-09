@@ -346,6 +346,7 @@ impl From<QueryResponse> for Bytes {
 #[derive(Debug, Serialize)]
 struct StatementResponse {
     statement_id: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     series: Vec<Series>,
 }
 
@@ -438,6 +439,22 @@ impl ChunkBuffer {
     }
 }
 
+/// The state of the [`QueryResponseStream`]
+enum State {
+    /// The initial state of the stream; no query results have been streamed
+    Initialized,
+    /// Rows have been buffered and/or flushed; query results are being streamed
+    Buffering,
+    /// The stream is done
+    Done,
+}
+
+impl State {
+    fn is_initialized(&self) -> bool {
+        matches!(self, Self::Initialized)
+    }
+}
+
 /// A wrapper around a [`SendableRecordBatchStream`] that buffers streamed
 /// [`RecordBatch`]es and outputs [`QueryResponse`]s
 ///
@@ -460,6 +477,7 @@ struct QueryResponseStream {
     statement_id: usize,
     format: QueryFormat,
     epoch: Option<Precision>,
+    state: State,
 }
 
 impl QueryResponseStream {
@@ -495,6 +513,7 @@ impl QueryResponseStream {
             format,
             statement_id,
             epoch,
+            state: State::Initialized,
         })
     }
 
@@ -587,6 +606,7 @@ impl QueryResponseStream {
             columns,
             values,
         }];
+        self.state = State::Buffering;
         QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
@@ -597,7 +617,7 @@ impl QueryResponseStream {
     }
 
     /// Flush the entire buffer
-    fn flush_all(&mut self) -> Result<QueryResponse, anyhow::Error> {
+    fn flush_all(&mut self) -> QueryResponse {
         let columns = self.columns();
         let series = self
             .buffer
@@ -609,13 +629,26 @@ impl QueryResponseStream {
                 values,
             })
             .collect();
-        Ok(QueryResponse {
+        self.state = State::Buffering;
+        QueryResponse {
             results: vec![StatementResponse {
                 statement_id: self.statement_id,
                 series,
             }],
             format: self.format,
-        })
+        }
+    }
+
+    /// Flush an empty query result
+    fn flush_empty(&mut self) -> QueryResponse {
+        self.state = State::Done;
+        QueryResponse {
+            results: vec![StatementResponse {
+                statement_id: self.statement_id,
+                series: vec![],
+            }],
+            format: self.format,
+        }
     }
 }
 
@@ -774,8 +807,13 @@ impl Stream for QueryResponseStream {
                     //
                     // this is why the input stream is fused, because we will end up
                     // polling the input stream again if we end up here.
-                    Poll::Ready(Some(self.flush_all()))
+                    Poll::Ready(Some(Ok(self.flush_all())))
+                } else if self.state.is_initialized() {
+                    // we are still in an initialized state, which means no records were buffered
+                    // and therefore we need to emit an empty result set before ending the stream:
+                    Poll::Ready(Some(Ok(self.flush_empty())))
                 } else {
+                    // this ends the stream:
                     Poll::Ready(None)
                 }
             }
