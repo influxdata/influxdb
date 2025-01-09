@@ -392,7 +392,7 @@ pub struct TrackedMemoryArrowWriter<W: Write + Send> {
 }
 
 /// Parquet row group write size
-pub const ROW_GROUP_WRITE_SIZE: usize = 1024 * 1024;
+pub const ROW_GROUP_WRITE_SIZE: usize = 100_000;
 
 impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
     /// create a new `TrackedMemoryArrowWriter<`
