@@ -225,11 +225,16 @@ impl Default for Gen1Duration {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub struct NoopDetails {
+    timestamp_ns: i64,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WalOp {
     Write(WriteBatch),
     Catalog(OrderedCatalogBatch),
-    Noop(i64),
+    Noop(NoopDetails),
 }
 
 impl PartialOrd for WalOp {
