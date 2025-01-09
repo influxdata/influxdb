@@ -551,8 +551,9 @@ pub async fn command(config: Config) -> Result<()> {
             let compaction_config = CompactionConfig::new(
                 &config.pro_config.compaction_multipliers.0,
                 config.pro_config.compaction_gen2_duration.into(),
-                config.pro_config.compaction_row_limit,
-            );
+            )
+            .with_per_file_row_limit(config.pro_config.compaction_row_limit)
+            .with_max_num_files_per_compaction(config.pro_config.compaction_max_num_files_per_plan);
 
             let hosts = if matches!(config.pro_config.mode, BufferMode::Compactor) {
                 if let Some(compaction_hosts) = &config.pro_config.compaction_hosts {

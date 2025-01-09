@@ -176,15 +176,13 @@ pub struct CompactionConfig {
     /// remaining rows in the series that is currently being written will be written and the
     /// file will be closed.
     pub per_file_row_limit: usize,
+    /// The maximum number of files that will be included in a compaction plan
+    pub max_num_files_per_compaction: usize,
 }
 
 impl CompactionConfig {
     /// Creates a new `CompactionConfig` with the given multipliers based on the gen2 duration.
-    pub fn new(
-        generation_multipliers: &[u8],
-        gen2_duration: time::Duration,
-        per_file_row_limit: usize,
-    ) -> Self {
+    pub fn new(generation_multipliers: &[u8], gen2_duration: time::Duration) -> Self {
         let mut generation_durations = Vec::with_capacity(generation_multipliers.len() + 1);
         generation_durations.push(gen2_duration);
         let mut current_duration = gen2_duration;
@@ -195,8 +193,22 @@ impl CompactionConfig {
 
         Self {
             generation_durations,
-            per_file_row_limit,
+            per_file_row_limit: DEFAULT_PER_FILE_ROW_LIMIT,
+            max_num_files_per_compaction: DEFAULT_MAX_NUM_FILES_PER_COMPACTION,
         }
+    }
+
+    pub fn with_per_file_row_limit(mut self, per_file_row_limit: usize) -> Self {
+        self.per_file_row_limit = per_file_row_limit;
+        self
+    }
+
+    pub fn with_max_num_files_per_compaction(
+        mut self,
+        max_num_files_per_compaction: usize,
+    ) -> Self {
+        self.max_num_files_per_compaction = max_num_files_per_compaction;
+        self
     }
 
     /// Returns the time for the start of the generation based on the level and the time
@@ -270,16 +282,15 @@ impl CompactionConfig {
 const DEFAULT_GENERATION_MULTIPLIERS: &[u8] = &[3, 4, 6, 5];
 const DEFAULT_GEN_2_DURATION: std::time::Duration = std::time::Duration::from_secs(1_200);
 const DEFAULT_PER_FILE_ROW_LIMIT: usize = 1_000_000;
+const DEFAULT_MAX_NUM_FILES_PER_COMPACTION: usize = 500;
 
 /// Default compaction configuration. This is a 20 minute gen2 duration and then 1 hour for gen3,
 /// 4 hours for gen4, 1 day for gen5, and 5 days for gen6.
 impl Default for CompactionConfig {
     fn default() -> Self {
-        Self::new(
-            DEFAULT_GENERATION_MULTIPLIERS,
-            DEFAULT_GEN_2_DURATION,
-            DEFAULT_PER_FILE_ROW_LIMIT,
-        )
+        Self::new(DEFAULT_GENERATION_MULTIPLIERS, DEFAULT_GEN_2_DURATION)
+            .with_per_file_row_limit(DEFAULT_PER_FILE_ROW_LIMIT)
+            .with_max_num_files_per_compaction(DEFAULT_MAX_NUM_FILES_PER_COMPACTION)
     }
 }
 
@@ -596,8 +607,8 @@ mod tests {
     fn compaction_config() {
         // gen2 duration is 20 minutes
         // gen3 is 3 of gen 2 (1hour), 4 is 4 hours, 5 is 1d, and 6 is 5d
-        let config =
-            CompactionConfig::new(&[3, 4, 6, 5], time::Duration::from_secs(1200), 1_000_000);
+        let config = CompactionConfig::new(&[3, 4, 6, 5], time::Duration::from_secs(1200))
+            .with_per_file_row_limit(1_000_000);
 
         let middle_hour = gen_time_string_to_start_time_secs("2024-09-08/15-30").unwrap();
         assert_eq!(gen_time_string(middle_hour), "2024-09-08/15-30");
@@ -673,7 +684,8 @@ mod tests {
 
     #[test]
     fn compaction_levels() {
-        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60), 1_000_000);
+        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60))
+            .with_per_file_row_limit(1_000_000);
         let levels = config.compaction_levels();
         assert_eq!(
             levels,
@@ -688,7 +700,8 @@ mod tests {
 
     #[test]
     fn test_number_of_previous_generations_to_compact() {
-        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60), 1_000_000);
+        let config = CompactionConfig::new(&[2, 3, 4, 5], time::Duration::from_secs(60))
+            .with_per_file_row_limit(1_000_000);
         assert_eq!(
             config.number_of_previous_generations_to_compact(GenerationLevel::new(1)),
             0

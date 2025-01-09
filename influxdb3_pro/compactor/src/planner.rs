@@ -131,61 +131,67 @@ fn create_next_plan(
 
     generations.sort();
 
-    if let Some((output_generation, input_generations)) =
-        compaction_for_level(&generations, output_level, compaction_config)
-    {
-        let mut input_paths = vec![];
-        let mut leftover_gen1_files = vec![];
+    let (output_generation, input_generations) =
+        compaction_for_level(&generations, output_level, compaction_config)?;
 
-        // put any gen1 files that aren't in the input ids into the leftover
-        if let Some(new_gen1_files) = new_gen1_files {
-            for f in new_gen1_files {
-                if !input_generations.iter().any(|g| g.id == f.id) {
-                    leftover_gen1_files.push(f.clone());
-                }
+    // combine new gen1 files with those leftover from the last compaction to form the leftover
+    // gen1 files for this plan:
+    let mut leftover_gen1_files = vec![];
+
+    // put any gen1 files that aren't in the input ids into the leftover
+    if let Some(new_gen1_files) = new_gen1_files {
+        for f in new_gen1_files {
+            if !input_generations.iter().any(|g| g.id == f.id) {
+                leftover_gen1_files.push(f.clone());
             }
         }
-        if let Some(last_compaction_detail) = last_compaction_detail.as_ref() {
-            for f in last_compaction_detail.leftover_gen1_files.iter() {
-                if !input_generations.iter().any(|g| g.id == f.id) {
-                    leftover_gen1_files.push(f.clone());
-                }
-            }
-        }
-
-        for gen in &input_generations {
-            if gen.level.is_one() {
-                let f = new_gen1_files.and_then(|files| files.iter().find(|f| f.id == gen.id));
-                if let Some(f) = f {
-                    input_paths.push(Path::from(f.file.path.as_str()));
-                } else if let Some(f) = last_compaction_detail
-                    .as_ref()
-                    .and_then(|d| d.leftover_gen1_files.iter().find(|f| f.id == gen.id))
-                {
-                    input_paths.push(Path::from(f.file.path.as_str()));
-                } else {
-                    warn!(id = gen.id.as_u64(), "gen1 file not found for compaction");
-                }
-            } else {
-                let gen_detail =
-                    compacted_data.parquet_files(db_schema.id, table_definition.table_id, gen.id);
-                for file in gen_detail {
-                    input_paths.push(Path::from(file.path.as_str()));
-                }
-            }
-        }
-
-        Some(NextCompactionPlan {
-            db_schema,
-            table_definition,
-            output_generation,
-            input_generations,
-            input_paths,
-            leftover_gen1_files,
-        })
-    } else {
-        None
     }
+    if let Some(last_compaction_detail) = last_compaction_detail.as_ref() {
+        for f in last_compaction_detail.leftover_gen1_files.iter() {
+            if !input_generations.iter().any(|g| g.id == f.id) {
+                leftover_gen1_files.push(f.clone());
+            }
+        }
+    }
+
+    let mut input_paths = vec![];
+
+    for gen in &input_generations {
+        if gen.level.is_one() {
+            let f = new_gen1_files.and_then(|files| files.iter().find(|f| f.id == gen.id));
+            if let Some(f) = f {
+                input_paths.push(Path::from(f.file.path.as_str()));
+            } else if let Some(f) = last_compaction_detail
+                .as_ref()
+                .and_then(|d| d.leftover_gen1_files.iter().find(|f| f.id == gen.id))
+            {
+                input_paths.push(Path::from(f.file.path.as_str()));
+            } else {
+                warn!(id = gen.id.as_u64(), "gen1 file not found for compaction");
+            }
+        } else {
+            let gen_detail =
+                compacted_data.parquet_files(db_schema.id, table_definition.table_id, gen.id);
+            for file in gen_detail {
+                input_paths.push(Path::from(file.path.as_str()));
+            }
+        }
+    }
+
+    // To avoid using too much memory, skip this plan if it would attempt to compact more
+    // than the maximum configured number of files.
+    if input_paths.len() > compaction_config.max_num_files_per_compaction {
+        return None;
+    }
+
+    Some(NextCompactionPlan {
+        db_schema,
+        table_definition,
+        output_generation,
+        input_generations,
+        input_paths,
+        leftover_gen1_files,
+    })
 }
 
 /// If there is a compaction to be done with the input generations at the given level, the output

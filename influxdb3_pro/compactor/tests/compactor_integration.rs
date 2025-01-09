@@ -84,7 +84,8 @@ async fn two_writers_gen1_compaction() {
     .unwrap();
 
     let compactor_id = "compact".into();
-    let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+    let compaction_config =
+        CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
     let obj_store = Arc::new(InMemory::new());
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
@@ -264,7 +265,8 @@ async fn compact_consumer_picks_up_latest_summary() {
     let compactor_id = Arc::<str>::from("com");
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120), 10);
+    let compaction_config =
+        CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
     let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
     let compaction_producer = Arc::new(
         CompactedDataProducer::new(CompactedDataProducerArgs {
