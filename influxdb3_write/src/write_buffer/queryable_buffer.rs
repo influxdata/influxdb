@@ -432,6 +432,11 @@ impl QueryableBuffer {
             }
         }
     }
+
+    pub fn get_total_size_bytes(&self) -> usize {
+        let buffer = self.buffer.read();
+        buffer.find_overall_buffer_size_bytes()
+    }
 }
 
 #[async_trait]
@@ -600,6 +605,16 @@ impl BufferState {
                 table_buffer.buffer_chunk(chunk_time, chunk.rows);
             }
         }
+    }
+
+    pub fn find_overall_buffer_size_bytes(&self) -> usize {
+        let mut total = 0;
+        for (_, all_tables) in &self.db_to_table {
+            for (_, table_buffer) in all_tables {
+                total += table_buffer.computed_size();
+            }
+        }
+        total
     }
 }
 
