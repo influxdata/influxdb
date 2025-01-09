@@ -818,6 +818,13 @@ async fn api_v1_query_json_format() {
     }
 
     let test_cases = [
+        // Empty query result:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT * FROM cpu WHERE host='c'",
+            expected: json!({"results":[{"statement_id":0}]}),
+        },
         // Basic Query:
         TestCase {
             database: Some("foo"),
