@@ -3,8 +3,8 @@
 use anyhow::{bail, Context};
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::{
+    distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
-    meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
 use influxdb3_clap_blocks::{
@@ -92,8 +92,8 @@ pub enum Error {
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] last_cache::Error),
 
-    #[error("failed to initialize meta cache: {0:#}")]
-    InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
+    #[error("failed to initialize distinct cache: {0:#}")]
+    InitializeDistinctCache(#[source] influxdb3_cache::distinct_cache::ProviderError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -282,15 +282,15 @@ pub struct Config {
     )]
     pub last_cache_eviction_interval: humantime::Duration,
 
-    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// The interval on which to evict expired entries from the Distinct Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
     #[clap(
-        long = "meta-cache-eviction-interval",
-        env = "INFLUXDB3_META_CACHE_EVICTION_INTERVAL",
+        long = "distinct-cache-eviction-interval",
+        env = "INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL",
         default_value = "10s",
         action
     )]
-    pub meta_cache_eviction_interval: humantime::Duration,
+    pub distinct_cache_eviction_interval: humantime::Duration,
 
     /// The local directory that has python plugins and their test files.
     #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
@@ -473,18 +473,18 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeLastCache)?;
 
-    let meta_cache = MetaCacheProvider::new_from_catalog_with_background_eviction(
+    let distinct_cache = DistinctCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&time_provider) as _,
         Arc::clone(&catalog),
-        config.meta_cache_eviction_interval.into(),
+        config.distinct_cache_eviction_interval.into(),
     )
-    .map_err(Error::InitializeMetaCache)?;
+    .map_err(Error::InitializeDistinctCache)?;
 
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&persister),
         catalog: Arc::clone(&catalog),
         last_cache,
-        meta_cache,
+        distinct_cache,
         time_provider: Arc::<SystemProvider>::clone(&time_provider),
         executor: Arc::clone(&exec),
         wal_config,

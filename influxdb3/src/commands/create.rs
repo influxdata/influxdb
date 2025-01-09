@@ -39,7 +39,7 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::MetaCache(MetaCacheConfig {
+            | SubCommand::DistinctCache(DistinctCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -95,9 +95,9 @@ pub enum SubCommand {
     /// Create a new last value cache
     #[clap(name = "last_cache")]
     LastCache(LastCacheConfig),
-    /// Create a new metadata cache
-    #[clap(name = "meta_cache")]
-    MetaCache(MetaCacheConfig),
+    /// Create a new distinct value cache
+    #[clap(name = "distinct_cache")]
+    DistinctCache(DistinctCacheConfig),
     /// Create a new processing engine plugin
     Plugin(PluginConfig),
     /// Create a new table in a database
@@ -167,7 +167,7 @@ pub struct LastCacheConfig {
 }
 
 #[derive(Debug, clap::Args)]
-pub struct MetaCacheConfig {
+pub struct DistinctCacheConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
@@ -301,7 +301,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 None => println!("a cache already exists for the provided parameters"),
             }
         }
-        SubCommand::MetaCache(MetaCacheConfig {
+        SubCommand::DistinctCache(DistinctCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
@@ -309,7 +309,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             max_cardinality,
             max_age,
         }) => {
-            let mut b = client.api_v3_configure_meta_cache_create(database_name, table, columns);
+            let mut b =
+                client.api_v3_configure_distinct_cache_create(database_name, table, columns);
 
             // Add the optional stuff:
             if let Some(name) = cache_name {
@@ -326,7 +327,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 Some(def) => println!(
                     "new cache created: {}",
                     serde_json::to_string_pretty(&def)
-                        .expect("serialize meta cache definition as JSON")
+                        .expect("serialize distinct cache definition as JSON")
                 ),
                 None => println!("a cache already exists for the provided parameters"),
             }

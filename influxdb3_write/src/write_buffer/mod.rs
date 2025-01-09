@@ -14,7 +14,7 @@ use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{chunk::ParquetChunk, write_buffer, DatabaseManager};
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, MetaCacheManager,
+    BufferedWriteRequest, Bufferer, ChunkContainer, DistinctCacheManager, LastCacheManager,
     ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
 #[cfg(feature = "system-py")]
@@ -28,8 +28,8 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::logical_expr::Expr;
+use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, DistinctCacheProvider};
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
-use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
@@ -40,8 +40,8 @@ use influxdb3_wal::{
     PluginDefinition, PluginType, TriggerDefinition, TriggerSpecificationDefinition, WalContents,
 };
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, LastCacheDefinition, LastCacheDelete, LastCacheSize,
-    MetaCacheDefinition, MetaCacheDelete, Wal, WalConfig, WalFileNotifier, WalOp,
+    CatalogBatch, CatalogOp, DistinctCacheDefinition, DistinctCacheDelete, LastCacheDefinition,
+    LastCacheDelete, LastCacheSize, Wal, WalConfig, WalFileNotifier, WalOp,
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
@@ -130,8 +130,8 @@ pub enum Error {
     #[error("cannot write to a read-only server")]
     NoWriteInReadOnly,
 
-    #[error("error in metadata cache: {0}")]
-    MetaCacheError(#[from] meta_cache::ProviderError),
+    #[error("error in distinct value cache: {0}")]
+    DistinctCacheError(#[from] distinct_cache::ProviderError),
 
     #[error("error: {0}")]
     AnyhowError(#[from] anyhow::Error),
@@ -163,7 +163,7 @@ pub struct WriteBufferImpl {
     wal: Arc<dyn Wal>,
     time_provider: Arc<dyn TimeProvider>,
     metrics: WriteMetrics,
-    meta_cache: Arc<MetaCacheProvider>,
+    distinct_cache: Arc<DistinctCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
     #[allow(dead_code)]
     plugin_dir: Option<PathBuf>,
@@ -177,7 +177,7 @@ pub struct WriteBufferImplArgs {
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
-    pub meta_cache: Arc<MetaCacheProvider>,
+    pub distinct_cache: Arc<DistinctCacheProvider>,
     pub time_provider: Arc<dyn TimeProvider>,
     pub executor: Arc<iox_query::exec::Executor>,
     pub wal_config: WalConfig,
@@ -192,7 +192,7 @@ impl WriteBufferImpl {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor,
             wal_config,
@@ -227,7 +227,7 @@ impl WriteBufferImpl {
             catalog: Arc::clone(&catalog),
             persister: Arc::clone(&persister),
             last_cache_provider: Arc::clone(&last_cache),
-            meta_cache_provider: Arc::clone(&meta_cache),
+            distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
             parquet_cache: parquet_cache.clone(),
         }));
@@ -252,7 +252,7 @@ impl WriteBufferImpl {
             wal_config,
             wal,
             time_provider,
-            meta_cache,
+            distinct_cache,
             last_cache,
             persisted_files,
             buffer: queryable_buffer,
@@ -475,23 +475,23 @@ impl ChunkContainer for WriteBufferImpl {
 }
 
 #[async_trait::async_trait]
-impl MetaCacheManager for WriteBufferImpl {
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
-        Arc::clone(&self.meta_cache)
+impl DistinctCacheManager for WriteBufferImpl {
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
+        Arc::clone(&self.distinct_cache)
     }
 
-    async fn create_meta_cache(
+    async fn create_distinct_cache(
         &self,
         db_schema: Arc<DatabaseSchema>,
         cache_name: Option<String>,
-        args: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, Error> {
+        args: CreateDistinctCacheArgs,
+    ) -> Result<Option<DistinctCacheDefinition>, Error> {
         if let Some(new_cache_definition) = self
-            .meta_cache
+            .distinct_cache
             .create_cache(db_schema.id, cache_name.map(Into::into), args)
-            .map_err(Error::MetaCacheError)?
+            .map_err(Error::DistinctCacheError)?
         {
-            let catalog_op = CatalogOp::CreateMetaCache(new_cache_definition.clone());
+            let catalog_op = CatalogOp::CreateDistinctCache(new_cache_definition.clone());
             let catalog_batch = CatalogBatch {
                 database_id: db_schema.id,
                 database_name: db_schema.name.clone(),
@@ -509,7 +509,7 @@ impl MetaCacheManager for WriteBufferImpl {
         }
     }
 
-    async fn delete_meta_cache(
+    async fn delete_distinct_cache(
         &self,
         db_id: &DbId,
         tbl_id: &TableId,
@@ -517,12 +517,13 @@ impl MetaCacheManager for WriteBufferImpl {
     ) -> Result<(), Error> {
         let catalog = self.catalog();
         let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
-        self.meta_cache.delete_cache(db_id, tbl_id, cache_name)?;
+        self.distinct_cache
+            .delete_cache(db_id, tbl_id, cache_name)?;
         let catalog_batch = CatalogBatch {
             database_id: *db_id,
             database_name: Arc::clone(&db_schema.name),
             time_ns: self.time_provider.now().timestamp_nanos(),
-            ops: vec![CatalogOp::DeleteMetaCache(MetaCacheDelete {
+            ops: vec![CatalogOp::DeleteDistinctCache(DistinctCacheDelete {
                 table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
                 table_id: *tbl_id,
                 cache_name: cache_name.into(),
@@ -1202,14 +1203,16 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider: Arc::clone(&time_provider),
             executor: crate::test_help::make_exec(),
             wal_config: WalConfig::test_config(),
@@ -1282,14 +1285,16 @@ mod tests {
         // now load a new buffer from object storage
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor: crate::test_help::make_exec(),
             wal_config: WalConfig {
@@ -1349,7 +1354,7 @@ mod tests {
             let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
             let last_cache =
                 LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-            let meta_cache = MetaCacheProvider::new_from_catalog(
+            let distinct_cache = DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -1358,7 +1363,7 @@ mod tests {
                 persister: Arc::clone(&wbuf.persister),
                 catalog,
                 last_cache,
-                meta_cache,
+                distinct_cache,
                 time_provider,
                 executor: Arc::clone(&wbuf.buffer.executor),
                 wal_config: WalConfig {
@@ -1579,14 +1584,16 @@ mod tests {
                 .unwrap(),
         );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&write_buffer.persister),
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider: Arc::clone(&write_buffer.time_provider),
             executor: Arc::clone(&write_buffer.buffer.executor),
             wal_config: WalConfig {
@@ -2870,14 +2877,16 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider: Arc::clone(&time_provider),
             executor: crate::test_help::make_exec(),
             wal_config,

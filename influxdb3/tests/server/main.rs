@@ -341,34 +341,34 @@ impl TestServer {
             .expect("failed to send request to delete last cache")
     }
 
-    pub async fn api_v3_configure_meta_cache_create(
+    pub async fn api_v3_configure_distinct_cache_create(
         &self,
         request: &serde_json::Value,
     ) -> Response {
         self.http_client
             .post(format!(
-                "{base}/api/v3/configure/meta_cache",
+                "{base}/api/v3/configure/distinct_cache",
                 base = self.client_addr()
             ))
             .json(request)
             .send()
             .await
-            .expect("failed to send request to create metadata cache")
+            .expect("failed to send request to create distinct cache")
     }
 
-    pub async fn api_v3_configure_meta_cache_delete(
+    pub async fn api_v3_configure_distinct_cache_delete(
         &self,
         request: &serde_json::Value,
     ) -> Response {
         self.http_client
             .delete(format!(
-                "{base}/api/v3/configure/meta_cache",
+                "{base}/api/v3/configure/distinct_cache",
                 base = self.client_addr()
             ))
             .json(request)
             .send()
             .await
-            .expect("failed to send request to delete metadata cache")
+            .expect("failed to send request to delete distinct cache")
     }
 }
 

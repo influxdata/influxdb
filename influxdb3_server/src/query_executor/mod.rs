@@ -20,8 +20,8 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
-use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
@@ -502,10 +502,10 @@ impl QueryNamespace for Database {
             )),
         );
         ctx.inner().register_udtf(
-            META_CACHE_UDTF_NAME,
-            Arc::new(MetaCacheFunction::new(
+            DISTINCT_CACHE_UDTF_NAME,
+            Arc::new(DistinctCacheFunction::new(
                 self.db_schema.id,
-                self.write_buffer.meta_cache_provider(),
+                self.write_buffer.distinct_cache_provider(),
             )),
         );
         ctx
@@ -652,7 +652,7 @@ mod tests {
     use datafusion::assert_batches_sorted_eq;
     use futures::TryStreamExt;
     use influxdb3_cache::{
-        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
@@ -715,7 +715,7 @@ mod tests {
             persister,
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&catalog),
             )

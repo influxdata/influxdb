@@ -261,8 +261,8 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::{DbId, TableId};
@@ -813,7 +813,7 @@ mod tests {
                 persister: Arc::clone(&persister),
                 catalog: Arc::clone(&catalog),
                 last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-                meta_cache: MetaCacheProvider::new_from_catalog(
+                distinct_cache: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&time_provider) as _,
                     Arc::clone(&catalog),
                 )

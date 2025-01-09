@@ -20,31 +20,31 @@ use indexmap::IndexMap;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::{ColumnId, DbId};
 
-use super::{cache::Predicate, MetaCacheProvider};
+use super::{cache::Predicate, DistinctCacheProvider};
 
-/// The name used to call the metadata cache in SQL queries
-pub const META_CACHE_UDTF_NAME: &str = "meta_cache";
+/// The name used to call the distinct value cache in SQL queries
+pub const DISTINCT_CACHE_UDTF_NAME: &str = "distinct_cache";
 
-/// Implementor of the [`TableProvider`] trait that is produced a call to the [`MetaCacheFunction`]
+/// Implementor of the [`TableProvider`] trait that is produced a call to the [`DistinctCacheFunction`]
 #[derive(Debug)]
-struct MetaCacheFunctionProvider {
-    /// Reference to the [`MetaCache`][super::cache::MetaCache] being queried's schema
+struct DistinctCacheFunctionProvider {
+    /// Reference to the [`DistinctCache`][super::cache::DistinctCache] being queried's schema
     schema: SchemaRef,
-    /// Forwarded ref to the [`MetaCacheProvider`] which is used to get the
-    /// [`MetaCache`][super::cache::MetaCache] for the query, along with the `db_id` and
-    /// `table_def`. This is done instead of passing forward a reference to the `MetaCache`
+    /// Forwarded ref to the [`DistinctCacheProvider`] which is used to get the
+    /// [`DistinctCache`][super::cache::DistinctCache] for the query, along with the `db_id` and
+    /// `table_def`. This is done instead of passing forward a reference to the `DistinctCache`
     /// directly because doing so is not easy or possible with the Rust borrow checker.
-    provider: Arc<MetaCacheProvider>,
+    provider: Arc<DistinctCacheProvider>,
     /// The database ID that the called cache is related to
     db_id: DbId,
     /// The table definition that the called cache is related to
     table_def: Arc<TableDefinition>,
-    /// The name of the cache, which is determined when calling the `meta_cache` function
+    /// The name of the cache, which is determined when calling the `distinct_cache` function
     cache_name: Arc<str>,
 }
 
 #[async_trait]
-impl TableProvider for MetaCacheFunctionProvider {
+impl TableProvider for DistinctCacheFunctionProvider {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -98,7 +98,7 @@ impl TableProvider for MetaCacheFunctionProvider {
             (vec![], None)
         };
 
-        let mut meta_exec = MetaCacheExec::try_new(
+        let mut distinct_exec = DistinctCacheExec::try_new(
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
@@ -108,9 +108,9 @@ impl TableProvider for MetaCacheFunctionProvider {
         )?;
 
         let show_sizes = ctx.config_options().explain.show_sizes;
-        meta_exec = meta_exec.with_show_sizes(show_sizes);
+        distinct_exec = distinct_exec.with_show_sizes(show_sizes);
 
-        Ok(Arc::new(meta_exec))
+        Ok(Arc::new(distinct_exec))
     }
 }
 
@@ -161,7 +161,7 @@ fn convert_filter_exprs(
     // and analyze it using DataFusion's `LiteralGuarantee`.
     //
     // This will distill the provided set of `Expr`s down to either an IN list, or a NOT IN list
-    // which we can convert to the `Predicate` type for the metadata cache.
+    // which we can convert to the `Predicate` type for the distinct value cache.
     //
     // The main caveat is that if for some reason there are multiple `Expr`s that apply predicates
     // on a given column, i.e., leading to multiple `LiteralGuarantee`s on a specific column, we
@@ -217,18 +217,18 @@ fn convert_filter_exprs(
 /// Implementor of the [`TableFunctionImpl`] trait, to be registered as a user-defined table function
 /// in the Datafusion `SessionContext`.
 #[derive(Debug)]
-pub struct MetaCacheFunction {
+pub struct DistinctCacheFunction {
     db_id: DbId,
-    provider: Arc<MetaCacheProvider>,
+    provider: Arc<DistinctCacheProvider>,
 }
 
-impl MetaCacheFunction {
-    pub fn new(db_id: DbId, provider: Arc<MetaCacheProvider>) -> Self {
+impl DistinctCacheFunction {
+    pub fn new(db_id: DbId, provider: Arc<DistinctCacheProvider>) -> Self {
         Self { db_id, provider }
     }
 }
 
-impl TableFunctionImpl for MetaCacheFunction {
+impl TableFunctionImpl for DistinctCacheFunction {
     fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
         let Some(Expr::Literal(ScalarValue::Utf8(Some(table_name)))) = args.first() else {
             return plan_err!("first argument must be the table name as a string");
@@ -254,9 +254,9 @@ impl TableFunctionImpl for MetaCacheFunction {
             table_def.table_id,
             cache_name.map(|n| n.as_str()),
         ) else {
-            return plan_err!("could not find meta cache for the given arguments");
+            return plan_err!("could not find distinct value cache for the given arguments");
         };
-        Ok(Arc::new(MetaCacheFunctionProvider {
+        Ok(Arc::new(DistinctCacheFunctionProvider {
             schema,
             provider: Arc::clone(&self.provider),
             db_id: self.db_id,
@@ -266,7 +266,7 @@ impl TableFunctionImpl for MetaCacheFunction {
     }
 }
 
-/// Custom implementor of the [`ExecutionPlan`] trait for use by the metadata cache
+/// Custom implementor of the [`ExecutionPlan`] trait for use by the distinct value cache
 ///
 /// Wraps a [`MemoryExec`] from DataFusion, and mostly re-uses that. The special functionality
 /// provided by this type is to track the predicates that are pushed down to the underlying cache
@@ -275,20 +275,20 @@ impl TableFunctionImpl for MetaCacheFunction {
 /// # Example
 ///
 /// For a query that does not provide any predicates, or one that does provide predicates, but they
-/// do no get pushed down, the `EXPLAIN` for said query will contain a line for the `MetaCacheExec`
+/// do no get pushed down, the `EXPLAIN` for said query will contain a line for the `DistinctCacheExec`
 /// with no predicates, including what is emitted by the inner `MemoryExec`:
 ///
 /// ```text
-/// MetaCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[1]
 /// ```
 ///
 /// For queries that do have predicates that get pushed down, the output will include them, e.g.:
 ///
 /// ```text
-/// MetaCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]
+/// DistinctCacheExec: predicates=[[0 IN (us-east)], [1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]
 /// ```
 #[derive(Debug)]
-struct MetaCacheExec {
+struct DistinctCacheExec {
     inner: MemoryExec,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
@@ -296,7 +296,7 @@ struct MetaCacheExec {
     limit: Option<usize>,
 }
 
-impl MetaCacheExec {
+impl DistinctCacheExec {
     fn try_new(
         predicates: Option<IndexMap<ColumnId, Predicate>>,
         table_def: Arc<TableDefinition>,
@@ -323,11 +323,11 @@ impl MetaCacheExec {
     }
 }
 
-impl DisplayAs for MetaCacheExec {
+impl DisplayAs for DistinctCacheExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                write!(f, "MetaCacheExec:")?;
+                write!(f, "DistinctCacheExec:")?;
                 if let Some(projection) = &self.projection {
                     write!(f, " projection=[")?;
                     let schema = self.schema();
@@ -363,9 +363,9 @@ impl DisplayAs for MetaCacheExec {
     }
 }
 
-impl ExecutionPlan for MetaCacheExec {
+impl ExecutionPlan for DistinctCacheExec {
     fn name(&self) -> &str {
-        "MetaCacheExec"
+        "DistinctCacheExec"
     }
 
     fn as_any(&self) -> &dyn Any {

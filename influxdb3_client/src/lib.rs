@@ -264,7 +264,7 @@ impl Client {
         }
     }
 
-    /// Compose a request to the `POST /api/v3/configure/meta_cache` API
+    /// Compose a request to the `POST /api/v3/configure/distinct_cache` API
     ///
     /// # Example
     /// ```no_run
@@ -275,33 +275,33 @@ impl Client {
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     /// let client = Client::new("http://localhost:8181")?;
     /// let resp = client
-    ///     .api_v3_configure_meta_cache_create("db_name", "table_name", ["col1", "col2"])
+    ///     .api_v3_configure_distinct_cache_create("db_name", "table_name", ["col1", "col2"])
     ///     .name("cache_name")
     ///     .max_cardinality(NonZeroUsize::new(1_000).unwrap())
     ///     .max_age(Duration::from_secs(3_600))
     ///     .send()
     ///     .await
-    ///     .expect("send create meta cache request");
+    ///     .expect("send create distinct cache request");
     /// # Ok(())
     /// # }
     /// ```
-    pub fn api_v3_configure_meta_cache_create(
+    pub fn api_v3_configure_distinct_cache_create(
         &self,
         db: impl Into<String>,
         table: impl Into<String>,
         columns: impl IntoIterator<Item: Into<String>>,
-    ) -> CreateMetaCacheRequestBuilder<'_> {
-        CreateMetaCacheRequestBuilder::new(self, db, table, columns)
+    ) -> CreateDistinctCacheRequestBuilder<'_> {
+        CreateDistinctCacheRequestBuilder::new(self, db, table, columns)
     }
 
-    /// Make a request to the `DELETE /api/v3/configure/meta_cache` API
-    pub async fn api_v3_configure_meta_cache_delete(
+    /// Make a request to the `DELETE /api/v3/configure/distinct_cache` API
+    pub async fn api_v3_configure_distinct_cache_delete(
         &self,
         db: impl Into<String> + Send,
         table: impl Into<String> + Send,
         name: impl Into<String> + Send,
     ) -> Result<()> {
-        let url = self.base_url.join("/api/v3/configure/meta_cache")?;
+        let url = self.base_url.join("/api/v3/configure/distinct_cache")?;
         #[derive(Serialize)]
         struct Req {
             db: String,
@@ -317,7 +317,7 @@ impl Client {
             req = req.bearer_auth(token.expose_secret());
         }
         let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::DELETE, "/api/v3/configure/meta_cache", src)
+            Error::request_send(Method::DELETE, "/api/v3/configure/distinct_cache", src)
         })?;
         let status = resp.status();
         match status {
@@ -1258,10 +1258,10 @@ pub enum LastCacheValueColumnsDef {
     AllNonKeyColumns,
 }
 
-/// Type for composing requests to the `POST /api/v3/configure/meta_cache` API created by the
-/// [`Client::api_v3_configure_meta_cache_create`] method
+/// Type for composing requests to the `POST /api/v3/configure/distinct_cache` API created by the
+/// [`Client::api_v3_configure_distinct_cache_create`] method
 #[derive(Debug, Serialize)]
-pub struct CreateMetaCacheRequestBuilder<'c> {
+pub struct CreateDistinctCacheRequestBuilder<'c> {
     #[serde(skip_serializing)]
     client: &'c Client,
     db: String,
@@ -1275,7 +1275,7 @@ pub struct CreateMetaCacheRequestBuilder<'c> {
     max_age: Option<u64>,
 }
 
-impl<'c> CreateMetaCacheRequestBuilder<'c> {
+impl<'c> CreateDistinctCacheRequestBuilder<'c> {
     fn new(
         client: &'c Client,
         db: impl Into<String>,
@@ -1312,20 +1312,23 @@ impl<'c> CreateMetaCacheRequestBuilder<'c> {
     }
 
     /// Send the create cache request
-    pub async fn send(self) -> Result<Option<MetaCacheCreatedResponse>> {
-        let url = self.client.base_url.join("/api/v3/configure/meta_cache")?;
+    pub async fn send(self) -> Result<Option<DistinctCacheCreatedResponse>> {
+        let url = self
+            .client
+            .base_url
+            .join("/api/v3/configure/distinct_cache")?;
         let mut req = self.client.http_client.post(url).json(&self);
         if let Some(token) = &self.client.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
         let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::POST, "/api/v3/configure/meta_cache", src)
+            Error::request_send(Method::POST, "/api/v3/configure/distinct_cache", src)
         })?;
         let status = resp.status();
         match status {
             StatusCode::CREATED => {
                 let content = resp
-                    .json::<MetaCacheCreatedResponse>()
+                    .json::<DistinctCacheCreatedResponse>()
                     .await
                     .map_err(Error::Json)?;
                 Ok(Some(content))
@@ -1340,7 +1343,7 @@ impl<'c> CreateMetaCacheRequestBuilder<'c> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MetaCacheCreatedResponse {
+pub struct DistinctCacheCreatedResponse {
     /// The id of the table the cache was created on
     pub table_id: u32,
     /// The name of the table the cache was created on

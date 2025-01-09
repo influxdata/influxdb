@@ -10,9 +10,9 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeletePluginDefinition,
-    DeleteTableDefinition, DeleteTriggerDefinition, FieldAdditions, FieldDefinition,
-    LastCacheDefinition, LastCacheDelete, MetaCacheDefinition, MetaCacheDelete,
-    OrderedCatalogBatch, PluginDefinition, TriggerDefinition, TriggerIdentifier,
+    DeleteTableDefinition, DeleteTriggerDefinition, DistinctCacheDefinition, DistinctCacheDelete,
+    FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete, OrderedCatalogBatch,
+    PluginDefinition, TriggerDefinition, TriggerIdentifier,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -707,11 +707,11 @@ impl UpdateDatabaseSchema for CatalogOp {
             CatalogOp::CreateDatabase(_) => Ok(schema),
             CatalogOp::CreateTable(create_table) => create_table.update_schema(schema),
             CatalogOp::AddFields(field_additions) => field_additions.update_schema(schema),
-            CatalogOp::CreateMetaCache(meta_cache_definition) => {
-                meta_cache_definition.update_schema(schema)
+            CatalogOp::CreateDistinctCache(distinct_cache_definition) => {
+                distinct_cache_definition.update_schema(schema)
             }
-            CatalogOp::DeleteMetaCache(delete_meta_cache) => {
-                delete_meta_cache.update_schema(schema)
+            CatalogOp::DeleteDistinctCache(delete_distinct_cache) => {
+                delete_distinct_cache.update_schema(schema)
             }
             CatalogOp::CreateLastCache(create_last_cache) => {
                 create_last_cache.update_schema(schema)
@@ -963,7 +963,7 @@ pub struct TableDefinition {
     pub series_key: Vec<ColumnId>,
     pub series_key_names: Vec<Arc<str>>,
     pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
-    pub meta_caches: HashMap<Arc<str>, MetaCacheDefinition>,
+    pub distinct_caches: HashMap<Arc<str>, DistinctCacheDefinition>,
     pub deleted: bool,
 }
 
@@ -1024,7 +1024,7 @@ impl TableDefinition {
             series_key,
             series_key_names,
             last_caches: HashMap::new(),
-            meta_caches: HashMap::new(),
+            distinct_caches: HashMap::new(),
             deleted: false,
         })
     }
@@ -1173,15 +1173,15 @@ impl TableDefinition {
             .map(|def| def.data_type)
     }
 
-    /// Add the given [`MetaCacheDefinition`] to this table
-    pub fn add_meta_cache(&mut self, meta_cache: MetaCacheDefinition) {
-        self.meta_caches
-            .insert(Arc::clone(&meta_cache.cache_name), meta_cache);
+    /// Add the given [`DistinctCacheDefinition`] to this table
+    pub fn add_distinct_cache(&mut self, distinct_cache: DistinctCacheDefinition) {
+        self.distinct_caches
+            .insert(Arc::clone(&distinct_cache.cache_name), distinct_cache);
     }
 
-    /// Remove the meta cache with the given name
-    pub fn remove_meta_cache(&mut self, cache_name: &str) {
-        self.meta_caches.remove(cache_name);
+    /// Remove the distinct cache with the given name
+    pub fn remove_distinct_cache(&mut self, cache_name: &str) {
+        self.distinct_caches.remove(cache_name);
     }
 
     /// Add a new last cache to this table definition
@@ -1201,8 +1201,8 @@ impl TableDefinition {
             .map(|(name, def)| (Arc::clone(name), def))
     }
 
-    pub fn meta_caches(&self) -> impl Iterator<Item = (Arc<str>, &MetaCacheDefinition)> {
-        self.meta_caches
+    pub fn distinct_caches(&self) -> impl Iterator<Item = (Arc<str>, &DistinctCacheDefinition)> {
+        self.distinct_caches
             .iter()
             .map(|(name, def)| (Arc::clone(name), def))
     }
@@ -1300,7 +1300,7 @@ impl TableUpdate for FieldAdditions {
     }
 }
 
-impl TableUpdate for MetaCacheDefinition {
+impl TableUpdate for DistinctCacheDefinition {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1311,14 +1311,14 @@ impl TableUpdate for MetaCacheDefinition {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if !table.meta_caches.contains_key(&self.cache_name) {
-            table.to_mut().add_meta_cache(self.clone());
+        if !table.distinct_caches.contains_key(&self.cache_name) {
+            table.to_mut().add_distinct_cache(self.clone());
         }
         Ok(table)
     }
 }
 
-impl TableUpdate for MetaCacheDelete {
+impl TableUpdate for DistinctCacheDelete {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1329,8 +1329,8 @@ impl TableUpdate for MetaCacheDelete {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if table.meta_caches.contains_key(&self.cache_name) {
-            table.to_mut().meta_caches.remove(&self.cache_name);
+        if table.distinct_caches.contains_key(&self.cache_name) {
+            table.to_mut().distinct_caches.remove(&self.cache_name);
         }
         Ok(table)
     }
