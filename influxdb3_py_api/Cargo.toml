@@ -5,22 +5,34 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lib]
+name = "influxdb3_py_api"
+crate-type = ["cdylib", "rlib"]
 
 [features]
 system-py = ["pyo3"]
 [dependencies]
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_catalog = {path = "../influxdb3_catalog"}
-async-trait.workspace = true
 schema.workspace = true
 parking_lot.workspace = true
+anyhow = "1.0.95"
+reqwest = { version = "0.12", features = ["blocking"] }
+flate2 = "1.0.35"
+tar = "0.4.43"
+log = "0.4.22"
+
 
 [dependencies.pyo3]
 version = "0.23.3"
-# this is necessary to automatically initialize the Python interpreter
-features = ["auto-initialize"]
+features = ["extension-module"]
 optional = true
 
 
+[build-dependencies]
+anyhow = "1.0"
+reqwest = { version = "0.12", features = ["blocking"] }
+flate2 = "1.0"
+tar = "0.4"
 [lints]
 workspace = true

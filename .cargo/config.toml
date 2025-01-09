@@ -1,3 +1,10 @@
+[env]
+PYO3_PYTHON = { value = "python_embedded/python/bin/python3", relative = true }
+PYTHONHOME = { value = "python_embedded/python", relative = true }
+# TODO: figure out how to make the python version tunable. 
+# Would like to avoid manual editing of this file.
+PYTHONPATH = { value = "python_embedded/python/lib/python3.12", relative = true }
+
 [build]
 # enable tokio-console and some other goodies
 rustflags = [

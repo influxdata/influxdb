@@ -65,8 +65,6 @@ uuid.workspace = true
 
 [dependencies.pyo3]
 version = "0.23.3"
-# this is necessary to automatically initialize the Python interpreter
-features = ["auto-initialize"]
 optional = true
 
 [dev-dependencies]

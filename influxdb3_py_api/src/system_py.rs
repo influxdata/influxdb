@@ -1,7 +1,9 @@
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_wal::{FieldData, Row, WriteBatch};
+use log::info;
 use parking_lot::Mutex;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::prelude::{PyAnyMethods, PyModule, PyModuleMethods};
 use pyo3::types::{PyDict, PyList};
 use pyo3::{
@@ -9,8 +11,27 @@ use pyo3::{
 };
 use schema::InfluxColumnType;
 use std::collections::HashMap;
+use std::env;
 use std::ffi::CString;
 use std::sync::Arc;
+use std::sync::Once;
+
+static PYTHON_INIT: Once = Once::new();
+
+fn ensure_python_initialized() {
+    PYTHON_INIT.call_once(|| {
+        // Get the executable path and set up Python paths relative to it
+        if let Ok(exe) = env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                let python_home = exe_dir.join("../../python_embedded/python");
+                env::set_var("PYTHONHOME", &python_home);
+                env::set_var("PYTHONPATH", python_home.join("lib/python3"));
+            }
+        }
+        info!("successfully initialized python system");
+        pyo3::prepare_freethreaded_python();
+    });
+}
 
 #[pyclass]
 #[derive(Debug)]
@@ -164,6 +185,7 @@ impl PyWriteBatch {
         setup_code: &str,
         call_site: &str,
     ) -> PyResult<Vec<String>> {
+        ensure_python_initialized();
         let Some(iterator) = self.get_iterator_for_table(table_name)? else {
             return Ok(Vec::new());
         };
@@ -387,6 +409,7 @@ pub fn execute_python_with_batch(
     catalog: Arc<Catalog>,
     args: Option<HashMap<String, String>>,
 ) -> PyResult<PluginReturnState> {
+    ensure_python_initialized();
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);

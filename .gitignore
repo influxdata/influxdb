@@ -19,3 +19,4 @@ perf.svg
 perf.txt
 valgrind-out.txt
 *.pending-snap
+python_embedded/
