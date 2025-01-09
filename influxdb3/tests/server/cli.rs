@@ -791,3 +791,61 @@ def process_rows(iterator, output):
     debug!(result = ?result, "create table-specific trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
 }
+
+#[test]
+fn test_create_token() {
+    let result = run_with_confirmation(&["create", "token"]);
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+}
+
+#[tokio::test]
+async fn meta_cache_create_and_delete() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let server_addr = server.client_addr();
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = run_with_confirmation(&[
+        "create",
+        "meta_cache",
+        "-H",
+        &server_addr,
+        "-d",
+        db_name,
+        "-t",
+        "cpu",
+        "--columns",
+        "t1,t2",
+        "--max-cardinality",
+        "20000",
+        "--max-age",
+        "200s",
+        "cache_money",
+    ]);
+
+    insta::assert_yaml_snapshot!(result);
+
+    let result = run_with_confirmation(&[
+        "delete",
+        "meta_cache",
+        "-H",
+        &server_addr,
+        "-d",
+        db_name,
+        "-t",
+        "cpu",
+        "cache_money",
+    ]);
+
+    insta::assert_yaml_snapshot!(result);
+}

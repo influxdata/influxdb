@@ -1272,7 +1272,7 @@ pub struct CreateMetaCacheRequestBuilder<'c> {
     #[serde(skip_serializing_if = "Option::is_none")]
     max_cardinality: Option<NonZeroUsize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    max_age: Option<Duration>,
+    max_age: Option<u64>,
 }
 
 impl<'c> CreateMetaCacheRequestBuilder<'c> {
@@ -1307,7 +1307,7 @@ impl<'c> CreateMetaCacheRequestBuilder<'c> {
 
     /// Specify the maximum age for entries in the cache
     pub fn max_age(mut self, max_age: Duration) -> Self {
-        self.max_age = Some(max_age);
+        self.max_age = Some(max_age.as_secs());
         self
     }
 

@@ -81,7 +81,9 @@ impl Config {
                 }
                 Ok(client)
             }
-            SubCommand::Token => unreachable!(),
+            // We don't need a client for this, so we're just creating a
+            // placeholder client
+            SubCommand::Token => Ok(Client::new("http://localhost")?),
         }
     }
 }
@@ -375,7 +377,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 "\
                 Token: {token}\n\
                 Hashed Token: {hashed}\n\n\
-                Start the server with `influxdb3 serve --bearer-token {hashed}`\n\n\
+                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --host-id YOUR_HOST_NAME`\n\n\
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",
