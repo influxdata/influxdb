@@ -209,12 +209,6 @@ impl TableBuffer {
     pub fn clear_snapshots(&mut self) {
         self.snapshotting_chunks.clear();
     }
-
-    pub fn debug_all_chunk_times(&self) {
-        for (chunk_time, mutable_chunk) in &self.chunk_time_to_chunks {
-            debug!(?chunk_time, ?mutable_chunk, ">>> all chunk time to chunks");
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
