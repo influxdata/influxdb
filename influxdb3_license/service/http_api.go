@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -526,6 +527,9 @@ func (h *HTTPHandler) handleVerify(w http.ResponseWriter, r *http.Request, log *
 	// Convert license duration to days
 	days := int(lic.ValidUntil.Sub(lic.ValidFrom).Hours() / 24)
 
+	// URL encode the email
+	urlSafeEmail := url.QueryEscape(lic.Email)
+
 	// Return a success page
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -545,7 +549,7 @@ func (h *HTTPHandler) handleVerify(w http.ResponseWriter, r *http.Request, log *
 				<p>You can also download the trial license file directly from <a href="/licenses?email=%s&instance-id=%s">here</a> and manually save it to the object store.</p>
 			</body>
 		</html>
-	`, days, lic.Email, lic.InstanceID)
+	`, days, urlSafeEmail, lic.InstanceID)
 }
 
 func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *store.User) (licenseID int64, err error) {
