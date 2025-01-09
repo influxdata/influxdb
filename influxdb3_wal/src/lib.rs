@@ -891,10 +891,6 @@ impl WalContents {
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty() && self.snapshot.is_none()
     }
-
-    pub fn has_only_no_op(&self) -> bool {
-        self.ops.len() == 1 && matches!(self.ops.first().unwrap(), WalOp::Noop(_))
-    }
 }
 
 #[derive(
