@@ -520,7 +520,7 @@ impl SeriesWriter {
                     .map_err(CompactorError::FailedPut)?;
                 let options = ArrowWriterOptions::new().with_properties(
                     WriterProperties::builder()
-                        // TODO - use compression here, e.g., ZSTD
+                        .set_compression(parquet::basic::Compression::ZSTD(Default::default()))
                         .set_max_row_group_size(ROW_GROUP_WRITE_SIZE)
                         .build(),
                 );
