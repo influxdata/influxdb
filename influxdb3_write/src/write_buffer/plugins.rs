@@ -198,6 +198,7 @@ mod python_plugin {
                                 }
                             }
                             WalOp::Catalog(_) => {}
+                            WalOp::Noop(_) => {}
                         }
                     }
                 }

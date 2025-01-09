@@ -1653,7 +1653,7 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &actual);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn catalog_snapshots_only_if_updated() {
         let (write_buffer, _ctx, _time_provider) = setup(
             Time::from_timestamp_nanos(0),
@@ -1692,8 +1692,7 @@ mod tests {
         verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(1, &write_buffer.persister).await;
 
-        // only another two writes are needed to trigger a snapshot, because there is still one
-        // WAL period left from before:
+        // need another 3 writes to trigger next snapshot
         do_writes(
             db_name,
             write_buffer.as_ref(),
@@ -1706,6 +1705,10 @@ mod tests {
                     lp: "cpu bar=5",
                     time_seconds: 50,
                 },
+                TestWrite {
+                    lp: "cpu bar=6",
+                    time_seconds: 60,
+                },
             ],
         )
         .await;
@@ -1714,18 +1717,22 @@ mod tests {
         verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(2, &write_buffer.persister).await;
 
-        // and finally, do two more, with a catalog update, forcing persistence
+        // and finally, do 3 more, with a catalog update, forcing persistence
         do_writes(
             db_name,
             write_buffer.as_ref(),
             &[
                 TestWrite {
-                    lp: "cpu bar=6,asdf=true",
+                    lp: "cpu bar=7,asdf=true",
                     time_seconds: 60,
                 },
                 TestWrite {
-                    lp: "cpu bar=7,asdf=true",
+                    lp: "cpu bar=8,asdf=true",
                     time_seconds: 70,
+                },
+                TestWrite {
+                    lp: "cpu bar=9,asdf=true",
+                    time_seconds: 80,
                 },
             ],
         )
@@ -1928,7 +1935,7 @@ mod tests {
     /// This is the reproducer for [#25277][see]
     ///
     /// [see]: https://github.com/influxdata/influxdb/issues/25277
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn writes_not_dropped_on_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -1970,6 +1977,20 @@ mod tests {
 
         // wait for snapshot to be created:
         verify_snapshot_count(1, &wbuf.persister).await;
+        // Get the record batches from before shutting down buffer:
+        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----------+-------+----------------------+",
+                "| name      | price | time                 |",
+                "+-----------+-------+----------------------+",
+                "| americano | 3.0   | 1970-01-01T00:00:02Z |",
+                "| espresso  | 2.5   | 1970-01-01T00:00:01Z |",
+                "| latte     | 4.5   | 1970-01-01T00:00:03Z |",
+                "+-----------+-------+----------------------+",
+            ],
+            &batches
+        );
         // initialize twice
         for _i in 0..2 {
             (wbuf, ctx, _) = setup(
@@ -1996,7 +2017,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn writes_not_dropped_on_larger_snapshot_size() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _, _) = setup(

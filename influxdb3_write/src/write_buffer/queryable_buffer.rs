@@ -28,7 +28,7 @@ use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use object_store::path::Path;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
@@ -179,8 +179,14 @@ impl QueryableBuffer {
             "Buffering contents and persisting snapshotted data"
         );
         self.write_wal_contents_to_caches(&write);
+
         let persist_jobs = {
             let mut buffer = self.buffer.write();
+            buffer.buffer_ops(
+                write.ops,
+                &self.last_cache_provider,
+                &self.meta_cache_provider,
+            );
 
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
@@ -192,6 +198,9 @@ impl QueryableBuffer {
                         .expect("table exists");
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
+                    for chunk in &snapshot_chunks {
+                        debug!(?chunk.chunk_time, num_rows_in_chunk = ?chunk.record_batch.num_rows(), ">>> removing chunk with records");
+                    }
 
                     for chunk in snapshot_chunks {
                         let table_name =
@@ -220,14 +229,6 @@ impl QueryableBuffer {
                     }
                 }
             }
-
-            // we must buffer the ops after the snapshotting as this data should not be persisted
-            // with this set of wal files
-            buffer.buffer_ops(
-                write.ops,
-                &self.last_cache_provider,
-                &self.meta_cache_provider,
-            );
 
             persisting_chunks
         };
@@ -569,6 +570,7 @@ impl BufferState {
                         }
                     }
                 }
+                WalOp::Noop(_) => {}
             }
         }
     }
@@ -822,7 +824,9 @@ mod tests {
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(1),
             last_wal_sequence_number: WalFileSequenceNumber::new(2),
+            forced: false,
         };
 
         // create another write, this time with only one tag, in a different gen1 block
@@ -863,7 +867,9 @@ mod tests {
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(3),
             last_wal_sequence_number: WalFileSequenceNumber::new(3),
+            forced: false,
         };
         queryable_buffer
             .notify_and_snapshot(
