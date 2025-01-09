@@ -54,7 +54,7 @@ use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::{debug, warn};
 use parquet_file::storage::ParquetExecInput;
 use plugins::ProcessingEngineManager;
 use queryable_buffer::QueryableBufferArgs;
@@ -1134,6 +1134,56 @@ pub(crate) enum PluginEvent {
 }
 
 impl WriteBuffer for WriteBufferImpl {}
+
+pub async fn check_mem_and_force_snapshot_loop(
+    write_buffer: Arc<WriteBufferImpl>,
+    memory_threshold_bytes: usize,
+    check_interval: Duration,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(check_interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            check_mem_and_force_snapshot(&write_buffer, memory_threshold_bytes).await;
+        }
+    })
+}
+
+async fn check_mem_and_force_snapshot(
+    write_buffer: &Arc<WriteBufferImpl>,
+    memory_threshold_bytes: usize,
+) {
+    let current_buffer_size_bytes = write_buffer.buffer.get_total_size_bytes();
+    debug!(
+        current_buffer_size_bytes,
+        memory_threshold_bytes, "checking buffer size and snapshotting"
+    );
+
+    if current_buffer_size_bytes >= memory_threshold_bytes {
+        warn!(
+            current_buffer_size_bytes,
+            memory_threshold_bytes, "forcing snapshot as buffer size > mem threshold"
+        );
+
+        let wal = Arc::clone(&write_buffer.wal);
+
+        let cleanup_after_snapshot = wal.force_flush_buffer().await;
+
+        // handle snapshot cleanup outside of the flush loop
+        if let Some((snapshot_complete, snapshot_info, snapshot_permit)) = cleanup_after_snapshot {
+            let snapshot_wal = Arc::clone(&wal);
+            tokio::spawn(async move {
+                let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+                assert_eq!(snapshot_info, snapshot_details);
+
+                snapshot_wal
+                    .cleanup_snapshot(snapshot_info, snapshot_permit)
+                    .await;
+            });
+        }
+    }
+}
 
 #[cfg(test)]
 #[allow(clippy::await_holding_lock)]
@@ -3298,5 +3348,65 @@ mod tests {
             })) if database_name == "foo" && trigger_name == "nonexistent_trigger"
         ));
         Ok(())
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_check_mem_and_force_snapshot() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let (write_buffer, _, _) = setup(
+            Time::from_timestamp_nanos(0),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100_000,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 10,
+            },
+        )
+        .await;
+        // do bunch of writes
+        let lp = "\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            cpu,region=us,host=a usage=10\n\
+            cpu,region=eu,host=b usage=10\n\
+            cpu,region=ca,host=c usage=10\n\
+            ";
+        for i in 1..=20 {
+            do_writes(
+                "sample",
+                write_buffer.as_ref(),
+                &[TestWrite {
+                    lp,
+                    time_seconds: i,
+                }],
+            )
+            .await;
+        }
+        let total_buffer_size_bytes_before = write_buffer.buffer.get_total_size_bytes();
+        debug!(?total_buffer_size_bytes_before, ">>> total buffer size");
+
+        check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 100).await;
+
+        // check memory has gone down after forcing first snapshot
+        let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
+        debug!(?total_buffer_size_bytes_after, ">>> total buffer size");
+        assert!(total_buffer_size_bytes_before > total_buffer_size_bytes_after);
+
+        // no other writes so nothing can be snapshotted, so mem should stay same
+        let total_buffer_size_bytes_before = total_buffer_size_bytes_after;
+        check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 100).await;
+        let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
+        assert!(total_buffer_size_bytes_before == total_buffer_size_bytes_after);
     }
 }
