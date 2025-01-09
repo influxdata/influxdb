@@ -36,12 +36,12 @@ influxdb3_write = { path = "../influxdb3_write" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
 influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 
-# Pro Crates
-influxdb3_pro_buffer = { path = "../influxdb3_pro/buffer" }
-influxdb3_pro_parquet_cache = { path = "../influxdb3_pro/parquet_cache" }
-influxdb3_pro_clap_blocks = { path = "../influxdb3_pro/clap_blocks" }
-influxdb3_pro_compactor = { path = "../influxdb3_pro/compactor" }
-influxdb3_pro_data_layout = { path = "../influxdb3_pro/data_layout" }
+# Enterprise Crates
+influxdb3_enterprise_buffer = { path = "../influxdb3_enterprise/buffer" }
+influxdb3_enterprise_parquet_cache = { path = "../influxdb3_enterprise/parquet_cache" }
+influxdb3_enterprise_clap_blocks = { path = "../influxdb3_enterprise/clap_blocks" }
+influxdb3_enterprise_compactor = { path = "../influxdb3_enterprise/compactor" }
+influxdb3_enterprise_data_layout = { path = "../influxdb3_enterprise/data_layout" }
 
 # Crates.io dependencies
 anyhow.workspace = true

@@ -160,7 +160,7 @@ mod tests {
             storage_type: Arc::from("sample-str"),
             instance_id: Arc::from("sample-str"),
             cores: 10,
-            product_type: "OSS",
+            product_type: "Enterprise",
             cpu_utilization_percent_min_1m: 100.0,
             cpu_utilization_percent_max_1m: 100.0,
             cpu_utilization_percent_avg_1m: 100.0,

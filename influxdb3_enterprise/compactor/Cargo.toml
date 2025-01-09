@@ -1,0 +1,71 @@
+[package]
+name = "influxdb3_enterprise_compactor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+arrow_util.workspace = true
+data_types.workspace = true
+executor.workspace = true
+iox_time.workspace = true
+iox_query.workspace = true
+observability_deps.workspace = true
+parquet_file.workspace = true
+schema.workspace = true
+
+# Local Crates
+influxdb3_enterprise_parquet_cache = { path = "../parquet_cache" }
+influxdb3_enterprise_data_layout = { path = "../data_layout" }
+influxdb3_cache = { path = "../../influxdb3_cache" }
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
+influxdb3_config = { path = "../../influxdb3_config" }
+influxdb3_id = { path = "../../influxdb3_id" }
+influxdb3_enterprise_index = { path = "../index" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
+influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_write = { path = "../../influxdb3_write" }
+
+# Crates.io dependencies
+anyhow.workspace = true
+arrow.workspace = true
+arrow-array.workspace = true
+arrow-schema.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+datafusion.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+hashbrown.workspace = true
+humantime.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+parquet.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+arrow-array.workspace = true
+datafusion_util.workspace = true
+futures.workspace = true
+insta.workspace = true
+metric.workspace = true
+test_helpers.workspace = true
+pretty_assertions.workspace = true
+influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_enterprise_buffer = { path = "../buffer" }
+influxdb3_server = { path = "../../influxdb3_server" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
+influxdb3_telemetry = { path = "../../influxdb3_telemetry" }
+influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
+serde_json.workspace = true
+test-log.workspace = true
+
+[lints]
+workspace = true

@@ -21,7 +21,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "w", trailing_var_arg = true)]
 pub struct Config {
-    /// Common InfluxDB 3 Core config
+    /// Common InfluxDB 3 Enterprise config
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 

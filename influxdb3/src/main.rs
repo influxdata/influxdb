@@ -50,11 +50,11 @@ clap::Arg::new("help")
 .action(clap::ArgAction::Help)
 .global(true)
 ),
-about = "InfluxDB 3 Core server and command line tools",
-long_about = r#"InfluxDB 3 Core server and command line tools
+about = "InfluxDB 3 Enterprise server and command line tools",
+long_about = r#"InfluxDB 3 Enterprise server and command line tools
 
 Examples:
-    # Run the InfluxDB 3 Core server
+    # Run the InfluxDB 3 Enterprise server
     influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
     # Display all commands short form
@@ -63,10 +63,10 @@ Examples:
     # Display all commands long form
     influxdb3 --help
 
-    # Run the InfluxDB 3 Core server with extra verbose logging
+    # Run the InfluxDB 3 Enterprise server with extra verbose logging
     influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 
-    # Run InfluxDB 3 Core with full debug logging specified with LOG_FILTER
+    # Run InfluxDB 3 Enterprise with full debug logging specified with LOG_FILTER
     LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --host_id my_host_name
 "#
 )]
@@ -96,19 +96,19 @@ enum Command {
     /// Delete a resource such as a database or table
     Delete(commands::delete::Config),
 
-    /// Perform a query against a running InfluxDB 3 Core server
+    /// Perform a query against a running InfluxDB 3 Enterprise server
     Query(commands::query::Config),
 
-    /// Run the InfluxDB 3 Core server
+    /// Run the InfluxDB 3 Enterprise server
     Serve(commands::serve::Config),
 
-    /// List resources on the InfluxDB 3 Core server
+    /// List resources on the InfluxDB 3 Enterprise server
     Show(commands::show::Config),
 
     /// Test things, such as plugins, work the way you expect
     Test(commands::test::Config),
 
-    /// Perform a set of writes to a running InfluxDB 3 Core server
+    /// Perform a set of writes to a running InfluxDB 3 Enterprise server
     Write(commands::write::Config),
 }
 

@@ -9,19 +9,19 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_config::ProConfig;
+use influxdb3_config::EnterpriseConfig;
 use iox_system_tables::IoxSystemTable;
 use tokio::sync::RwLock;
 
 #[derive(Debug)]
 pub(super) struct FileIndexTable {
     catalog: Arc<Catalog>,
-    config: Arc<RwLock<ProConfig>>,
+    config: Arc<RwLock<EnterpriseConfig>>,
     schema: SchemaRef,
 }
 
 impl FileIndexTable {
-    pub(super) fn new(catalog: Arc<Catalog>, config: Arc<RwLock<ProConfig>>) -> Self {
+    pub(super) fn new(catalog: Arc<Catalog>, config: Arc<RwLock<EnterpriseConfig>>) -> Self {
         Self {
             catalog,
             config,

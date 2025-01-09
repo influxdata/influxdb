@@ -1,0 +1,27 @@
+---
+source: influxdb3_enterprise/buffer/src/replica.rs
+description: table definition in primary catalog after mapping and applying replica WAL content
+expression: tbl
+snapshot_kind: text
+---
+table_id: 3
+table_name: pow
+key:
+  - 8
+cols:
+  - - 9
+    - name: f1
+      id: 9
+      type: bool
+      influx_type: field
+      nullable: true
+  - - 8
+    - name: t1
+      id: 8
+      type:
+        dict:
+          - i32
+          - str
+      influx_type: tag
+      nullable: false
+deleted: false

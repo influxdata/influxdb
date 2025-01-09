@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use influxdb3_client::Precision;
-use influxdb3_pro_clap_blocks::serve::BufferMode;
+use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use serde_json::json;
 
 use crate::server::{pro::tmp_dir, ConfigProvider, TestServer};

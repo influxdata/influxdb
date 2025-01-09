@@ -1,0 +1,13 @@
+---
+source: influxdb3_catalog/src/catalog/enterprise.rs
+expression: a_to_b_map
+snapshot_kind: text
+---
+dbs:
+  0: 0
+tables:
+  0: 0
+columns:
+  0: 0
+  1: 1
+  2: 2

@@ -330,7 +330,7 @@ jobs:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-pro_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
@@ -436,7 +436,7 @@ jobs:
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
               # checksum job.
-              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-pro.${CIRCLE_TAG}.digests"
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-enterprise.${CIRCLE_TAG}.digests"
 
               # write individual checksums
               md5sum    "${target}" | sed "s#$WORK_DIR##" >> "${target}.md5"
@@ -492,16 +492,16 @@ jobs:
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
-              "influxdb3-pro:latest"
+              "influxdb3-enterprise:latest"
 
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - run: |
-          docker save influxdb3-pro:latest >influxdb3-pro.tar
+          docker save influxdb3-enterprise:latest >influxdb3-enterprise.tar
       - persist_to_workspace:
           root: .
           paths:
-            - influxdb3-pro.tar
+            - influxdb3-enterprise.tar
   publish-docker:
     docker:
       - image: cimg/gcp:2023.02
@@ -516,8 +516,8 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
-          docker load <influxdb3-pro.tar
-          .circleci/scripts/publish.bash influxdb3-pro
+          docker load <influxdb3-enterprise.tar
+          .circleci/scripts/publish.bash influxdb3-enterprise
 
   wait-for-docker:
     resource_class: small

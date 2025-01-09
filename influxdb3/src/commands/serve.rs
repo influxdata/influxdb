@@ -1,4 +1,4 @@
-//! Entrypoint for InfluxDB 3 Core Server
+//! Entrypoint for InfluxDB 3 Enterprise Server
 
 use anyhow::{bail, Context};
 use datafusion_util::config::register_iox_object_store;
@@ -18,23 +18,23 @@ use influxdb3_clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use influxdb3_config::Config as ConfigTrait;
-use influxdb3_config::ProConfig;
-use influxdb3_pro_buffer::{
+use influxdb3_config::EnterpriseConfig;
+use influxdb3_enterprise_buffer::{
     modes::{read::CreateReadModeArgs, read_write::CreateReadWriteModeArgs},
     replica::ReplicationConfig,
-    WriteBufferPro,
+    WriteBufferEnterprise,
 };
-use influxdb3_pro_clap_blocks::serve::BufferMode;
-use influxdb3_pro_compactor::producer::CompactedDataProducer;
-use influxdb3_pro_compactor::{
+use influxdb3_enterprise_clap_blocks::serve::BufferMode;
+use influxdb3_enterprise_compactor::producer::CompactedDataProducer;
+use influxdb3_enterprise_compactor::{
     compacted_data::{CompactedData, CompactedDataSystemTableView},
     sys_events::CompactionEventStore,
 };
-use influxdb3_pro_compactor::{
+use influxdb3_enterprise_compactor::{
     consumer::CompactedDataConsumer, producer::CompactedDataProducerArgs,
 };
-use influxdb3_pro_data_layout::CompactionConfig;
-use influxdb3_pro_parquet_cache::ParquetCachePreFetcher;
+use influxdb3_enterprise_data_layout::CompactionConfig;
+use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -43,7 +43,7 @@ use influxdb3_server::{
     builder::ServerBuilder,
     query_executor::{
         self,
-        pro::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
+        enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
         CreateQueryExecutorArgs, QueryExecutorImpl,
     },
     serve, CommonServerState, QueryExecutor,
@@ -127,7 +127,9 @@ pub enum Error {
     InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
 
     #[error("Error initializing compaction producer: {0}")]
-    CompactionProducer(#[from] influxdb3_pro_compactor::producer::CompactedDataProducerError),
+    CompactionProducer(
+        #[from] influxdb3_enterprise_compactor::producer::CompactedDataProducerError,
+    ),
 
     #[error("Error initializing compaction consumer: {0}")]
     CompactionConsumer(#[from] anyhow::Error),
@@ -273,7 +275,7 @@ pub struct Config {
     pub host_identifier_prefix: String,
 
     #[clap(flatten)]
-    pub pro_config: influxdb3_pro_clap_blocks::serve::ProServeConfig,
+    pub enterprise_config: influxdb3_enterprise_clap_blocks::serve::EnterpriseServeConfig,
 
     /// The size of the in-memory Parquet cache in megabytes (MB).
     #[clap(
@@ -408,7 +410,7 @@ pub async fn command(config: Config) -> Result<()> {
     let build_malloc_conf = build_malloc_conf();
     info!(
         host_id = %config.host_identifier_prefix,
-        mode = %config.pro_config.mode,
+        mode = %config.enterprise_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID.as_ref() as &str,
@@ -519,13 +521,13 @@ pub async fn command(config: Config) -> Result<()> {
     );
     info!(instance_id = ?catalog.instance_id(), "catalog initialized");
 
-    let pro_config = match ProConfig::load(&object_store).await {
+    let enterprise_config = match EnterpriseConfig::load(&object_store).await {
         Ok(config) => Arc::new(RwLock::new(config)),
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
-            let config = ProConfig::default();
+            let config = EnterpriseConfig::default();
             config.persist(catalog.host_id(), &object_store).await?;
-            Arc::new(RwLock::new(ProConfig::default()))
+            Arc::new(RwLock::new(EnterpriseConfig::default()))
         }
         Err(err) => return Err(err.into()),
     };
@@ -533,7 +535,7 @@ pub async fn command(config: Config) -> Result<()> {
     let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache.clone() {
         Some(ParquetCachePreFetcher::new(
             Arc::clone(&parquet_cache),
-            config.pro_config.preemptive_cache_age,
+            config.enterprise_config.preemptive_cache_age,
             Arc::<SystemProvider>::clone(&time_provider),
         ))
     } else {
@@ -551,24 +553,26 @@ pub async fn command(config: Config) -> Result<()> {
     compactor_datafusion_config.use_cached_parquet_loader = false;
     let compactor_datafusion_config = Arc::new(compactor_datafusion_config.build());
 
-    if let Some(compactor_id) = config.pro_config.compactor_id {
-        if config.pro_config.run_compactions {
+    if let Some(compactor_id) = config.enterprise_config.compactor_id {
+        if config.enterprise_config.run_compactions {
             let compaction_config = CompactionConfig::new(
-                &config.pro_config.compaction_multipliers.0,
-                config.pro_config.compaction_gen2_duration.into(),
+                &config.enterprise_config.compaction_multipliers.0,
+                config.enterprise_config.compaction_gen2_duration.into(),
             )
-            .with_per_file_row_limit(config.pro_config.compaction_row_limit)
-            .with_max_num_files_per_compaction(config.pro_config.compaction_max_num_files_per_plan);
+            .with_per_file_row_limit(config.enterprise_config.compaction_row_limit)
+            .with_max_num_files_per_compaction(
+                config.enterprise_config.compaction_max_num_files_per_plan,
+            );
 
-            let hosts = if matches!(config.pro_config.mode, BufferMode::Compactor) {
-                if let Some(compaction_hosts) = &config.pro_config.compaction_hosts {
+            let hosts = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
+                if let Some(compaction_hosts) = &config.enterprise_config.compaction_hosts {
                     compaction_hosts.to_vec()
                 } else {
                     return Err(Error::CompactorModeWithoutHosts);
                 }
             } else {
                 let mut hosts = vec![config.host_identifier_prefix.clone()];
-                if let Some(replicas) = &config.pro_config.replicas {
+                if let Some(replicas) = &config.enterprise_config.replicas {
                     hosts.extend(replicas.iter().cloned());
                 }
                 hosts
@@ -578,12 +582,12 @@ pub async fn command(config: Config) -> Result<()> {
                 compactor_id,
                 hosts,
                 compaction_config,
-                pro_config: Arc::clone(&pro_config),
+                enterprise_config: Arc::clone(&enterprise_config),
                 datafusion_config: compactor_datafusion_config,
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
-                parquet_cache_prefetcher: if config.pro_config.mode.is_compactor() {
+                parquet_cache_prefetcher: if config.enterprise_config.mode.is_compactor() {
                     None
                 } else {
                     parquet_cache_prefetcher
@@ -630,22 +634,22 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeMetaCache)?;
 
-    let replica_config = config.pro_config.replicas.map(|replicas| {
+    let replica_config = config.enterprise_config.replicas.map(|replicas| {
         ReplicationConfig::new(
-            config.pro_config.replication_interval.into(),
+            config.enterprise_config.replication_interval.into(),
             replicas.into(),
         )
     });
 
     let (write_buffer, persisted_files): (Arc<dyn WriteBuffer>, Option<Arc<PersistedFiles>>) =
-        match config.pro_config.mode {
+        match config.enterprise_config.mode {
             BufferMode::Read => {
                 let ReplicationConfig { interval, hosts } = replica_config
                     .context("must supply a replicas list when starting in read-only mode")
                     .map_err(Error::WriteBufferInit)?;
                 (
                     Arc::new(
-                        WriteBufferPro::read(CreateReadModeArgs {
+                        WriteBufferEnterprise::read(CreateReadModeArgs {
                             last_cache,
                             meta_cache,
                             object_store: Arc::clone(&object_store),
@@ -665,7 +669,7 @@ pub async fn command(config: Config) -> Result<()> {
             }
             BufferMode::ReadWrite => {
                 let buf = Arc::new(
-                    WriteBufferPro::read_write(CreateReadWriteModeArgs {
+                    WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
                         host_id: persister.host_identifier_prefix().into(),
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
@@ -687,7 +691,7 @@ pub async fn command(config: Config) -> Result<()> {
                 (buf, Some(persisted_files))
             }
             BufferMode::Compactor => {
-                let buf = Arc::new(WriteBufferPro::compactor());
+                let buf = Arc::new(WriteBufferEnterprise::compactor());
                 (buf, None)
             }
         };
@@ -706,7 +710,7 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
-        Arc::clone(&pro_config),
+        Arc::clone(&enterprise_config),
         Arc::clone(&object_store),
     )?;
 
@@ -718,7 +722,7 @@ pub async fn command(config: Config) -> Result<()> {
         };
 
     let query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>> =
-        match config.pro_config.mode {
+        match config.enterprise_config.mode {
             BufferMode::Compactor => Arc::new(CompactionSysTableQueryExecutorImpl::new(
                 CompactionSysTableQueryExecutorArgs {
                     exec: Arc::clone(&exec),
@@ -739,7 +743,7 @@ pub async fn command(config: Config) -> Result<()> {
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
                 compacted_data: sys_table_compacted_data,
-                pro_config: Arc::clone(&pro_config),
+                enterprise_config: Arc::clone(&enterprise_config),
                 sys_events_store: Arc::clone(&sys_events_store),
             })),
         };

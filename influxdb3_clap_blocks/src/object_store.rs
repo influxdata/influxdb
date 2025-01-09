@@ -192,7 +192,7 @@ macro_rules! object_store_config_inner {
                 )]
                 pub bucket: Option<String>,
 
-                /// The location InfluxDB 3 Core will use to store files locally.
+                /// The location InfluxDB 3 Enterprise will use to store files locally.
                 #[clap(
                     id = gen_name!($prefix, "data-dir"),
                     long = gen_name!($prefix, "data-dir"),
@@ -278,7 +278,7 @@ macro_rules! object_store_config_inner {
                 /// When using Amazon S3 as an object store, set this to the session token. This is handy when using a federated
                 /// login / SSO and you fetch credentials via the UI.
                 ///
-                /// It is assumed that the session is valid as long as the InfluxDB3 Core server is running.
+                /// It is assumed that the session is valid as long as the InfluxDB3 Enterprise server is running.
                 ///
                 /// Prefer the environment variable over the command line flag in shared
                 /// environments.

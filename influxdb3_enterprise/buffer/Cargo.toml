@@ -1,0 +1,51 @@
+[package]
+name = "influxdb3_enterprise_buffer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+data_types.workspace = true
+iox_query.workspace = true
+iox_time.workspace = true
+metric.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
+
+# Local Crates
+influxdb3_cache = { path = "../../influxdb3_cache" }
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
+influxdb3_client = { path = "../../influxdb3_client" }
+influxdb3_id = { path = "../../influxdb3_id" }
+influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
+influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_write = { path = "../../influxdb3_write" }
+influxdb3_enterprise_compactor = { path = "../compactor" }
+influxdb3_enterprise_data_layout = { path = "../data_layout" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
+
+# Crates.io Crates
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+datafusion.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+hashbrown.workspace = true
+insta.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+datafusion_util.workspace = true
+metric.workspace = true
+parquet_file.workspace = true
+test-log.workspace = true
+
+[lints]
+workspace = true

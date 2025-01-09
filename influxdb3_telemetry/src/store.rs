@@ -312,7 +312,7 @@ mod tests {
         let store: Arc<TelemetryStore> = TelemetryStore::new(
             Arc::from("some-instance-id"),
             Arc::from("Linux"),
-            Arc::from("OSS-v3.0"),
+            Arc::from("Enterprise-v3.0"),
             Arc::from("Memory"),
             10,
             Some(parqet_file_metrics),

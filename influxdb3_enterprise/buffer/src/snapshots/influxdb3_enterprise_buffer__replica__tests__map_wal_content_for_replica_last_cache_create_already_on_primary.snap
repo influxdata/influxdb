@@ -1,0 +1,53 @@
+---
+source: influxdb3_enterprise/buffer/src/replica.rs
+description: "database schema for 'foo' db before applying the mapped catalog batch from the replica; it should have a 'bar' table containing a single last cache definition"
+expression: db_before_applying
+snapshot_kind: text
+---
+id: 0
+name: foo
+tables:
+  - - 0
+    - table_id: 0
+      table_name: bar
+      key:
+        - 0
+        - 1
+      cols:
+        - - 2
+          - name: f1
+            id: 2
+            type: bool
+            influx_type: field
+            nullable: true
+        - - 0
+          - name: t1
+            id: 0
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: false
+        - - 1
+          - name: t2
+            id: 1
+            type:
+              dict:
+                - i32
+                - str
+            influx_type: tag
+            nullable: false
+      last_caches:
+        - table_id: 0
+          table: bar
+          name: test_cache
+          keys:
+            - 0
+          vals: ~
+          n: 1
+          ttl: 3600
+      deleted: false
+processing_engine_plugins: []
+processing_engine_triggers: []
+deleted: false

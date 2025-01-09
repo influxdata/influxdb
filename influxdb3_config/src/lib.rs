@@ -1,9 +1,9 @@
-//! Configuration Code for InfluxDB Monolith OSS/Pro
+//! Configuration Code for InfluxDB Monolith Core/Enterprise
 //! This crate handles our configuration that is not often changed, but
 //! still needs to exist for the Monolith code to function.
 
-mod pro;
-pub use pro::*;
+mod enterprise;
+pub use enterprise::*;
 
 use object_store::{path::Path, ObjectStore, PutPayload};
 use serde::Deserialize;
@@ -12,7 +12,7 @@ use std::future::Future;
 
 mod private {
     pub trait Sealed {}
-    impl Sealed for super::ProConfig {}
+    impl Sealed for super::EnterpriseConfig {}
 }
 
 pub trait Config: private::Sealed + Serialize + for<'de> Deserialize<'de> {

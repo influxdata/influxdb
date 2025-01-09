@@ -14,7 +14,7 @@ use crate::{
 
 #[derive(Debug, Parser)]
 pub(crate) struct InfluxDb3Config {
-    /// The host URL of the running InfluxDB 3 Core server
+    /// The host URL of the running InfluxDB 3 Enterprise server
     #[clap(
         short = 'h',
         long = "host",
@@ -32,7 +32,7 @@ pub(crate) struct InfluxDb3Config {
     )]
     pub(crate) database_name: String,
 
-    /// The token for authentication with the InfluxDB 3 Core server
+    /// The token for authentication with the InfluxDB 3 Enterprise server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub(crate) auth_token: Option<Secret<String>>,
 

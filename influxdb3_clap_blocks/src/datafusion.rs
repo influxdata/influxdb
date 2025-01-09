@@ -4,7 +4,7 @@ use datafusion::config::ConfigExtension;
 use iox_query::config::IoxConfigExt;
 
 /// Extends the standard [`HashMap`] based DataFusion config option in the CLI with specific
-/// options (along with defaults) for InfluxDB 3 OSS/Pro. This is intended for customization of
+/// options (along with defaults) for InfluxDB 3 Core/Enterprise. This is intended for customization of
 /// options that are defined in the `iox_query` crate, e.g., those defined in [`IoxConfigExt`]
 /// that are relevant to the monolithinc versions of InfluxDB 3.
 #[derive(Debug, clap::Parser, Clone)]

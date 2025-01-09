@@ -1,12 +1,12 @@
-# InfluxDB Pro
-This is a fork of OSS with all the Pro functionality. To bring in the latest changes from OSS, clone this repo then do:
+# InfluxDB Enterprise
+This is a fork of Core with all the Enterprise functionality. To bring in the latest changes from Core, clone this repo then do:
 
 ```
-# add the OSS repo as a remote
-git remote add OSS git@github.com:influxdata/influxdb.git
-git fetch OSS
+# add the Core repo as a remote
+git remote add core git@github.com:influxdata/influxdb.git
+git fetch core
 git checkout -b pd/oss-sync
-git merge OSS/main
+git merge core/main
 # fix any conflicts and commit
 git push --set-upstream origin pd/oss-sync
 ```
@@ -15,7 +15,7 @@ Then create a PR to merge `pd/oss-sync` into `main`. Use a merge PR that pulls o
 
 ## influxdb3_core_internal dependency
 
-Pro depends on both `influxdb3_core` and `influxdb3_core_internal` (closed source crates). And also, `influxdb3_core_internal`
+Enterprise depends on both `influxdb3_core` and `influxdb3_core_internal` (closed source crates). And also, `influxdb3_core_internal`
 itself depends on `influxdb3_core` for common utils (like `iox_time`). When amending `influxdb3_core` version/revision
 `influxdb3_core_internal` needs to be on the same version/revision as well.
 

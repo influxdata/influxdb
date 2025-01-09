@@ -1,4 +1,4 @@
-use influxdb3_pro_clap_blocks::serve::BufferMode;
+use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 
 use crate::server::{ConfigProvider, TestServer};
 
@@ -8,7 +8,7 @@ mod replicas;
 
 /// Configuration for a [`TestServer`]
 #[derive(Debug, Default)]
-pub struct TestConfigPro {
+pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
     host_id: Option<String>,
     replicas: Vec<String>,
@@ -19,7 +19,7 @@ pub struct TestConfigPro {
     compactor_id: Option<String>,
 }
 
-impl ConfigProvider for TestConfigPro {
+impl ConfigProvider for TestConfigEnterprise {
     fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
@@ -72,7 +72,7 @@ impl ConfigProvider for TestConfigPro {
     }
 }
 
-impl TestConfigPro {
+impl TestConfigEnterprise {
     /// Set the auth token for this [`TestServer`]
     pub fn with_auth_token<S: Into<String>, R: Into<String>>(
         mut self,
@@ -129,8 +129,8 @@ impl TestConfigPro {
 }
 
 impl TestServer {
-    pub fn configure_pro() -> TestConfigPro {
-        TestConfigPro::default()
+    pub fn configure_pro() -> TestConfigEnterprise {
+        TestConfigEnterprise::default()
     }
 }
 

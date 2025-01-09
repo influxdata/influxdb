@@ -67,12 +67,12 @@ impl Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The InfluxDB 3 Core Client
+/// The InfluxDB 3 Enterprise Client
 ///
-/// For programmatic access to the HTTP API of InfluxDB 3 Core
+/// For programmatic access to the HTTP API of InfluxDB 3 Enterprise
 #[derive(Debug, Clone)]
 pub struct Client {
-    /// The base URL for making requests to a running InfluxDB 3 Core server
+    /// The base URL for making requests to a running InfluxDB 3 Enterprise server
     base_url: Url,
     /// The `Bearer` token to use for authenticating on each request to the server
     auth_token: Option<Secret<String>>,

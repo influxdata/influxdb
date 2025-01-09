@@ -1,4 +1,4 @@
-//! InfluxDB 3 Core server implementation
+//! InfluxDB 3 Enterprise server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
@@ -29,7 +29,7 @@ use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use influxdb3_config::ProConfig;
+use influxdb3_config::EnterpriseConfig;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_query::QueryDatabase;
@@ -87,7 +87,7 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
-    pro_config: Arc<RwLock<ProConfig>>,
+    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     object_store: Arc<dyn ObjectStore>,
 }
 
@@ -97,7 +97,7 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
-        pro_config: Arc<RwLock<ProConfig>>,
+        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         Ok(Self {
@@ -105,7 +105,7 @@ impl CommonServerState {
             trace_exporter,
             trace_header_parser,
             telemetry_store,
-            pro_config,
+            enterprise_config,
             object_store,
         })
     }
@@ -275,7 +275,7 @@ mod tests {
     use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_config::ProConfig;
+    use influxdb3_config::EnterpriseConfig;
     use influxdb3_id::{DbId, TableId};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
@@ -849,13 +849,13 @@ mod tests {
         let sample_telem_store =
             TelemetryStore::new_without_background_runners(Some(parquet_metrics_provider));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
-        let pro_config = Arc::new(RwLock::new(ProConfig::default()));
+        let enterprise_config = Arc::new(RwLock::new(EnterpriseConfig::default()));
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
             None,
             trace_header_parser,
             Arc::clone(&sample_telem_store),
-            Arc::clone(&pro_config),
+            Arc::clone(&enterprise_config),
             Arc::clone(&object_store),
         )
         .unwrap();
@@ -868,7 +868,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             compacted_data: None,
-            pro_config: Arc::clone(&pro_config),
+            enterprise_config: Arc::clone(&enterprise_config),
             sys_events_store: Arc::clone(&sys_events_store),
         });
 

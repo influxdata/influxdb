@@ -1,5 +1,5 @@
 //! module for query executor
-pub mod pro;
+pub mod enterprise;
 
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
 use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
@@ -25,8 +25,8 @@ use datafusion_util::MemoryStream;
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_config::ProConfig;
-use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
+use influxdb3_config::EnterpriseConfig;
+use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
@@ -65,7 +65,7 @@ pub struct QueryExecutorImpl {
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pro_config: Arc<RwLock<ProConfig>>,
+    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     sys_events_store: Arc<SysEventStore>,
 }
 
@@ -80,7 +80,7 @@ pub struct CreateQueryExecutorArgs {
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
     pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pub pro_config: Arc<RwLock<ProConfig>>,
+    pub enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     pub sys_events_store: Arc<SysEventStore>,
 }
 
@@ -95,7 +95,7 @@ impl QueryExecutorImpl {
             query_log_size,
             telemetry_store,
             compacted_data,
-            pro_config,
+            enterprise_config,
             sys_events_store,
         }: CreateQueryExecutorArgs,
     ) -> Self {
@@ -118,7 +118,7 @@ impl QueryExecutorImpl {
             query_log,
             telemetry_store,
             compacted_data,
-            pro_config,
+            enterprise_config,
             sys_events_store,
         }
     }
@@ -351,7 +351,7 @@ impl QueryDatabase for QueryExecutorImpl {
             datafusion_config: Arc::clone(&self.datafusion_config),
             query_log: Arc::clone(&self.query_log),
             compacted_data: self.compacted_data.clone(),
-            pro_config: Arc::clone(&self.pro_config),
+            enterprise_config: Arc::clone(&self.enterprise_config),
             sys_events_store: Arc::clone(&self.sys_events_store),
         }))))
     }
@@ -374,7 +374,7 @@ pub struct CreateDatabaseArgs {
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pro_config: Arc<RwLock<ProConfig>>,
+    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     sys_events_store: Arc<SysEventStore>,
 }
 
@@ -397,7 +397,7 @@ impl Database {
             datafusion_config,
             query_log,
             compacted_data,
-            pro_config,
+            enterprise_config,
             sys_events_store,
         }: CreateDatabaseArgs,
     ) -> Self {
@@ -407,7 +407,7 @@ impl Database {
                 Arc::clone(&query_log),
                 Arc::clone(&write_buffer),
                 compacted_data.clone(),
-                Arc::clone(&pro_config),
+                Arc::clone(&enterprise_config),
                 Arc::clone(&sys_events_store),
             ),
         ));
@@ -721,9 +721,9 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
+    use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
     use influxdb3_id::ParquetFileId;
-    use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
-    use influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -752,7 +752,8 @@ mod tests {
             &self,
             _db_name: &str,
             _table_name: &str,
-        ) -> Option<Vec<influxdb3_pro_data_layout::CompactedDataSystemTableQueryResult>> {
+        ) -> Option<Vec<influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult>>
+        {
             Some(vec![
                 CompactedDataSystemTableQueryResult {
                     generation_id: 1,
@@ -785,7 +786,7 @@ mod tests {
             ])
         }
 
-        fn catalog(&self) -> &influxdb3_pro_compactor::catalog::CompactedCatalog {
+        fn catalog(&self) -> &influxdb3_enterprise_compactor::catalog::CompactedCatalog {
             todo!()
         }
     }
@@ -864,7 +865,7 @@ mod tests {
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
-        let pro_config = Arc::new(RwLock::new(Default::default()));
+        let enterprise_config = Arc::new(RwLock::new(Default::default()));
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
@@ -874,7 +875,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store,
             compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
-            pro_config,
+            enterprise_config,
             sys_events_store: Arc::clone(&sys_events_store),
         });
 

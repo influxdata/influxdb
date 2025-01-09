@@ -3,7 +3,7 @@ set -euo pipefail
 
 release() {
   image_src="${1}:latest"
-  image_dst="us-docker.pkg.dev/influxdata-team-edge/influxdb3-pro/${1}:${2}"
+  image_dst="us-docker.pkg.dev/influxdata-team-edge/influxdb3-enterprise/${1}:${2}"
 
   if docker pull "${image_dst}" ; then
     echo "docker image ${image_dst} already exists"

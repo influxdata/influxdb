@@ -7,7 +7,7 @@ use url::Url;
 
 #[derive(Debug, Parser)]
 pub struct InfluxDb3Config {
-    /// The host URL of the running InfluxDB 3 Core server
+    /// The host URL of the running InfluxDB 3 Enterprise server
     #[clap(
         short = 'H',
         long = "host",
@@ -20,7 +20,7 @@ pub struct InfluxDb3Config {
     #[clap(short = 'd', long = "database", env = "INFLUXDB3_DATABASE_NAME")]
     pub database_name: String,
 
-    /// The token for authentication with the InfluxDB 3 Core server
+    /// The token for authentication with the InfluxDB 3 Enterprise server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub auth_token: Option<Secret<String>>,
 }

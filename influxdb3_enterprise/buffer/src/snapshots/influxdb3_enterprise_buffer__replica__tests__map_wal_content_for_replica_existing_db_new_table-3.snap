@@ -1,0 +1,33 @@
+---
+source: influxdb3_enterprise/buffer/src/replica.rs
+description: mapped WAL content for local catalog
+expression: mapped_wal_content
+snapshot_kind: text
+---
+persist_timestamp_ms: 0
+min_timestamp_ns: 0
+max_timestamp_ns: 1
+wal_file_number: 0
+ops:
+  - Catalog:
+      catalog:
+        database_id: 0
+        database_name: foo
+        time_ns: 0
+        ops:
+          - CreateTable:
+              database_id: 0
+              database_name: foo
+              table_name: pow
+              table_id: 3
+              field_definitions:
+                - name: t1
+                  id: 8
+                  data_type: Tag
+                - name: f1
+                  id: 9
+                  data_type: Boolean
+              key:
+                - 8
+      database_sequence_number: 0
+snapshot: ~

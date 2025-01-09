@@ -1,0 +1,41 @@
+[package]
+name = "influxdb3_enterprise_data_layout"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core crates
+observability_deps.workspace = true
+
+# local deps
+influxdb3_enterprise_index = { path = "../../influxdb3_enterprise/index" }
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
+influxdb3_id = { path = "../../influxdb3_id" }
+influxdb3_wal = { path = "../../influxdb3_wal" }
+influxdb3_write = { path = "../../influxdb3_write" }
+
+# crates.io dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+datafusion.workspace = true
+futures-util.workspace = true
+hashbrown.workspace = true
+indexmap.workspace = true
+object_store.workspace = true
+parking_lot.workspace = true
+serde.workspace =  true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+xxhash-rust.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+schema.workspace = true
+
+[lints]
+workspace = true

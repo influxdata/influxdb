@@ -120,7 +120,7 @@ pub enum SubCommand {
 
 #[derive(Debug, clap::Args)]
 pub struct DatabaseConfig {
-    /// The host URL of the running InfluxDB 3 Core server
+    /// The host URL of the running InfluxDB 3 Enterprise server
     #[clap(
         short = 'H',
         long = "host",
@@ -129,7 +129,7 @@ pub struct DatabaseConfig {
     )]
     pub host_url: Url,
 
-    /// The token for authentication with the InfluxDB 3 Core server
+    /// The token for authentication with the InfluxDB 3 Enterprise server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub auth_token: Option<Secret<String>>,
 

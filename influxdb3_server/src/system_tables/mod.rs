@@ -9,8 +9,8 @@ use datafusion::{
     scalar::ScalarValue,
 };
 use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_config::ProConfig;
-use influxdb3_pro_compactor::compacted_data::CompactedDataSystemTableView;
+use influxdb3_config::EnterpriseConfig;
+use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
@@ -21,7 +21,7 @@ use tokio::sync::RwLock;
 use tonic::async_trait;
 
 use crate::{
-    query_executor::pro::CompactionSystemTablesProvider,
+    query_executor::enterprise::CompactionSystemTablesProvider,
     system_tables::{
         compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
     },
@@ -118,7 +118,7 @@ impl AllSystemSchemaTablesProvider {
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-        pro_config: Arc<RwLock<ProConfig>>,
+        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
         sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
@@ -141,7 +141,7 @@ impl AllSystemSchemaTablesProvider {
             FILE_INDEX_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
                 buffer.catalog(),
-                pro_config,
+                enterprise_config,
             )))),
         );
         tables.insert(

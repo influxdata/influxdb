@@ -51,7 +51,7 @@ use std::time::Duration;
 use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
 
-mod pro;
+mod enterprise;
 mod v1;
 
 #[derive(Debug, Error)]
