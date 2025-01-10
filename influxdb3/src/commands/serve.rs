@@ -161,6 +161,10 @@ pub enum Error {
     #[cfg(not(feature = "no_license"))]
     #[error("Failed to make a well formed request to get the license")]
     BadLicenseRequest,
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("Failed to poll for license. Response code was {0}")]
+    UnexpectedLicenseResponse(u16),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -878,7 +882,7 @@ async fn load_and_validate_license(
         // The license does not exist so we need to create one
         Err(object_store::Error::NotFound { .. }) => {
             println!(
-                "\nWelcome to InfluxDB Enterprise\n\
+                "\nWelcome to InfluxDB 3 Enterprise\n\
                  No license file was detected. Please enter your email: \
             "
             );
@@ -906,6 +910,8 @@ async fn load_and_validate_license(
                     .to_str()
                     .expect("Location header to be a valid utf-8 string")
             );
+
+            println!("Email sent. Please check your inbox to verify your email address and proceed.\nWaiting for verification...");
             let start = Instant::now();
             loop {
                 // If 20 minutes have passed timeout and return an error
@@ -917,7 +923,7 @@ async fn load_and_validate_license(
                 let resp = client.get(&poll_url).send().await?;
                 match resp.status().as_u16() {
                     404 => {
-                        dbg!(&resp);
+                        debug!("Polling license service again in 5 seconds");
                         tokio::time::sleep(Duration::from_secs(5)).await;
                         continue;
                     }
@@ -929,7 +935,7 @@ async fn load_and_validate_license(
                         break license;
                     }
                     400 => return Err(Error::BadLicenseRequest),
-                    _ => unreachable!(),
+                    code => return Err(Error::UnexpectedLicenseResponse(code)),
                 }
             }
         }
