@@ -1,6 +1,9 @@
-use crate::commands::common::{parse_key_val, DataType, InfluxDb3Config, SeparatedList};
+use crate::commands::common::{
+    parse_key_val, DataType, InfluxDb3Config, SeparatedKeyValue, SeparatedList,
+};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine as _;
+use hashbrown::HashMap;
 use influxdb3_client::Client;
 use influxdb3_wal::TriggerSpecificationDefinition;
 use rand::rngs::OsRng;
@@ -245,6 +248,9 @@ pub struct TriggerConfig {
           value_parser = TriggerSpecificationDefinition::from_string_rep,
           help = "Trigger specification format: 'table:<TABLE_NAME>' or 'all_tables'")]
     trigger_specification: TriggerSpecificationDefinition,
+    /// Comma separated list of key/value pairs to use as trigger arguments. Example: key1=val1,key2=val2
+    #[clap(long = "trigger-arguments")]
+    trigger_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
     /// Create trigger in disabled state
     #[clap(long)]
     disabled: bool,
@@ -385,14 +391,22 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             trigger_name,
             plugin_name,
             trigger_specification,
+            trigger_arguments,
             disabled,
         }) => {
+            let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
+                a.into_iter()
+                    .map(|SeparatedKeyValue((k, v))| (k, v))
+                    .collect::<HashMap<String, String>>()
+            });
+
             client
                 .api_v3_configure_processing_engine_trigger_create(
                     database_name,
                     &trigger_name,
                     plugin_name,
                     trigger_specification.string_rep(),
+                    trigger_arguments,
                     disabled,
                 )
                 .await?;

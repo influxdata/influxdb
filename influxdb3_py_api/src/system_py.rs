@@ -5,6 +5,7 @@ use arrow_array::{
 };
 use arrow_schema::DataType;
 use futures::TryStreamExt;
+use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
@@ -17,7 +18,6 @@ use pyo3::types::{PyDict, PyList};
 use pyo3::{
     pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyObject, PyResult, Python,
 };
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Arc;
 
@@ -119,7 +119,7 @@ impl PyPluginCallApi {
     fn query_rows(
         &self,
         query: String,
-        args: Option<HashMap<String, String>>,
+        args: Option<std::collections::HashMap<String, String>>,
     ) -> PyResult<Py<PyList>> {
         let query_executor = Arc::clone(&self.query_executor);
         let db_schema_name = Arc::clone(&self.db_schema.name);
@@ -341,7 +341,7 @@ pub fn execute_python_with_batch(
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
     table_filter: Option<TableId>,
-    args: Option<HashMap<String, String>>,
+    args: &Option<HashMap<String, String>>,
 ) -> PyResult<PluginReturnState> {
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
@@ -424,7 +424,7 @@ pub fn execute_python_with_batch(
         let local_api = api.into_pyobject(py)?;
 
         // turn args into an optional dict to pass into python
-        let args = args.map(|args| {
+        let args = args.as_ref().map(|args| {
             let dict = PyDict::new(py);
             for (key, value) in args {
                 dict.set_item(key, value).unwrap();

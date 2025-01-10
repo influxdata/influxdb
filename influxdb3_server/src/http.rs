@@ -12,6 +12,7 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{StreamExt, TryStreamExt};
+use hashbrown::HashMap;
 use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
@@ -1030,6 +1031,7 @@ where
             plugin_name,
             trigger_name,
             trigger_specification,
+            trigger_arguments,
             disabled,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
@@ -1052,6 +1054,7 @@ where
                 trigger_name.clone(),
                 plugin_name,
                 trigger_spec,
+                trigger_arguments,
                 disabled,
             )
             .await?;
@@ -1609,6 +1612,7 @@ struct ProcessEngineTriggerCreateRequest {
     plugin_name: String,
     trigger_name: String,
     trigger_specification: String,
+    trigger_arguments: Option<HashMap<String, String>>,
     disabled: bool,
 }
 

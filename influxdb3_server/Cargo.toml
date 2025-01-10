@@ -59,6 +59,7 @@ csv.workspace = true
 datafusion.workspace = true
 flate2.workspace = true
 futures.workspace = true
+hashbrown.workspace = true
 hex.workspace = true
 hyper.workspace = true
 humantime.workspace = true

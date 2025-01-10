@@ -2890,6 +2890,7 @@ name = "influxdb3_client"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "hashbrown 0.15.2",
  "iox_query_params",
  "mockito",
  "reqwest 0.11.27",
@@ -2998,6 +2999,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "futures",
+ "hashbrown 0.15.2",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_internal_api",
@@ -3030,6 +3032,7 @@ dependencies = [
  "datafusion_util",
  "flate2",
  "futures",
+ "hashbrown 0.15.2",
  "hex",
  "http 0.2.12",
  "humantime",

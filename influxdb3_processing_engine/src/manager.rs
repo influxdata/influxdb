@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
@@ -44,6 +45,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<(), ProcessingEngineError>;
 
