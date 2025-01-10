@@ -55,9 +55,16 @@ fn main() -> Result<()> {
             println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/../../python_embedded/python/lib");
         }
         "windows" => {
+            // On Windows, we need both the import library and the DLL
             println!("cargo:rustc-link-lib=python{}", major_minor);
-            // TODO: Windows linking
-        }
+
+            // Add the Python DLL directory to the DLL search path
+            println!("cargo:rustc-link-arg=/LIBPATH:{}", python_lib_dir.display());
+
+            // Ensure the DLL can be found at runtime relative to the executable
+            // Using delayload allows the DLL to be loaded at runtime from our custom path
+            println!("cargo:rustc-link-arg=/DELAYLOAD:python{}.dll", major_minor);
+        },
         _ => anyhow::bail!("Unsupported platform: {}", target_os),
     }
 
