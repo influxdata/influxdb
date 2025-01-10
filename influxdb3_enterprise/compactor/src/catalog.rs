@@ -51,7 +51,7 @@ pub struct CompactedCatalog {
 #[derive(Debug)]
 struct InnerCompactedCatalog {
     /// The catalog that is the union of all the host catalogs
-    catalog: Catalog,
+    catalog: Arc<Catalog>,
     /// map of host id to ids id map into this catalog
     host_maps: HashMap<String, HostCatalog>,
 }
@@ -95,7 +95,7 @@ impl<'de> Deserialize<'de> for CompactedCatalog {
         Ok(CompactedCatalog {
             compactor_id: helper.compactor_id.into(),
             inner: RwLock::new(InnerCompactedCatalog {
-                catalog: Catalog::from_inner(helper.catalog),
+                catalog: Arc::new(Catalog::from_inner(helper.catalog)),
                 host_maps: helper.host_maps,
             }),
         })
@@ -103,6 +103,10 @@ impl<'de> Deserialize<'de> for CompactedCatalog {
 }
 
 impl CompactedCatalog {
+    pub fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.inner.read().catalog)
+    }
+
     pub fn map_persisted_snapshot_contents(
         &self,
         persisted_snapshot: PersistedSnapshot,
@@ -159,7 +163,7 @@ impl CompactedCatalog {
             let bytes = object_store.get(&path.0).await?.bytes().await?;
             let helper: CompactedCatalogHelper = serde_json::from_slice(&bytes)?;
             let mut inner = self.inner.write();
-            inner.catalog = Catalog::from_inner(helper.catalog);
+            inner.catalog = Arc::new(Catalog::from_inner(helper.catalog));
             inner.host_maps = helper.host_maps;
         }
         Ok(())
@@ -348,7 +352,7 @@ impl CompactedCatalog {
         Ok(Self {
             compactor_id,
             inner: RwLock::new(InnerCompactedCatalog {
-                catalog: primary_catalog,
+                catalog: Arc::new(primary_catalog),
                 host_maps,
             }),
         })
@@ -483,7 +487,7 @@ pub(crate) mod test_helpers {
                 }),
             ],
         };
-        catalog.apply_catalog_batch(batch).unwrap();
+        catalog.apply_catalog_batch(&batch).unwrap();
 
         let persister = Persister::new(object_store, host_id);
         persister.persist_catalog(&catalog).await.unwrap();

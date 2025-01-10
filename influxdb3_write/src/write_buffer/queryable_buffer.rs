@@ -3,7 +3,6 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::write_buffer::PluginEvent;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
@@ -17,8 +16,8 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
@@ -36,14 +35,13 @@ use schema::Schema;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::oneshot::Receiver;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::oneshot::{self, Receiver};
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
     pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
-    meta_cache_provider: Arc<MetaCacheProvider>,
+    distinct_cache_provider: Arc<DistinctCacheProvider>,
     last_cache_provider: Arc<LastCacheProvider>,
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
@@ -52,7 +50,6 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
-    plugin_event_tx: Mutex<HashMap<String, mpsc::Sender<PluginEvent>>>,
 }
 
 pub struct QueryableBufferArgs {
@@ -60,7 +57,7 @@ pub struct QueryableBufferArgs {
     pub catalog: Arc<Catalog>,
     pub persister: Arc<Persister>,
     pub last_cache_provider: Arc<LastCacheProvider>,
-    pub meta_cache_provider: Arc<MetaCacheProvider>,
+    pub distinct_cache_provider: Arc<DistinctCacheProvider>,
     pub persisted_files: Arc<PersistedFiles>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
@@ -72,7 +69,7 @@ impl QueryableBuffer {
             catalog,
             persister,
             last_cache_provider,
-            meta_cache_provider,
+            distinct_cache_provider,
             persisted_files,
             parquet_cache,
         }: QueryableBufferArgs,
@@ -84,14 +81,13 @@ impl QueryableBuffer {
             executor,
             catalog,
             last_cache_provider,
-            meta_cache_provider,
+            distinct_cache_provider,
             persister,
             persisted_files,
             buffer,
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
-            plugin_event_tx: Mutex::new(HashMap::new()),
         }
     }
 
@@ -152,18 +148,19 @@ impl QueryableBuffer {
     /// Update the caches managed by the database
     fn write_wal_contents_to_caches(&self, write: &WalContents) {
         self.last_cache_provider.write_wal_contents_to_cache(write);
-        self.meta_cache_provider.write_wal_contents_to_cache(write);
+        self.distinct_cache_provider
+            .write_wal_contents_to_cache(write);
     }
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the
     /// last cache so the data is queryable.
-    fn buffer_contents(&self, write: WalContents) {
+    fn buffer_contents(&self, write: Arc<WalContents>) {
         self.write_wal_contents_to_caches(&write);
         let mut buffer = self.buffer.write();
         buffer.buffer_ops(
-            write.ops,
+            &write.ops,
             &self.last_cache_provider,
-            &self.meta_cache_provider,
+            &self.distinct_cache_provider,
         );
     }
 
@@ -171,7 +168,7 @@ impl QueryableBuffer {
     /// data that can be snapshot in the background after putting the data in the buffer.
     async fn buffer_contents_and_persist_snapshotted_data(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
         info!(
@@ -179,8 +176,14 @@ impl QueryableBuffer {
             "Buffering contents and persisting snapshotted data"
         );
         self.write_wal_contents_to_caches(&write);
+
         let persist_jobs = {
             let mut buffer = self.buffer.write();
+            buffer.buffer_ops(
+                &write.ops,
+                &self.last_cache_provider,
+                &self.distinct_cache_provider,
+            );
 
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
@@ -192,6 +195,9 @@ impl QueryableBuffer {
                         .expect("table exists");
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
+                    for chunk in &snapshot_chunks {
+                        debug!(?chunk.chunk_time, num_rows_in_chunk = ?chunk.record_batch.num_rows(), ">>> removing chunk with records");
+                    }
 
                     for chunk in snapshot_chunks {
                         let table_name =
@@ -220,14 +226,6 @@ impl QueryableBuffer {
                     }
                 }
             }
-
-            // we must buffer the ops after the snapshotting as this data should not be persisted
-            // with this set of wal files
-            buffer.buffer_ops(
-                write.ops,
-                &self.last_cache_provider,
-                &self.meta_cache_provider,
-            );
 
             persisting_chunks
         };
@@ -387,65 +385,23 @@ impl QueryableBuffer {
         buffer.db_to_table.remove(db_id);
     }
 
-    #[cfg(feature = "system-py")]
-    pub(crate) async fn subscribe_to_plugin_events(
-        &self,
-        trigger_name: String,
-    ) -> mpsc::Receiver<PluginEvent> {
-        let mut senders = self.plugin_event_tx.lock().await;
-
-        // TODO: should we be checking for replacements?
-        let (plugin_tx, plugin_rx) = mpsc::channel(4);
-        senders.insert(trigger_name, plugin_tx);
-        plugin_rx
-    }
-
-    /// Deactivates a running trigger by sending it a oneshot sender. It should send back a message and then immediately shut down.
-    pub(crate) async fn deactivate_trigger(
-        &self,
-        #[allow(unused)] trigger_name: String,
-    ) -> Result<(), anyhow::Error> {
-        #[cfg(feature = "system-py")]
-        {
-            let Some(sender) = self.plugin_event_tx.lock().await.remove(&trigger_name) else {
-                anyhow::bail!("no trigger named '{}' found", trigger_name);
-            };
-            let (oneshot_tx, oneshot_rx) = oneshot::channel();
-            sender.send(PluginEvent::Shutdown(oneshot_tx)).await?;
-            oneshot_rx.await?;
-        }
-        Ok(())
-    }
-
-    async fn send_to_plugins(&self, wal_contents: &WalContents) {
-        let senders = self.plugin_event_tx.lock().await;
-        if !senders.is_empty() {
-            let wal_contents = Arc::new(wal_contents.clone());
-            for (plugin, sender) in senders.iter() {
-                if let Err(err) = sender
-                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
-                    .await
-                {
-                    error!("failed to send plugin event to plugin {}: {}", plugin, err);
-                }
-            }
-        }
+    pub fn get_total_size_bytes(&self) -> usize {
+        let buffer = self.buffer.read();
+        buffer.find_overall_buffer_size_bytes()
     }
 }
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
-    async fn notify(&self, write: WalContents) {
-        self.send_to_plugins(&write).await;
+    async fn notify(&self, write: Arc<WalContents>) {
         self.buffer_contents(write)
     }
 
     async fn notify_and_snapshot(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        self.send_to_plugins(&write).await;
         self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
@@ -473,9 +429,9 @@ impl BufferState {
 
     pub fn buffer_ops(
         &mut self,
-        ops: Vec<WalOp>,
+        ops: &[WalOp],
         last_cache_provider: &LastCacheProvider,
-        meta_cache_provider: &MetaCacheProvider,
+        distinct_cache_provider: &DistinctCacheProvider,
     ) {
         for op in ops {
             match op {
@@ -497,20 +453,20 @@ impl BufferState {
                     // eg. creating or deleting last cache itself
                     for op in catalog_batch.ops {
                         match op {
-                            CatalogOp::CreateMetaCache(definition) => {
+                            CatalogOp::CreateDistinctCache(definition) => {
                                 let table_def = db_schema
                                     .table_definition_by_id(&definition.table_id)
                                     .expect("table should exist");
-                                meta_cache_provider.create_from_definition(
+                                distinct_cache_provider.create_from_definition(
                                     db_schema.id,
                                     table_def,
                                     &definition,
                                 );
                             }
-                            CatalogOp::DeleteMetaCache(cache) => {
+                            CatalogOp::DeleteDistinctCache(cache) => {
                                 // this only fails if the db/table/cache do not exist, so we ignore
                                 // the error if it happens.
-                                let _ = meta_cache_provider.delete_cache(
+                                let _ = distinct_cache_provider.delete_cache(
                                     &db_schema.id,
                                     &cache.table_id,
                                     &cache.cache_name,
@@ -542,7 +498,7 @@ impl BufferState {
                                 self.db_to_table.remove(&db_definition.database_id);
                                 last_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
-                                meta_cache_provider
+                                distinct_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
                             }
                             CatalogOp::DeleteTable(table_definition) => {
@@ -550,7 +506,7 @@ impl BufferState {
                                     &table_definition.database_id,
                                     &table_definition.table_id,
                                 );
-                                meta_cache_provider.delete_caches_for_db_and_table(
+                                distinct_cache_provider.delete_caches_for_db_and_table(
                                     &table_definition.database_id,
                                     &table_definition.table_id,
                                 );
@@ -569,12 +525,12 @@ impl BufferState {
                         }
                     }
                 }
+                WalOp::Noop(_) => {}
             }
         }
-        debug!(catalog = ?self.catalog, "buffering ops (done)");
     }
 
-    fn add_write_batch(&mut self, write_batch: WriteBatch) {
+    fn add_write_batch(&mut self, write_batch: &WriteBatch) {
         let db_schema = self
             .catalog
             .db_schema_by_id(&write_batch.database_id)
@@ -582,10 +538,10 @@ impl BufferState {
 
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
-        for (table_id, table_chunks) in write_batch.table_chunks {
-            let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
+        for (table_id, table_chunks) in &write_batch.table_chunks {
+            let table_buffer = database_buffer.entry(*table_id).or_insert_with(|| {
                 let table_def = db_schema
-                    .table_definition_by_id(&table_id)
+                    .table_definition_by_id(table_id)
                     .expect("table should exist");
                 let sort_key = table_def
                     .series_key
@@ -595,10 +551,20 @@ impl BufferState {
 
                 TableBuffer::new(index_columns, SortKey::from_columns(sort_key))
             });
-            for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
-                table_buffer.buffer_chunk(chunk_time, chunk.rows);
+            for (chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
+                table_buffer.buffer_chunk(*chunk_time, &chunk.rows);
             }
         }
+    }
+
+    pub fn find_overall_buffer_size_bytes(&self) -> usize {
+        let mut total = 0;
+        for (_, all_tables) in &self.db_to_table {
+            for (_, table_buffer) in all_tables {
+                total += table_buffer.computed_size();
+            }
+        }
+        total
     }
 }
 
@@ -783,7 +749,7 @@ mod tests {
             catalog: Arc::clone(&catalog),
             persister: Arc::clone(&persister),
             last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache_provider: MetaCacheProvider::new_from_catalog(
+            distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -816,14 +782,16 @@ mod tests {
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         // write the lp into the buffer
-        queryable_buffer.notify(wal_contents).await;
+        queryable_buffer.notify(Arc::new(wal_contents)).await;
 
         // now force a snapshot, persisting the data to parquet file. Also, buffer up a new write
         let snapshot_sequence_number = SnapshotSequenceNumber::new(1);
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(1),
             last_wal_sequence_number: WalFileSequenceNumber::new(2),
+            forced: false,
         };
 
         // create another write, this time with only one tag, in a different gen1 block
@@ -847,7 +815,7 @@ mod tests {
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         let details = queryable_buffer
-            .notify_and_snapshot(wal_contents, snapshot_details)
+            .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
             .await;
         let _details = details.await.unwrap();
 
@@ -864,18 +832,20 @@ mod tests {
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number,
             end_time_marker: end_time,
+            first_wal_sequence_number: WalFileSequenceNumber::new(3),
             last_wal_sequence_number: WalFileSequenceNumber::new(3),
+            forced: false,
         };
         queryable_buffer
             .notify_and_snapshot(
-                WalContents {
+                Arc::new(WalContents {
                     persist_timestamp_ms: 0,
                     min_timestamp_ns: 0,
                     max_timestamp_ns: 0,
                     wal_file_number: WalFileSequenceNumber::new(3),
                     ops: vec![],
                     snapshot: Some(snapshot_details),
-                },
+                }),
                 snapshot_details,
             )
             .await

@@ -4,14 +4,14 @@ use anyhow::Context;
 use arrow::datatypes::SchemaRef;
 use influxdb3_catalog::catalog::{Catalog, TableDefinition};
 use influxdb3_id::{DbId, TableId};
-use influxdb3_wal::{MetaCacheDefinition, WalContents, WalOp};
+use influxdb3_wal::{DistinctCacheDefinition, WalContents, WalOp};
 use iox_time::TimeProvider;
 use parking_lot::RwLock;
 
-use crate::meta_cache::cache::{MaxAge, MaxCardinality};
+use crate::distinct_cache::cache::{MaxAge, MaxCardinality};
 
 use super::{
-    cache::{CreateMetaCacheArgs, MetaCache},
+    cache::{CreateDistinctCacheArgs, DistinctCache},
     CacheError,
 };
 
@@ -25,40 +25,40 @@ pub enum ProviderError {
     Unexpected(#[from] anyhow::Error),
 }
 
-/// Triple nested map for storing a multiple metadata caches per table.
+/// Triple nested map for storing a multiple distinct value caches per table.
 ///
 /// That is, the map nesting is `database -> table -> cache name`
-type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<Arc<str>, MetaCache>>>>;
+type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<Arc<str>, DistinctCache>>>>;
 
-/// Provides the metadata caches for the running instance of InfluxDB
+/// Provides the distinct value caches for the running instance of InfluxDB
 #[derive(Debug)]
-pub struct MetaCacheProvider {
+pub struct DistinctCacheProvider {
     pub(crate) time_provider: Arc<dyn TimeProvider>,
     pub(crate) catalog: Arc<Catalog>,
     pub(crate) cache_map: CacheMap,
 }
 
-impl MetaCacheProvider {
-    /// Initialize a [`MetaCacheProvider`] from a [`Catalog`], populating the provider's
+impl DistinctCacheProvider {
+    /// Initialize a [`DistinctCacheProvider`] from a [`Catalog`], populating the provider's
     /// `cache_map` from the definitions in the catalog.
     pub fn new_from_catalog(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
     ) -> Result<Arc<Self>, ProviderError> {
-        let provider = Arc::new(MetaCacheProvider {
+        let provider = Arc::new(DistinctCacheProvider {
             time_provider,
             catalog: Arc::clone(&catalog),
             cache_map: Default::default(),
         });
         for db_schema in catalog.list_db_schema() {
             for table_def in db_schema.tables() {
-                for (cache_name, cache_def) in table_def.meta_caches() {
+                for (cache_name, cache_def) in table_def.distinct_caches() {
                     assert!(
                         provider
                             .create_cache(
                                 db_schema.id,
                                 Some(cache_name),
-                                CreateMetaCacheArgs {
+                                CreateDistinctCacheArgs {
                                     table_def: Arc::clone(&table_def),
                                     max_cardinality: MaxCardinality::try_from(
                                         cache_def.max_cardinality
@@ -78,10 +78,10 @@ impl MetaCacheProvider {
         Ok(provider)
     }
 
-    /// Initialize a [`MetaCacheProvider`] from a [`Catalog`], populating the provider's
+    /// Initialize a [`DistinctCacheProvider`] from a [`Catalog`], populating the provider's
     /// `cache_map` from the definitions in the catalog. This starts a background process that
     /// runs on the provided `eviction_interval` to perform eviction on all of the caches
-    /// in the created [`MetaCacheProvider`]'s `cache_map`.
+    /// in the created [`DistinctCacheProvider`]'s `cache_map`.
     pub fn new_from_catalog_with_background_eviction(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
@@ -126,8 +126,8 @@ impl MetaCacheProvider {
             })
     }
 
-    /// Get a list of [`MetaCacheDefinition`]s for the given database
-    pub fn get_cache_definitions_for_db(&self, db_id: &DbId) -> Vec<MetaCacheDefinition> {
+    /// Get a list of [`DistinctCacheDefinition`]s for the given database
+    pub fn get_cache_definitions_for_db(&self, db_id: &DbId) -> Vec<DistinctCacheDefinition> {
         let db_schema = self
             .catalog
             .db_schema_by_id(db_id)
@@ -154,34 +154,34 @@ impl MetaCacheProvider {
             .unwrap_or_default()
     }
 
-    /// Create a new entry in the metadata cache for a given database and parameters.
+    /// Create a new entry in the distinct cache for a given database and parameters.
     ///
-    /// If a new cache is created, this will return the [`MetaCacheDefinition`] for the created
+    /// If a new cache is created, this will return the [`DistinctCacheDefinition`] for the created
     /// cache; otherwise, if the provided arguments are identical to an existing cache, along with
     /// any defaults, then `None` will be returned. It is an error to attempt to create a cache that
     /// overwite an existing one with different parameters.
     ///
     /// The cache name is optional; if not provided, it will be of the form:
     /// ```text
-    /// <table_name>_<column_names>_meta_cache
+    /// <table_name>_<column_names>_distinct_cache
     /// ```
     /// Where `<column_names>` is an `_`-separated list of the column names used in the cache.
     pub fn create_cache(
         &self,
         db_id: DbId,
         cache_name: Option<Arc<str>>,
-        CreateMetaCacheArgs {
+        CreateDistinctCacheArgs {
             table_def,
             max_cardinality,
             max_age,
             column_ids,
-        }: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, ProviderError> {
+        }: CreateDistinctCacheArgs,
+    ) -> Result<Option<DistinctCacheDefinition>, ProviderError> {
         let cache_name = if let Some(cache_name) = cache_name {
             cache_name
         } else {
             format!(
-                "{table_name}_{cols}_meta_cache",
+                "{table_name}_{cols}_distinct_cache",
                 table_name = table_def.table_name,
                 cols = column_ids
                     .iter()
@@ -196,9 +196,9 @@ impl MetaCacheProvider {
             .into()
         };
 
-        let new_cache = MetaCache::new(
+        let new_cache = DistinctCache::new(
             Arc::clone(&self.time_provider),
-            CreateMetaCacheArgs {
+            CreateDistinctCacheArgs {
                 table_def: Arc::clone(&table_def),
                 max_cardinality,
                 max_age,
@@ -224,7 +224,7 @@ impl MetaCacheProvider {
             .or_default()
             .insert(Arc::clone(&cache_name), new_cache);
 
-        Ok(Some(MetaCacheDefinition {
+        Ok(Some(DistinctCacheDefinition {
             table_id: table_def.table_id,
             table_name: Arc::clone(&table_def.table_name),
             cache_name,
@@ -240,11 +240,11 @@ impl MetaCacheProvider {
         &self,
         db_id: DbId,
         table_def: Arc<TableDefinition>,
-        definition: &MetaCacheDefinition,
+        definition: &DistinctCacheDefinition,
     ) {
-        let meta_cache = MetaCache::new(
+        let distinct_cache = DistinctCache::new(
             Arc::clone(&self.time_provider),
-            CreateMetaCacheArgs {
+            CreateDistinctCacheArgs {
                 table_def,
                 max_cardinality: definition
                     .max_cardinality
@@ -261,7 +261,7 @@ impl MetaCacheProvider {
             .or_default()
             .entry(definition.table_id)
             .or_default()
-            .insert(Arc::clone(&definition.cache_name), meta_cache);
+            .insert(Arc::clone(&definition.cache_name), distinct_cache);
     }
 
     /// Delete a cache from the provider
@@ -350,7 +350,7 @@ impl MetaCacheProvider {
 }
 
 fn background_eviction_process(
-    provider: Arc<MetaCacheProvider>,
+    provider: Arc<DistinctCacheProvider>,
     eviction_interval: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {

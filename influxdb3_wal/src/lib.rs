@@ -8,7 +8,6 @@ pub mod object_store;
 pub mod serialize;
 mod snapshot_tracker;
 
-use crate::snapshot_tracker::SnapshotInfo;
 use async_trait::async_trait;
 use data_types::Timestamp;
 use hashbrown::HashMap;
@@ -82,14 +81,26 @@ pub trait Wal: Debug + Send + Sync + 'static {
         &self,
     ) -> Option<(
         oneshot::Receiver<SnapshotDetails>,
-        SnapshotInfo,
+        SnapshotDetails,
+        OwnedSemaphorePermit,
+    )>;
+
+    /// This is similar to flush buffer but it allows for snapshot to be done immediately rather
+    /// than waiting for wal periods to stack up in [`snapshot_tracker::SnapshotTracker`].
+    /// Because forcing flush buffer can happen with no ops in wal buffer this call will add
+    /// a [`WalOp::Noop`] into the wal buffer if it is empty and then carry on with snapshotting.
+    async fn force_flush_buffer(
+        &self,
+    ) -> Option<(
+        oneshot::Receiver<SnapshotDetails>,
+        SnapshotDetails,
         OwnedSemaphorePermit,
     )>;
 
     /// Removes any snapshot wal files
     async fn cleanup_snapshot(
         &self,
-        snapshot_details: SnapshotInfo,
+        snapshot_details: SnapshotDetails,
         snapshot_permit: OwnedSemaphorePermit,
     );
 
@@ -103,18 +114,69 @@ pub trait Wal: Debug + Send + Sync + 'static {
     async fn shutdown(&self);
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct NoopWal;
+
+#[async_trait]
+impl Wal for NoopWal {
+    async fn buffer_op_unconfirmed(&self, _op: WalOp) -> Result<(), Error> {
+        Ok(())
+    }
+
+    async fn write_ops(&self, _ops: Vec<WalOp>) -> Result<(), Error> {
+        Ok(())
+    }
+
+    async fn flush_buffer(
+        &self,
+    ) -> Option<(
+        oneshot::Receiver<SnapshotDetails>,
+        SnapshotDetails,
+        OwnedSemaphorePermit,
+    )> {
+        None
+    }
+
+    async fn force_flush_buffer(
+        &self,
+    ) -> Option<(
+        oneshot::Receiver<SnapshotDetails>,
+        SnapshotDetails,
+        OwnedSemaphorePermit,
+    )> {
+        None
+    }
+
+    async fn cleanup_snapshot(
+        &self,
+        _snapshot_details: SnapshotDetails,
+        _snapshot_permit: OwnedSemaphorePermit,
+    ) {
+    }
+
+    async fn last_wal_sequence_number(&self) -> WalFileSequenceNumber {
+        panic!("no-op wal does not track wal sequence number")
+    }
+
+    async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber {
+        panic!("no-op wal does not track snapshot sequence number")
+    }
+
+    async fn shutdown(&self) {}
+}
+
 /// When the WAL persists a file with buffered ops, the contents are sent to this
 /// notifier so that the data can be loaded into the in memory buffer and caches.
 #[async_trait]
 pub trait WalFileNotifier: Debug + Send + Sync + 'static {
     /// Notify the handler that a new WAL file has been persisted with the given contents.
-    async fn notify(&self, write: WalContents);
+    async fn notify(&self, write: Arc<WalContents>);
 
     /// Notify the handler that a new WAL file has been persisted with the given contents and tell
     /// it to snapshot the data. The returned receiver will be signalled when the snapshot is complete.
     async fn notify_and_snapshot(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> oneshot::Receiver<SnapshotDetails>;
 
@@ -213,10 +275,16 @@ impl Default for Gen1Duration {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+pub struct NoopDetails {
+    timestamp_ns: i64,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WalOp {
     Write(WriteBatch),
     Catalog(OrderedCatalogBatch),
+    Noop(NoopDetails),
 }
 
 impl PartialOrd for WalOp {
@@ -239,6 +307,11 @@ impl Ord for WalOp {
 
             // For two Write ops, consider them equal
             (WalOp::Write(_), WalOp::Write(_)) => Ordering::Equal,
+            // all noops should stay where they are no need to reorder them
+            // the noop at the moment at least should appear only in cases
+            // when there are no other ops in wal buffer.
+            (_, WalOp::Noop(_)) => Ordering::Equal,
+            (WalOp::Noop(_), _) => Ordering::Equal,
         }
     }
 }
@@ -248,6 +321,7 @@ impl WalOp {
         match self {
             WalOp::Write(w) => Some(w),
             WalOp::Catalog(_) => None,
+            WalOp::Noop(_) => None,
         }
     }
 
@@ -255,6 +329,7 @@ impl WalOp {
         match self {
             WalOp::Write(_) => None,
             WalOp::Catalog(c) => Some(&c.catalog),
+            WalOp::Noop(_) => None,
         }
     }
 }
@@ -286,7 +361,11 @@ impl OrderedCatalogBatch {
         self.database_sequence_number
     }
 
-    pub fn batch(self) -> CatalogBatch {
+    pub fn batch(&self) -> &CatalogBatch {
+        &self.catalog
+    }
+
+    pub fn into_batch(self) -> CatalogBatch {
         self.catalog
     }
 }
@@ -296,8 +375,8 @@ pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
     CreateTable(TableDefinition),
     AddFields(FieldAdditions),
-    CreateMetaCache(MetaCacheDefinition),
-    DeleteMetaCache(MetaCacheDelete),
+    CreateDistinctCache(DistinctCacheDefinition),
+    DeleteDistinctCache(DistinctCacheDelete),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
@@ -561,16 +640,16 @@ pub struct LastCacheDelete {
     pub name: Arc<str>,
 }
 
-/// Defines a metadata cache in a given table and database
+/// Defines a distinct value cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct MetaCacheDefinition {
+pub struct DistinctCacheDefinition {
     /// The id of the associated table
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
     /// The name of the cache, is unique within the associated table
     pub cache_name: Arc<str>,
-    /// The ids of columns tracked by this metadata cache, in the defined order
+    /// The ids of columns tracked by this distinct value cache, in the defined order
     pub column_ids: Vec<ColumnId>,
     /// The maximum number of distinct value combintions the cache will hold
     pub max_cardinality: usize,
@@ -579,7 +658,7 @@ pub struct MetaCacheDefinition {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct MetaCacheDelete {
+pub struct DistinctCacheDelete {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub cache_name: Arc<str>,
@@ -589,7 +668,6 @@ pub struct MetaCacheDelete {
 pub struct PluginDefinition {
     pub plugin_name: String,
     pub code: String,
-    pub function_name: String,
     pub plugin_type: PluginType,
 }
 
@@ -608,6 +686,7 @@ pub enum PluginType {
 pub struct TriggerDefinition {
     pub trigger_name: String,
     pub plugin_name: String,
+    pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
@@ -933,8 +1012,12 @@ pub struct SnapshotDetails {
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// All chunks with data before this time can be snapshot and persisted
     pub end_time_marker: i64,
+    /// All wal files with a sequence number >= to this can be deleted once snapshotting is complete
+    pub first_wal_sequence_number: WalFileSequenceNumber,
     /// All wal files with a sequence number <= to this can be deleted once snapshotting is complete
     pub last_wal_sequence_number: WalFileSequenceNumber,
+    // both forced and 3 times snapshot size should set this flag
+    pub forced: bool,
 }
 
 pub fn background_wal_flush<W: Wal>(
@@ -957,7 +1040,7 @@ pub fn background_wal_flush<W: Wal>(
                 let snapshot_wal = Arc::clone(&wal);
                 tokio::spawn(async move {
                     let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert_eq!(snapshot_info.snapshot_details, snapshot_details);
+                    assert_eq!(snapshot_info, snapshot_details);
 
                     snapshot_wal
                         .cleanup_snapshot(snapshot_info, snapshot_permit)

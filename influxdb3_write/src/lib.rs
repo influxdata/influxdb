@@ -11,29 +11,22 @@ pub mod write_buffer;
 
 use async_trait::async_trait;
 use data_types::{NamespaceName, TimestampMinMax};
-use datafusion::catalog::Session;
-use datafusion::error::DataFusionError;
-use datafusion::prelude::Expr;
-use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::CreateMetaCacheArgs;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::catalog::CatalogSequenceNumber;
-use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_id::ParquetFileId;
-use influxdb3_id::SerdeVecMap;
-use influxdb3_id::TableId;
-use influxdb3_id::{ColumnId, DbId};
-use influxdb3_wal::MetaCacheDefinition;
-use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
+use datafusion::{catalog::Session, error::DataFusionError, prelude::Expr};
+use influxdb3_cache::{
+    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
+    last_cache::LastCacheProvider,
+};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema};
+use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_wal::{
+    DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
+    WalFileSequenceNumber,
+};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
-use write_buffer::plugins::ProcessingEngineManager;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -53,12 +46,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub trait WriteBuffer:
-    Bufferer
-    + ChunkContainer
-    + MetaCacheManager
-    + LastCacheManager
-    + DatabaseManager
-    + ProcessingEngineManager
+    Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager + DatabaseManager
 {
 }
 
@@ -98,6 +86,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     /// Returns the database schema provider
     fn catalog(&self) -> Arc<Catalog>;
 
+    /// Reutrns the WAL this bufferer is using
+    fn wal(&self) -> Arc<dyn Wal>;
+
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;
 
@@ -118,21 +109,23 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 
-/// [`MetaCacheManager`] is used to manage interaction with a [`MetaCacheProvider`]. This enables
+/// [`DistinctCacheManager`] is used to manage interaction with a [`DistinctCacheProvider`]. This enables
 /// cache creation, deletion, and getting access to existing
 #[async_trait::async_trait]
-pub trait MetaCacheManager: Debug + Send + Sync + 'static {
-    /// Get a reference to the metadata cache provider
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider>;
+pub trait DistinctCacheManager: Debug + Send + Sync + 'static {
+    /// Get a reference to the distinct value cache provider
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider>;
 
-    async fn create_meta_cache(
+    /// Create a new distinct value cache
+    async fn create_distinct_cache(
         &self,
         db_schema: Arc<DatabaseSchema>,
         cache_name: Option<String>,
-        args: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, write_buffer::Error>;
+        args: CreateDistinctCacheArgs,
+    ) -> Result<Option<DistinctCacheDefinition>, write_buffer::Error>;
 
-    async fn delete_meta_cache(
+    /// Delete a distinct value cache
+    async fn delete_distinct_cache(
         &self,
         db_id: &DbId,
         tbl_id: &TableId,

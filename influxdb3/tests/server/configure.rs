@@ -7,11 +7,11 @@ use test_helpers::assert_contains;
 use crate::server::TestServer;
 
 #[tokio::test]
-async fn api_v3_configure_meta_cache_create() {
+async fn api_v3_configure_distinct_cache_create() {
     let server = TestServer::spawn().await;
     let client = reqwest::Client::new();
     let url = format!(
-        "{base}/api/v3/configure/meta_cache",
+        "{base}/api/v3/configure/distinct_cache",
         base = server.client_addr()
     );
 
@@ -157,7 +157,7 @@ async fn api_v3_configure_meta_cache_create() {
             .json(&body)
             .send()
             .await
-            .expect("send request to create meta cache");
+            .expect("send request to create distinct cache");
         let status = resp.status();
         assert_eq!(
             tc.expected,
@@ -169,11 +169,11 @@ async fn api_v3_configure_meta_cache_create() {
 }
 
 #[tokio::test]
-async fn api_v3_configure_meta_cache_delete() {
+async fn api_v3_configure_distinct_cache_delete() {
     let server = TestServer::spawn().await;
     let client = reqwest::Client::new();
     let url = format!(
-        "{base}/api/v3/configure/meta_cache",
+        "{base}/api/v3/configure/distinct_cache",
         base = server.client_addr()
     );
 
@@ -210,7 +210,7 @@ async fn api_v3_configure_meta_cache_delete() {
     use Request::*;
     let mut test_cases = [
         TestCase {
-            description: "create a metadata cache",
+            description: "create a distinct cache",
             request: Create(serde_json::json!({
                 "db": db_name,
                 "table": tbl_name,

@@ -25,3 +25,5 @@ perf.svg
 perf.txt
 valgrind-out.txt
 *.pending-snap
+# Helix editor configuration directory:
+**/.helix

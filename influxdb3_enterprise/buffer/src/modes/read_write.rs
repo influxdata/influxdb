@@ -1,31 +1,30 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::replica::{CreateReplicasArgs, Replicas, ReplicationConfig};
 use async_trait::async_trait;
 use data_types::NamespaceName;
-use datafusion::execution::object_store::ObjectStoreUrl;
-use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
-use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
-use influxdb3_cache::parquet_cache::ParquetCacheOracle;
+use datafusion::{
+    catalog::Session, error::DataFusionError, execution::object_store::ObjectStoreUrl,
+    logical_expr::Expr,
+};
+use influxdb3_cache::{
+    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
+    last_cache::LastCacheProvider,
+    parquet_cache::ParquetCacheOracle,
+};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{
-    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition, WalConfig,
-};
-use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
-use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
-use influxdb3_write::write_buffer::plugins::ProcessingEngineManager;
-use influxdb3_write::write_buffer::{parquet_chunk_from_file, WriteBufferImplArgs};
+use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal, WalConfig};
 use influxdb3_write::{
-    persister::Persister,
-    write_buffer::{self, WriteBufferImpl},
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
-    PersistedSnapshot, Precision, WriteBuffer,
+    persister::{Persister, DEFAULT_OBJECT_STORE_URL},
+    write_buffer::{
+        self, parquet_chunk_from_file, persisted_files::PersistedFiles, WriteBufferImpl,
+        WriteBufferImplArgs,
+    },
+    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, DistinctCacheManager,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{DatabaseManager, MetaCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -48,7 +47,7 @@ pub struct CreateReadWriteModeArgs {
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
-    pub meta_cache: Arc<MetaCacheProvider>,
+    pub distinct_cache: Arc<DistinctCacheProvider>,
     pub time_provider: Arc<dyn TimeProvider>,
     pub executor: Arc<iox_query::exec::Executor>,
     pub wal_config: WalConfig,
@@ -56,7 +55,6 @@ pub struct CreateReadWriteModeArgs {
     pub replication_config: Option<ReplicationConfig>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
-    pub plugin_dir: Option<PathBuf>,
 }
 
 impl ReadWriteMode {
@@ -66,7 +64,7 @@ impl ReadWriteMode {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor,
             wal_config,
@@ -74,7 +72,6 @@ impl ReadWriteMode {
             replication_config,
             parquet_cache,
             compacted_data,
-            plugin_dir,
         }: CreateReadWriteModeArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
@@ -82,13 +79,12 @@ impl ReadWriteMode {
             persister,
             catalog: Arc::clone(&catalog),
             last_cache: Arc::clone(&last_cache),
-            meta_cache: Arc::clone(&meta_cache),
+            distinct_cache: Arc::clone(&distinct_cache),
             time_provider: Arc::clone(&time_provider),
             executor,
             wal_config,
             parquet_cache: parquet_cache.clone(),
             metric_registry: Arc::clone(&metric_registry),
-            plugin_dir,
         })
         .await?;
 
@@ -104,7 +100,7 @@ impl ReadWriteMode {
             Some(
                 Replicas::new(CreateReplicasArgs {
                     last_cache,
-                    meta_cache,
+                    distinct_cache,
                     object_store: Arc::clone(&object_store),
                     metric_registry,
                     replication_interval,
@@ -131,6 +127,10 @@ impl ReadWriteMode {
 
     pub fn persisted_files(&self) -> Arc<PersistedFiles> {
         self.primary.persisted_files()
+    }
+
+    pub fn write_buffer_impl(&self) -> Arc<WriteBufferImpl> {
+        Arc::clone(&self.primary)
     }
 }
 
@@ -169,6 +169,10 @@ impl Bufferer for ReadWriteMode {
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
         unimplemented!("watch_persisted_snapshots not implemented for ReadWriteMode")
+    }
+
+    fn wal(&self) -> Arc<dyn Wal> {
+        self.primary.wal()
     }
 }
 
@@ -327,30 +331,30 @@ impl LastCacheManager for ReadWriteMode {
 }
 
 #[async_trait]
-impl MetaCacheManager for ReadWriteMode {
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
-        self.primary.meta_cache_provider()
+impl DistinctCacheManager for ReadWriteMode {
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
+        self.primary.distinct_cache_provider()
     }
 
-    async fn create_meta_cache(
+    async fn create_distinct_cache(
         &self,
         db_schema: Arc<DatabaseSchema>,
         cache_name: Option<String>,
-        args: CreateMetaCacheArgs,
-    ) -> write_buffer::Result<Option<MetaCacheDefinition>> {
+        args: CreateDistinctCacheArgs,
+    ) -> write_buffer::Result<Option<DistinctCacheDefinition>> {
         self.primary
-            .create_meta_cache(db_schema, cache_name, args)
+            .create_distinct_cache(db_schema, cache_name, args)
             .await
     }
 
-    async fn delete_meta_cache(
+    async fn delete_distinct_cache(
         &self,
         db_id: &DbId,
         tbl_id: &TableId,
         cache_name: &str,
     ) -> write_buffer::Result<()> {
         self.primary
-            .delete_meta_cache(db_id, tbl_id, cache_name)
+            .delete_distinct_cache(db_id, tbl_id, cache_name)
             .await
     }
 }
@@ -381,93 +385,6 @@ impl DatabaseManager for ReadWriteMode {
         table_name: String,
     ) -> write_buffer::Result<()> {
         self.primary.soft_delete_table(db_name, table_name).await
-    }
-}
-
-#[async_trait]
-impl ProcessingEngineManager for ReadWriteMode {
-    async fn insert_plugin(
-        &self,
-        db: &str,
-        plugin_name: String,
-        code: String,
-        function_name: String,
-        plugin_type: PluginType,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary
-            .insert_plugin(db, plugin_name, code, function_name, plugin_type)
-            .await
-    }
-
-    async fn delete_plugin(&self, db: &str, plugin_name: &str) -> Result<(), write_buffer::Error> {
-        self.primary.delete_plugin(db, plugin_name).await
-    }
-
-    async fn activate_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary
-            .activate_trigger(write_buffer, db_name, trigger_name)
-            .await
-    }
-
-    async fn deactivate_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary.deactivate_trigger(db_name, trigger_name).await
-    }
-
-    async fn insert_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: String,
-        plugin_name: String,
-        trigger_specification: TriggerSpecificationDefinition,
-        disabled: bool,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary
-            .insert_trigger(
-                db_name,
-                trigger_name,
-                plugin_name,
-                trigger_specification,
-                disabled,
-            )
-            .await
-    }
-
-    async fn delete_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary
-            .delete_trigger(db_name, trigger_name, force)
-            .await
-    }
-
-    async fn run_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary
-            .run_trigger(write_buffer, db_name, trigger_name)
-            .await
-    }
-
-    async fn test_wal_plugin(
-        &self,
-        request: WalPluginTestRequest,
-    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
-        self.primary.test_wal_plugin(request).await
     }
 }
 

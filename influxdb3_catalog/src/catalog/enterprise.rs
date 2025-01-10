@@ -4,8 +4,8 @@ use hashbrown::{HashMap, HashSet};
 use indexmap::IndexMap;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DatabaseDefinition, DeleteDatabaseDefinition, DeleteTableDefinition,
-    Field, FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete,
-    LastCacheValueColumnsDef, MetaCacheDefinition, MetaCacheDelete, OrderedCatalogBatch, Row,
+    DistinctCacheDefinition, DistinctCacheDelete, Field, FieldAdditions, FieldDefinition,
+    LastCacheDefinition, LastCacheDelete, LastCacheValueColumnsDef, OrderedCatalogBatch, Row,
     TableChunk, TableChunks, TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
 };
 use schema::InfluxColumnType;
@@ -267,9 +267,9 @@ impl TableDefinition {
         }
 
         // map the ids from the meta cache definitions
-        let mut meta_caches = HashMap::new();
-        for (name, mc) in &other.meta_caches {
-            meta_caches.insert(
+        let mut distinct_caches = HashMap::new();
+        for (name, mc) in &other.distinct_caches {
+            distinct_caches.insert(
                 Arc::clone(name),
                 id_map.map_meta_cache_definition_column_ids(mc)?,
             );
@@ -286,7 +286,7 @@ impl TableDefinition {
                 series_key,
                 series_key_names,
                 last_caches,
-                meta_caches,
+                distinct_caches,
                 deleted: other.deleted,
             }),
         ))
@@ -334,7 +334,7 @@ pub struct CatalogIdMap {
 
 impl CatalogIdMap {
     /// Extend this [`CatalogIdMap`] with the contents of another.
-    fn extend(&mut self, mut other: Self) {
+    pub fn extend(&mut self, mut other: Self) {
         self.dbs.extend(other.dbs.drain());
         self.tables.extend(other.tables.drain());
         self.columns.extend(other.columns.drain());
@@ -558,6 +558,7 @@ impl CatalogIdMap {
             WalOp::Catalog(catalog_batch) => self
                 .map_catalog_batch(target_catalog, catalog_batch)?
                 .map(WalOp::Catalog),
+            WalOp::Noop(details) => Mapped::Ignore(WalOp::Noop(details)),
         })
     }
 
@@ -639,7 +640,7 @@ impl CatalogIdMap {
         from: OrderedCatalogBatch,
     ) -> Result<Mapped<OrderedCatalogBatch>> {
         let sequence_number = from.sequence_number();
-        let from_batch = from.batch();
+        let from_batch = from.into_batch();
         let database_id = self.map_db_or_new(
             target_catalog,
             &from_batch.database_name,
@@ -831,7 +832,7 @@ impl CatalogIdMap {
                     Mapped::Ignore(mapped_op)
                 }
             }
-            CatalogOp::CreateMetaCache(def) => {
+            CatalogOp::CreateDistinctCache(def) => {
                 let mapped_def = self.map_meta_cache_definition_column_ids(&def)?;
                 let tbl_def = target_catalog
                     .db_schema_by_id(&database_id)
@@ -839,7 +840,7 @@ impl CatalogIdMap {
                     // unwrap is okay here because the call to map the meta cache definition would
                     // have caught an invalid table id etc.
                     .unwrap();
-                if let Some(local_def) = tbl_def.meta_caches.get(&def.cache_name) {
+                if let Some(local_def) = tbl_def.distinct_caches.get(&def.cache_name) {
                     if local_def != &mapped_def {
                         return Err(Error::Other(anyhow!(
                             "WAL contained a CreateMetaCache operation with a metadata cache \
@@ -849,12 +850,12 @@ impl CatalogIdMap {
                             name = def.cache_name
                         )));
                     }
-                    Mapped::Ignore(CatalogOp::CreateMetaCache(mapped_def))
+                    Mapped::Ignore(CatalogOp::CreateDistinctCache(mapped_def))
                 } else {
-                    Mapped::Replay(CatalogOp::CreateMetaCache(mapped_def))
+                    Mapped::Replay(CatalogOp::CreateDistinctCache(mapped_def))
                 }
             }
-            CatalogOp::DeleteMetaCache(def) => {
+            CatalogOp::DeleteDistinctCache(def) => {
                 let table_id = self.map_table_id(&def.table_id).ok_or_else(|| {
                         Error::Other(anyhow!(
                             "attempted to delete a metadata cache for a table that does not exist locally"
@@ -864,12 +865,12 @@ impl CatalogIdMap {
                     .db_schema_by_id(&database_id)
                     .and_then(|db| db.table_definition_by_id(&table_id))
                     .unwrap();
-                let mapped_op = CatalogOp::DeleteMetaCache(MetaCacheDelete {
+                let mapped_op = CatalogOp::DeleteDistinctCache(DistinctCacheDelete {
                     table_name: Arc::clone(&def.table_name),
                     table_id,
                     cache_name: Arc::clone(&def.cache_name),
                 });
-                if tbl_def.meta_caches.get(&def.cache_name).is_some() {
+                if tbl_def.distinct_caches.get(&def.cache_name).is_some() {
                     Mapped::Replay(mapped_op)
                 } else {
                     Mapped::Ignore(mapped_op)
@@ -979,8 +980,8 @@ impl CatalogIdMap {
 
     fn map_meta_cache_definition_column_ids(
         &self,
-        def: &MetaCacheDefinition,
-    ) -> Result<MetaCacheDefinition> {
+        def: &DistinctCacheDefinition,
+    ) -> Result<DistinctCacheDefinition> {
         let table_id = self.tables.get(&def.table_id).copied().ok_or_else(|| {
             Error::Other(anyhow!("meta cache definition contained invalid table id"))
         })?;
@@ -993,7 +994,7 @@ impl CatalogIdMap {
                 })
             })
             .collect::<Result<Vec<ColumnId>>>()?;
-        Ok(MetaCacheDefinition {
+        Ok(DistinctCacheDefinition {
             table_id,
             table_name: Arc::clone(&def.table_name),
             cache_name: Arc::clone(&def.cache_name),

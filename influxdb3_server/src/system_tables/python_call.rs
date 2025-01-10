@@ -17,7 +17,6 @@ pub(super) struct ProcessingEnginePluginTable {
 fn plugin_schema() -> SchemaRef {
     let columns = vec![
         Field::new("plugin_name", DataType::Utf8, false),
-        Field::new("function_name", DataType::Utf8, false),
         Field::new("code", DataType::Utf8, false),
         Field::new("plugin_type", DataType::Utf8, false),
     ];
@@ -49,12 +48,6 @@ impl IoxSystemTable for ProcessingEnginePluginTable {
                 self.plugins
                     .iter()
                     .map(|call| Some(call.plugin_name.clone()))
-                    .collect::<StringArray>(),
-            ),
-            Arc::new(
-                self.plugins
-                    .iter()
-                    .map(|p| Some(p.function_name.clone()))
                     .collect::<StringArray>(),
             ),
             Arc::new(

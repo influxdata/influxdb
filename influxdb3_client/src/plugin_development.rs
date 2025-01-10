@@ -6,9 +6,9 @@ use std::collections::HashMap;
 /// Request definition for `POST /api/v3/plugin_test/wal` API
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WalPluginTestRequest {
-    pub name: String,
-    pub input_lp: Option<String>,
-    pub input_file: Option<String>,
+    pub filename: String,
+    pub database: String,
+    pub input_lp: String,
     pub input_arguments: Option<HashMap<String, String>>,
 }
 

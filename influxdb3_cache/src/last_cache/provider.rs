@@ -319,6 +319,7 @@ impl LastCacheProvider {
                     }
                 }
                 WalOp::Catalog(_) => (),
+                WalOp::Noop(_) => (),
             }
         }
     }

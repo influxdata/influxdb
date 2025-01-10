@@ -48,7 +48,7 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::MetaCache(MetaCacheConfig {
+            | SubCommand::DistinctCache(DistinctCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -90,7 +90,9 @@ impl Config {
                 }
                 Ok(client)
             }
-            SubCommand::Token => unreachable!(),
+            // We don't need a client for this, so we're just creating a
+            // placeholder client
+            SubCommand::Token => Ok(Client::new("http://localhost")?),
         }
     }
 }
@@ -105,9 +107,9 @@ pub enum SubCommand {
     /// Create a new last value cache
     #[clap(name = "last_cache")]
     LastCache(LastCacheConfig),
-    /// Create a new metadata cache
-    #[clap(name = "meta_cache")]
-    MetaCache(MetaCacheConfig),
+    /// Create a new distinct value cache
+    #[clap(name = "distinct_cache")]
+    DistinctCache(DistinctCacheConfig),
     /// Create a new processing engine plugin
     Plugin(PluginConfig),
     /// Create a new table in a database
@@ -192,7 +194,7 @@ pub struct LastCacheConfig {
 }
 
 #[derive(Debug, clap::Args)]
-pub struct MetaCacheConfig {
+pub struct DistinctCacheConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
@@ -231,10 +233,7 @@ pub struct PluginConfig {
     /// Python file containing the plugin code
     #[clap(long = "code-filename")]
     code_file: String,
-    /// Entry point function for the plugin
-    #[clap(long = "entry-point")]
-    function_name: String,
-    /// Type of trigger the plugin processes
+    /// Type of trigger the plugin processes. Options: wal_rows, scheduled
     #[clap(long = "plugin-type", default_value = "wal_rows")]
     plugin_type: String,
     /// Name of the plugin to create
@@ -335,7 +334,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 None => println!("a cache already exists for the provided parameters"),
             }
         }
-        SubCommand::MetaCache(MetaCacheConfig {
+        SubCommand::DistinctCache(DistinctCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
@@ -343,7 +342,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             max_cardinality,
             max_age,
         }) => {
-            let mut b = client.api_v3_configure_meta_cache_create(database_name, table, columns);
+            let mut b =
+                client.api_v3_configure_distinct_cache_create(database_name, table, columns);
 
             // Add the optional stuff:
             if let Some(name) = cache_name {
@@ -360,7 +360,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 Some(def) => println!(
                     "new cache created: {}",
                     serde_json::to_string_pretty(&def)
-                        .expect("serialize meta cache definition as JSON")
+                        .expect("serialize distinct cache definition as JSON")
                 ),
                 None => println!("a cache already exists for the provided parameters"),
             }
@@ -369,7 +369,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             plugin_name,
             code_file,
-            function_name,
             plugin_type,
         }) => {
             let code = fs::read_to_string(&code_file)?;
@@ -378,7 +377,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     database_name,
                     &plugin_name,
                     code,
-                    function_name,
                     plugin_type,
                 )
                 .await?;
@@ -411,7 +409,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 "\
                 Token: {token}\n\
                 Hashed Token: {hashed}\n\n\
-                Start the server with `influxdb3 serve --bearer-token {hashed}`\n\n\
+                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --host-id YOUR_HOST_NAME`\n\n\
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",
