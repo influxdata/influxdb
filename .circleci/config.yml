@@ -260,6 +260,13 @@ jobs:
           command: |
             apt-get update
             apt-get install -y python3 python3-dev
+      - when:
+          condition:
+            equal: [ << parameters.target >>, x86_64-unknown-linux-musl ]
+          steps:
+          - run:
+              name: add -crt-satic flag
+              command: export RUSTFLAGS="-C target-feature=-crt-static"
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
