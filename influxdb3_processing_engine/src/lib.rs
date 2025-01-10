@@ -21,14 +21,6 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 pub mod manager;
 pub mod plugins;
 
-// startup the plugins on initialization
-// let triggers = result.catalog().triggers();
-// for (db_name, trigger_name) in triggers {
-// result
-// .run_trigger(Arc::clone(&write_buffer), Arc::clone(&quer), &db_name, &trigger_name)
-// .await?;
-// }
-
 #[derive(Debug)]
 pub struct ProcessingEngineManagerImpl {
     plugin_dir: Option<std::path::PathBuf>,
@@ -253,9 +245,9 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
     ) -> Result<(), ProcessingEngineError> {
         #[cfg(feature = "system-py")]
         {
-            let (_db_id, db_schema) = self
+            let db_schema = self
                 .catalog
-                .db_id_and_schema(db_name)
+                .db_schema(db_name)
                 .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
             let trigger = db_schema
                 .processing_engine_triggers
@@ -304,8 +296,6 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             return Ok(());
         };
 
-        let mut deactivated = trigger.clone();
-        deactivated.disabled = true;
         let catalog_op = CatalogOp::DisableTrigger(TriggerIdentifier {
             db_name: db_name.to_string(),
             trigger_name: trigger_name.to_string(),
@@ -351,8 +341,6 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             return Ok(());
         };
 
-        let mut activated = trigger.clone();
-        activated.disabled = false;
         let catalog_op = CatalogOp::EnableTrigger(TriggerIdentifier {
             db_name: db_name.to_string(),
             trigger_name: trigger_name.to_string(),
