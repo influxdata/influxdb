@@ -214,8 +214,8 @@ func (h *HTTPHandler) isUserBlocked(r *http.Request, user *store.User) (bool, er
 func (h *HTTPHandler) handleGetLicenses(w http.ResponseWriter, r *http.Request, log *zap.Logger) {
 	log.Info("Getting license")
 
-	email := r.FormValue("email")
-	instanceID := r.FormValue("instance-id")
+	email := r.URL.Query().Get("email")
+	instanceID := r.URL.Query().Get("instance-id")
 
 	if email == "" || instanceID == "" {
 		http.Error(w, "Missing required parameters", http.StatusBadRequest)
@@ -233,6 +233,9 @@ func (h *HTTPHandler) handleGetLicenses(w http.ResponseWriter, r *http.Request, 
 			http.Error(w, "error processing request", http.StatusInternalServerError)
 			return
 		}
+	} else if lic == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
 	}
 
 	// Check if the email matches the license
