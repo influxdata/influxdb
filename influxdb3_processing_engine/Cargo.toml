@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-"system-py" = ["influxdb3_py_api/system-py", "pyo3"]
-
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -28,7 +25,6 @@ tokio.workspace = true
 version = "0.23.3"
 # this is necessary to automatically initialize the Python interpreter
 features = ["auto-initialize"]
-optional = true
 
 [dev-dependencies]
 datafusion_util.workspace = true

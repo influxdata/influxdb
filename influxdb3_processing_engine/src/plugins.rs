@@ -1,22 +1,14 @@
-#[cfg(feature = "system-py")]
 use crate::PluginEvent;
-#[cfg(feature = "system-py")]
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
-#[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
-#[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerDefinition;
-#[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::write_buffer;
-#[cfg(feature = "system-py")]
 use influxdb3_write::WriteBuffer;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
-#[cfg(feature = "system-py")]
 use std::sync::Arc;
 use thiserror::Error;
-#[cfg(feature = "system-py")]
 use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
@@ -27,7 +19,6 @@ pub enum Error {
     #[error("couldn't find db")]
     MissingDb,
 
-    #[cfg(feature = "system-py")]
     #[error(transparent)]
     PyError(#[from] pyo3::PyErr),
 
@@ -44,7 +35,6 @@ pub enum Error {
     ReadPluginError(#[from] std::io::Error),
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_plugin(
     db_name: String,
     trigger_definition: TriggerDefinition,
@@ -64,7 +54,6 @@ pub(crate) fn run_plugin(
     });
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
     // tokio channel for inputs
     pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
@@ -74,7 +63,6 @@ pub(crate) struct PluginContext {
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
 }
 
-#[cfg(feature = "system-py")]
 #[async_trait::async_trait]
 trait RunnablePlugin {
     // Returns true if it should exit
@@ -85,7 +73,6 @@ trait RunnablePlugin {
     ) -> Result<(), Error>;
 }
 
-#[cfg(feature = "system-py")]
 #[derive(Debug)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
@@ -94,7 +81,6 @@ struct TriggerPlugin {
     query_executor: Arc<dyn QueryExecutor>,
 }
 
-#[cfg(feature = "system-py")]
 mod python_plugin {
     use super::*;
     use anyhow::Context;
@@ -221,7 +207,6 @@ mod python_plugin {
     }
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_test_wal_plugin(
     now_time: iox_time::Time,
     catalog: Arc<influxdb3_catalog::catalog::Catalog>,
@@ -341,7 +326,6 @@ pub(crate) fn run_test_wal_plugin(
     })
 }
 
-#[cfg(feature = "system-py")]
 #[cfg(test)]
 mod tests {
     use super::*;

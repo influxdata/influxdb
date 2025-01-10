@@ -839,7 +839,6 @@ async fn distinct_cache_create_and_delete() {
     insta::assert_yaml_snapshot!(result);
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_test() {
     use crate::ConfigProvider;

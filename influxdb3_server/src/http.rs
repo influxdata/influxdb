@@ -1143,7 +1143,6 @@ where
     }
 
     /// Endpoint for testing a plugin that will be trigger on WAL writes.
-    #[cfg(feature = "system-py")]
     async fn test_processing_engine_wal_plugin(
         &self,
         req: Request<Body>,
@@ -1160,14 +1159,6 @@ where
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::from(body))?)
-    }
-
-    #[cfg(not(feature = "system-py"))]
-    async fn test_processing_engine_wal_plugin(
-        &self,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        Err(Error::PythonPluginsNotEnabled)
     }
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {

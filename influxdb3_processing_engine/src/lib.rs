@@ -1,5 +1,4 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
-#[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use anyhow::Context;
 use hashbrown::HashMap;
@@ -38,7 +37,6 @@ struct PluginChannels {
     active_triggers: HashMap<String, HashMap<String, mpsc::Sender<PluginEvent>>>,
 }
 
-#[cfg(feature = "system-py")]
 const PLUGIN_EVENT_BUFFER_SIZE: usize = 60;
 
 impl PluginChannels {
@@ -54,7 +52,6 @@ impl PluginChannels {
         }
     }
 
-    #[cfg(feature = "system-py")]
     fn add_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<PluginEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.active_triggers
@@ -235,7 +232,6 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn run_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
@@ -243,34 +239,31 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
-        #[cfg(feature = "system-py")]
-        {
-            let db_schema = self
-                .catalog
-                .db_schema(db_name)
-                .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
-            let trigger = db_schema
-                .processing_engine_triggers
-                .get(trigger_name)
-                .ok_or_else(|| ProcessingEngineTriggerNotFound {
-                    database_name: db_name.to_string(),
-                    trigger_name: trigger_name.to_string(),
-                })?
-                .clone();
+        let db_schema = self
+            .catalog
+            .db_schema(db_name)
+            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
+        let trigger = db_schema
+            .processing_engine_triggers
+            .get(trigger_name)
+            .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                database_name: db_name.to_string(),
+                trigger_name: trigger_name.to_string(),
+            })?
+            .clone();
 
-            let trigger_rx = self
-                .plugin_event_tx
-                .lock()
-                .await
-                .add_trigger(db_name.to_string(), trigger_name.to_string());
+        let trigger_rx = self
+            .plugin_event_tx
+            .lock()
+            .await
+            .add_trigger(db_name.to_string(), trigger_name.to_string());
 
-            let plugin_context = PluginContext {
-                trigger_rx,
-                write_buffer,
-                query_executor,
-            };
-            plugins::run_plugin(db_name.to_string(), trigger, plugin_context);
-        }
+        let plugin_context = PluginContext {
+            trigger_rx,
+            write_buffer,
+            query_executor,
+        };
+        plugins::run_plugin(db_name.to_string(), trigger, plugin_context);
 
         Ok(())
     }
@@ -360,34 +353,25 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<WalPluginTestResponse, plugins::Error> {
-        #[cfg(feature = "system-py")]
-        {
-            // create a copy of the catalog so we don't modify the original
-            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
-            let now = self.time_provider.now();
+        // create a copy of the catalog so we don't modify the original
+        let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+        let now = self.time_provider.now();
 
-            let code = self.read_plugin_code(&request.filename)?;
+        let code = self.read_plugin_code(&request.filename)?;
 
-            let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
-                .unwrap_or_else(|e| WalPluginTestResponse {
-                    log_lines: vec![],
-                    database_writes: Default::default(),
-                    errors: vec![e.to_string()],
-                });
+        let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
+            .unwrap_or_else(|e| WalPluginTestResponse {
+                log_lines: vec![],
+                database_writes: Default::default(),
+                errors: vec![e.to_string()],
+            });
 
-            return Ok(res);
-        }
-
-        #[cfg(not(feature = "system-py"))]
-        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
-            "system-py feature not enabled"
-        )))
+        Ok(res)
     }
 }
 

@@ -82,10 +82,7 @@ unicode-segmentation.workspace = true
 version = "0.23.3"
 # this is necessary to automatically initialize the Python interpreter
 features = ["auto-initialize"]
-optional = true
 
-[features]
-system-py = ["pyo3"]
 
 [dev-dependencies]
 # Core Crates

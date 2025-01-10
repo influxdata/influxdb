@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-"system-py" = ["influxdb3_py_api/system-py", "pyo3"]
-
 [dependencies]
 # Core Crates
 data_types.workspace = true
@@ -68,7 +65,6 @@ uuid.workspace = true
 version = "0.23.3"
 # this is necessary to automatically initialize the Python interpreter
 features = ["auto-initialize"]
-optional = true
 
 [dev-dependencies]
 # Core Crates

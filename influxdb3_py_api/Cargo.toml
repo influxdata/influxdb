@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-system-py = ["pyo3"]
-
 [dependencies]
 arrow-array.workspace = true
 arrow-schema.workspace = true
@@ -24,7 +21,6 @@ tokio.workspace = true
 version = "0.23.3"
 # this is necessary to automatically initialize the Python interpreter
 features = ["auto-initialize", "experimental-async"]
-optional = true
 
 
 [lints]

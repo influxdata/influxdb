@@ -78,6 +78,14 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
+  install_python:
+    description: Install Python
+    steps:
+      - run:
+          name: Install Python
+          command: |
+            apt-get update
+            apt-get install -y python3 python3-dev
   gcloud-docker-login:
     steps:
       - run:
@@ -197,6 +205,7 @@ jobs:
     steps:
       - checkout
       - rust_components
+      - install_python
       - run:
           name: cargo nextest
           command: TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
@@ -225,11 +234,14 @@ jobs:
       # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
       # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
       CARGO_BUILD_JOBS: "12"
+      # for cross compilation we need to specify the python version
+      PYO3_CROSS_PYTHON_VERSION: "3.11"
     parameters:
       target:
         type: string
     steps:
       - checkout
+      - install_python
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
