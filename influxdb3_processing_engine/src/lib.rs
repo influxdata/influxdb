@@ -175,6 +175,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<(), ProcessingEngineError> {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
@@ -192,6 +193,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             plugin_name,
             plugin: plugin.clone(),
             trigger: trigger_specification,
+            trigger_arguments,
             disabled,
             database_name: db_name.to_string(),
         });
@@ -627,6 +629,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             false,
         )
         .await
@@ -687,6 +690,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             false,
         )
         .await
@@ -773,6 +777,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             true,
         )
         .await

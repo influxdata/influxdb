@@ -640,6 +640,7 @@ pub struct TriggerDefinition {
     pub plugin_name: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
+    pub trigger_arguments: Option<HashMap<String, String>>,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
     pub disabled: bool,

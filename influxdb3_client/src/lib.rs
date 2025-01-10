@@ -1,15 +1,13 @@
 pub mod plugin_development;
 
-use std::{
-    collections::HashMap, fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration,
-};
-
 use crate::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use bytes::Bytes;
+use hashbrown::HashMap;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, Method, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
+use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
 use url::Url;
 
 /// Primary error type for the [`Client`]
@@ -565,6 +563,7 @@ impl Client {
         trigger_name: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
         trigger_spec: impl Into<String> + Send,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/processing_engine_trigger";
@@ -577,6 +576,7 @@ impl Client {
             trigger_name: String,
             plugin_name: String,
             trigger_specification: String,
+            trigger_arguments: Option<HashMap<String, String>>,
             disabled: bool,
         }
         let mut req = self.http_client.post(url).json(&Req {
@@ -584,6 +584,7 @@ impl Client {
             trigger_name: trigger_name.into(),
             plugin_name: plugin_name.into(),
             trigger_specification: trigger_spec.into(),
+            trigger_arguments,
             disabled,
         });
 

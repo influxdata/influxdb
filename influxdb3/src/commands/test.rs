@@ -1,9 +1,9 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
 use anyhow::Context;
+use hashbrown::HashMap;
 use influxdb3_client::plugin_development::WalPluginTestRequest;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
-use std::collections::HashMap;
 use std::error::Error;
 
 #[derive(Debug, clap::Parser)]

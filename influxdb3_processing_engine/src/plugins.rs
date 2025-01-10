@@ -175,7 +175,7 @@ mod python_plugin {
                                     Arc::clone(&schema),
                                     Arc::clone(&self.query_executor),
                                     table_filter,
-                                    None,
+                                    &self.trigger_definition.trigger_arguments,
                                 )?;
 
                                 // write the output lines to the appropriate database
@@ -260,7 +260,7 @@ pub(crate) fn run_test_wal_plugin(
         db,
         query_executor,
         None,
-        request.input_arguments,
+        &request.input_arguments,
     )?;
 
     // validate the generated output lines
@@ -348,12 +348,12 @@ pub(crate) fn run_test_wal_plugin(
 mod tests {
     use super::*;
     use data_types::NamespaceName;
+    use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_write::write_buffer::validator::WriteValidator;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use std::collections::HashMap;
 
     #[test]
     fn test_wal_plugin() {

@@ -536,6 +536,11 @@ async fn test_create_trigger_and_run() {
 def process_writes(influxdb3_local, table_batches, args=None):
     for table_batch in table_batches:
         row_count = len(table_batch["rows"])
+
+        # Double row count if table name matches args table_name
+        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
+            row_count *= 2
+
         line = LineBuilder("write_reports")\
             .tag("table_name", table_batch["table_name"])\
             .int64_field("row_count", row_count)
@@ -567,6 +572,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         plugin_name,
         "--trigger-spec",
         "all_tables",
+        "--trigger-arguments",
+        "double_count_table=cpu",
         trigger_name,
     ]);
     debug!(result = ?result, "create trigger");
@@ -610,7 +617,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         result,
         json!(
             [
-                {"table_name": "cpu", "row_count": 2},
+                {"table_name": "cpu", "row_count": 4},
                 {"table_name": "mem", "row_count": 1}
             ]
         )
