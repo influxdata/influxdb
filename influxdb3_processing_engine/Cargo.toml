@@ -1,0 +1,42 @@
+[package]
+name = "influxdb3_processing_engine"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+"system-py" = ["influxdb3_py_api/system-py", "pyo3"]
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+data_types.workspace = true
+hashbrown.workspace = true
+iox_time.workspace = true
+influxdb3_catalog = { path = "../influxdb3_catalog" }
+influxdb3_client = { path = "../influxdb3_client" }
+influxdb3_internal_api = { path = "../influxdb3_internal_api" }
+influxdb3_py_api = { path = "../influxdb3_py_api" }
+influxdb3_wal = { path = "../influxdb3_wal" }
+influxdb3_write = { path = "../influxdb3_write" }
+observability_deps.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dependencies.pyo3]
+version = "0.23.3"
+# this is necessary to automatically initialize the Python interpreter
+features = ["auto-initialize"]
+optional = true
+
+[dev-dependencies]
+datafusion_util.workspace = true
+iox_query.workspace = true
+influxdb3_cache = { path = "../influxdb3_cache" }
+metric.workspace = true
+object_store.workspace = true
+parquet_file.workspace = true
+
+[lints]
+workspace = true

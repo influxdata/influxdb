@@ -24,6 +24,7 @@ use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinal
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
+use influxdb3_processing_engine::manager::ProcessingEngineManager;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -216,7 +217,10 @@ pub enum Error {
     PythonPluginsNotEnabled,
 
     #[error("Plugin error")]
-    Plugin(#[from] influxdb3_write::write_buffer::plugins::Error),
+    Plugin(#[from] influxdb3_processing_engine::plugins::Error),
+
+    #[error("Processing engine error: {0}")]
+    ProcessingEngine(#[from] influxdb3_processing_engine::manager::ProcessingEngineError),
 }
 
 #[derive(Debug, Error)]
@@ -439,6 +443,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub(crate) struct HttpApi<T> {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
+    processing_engine: Arc<dyn ProcessingEngineManager>,
     time_provider: Arc<T>,
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
@@ -452,6 +457,7 @@ impl<T> HttpApi<T> {
         time_provider: Arc<T>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
+        processing_engine: Arc<dyn ProcessingEngineManager>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
@@ -464,6 +470,7 @@ impl<T> HttpApi<T> {
             max_request_bytes,
             authorizer,
             legacy_write_param_unifier,
+            processing_engine,
         }
     }
 }
@@ -981,15 +988,14 @@ where
             db,
             plugin_name,
             code,
-            function_name,
             plugin_type,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
         };
-        self.write_buffer
-            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
+        self.processing_engine
+            .insert_plugin(&db, plugin_name, code, plugin_type)
             .await?;
 
         Ok(Response::builder()
@@ -1004,7 +1010,9 @@ where
             } else {
                 self.read_body_json(req).await?
             };
-        self.write_buffer.delete_plugin(&db, &plugin_name).await?;
+        self.processing_engine
+            .delete_plugin(&db, &plugin_name)
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
@@ -1034,7 +1042,7 @@ where
                 },
             ));
         };
-        self.write_buffer
+        self.processing_engine
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
@@ -1044,9 +1052,10 @@ where
             )
             .await?;
         if !disabled {
-            self.write_buffer
+            self.processing_engine
                 .run_trigger(
                     Arc::clone(&self.write_buffer),
+                    Arc::clone(&self.query_executor),
                     db.as_str(),
                     trigger_name.as_str(),
                 )
@@ -1067,7 +1076,7 @@ where
         } else {
             self.read_body_json(req).await?
         };
-        self.write_buffer
+        self.processing_engine
             .delete_trigger(&db, &trigger_name, force)
             .await?;
         Ok(Response::builder()
@@ -1081,7 +1090,7 @@ where
     ) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.write_buffer
+        self.processing_engine
             .deactivate_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
             .await?;
         Ok(Response::builder()
@@ -1094,9 +1103,10 @@ where
     ) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.write_buffer
+        self.processing_engine
             .activate_trigger(
                 Arc::clone(&self.write_buffer),
+                Arc::clone(&self.query_executor),
                 delete_req.db.as_str(),
                 delete_req.trigger_name.as_str(),
             )
@@ -1139,7 +1149,7 @@ where
             self.read_body_json(req).await?;
 
         let output = self
-            .write_buffer
+            .processing_engine
             .test_wal_plugin(request, Arc::clone(&self.query_executor))
             .await?;
         let body = serde_json::to_string(&output)?;
@@ -1579,7 +1589,6 @@ struct ProcessingEnginePluginCreateRequest {
     db: String,
     plugin_name: String,
     code: String,
-    function_name: String,
     plugin_type: PluginType,
 }
 

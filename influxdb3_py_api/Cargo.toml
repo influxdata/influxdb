@@ -11,11 +11,11 @@ system-py = ["pyo3"]
 [dependencies]
 arrow-array.workspace = true
 arrow-schema.workspace = true
+influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_catalog = {path = "../influxdb3_catalog"}
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 iox_query_params.workspace = true
-schema.workspace = true
 parking_lot.workspace = true
 futures.workspace = true
 tokio.workspace = true

@@ -209,7 +209,7 @@ impl Catalog {
 
     pub fn apply_catalog_batch(
         &self,
-        catalog_batch: CatalogBatch,
+        catalog_batch: &CatalogBatch,
     ) -> Result<Option<OrderedCatalogBatch>> {
         self.inner.write().apply_catalog_batch(catalog_batch)
     }
@@ -217,11 +217,11 @@ impl Catalog {
     // Checks the sequence number to see if it needs to be applied.
     pub fn apply_ordered_catalog_batch(
         &self,
-        batch: OrderedCatalogBatch,
+        batch: &OrderedCatalogBatch,
     ) -> Result<Option<CatalogBatch>> {
         if batch.sequence_number() >= self.sequence_number().as_u32() {
             if let Some(catalog_batch) = self.apply_catalog_batch(batch.batch())? {
-                return Ok(Some(catalog_batch.batch()));
+                return Ok(Some(catalog_batch.batch().clone()));
             }
         }
         Ok(None)
@@ -456,12 +456,12 @@ impl InnerCatalog {
     /// have already been applied, the sequence number and updated tracker are not updated.
     pub fn apply_catalog_batch(
         &mut self,
-        catalog_batch: CatalogBatch,
+        catalog_batch: &CatalogBatch,
     ) -> Result<Option<OrderedCatalogBatch>> {
         let table_count = self.table_count();
 
         if let Some(db) = self.databases.get(&catalog_batch.database_id) {
-            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, &catalog_batch)? {
+            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
                 check_overall_table_count(Some(db), &new_db, table_count)?;
                 self.upsert_db(new_db);
             } else {
@@ -471,12 +471,12 @@ impl InnerCatalog {
             if self.database_count() >= Catalog::NUM_DBS_LIMIT {
                 return Err(Error::TooManyDbs);
             }
-            let new_db = DatabaseSchema::new_from_batch(&catalog_batch)?;
+            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
             check_overall_table_count(None, &new_db, table_count)?;
             self.upsert_db(new_db);
         }
         Ok(Some(OrderedCatalogBatch::new(
-            catalog_batch,
+            catalog_batch.clone(),
             self.sequence.0,
         )))
     }
@@ -1847,7 +1847,7 @@ mod tests {
             )],
         );
         let err = catalog
-            .apply_catalog_batch(catalog_batch)
+            .apply_catalog_batch(&catalog_batch)
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }
@@ -1968,10 +1968,10 @@ mod tests {
             })],
         };
         let create_ordered_op = catalog
-            .apply_catalog_batch(create_op)?
+            .apply_catalog_batch(&create_op)?
             .expect("should be able to create");
         let add_column_op = catalog
-            .apply_catalog_batch(add_column_op)?
+            .apply_catalog_batch(&add_column_op)?
             .expect("should produce operation");
         let mut ops = vec![
             WalOp::Catalog(add_column_op),
@@ -2010,7 +2010,7 @@ mod tests {
             let db_id = DbId::new();
             let db_name = format!("test-db-{db_id}");
             catalog
-                .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+                .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                     db_id,
                     db_name.as_str(),
                     0,
@@ -2043,7 +2043,7 @@ mod tests {
         let db_id = DbId::new();
         let db_name = "a-database-too-far";
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name,
                 0,
@@ -2071,7 +2071,7 @@ mod tests {
         // now delete a database:
         let (db_id, db_name) = dbs.pop().unwrap();
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name.as_str(),
                 1,
@@ -2087,7 +2087,7 @@ mod tests {
         // now create another database (using same name as the deleted one), this should be allowed:
         let db_id = DbId::new();
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name.as_str(),
                 0,
@@ -2123,7 +2123,7 @@ mod tests {
         let db_id = DbId::new();
         let db_name = "test-db";
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name,
                 0,
@@ -2138,7 +2138,7 @@ mod tests {
             let table_id = TableId::new();
             let table_name = Arc::<str>::from(format!("test-table-{i}").as_str());
             catalog
-                .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+                .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                     db_id,
                     db_name,
                     0,
@@ -2170,7 +2170,7 @@ mod tests {
         let table_id = TableId::new();
         let table_name = Arc::<str>::from("a-table-too-far");
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name,
                 0,
@@ -2198,7 +2198,7 @@ mod tests {
         // delete a table
         let (table_id, table_name) = tables.pop().unwrap();
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name,
                 0,
@@ -2214,7 +2214,7 @@ mod tests {
         assert_eq!(1_999, catalog.inner.read().table_count());
         // now create it again, this should be allowed:
         catalog
-            .apply_catalog_batch(influxdb3_wal::create::catalog_batch(
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
                 db_id,
                 db_name,
                 0,

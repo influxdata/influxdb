@@ -24,8 +24,8 @@ use influxdb3_id::ParquetFileId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
 use influxdb3_id::{ColumnId, DbId};
-use influxdb3_wal::MetaCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
+use influxdb3_wal::{MetaCacheDefinition, Wal};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use serde::{Deserialize, Serialize};
@@ -33,7 +33,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use write_buffer::plugins::ProcessingEngineManager;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -50,12 +49,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub trait WriteBuffer:
-    Bufferer
-    + ChunkContainer
-    + MetaCacheManager
-    + LastCacheManager
-    + DatabaseManager
-    + ProcessingEngineManager
+    Bufferer + ChunkContainer + MetaCacheManager + LastCacheManager + DatabaseManager
 {
 }
 
@@ -94,6 +88,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the database schema provider
     fn catalog(&self) -> Arc<Catalog>;
+
+    /// Reutrns the WAL this bufferer is using
+    fn wal(&self) -> Arc<dyn Wal>;
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;

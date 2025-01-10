@@ -467,8 +467,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
     debug!(result = ?result, "create plugin");
@@ -501,8 +499,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -547,8 +543,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -597,8 +591,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -670,8 +662,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -769,8 +759,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 

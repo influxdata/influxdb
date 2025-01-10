@@ -206,10 +206,7 @@ pub struct PluginConfig {
     /// Python file containing the plugin code
     #[clap(long = "code-filename")]
     code_file: String,
-    /// Entry point function for the plugin
-    #[clap(long = "entry-point")]
-    function_name: String,
-    /// Type of trigger the plugin processes
+    /// Type of trigger the plugin processes. Options: wal_rows, scheduled
     #[clap(long = "plugin-type", default_value = "wal_rows")]
     plugin_type: String,
     /// Name of the plugin to create
@@ -335,7 +332,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             plugin_name,
             code_file,
-            function_name,
             plugin_type,
         }) => {
             let code = fs::read_to_string(&code_file)?;
@@ -344,7 +340,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     database_name,
                     &plugin_name,
                     code,
-                    function_name,
                     plugin_type,
                 )
                 .await?;

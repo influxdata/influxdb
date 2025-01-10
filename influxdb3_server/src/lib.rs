@@ -35,6 +35,7 @@ use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -78,6 +79,7 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
+    plugin_dir: Option<PathBuf>,
 }
 
 impl CommonServerState {
@@ -86,12 +88,14 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
+        plugin_dir: Option<PathBuf>,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
             trace_exporter,
             trace_header_parser,
             telemetry_store,
+            plugin_dir,
         })
     }
 
@@ -774,7 +778,6 @@ mod tests {
                 wal_config: WalConfig::test_config(),
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
-                plugin_dir: None,
             },
         )
         .await
@@ -793,6 +796,7 @@ mod tests {
             None,
             trace_header_parser,
             Arc::clone(&sample_telem_store),
+            None,
         )
         .unwrap();
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
