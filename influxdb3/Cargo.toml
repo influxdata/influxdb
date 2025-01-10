@@ -60,7 +60,7 @@ uuid.workspace = true
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
 
 [features]
-default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
+default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws", "system-py"]
 
 azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support

@@ -7,6 +7,7 @@ license.workspace = true
 
 [features]
 system-py = ["pyo3"]
+default = ["system-py"]
 
 [dependencies]
 arrow-array.workspace = true
