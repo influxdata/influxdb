@@ -69,6 +69,7 @@ use tokio::sync::watch::Receiver;
 #[cfg(feature = "system-py")]
 use crate::write_buffer::plugins::PluginContext;
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_internal_api::query_executor::QueryExecutor;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -135,9 +136,6 @@ pub enum Error {
 
     #[error("error: {0}")]
     AnyhowError(#[from] anyhow::Error),
-
-    #[error("reading plugin file: {0}")]
-    ReadPluginError(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -379,9 +377,9 @@ impl WriteBufferImpl {
     }
 
     #[cfg(feature = "system-py")]
-    fn read_plugin_code(&self, name: &str) -> Result<String> {
+    fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
         let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
-        let path = plugin_dir.join(format!("{}.py", name));
+        let path = plugin_dir.join(name);
         Ok(std::fs::read_to_string(path)?)
     }
 }
@@ -1108,20 +1106,28 @@ impl ProcessingEngineManager for WriteBufferImpl {
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
-    ) -> crate::Result<WalPluginTestResponse, Error> {
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> crate::Result<WalPluginTestResponse, plugins::Error> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
             let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
             let now = self.time_provider.now();
 
-            let code = self.read_plugin_code(&request.name)?;
+            let code = self.read_plugin_code(&request.filename)?;
 
-            return Ok(plugins::run_test_wal_plugin(now, catalog, code, request).unwrap());
+            let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
+                .unwrap_or_else(|e| WalPluginTestResponse {
+                    log_lines: vec![],
+                    database_writes: Default::default(),
+                    errors: vec![e.to_string()],
+                });
+
+            return Ok(res);
         }
 
         #[cfg(not(feature = "system-py"))]
-        Err(Error::AnyhowError(anyhow::anyhow!(
+        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
     }

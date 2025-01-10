@@ -1,7 +1,6 @@
 //! HTTP API service implementations for `server`
 
-use crate::{query_executor, QueryKind};
-use crate::{CommonServerState, QueryExecutor};
+use crate::CommonServerState;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
@@ -23,6 +22,7 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_cache::last_cache;
 use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
@@ -181,7 +181,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     #[error("query error: {0}")]
-    Query(#[from] query_executor::Error),
+    Query(#[from] QueryExecutorError),
 
     #[error(transparent)]
     DbName(#[from] ValidateDbNameError),
@@ -214,6 +214,9 @@ pub enum Error {
 
     #[error("Python plugins not enabled on this server")]
     PythonPluginsNotEnabled,
+
+    #[error("Plugin error")]
+    Plugin(#[from] influxdb3_write::write_buffer::plugins::Error),
 }
 
 #[derive(Debug, Error)]
@@ -384,7 +387,7 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
-            Self::Query(query_executor::Error::DatabaseNotFound { .. }) => {
+            Self::Query(QueryExecutorError::DatabaseNotFound { .. }) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
                     data: None,
@@ -437,7 +440,7 @@ pub(crate) struct HttpApi<T> {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
     time_provider: Arc<T>,
-    pub(crate) query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+    pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
@@ -448,7 +451,7 @@ impl<T> HttpApi<T> {
         common_state: CommonServerState,
         time_provider: Arc<T>,
         write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+        query_executor: Arc<dyn QueryExecutor>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
@@ -1135,7 +1138,10 @@ where
         let request: influxdb3_client::plugin_development::WalPluginTestRequest =
             self.read_body_json(req).await?;
 
-        let output = self.write_buffer.test_wal_plugin(request).await?;
+        let output = self
+            .write_buffer
+            .test_wal_plugin(request, Arc::clone(&self.query_executor))
+            .await?;
         let body = serde_json::to_string(&output)?;
 
         Ok(Response::builder()

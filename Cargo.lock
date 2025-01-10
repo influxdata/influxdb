@@ -473,9 +473,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.84"
+version = "0.1.85"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1244b10dcd56c92219da4e14caa97e312079e185f04ba3eea25061561dc0a0"
+checksum = "3f934833b4b7233644e5848f235df3f57ed8c80f1528a26c3dfa13d2147fa056"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2911,6 +2911,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_internal_api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "datafusion",
+ "iox_query",
+ "iox_query_params",
+ "thiserror 1.0.69",
+ "trace",
+ "trace_http",
+ "tracker",
+]
+
+[[package]]
 name = "influxdb3_load_generator"
 version = "0.1.0"
 dependencies = [
@@ -2954,12 +2968,17 @@ dependencies = [
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
- "async-trait",
+ "arrow-array",
+ "arrow-schema",
+ "futures",
  "influxdb3_catalog",
+ "influxdb3_internal_api",
  "influxdb3_wal",
+ "iox_query_params",
  "parking_lot",
  "pyo3",
  "schema",
+ "tokio",
 ]
 
 [[package]]
@@ -2993,6 +3012,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_client",
  "influxdb3_id",
+ "influxdb3_internal_api",
  "influxdb3_process",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
@@ -3149,6 +3169,7 @@ dependencies = [
  "influxdb3_catalog",
  "influxdb3_client",
  "influxdb3_id",
+ "influxdb3_internal_api",
  "influxdb3_py_api",
  "influxdb3_telemetry",
  "influxdb3_test_helpers",
