@@ -39,7 +39,7 @@ RUN \
 FROM debian:bookworm-slim
 
 RUN apt update \
-    && apt install --yes ca-certificates gettext-base libssl3 --no-install-recommends python3 \
+    && apt install --yes ca-certificates gettext-base libssl3 --no-install-recommends python3 python3-dev \
     && rm -rf /var/lib/{apt,dpkg,cache,log} \
     && groupadd --gid 1500 influxdb3 \
     && useradd --uid 1500 --gid influxdb3 --shell /bin/bash --create-home influxdb3
