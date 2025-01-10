@@ -60,8 +60,7 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
-pub const DEFAULT_TELMETRY_ENDPOINT: &str =
-    "https://brs5g5kad1.execute-api.us-east-1.amazonaws.com/v1/";
+pub const DEFAULT_TELMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
 
 #[derive(Debug, Error)]
 pub enum Error {

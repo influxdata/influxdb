@@ -20,7 +20,7 @@ impl TelemetrySender {
         Self {
             client,
             full_url: base_url
-                .join("./telemetry")
+                .join("./telem")
                 .expect("Cannot set the telemetry request path"),
         }
     }
@@ -124,7 +124,7 @@ mod tests {
         let client = reqwest::Client::new();
         let mut mock_server = Server::new_async().await;
         let mut sender = TelemetrySender::new(client, mock_server.url());
-        let mock = mock_server.mock("POST", "/telemetry").create_async().await;
+        let mock = mock_server.mock("POST", "/telem").create_async().await;
         let telem_payload = create_sample_payload();
 
         let result = sender.try_sending(&telem_payload).await;
