@@ -42,13 +42,20 @@ impl EventsBucket {
 #[derive(Debug, Default)]
 pub(crate) struct PerMinuteWrites {
     pub lines: Stats<u64>,
+    pub total_lines: u64,
     pub size_bytes: Stats<u64>,
+    pub total_size_bytes: u64,
 }
 
 impl PerMinuteWrites {
     pub fn add_sample(&mut self, num_lines: usize, size_bytes: usize) -> Option<()> {
-        self.lines.update(num_lines as u64);
-        self.size_bytes.update(size_bytes as u64)?;
+        let new_num_lines = num_lines as u64;
+        self.lines.update(new_num_lines);
+        self.total_lines += new_num_lines;
+
+        let new_size_bytes = size_bytes as u64;
+        self.size_bytes.update(new_size_bytes)?;
+        self.total_size_bytes += new_size_bytes;
         Some(())
     }
 }
@@ -56,11 +63,13 @@ impl PerMinuteWrites {
 #[derive(Debug, Default)]
 pub(crate) struct PerMinuteReads {
     pub num_queries: Stats<u64>,
+    pub total_num_queries: u64,
 }
 
 impl PerMinuteReads {
     pub fn add_sample(&mut self) -> Option<()> {
         self.num_queries.update(1);
+        self.total_num_queries += 1;
         Some(())
     }
 }

@@ -62,18 +62,22 @@ pub(crate) struct TelemetryPayload {
     pub write_requests_min_1m: u64,
     pub write_requests_max_1m: u64,
     pub write_requests_avg_1m: u64,
+    pub write_requests_sum_1h: u64,
 
     pub write_lines_min_1m: u64,
     pub write_lines_max_1m: u64,
     pub write_lines_avg_1m: u64,
+    pub write_lines_sum_1h: u64,
 
     pub write_mb_min_1m: u64,
     pub write_mb_max_1m: u64,
     pub write_mb_avg_1m: u64,
+    pub write_mb_sum_1h: u64,
     // reads
     pub query_requests_min_1m: u64,
     pub query_requests_max_1m: u64,
     pub query_requests_avg_1m: u64,
+    pub query_requests_sum_1h: u64,
     // parquet files
     pub parquet_file_count: u64,
     pub parquet_file_size_mb: f64,
@@ -108,7 +112,7 @@ async fn send_telemetry(store: &Arc<TelemetryStore>, telem_sender: &mut Telemetr
     }
     // if we tried sending and failed, we currently still reset the
     // metrics, it is ok to miss few samples
-    store.reset_metrics();
+    store.reset_metrics_1h();
 }
 
 #[cfg(test)]
@@ -183,6 +187,10 @@ mod tests {
             parquet_file_size_mb: 100.0,
             parquet_row_count: 100,
             uptime_secs: 100,
+            write_requests_sum_1h: 200,
+            write_lines_sum_1h: 200,
+            write_mb_sum_1h: 200,
+            query_requests_sum_1h: 200,
         }
     }
 }
