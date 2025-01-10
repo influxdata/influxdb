@@ -1,12 +1,10 @@
 //! module for query executor
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
 use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
-use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{Array, BooleanArray};
-use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::catalog::{CatalogProvider, SchemaProvider, Session};
@@ -23,6 +21,7 @@ use datafusion_util::MemoryStream;
 use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
@@ -114,8 +113,6 @@ impl QueryExecutorImpl {
 
 #[async_trait]
 impl QueryExecutor for QueryExecutorImpl {
-    type Error = Error;
-
     async fn query(
         &self,
         database: &str,
@@ -124,15 +121,15 @@ impl QueryExecutor for QueryExecutorImpl {
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
-            .map_err(|_| Error::DatabaseNotFound {
+            .map_err(|_| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?
-            .ok_or_else(|| Error::DatabaseNotFound {
+            .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
 
@@ -161,7 +158,7 @@ impl QueryExecutor for QueryExecutorImpl {
             })
             .await;
 
-        let plan = match plan.map_err(Error::QueryPlanning) {
+        let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
             Ok(plan) => plan,
             Err(e) => {
                 token.fail();
@@ -182,7 +179,7 @@ impl QueryExecutor for QueryExecutorImpl {
             }
             Err(err) => {
                 token.fail();
-                Err(Error::ExecuteStream(err))
+                Err(QueryExecutorError::ExecuteStream(err))
             }
         }
     }
@@ -190,7 +187,7 @@ impl QueryExecutor for QueryExecutorImpl {
     fn show_databases(
         &self,
         include_deleted: bool,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         let mut databases = self.catalog.list_db_schema();
         // sort them to ensure consistent order, first by deleted, then by name:
         databases.sort_unstable_by(|a, b| match a.deleted.cmp(&b.deleted) {
@@ -222,7 +219,7 @@ impl QueryExecutor for QueryExecutorImpl {
         }
         let schema = DatafusionSchema::new(fields);
         let batch = RecordBatch::try_new(Arc::new(schema), arrays)
-            .map_err(Error::DatabasesToRecordBatch)?;
+            .map_err(QueryExecutorError::DatabasesToRecordBatch)?;
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 
@@ -230,7 +227,7 @@ impl QueryExecutor for QueryExecutorImpl {
         &self,
         database: Option<&str>,
         span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         let mut databases = if let Some(db) = database {
             vec![db.to_owned()]
         } else {
@@ -244,10 +241,10 @@ impl QueryExecutor for QueryExecutorImpl {
             let db = self
                 .namespace(&database, span_ctx.child_span("get database"), false)
                 .await
-                .map_err(|_| Error::DatabaseNotFound {
+                .map_err(|_| QueryExecutorError::DatabaseNotFound {
                     db_name: database.to_string(),
                 })?
-                .ok_or_else(|| Error::DatabaseNotFound {
+                .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
                     db_name: database.to_string(),
                 })?;
             let duration = db.retention_time_ns();
@@ -337,20 +334,6 @@ fn split_database_name(db_name: &str) -> (String, String) {
     )
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("database not found: {db_name}")]
-    DatabaseNotFound { db_name: String },
-    #[error("error while planning query: {0}")]
-    QueryPlanning(#[source] DataFusionError),
-    #[error("error while executing plan: {0}")]
-    ExecuteStream(#[source] DataFusionError),
-    #[error("unable to compose record batches from databases: {0}")]
-    DatabasesToRecordBatch(#[source] ArrowError),
-    #[error("unable to compose record batches from retention policies: {0}")]
-    RetentionPoliciesToRecordBatch(#[source] ArrowError),
-}
-
 // This implementation is for the Flight service
 #[async_trait]
 impl QueryDatabase for QueryExecutorImpl {
@@ -364,7 +347,7 @@ impl QueryDatabase for QueryExecutorImpl {
         let _span_recorder = SpanRecorder::new(span);
 
         let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
-            DataFusionError::External(Box::new(Error::DatabaseNotFound {
+            DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
                 db_name: name.into(),
             }))
         })?;
@@ -647,6 +630,7 @@ impl TableProvider for QueryTable {
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
+    use crate::query_executor::QueryExecutorImpl;
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
     use datafusion::assert_batches_sorted_eq;
@@ -656,6 +640,7 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -669,8 +654,6 @@ mod tests {
     use metric::Registry;
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
-
-    use crate::{query_executor::QueryExecutorImpl, QueryExecutor};
 
     use super::CreateQueryExecutorArgs;
 
@@ -730,7 +713,6 @@ mod tests {
             },
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -860,7 +842,7 @@ mod tests {
 
         for t in test_cases {
             let batch_stream = query_executor
-                .query(db_name, t.query, None, crate::QueryKind::Sql, None, None)
+                .query(db_name, t.query, None, QueryKind::Sql, None, None)
                 .await
                 .unwrap();
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();

@@ -468,8 +468,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
     debug!(result = ?result, "create plugin");
@@ -502,8 +500,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -548,8 +544,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -598,8 +592,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -671,8 +663,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -770,8 +760,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -849,4 +837,106 @@ async fn distinct_cache_create_and_delete() {
     ]);
 
     insta::assert_yaml_snapshot!(result);
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_wal_plugin_test() {
+    use crate::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    // Create plugin file
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("arg1: " + args["arg1"])
+
+    query_params = {"host": args["host"]}
+    query_result = influxdb3_local.query_rows("SELECT * FROM cpu where host = $host", query_params)
+    influxdb3_local.info("query result: " + str(query_result))
+
+    for table_batch in table_batches:
+        influxdb3_local.info("table: " + table_batch["table_name"])
+
+        for row in table_batch["rows"]:
+            influxdb3_local.info("row: " + str(row))
+
+    line = LineBuilder("some_table")\
+        .tag("tag1", "tag1_value")\
+        .tag("tag2", "tag2_value")\
+        .int64_field("field1", 1)\
+        .float64_field("field2", 2.0)\
+        .string_field("field3", "number three")
+    influxdb3_local.write(line)
+
+    other_line = LineBuilder("other_table")
+    other_line.int64_field("other_field", 1)
+    other_line.float64_field("other_field2", 3.14)
+    other_line.time_ns(1302)
+
+    influxdb3_local.write_to_db("mytestdb", other_line)
+
+    influxdb3_local.info("done")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+            cpu,host=s2,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // Run the test
+    let result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+        "--input-arguments",
+        "arg1=arg1_value,host=s2",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test wal plugin");
+
+    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+
+    let expected_result = r#"{
+  "log_lines": [
+    "INFO: arg1: arg1_value",
+    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'time': 2, 'usage': 0.89}]",
+    "INFO: table: test_input",
+    "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
+    "INFO: done"
+  ],
+  "database_writes": {
+    "mytestdb": [
+      "other_table other_field=1i,other_field2=3.14 1302"
+    ],
+    "foo": [
+      "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""
+    ]
+  },
+  "errors": []
+}"#;
+    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
+    assert_eq!(res, expected_result);
 }

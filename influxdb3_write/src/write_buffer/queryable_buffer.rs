@@ -3,7 +3,6 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::write_buffer::PluginEvent;
 use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
@@ -36,8 +35,7 @@ use schema::Schema;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::oneshot::Receiver;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::oneshot::{self, Receiver};
 
 #[derive(Debug)]
 pub struct QueryableBuffer {
@@ -52,7 +50,6 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
-    plugin_event_tx: Mutex<HashMap<String, mpsc::Sender<PluginEvent>>>,
 }
 
 pub struct QueryableBufferArgs {
@@ -91,7 +88,6 @@ impl QueryableBuffer {
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
-            plugin_event_tx: Mutex::new(HashMap::new()),
         }
     }
 
@@ -158,11 +154,11 @@ impl QueryableBuffer {
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the
     /// last cache so the data is queryable.
-    fn buffer_contents(&self, write: WalContents) {
+    fn buffer_contents(&self, write: Arc<WalContents>) {
         self.write_wal_contents_to_caches(&write);
         let mut buffer = self.buffer.write();
         buffer.buffer_ops(
-            write.ops,
+            &write.ops,
             &self.last_cache_provider,
             &self.distinct_cache_provider,
         );
@@ -172,7 +168,7 @@ impl QueryableBuffer {
     /// data that can be snapshot in the background after putting the data in the buffer.
     async fn buffer_contents_and_persist_snapshotted_data(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
         info!(
@@ -184,7 +180,7 @@ impl QueryableBuffer {
         let persist_jobs = {
             let mut buffer = self.buffer.write();
             buffer.buffer_ops(
-                write.ops,
+                &write.ops,
                 &self.last_cache_provider,
                 &self.distinct_cache_provider,
             );
@@ -389,65 +385,23 @@ impl QueryableBuffer {
         buffer.db_to_table.remove(db_id);
     }
 
-    #[cfg(feature = "system-py")]
-    pub(crate) async fn subscribe_to_plugin_events(
-        &self,
-        trigger_name: String,
-    ) -> mpsc::Receiver<PluginEvent> {
-        let mut senders = self.plugin_event_tx.lock().await;
-
-        // TODO: should we be checking for replacements?
-        let (plugin_tx, plugin_rx) = mpsc::channel(4);
-        senders.insert(trigger_name, plugin_tx);
-        plugin_rx
-    }
-
-    /// Deactivates a running trigger by sending it a oneshot sender. It should send back a message and then immediately shut down.
-    pub(crate) async fn deactivate_trigger(
-        &self,
-        #[allow(unused)] trigger_name: String,
-    ) -> Result<(), anyhow::Error> {
-        #[cfg(feature = "system-py")]
-        {
-            let Some(sender) = self.plugin_event_tx.lock().await.remove(&trigger_name) else {
-                anyhow::bail!("no trigger named '{}' found", trigger_name);
-            };
-            let (oneshot_tx, oneshot_rx) = oneshot::channel();
-            sender.send(PluginEvent::Shutdown(oneshot_tx)).await?;
-            oneshot_rx.await?;
-        }
-        Ok(())
-    }
-
-    async fn send_to_plugins(&self, wal_contents: &WalContents) {
-        let senders = self.plugin_event_tx.lock().await;
-        if !senders.is_empty() {
-            let wal_contents = Arc::new(wal_contents.clone());
-            for (plugin, sender) in senders.iter() {
-                if let Err(err) = sender
-                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
-                    .await
-                {
-                    error!("failed to send plugin event to plugin {}: {}", plugin, err);
-                }
-            }
-        }
+    pub fn get_total_size_bytes(&self) -> usize {
+        let buffer = self.buffer.read();
+        buffer.find_overall_buffer_size_bytes()
     }
 }
 
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
-    async fn notify(&self, write: WalContents) {
-        self.send_to_plugins(&write).await;
+    async fn notify(&self, write: Arc<WalContents>) {
         self.buffer_contents(write)
     }
 
     async fn notify_and_snapshot(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        self.send_to_plugins(&write).await;
         self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
@@ -475,7 +429,7 @@ impl BufferState {
 
     pub fn buffer_ops(
         &mut self,
-        ops: Vec<WalOp>,
+        ops: &[WalOp],
         last_cache_provider: &LastCacheProvider,
         distinct_cache_provider: &DistinctCacheProvider,
     ) {
@@ -576,7 +530,7 @@ impl BufferState {
         }
     }
 
-    fn add_write_batch(&mut self, write_batch: WriteBatch) {
+    fn add_write_batch(&mut self, write_batch: &WriteBatch) {
         let db_schema = self
             .catalog
             .db_schema_by_id(&write_batch.database_id)
@@ -584,10 +538,10 @@ impl BufferState {
 
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
 
-        for (table_id, table_chunks) in write_batch.table_chunks {
-            let table_buffer = database_buffer.entry(table_id).or_insert_with(|| {
+        for (table_id, table_chunks) in &write_batch.table_chunks {
+            let table_buffer = database_buffer.entry(*table_id).or_insert_with(|| {
                 let table_def = db_schema
-                    .table_definition_by_id(&table_id)
+                    .table_definition_by_id(table_id)
                     .expect("table should exist");
                 let sort_key = table_def
                     .series_key
@@ -597,10 +551,20 @@ impl BufferState {
 
                 TableBuffer::new(index_columns, SortKey::from_columns(sort_key))
             });
-            for (chunk_time, chunk) in table_chunks.chunk_time_to_chunk {
-                table_buffer.buffer_chunk(chunk_time, chunk.rows);
+            for (chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
+                table_buffer.buffer_chunk(*chunk_time, &chunk.rows);
             }
         }
+    }
+
+    pub fn find_overall_buffer_size_bytes(&self) -> usize {
+        let mut total = 0;
+        for (_, all_tables) in &self.db_to_table {
+            for (_, table_buffer) in all_tables {
+                total += table_buffer.computed_size();
+            }
+        }
+        total
     }
 }
 
@@ -818,7 +782,7 @@ mod tests {
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         // write the lp into the buffer
-        queryable_buffer.notify(wal_contents).await;
+        queryable_buffer.notify(Arc::new(wal_contents)).await;
 
         // now force a snapshot, persisting the data to parquet file. Also, buffer up a new write
         let snapshot_sequence_number = SnapshotSequenceNumber::new(1);
@@ -851,7 +815,7 @@ mod tests {
             wal_contents.max_timestamp_ns + Gen1Duration::new_1m().as_duration().as_nanos() as i64;
 
         let details = queryable_buffer
-            .notify_and_snapshot(wal_contents, snapshot_details)
+            .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
             .await;
         let _details = details.await.unwrap();
 
@@ -874,14 +838,14 @@ mod tests {
         };
         queryable_buffer
             .notify_and_snapshot(
-                WalContents {
+                Arc::new(WalContents {
                     persist_timestamp_ms: 0,
                     min_timestamp_ns: 0,
                     max_timestamp_ns: 0,
                     wal_file_number: WalFileSequenceNumber::new(3),
                     ops: vec![],
                     snapshot: Some(snapshot_details),
-                },
+                }),
                 snapshot_details,
             )
             .await

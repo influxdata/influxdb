@@ -145,7 +145,7 @@ impl WalObjectStore {
 
             match wal_contents.snapshot {
                 // This branch uses so much time
-                None => self.file_notifier.notify(wal_contents).await,
+                None => self.file_notifier.notify(Arc::new(wal_contents)).await,
                 Some(snapshot_details) => {
                     let snapshot_info = {
                         let mut buffer = self.flush_buffer.lock().await;
@@ -162,11 +162,11 @@ impl WalObjectStore {
                     if snapshot_details.snapshot_sequence_number <= last_snapshot_sequence_number {
                         // Instead just notify about the WAL, as this snapshot has already been taken
                         // and WAL files may have been cleared.
-                        self.file_notifier.notify(wal_contents).await;
+                        self.file_notifier.notify(Arc::new(wal_contents)).await;
                     } else {
                         let snapshot_done = self
                             .file_notifier
-                            .notify_and_snapshot(wal_contents, snapshot_details)
+                            .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
                             .await;
                         let details = snapshot_done.await.unwrap();
                         assert_eq!(snapshot_details, details);
@@ -299,7 +299,7 @@ impl WalObjectStore {
                 info!(?snapshot_details, "snapshotting wal");
                 let snapshot_done = self
                     .file_notifier
-                    .notify_and_snapshot(wal_contents, snapshot_details)
+                    .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
                     .await;
                 let (snapshot_info, snapshot_permit) =
                     snapshot.expect("snapshot should be set when snapshot details are set");
@@ -310,7 +310,7 @@ impl WalObjectStore {
                     "notify sent to buffer for wal file {}",
                     wal_contents.wal_file_number.as_u64()
                 );
-                self.file_notifier.notify(wal_contents).await;
+                self.file_notifier.notify(Arc::new(wal_contents)).await;
                 None
             }
         };
@@ -966,10 +966,11 @@ mod tests {
 
         {
             let notified_writes = replay_notifier.notified_writes.lock();
-            assert_eq!(
-                *notified_writes,
-                vec![file_1_contents.clone(), file_2_contents.clone()]
-            );
+            let notified_refs = notified_writes
+                .iter()
+                .map(|x| x.as_ref())
+                .collect::<Vec<_>>();
+            assert_eq!(notified_refs, vec![&file_1_contents, &file_2_contents]);
         }
         assert!(replay_notifier.snapshot_details.lock().is_none());
 
@@ -1067,8 +1068,12 @@ mod tests {
 
         {
             let notified_writes = notifier.notified_writes.lock();
-            let expected_writes = vec![file_1_contents, file_2_contents, file_3_contents.clone()];
-            assert_eq!(*notified_writes, expected_writes);
+            let notified_refs = notified_writes
+                .iter()
+                .map(|x| x.as_ref())
+                .collect::<Vec<_>>();
+            let expected_writes = vec![&file_1_contents, &file_2_contents, &file_3_contents];
+            assert_eq!(notified_refs, expected_writes);
             let details = notifier.snapshot_details.lock();
             assert_eq!(details.unwrap(), expected_info);
         }
@@ -1097,7 +1102,11 @@ mod tests {
             .downcast_ref::<TestNotifier>()
             .unwrap();
         let notified_writes = replay_notifier.notified_writes.lock();
-        assert_eq!(*notified_writes, vec![file_3_contents.clone()]);
+        let notified_refs = notified_writes
+            .iter()
+            .map(|x| x.as_ref())
+            .collect::<Vec<_>>();
+        assert_eq!(notified_refs, vec![&file_3_contents]);
         let snapshot_details = replay_notifier.snapshot_details.lock();
         assert_eq!(*snapshot_details, file_3_contents.snapshot);
     }
@@ -1303,19 +1312,19 @@ mod tests {
 
     #[derive(Debug, Default)]
     struct TestNotifier {
-        notified_writes: parking_lot::Mutex<Vec<WalContents>>,
+        notified_writes: parking_lot::Mutex<Vec<Arc<WalContents>>>,
         snapshot_details: parking_lot::Mutex<Option<SnapshotDetails>>,
     }
 
     #[async_trait]
     impl WalFileNotifier for TestNotifier {
-        async fn notify(&self, write: WalContents) {
+        async fn notify(&self, write: Arc<WalContents>) {
             self.notified_writes.lock().push(write);
         }
 
         async fn notify_and_snapshot(
             &self,
-            write: WalContents,
+            write: Arc<WalContents>,
             snapshot_details: SnapshotDetails,
         ) -> Receiver<SnapshotDetails> {
             self.notified_writes.lock().push(write);

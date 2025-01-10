@@ -484,7 +484,6 @@ impl Client {
         db: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
         code: impl Into<String> + Send,
-        function_name: impl Into<String> + Send,
         plugin_type: impl Into<String> + Send,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/processing_engine_plugin";
@@ -496,7 +495,6 @@ impl Client {
             db: String,
             plugin_name: String,
             code: String,
-            function_name: String,
             plugin_type: String,
         }
 
@@ -504,7 +502,6 @@ impl Client {
             db: db.into(),
             plugin_name: plugin_name.into(),
             code: code.into(),
-            function_name: function_name.into(),
             plugin_type: plugin_type.into(),
         });
 

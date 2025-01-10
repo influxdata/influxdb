@@ -120,13 +120,13 @@ pub trait Wal: Debug + Send + Sync + 'static {
 #[async_trait]
 pub trait WalFileNotifier: Debug + Send + Sync + 'static {
     /// Notify the handler that a new WAL file has been persisted with the given contents.
-    async fn notify(&self, write: WalContents);
+    async fn notify(&self, write: Arc<WalContents>);
 
     /// Notify the handler that a new WAL file has been persisted with the given contents and tell
     /// it to snapshot the data. The returned receiver will be signalled when the snapshot is complete.
     async fn notify_and_snapshot(
         &self,
-        write: WalContents,
+        write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> oneshot::Receiver<SnapshotDetails>;
 
@@ -311,8 +311,8 @@ impl OrderedCatalogBatch {
         self.database_sequence_number
     }
 
-    pub fn batch(self) -> CatalogBatch {
-        self.catalog
+    pub fn batch(&self) -> &CatalogBatch {
+        &self.catalog
     }
 }
 
@@ -614,7 +614,6 @@ pub struct DistinctCacheDelete {
 pub struct PluginDefinition {
     pub plugin_name: String,
     pub code: String,
-    pub function_name: String,
     pub plugin_type: PluginType,
 }
 
@@ -633,6 +632,7 @@ pub enum PluginType {
 pub struct TriggerDefinition {
     pub trigger_name: String,
     pub plugin_name: String,
+    pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
@@ -890,10 +890,6 @@ pub struct WalContents {
 impl WalContents {
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty() && self.snapshot.is_none()
-    }
-
-    pub fn has_only_no_op(&self) -> bool {
-        self.ops.len() == 1 && matches!(self.ops.first().unwrap(), WalOp::Noop(_))
     }
 }
 

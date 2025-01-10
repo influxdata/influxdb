@@ -392,7 +392,7 @@ pub struct TrackedMemoryArrowWriter<W: Write + Send> {
 }
 
 /// Parquet row group write size
-pub const ROW_GROUP_WRITE_SIZE: usize = 1024 * 1024;
+pub const ROW_GROUP_WRITE_SIZE: usize = 100_000;
 
 impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
     /// create a new `TrackedMemoryArrowWriter<`
@@ -489,7 +489,7 @@ mod tests {
         persister.persist_catalog(&catalog).await.unwrap();
 
         let batch = |name: &str, num: u32| {
-            let _ = catalog.apply_catalog_batch(CatalogBatch {
+            let _ = catalog.apply_catalog_batch(&CatalogBatch {
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 time_ns: 5000,

@@ -69,8 +69,7 @@ impl SnapshotTracker {
             return None;
         }
 
-        // if the number of wal periods is >= 3x the snapshot size, snapshot everything up to, but
-        // not including, the last period:
+        // if the number of wal periods is >= 3x the snapshot size, snapshot everything
         let wal_periods_3_times_snapshot_size = self.wal_periods.len() >= 3 * self.snapshot_size;
         if force_snapshot || wal_periods_3_times_snapshot_size {
             info!(
@@ -86,14 +85,18 @@ impl SnapshotTracker {
             ?wal_periods_3_times_snapshot_size,
             "snapshotting all before last wal period (using last wal period time)"
         );
-        // uses the last wal period's time and snapshots everything before that, leaving just
-        // the last wal period, this will cater for all the writes that came in order
+        // uses the last wal period's time to leave behind "some" of the wal periods
+        // for default config (gen1 duration is 10m / flush interval 1s), it leaves
+        // behind 300 wal periods.
         self.snapshot_in_order_wal_periods()
     }
 
     fn should_run_snapshot(&mut self, force_snapshot: bool) -> bool {
         // wal buffer can be empty but wal periods shouldn't be
         if self.wal_periods.is_empty() {
+            if force_snapshot {
+                info!("cannot force a snapshot when wal periods are empty");
+            }
             return false;
         }
 
@@ -110,7 +113,7 @@ impl SnapshotTracker {
         let t = self.wal_periods.last()?.max_time;
         // round the last timestamp down to the gen1_duration
         let t = t - (t.get() % self.gen1_duration.as_nanos());
-        info!(timestamp_ns = ?t, gen1_duration_ns = ?self.gen1_duration.as_nanos(), ">>> last timestamp");
+        debug!(timestamp_ns = ?t, gen1_duration_ns = ?self.gen1_duration.as_nanos(), ">>> last timestamp");
 
         // any wal period that has data before this time can be snapshot
         let periods_to_snapshot = self

@@ -1,14 +1,29 @@
-use crate::write_buffer::PluginEvent;
-use crate::{write_buffer, WriteBuffer};
+#[cfg(feature = "system-py")]
+use crate::PluginEvent;
+#[cfg(feature = "system-py")]
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
-use influxdb3_wal::{PluginType, TriggerDefinition, TriggerSpecificationDefinition};
+#[cfg(feature = "system-py")]
+use influxdb3_internal_api::query_executor::QueryExecutor;
+#[cfg(feature = "system-py")]
+use influxdb3_wal::TriggerDefinition;
+#[cfg(feature = "system-py")]
+use influxdb3_wal::TriggerSpecificationDefinition;
+use influxdb3_write::write_buffer;
+#[cfg(feature = "system-py")]
+use influxdb3_write::WriteBuffer;
+use observability_deps::tracing::error;
 use std::fmt::Debug;
+#[cfg(feature = "system-py")]
 use std::sync::Arc;
 use thiserror::Error;
+#[cfg(feature = "system-py")]
 use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid database {0}")]
+    InvalidDatabase(String),
+
     #[error("couldn't find db")]
     MissingDb,
 
@@ -24,177 +39,153 @@ pub enum Error {
 
     #[error(transparent)]
     AnyhowError(#[from] anyhow::Error),
-}
 
-/// `[ProcessingEngineManager]` is used to interact with the processing engine,
-/// in particular plugins and triggers.
-///
-#[async_trait::async_trait]
-pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
-    /// Inserts a plugin
-    async fn insert_plugin(
-        &self,
-        db: &str,
-        plugin_name: String,
-        code: String,
-        function_name: String,
-        plugin_type: PluginType,
-    ) -> crate::Result<(), write_buffer::Error>;
-
-    async fn delete_plugin(
-        &self,
-        db: &str,
-        plugin_name: &str,
-    ) -> crate::Result<(), write_buffer::Error>;
-
-    async fn insert_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: String,
-        plugin_name: String,
-        trigger_specification: TriggerSpecificationDefinition,
-        disabled: bool,
-    ) -> crate::Result<(), write_buffer::Error>;
-
-    async fn delete_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> crate::Result<(), write_buffer::Error>;
-
-    /// Starts running the trigger, which will run in the background.
-    async fn run_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> crate::Result<(), write_buffer::Error>;
-
-    async fn deactivate_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), write_buffer::Error>;
-
-    async fn activate_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), write_buffer::Error>;
-
-    async fn test_wal_plugin(
-        &self,
-        request: WalPluginTestRequest,
-    ) -> crate::Result<WalPluginTestResponse, write_buffer::Error>;
+    #[error("reading plugin file: {0}")]
+    ReadPluginError(#[from] std::io::Error),
 }
 
 #[cfg(feature = "system-py")]
 pub(crate) fn run_plugin(
     db_name: String,
     trigger_definition: TriggerDefinition,
-    mut context: PluginContext,
+    context: PluginContext,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
         db_name,
+        write_buffer: context.write_buffer,
+        query_executor: context.query_executor,
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_plugin(&mut context)
+            .run_plugin(context.trigger_rx)
             .await
             .expect("trigger plugin failed");
     });
 }
 
+#[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
     // tokio channel for inputs
     pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
     // handler to write data back to the DB.
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
+    // query executor to hand off to the plugin
+    pub(crate) query_executor: Arc<dyn QueryExecutor>,
 }
 
+#[cfg(feature = "system-py")]
 #[async_trait::async_trait]
 trait RunnablePlugin {
     // Returns true if it should exit
-    async fn process_event(
+    async fn process_event(&self, event: PluginEvent) -> Result<bool, Error>;
+    async fn run_plugin(
         &self,
-        event: PluginEvent,
-        write_buffer: Arc<dyn WriteBuffer>,
-    ) -> Result<bool, Error>;
-    async fn run_plugin(&self, context: &mut PluginContext) -> Result<(), Error> {
-        while let Some(event) = context.trigger_rx.recv().await {
-            if self
-                .process_event(event, context.write_buffer.clone())
-                .await?
-            {
-                break;
-            }
-        }
-        Ok(())
-    }
+        receiver: tokio::sync::mpsc::Receiver<PluginEvent>,
+    ) -> Result<(), Error>;
 }
+
+#[cfg(feature = "system-py")]
 #[derive(Debug)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
     db_name: String,
+    write_buffer: Arc<dyn WriteBuffer>,
+    query_executor: Arc<dyn QueryExecutor>,
 }
 
 #[cfg(feature = "system-py")]
 mod python_plugin {
     use super::*;
-    use crate::Precision;
+    use anyhow::Context;
     use data_types::NamespaceName;
-    use influxdb3_py_api::system_py::PyWriteBatch;
+    use hashbrown::HashMap;
+    use influxdb3_py_api::system_py::execute_python_with_batch;
     use influxdb3_wal::WalOp;
+    use influxdb3_write::Precision;
     use iox_time::Time;
+    use observability_deps::tracing::warn;
     use std::time::SystemTime;
+    use tokio::sync::mpsc::Receiver;
 
     #[async_trait::async_trait]
     impl RunnablePlugin for TriggerPlugin {
-        async fn process_event(
-            &self,
-            event: PluginEvent,
-            write_buffer: Arc<dyn WriteBuffer>,
-        ) -> Result<bool, Error> {
-            let Some(schema) = write_buffer.catalog().db_schema(self.db_name.as_str()) else {
+        async fn run_plugin(&self, mut receiver: Receiver<PluginEvent>) -> Result<(), Error> {
+            loop {
+                let event = match receiver.recv().await {
+                    Some(event) => event,
+                    None => {
+                        warn!(?self.trigger_definition, "trigger plugin receiver closed");
+                        break;
+                    }
+                };
+
+                match self.process_event(event).await {
+                    Ok(stop) => {
+                        if stop {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        error!(?self.trigger_definition, "error processing event: {}", e);
+                    }
+                }
+            }
+
+            Ok(())
+        }
+        async fn process_event(&self, event: PluginEvent) -> Result<bool, Error> {
+            let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                 return Err(Error::MissingDb);
             };
 
-            let mut output_lines = Vec::new();
+            let mut db_writes: HashMap<String, Vec<String>> = HashMap::new();
 
             match event {
                 PluginEvent::WriteWalContents(wal_contents) => {
                     for wal_op in &wal_contents.ops {
                         match wal_op {
                             WalOp::Write(write_batch) => {
-                                let py_write_batch = PyWriteBatch {
-                                    // TODO: don't clone the write batch
-                                    write_batch: write_batch.clone(),
-                                    schema: Arc::clone(&schema),
-                                };
-                                match &self.trigger_definition.trigger {
+                                // determine if this write batch is for this database
+                                if write_batch.database_name.as_ref()
+                                    != self.trigger_definition.database_name
+                                {
+                                    continue;
+                                }
+                                let table_filter = match &self.trigger_definition.trigger {
+                                    TriggerSpecificationDefinition::AllTablesWalWrite => {
+                                        // no filter
+                                        None
+                                    }
                                     TriggerSpecificationDefinition::SingleTableWalWrite {
                                         table_name,
                                     } => {
-                                        output_lines.extend(py_write_batch.call_against_table(
-                                            table_name,
-                                            &self.trigger_definition.plugin.code,
-                                            &self.trigger_definition.plugin.function_name,
-                                        )?);
+                                        let table_id = schema
+                                            .table_name_to_id(table_name.as_ref())
+                                            .context("table not found")?;
+                                        Some(table_id)
                                     }
-                                    TriggerSpecificationDefinition::AllTablesWalWrite => {
-                                        for table in schema.table_map.right_values() {
-                                            output_lines.extend(
-                                                py_write_batch.call_against_table(
-                                                    table.as_ref(),
-                                                    &self.trigger_definition.plugin.code,
-                                                    &self.trigger_definition.plugin.function_name,
-                                                )?,
-                                            );
-                                        }
-                                    }
+                                };
+
+                                let result = execute_python_with_batch(
+                                    &self.trigger_definition.plugin.code,
+                                    write_batch,
+                                    Arc::clone(&schema),
+                                    Arc::clone(&self.query_executor),
+                                    table_filter,
+                                    None,
+                                )?;
+
+                                // write the output lines to the appropriate database
+                                if !result.write_back_lines.is_empty() {
+                                    let lines =
+                                        db_writes.entry_ref(schema.name.as_ref()).or_default();
+                                    lines.extend(result.write_back_lines);
+                                }
+
+                                for (db_name, add_lines) in result.write_db_lines {
+                                    let lines = db_writes.entry(db_name).or_default();
+                                    lines.extend(add_lines);
                                 }
                             }
                             WalOp::Catalog(_) => {}
@@ -207,19 +198,22 @@ mod python_plugin {
                     return Ok(true);
                 }
             }
-            if !output_lines.is_empty() {
-                let ingest_time = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap();
-                write_buffer
-                    .write_lp(
-                        NamespaceName::new(self.db_name.to_string()).unwrap(),
-                        output_lines.join("\n").as_str(),
-                        Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
-                        false,
-                        Precision::Nanosecond,
-                    )
-                    .await?;
+
+            if !db_writes.is_empty() {
+                for (db_name, output_lines) in db_writes {
+                    let ingest_time = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap();
+                    self.write_buffer
+                        .write_lp(
+                            NamespaceName::new(db_name).unwrap(),
+                            output_lines.join("\n").as_str(),
+                            Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
+                            false,
+                            Precision::Nanosecond,
+                        )
+                        .await?;
+                }
             }
 
             Ok(false)
@@ -231,17 +225,18 @@ mod python_plugin {
 pub(crate) fn run_test_wal_plugin(
     now_time: iox_time::Time,
     catalog: Arc<influxdb3_catalog::catalog::Catalog>,
+    query_executor: Arc<dyn QueryExecutor>,
     code: String,
     request: WalPluginTestRequest,
 ) -> Result<WalPluginTestResponse, Error> {
-    use crate::write_buffer::validator::WriteValidator;
-    use crate::Precision;
     use data_types::NamespaceName;
     use influxdb3_wal::Gen1Duration;
+    use influxdb3_write::write_buffer::validator::WriteValidator;
+    use influxdb3_write::Precision;
 
-    const TEST_NAMESPACE: &str = "_testdb";
-
-    let namespace = NamespaceName::new(TEST_NAMESPACE).unwrap();
+    let database = request.database;
+    let namespace = NamespaceName::new(database.clone())
+        .map_err(|_e| Error::InvalidDatabase(database.clone()))?;
     // parse the lp into a write batch
     let validator = WriteValidator::initialize(
         namespace.clone(),
@@ -249,19 +244,20 @@ pub(crate) fn run_test_wal_plugin(
         now_time.timestamp_nanos(),
     )?;
     let data = validator.v1_parse_lines_and_update_schema(
-        &request.input_lp.unwrap(),
+        &request.input_lp,
         false,
         now_time,
         Precision::Nanosecond,
     )?;
     let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
-    let db = catalog.db_schema("_testdb").unwrap();
+    let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_python_with_batch(
         &code,
         &data.valid_data,
         db,
-        Arc::clone(&catalog),
+        query_executor,
+        None,
         request.input_arguments,
     )?;
 
@@ -336,7 +332,7 @@ pub(crate) fn run_test_wal_plugin(
 
     let log_lines = plugin_return_state.log();
     let mut database_writes = plugin_return_state.write_db_lines;
-    database_writes.insert("_testdb".to_string(), plugin_return_state.write_back_lines);
+    database_writes.insert(database, plugin_return_state.write_back_lines);
 
     Ok(WalPluginTestResponse {
         log_lines,
@@ -349,10 +345,11 @@ pub(crate) fn run_test_wal_plugin(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::write_buffer::validator::WriteValidator;
-    use crate::Precision;
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
+    use influxdb3_write::write_buffer::validator::WriteValidator;
+    use influxdb3_write::Precision;
     use iox_time::Time;
     use std::collections::HashMap;
 
@@ -394,25 +391,32 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .join("\n");
 
         let request = WalPluginTestRequest {
-            name: "test".into(),
-            input_lp: Some(lp),
-            input_file: None,
+            filename: "test".into(),
+            database: "_testdb".into(),
+            input_lp: lp,
             input_arguments: Some(HashMap::from([(
                 String::from("arg1"),
                 String::from("val1"),
             )])),
         };
 
+        let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
+
         let response =
-            run_test_wal_plugin(now, Arc::new(catalog), code.to_string(), request).unwrap();
+            run_test_wal_plugin(now, Arc::new(catalog), executor, code.to_string(), request)
+                .unwrap();
 
         let expected_log_lines = vec![
             "INFO: arg1: val1",
             "INFO: table: cpu",
-            "INFO: row: {'time': 100, 'fields': [{'name': 'host', 'value': 'A'}, {'name': 'region', 'value': 'west'}, {'name': 'usage', 'value': 1}, {'name': 'system', 'value': 23.2}]}",
-            "INFO: table: mem", "INFO: row: {'time': 120, 'fields': [{'name': 'host', 'value': 'B'}, {'name': 'user', 'value': 43.1}]}",
+            "INFO: row: {'host': 'A', 'region': 'west', 'usage': 1, 'system': 23.2, 'time': 100}",
+            "INFO: table: mem",
+            "INFO: row: {'host': 'B', 'user': 43.1, 'time': 120}",
             "INFO: done",
-        ].into_iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
         assert_eq!(response.log_lines, expected_log_lines);
 
         let expected_testdb_lines = vec![
@@ -475,14 +479,22 @@ def process_writes(influxdb3_local, table_batches, args=None):
         let lp = ["mem,host=B user=43.1 120"].join("\n");
 
         let request = WalPluginTestRequest {
-            name: "test".into(),
-            input_lp: Some(lp),
-            input_file: None,
+            filename: "test".into(),
+            database: "_testdb".into(),
+            input_lp: lp,
             input_arguments: None,
         };
 
-        let reesponse =
-            run_test_wal_plugin(now, Arc::clone(&catalog), code.to_string(), request).unwrap();
+        let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
+
+        let reesponse = run_test_wal_plugin(
+            now,
+            Arc::clone(&catalog),
+            executor,
+            code.to_string(),
+            request,
+        )
+        .unwrap();
 
         let expected_testdb_lines = vec![
             "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""

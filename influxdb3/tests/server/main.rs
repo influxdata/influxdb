@@ -48,6 +48,7 @@ trait ConfigProvider {
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
     host_id: Option<String>,
+    plugin_dir: Option<String>,
 }
 
 impl TestConfig {
@@ -66,6 +67,12 @@ impl TestConfig {
         self.host_id = Some(host_id.into());
         self
     }
+
+    /// Set the plugin dir for this [`TestServer`]
+    pub fn with_plugin_dir<S: Into<String>>(mut self, plugin_dir: S) -> Self {
+        self.plugin_dir = Some(plugin_dir.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -73,6 +80,9 @@ impl ConfigProvider for TestConfig {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
             args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        }
+        if let Some(plugin_dir) = &self.plugin_dir {
+            args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }
         args.push("--host-id".to_string());
         if let Some(host) = &self.host_id {

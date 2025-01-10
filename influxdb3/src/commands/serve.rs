@@ -28,7 +28,10 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
     persister::Persister,
-    write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
+    write_buffer::{
+        check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles, WriteBufferImpl,
+        WriteBufferImplArgs,
+    },
     WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
@@ -37,7 +40,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
@@ -295,6 +298,16 @@ pub struct Config {
     /// The local directory that has python plugins and their test files.
     #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
     pub plugin_dir: Option<PathBuf>,
+
+    /// Threshold for internal buffer, can be either percentage or absolute value.
+    /// eg: 70% or 100000
+    #[clap(
+        long = "force-snapshot-mem-threshold",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        default_value = "70%",
+        action
+    )]
+    pub force_snapshot_mem_threshold: MemorySize,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -490,11 +503,18 @@ pub async fn command(config: Config) -> Result<()> {
         wal_config,
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
-        plugin_dir: config.plugin_dir,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
 
+    info!("setting up background mem check for query buffer");
+    background_buffer_checker(
+        config.force_snapshot_mem_threshold.bytes(),
+        &write_buffer_impl,
+    )
+    .await;
+
+    info!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
         catalog.instance_id(),
@@ -511,6 +531,7 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
+        config.plugin_dir,
     )?;
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
@@ -575,4 +596,17 @@ async fn setup_telemetry_store(
         telemetry_endpoint,
     )
     .await
+}
+
+async fn background_buffer_checker(
+    mem_threshold_bytes: usize,
+    write_buffer_impl: &Arc<WriteBufferImpl>,
+) {
+    debug!(mem_threshold_bytes, "setting up background buffer checker");
+    check_mem_and_force_snapshot_loop(
+        Arc::clone(write_buffer_impl),
+        mem_threshold_bytes,
+        Duration::from_secs(10),
+    )
+    .await;
 }

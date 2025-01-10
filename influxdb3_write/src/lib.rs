@@ -11,29 +11,22 @@ pub mod write_buffer;
 
 use async_trait::async_trait;
 use data_types::{NamespaceName, TimestampMinMax};
-use datafusion::catalog::Session;
-use datafusion::error::DataFusionError;
-use datafusion::prelude::Expr;
-use influxdb3_cache::distinct_cache::CreateDistinctCacheArgs;
-use influxdb3_cache::distinct_cache::DistinctCacheProvider;
-use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::catalog::CatalogSequenceNumber;
-use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_id::ParquetFileId;
-use influxdb3_id::SerdeVecMap;
-use influxdb3_id::TableId;
-use influxdb3_id::{ColumnId, DbId};
-use influxdb3_wal::DistinctCacheDefinition;
-use influxdb3_wal::{LastCacheDefinition, SnapshotSequenceNumber, WalFileSequenceNumber};
+use datafusion::{catalog::Session, error::DataFusionError, prelude::Expr};
+use influxdb3_cache::{
+    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
+    last_cache::LastCacheProvider,
+};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema};
+use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_wal::{
+    DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
+    WalFileSequenceNumber,
+};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
-use write_buffer::plugins::ProcessingEngineManager;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -50,12 +43,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub trait WriteBuffer:
-    Bufferer
-    + ChunkContainer
-    + DistinctCacheManager
-    + LastCacheManager
-    + DatabaseManager
-    + ProcessingEngineManager
+    Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager + DatabaseManager
 {
 }
 
@@ -94,6 +82,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the database schema provider
     fn catalog(&self) -> Arc<Catalog>;
+
+    /// Reutrns the WAL this bufferer is using
+    fn wal(&self) -> Arc<dyn Wal>;
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;

@@ -31,6 +31,20 @@ pub struct IoxQueryDatafusionConfig {
     )]
     pub max_parquet_fanout: usize,
 
+    /// Use a cached parquet loader when reading parquet files from object store
+    ///
+    /// This reduces IO operations to a remote object store as parquet is typically read via
+    /// multiple read_range requests which would each require a IO operation. This will cache the
+    /// entire parquet file in memory and serve the read_range requests from the cached data, thus
+    /// requiring a single IO operation.
+    #[clap(
+        long = "datafusion-use-cached-parquet-loader",
+        env = "INFLUXDB3_DATAFUSION_USE_CACHED_PARQUET_LOADER",
+        default_value = "true",
+        action
+    )]
+    pub use_cached_parquet_loader: bool,
+
     /// Provide custom configuration to DataFusion as a comma-separated list of key:value pairs.
     ///
     /// # Example
@@ -63,6 +77,13 @@ impl IoxQueryDatafusionConfig {
         self.datafusion_config.insert(
             format!("{prefix}.max_parquet_fanout", prefix = IoxConfigExt::PREFIX),
             self.max_parquet_fanout.to_string(),
+        );
+        self.datafusion_config.insert(
+            format!(
+                "{prefix}.use_cached_parquet_loader",
+                prefix = IoxConfigExt::PREFIX
+            ),
+            self.use_cached_parquet_loader.to_string(),
         );
         self.datafusion_config
     }
