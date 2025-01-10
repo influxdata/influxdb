@@ -600,14 +600,11 @@ workflows:
             - lint
             - fmt
             - cargo-audit
-      - build-docker:
-          <<: *release_filter
+      - build-docker
       - publish-docker:
-          <<: *release_filter
           requires:
             - build-docker
       - wait-for-docker:
-          <<: *release_filter
           requires:
             - build-docker
             - publish-docker
