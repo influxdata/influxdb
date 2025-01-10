@@ -10,12 +10,15 @@ use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestRe
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
-    PluginType, TriggerDefinition, TriggerIdentifier, TriggerSpecificationDefinition, Wal,
-    WalContents, WalOp,
+    PluginType, SnapshotDetails, TriggerDefinition, TriggerIdentifier,
+    TriggerSpecificationDefinition, Wal, WalContents, WalFileNotifier, WalOp,
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
+use observability_deps::tracing::warn;
+use std::any::Any;
 use std::sync::Arc;
+use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 pub mod manager;
@@ -62,6 +65,19 @@ impl PluginChannels {
             .or_default()
             .insert(trigger, tx);
         rx
+    }
+
+    async fn send_wal_contents(&self, wal_contents: Arc<WalContents>) {
+        for (db, trigger_map) in &self.active_triggers {
+            for (trigger, sender) in trigger_map {
+                if let Err(e) = sender
+                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
+                    .await
+                {
+                    warn!(%e, %db, ?trigger, "error sending wal contents to plugin");
+                }
+            }
+        }
     }
 }
 
@@ -388,6 +404,32 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Err(plugins::Error::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
+    }
+}
+
+#[async_trait::async_trait]
+impl WalFileNotifier for ProcessingEngineManagerImpl {
+    async fn notify(&self, write: Arc<WalContents>) {
+        let plugin_channels = self.plugin_event_tx.lock().await;
+        plugin_channels.send_wal_contents(write).await;
+    }
+
+    async fn notify_and_snapshot(
+        &self,
+        write: Arc<WalContents>,
+        snapshot_details: SnapshotDetails,
+    ) -> Receiver<SnapshotDetails> {
+        let plugin_channels = self.plugin_event_tx.lock().await;
+        plugin_channels.send_wal_contents(write).await;
+
+        // configure a reciever that we immediately close
+        let (tx, rx) = oneshot::channel();
+        tx.send(snapshot_details).ok();
+        rx
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

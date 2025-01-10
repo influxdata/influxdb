@@ -160,6 +160,10 @@ impl<T: TimeProvider>
             Arc::clone(&self.time_provider.0) as _,
             self.write_buffer.0.wal(),
         ));
+        self.write_buffer
+            .0
+            .wal()
+            .add_file_notifier(Arc::clone(&processing_engine) as _);
         let http = Arc::new(HttpApi::new(
             self.common_state.clone(),
             Arc::clone(&self.time_provider.0),

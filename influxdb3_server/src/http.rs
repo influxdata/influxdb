@@ -1036,6 +1036,7 @@ where
         } else {
             self.read_body_json(req).await?
         };
+        debug!(%db, %plugin_name, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
         let Ok(trigger_spec) =
             TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
         else {

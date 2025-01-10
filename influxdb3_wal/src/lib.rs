@@ -113,6 +113,12 @@ pub trait Wal: Debug + Send + Sync + 'static {
 
     /// Stop all writes to the WAL and flush the buffer to a WAL file.
     async fn shutdown(&self);
+
+    /// Adds a new file notifier listener to the WAL (for use by the processing engine). The WAL
+    /// will send new file notifications to the listener, but ignore any snapshot receiver.
+    /// Only the notifier passed in the WAL constructor should be used for snapshots (i.e. the
+    /// `QueryableBuffer`).
+    fn add_file_notifier(&self, notifier: Arc<dyn WalFileNotifier>);
 }
 
 /// When the WAL persists a file with buffered ops, the contents are sent to this
