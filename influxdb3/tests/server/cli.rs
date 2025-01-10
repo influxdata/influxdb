@@ -364,7 +364,7 @@ async fn test_delete_missing_table() {
 }
 
 #[tokio::test]
-async fn test_create_delete_meta_cache() {
+async fn test_create_delete_distinct_cache() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
@@ -381,7 +381,7 @@ async fn test_create_delete_meta_cache() {
     // first create the cache:
     let result = run(&[
         "create",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -396,7 +396,7 @@ async fn test_create_delete_meta_cache() {
     // doing the same thing over again will be a no-op
     let result = run(&[
         "create",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -414,7 +414,7 @@ async fn test_create_delete_meta_cache() {
     // now delete it:
     let result = run(&[
         "delete",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -423,11 +423,11 @@ async fn test_create_delete_meta_cache() {
         table_name,
         cache_name,
     ]);
-    assert_contains!(&result, "meta cache deleted successfully");
+    assert_contains!(&result, "distinct cache deleted successfully");
     // trying to delete again should result in an error as the cache no longer exists:
     let result = run_and_err(&[
         "delete",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -438,6 +438,7 @@ async fn test_create_delete_meta_cache() {
     ]);
     assert_contains!(&result, "[404 Not Found]: cache not found");
 }
+
 #[test_log::test(tokio::test)]
 async fn test_create_plugin() {
     let server = TestServer::spawn().await;
@@ -790,7 +791,7 @@ fn test_create_token() {
 }
 
 #[tokio::test]
-async fn meta_cache_create_and_delete() {
+async fn distinct_cache_create_and_delete() {
     let server = TestServer::spawn().await;
     let db_name = "foo";
     let server_addr = server.client_addr();
@@ -805,7 +806,7 @@ async fn meta_cache_create_and_delete() {
 
     let result = run_with_confirmation(&[
         "create",
-        "meta_cache",
+        "distinct_cache",
         "-H",
         &server_addr,
         "-d",
@@ -825,7 +826,7 @@ async fn meta_cache_create_and_delete() {
 
     let result = run_with_confirmation(&[
         "delete",
-        "meta_cache",
+        "distinct_cache",
         "-H",
         &server_addr,
         "-d",

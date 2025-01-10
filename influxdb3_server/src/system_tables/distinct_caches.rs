@@ -4,29 +4,32 @@ use arrow::array::{GenericListBuilder, StringViewBuilder, UInt32Builder, UInt64B
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use influxdb3_cache::meta_cache::MetaCacheProvider;
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_wal::MetaCacheDefinition;
+use influxdb3_wal::DistinctCacheDefinition;
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
-pub(super) struct MetaCachesTable {
+pub(super) struct DistinctCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,
-    provider: Arc<MetaCacheProvider>,
+    provider: Arc<DistinctCacheProvider>,
 }
 
-impl MetaCachesTable {
-    pub(super) fn new(db_schema: Arc<DatabaseSchema>, provider: Arc<MetaCacheProvider>) -> Self {
+impl DistinctCachesTable {
+    pub(super) fn new(
+        db_schema: Arc<DatabaseSchema>,
+        provider: Arc<DistinctCacheProvider>,
+    ) -> Self {
         Self {
             db_schema,
-            schema: meta_caches_schema(),
+            schema: distinct_caches_schema(),
             provider,
         }
     }
 }
 
-fn meta_caches_schema() -> SchemaRef {
+fn distinct_caches_schema() -> SchemaRef {
     let columns = vec![
         Field::new("table", DataType::Utf8View, false),
         Field::new("name", DataType::Utf8View, false),
@@ -47,7 +50,7 @@ fn meta_caches_schema() -> SchemaRef {
 }
 
 #[async_trait::async_trait]
-impl IoxSystemTable for MetaCachesTable {
+impl IoxSystemTable for DistinctCachesTable {
     fn schema(&self) -> SchemaRef {
         Arc::clone(&self.schema)
     }
@@ -60,14 +63,14 @@ impl IoxSystemTable for MetaCachesTable {
         let caches = self
             .provider
             .get_cache_definitions_for_db(&self.db_schema.id);
-        from_meta_cache_definitions(&self.db_schema, self.schema(), &caches)
+        from_distinct_cache_definitions(&self.db_schema, self.schema(), &caches)
     }
 }
 
-fn from_meta_cache_definitions(
+fn from_distinct_cache_definitions(
     db_schema: &DatabaseSchema,
     sys_table_schema: SchemaRef,
-    cache_definitions: &[MetaCacheDefinition],
+    cache_definitions: &[DistinctCacheDefinition],
 ) -> Result<RecordBatch, DataFusionError> {
     let mut table_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());
     let mut cache_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());
@@ -90,7 +93,7 @@ fn from_meta_cache_definitions(
     for cache in cache_definitions {
         let table_def = db_schema
             .table_definition_by_id(&cache.table_id)
-            .expect("table should exist for metadata cache");
+            .expect("table should exist for distinct value cache");
 
         table_name_arr.append_value(&cache.table_name);
         cache_name_arr.append_value(&cache.cache_name);

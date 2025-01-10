@@ -7,19 +7,19 @@ use datafusion::{
     logical_expr::{col, BinaryExpr, Expr, Operator},
     scalar::ScalarValue,
 };
+use distinct_caches::DistinctCachesTable;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
-use meta_caches::MetaCachesTable;
 use parquet_files::ParquetFilesTable;
 use tonic::async_trait;
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
+mod distinct_caches;
 mod last_caches;
-mod meta_caches;
 mod parquet_files;
 use crate::system_tables::python_call::{
     ProcessingEnginePluginTable, ProcessingEngineTriggerTable,
@@ -33,7 +33,7 @@ pub const TABLE_NAME_PREDICATE: &str = "table_name";
 
 pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
-pub(crate) const META_CACHES_TABLE_NAME: &str = "meta_caches";
+pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 
 const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
@@ -102,11 +102,10 @@ impl AllSystemSchemaTablesProvider {
             buffer.last_cache_provider(),
         ))));
         tables.insert(LAST_CACHES_TABLE_NAME, last_caches);
-        let meta_caches = Arc::new(SystemTableProvider::new(Arc::new(MetaCachesTable::new(
-            Arc::clone(&db_schema),
-            buffer.meta_cache_provider(),
-        ))));
-        tables.insert(META_CACHES_TABLE_NAME, meta_caches);
+        let distinct_caches = Arc::new(SystemTableProvider::new(Arc::new(
+            DistinctCachesTable::new(Arc::clone(&db_schema), buffer.distinct_cache_provider()),
+        )));
+        tables.insert(DISTINCT_CACHES_TABLE_NAME, distinct_caches);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
             buffer,

@@ -16,8 +16,8 @@ use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_id::{DbId, TableId};
@@ -41,7 +41,7 @@ use tokio::sync::oneshot::{self, Receiver};
 pub struct QueryableBuffer {
     pub(crate) executor: Arc<Executor>,
     catalog: Arc<Catalog>,
-    meta_cache_provider: Arc<MetaCacheProvider>,
+    distinct_cache_provider: Arc<DistinctCacheProvider>,
     last_cache_provider: Arc<LastCacheProvider>,
     persister: Arc<Persister>,
     persisted_files: Arc<PersistedFiles>,
@@ -57,7 +57,7 @@ pub struct QueryableBufferArgs {
     pub catalog: Arc<Catalog>,
     pub persister: Arc<Persister>,
     pub last_cache_provider: Arc<LastCacheProvider>,
-    pub meta_cache_provider: Arc<MetaCacheProvider>,
+    pub distinct_cache_provider: Arc<DistinctCacheProvider>,
     pub persisted_files: Arc<PersistedFiles>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
@@ -69,7 +69,7 @@ impl QueryableBuffer {
             catalog,
             persister,
             last_cache_provider,
-            meta_cache_provider,
+            distinct_cache_provider,
             persisted_files,
             parquet_cache,
         }: QueryableBufferArgs,
@@ -81,7 +81,7 @@ impl QueryableBuffer {
             executor,
             catalog,
             last_cache_provider,
-            meta_cache_provider,
+            distinct_cache_provider,
             persister,
             persisted_files,
             buffer,
@@ -148,7 +148,8 @@ impl QueryableBuffer {
     /// Update the caches managed by the database
     fn write_wal_contents_to_caches(&self, write: &WalContents) {
         self.last_cache_provider.write_wal_contents_to_cache(write);
-        self.meta_cache_provider.write_wal_contents_to_cache(write);
+        self.distinct_cache_provider
+            .write_wal_contents_to_cache(write);
     }
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the
@@ -159,7 +160,7 @@ impl QueryableBuffer {
         buffer.buffer_ops(
             &write.ops,
             &self.last_cache_provider,
-            &self.meta_cache_provider,
+            &self.distinct_cache_provider,
         );
     }
 
@@ -181,7 +182,7 @@ impl QueryableBuffer {
             buffer.buffer_ops(
                 &write.ops,
                 &self.last_cache_provider,
-                &self.meta_cache_provider,
+                &self.distinct_cache_provider,
             );
 
             let mut persisting_chunks = vec![];
@@ -430,7 +431,7 @@ impl BufferState {
         &mut self,
         ops: &[WalOp],
         last_cache_provider: &LastCacheProvider,
-        meta_cache_provider: &MetaCacheProvider,
+        distinct_cache_provider: &DistinctCacheProvider,
     ) {
         for op in ops {
             match op {
@@ -452,20 +453,20 @@ impl BufferState {
                     // eg. creating or deleting last cache itself
                     for op in catalog_batch.ops {
                         match op {
-                            CatalogOp::CreateMetaCache(definition) => {
+                            CatalogOp::CreateDistinctCache(definition) => {
                                 let table_def = db_schema
                                     .table_definition_by_id(&definition.table_id)
                                     .expect("table should exist");
-                                meta_cache_provider.create_from_definition(
+                                distinct_cache_provider.create_from_definition(
                                     db_schema.id,
                                     table_def,
                                     &definition,
                                 );
                             }
-                            CatalogOp::DeleteMetaCache(cache) => {
+                            CatalogOp::DeleteDistinctCache(cache) => {
                                 // this only fails if the db/table/cache do not exist, so we ignore
                                 // the error if it happens.
-                                let _ = meta_cache_provider.delete_cache(
+                                let _ = distinct_cache_provider.delete_cache(
                                     &db_schema.id,
                                     &cache.table_id,
                                     &cache.cache_name,
@@ -497,7 +498,7 @@ impl BufferState {
                                 self.db_to_table.remove(&db_definition.database_id);
                                 last_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
-                                meta_cache_provider
+                                distinct_cache_provider
                                     .delete_caches_for_db(&db_definition.database_id);
                             }
                             CatalogOp::DeleteTable(table_definition) => {
@@ -505,7 +506,7 @@ impl BufferState {
                                     &table_definition.database_id,
                                     &table_definition.table_id,
                                 );
-                                meta_cache_provider.delete_caches_for_db_and_table(
+                                distinct_cache_provider.delete_caches_for_db_and_table(
                                     &table_definition.database_id,
                                     &table_definition.table_id,
                                 );
@@ -748,7 +749,7 @@ mod tests {
             catalog: Arc::clone(&catalog),
             persister: Arc::clone(&persister),
             last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache_provider: MetaCacheProvider::new_from_catalog(
+            distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )

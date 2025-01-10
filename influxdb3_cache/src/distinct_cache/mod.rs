@@ -1,12 +1,12 @@
-//! The Metadata Cache holds the distinct values for a column or set of columns on a table
+//! The Distinct Value Cache holds the distinct values for a column or set of columns on a table
 
 mod cache;
-pub use cache::{CacheError, CreateMetaCacheArgs, MaxAge, MaxCardinality};
+pub use cache::{CacheError, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
 mod provider;
-pub use provider::{MetaCacheProvider, ProviderError};
+pub use provider::{DistinctCacheProvider, ProviderError};
 mod table_function;
-pub use table_function::MetaCacheFunction;
-pub use table_function::META_CACHE_UDTF_NAME;
+pub use table_function::DistinctCacheFunction;
+pub use table_function::DISTINCT_CACHE_UDTF_NAME;
 
 #[cfg(test)]
 mod tests {
@@ -18,9 +18,9 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use crate::{
-        meta_cache::{
-            cache::{CreateMetaCacheArgs, MaxAge, MaxCardinality, MetaCache, Predicate},
-            MetaCacheFunction, MetaCacheProvider, META_CACHE_UDTF_NAME,
+        distinct_cache::{
+            cache::{CreateDistinctCacheArgs, DistinctCache, MaxAge, MaxCardinality, Predicate},
+            DistinctCacheFunction, DistinctCacheProvider, DISTINCT_CACHE_UDTF_NAME,
         },
         test_helpers::TestWriter,
     };
@@ -57,9 +57,9 @@ mod tests {
         let region_col_id = column_ids[0];
         let host_col_id = column_ids[1];
         // create the cache:
-        let mut cache = MetaCache::new(
+        let mut cache = DistinctCache::new(
             time_provider,
-            CreateMetaCacheArgs {
+            CreateDistinctCacheArgs {
                 table_def,
                 max_cardinality: MaxCardinality::default(),
                 max_age: MaxAge::default(),
@@ -210,9 +210,9 @@ mod tests {
             .map(|name| table_def.column_name_to_id_unchecked(name))
             .collect();
         // create a cache with some cardinality and age limits:
-        let mut cache = MetaCache::new(
+        let mut cache = DistinctCache::new(
             Arc::clone(&time_provider) as _,
-            CreateMetaCacheArgs {
+            CreateDistinctCacheArgs {
                 table_def,
                 max_cardinality: MaxCardinality::try_from(10).unwrap(),
                 max_age: MaxAge::from(Duration::from_nanos(100)),
@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn meta_cache_limit() {
+    fn distinct_cache_limit() {
         let writer = TestWriter::new();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let rows = writer.write_lp_to_rows(
@@ -318,9 +318,9 @@ mod tests {
             .into_iter()
             .map(|name| table_def.column_name_to_id_unchecked(name))
             .collect();
-        let mut cache = MetaCache::new(
+        let mut cache = DistinctCache::new(
             time_provider,
-            CreateMetaCacheArgs {
+            CreateDistinctCacheArgs {
                 table_def,
                 max_cardinality: MaxCardinality::default(),
                 max_age: MaxAge::default(),
@@ -379,21 +379,21 @@ mod tests {
         );
     }
 
-    /// This test sets up a [`MetaCacheProvider`], creates a [`MetaCache`] using the `region` and
+    /// This test sets up a [`DistinctCacheProvider`], creates a [`DistinctCache`] using the `region` and
     /// `host` column, and then writes several different unique combinations of values into it.
-    /// It then sets up a DataFusion [`SessionContext`], registers our [`MetaCacheFunction`] as a
+    /// It then sets up a DataFusion [`SessionContext`], registers our [`DistinctCacheFunction`] as a
     /// UDTF, and then runs a series of test cases to verify queries against the function.
     ///
     /// The purpose of this is to see that the cache works as intended, and importantly, that the
-    /// predicate pushdown is happening and being leveraged by the underlying [`MetaCache`], vs.
+    /// predicate pushdown is happening and being leveraged by the underlying [`DistinctCache`], vs.
     /// DataFusion doing it for us with a higher level FilterExec.
     ///
     /// Each test case verifies the `RecordBatch` output of the query as well as the output for
-    /// EXPLAIN on the same query. The EXPLAIN output contains a line for the MetaCacheExec, which
-    /// is the custom execution plan impl for the metadata cache that captures the predicates that
-    /// are pushed down to the underlying [`MetaCacahe::to_record_batch`] method, if any.
+    /// EXPLAIN on the same query. The EXPLAIN output contains a line for the DistinctCacheExec, which
+    /// is the custom execution plan impl for the distinct value cache that captures the predicates that
+    /// are pushed down to the underlying [`DistinctCacahe::to_record_batch`] method, if any.
     #[tokio::test]
-    async fn test_datafusion_meta_cache_udtf() {
+    async fn test_datafusion_distinct_cache_udtf() {
         // create a test writer and do a write in to populate the catalog with a db/table:
         let writer = TestWriter::new();
         let _ = writer.write_lp_to_write_batch(
@@ -403,7 +403,7 @@ mod tests {
             0,
         );
 
-        // create a meta provider and a cache on tag columns 'region' and 'host':
+        // create a distinct provider and a cache on tag columns 'region' and 'host':
         let db_schema = writer.db_schema();
         let table_def = db_schema.table_definition("cpu").unwrap();
         let column_ids: Vec<ColumnId> = ["region", "host"]
@@ -411,13 +411,13 @@ mod tests {
             .map(|name| table_def.column_name_to_id_unchecked(name))
             .collect();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let meta_provider =
-            MetaCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
-        meta_provider
+        let distinct_provider =
+            DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
+        distinct_provider
             .create_cache(
                 db_schema.id,
                 None,
-                CreateMetaCacheArgs {
+                CreateDistinctCacheArgs {
                     table_def,
                     max_cardinality: MaxCardinality::default(),
                     max_age: MaxAge::default(),
@@ -448,13 +448,14 @@ mod tests {
             (0, 1, 0),
             [influxdb3_wal::create::write_batch_op(write_batch)],
         );
-        meta_provider.write_wal_contents_to_cache(&wal_contents);
+        distinct_provider.write_wal_contents_to_cache(&wal_contents);
 
-        // Spin up a DataFusion session context and add the meta_cache function to it so we
+        // Spin up a DataFusion session context and add the distinct_cache function to it so we
         // can query for data in the cache we created and populated above:
         let ctx = SessionContext::new();
-        let meta_func = MetaCacheFunction::new(db_schema.id, Arc::clone(&meta_provider));
-        ctx.register_udtf(META_CACHE_UDTF_NAME, Arc::new(meta_func));
+        let distinct_func =
+            DistinctCacheFunction::new(db_schema.id, Arc::clone(&distinct_provider));
+        ctx.register_udtf(DISTINCT_CACHE_UDTF_NAME, Arc::new(distinct_func));
 
         struct TestCase<'a> {
             /// A short description of the test
@@ -462,14 +463,14 @@ mod tests {
             /// A SQL expression to evaluate using the datafusion session context, should be of
             /// the form:
             /// ```sql
-            /// SELECT * FROM meta_cache('cpu') ...
+            /// SELECT * FROM distinct_cache('cpu') ...
             /// ```
             sql: &'a str,
             /// Expected record batch output
             expected: &'a [&'a str],
             /// Expected EXPLAIN output contains this.
             ///
-            /// For checking the `MetaCacheExec` portion of the EXPLAIN output for the given `sql`
+            /// For checking the `DistinctCacheExec` portion of the EXPLAIN output for the given `sql`
             /// query. A "contains" is used instead of matching the whole EXPLAIN output to prevent
             /// flakyness from upstream changes to other parts of the query plan.
             explain_contains: &'a str,
@@ -480,7 +481,7 @@ mod tests {
             ///
             /// The cache should produce results in a sorted order as-is, however, some queries
             /// that process the results after they are emitted from the cache may have their order
-            /// altered by DataFusion, e.g., `SELECT DISTINCT(column_name) FROM meta_cache('table')`
+            /// altered by DataFusion, e.g., `SELECT DISTINCT(column_name) FROM distinct_cache('table')`
             /// or queries that project columns that are not at the top level of the cache.
             use_sorted_assert: bool,
         }
@@ -488,7 +489,7 @@ mod tests {
         let test_cases = [
             TestCase {
                 _desc: "no predicates",
-                sql: "SELECT * FROM meta_cache('cpu')",
+                sql: "SELECT * FROM distinct_cache('cpu')",
                 expected: &[
                     "+---------+------+",
                     "| region  | host |",
@@ -507,12 +508,12 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "eq predicate on region",
-                sql: "SELECT * FROM meta_cache('cpu') WHERE region = 'us-east'",
+                sql: "SELECT * FROM distinct_cache('cpu') WHERE region = 'us-east'",
                 expected: &[
                     "+---------+------+",
                     "| region  | host |",
@@ -521,12 +522,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "eq predicate on region and host",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' AND host = 'a'",
                 expected: &[
                     "+---------+------+",
@@ -535,12 +536,12 @@ mod tests {
                     "| us-east | a    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "eq predicate on region; in predicate on host",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' AND host IN ('a', 'b')",
                 expected: &[
                     "+---------+------+",
@@ -550,12 +551,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "eq predicate on region; not in predicate on host",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                         WHERE region = 'us-east' AND host != 'a'",
                 expected: &[
                     "+---------+------+",
@@ -564,12 +565,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 NOT IN (a)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "in predicate on region",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region IN ('ca-cent', 'ca-east', 'us-east', 'us-west')",
                 expected: &[
                     "+---------+------+",
@@ -583,12 +584,12 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "not in predicate on region",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region NOT IN ('ca-cent', 'ca-east', 'us-east', 'us-west')",
                 expected: &[
                     "+---------+------+",
@@ -602,12 +603,12 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 NOT IN (ca-cent,ca-east,us-east,us-west)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "or eq predicates on region",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' OR region = 'ca-east'",
                 expected: &[
                     "+---------+------+",
@@ -618,12 +619,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-east,us-east)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "or eq predicate on host",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE host = 'd' OR host = 'e'",
                 expected: &[
                     "+---------+------+",
@@ -633,12 +634,12 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[host@1 IN (d,e)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "un-grouped host conditions are not handled in predicate pushdown",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' AND host = 'a' OR host = 'b'",
                 expected: &[
                     "+---------+------+",
@@ -648,12 +649,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "grouped host conditions are handled in predicate pushdown",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region = 'us-east' AND (host = 'a' OR host = 'b')",
                 expected: &[
                     "+---------+------+",
@@ -663,12 +664,12 @@ mod tests {
                     "| us-east | b    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (us-east)], [host@1 IN (a,b)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "project region column",
-                sql: "SELECT region FROM meta_cache('cpu')",
+                sql: "SELECT region FROM distinct_cache('cpu')",
                 expected: &[
                     "+---------+",
                     "| region  |",
@@ -682,12 +683,12 @@ mod tests {
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "project region column taking distinct",
-                sql: "SELECT DISTINCT(region) FROM meta_cache('cpu')",
+                sql: "SELECT DISTINCT(region) FROM distinct_cache('cpu')",
                 expected: &[
                     "+---------+",
                     "| region  |",
@@ -701,13 +702,13 @@ mod tests {
                     "| us-west |",
                     "+---------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1",
+                explain_contains: "DistinctCacheExec: projection=[region@0] inner=MemoryExec: partitions=1, partition_sizes=[1",
                 // it seems that DISTINCT changes around the order of results
                 use_sorted_assert: true,
             },
             TestCase {
                 _desc: "project host column",
-                sql: "SELECT host FROM meta_cache('cpu')",
+                sql: "SELECT host FROM distinct_cache('cpu')",
                 expected: &[
                     "+------+", // commenting for no new line
                     "| host |", // commenting for no new line
@@ -726,7 +727,7 @@ mod tests {
                     "| l    |", // commenting for no new line
                     "+------+", // commenting for no new line
                 ],
-                explain_contains: "MetaCacheExec: projection=[host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 // this column will not be sorted since the order of elements depends on the next level
                 // up in the cache, so the `region` column is iterated over in order, but the nested
                 // `host` values, although sorted within `region`s, will not be globally sorted.
@@ -734,7 +735,7 @@ mod tests {
             },
             TestCase {
                 _desc: "project host column",
-                sql: "SELECT host FROM meta_cache('cpu') WHERE region = 'ca-cent'",
+                sql: "SELECT host FROM distinct_cache('cpu') WHERE region = 'ca-cent'",
                 expected: &[
                     "+------+", // commenting for no new line
                     "| host |", // commenting for no new line
@@ -742,12 +743,12 @@ mod tests {
                     "| f    |", // commenting for no new line
                     "+------+", // commenting for no new line
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] predicates=[[region@0 IN (ca-cent)]] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "limit clause",
-                sql: "SELECT * FROM meta_cache('cpu') LIMIT 8",
+                sql: "SELECT * FROM distinct_cache('cpu') LIMIT 8",
                 expected: &[
                     "+---------+------+",
                     "| region  | host |",
@@ -762,12 +763,12 @@ mod tests {
                     "| eu-west | l    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] limit=8 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "limit and offset",
-                sql: "SELECT * FROM meta_cache('cpu') LIMIT 8 OFFSET 8",
+                sql: "SELECT * FROM distinct_cache('cpu') LIMIT 8 OFFSET 8",
                 expected: &[
                     "+---------+------+",
                     "| region  | host |",
@@ -778,12 +779,12 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] limit=16 inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
             TestCase {
                 _desc: "like clause",
-                sql: "SELECT * FROM meta_cache('cpu') \
+                sql: "SELECT * FROM distinct_cache('cpu') \
                     WHERE region LIKE 'u%'",
                 expected: &[
                     "+---------+------+",
@@ -795,7 +796,7 @@ mod tests {
                     "| us-west | d    |",
                     "+---------+------+",
                 ],
-                explain_contains: "MetaCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
+                explain_contains: "DistinctCacheExec: projection=[region@0, host@1] inner=MemoryExec: partitions=1, partition_sizes=[1]",
                 use_sorted_assert: false,
             },
         ];
@@ -820,7 +821,7 @@ mod tests {
 
             // NOTE(hiltontj): this probably can be done a better way?
             // The EXPLAIN output will have two columns, the one we are interested in that contains
-            // the details of the MetaCacheExec is called `plan`...
+            // the details of the DistinctCacheExec is called `plan`...
             assert!(
                 explain
                     .column_by_name("plan")

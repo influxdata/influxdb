@@ -403,8 +403,8 @@ mod tests {
     use crate::ProcessingEngineManagerImpl;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
+    use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_wal::{
@@ -803,14 +803,16 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider: Arc::clone(&time_provider),
             executor: make_exec(),
             wal_config,

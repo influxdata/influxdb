@@ -1584,7 +1584,7 @@ async fn api_v1_query_uri_and_body() {
 }
 
 #[tokio::test]
-async fn api_v3_query_sql_meta_cache() {
+async fn api_v3_query_sql_distinct_cache() {
     let server = TestServer::spawn().await;
     server
         .write_lp_to_db("foo", "cpu,region=us,host=a usage=99", Precision::Second)
@@ -1594,7 +1594,7 @@ async fn api_v3_query_sql_meta_cache() {
     server
         .http_client
         .post(format!(
-            "{base}/api/v3/configure/meta_cache",
+            "{base}/api/v3/configure/distinct_cache",
             base = server.client_addr()
         ))
         .json(&serde_json::json!({
@@ -1623,7 +1623,7 @@ async fn api_v3_query_sql_meta_cache() {
         .api_v3_query_sql(&[
             ("db", "foo"),
             ("format", "pretty"),
-            ("q", "SELECT * FROM meta_cache('cpu')"),
+            ("q", "SELECT * FROM distinct_cache('cpu')"),
         ])
         .await
         .text()
@@ -1647,7 +1647,7 @@ async fn api_v3_query_sql_meta_cache() {
         .api_v3_query_sql(&[
             ("db", "foo"),
             ("format", "json"),
-            ("q", "SELECT * FROM meta_cache('cpu')"),
+            ("q", "SELECT * FROM distinct_cache('cpu')"),
         ])
         .await
         .json::<Value>()

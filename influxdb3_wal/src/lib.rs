@@ -321,8 +321,8 @@ pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
     CreateTable(TableDefinition),
     AddFields(FieldAdditions),
-    CreateMetaCache(MetaCacheDefinition),
-    DeleteMetaCache(MetaCacheDelete),
+    CreateDistinctCache(DistinctCacheDefinition),
+    DeleteDistinctCache(DistinctCacheDelete),
     CreateLastCache(LastCacheDefinition),
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
@@ -586,16 +586,16 @@ pub struct LastCacheDelete {
     pub name: Arc<str>,
 }
 
-/// Defines a metadata cache in a given table and database
+/// Defines a distinct value cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct MetaCacheDefinition {
+pub struct DistinctCacheDefinition {
     /// The id of the associated table
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
     /// The name of the cache, is unique within the associated table
     pub cache_name: Arc<str>,
-    /// The ids of columns tracked by this metadata cache, in the defined order
+    /// The ids of columns tracked by this distinct value cache, in the defined order
     pub column_ids: Vec<ColumnId>,
     /// The maximum number of distinct value combintions the cache will hold
     pub max_cardinality: usize,
@@ -604,7 +604,7 @@ pub struct MetaCacheDefinition {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct MetaCacheDelete {
+pub struct DistinctCacheDelete {
     pub table_name: Arc<str>,
     pub table_id: TableId,
     pub cache_name: Arc<str>,
