@@ -517,8 +517,11 @@ def process_rows(iterator, output):
     assert_contains!(&result, "Plugin test_plugin deleted successfully");
 }
 
+#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
-async fn test_create_trigger() {
+async fn test_create_trigger_and_run() {
+    // create a plugin and trigger and write data in, verifying that the trigger is activated
+    // and sent data
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
@@ -530,8 +533,13 @@ async fn test_create_trigger() {
 
     let plugin_file = create_plugin_file(
         r#"
-def process_rows(iterator, output):
-    pass
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        row_count = len(table_batch["rows"])
+        line = LineBuilder("write_reports")\
+            .tag("table_name", table_batch["table_name"])\
+            .int64_field("row_count", row_count)
+        influxdb3_local.write(line)
 "#,
     );
 
@@ -547,7 +555,7 @@ def process_rows(iterator, output):
         plugin_name,
     ]);
 
-    // Create trigger
+    // creating the trigger should activate it
     let result = run_with_confirmation(&[
         "create",
         "trigger",
@@ -563,6 +571,50 @@ def process_rows(iterator, output):
     ]);
     debug!(result = ?result, "create trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
+
+    // now let's write data and see if it gets processed
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    // query to see if the processed data is there
+    let mut check_count = 0;
+    let result = loop {
+        match server
+            .api_v3_query_sql(&[
+                ("db", db_name),
+                ("q", "SELECT table_name, row_count FROM write_reports"),
+                ("format", "json"),
+            ])
+            .await
+            .json::<Value>()
+            .await
+        {
+            Ok(value) => break value,
+            Err(e) => {
+                check_count += 1;
+                if check_count > 10 {
+                    panic!("Failed to query processed data: {}", e);
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            }
+        };
+    };
+
+    assert_eq!(
+        result,
+        json!(
+            [
+                {"table_name": "cpu", "row_count": 2},
+                {"table_name": "mem", "row_count": 1}
+            ]
+        )
+    );
 }
 
 #[test_log::test(tokio::test)]

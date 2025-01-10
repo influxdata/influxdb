@@ -104,13 +104,15 @@ mod python_plugin {
     use influxdb3_wal::WalOp;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use observability_deps::tracing::warn;
+    use observability_deps::tracing::{info, warn};
     use std::time::SystemTime;
     use tokio::sync::mpsc::Receiver;
 
     #[async_trait::async_trait]
     impl RunnablePlugin for TriggerPlugin {
         async fn run_plugin(&self, mut receiver: Receiver<PluginEvent>) -> Result<(), Error> {
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting trigger plugin");
+
             loop {
                 let event = match receiver.recv().await {
                     Some(event) => event,

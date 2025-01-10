@@ -22,6 +22,7 @@ pub struct WalObjectStore {
     object_store: Arc<dyn ObjectStore>,
     host_identifier_prefix: String,
     file_notifier: Arc<dyn WalFileNotifier>,
+    added_file_notifiers: parking_lot::Mutex<Vec<Arc<dyn WalFileNotifier>>>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
     flush_buffer: Mutex<FlushBuffer>,
 }
@@ -70,6 +71,7 @@ impl WalObjectStore {
             object_store,
             host_identifier_prefix: host_identifier_prefix.into(),
             file_notifier,
+            added_file_notifiers: Default::default(),
             flush_buffer: Mutex::new(FlushBuffer::new(
                 Arc::clone(&time_provider),
                 WalBuffer {
@@ -293,16 +295,19 @@ impl WalObjectStore {
             }
         }
 
+        let wal_contents = Arc::new(wal_contents);
+
         // now that we've persisted this latest notify and start the snapshot, if set
         let snapshot_response = match wal_contents.snapshot {
             Some(snapshot_details) => {
                 info!(?snapshot_details, "snapshotting wal");
                 let snapshot_done = self
                     .file_notifier
-                    .notify_and_snapshot(Arc::new(wal_contents), snapshot_details)
+                    .notify_and_snapshot(Arc::clone(&wal_contents), snapshot_details)
                     .await;
                 let (snapshot_info, snapshot_permit) =
                     snapshot.expect("snapshot should be set when snapshot details are set");
+
                 Some((snapshot_done, snapshot_info, snapshot_permit))
             }
             None => {
@@ -310,10 +315,17 @@ impl WalObjectStore {
                     "notify sent to buffer for wal file {}",
                     wal_contents.wal_file_number.as_u64()
                 );
-                self.file_notifier.notify(Arc::new(wal_contents)).await;
+                self.file_notifier.notify(Arc::clone(&wal_contents)).await;
                 None
             }
         };
+
+        // now send the contents to the extra notifiers
+        let notifiers = self.added_file_notifiers.lock().clone();
+        for notifier in notifiers {
+            // added notifiers don't do anything with the snapshot, so just notify
+            notifier.notify(Arc::clone(&wal_contents)).await;
+        }
 
         // send all the responses back to clients
         for response in responses {
@@ -445,6 +457,10 @@ impl Wal for WalObjectStore {
 
     async fn shutdown(&self) {
         self.shutdown().await
+    }
+
+    fn add_file_notifier(&self, notifier: Arc<dyn WalFileNotifier>) {
+        self.added_file_notifiers.lock().push(notifier);
     }
 }
 
