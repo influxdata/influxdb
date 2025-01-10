@@ -11,10 +11,10 @@ async fn queries_table() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-        cpu,host=s1,region=us-east usage=0.89 2\n\
-        cpu,host=s1,region=us-east usage=0.85 3",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574931\n\
+             cpu,host=s1,region=us-east usage=0.89 2998574932\n\
+             cpu,host=s1,region=us-east usage=0.85 2998574933",
+            Precision::Second,
         )
         .await
         .expect("write some lp");

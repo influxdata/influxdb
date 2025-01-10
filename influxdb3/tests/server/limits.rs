@@ -12,7 +12,7 @@ async fn limits() -> Result<(), Error> {
         server
             .write_lp_to_db(
                 db,
-                "cpu,host=s1,region=us-east usage=0.9 1\n",
+                "cpu,host=s1,region=us-east usage=0.9 2998574938\n",
                 Precision::Nanosecond,
             )
             .await?;
@@ -21,8 +21,8 @@ async fn limits() -> Result<(), Error> {
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
             "six",
-            "cpu,host=s1,region=us-east usage=0.9 1\n",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574938\n",
+            Precision::Second,
         )
         .await
     else {
@@ -35,19 +35,19 @@ async fn limits() -> Result<(), Error> {
     let table_lp = (0..1995).fold(String::new(), |mut acc, i| {
         acc.push_str("cpu");
         acc.push_str(&i.to_string());
-        acc.push_str(",host=s1,region=us-east usage=0.9 1\n");
+        acc.push_str(",host=s1,region=us-east usage=0.9 2998574938\n");
         acc
     });
 
     server
-        .write_lp_to_db("one", &table_lp, Precision::Nanosecond)
+        .write_lp_to_db("one", &table_lp, Precision::Second)
         .await?;
 
     let Err(Error::ApiError { code, .. }) = server
         .write_lp_to_db(
             "six",
-            "cpu2000,host=s1,region=us-east usage=0.9 1\n",
-            Precision::Nanosecond,
+            "cpu2000,host=s1,region=us-east usage=0.9 2998574938\n",
+            Precision::Second,
         )
         .await
     else {
@@ -63,15 +63,15 @@ async fn limits() -> Result<(), Error> {
         lp_500.push_str(&column);
         lp_501.push_str(&column);
     }
-    lp_500.push_str(" 0\n");
-    lp_501.push_str(",column501=1 0\n");
+    lp_500.push_str(" 2998574938\n");
+    lp_501.push_str(",column501=1 2998574938\n");
 
     server
-        .write_lp_to_db("one", &lp_500, Precision::Nanosecond)
+        .write_lp_to_db("one", &lp_500, Precision::Second)
         .await?;
 
     let Err(Error::ApiError { code, .. }) = server
-        .write_lp_to_db("one", &lp_501, Precision::Nanosecond)
+        .write_lp_to_db("one", &lp_501, Precision::Second)
         .await
     else {
         panic!("Did not error when adding 501st column");

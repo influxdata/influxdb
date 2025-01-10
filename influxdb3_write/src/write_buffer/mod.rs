@@ -199,6 +199,7 @@ impl WriteBufferImpl {
         }
 
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
+            Arc::clone(&time_provider),
             persisted_snapshots,
         ));
         let queryable_buffer = Arc::new(QueryableBuffer::new(QueryableBufferArgs {
@@ -208,6 +209,7 @@ impl WriteBufferImpl {
             last_cache_provider: Arc::clone(&last_cache),
             distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
+            time_provider: Arc::clone(&time_provider),
             parquet_cache: parquet_cache.clone(),
         }));
 
