@@ -138,7 +138,7 @@ impl WriteValidator<WithCatalog> {
                 database_name: Arc::clone(&self.state.db_schema.name),
                 ops: catalog_updates,
             };
-            self.state.catalog.apply_catalog_batch(catalog_batch)?
+            self.state.catalog.apply_catalog_batch(&catalog_batch)?
         };
 
         Ok(WriteValidator {
@@ -398,9 +398,9 @@ pub struct ValidatedLines {
     /// Number of index columns passed in, whether tags (v1) or series keys (v3)
     pub(crate) index_count: usize,
     /// Any errors that occurred while parsing the lines
-    pub(crate) errors: Vec<WriteLineError>,
+    pub errors: Vec<WriteLineError>,
     /// Only valid lines will be converted into a WriteBatch
-    pub(crate) valid_data: WriteBatch,
+    pub valid_data: WriteBatch,
     /// If any catalog updates were made, they will be included here
     pub(crate) catalog_updates: Option<OrderedCatalogBatch>,
 }

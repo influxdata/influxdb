@@ -2965,6 +2965,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_processing_engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "data_types",
+ "datafusion_util",
+ "hashbrown 0.15.2",
+ "influxdb3_cache",
+ "influxdb3_catalog",
+ "influxdb3_client",
+ "influxdb3_internal_api",
+ "influxdb3_py_api",
+ "influxdb3_wal",
+ "influxdb3_write",
+ "iox_query",
+ "iox_time",
+ "metric",
+ "object_store",
+ "observability_deps",
+ "parquet_file",
+ "pyo3",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
@@ -2972,12 +2999,12 @@ dependencies = [
  "arrow-schema",
  "futures",
  "influxdb3_catalog",
+ "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_wal",
  "iox_query_params",
  "parking_lot",
  "pyo3",
- "schema",
  "tokio",
 ]
 
@@ -3014,6 +3041,7 @@ dependencies = [
  "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_process",
+ "influxdb3_processing_engine",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_wal",

@@ -503,7 +503,6 @@ pub async fn command(config: Config) -> Result<()> {
         wal_config,
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
-        plugin_dir: config.plugin_dir,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
@@ -532,6 +531,7 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
+        config.plugin_dir,
     )?;
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {

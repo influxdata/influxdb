@@ -50,7 +50,7 @@ impl TableBuffer {
         }
     }
 
-    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: Vec<Row>) {
+    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
         let buffer_chunk = self
             .chunk_time_to_chunks
             .entry(chunk_time)
@@ -250,19 +250,19 @@ struct MutableTableChunk {
 }
 
 impl MutableTableChunk {
-    fn add_rows(&mut self, rows: Vec<Row>) {
+    fn add_rows(&mut self, rows: &[Row]) {
         let new_row_count = rows.len();
 
-        for (row_index, r) in rows.into_iter().enumerate() {
+        for (row_index, r) in rows.iter().enumerate() {
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
-            for f in r.fields {
+            for f in &r.fields {
                 value_added.insert(f.id);
 
-                match f.value {
+                match &f.value {
                     FieldData::Timestamp(v) => {
-                        self.timestamp_min = self.timestamp_min.min(v);
-                        self.timestamp_max = self.timestamp_max.max(v);
+                        self.timestamp_min = self.timestamp_min.min(*v);
+                        self.timestamp_max = self.timestamp_max.max(*v);
 
                         let b = self.data.entry(f.id).or_insert_with(|| {
                             debug!("Creating new timestamp builder");
@@ -272,7 +272,7 @@ impl MutableTableChunk {
                             Builder::Time(time_builder)
                         });
                         if let Builder::Time(b) = b {
-                            b.append_value(v);
+                            b.append_value(*v);
                         } else {
                             panic!("unexpected field type");
                         }
@@ -288,7 +288,7 @@ impl MutableTableChunk {
                         }
                         let b = self.data.get_mut(&f.id).expect("tag builder should exist");
                         if let Builder::Tag(b) = b {
-                            self.index.add_row_if_indexed_column(b.len(), f.id, &v);
+                            self.index.add_row_if_indexed_column(b.len(), f.id, v);
                             b.append(v)
                                 .expect("shouldn't be able to overflow 32 bit dictionary");
                         } else {
@@ -307,7 +307,7 @@ impl MutableTableChunk {
                         let Builder::Key(b) = b else {
                             panic!("unexpected field type");
                         };
-                        self.index.add_row_if_indexed_column(b.len(), f.id, &v);
+                        self.index.add_row_if_indexed_column(b.len(), f.id, v);
                         b.append_value(v);
                     }
                     FieldData::String(v) => {
@@ -333,7 +333,7 @@ impl MutableTableChunk {
                             Builder::I64(int_builder)
                         });
                         if let Builder::I64(b) = b {
-                            b.append_value(v);
+                            b.append_value(*v);
                         } else {
                             panic!("unexpected field type");
                         }
@@ -346,7 +346,7 @@ impl MutableTableChunk {
                             Builder::U64(uint_builder)
                         });
                         if let Builder::U64(b) = b {
-                            b.append_value(v);
+                            b.append_value(*v);
                         } else {
                             panic!("unexpected field type");
                         }
@@ -359,7 +359,7 @@ impl MutableTableChunk {
                             Builder::F64(float_builder)
                         });
                         if let Builder::F64(b) = b {
-                            b.append_value(v);
+                            b.append_value(*v);
                         } else {
                             panic!("unexpected field type");
                         }
@@ -372,7 +372,7 @@ impl MutableTableChunk {
                             Builder::Bool(bool_builder)
                         });
                         if let Builder::Bool(b) = b {
-                            b.append_value(v);
+                            b.append_value(*v);
                         } else {
                             panic!("unexpected field type");
                         }
@@ -866,7 +866,7 @@ mod tests {
                 },
             ];
 
-            table_buffer.buffer_chunk(offset, rows);
+            table_buffer.buffer_chunk(offset, &rows);
         }
 
         let partitioned_batches = table_buffer
@@ -980,7 +980,7 @@ mod tests {
             },
         ];
 
-        table_buffer.buffer_chunk(0, rows);
+        table_buffer.buffer_chunk(0, &rows);
 
         let filter = &[Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column(Column {
@@ -1105,7 +1105,7 @@ mod tests {
             },
         ];
 
-        table_buffer.buffer_chunk(0, rows);
+        table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
         assert_eq!(size, 18120);

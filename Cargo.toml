@@ -9,7 +9,7 @@ members = [
     "influxdb3_id",
     "influxdb3_internal_api",
     "influxdb3_load_generator",
-    "influxdb3_process",
+    "influxdb3_process", "influxdb3_processing_engine",
     "influxdb3_py_api",
     "influxdb3_server",
     "influxdb3_telemetry",
