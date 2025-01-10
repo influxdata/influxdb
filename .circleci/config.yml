@@ -449,7 +449,7 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
               "influxdb3-edge:latest"
 
           # linking might take a while and doesn't produce CLI output
