@@ -72,6 +72,11 @@ commands:
     description: Verify installed components
     steps:
       - run:
+          name: add python3
+          command: |
+            sudo apt update
+            sudo apt install python3 python3-dev
+      - run:
           name: Verify installed components
           command: |
             rustup --version
@@ -102,6 +107,11 @@ jobs:
       - checkout
       - rust_components
       - run:
+          name: add python3
+          command: |
+            sudo apt update
+            sudo apt install python3 python3-dev
+      - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
   lint:
@@ -118,6 +128,11 @@ jobs:
     steps:
       - checkout
       - rust_components
+      - run:
+          name: add python3
+          command: |
+            sudo apt update
+            sudo apt install python3
       - run:
           name: Clippy
           command: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -172,6 +187,11 @@ jobs:
       - checkout
       - rust_components
       - run:
+          name: add python3
+          command: |
+            sudo apt update
+            sudo apt install python3 python3-dev
+      - run:
           name: Cargo doc
           command: cargo doc --document-private-items --no-deps --workspace
       - run:
@@ -197,6 +217,11 @@ jobs:
     steps:
       - checkout
       - rust_components
+      - run:
+          name: add python3
+          command: |
+            sudo apt update
+            sudo apt install python3 python3-dev
       - run:
           name: cargo nextest
           command: TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
@@ -230,6 +255,18 @@ jobs:
         type: string
     steps:
       - checkout
+      - run:
+          name: add python3
+          command: |
+            apt-get update
+            apt-get install -y python3 python3-dev
+      - when:
+          condition:
+            equal: [ << parameters.target >>, x86_64-unknown-linux-musl ]
+          steps:
+          - run:
+              name: add -crt-satic flag
+              command: export RUSTFLAGS="-C target-feature=-crt-static"
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>

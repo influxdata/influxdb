@@ -7,6 +7,8 @@ license.workspace = true
 
 [features]
 "system-py" = ["influxdb3_py_api/system-py", "pyo3"]
+default = ["system-py"]
+
 
 [dependencies]
 anyhow.workspace = true
