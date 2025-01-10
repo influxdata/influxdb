@@ -92,7 +92,7 @@ impl TelemetryStore {
                 // num::cast probably has had overflow. Best to
                 // reset all metrics to start again
                 warn!("cpu/memory could not be added, resetting metrics");
-                inner_store.reset_metrics();
+                inner_store.reset_metrics_1h();
             });
     }
 
@@ -108,14 +108,14 @@ impl TelemetryStore {
         inner_store.per_minute_events_bucket.update_num_queries();
     }
 
-    pub(crate) fn rollup_events(&self) {
+    pub(crate) fn rollup_events_1m(&self) {
         let mut inner_store = self.inner.lock();
-        inner_store.rollup_reads_and_writes();
+        inner_store.rollup_reads_and_writes_1m();
     }
 
-    pub(crate) fn reset_metrics(&self) {
+    pub(crate) fn reset_metrics_1h(&self) {
         let mut inner_store = self.inner.lock();
-        inner_store.reset_metrics();
+        inner_store.reset_metrics_1h();
     }
 
     pub(crate) fn snapshot(&self) -> TelemetryPayload {
@@ -225,30 +225,36 @@ impl TelemetryStoreInner {
             parquet_file_count: 0,
             parquet_file_size_mb: 0.0,
             parquet_row_count: 0,
+
+            // sums over hour
+            write_requests_sum_1h: self.writes.total_num_writes,
+            write_lines_sum_1h: self.writes.total_lines,
+            write_mb_sum_1h: to_mega_bytes(self.writes.total_size_bytes),
+            query_requests_sum_1h: self.reads.total_num_queries,
         }
     }
 
-    pub(crate) fn rollup_reads_and_writes(&mut self) {
+    pub(crate) fn rollup_reads_and_writes_1m(&mut self) {
         debug!(
             events_summary = ?self.per_minute_events_bucket,
             "Rolling up writes/reads"
         );
-        self.rollup_writes();
-        self.rollup_reads();
+        self.rollup_writes_1m();
+        self.rollup_reads_1m();
         self.per_minute_events_bucket.reset();
     }
 
-    fn rollup_writes(&mut self) {
+    fn rollup_writes_1m(&mut self) {
         let events_summary = &self.per_minute_events_bucket;
         self.writes.add_sample(events_summary);
     }
 
-    fn rollup_reads(&mut self) {
+    fn rollup_reads_1m(&mut self) {
         let events_summary = &self.per_minute_events_bucket;
         self.reads.add_sample(events_summary);
     }
 
-    fn reset_metrics(&mut self) {
+    fn reset_metrics_1h(&mut self) {
         self.cpu.reset();
         self.memory.reset();
         self.writes.reset();
@@ -363,7 +369,7 @@ mod tests {
         store.update_num_queries();
 
         // now rollup reads/writes
-        store.rollup_events();
+        store.rollup_events_1m();
         let snapshot = store.snapshot();
         info!(
             snapshot = ?snapshot,
@@ -373,14 +379,17 @@ mod tests {
         assert_eq!(1, snapshot.write_lines_min_1m);
         assert_eq!(120, snapshot.write_lines_max_1m);
         assert_eq!(56, snapshot.write_lines_avg_1m);
+        assert_eq!(222, snapshot.write_lines_sum_1h);
 
         assert_eq!(0, snapshot.write_mb_min_1m);
         assert_eq!(0, snapshot.write_mb_max_1m);
         assert_eq!(0, snapshot.write_mb_avg_1m);
+        assert_eq!(0, snapshot.write_mb_sum_1h);
 
         assert_eq!(3, snapshot.query_requests_min_1m);
         assert_eq!(3, snapshot.query_requests_max_1m);
         assert_eq!(3, snapshot.query_requests_avg_1m);
+        assert_eq!(3, snapshot.query_requests_sum_1h);
 
         // add more writes after rollup
         store.add_write_metrics(100, 101_024_000);
@@ -392,7 +401,7 @@ mod tests {
         store.update_num_queries();
         store.update_num_queries();
 
-        store.rollup_events();
+        store.rollup_events_1m();
         let snapshot = store.snapshot();
         info!(
             snapshot = ?snapshot,
@@ -401,17 +410,20 @@ mod tests {
         assert_eq!(1, snapshot.write_lines_min_1m);
         assert_eq!(120, snapshot.write_lines_max_1m);
         assert_eq!(56, snapshot.write_lines_avg_1m);
+        assert_eq!(444, snapshot.write_lines_sum_1h);
 
         assert_eq!(0, snapshot.write_mb_min_1m);
         assert_eq!(200, snapshot.write_mb_max_1m);
         assert_eq!(50, snapshot.write_mb_avg_1m);
+        assert_eq!(401, snapshot.write_mb_sum_1h);
 
         assert_eq!(2, snapshot.query_requests_min_1m);
         assert_eq!(3, snapshot.query_requests_max_1m);
         assert_eq!(3, snapshot.query_requests_avg_1m);
+        assert_eq!(5, snapshot.query_requests_sum_1h);
 
         // reset
-        store.reset_metrics();
+        store.reset_metrics_1h();
         // check snapshot 3
         let snapshot = store.snapshot();
         info!(snapshot = ?snapshot, "sample snapshot 3");
@@ -421,6 +433,21 @@ mod tests {
         assert_eq!(0, snapshot.memory_used_mb_min_1m);
         assert_eq!(0, snapshot.memory_used_mb_max_1m);
         assert_eq!(0, snapshot.memory_used_mb_avg_1m);
+
+        assert_eq!(0, snapshot.write_lines_min_1m);
+        assert_eq!(0, snapshot.write_lines_max_1m);
+        assert_eq!(0, snapshot.write_lines_avg_1m);
+        assert_eq!(0, snapshot.write_lines_sum_1h);
+
+        assert_eq!(0, snapshot.write_mb_min_1m);
+        assert_eq!(0, snapshot.write_mb_max_1m);
+        assert_eq!(0, snapshot.write_mb_avg_1m);
+        assert_eq!(0, snapshot.write_mb_sum_1h);
+
+        assert_eq!(0, snapshot.query_requests_min_1m);
+        assert_eq!(0, snapshot.query_requests_max_1m);
+        assert_eq!(0, snapshot.query_requests_avg_1m);
+        assert_eq!(0, snapshot.query_requests_sum_1h);
     }
 
     #[test]
