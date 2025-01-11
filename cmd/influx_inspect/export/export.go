@@ -122,7 +122,7 @@ func (cmd *Command) validate() error {
 		return fmt.Errorf("must specify a db")
 	}
 	if cmd.tsmFile != "" && (cmd.database == "" || cmd.retentionPolicy == "") {
-		return fmt.Errorf("must specify a db and retention policy")
+		return fmt.Errorf("must specify a db (-database) and retention policy (-retention)")
 	}
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
