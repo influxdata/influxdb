@@ -402,7 +402,7 @@ func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *htt
 	if err != nil {
 		if errors.Is(err, ErrLicenseAlreadyExists) {
 			// If the license already exists, we can just return the existing license
-			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", user.Email, r.Context().Value(instanceIDKey).(string)))
+			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), r.Context().Value(instanceIDKey).(string)))
 			w.WriteHeader(http.StatusCreated)
 			return
 		} else if errors.Is(err, ErrInstanceIDCollision) {
@@ -434,7 +434,7 @@ func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *htt
 	// Send a response to the client with Location header to download
 	// the license
 	instanceID := r.Context().Value(instanceIDKey).(string)
-	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", user.Email, instanceID))
+	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), instanceID))
 	w.WriteHeader(http.StatusCreated)
 }
 
