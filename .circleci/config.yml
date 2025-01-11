@@ -450,6 +450,9 @@ jobs:
       profile:
         type: string
         default: release
+      image_name:
+        type: string
+        default: influxdb3-core
     machine:
       image: default
     resource_class: << parameters.resource_class >>
@@ -461,21 +464,25 @@ jobs:
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
-              "influxdb3:latest-<< parameters.platform>>" \
+              "<< parameters.image_name >>:latest-<< parameters.platform >>" \
               "<< parameters.platform >>" \
               "<< parameters.profile >>"
 
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
       - run: |
-          docker save influxdb3:latest-<<parameters.platform>> > influxdb3-<<parameters.platform>>.tar
+          docker save << parameters.image_name >>:latest-<< parameters.platform >> > << parameters.image_name >>-<< parameters.platform >>.tar
       - persist_to_workspace:
           root: .
           paths:
-            - influxdb3-<<parameters.platform>>.tar
+            - << parameters.image_name >>-<< parameters.platform >>.tar
   publish-docker:
     docker:
       - image: cimg/gcp:2023.02
+    parameters:
+      image_name:
+        type: string
+        default: influxdb3-core
     resource_class: medium
     steps:
       - checkout
@@ -484,9 +491,9 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
-          docker load <influxdb3-arm64.tar
-          docker load <influxdb3-amd64.tar
-          .circleci/scripts/publish.bash influxdb3 ${CIRCLE_SHA1}
+          docker load < << parameters.image_name >>-arm64.tar
+          docker load < << parameters.image_name >>-amd64.tar
+          .circleci/scripts/publish.bash << parameters.image_name >> ${CIRCLE_SHA1}
 
   wait-for-docker:
     resource_class: small

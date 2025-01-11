@@ -2,7 +2,7 @@
 set -euo pipefail
 
 release() {
-  # This is a raw name, e.g. influxdb3
+  # This is a raw name, e.g. influxdb3-core
   image_name="${1}"
   image_dst="quay.io/influxdb/${1}:${2}"
 
