@@ -10,6 +10,7 @@ use datafusion::{
 use datafusion_util::config::DEFAULT_SCHEMA;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use iox_query::{
@@ -30,12 +31,11 @@ use tracker::{
 };
 
 use crate::{
-    query_executor::{acquire_semaphore, query_database, Error},
+    query_executor::{acquire_semaphore, query_database},
     system_tables::{
         compaction_events::CompactionEventsSysTable, SystemSchemaProvider,
         COMPACTION_EVENTS_TABLE_NAME, SYSTEM_SCHEMA_NAME,
     },
-    QueryExecutor, QueryKind,
 };
 
 #[derive(Debug)]
@@ -97,8 +97,6 @@ impl CompactionSysTableQueryExecutorImpl {
 
 #[async_trait]
 impl QueryExecutor for CompactionSysTableQueryExecutorImpl {
-    type Error = Error;
-
     async fn query(
         &self,
         database: &str,
@@ -107,15 +105,15 @@ impl QueryExecutor for CompactionSysTableQueryExecutorImpl {
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         info!(%database, %query, ?params, ?kind, "CompactionSysTableQueryExecutorImpl as QueryExecutor::query");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
-            .map_err(|_| Error::DatabaseNotFound {
+            .map_err(|_| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?
-            .ok_or_else(|| Error::DatabaseNotFound {
+            .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
         query_database(
@@ -133,16 +131,18 @@ impl QueryExecutor for CompactionSysTableQueryExecutorImpl {
     fn show_databases(
         &self,
         _include_deleted: bool,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        Err(Error::MethodNotImplemented)
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        Err(QueryExecutorError::MethodNotImplemented("show_databases"))
     }
 
     async fn show_retention_policies(
         &self,
         _database: Option<&str>,
         _span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        Err(Error::MethodNotImplemented)
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        Err(QueryExecutorError::MethodNotImplemented(
+            "show_retention_policies",
+        ))
     }
 
     fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
@@ -169,7 +169,7 @@ impl QueryDatabase for CompactionSysTableQueryExecutorImpl {
             .clone()
             .and_then(|compacted_data| compacted_data.catalog().db_schema(name))
             .ok_or_else(|| {
-                DataFusionError::External(Box::new(Error::DatabaseNotFound {
+                DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
                     db_name: name.into(),
                 }))
             })?;
@@ -375,10 +375,11 @@ mod tests {
         snapshot_fetched::{FailedInfo, SuccessInfo},
         CompactionEventStore,
     };
+    use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
     use iox_time::Time;
     use observability_deps::tracing::debug;
 
-    use crate::{query_executor::tests::setup, QueryExecutor};
+    use crate::query_executor::tests::setup;
 
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_snapshot_success() {
@@ -412,7 +413,7 @@ mod tests {
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .query(db_name, query, None, QueryKind::Sql, None, None)
             .await
             .unwrap();
         let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
@@ -458,7 +459,7 @@ mod tests {
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .query(db_name, query, None, QueryKind::Sql, None, None)
             .await
             .unwrap();
         let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
@@ -619,7 +620,7 @@ mod tests {
 
         let query = "SELECT split_part(event_time, 'T', 1) as event_time, event_type, event_duration, event_status, event_data FROM system.compaction_events";
         let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .query(db_name, query, None, QueryKind::Sql, None, None)
             .await
             .unwrap();
         let batches: Result<Vec<RecordBatch>, DataFusionError> = batch_stream.try_collect().await;
@@ -686,7 +687,7 @@ mod tests {
             parquet_max_time
             FROM system.compacted_data WHERE table_name = 'cpu'";
         let batch_stream = query_executor
-            .query(db_name, query, None, crate::QueryKind::Sql, None, None)
+            .query(db_name, query, None, QueryKind::Sql, None, None)
             .await
             .unwrap();
         let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();

@@ -49,6 +49,7 @@ trait ConfigProvider {
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
     host_id: Option<String>,
+    plugin_dir: Option<String>,
 }
 
 impl TestConfig {
@@ -67,6 +68,12 @@ impl TestConfig {
         self.host_id = Some(host_id.into());
         self
     }
+
+    /// Set the plugin dir for this [`TestServer`]
+    pub fn with_plugin_dir<S: Into<String>>(mut self, plugin_dir: S) -> Self {
+        self.plugin_dir = Some(plugin_dir.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -74,6 +81,9 @@ impl ConfigProvider for TestConfig {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
             args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        }
+        if let Some(plugin_dir) = &self.plugin_dir {
+            args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }
         args.push("--host-id".to_string());
         if let Some(host) = &self.host_id {
@@ -136,10 +146,10 @@ impl TestServer {
             .args(config.as_args())
             .stdout(Stdio::piped());
 
-        // If TEST_LOG env var is not defined, discard stdout/stderr, otherwise, pass it to the
-        // inner binary in the "LOG_FILTER" env var:
-        let emit_logs = if let Ok(val) = std::env::var("TEST_LOG") {
-            command.env("LOG_FILTER", if val.is_empty() { "info" } else { &val });
+        // Use the TEST_LOG env var to determine if logs are emitted from the spawned process
+        let emit_logs = if std::env::var("TEST_LOG").is_ok() {
+            // use "info" filter, as would be used in production:
+            command.env("LOG_FILTER", "info");
             true
         } else {
             false
@@ -343,64 +353,34 @@ impl TestServer {
             .expect("failed to send request to delete last cache")
     }
 
-    pub async fn api_v3_configure_file_index_create(
+    pub async fn api_v3_configure_distinct_cache_create(
         &self,
         request: &serde_json::Value,
     ) -> Response {
         self.http_client
             .post(format!(
-                "{base}/api/v3/pro/configure/file_index",
+                "{base}/api/v3/configure/distinct_cache",
                 base = self.client_addr()
             ))
             .json(request)
             .send()
             .await
-            .expect("failed to send request to create file index")
+            .expect("failed to send request to create distinct cache")
     }
 
-    pub async fn api_v3_configure_file_index_delete(
+    pub async fn api_v3_configure_distinct_cache_delete(
         &self,
         request: &serde_json::Value,
     ) -> Response {
         self.http_client
             .delete(format!(
-                "{base}/api/v3/pro/configure/file_index",
+                "{base}/api/v3/configure/distinct_cache",
                 base = self.client_addr()
             ))
             .json(request)
             .send()
             .await
-            .expect("failed to send request to delete file index")
-    }
-
-    pub async fn api_v3_configure_meta_cache_create(
-        &self,
-        request: &serde_json::Value,
-    ) -> Response {
-        self.http_client
-            .post(format!(
-                "{base}/api/v3/configure/meta_cache",
-                base = self.client_addr()
-            ))
-            .json(request)
-            .send()
-            .await
-            .expect("failed to send request to create metadata cache")
-    }
-
-    pub async fn api_v3_configure_meta_cache_delete(
-        &self,
-        request: &serde_json::Value,
-    ) -> Response {
-        self.http_client
-            .delete(format!(
-                "{base}/api/v3/configure/meta_cache",
-                base = self.client_addr()
-            ))
-            .json(request)
-            .send()
-            .await
-            .expect("failed to send request to delete metadata cache")
+            .expect("failed to send request to delete distinct cache")
     }
 }
 

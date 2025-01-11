@@ -3,12 +3,10 @@ pub mod enterprise;
 
 use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
 use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
-use crate::{QueryExecutor, QueryKind};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use arrow_array::{Array, BooleanArray};
-use arrow_schema::ArrowError;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::catalog::{CatalogProvider, SchemaProvider, Session};
@@ -22,11 +20,12 @@ use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
 use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
+use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
-use influxdb3_cache::meta_cache::{MetaCacheFunction, META_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
@@ -126,8 +125,6 @@ impl QueryExecutorImpl {
 
 #[async_trait]
 impl QueryExecutor for QueryExecutorImpl {
-    type Error = Error;
-
     async fn query(
         &self,
         database: &str,
@@ -136,35 +133,74 @@ impl QueryExecutor for QueryExecutorImpl {
         kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
         debug!(catalog = ?self.catalog, "query executor catalog");
         let db = self
             .namespace(database, span_ctx.child_span("get database"), false)
             .await
-            .map_err(|_| Error::DatabaseNotFound {
+            .map_err(|_| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?
-            .ok_or_else(|| Error::DatabaseNotFound {
+            .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
                 db_name: database.to_string(),
             })?;
 
-        query_database(
-            db,
-            query,
-            params,
-            kind,
-            span_ctx,
-            external_span_ctx,
-            Arc::clone(&self.telemetry_store),
-        )
-        .await
+        let params = params.unwrap_or_default();
+
+        let token = db.record_query(
+            external_span_ctx.as_ref().map(RequestLogContext::ctx),
+            kind.query_type(),
+            Box::new(query.to_string()),
+            params.clone(),
+        );
+
+        // NOTE - we use the default query configuration on the IOxSessionContext here:
+        let ctx = db.new_query_context(span_ctx, Default::default());
+        let planner = Planner::new(&ctx);
+        let query = query.to_string();
+
+        // Perform query planning on a separate threadpool than the IO runtime that is servicing
+        // this request by using `IOxSessionContext::run`.
+        let plan = ctx
+            .run(async move {
+                match kind {
+                    QueryKind::Sql => planner.sql(query, params).await,
+                    QueryKind::InfluxQl => planner.influxql(query, params).await,
+                }
+            })
+            .await;
+
+        let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
+            Ok(plan) => plan,
+            Err(e) => {
+                token.fail();
+                return Err(e);
+            }
+        };
+        let token = token.planned(&ctx, Arc::clone(&plan));
+
+        // TODO: Enforce concurrency limit here
+        let token = token.permit();
+
+        self.telemetry_store.update_num_queries();
+
+        match ctx.execute_stream(Arc::clone(&plan)).await {
+            Ok(query_results) => {
+                token.success();
+                Ok(query_results)
+            }
+            Err(err) => {
+                token.fail();
+                Err(QueryExecutorError::ExecuteStream(err))
+            }
+        }
     }
 
     fn show_databases(
         &self,
         include_deleted: bool,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         let mut databases = self.catalog.list_db_schema();
         // sort them to ensure consistent order, first by deleted, then by name:
         databases.sort_unstable_by(|a, b| match a.deleted.cmp(&b.deleted) {
@@ -196,7 +232,7 @@ impl QueryExecutor for QueryExecutorImpl {
         }
         let schema = DatafusionSchema::new(fields);
         let batch = RecordBatch::try_new(Arc::new(schema), arrays)
-            .map_err(Error::DatabasesToRecordBatch)?;
+            .map_err(QueryExecutorError::DatabasesToRecordBatch)?;
         Ok(Box::pin(MemoryStream::new(vec![batch])))
     }
 
@@ -204,7 +240,7 @@ impl QueryExecutor for QueryExecutorImpl {
         &self,
         database: Option<&str>,
         span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         let mut databases = if let Some(db) = database {
             vec![db.to_owned()]
         } else {
@@ -218,10 +254,10 @@ impl QueryExecutor for QueryExecutorImpl {
             let db = self
                 .namespace(&database, span_ctx.child_span("get database"), false)
                 .await
-                .map_err(|_| Error::DatabaseNotFound {
+                .map_err(|_| QueryExecutorError::DatabaseNotFound {
                     db_name: database.to_string(),
                 })?
-                .ok_or_else(|| Error::DatabaseNotFound {
+                .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
                     db_name: database.to_string(),
                 })?;
             let duration = db.retention_time_ns();
@@ -311,22 +347,6 @@ fn split_database_name(db_name: &str) -> (String, String) {
     )
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("database not found: {db_name}")]
-    DatabaseNotFound { db_name: String },
-    #[error("error while planning query: {0}")]
-    QueryPlanning(#[source] DataFusionError),
-    #[error("error while executing plan: {0}")]
-    ExecuteStream(#[source] DataFusionError),
-    #[error("unable to compose record batches from databases: {0}")]
-    DatabasesToRecordBatch(#[source] ArrowError),
-    #[error("unable to compose record batches from retention policies: {0}")]
-    RetentionPoliciesToRecordBatch(#[source] ArrowError),
-    #[error("method not implemented")]
-    MethodNotImplemented,
-}
-
 // This implementation is for the Flight service
 #[async_trait]
 impl QueryDatabase for QueryExecutorImpl {
@@ -340,7 +360,7 @@ impl QueryDatabase for QueryExecutorImpl {
         let _span_recorder = SpanRecorder::new(span);
 
         let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
-            DataFusionError::External(Box::new(Error::DatabaseNotFound {
+            DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
                 db_name: name.into(),
             }))
         })?;
@@ -496,10 +516,10 @@ impl QueryNamespace for Database {
             )),
         );
         ctx.inner().register_udtf(
-            META_CACHE_UDTF_NAME,
-            Arc::new(MetaCacheFunction::new(
+            DISTINCT_CACHE_UDTF_NAME,
+            Arc::new(DistinctCacheFunction::new(
                 self.db_schema.id,
-                self.write_buffer.meta_cache_provider(),
+                self.write_buffer.distinct_cache_provider(),
             )),
         );
         ctx
@@ -646,7 +666,7 @@ async fn query_database(
     span_ctx: Option<SpanContext>,
     external_span_ctx: Option<RequestLogContext>,
     telemetry_store: Arc<TelemetryStore>,
-) -> Result<SendableRecordBatchStream, Error> {
+) -> Result<SendableRecordBatchStream, QueryExecutorError> {
     let params = params.unwrap_or_default();
 
     let token = db.record_query(
@@ -672,7 +692,7 @@ async fn query_database(
         })
         .await;
 
-    let plan = match plan.map_err(Error::QueryPlanning) {
+    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
         Ok(plan) => plan,
         Err(e) => {
             token.fail();
@@ -693,7 +713,7 @@ async fn query_database(
         }
         Err(err) => {
             token.fail();
-            Err(Error::ExecuteStream(err))
+            Err(QueryExecutorError::ExecuteStream(err))
         }
     }
 }
@@ -712,18 +732,20 @@ async fn acquire_semaphore(
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
+    use crate::query_executor::QueryExecutorImpl;
     use arrow::array::RecordBatch;
     use data_types::NamespaceName;
     use datafusion::assert_batches_sorted_eq;
     use futures::TryStreamExt;
     use influxdb3_cache::{
-        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
     use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
     use influxdb3_id::ParquetFileId;
+    use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -739,8 +761,6 @@ mod tests {
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
     use tokio::sync::RwLock;
-
-    use crate::{query_executor::QueryExecutorImpl, QueryExecutor};
 
     use super::CreateQueryExecutorArgs;
 
@@ -837,7 +857,7 @@ mod tests {
             persister,
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -852,7 +872,6 @@ mod tests {
             },
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap();
@@ -932,10 +951,9 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 1956       | 2         | 0        | 10       |",
-                    "| cpu        | 1956       | 2         | 20       | 30       |",
-                    "| cpu        | 1956       | 2         | 40       | 50       |",
-                    "| cpu        | 1956       | 2         | 60       | 70       |",
+                    "| cpu        | 1961       | 3         | 0        | 20       |",
+                    "| cpu        | 1961       | 3         | 30       | 50       |",
+                    "| cpu        | 1961       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -948,10 +966,9 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| mem        | 1956       | 2         | 0        | 10       |",
-                    "| mem        | 1956       | 2         | 20       | 30       |",
-                    "| mem        | 1956       | 2         | 40       | 50       |",
-                    "| mem        | 1956       | 2         | 60       | 70       |",
+                    "| mem        | 1961       | 3         | 0        | 20       |",
+                    "| mem        | 1961       | 3         | 30       | 50       |",
+                    "| mem        | 1961       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -963,14 +980,12 @@ mod tests {
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 1956       | 2         | 0        | 10       |",
-                    "| cpu        | 1956       | 2         | 20       | 30       |",
-                    "| cpu        | 1956       | 2         | 40       | 50       |",
-                    "| cpu        | 1956       | 2         | 60       | 70       |",
-                    "| mem        | 1956       | 2         | 0        | 10       |",
-                    "| mem        | 1956       | 2         | 20       | 30       |",
-                    "| mem        | 1956       | 2         | 40       | 50       |",
-                    "| mem        | 1956       | 2         | 60       | 70       |",
+                    "| cpu        | 1961       | 3         | 0        | 20       |",
+                    "| cpu        | 1961       | 3         | 30       | 50       |",
+                    "| cpu        | 1961       | 3         | 60       | 80       |",
+                    "| mem        | 1961       | 3         | 0        | 20       |",
+                    "| mem        | 1961       | 3         | 30       | 50       |",
+                    "| mem        | 1961       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -978,17 +993,15 @@ mod tests {
                 query: "\
                     SELECT table_name, size_bytes, row_count, min_time, max_time \
                     FROM system.parquet_files \
-                    LIMIT 6",
+                    LIMIT 4",
                 expected: &[
                     "+------------+------------+-----------+----------+----------+",
                     "| table_name | size_bytes | row_count | min_time | max_time |",
                     "+------------+------------+-----------+----------+----------+",
-                    "| cpu        | 1956       | 2         | 0        | 10       |",
-                    "| cpu        | 1956       | 2         | 20       | 30       |",
-                    "| cpu        | 1956       | 2         | 40       | 50       |",
-                    "| cpu        | 1956       | 2         | 60       | 70       |",
-                    "| mem        | 1956       | 2         | 40       | 50       |",
-                    "| mem        | 1956       | 2         | 60       | 70       |",
+                    "| cpu        | 1961       | 3         | 0        | 20       |",
+                    "| cpu        | 1961       | 3         | 30       | 50       |",
+                    "| cpu        | 1961       | 3         | 60       | 80       |",
+                    "| mem        | 1961       | 3         | 60       | 80       |",
                     "+------------+------------+-----------+----------+----------+",
                 ],
             },
@@ -996,7 +1009,7 @@ mod tests {
 
         for t in test_cases {
             let batch_stream = query_executor
-                .query(db_name, t.query, None, crate::QueryKind::Sql, None, None)
+                .query(db_name, t.query, None, QueryKind::Sql, None, None)
                 .await
                 .unwrap();
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();

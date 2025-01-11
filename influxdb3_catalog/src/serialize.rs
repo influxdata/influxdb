@@ -106,6 +106,7 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                         plugin,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
                         disabled: trigger.disabled,
+                        database_name: trigger.database_name,
                     },
                 )
             })
@@ -163,7 +164,6 @@ struct TableSnapshot {
 struct ProcessingEnginePluginSnapshot {
     pub plugin_name: String,
     pub code: String,
-    pub function_name: String,
     pub plugin_type: PluginType,
 }
 
@@ -171,6 +171,7 @@ struct ProcessingEnginePluginSnapshot {
 struct ProcessingEngineTriggerSnapshot {
     pub trigger_name: String,
     pub plugin_name: String,
+    pub database_name: String,
     pub trigger_specification: String,
     pub disabled: bool,
 }
@@ -412,7 +413,6 @@ impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
         Self {
             plugin_name: plugin.plugin_name.to_string(),
             code: plugin.code.to_string(),
-            function_name: plugin.function_name.to_string(),
             plugin_type: plugin.plugin_type,
         }
     }
@@ -423,7 +423,6 @@ impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
         Self {
             plugin_name: plugin.plugin_name.to_string(),
             code: plugin.code.to_string(),
-            function_name: plugin.function_name.to_string(),
             plugin_type: plugin.plugin_type,
         }
     }
@@ -434,6 +433,7 @@ impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
         ProcessingEngineTriggerSnapshot {
             trigger_name: trigger.trigger_name.to_string(),
             plugin_name: trigger.plugin_name.to_string(),
+            database_name: trigger.database_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
             disabled: trigger.disabled,

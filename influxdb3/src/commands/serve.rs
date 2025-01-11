@@ -6,8 +6,8 @@ use futures::future::join_all;
 use futures::future::FutureExt;
 use futures::TryFutureExt;
 use influxdb3_cache::{
+    distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
-    meta_cache::MetaCacheProvider,
     parquet_cache::create_cached_obj_store_and_oracle,
 };
 use influxdb3_clap_blocks::{
@@ -35,6 +35,7 @@ use influxdb3_enterprise_compactor::{
 };
 use influxdb3_enterprise_data_layout::CompactionConfig;
 use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
+use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
@@ -42,17 +43,20 @@ use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
-        self,
         enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
         CreateQueryExecutorArgs, QueryExecutorImpl,
     },
-    serve, CommonServerState, QueryExecutor,
+    serve, CommonServerState,
 };
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
-    persister::Persister, write_buffer::persisted_files::PersistedFiles, WriteBuffer,
+    persister::Persister,
+    write_buffer::{
+        check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles, WriteBufferImpl,
+    },
+    WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;
@@ -60,8 +64,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::time::Duration;
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
@@ -134,8 +137,8 @@ pub enum Error {
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] last_cache::Error),
 
-    #[error("failed to initialize meta cache: {0:#}")]
-    InitializeMetaCache(#[source] influxdb3_cache::meta_cache::ProviderError),
+    #[error("failed to initialize distinct cache: {0:#}")]
+    InitializeDistinctCache(#[source] influxdb3_cache::distinct_cache::ProviderError),
 
     #[error("Error initializing compaction producer: {0}")]
     CompactionProducer(
@@ -356,19 +359,29 @@ pub struct Config {
     )]
     pub last_cache_eviction_interval: humantime::Duration,
 
-    /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
+    /// The interval on which to evict expired entries from the Distinct Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
     #[clap(
-        long = "meta-cache-eviction-interval",
-        env = "INFLUXDB3_META_CACHE_EVICTION_INTERVAL",
+        long = "distinct-cache-eviction-interval",
+        env = "INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL",
         default_value = "10s",
         action
     )]
-    pub meta_cache_eviction_interval: humantime::Duration,
+    pub distinct_cache_eviction_interval: humantime::Duration,
 
     /// The local directory that has python plugins and their test files.
     #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
     pub plugin_dir: Option<PathBuf>,
+
+    /// Threshold for internal buffer, can be either percentage or absolute value.
+    /// eg: 70% or 100000
+    #[clap(
+        long = "force-snapshot-mem-threshold",
+        env = "INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD",
+        default_value = "70%",
+        action
+    )]
+    pub force_snapshot_mem_threshold: MemorySize,
 }
 
 /// The interval to check for new snapshots from hosts to compact data from. This will do an S3
@@ -667,12 +680,12 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeLastCache)?;
 
-    let meta_cache = MetaCacheProvider::new_from_catalog_with_background_eviction(
+    let distinct_cache = DistinctCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&time_provider) as _,
         Arc::clone(&catalog),
-        config.meta_cache_eviction_interval.into(),
+        config.distinct_cache_eviction_interval.into(),
     )
-    .map_err(Error::InitializeMetaCache)?;
+    .map_err(Error::InitializeDistinctCache)?;
 
     let replica_config = config.enterprise_config.replicas.map(|replicas| {
         ReplicationConfig::new(
@@ -681,7 +694,13 @@ pub async fn command(config: Config) -> Result<()> {
         )
     });
 
-    let (write_buffer, persisted_files): (Arc<dyn WriteBuffer>, Option<Arc<PersistedFiles>>) =
+    type CreateBufferModeResult = (
+        Arc<dyn WriteBuffer>,
+        Option<Arc<PersistedFiles>>,
+        Option<Arc<WriteBufferImpl>>,
+    );
+
+    let (write_buffer, persisted_files, write_buffer_impl): CreateBufferModeResult =
         match config.enterprise_config.mode {
             BufferMode::Read => {
                 let ReplicationConfig { interval, hosts } = replica_config
@@ -691,7 +710,7 @@ pub async fn command(config: Config) -> Result<()> {
                     Arc::new(
                         WriteBufferEnterprise::read(CreateReadModeArgs {
                             last_cache,
-                            meta_cache,
+                            distinct_cache,
                             object_store: Arc::clone(&object_store),
                             catalog: Arc::clone(&catalog),
                             metric_registry: Arc::clone(&metrics),
@@ -705,6 +724,7 @@ pub async fn command(config: Config) -> Result<()> {
                         .map_err(Error::WriteBufferInit)?,
                     ),
                     None,
+                    None,
                 )
             }
             BufferMode::ReadWrite => {
@@ -714,7 +734,7 @@ pub async fn command(config: Config) -> Result<()> {
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
                         last_cache,
-                        meta_cache,
+                        distinct_cache,
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
                         executor: Arc::clone(&exec),
                         wal_config,
@@ -722,20 +742,34 @@ pub async fn command(config: Config) -> Result<()> {
                         replication_config: replica_config,
                         parquet_cache: parquet_cache.clone(),
                         compacted_data: compacted_data.clone(),
-                        plugin_dir: config.plugin_dir,
                     })
                     .await
                     .map_err(Error::WriteBufferInit)?,
                 );
                 let persisted_files = buf.persisted_files();
-                (buf, Some(persisted_files))
+                let write_buffer_impl = buf.write_buffer_impl();
+                (buf, Some(persisted_files), Some(write_buffer_impl))
             }
             BufferMode::Compactor => {
-                let buf = Arc::new(WriteBufferEnterprise::compactor());
-                (buf, None)
+                let catalog = compacted_data
+                    .as_ref()
+                    .map(|cd| cd.compacted_catalog.catalog())
+                    .expect("there was no compacted data initialized");
+                let buf = Arc::new(WriteBufferEnterprise::compactor(catalog));
+                (buf, None, None)
             }
         };
 
+    if let Some(write_buffer_impl) = write_buffer_impl {
+        info!("setting up background mem check for query buffer");
+        background_buffer_checker(
+            config.force_snapshot_mem_threshold.bytes(),
+            &write_buffer_impl,
+        )
+        .await;
+    }
+
+    info!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
         catalog.instance_id(),
@@ -752,6 +786,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
         Arc::clone(&enterprise_config),
         Arc::clone(&object_store),
+        config.plugin_dir,
     )?;
 
     let sys_table_compacted_data: Option<Arc<dyn CompactedDataSystemTableView>> =
@@ -761,32 +796,31 @@ pub async fn command(config: Config) -> Result<()> {
             None
         };
 
-    let query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>> =
-        match config.enterprise_config.mode {
-            BufferMode::Compactor => Arc::new(CompactionSysTableQueryExecutorImpl::new(
-                CompactionSysTableQueryExecutorArgs {
-                    exec: Arc::clone(&exec),
-                    metrics: Arc::clone(&metrics),
-                    datafusion_config,
-                    query_log_size: config.query_log_size,
-                    telemetry_store: Arc::clone(&telemetry_store),
-                    sys_events_store: Arc::clone(&sys_events_store),
-                    compacted_data: sys_table_compacted_data,
-                },
-            )),
-            _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-                catalog: write_buffer.catalog(),
-                write_buffer: Arc::clone(&write_buffer),
+    let query_executor: Arc<dyn QueryExecutor> = match config.enterprise_config.mode {
+        BufferMode::Compactor => Arc::new(CompactionSysTableQueryExecutorImpl::new(
+            CompactionSysTableQueryExecutorArgs {
                 exec: Arc::clone(&exec),
                 metrics: Arc::clone(&metrics),
                 datafusion_config,
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
-                compacted_data: sys_table_compacted_data,
-                enterprise_config: Arc::clone(&enterprise_config),
                 sys_events_store: Arc::clone(&sys_events_store),
-            })),
-        };
+                compacted_data: sys_table_compacted_data,
+            },
+        )),
+        _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
+            catalog: write_buffer.catalog(),
+            write_buffer: Arc::clone(&write_buffer),
+            exec: Arc::clone(&exec),
+            metrics: Arc::clone(&metrics),
+            datafusion_config,
+            query_log_size: config.query_log_size,
+            telemetry_store: Arc::clone(&telemetry_store),
+            compacted_data: sys_table_compacted_data,
+            enterprise_config: Arc::clone(&enterprise_config),
+            sys_events_store: Arc::clone(&sys_events_store),
+        })),
+    };
 
     let listener = TcpListener::bind(*config.http_bind_address)
         .await
@@ -868,6 +902,19 @@ async fn setup_telemetry_store(
         telemetry_endpoint,
     )
     .await
+}
+
+async fn background_buffer_checker(
+    mem_threshold_bytes: usize,
+    write_buffer_impl: &Arc<WriteBufferImpl>,
+) {
+    debug!(mem_threshold_bytes, "setting up background buffer checker");
+    check_mem_and_force_snapshot_loop(
+        Arc::clone(write_buffer_impl),
+        mem_threshold_bytes,
+        Duration::from_secs(10),
+    )
+    .await;
 }
 
 #[cfg(not(feature = "no_license"))]

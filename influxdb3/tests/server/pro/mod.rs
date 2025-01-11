@@ -1,4 +1,5 @@
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
+use reqwest::Response;
 
 use crate::server::{ConfigProvider, TestServer};
 
@@ -131,6 +132,36 @@ impl TestConfigEnterprise {
 impl TestServer {
     pub fn configure_pro() -> TestConfigEnterprise {
         TestConfigEnterprise::default()
+    }
+
+    pub async fn api_v3_configure_file_index_create(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .post(format!(
+                "{base}/api/v3/pro/configure/file_index",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to create file index")
+    }
+
+    pub async fn api_v3_configure_file_index_delete(
+        &self,
+        request: &serde_json::Value,
+    ) -> Response {
+        self.http_client
+            .delete(format!(
+                "{base}/api/v3/pro/configure/file_index",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to delete file index")
     }
 }
 

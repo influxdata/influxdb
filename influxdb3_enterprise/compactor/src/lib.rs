@@ -781,8 +781,8 @@ impl AsyncFileWriter for AsyncMultiPart {
 mod test_helpers {
     use datafusion_util::config::register_iox_object_store;
     use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{
         Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalContents, WalFileNotifier,
@@ -890,7 +890,7 @@ mod test_helpers {
                 persister: Arc::clone(&self.persister),
                 last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&self.catalog))
                     .unwrap(),
-                meta_cache_provider: MetaCacheProvider::new_from_catalog(
+                distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&self.time_provider),
                     Arc::clone(&self.catalog),
                 )
@@ -901,25 +901,27 @@ mod test_helpers {
             let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 
             // write the lp into the buffer
-            queryable_buffer.notify(wal_contents).await;
+            queryable_buffer.notify(Arc::new(wal_contents)).await;
             self.snapshot_sequence_number = self.snapshot_sequence_number.next();
             let snapshot_details = SnapshotDetails {
                 snapshot_sequence_number: self.snapshot_sequence_number,
                 end_time_marker: end_time,
                 last_wal_sequence_number: self.wal_file_sequence_number,
+                first_wal_sequence_number: self.wal_file_sequence_number,
+                forced: false,
             };
 
             // now force a snapshot, persisting the data to parquet files and writing a persisted snapshot file
             let details = queryable_buffer
                 .notify_and_snapshot(
-                    WalContents {
+                    Arc::new(WalContents {
                         persist_timestamp_ms: 0,
                         min_timestamp_ns: 0,
                         max_timestamp_ns: 0,
                         wal_file_number: self.wal_file_sequence_number,
                         ops: vec![],
                         snapshot: Some(snapshot_details),
-                    },
+                    }),
                     snapshot_details,
                 )
                 .await;

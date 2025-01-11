@@ -7,32 +7,44 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::logical_expr::Expr;
 use influxdb3_cache::{
+    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
-    meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_processing_engine::{
+    manager::{ProcessingEngineError, ProcessingEngineManager},
+    plugins,
+};
 use influxdb3_wal::{
-    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
+    DistinctCacheDefinition, LastCacheDefinition, NoopWal, PluginType,
+    TriggerSpecificationDefinition, Wal,
 };
 use influxdb3_write::{
-    write_buffer::{
-        self, plugins::ProcessingEngineManager, Error as WriteBufferError,
-        Result as WriteBufferResult,
-    },
+    write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{DatabaseManager, MetaCacheManager};
+use influxdb3_write::{DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch::Receiver;
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct CompactorMode {}
+#[derive(Debug, Clone)]
+pub struct CompactorMode {
+    /// The compactor's catalog, which is the union of host catalogs being compacted
+    catalog: Arc<Catalog>,
+}
+
+impl CompactorMode {
+    pub fn new(catalog: Arc<Catalog>) -> Self {
+        Self { catalog }
+    }
+}
 
 #[async_trait]
 impl Bufferer for CompactorMode {
@@ -48,7 +60,7 @@ impl Bufferer for CompactorMode {
     }
 
     fn catalog(&self) -> Arc<Catalog> {
-        unimplemented!("catalog not implemented for CompactorMode")
+        Arc::clone(&self.catalog)
     }
 
     fn parquet_files(&self, _db_id: DbId, _table_id: TableId) -> Vec<ParquetFile> {
@@ -57,6 +69,10 @@ impl Bufferer for CompactorMode {
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
         unimplemented!("watch_persisted_snapshots not implemented for CompactorMode")
+    }
+
+    fn wal(&self) -> Arc<dyn Wal> {
+        Arc::new(NoopWal)
     }
 }
 
@@ -105,27 +121,27 @@ impl LastCacheManager for CompactorMode {
 }
 
 #[async_trait]
-impl MetaCacheManager for CompactorMode {
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
-        unimplemented!("meta_cache_provider not implemented for CompactorMode")
+impl DistinctCacheManager for CompactorMode {
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
+        unimplemented!("distinct_cache_provider not implemented for CompactorMode")
     }
 
-    async fn create_meta_cache(
+    async fn create_distinct_cache(
         &self,
         _db_schema: Arc<DatabaseSchema>,
         _cache_name: Option<String>,
-        _args: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, WriteBufferError> {
-        unimplemented!("create_meta_cache not implemented for CompactorMode")
+        _args: CreateDistinctCacheArgs,
+    ) -> Result<Option<DistinctCacheDefinition>, WriteBufferError> {
+        unimplemented!("create_distinct_cache not implemented for CompactorMode")
     }
 
-    async fn delete_meta_cache(
+    async fn delete_distinct_cache(
         &self,
         _db_id: &DbId,
         _tbl_id: &TableId,
         _cache_name: &str,
     ) -> Result<(), WriteBufferError> {
-        unimplemented!("delete_meta_cache not implemented for CompactorMode")
+        unimplemented!("delete_distinct_cache not implemented for CompactorMode")
     }
 }
 
@@ -163,9 +179,8 @@ impl ProcessingEngineManager for CompactorMode {
         _db: &str,
         _plugin_name: String,
         _code: String,
-        _function_name: String,
         _plugin_type: PluginType,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot insert processing engine plugin in CompactorMode")
     }
 
@@ -173,16 +188,17 @@ impl ProcessingEngineManager for CompactorMode {
         &self,
         _db: &str,
         _plugin_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot delete processing engine plugin in CompactorMode")
     }
 
     async fn activate_trigger(
         &self,
         _write_buffer: Arc<dyn WriteBuffer>,
+        _query_executor: Arc<dyn QueryExecutor>,
         _db_name: &str,
         _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot activate trigger in CompactorMode")
     }
 
@@ -190,7 +206,7 @@ impl ProcessingEngineManager for CompactorMode {
         &self,
         _db_name: &str,
         _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot activate trigger in CompactorMode")
     }
 
@@ -201,7 +217,7 @@ impl ProcessingEngineManager for CompactorMode {
         _plugin_name: String,
         _trigger_specification: TriggerSpecificationDefinition,
         _disabled: bool,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot insert processing engine trigger in CompactorMode")
     }
 
@@ -210,22 +226,24 @@ impl ProcessingEngineManager for CompactorMode {
         _db_name: &str,
         _trigger_name: &str,
         _force: bool,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot delete processing engine trigger in CompactorMode")
     }
 
     async fn run_trigger(
         &self,
         _write_buffer: Arc<dyn WriteBuffer>,
+        _query_executor: Arc<dyn QueryExecutor>,
         _db_name: &str,
         _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         unimplemented!("cannot run processing engine trigger in CompactorMode")
     }
     async fn test_wal_plugin(
         &self,
         _request: WalPluginTestRequest,
-    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
+        _query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<WalPluginTestResponse, plugins::Error> {
         unimplemented!("cannot test wal plugin in CompactorMode")
     }
 }

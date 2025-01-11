@@ -23,17 +23,13 @@ mod system_tables;
 use crate::grpc::make_flight_server;
 use crate::http::route_request;
 use crate::http::HttpApi;
-use async_trait::async_trait;
 use authz::Authorizer;
-use datafusion::execution::SendableRecordBatchStream;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
-use iox_query::QueryDatabase;
-use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use observability_deps::tracing::error;
@@ -41,6 +37,7 @@ use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use thiserror::Error;
@@ -49,9 +46,7 @@ use tokio::sync::RwLock;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
-use trace::ctx::SpanContext;
 use trace::TraceCollector;
-use trace_http::ctx::RequestLogContext;
 use trace_http::ctx::TraceHeaderParser;
 use trace_http::metrics::MetricFamily;
 use trace_http::metrics::RequestMetrics;
@@ -92,6 +87,7 @@ pub struct CommonServerState {
     telemetry_store: Arc<TelemetryStore>,
     enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     object_store: Arc<dyn ObjectStore>,
+    plugin_dir: Option<PathBuf>,
 }
 
 impl CommonServerState {
@@ -102,6 +98,7 @@ impl CommonServerState {
         telemetry_store: Arc<TelemetryStore>,
         enterprise_config: Arc<RwLock<EnterpriseConfig>>,
         object_store: Arc<dyn ObjectStore>,
+        plugin_dir: Option<PathBuf>,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
@@ -110,6 +107,7 @@ impl CommonServerState {
             telemetry_store,
             enterprise_config,
             object_store,
+            plugin_dir,
         })
     }
 
@@ -140,49 +138,6 @@ pub struct Server<T> {
     persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
-}
-
-#[async_trait]
-pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
-    type Error;
-
-    async fn query(
-        &self,
-        database: &str,
-        q: &str,
-        params: Option<StatementParams>,
-        kind: QueryKind,
-        span_ctx: Option<SpanContext>,
-        external_span_ctx: Option<RequestLogContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    fn show_databases(
-        &self,
-        include_deleted: bool,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    async fn show_retention_policies(
-        &self,
-        database: Option<&str>,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<SendableRecordBatchStream, Self::Error>;
-
-    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum QueryKind {
-    Sql,
-    InfluxQl,
-}
-
-impl QueryKind {
-    pub(crate) fn query_type(&self) -> &'static str {
-        match self {
-            Self::Sql => "sql",
-            Self::InfluxQl => "influxql",
-        }
-    }
 }
 
 impl<T> Server<T> {
@@ -274,8 +229,8 @@ mod tests {
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_cache::meta_cache::MetaCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_config::EnterpriseConfig;
@@ -828,7 +783,7 @@ mod tests {
                 persister: Arc::clone(&persister),
                 catalog: Arc::clone(&catalog),
                 last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-                meta_cache: MetaCacheProvider::new_from_catalog(
+                distinct_cache: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&time_provider) as _,
                     Arc::clone(&catalog),
                 )
@@ -838,7 +793,6 @@ mod tests {
                 wal_config: WalConfig::test_config(),
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
-                plugin_dir: None,
             },
         )
         .await
@@ -860,6 +814,7 @@ mod tests {
             Arc::clone(&sample_telem_store),
             Arc::clone(&enterprise_config),
             Arc::clone(&object_store),
+            None,
         )
         .unwrap();
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {

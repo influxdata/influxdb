@@ -489,7 +489,7 @@ mod tests {
         persister.persist_catalog(&catalog).await.unwrap();
 
         let batch = |name: &str, num: u32| {
-            let _ = catalog.apply_catalog_batch(CatalogBatch {
+            let _ = catalog.apply_catalog_batch(&CatalogBatch {
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 time_ns: 5000,

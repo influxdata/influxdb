@@ -19,12 +19,15 @@ influxdb3_cache = { path = "../../influxdb3_cache" }
 influxdb3_catalog = { path = "../../influxdb3_catalog" }
 influxdb3_client = { path = "../../influxdb3_client" }
 influxdb3_id = { path = "../../influxdb3_id" }
+influxdb3_internal_api = { path = "../../influxdb3_internal_api" }
+influxdb3_processing_engine = { path = "../../influxdb3_processing_engine" }
 influxdb3_test_helpers = { path = "../../influxdb3_test_helpers" }
 influxdb3_wal = { path = "../../influxdb3_wal" }
 influxdb3_write = { path = "../../influxdb3_write" }
+influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
+# Local Enterprise Crates
 influxdb3_enterprise_compactor = { path = "../compactor" }
 influxdb3_enterprise_data_layout = { path = "../data_layout" }
-influxdb3_sys_events = { path = "../../influxdb3_sys_events" }
 
 # Crates.io Crates
 anyhow.workspace = true
@@ -45,6 +48,7 @@ tokio.workspace = true
 datafusion_util.workspace = true
 metric.workspace = true
 parquet_file.workspace = true
+tempfile.workspace = true
 test-log.workspace = true
 
 [lints]

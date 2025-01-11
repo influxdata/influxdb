@@ -29,6 +29,7 @@ influxdb3_catalog = { path = "../influxdb3_catalog" }
 influxdb3_config = { path = "../influxdb3_config" }
 influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_clap_blocks = { path = "../influxdb3_clap_blocks" }
+influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_wal = { path = "../influxdb3_wal" }
@@ -106,7 +107,9 @@ hyper.workspace = true
 insta.workspace = true
 pretty_assertions.workspace = true
 reqwest.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+serde_urlencoded.workspace = true
 test_helpers.workspace = true
 tonic.workspace = true
 tower.workspace = true

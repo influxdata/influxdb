@@ -4,22 +4,26 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
 use influxdb3_cache::{
+    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
-    meta_cache::{CreateMetaCacheArgs, MetaCacheProvider},
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_processing_engine::{
+    manager::{ProcessingEngineError, ProcessingEngineManager},
+    plugins,
+};
 use influxdb3_wal::{
-    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
+    DistinctCacheDefinition, LastCacheDefinition, PluginType, TriggerSpecificationDefinition, Wal,
 };
 use influxdb3_write::{
     write_buffer::{
-        self, persisted_files::PersistedFiles, plugins::ProcessingEngineManager,
-        Result as WriteBufferResult,
+        self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
     },
-    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, LastCacheManager,
-    MetaCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, DistinctCacheManager,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -57,8 +61,8 @@ impl WriteBufferEnterprise<NoMode> {
         Ok(WriteBufferEnterprise { mode })
     }
 
-    pub fn compactor() -> WriteBufferEnterprise<CompactorMode> {
-        let mode = CompactorMode::default();
+    pub fn compactor(catalog: Arc<Catalog>) -> WriteBufferEnterprise<CompactorMode> {
+        let mode = CompactorMode::new(catalog);
         WriteBufferEnterprise { mode }
     }
 }
@@ -66,6 +70,10 @@ impl WriteBufferEnterprise<NoMode> {
 impl WriteBufferEnterprise<ReadWriteMode> {
     pub fn persisted_files(&self) -> Arc<PersistedFiles> {
         self.mode.persisted_files()
+    }
+
+    pub fn write_buffer_impl(&self) -> Arc<WriteBufferImpl> {
+        self.mode.write_buffer_impl()
     }
 }
 
@@ -94,6 +102,10 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
         unimplemented!("watch_persisted_snapshots not implemented for WriteBufferEnterprise")
+    }
+
+    fn wal(&self) -> Arc<dyn Wal> {
+        self.mode.wal()
     }
 }
 
@@ -152,29 +164,31 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferEnterprise<Mode> {
 }
 
 #[async_trait::async_trait]
-impl<Mode: MetaCacheManager> MetaCacheManager for WriteBufferEnterprise<Mode> {
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
-        self.mode.meta_cache_provider()
+impl<Mode: DistinctCacheManager> DistinctCacheManager for WriteBufferEnterprise<Mode> {
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
+        self.mode.distinct_cache_provider()
     }
 
-    async fn create_meta_cache(
+    async fn create_distinct_cache(
         &self,
         db_schema: Arc<DatabaseSchema>,
         cache_name: Option<String>,
-        args: CreateMetaCacheArgs,
-    ) -> WriteBufferResult<Option<MetaCacheDefinition>> {
+        args: CreateDistinctCacheArgs,
+    ) -> WriteBufferResult<Option<DistinctCacheDefinition>> {
         self.mode
-            .create_meta_cache(db_schema, cache_name, args)
+            .create_distinct_cache(db_schema, cache_name, args)
             .await
     }
 
-    async fn delete_meta_cache(
+    async fn delete_distinct_cache(
         &self,
         db_id: &DbId,
         tbl_id: &TableId,
         cache_name: &str,
     ) -> WriteBufferResult<()> {
-        self.mode.delete_meta_cache(db_id, tbl_id, cache_name).await
+        self.mode
+            .delete_distinct_cache(db_id, tbl_id, cache_name)
+            .await
     }
 }
 
@@ -212,26 +226,30 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferEnter
         db: &str,
         plugin_name: String,
         code: String,
-        function_name: String,
         plugin_type: PluginType,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode
-            .insert_plugin(db, plugin_name, code, function_name, plugin_type)
+            .insert_plugin(db, plugin_name, code, plugin_type)
             .await
     }
 
-    async fn delete_plugin(&self, db: &str, plugin_name: &str) -> Result<(), write_buffer::Error> {
+    async fn delete_plugin(
+        &self,
+        db: &str,
+        plugin_name: &str,
+    ) -> Result<(), ProcessingEngineError> {
         self.mode.delete_plugin(db, plugin_name).await
     }
 
     async fn activate_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
+        query_executor: Arc<dyn QueryExecutor>,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode
-            .activate_trigger(write_buffer, db_name, trigger_name)
+            .activate_trigger(write_buffer, query_executor, db_name, trigger_name)
             .await
     }
 
@@ -239,7 +257,7 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferEnter
         &self,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode.deactivate_trigger(db_name, trigger_name).await
     }
 
@@ -250,7 +268,7 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferEnter
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
         disabled: bool,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode
             .insert_trigger(
                 db_name,
@@ -267,26 +285,28 @@ impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferEnter
         db: &str,
         trigger_name: &str,
         force: bool,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode.delete_trigger(db, trigger_name, force).await
     }
 
     async fn run_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
+        query_executor: Arc<dyn QueryExecutor>,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
+    ) -> Result<(), ProcessingEngineError> {
         self.mode
-            .run_trigger(write_buffer, db_name, trigger_name)
+            .run_trigger(write_buffer, query_executor, db_name, trigger_name)
             .await
     }
 
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
-    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
-        self.mode.test_wal_plugin(request).await
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<WalPluginTestResponse, plugins::Error> {
+        self.mode.test_wal_plugin(request, query_executor).await
     }
 }
 
@@ -300,7 +320,7 @@ mod tests {
     use datafusion_util::config::register_iox_object_store;
     use futures::future::try_join_all;
     use influxdb3_cache::{
-        last_cache::LastCacheProvider, meta_cache::MetaCacheProvider,
+        distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -333,9 +353,11 @@ mod tests {
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
@@ -347,7 +369,7 @@ mod tests {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor: make_exec(
                 Arc::clone(&non_cached_obj_store) as _,
@@ -364,7 +386,6 @@ mod tests {
             replication_config: None,
             parquet_cache: None,
             compacted_data: None,
-            plugin_dir: None,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -443,9 +464,11 @@ mod tests {
         let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
@@ -457,7 +480,7 @@ mod tests {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor: make_exec(
                 Arc::clone(&cached_obj_store) as _,
@@ -474,7 +497,6 @@ mod tests {
             replication_config: None,
             parquet_cache: Some(parquet_cache),
             compacted_data: None,
-            plugin_dir: None,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -840,7 +862,7 @@ mod test_helpers {
 
     use data_types::NamespaceName;
     use datafusion::{arrow::array::RecordBatch, execution::context::SessionContext};
-    use influxdb3_cache::{last_cache::LastCacheProvider, meta_cache::MetaCacheProvider};
+    use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
     use influxdb3_wal::WalConfig;
     use influxdb3_write::{persister::Persister, Precision, WriteBuffer};
     use iox_query::{
@@ -953,9 +975,11 @@ mod test_helpers {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
-        let meta_cache =
-            MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
-                .unwrap();
+        let distinct_cache = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider),
+            Arc::clone(&catalog),
+        )
+        .unwrap();
         let metric_registry = Arc::new(metric::Registry::new());
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = Some(ReplicationConfig {
@@ -967,7 +991,7 @@ mod test_helpers {
             persister,
             catalog,
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider,
             executor,
             wal_config: WalConfig::test_config(),
@@ -975,7 +999,6 @@ mod test_helpers {
             replication_config,
             parquet_cache: None,
             compacted_data: None,
-            plugin_dir: None,
         })
         .await
         .unwrap()

@@ -5,24 +5,20 @@ use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use influxdb3_cache::distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider};
 use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::{CreateMetaCacheArgs, MetaCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{
-    LastCacheDefinition, MetaCacheDefinition, PluginType, TriggerSpecificationDefinition,
-};
-use influxdb3_write::write_buffer::plugins::ProcessingEngineManager;
+use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::write_buffer::{self, parquet_chunk_from_file};
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{DatabaseManager, MetaCacheManager};
+use influxdb3_write::{DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -38,7 +34,7 @@ pub struct ReadMode {
 #[derive(Debug)]
 pub struct CreateReadModeArgs {
     pub last_cache: Arc<LastCacheProvider>,
-    pub meta_cache: Arc<MetaCacheProvider>,
+    pub distinct_cache: Arc<DistinctCacheProvider>,
     pub object_store: Arc<dyn ObjectStore>,
     pub catalog: Arc<Catalog>,
     pub metric_registry: Arc<Registry>,
@@ -54,7 +50,7 @@ impl ReadMode {
     pub(crate) async fn new(
         CreateReadModeArgs {
             last_cache,
-            meta_cache,
+            distinct_cache,
             object_store,
             catalog,
             metric_registry,
@@ -68,7 +64,7 @@ impl ReadMode {
         Ok(Self {
             replicas: Replicas::new(CreateReplicasArgs {
                 last_cache,
-                meta_cache,
+                distinct_cache,
                 object_store,
                 metric_registry,
                 replication_interval,
@@ -110,6 +106,10 @@ impl Bufferer for ReadMode {
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
         unimplemented!("watch_persisted_snapshots not implemented for ReadMode")
+    }
+
+    fn wal(&self) -> Arc<dyn Wal> {
+        Arc::new(NoopWal)
     }
 }
 
@@ -214,21 +214,21 @@ impl LastCacheManager for ReadMode {
 }
 
 #[async_trait]
-impl MetaCacheManager for ReadMode {
-    fn meta_cache_provider(&self) -> Arc<MetaCacheProvider> {
-        self.replicas.meta_cache()
+impl DistinctCacheManager for ReadMode {
+    fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
+        self.replicas.distinct_cache()
     }
 
-    async fn create_meta_cache(
+    async fn create_distinct_cache(
         &self,
         _db_schema: Arc<DatabaseSchema>,
         _cache_name: Option<String>,
-        _args: CreateMetaCacheArgs,
-    ) -> Result<Option<MetaCacheDefinition>, WriteBufferError> {
+        _args: CreateDistinctCacheArgs,
+    ) -> Result<Option<DistinctCacheDefinition>, WriteBufferError> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 
-    async fn delete_meta_cache(
+    async fn delete_distinct_cache(
         &self,
         _db_id: &DbId,
         _tbl_id: &TableId,
@@ -263,82 +263,6 @@ impl DatabaseManager for ReadMode {
         _db_name: String,
         _table_name: String,
     ) -> Result<(), WriteBufferError> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-}
-
-#[async_trait]
-impl ProcessingEngineManager for ReadMode {
-    async fn insert_plugin(
-        &self,
-        _db: &str,
-        _plugin_name: String,
-        _code: String,
-        _function_name: String,
-        _plugin_type: PluginType,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn delete_plugin(
-        &self,
-        _db: &str,
-        _plugin_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn activate_trigger(
-        &self,
-        _write_buffer: Arc<dyn WriteBuffer>,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn deactivate_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn insert_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: String,
-        _plugin_name: String,
-        _trigger_specification: TriggerSpecificationDefinition,
-        _disabled: bool,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn delete_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: &str,
-        _force: bool,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn run_trigger(
-        &self,
-        _write_buffer: Arc<dyn WriteBuffer>,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), write_buffer::Error> {
-        // TODO - should be able to run triggers in read mode
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn test_wal_plugin(
-        &self,
-        _request: WalPluginTestRequest,
-    ) -> Result<WalPluginTestResponse, write_buffer::Error> {
         Err(WriteBufferError::NoWriteInReadOnly)
     }
 }

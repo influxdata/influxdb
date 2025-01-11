@@ -364,7 +364,7 @@ async fn test_delete_missing_table() {
 }
 
 #[tokio::test]
-async fn test_create_delete_meta_cache() {
+async fn test_create_delete_distinct_cache() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
@@ -381,7 +381,7 @@ async fn test_create_delete_meta_cache() {
     // first create the cache:
     let result = run(&[
         "create",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -396,7 +396,7 @@ async fn test_create_delete_meta_cache() {
     // doing the same thing over again will be a no-op
     let result = run(&[
         "create",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -414,7 +414,7 @@ async fn test_create_delete_meta_cache() {
     // now delete it:
     let result = run(&[
         "delete",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -423,11 +423,11 @@ async fn test_create_delete_meta_cache() {
         table_name,
         cache_name,
     ]);
-    assert_contains!(&result, "meta cache deleted successfully");
+    assert_contains!(&result, "distinct cache deleted successfully");
     // trying to delete again should result in an error as the cache no longer exists:
     let result = run_and_err(&[
         "delete",
-        "meta_cache",
+        "distinct_cache",
         "--host",
         &server_addr,
         "--database",
@@ -438,6 +438,7 @@ async fn test_create_delete_meta_cache() {
     ]);
     assert_contains!(&result, "[404 Not Found]: cache not found");
 }
+
 #[test_log::test(tokio::test)]
 async fn test_create_plugin() {
     let server = TestServer::spawn().await;
@@ -467,8 +468,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
     debug!(result = ?result, "create plugin");
@@ -501,8 +500,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -547,8 +544,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -597,8 +592,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -670,8 +663,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -769,8 +760,6 @@ def process_rows(iterator, output):
         &server_addr,
         "--code-filename",
         plugin_file.path().to_str().unwrap(),
-        "--entry-point",
-        "process_rows",
         plugin_name,
     ]);
 
@@ -790,4 +779,164 @@ def process_rows(iterator, output):
     ]);
     debug!(result = ?result, "create table-specific trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
+}
+
+#[test]
+fn test_create_token() {
+    let result = run_with_confirmation(&["create", "token"]);
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+}
+
+#[tokio::test]
+async fn distinct_cache_create_and_delete() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let server_addr = server.client_addr();
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let result = run_with_confirmation(&[
+        "create",
+        "distinct_cache",
+        "-H",
+        &server_addr,
+        "-d",
+        db_name,
+        "-t",
+        "cpu",
+        "--columns",
+        "t1,t2",
+        "--max-cardinality",
+        "20000",
+        "--max-age",
+        "200s",
+        "cache_money",
+    ]);
+
+    insta::assert_yaml_snapshot!(result);
+
+    let result = run_with_confirmation(&[
+        "delete",
+        "distinct_cache",
+        "-H",
+        &server_addr,
+        "-d",
+        db_name,
+        "-t",
+        "cpu",
+        "cache_money",
+    ]);
+
+    insta::assert_yaml_snapshot!(result);
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_wal_plugin_test() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    // Create plugin file
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("arg1: " + args["arg1"])
+
+    query_params = {"host": args["host"]}
+    query_result = influxdb3_local.query_rows("SELECT * FROM cpu where host = $host", query_params)
+    influxdb3_local.info("query result: " + str(query_result))
+
+    for table_batch in table_batches:
+        influxdb3_local.info("table: " + table_batch["table_name"])
+
+        for row in table_batch["rows"]:
+            influxdb3_local.info("row: " + str(row))
+
+    line = LineBuilder("some_table")\
+        .tag("tag1", "tag1_value")\
+        .tag("tag2", "tag2_value")\
+        .int64_field("field1", 1)\
+        .float64_field("field2", 2.0)\
+        .string_field("field3", "number three")
+    influxdb3_local.write(line)
+
+    other_line = LineBuilder("other_table")
+    other_line.int64_field("other_field", 1)
+    other_line.float64_field("other_field2", 3.14)
+    other_line.time_ns(1302)
+
+    influxdb3_local.write_to_db("mytestdb", other_line)
+
+    influxdb3_local.info("done")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9 1\n\
+            cpu,host=s2,region=us-east usage=0.89 2\n\
+            cpu,host=s1,region=us-east usage=0.85 3",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // Run the test
+    let result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+        "--input-arguments",
+        "arg1=arg1_value,host=s2",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test wal plugin");
+
+    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+
+    let expected_result = r#"{
+  "log_lines": [
+    "INFO: arg1: arg1_value",
+    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'time': 2, 'usage': 0.89}]",
+    "INFO: table: test_input",
+    "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
+    "INFO: done"
+  ],
+  "database_writes": {
+    "mytestdb": [
+      "other_table other_field=1i,other_field2=3.14 1302"
+    ],
+    "foo": [
+      "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""
+    ]
+  },
+  "errors": []
+}"#;
+    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
+    assert_eq!(res, expected_result);
 }

@@ -12,8 +12,8 @@ use arrow::util::pretty::pretty_format_batches;
 use arrow_schema::SchemaRef;
 use data_types::NamespaceName;
 use executor::register_current_runtime_for_io;
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_compactor::{compact_files, CompactFilesArgs, CompactorOutput};
 use influxdb3_enterprise_data_layout::{Generation, GenerationLevel};
@@ -58,7 +58,7 @@ async fn five_files_multiple_series_same_schema() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -68,7 +68,6 @@ async fn five_files_multiple_series_same_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -286,7 +285,7 @@ async fn two_files_two_series_and_same_schema() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -296,7 +295,6 @@ async fn two_files_two_series_and_same_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -446,7 +444,7 @@ async fn two_files_same_series_and_schema() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -456,7 +454,6 @@ async fn two_files_same_series_and_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -592,7 +589,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -602,7 +599,6 @@ async fn two_files_similar_series_and_compatible_schema() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -775,7 +771,7 @@ async fn deduplication_of_data() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -785,7 +781,6 @@ async fn deduplication_of_data() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -910,7 +905,7 @@ async fn compactor_casting() {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
-            meta_cache: MetaCacheProvider::new_from_catalog(
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
@@ -920,7 +915,6 @@ async fn compactor_casting() {
             wal_config: WalConfig::test_config(),
             parquet_cache: None,
             metric_registry: Default::default(),
-            plugin_dir: None,
         })
         .await
         .unwrap(),

@@ -8,8 +8,8 @@ use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures::FutureExt;
 use hashbrown::HashMap;
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_cache::meta_cache::MetaCacheProvider;
 use influxdb3_enterprise_buffer::modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode};
 use influxdb3_enterprise_buffer::replica::ReplicationConfig;
 use influxdb3_enterprise_buffer::WriteBufferEnterprise;
@@ -60,7 +60,7 @@ async fn two_writers_gen1_compaction() {
     let writer1_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer1_id));
     let writer1_catalog = Arc::new(writer1_persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&writer1_catalog)).unwrap();
-    let meta_cache = MetaCacheProvider::new_from_catalog(
+    let distinct_cache = DistinctCacheProvider::new_from_catalog(
         Arc::clone(&time_provider),
         Arc::clone(&writer1_catalog),
     )
@@ -74,13 +74,12 @@ async fn two_writers_gen1_compaction() {
         persister: Arc::clone(&writer2_persister),
         catalog: Arc::new(writer2_catalog),
         last_cache: Arc::clone(&last_cache),
-        meta_cache: Arc::clone(&meta_cache),
+        distinct_cache: Arc::clone(&distinct_cache),
         time_provider: Arc::clone(&time_provider),
         executor: Arc::clone(&exec),
         wal_config,
         parquet_cache: None,
         metric_registry: Arc::clone(&metrics),
-        plugin_dir: None,
     })
     .await
     .unwrap();
@@ -112,7 +111,7 @@ async fn two_writers_gen1_compaction() {
             persister: Arc::clone(&writer1_persister),
             catalog: Arc::clone(&writer1_catalog),
             last_cache,
-            meta_cache,
+            distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
             executor: Arc::clone(&exec),
             wal_config,
@@ -123,7 +122,6 @@ async fn two_writers_gen1_compaction() {
             )),
             parquet_cache: None,
             compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
-            plugin_dir: None,
         })
         .await
         .unwrap(),
@@ -400,8 +398,8 @@ async fn setup_write_buffer(
     let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
     let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
-    let meta_cache =
-        MetaCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+    let distinct_cache =
+        DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
             .unwrap();
     let wal_config = WalConfig {
         gen1_duration: Gen1Duration::new_1m(),
@@ -415,7 +413,7 @@ async fn setup_write_buffer(
         persister,
         catalog,
         last_cache,
-        meta_cache,
+        distinct_cache,
         time_provider,
         executor,
         wal_config,
@@ -423,7 +421,6 @@ async fn setup_write_buffer(
         replication_config: None,
         parquet_cache: None,
         compacted_data: None,
-        plugin_dir: None,
     })
     .await
     .unwrap()

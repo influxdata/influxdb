@@ -1,0 +1,6 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: result
+snapshot_kind: text
+---
+"new cache created: {\n  \"table_id\": 0,\n  \"table_name\": \"cpu\",\n  \"cache_name\": \"cache_money\",\n  \"column_ids\": [\n    0,\n    1\n  ],\n  \"max_cardinality\": 20000,\n  \"max_age_seconds\": 200\n}"

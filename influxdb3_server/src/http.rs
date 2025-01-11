@@ -1,7 +1,6 @@
 //! HTTP API service implementations for `server`
 
-use crate::{query_executor, QueryKind};
-use crate::{CommonServerState, QueryExecutor};
+use crate::CommonServerState;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
 use authz::http::AuthorizationHeaderExtension;
@@ -20,10 +19,12 @@ use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_cache::last_cache;
-use influxdb3_cache::meta_cache::{self, CreateMetaCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_catalog::catalog::Error as CatalogError;
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
+use influxdb3_processing_engine::manager::ProcessingEngineManager;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -132,6 +133,10 @@ pub enum Error {
     #[error("missing query parameters 'db' and 'q'")]
     MissingQueryParams,
 
+    /// Missing the `q` parameter in the v1 /query API
+    #[error("missing query parameter 'q'")]
+    MissingQueryV1Params,
+
     /// MIssing parameters for write
     #[error("missing query parameter 'db'")]
     MissingWriteParams,
@@ -178,7 +183,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     #[error("query error: {0}")]
-    Query(#[from] query_executor::Error),
+    Query(#[from] QueryExecutorError),
 
     #[error(transparent)]
     DbName(#[from] ValidateDbNameError),
@@ -221,6 +226,12 @@ pub enum Error {
 
     #[error("Python plugins not enabled on this server")]
     PythonPluginsNotEnabled,
+
+    #[error("Plugin error")]
+    Plugin(#[from] influxdb3_processing_engine::plugins::Error),
+
+    #[error("Processing engine error: {0}")]
+    ProcessingEngine(#[from] influxdb3_processing_engine::manager::ProcessingEngineError),
 }
 
 #[derive(Debug, Error)]
@@ -246,7 +257,7 @@ impl Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
-            Self::Query(err @ query_executor::Error::MethodNotImplemented) => Response::builder()
+            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => Response::builder()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
@@ -326,24 +337,26 @@ impl Error {
                     .body(Body::from(self.to_string()))
                     .unwrap(),
             },
-            Self::WriteBuffer(WriteBufferError::MetaCacheError(ref mc_err)) => match mc_err {
-                meta_cache::ProviderError::Cache(ref cache_err) => match cache_err {
-                    meta_cache::CacheError::EmptyColumnSet
-                    | meta_cache::CacheError::NonTagOrStringColumn { .. }
-                    | meta_cache::CacheError::ConfigurationMismatch { .. } => Response::builder()
-                        .status(StatusCode::BAD_REQUEST)
-                        .body(Body::from(mc_err.to_string()))
-                        .unwrap(),
-                    meta_cache::CacheError::Unexpected(_) => Response::builder()
+            Self::WriteBuffer(WriteBufferError::DistinctCacheError(ref mc_err)) => match mc_err {
+                distinct_cache::ProviderError::Cache(ref cache_err) => match cache_err {
+                    distinct_cache::CacheError::EmptyColumnSet
+                    | distinct_cache::CacheError::NonTagOrStringColumn { .. }
+                    | distinct_cache::CacheError::ConfigurationMismatch { .. } => {
+                        Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .body(Body::from(mc_err.to_string()))
+                            .unwrap()
+                    }
+                    distinct_cache::CacheError::Unexpected(_) => Response::builder()
                         .status(StatusCode::INTERNAL_SERVER_ERROR)
                         .body(Body::from(mc_err.to_string()))
                         .unwrap(),
                 },
-                meta_cache::ProviderError::CacheNotFound { .. } => Response::builder()
+                distinct_cache::ProviderError::CacheNotFound { .. } => Response::builder()
                     .status(StatusCode::NOT_FOUND)
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
-                meta_cache::ProviderError::Unexpected(_) => Response::builder()
+                distinct_cache::ProviderError::Unexpected(_) => Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
@@ -395,7 +408,7 @@ impl Error {
                     .body(body)
                     .unwrap()
             }
-            Self::Query(query_executor::Error::DatabaseNotFound { .. }) => {
+            Self::Query(QueryExecutorError::DatabaseNotFound { .. }) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
                     data: None,
@@ -431,6 +444,13 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
+            Self::MissingQueryParams
+            | Self::MissingQueryV1Params
+            | Self::MissingWriteParams
+            | Self::MissingDeleteDatabaseParams => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
             _ => {
                 let body = Body::from(self.to_string());
                 Response::builder()
@@ -448,8 +468,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub(crate) struct HttpApi<T> {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
+    processing_engine: Arc<dyn ProcessingEngineManager>,
     time_provider: Arc<T>,
-    pub(crate) query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+    pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
@@ -460,7 +481,8 @@ impl<T> HttpApi<T> {
         common_state: CommonServerState,
         time_provider: Arc<T>,
         write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor<Error = query_executor::Error>>,
+        query_executor: Arc<dyn QueryExecutor>,
+        processing_engine: Arc<dyn ProcessingEngineManager>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
@@ -473,6 +495,7 @@ impl<T> HttpApi<T> {
             max_request_bytes,
             authorizer,
             legacy_write_param_unifier,
+            processing_engine,
         }
     }
 }
@@ -802,16 +825,16 @@ where
         .map_err(Into::into)
     }
 
-    /// Create a new metadata cache given the [`MetaCacheCreateRequest`] arguments in the request
+    /// Create a new distinct value cache given the [`DistinctCacheCreateRequest`] arguments in the request
     /// body.
     ///
     /// If the result is to create a cache that already exists, with the same configuration, this
     /// will respond with a 204 NOT CREATED. If an existing cache would be overwritten with a
     /// different configuration, that is a 400 BAD REQUEST
-    async fn configure_meta_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
+    async fn configure_distinct_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
         let args = self.read_body_json(req).await?;
-        info!(?args, "create metadata cache request");
-        let MetaCacheCreateRequest {
+        info!(?args, "create distinct value cache request");
+        let DistinctCacheCreateRequest {
             db,
             table,
             name,
@@ -843,10 +866,10 @@ where
         let max_cardinality = max_cardinality.unwrap_or_default();
         match self
             .write_buffer
-            .create_meta_cache(
+            .create_distinct_cache(
                 db_schema,
                 name,
-                CreateMetaCacheArgs {
+                CreateDistinctCacheArgs {
                     table_def,
                     max_cardinality,
                     max_age,
@@ -867,11 +890,12 @@ where
         }
     }
 
-    /// Delete a metadata cache entry with the given [`MetaCacheDeleteRequest`] parameters
+    /// Delete a distinct value cache entry with the given [`DistinctCacheDeleteRequest`] parameters
     ///
     /// The parameters must be passed in either the query string or the body of the request as JSON.
-    async fn configure_meta_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let MetaCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
+    async fn configure_distinct_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let DistinctCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query()
+        {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
@@ -891,7 +915,7 @@ where
             }
         })?;
         self.write_buffer
-            .delete_meta_cache(&db_id, &table_id, &name)
+            .delete_distinct_cache(&db_id, &table_id, &name)
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -1014,15 +1038,14 @@ where
             db,
             plugin_name,
             code,
-            function_name,
             plugin_type,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
         };
-        self.write_buffer
-            .insert_plugin(&db, plugin_name, code, function_name, plugin_type)
+        self.processing_engine
+            .insert_plugin(&db, plugin_name, code, plugin_type)
             .await?;
 
         Ok(Response::builder()
@@ -1037,7 +1060,9 @@ where
             } else {
                 self.read_body_json(req).await?
             };
-        self.write_buffer.delete_plugin(&db, &plugin_name).await?;
+        self.processing_engine
+            .delete_plugin(&db, &plugin_name)
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
@@ -1067,7 +1092,7 @@ where
                 },
             ));
         };
-        self.write_buffer
+        self.processing_engine
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
@@ -1077,9 +1102,10 @@ where
             )
             .await?;
         if !disabled {
-            self.write_buffer
+            self.processing_engine
                 .run_trigger(
                     Arc::clone(&self.write_buffer),
+                    Arc::clone(&self.query_executor),
                     db.as_str(),
                     trigger_name.as_str(),
                 )
@@ -1100,7 +1126,7 @@ where
         } else {
             self.read_body_json(req).await?
         };
-        self.write_buffer
+        self.processing_engine
             .delete_trigger(&db, &trigger_name, force)
             .await?;
         Ok(Response::builder()
@@ -1114,7 +1140,7 @@ where
     ) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.write_buffer
+        self.processing_engine
             .deactivate_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
             .await?;
         Ok(Response::builder()
@@ -1127,9 +1153,10 @@ where
     ) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.write_buffer
+        self.processing_engine
             .activate_trigger(
                 Arc::clone(&self.write_buffer),
+                Arc::clone(&self.query_executor),
                 delete_req.db.as_str(),
                 delete_req.trigger_name.as_str(),
             )
@@ -1171,7 +1198,10 @@ where
         let request: influxdb3_client::plugin_development::WalPluginTestRequest =
             self.read_body_json(req).await?;
 
-        let output = self.write_buffer.test_wal_plugin(request).await?;
+        let output = self
+            .processing_engine
+            .test_wal_plugin(request, Arc::clone(&self.query_executor))
+            .await?;
         let body = serde_json::to_string(&output)?;
 
         Ok(Response::builder()
@@ -1270,7 +1300,7 @@ fn json_content_type(headers: &HeaderMap) -> bool {
     };
 
     let is_json_content_type = mime.type_() == "application"
-        && (mime.subtype() == "json" || mime.suffix().map_or(false, |name| name == "json"));
+        && (mime.subtype() == "json" || mime.suffix().is_some_and(|name| name == "json"));
 
     is_json_content_type
 }
@@ -1345,7 +1375,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
     let mut rp_seperator_found = false;
     let mut last_char = None;
     for grapheme in name.graphemes(true) {
-        if grapheme.as_bytes().len() > 1 {
+        if grapheme.len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
             return Err(ValidateDbNameError::InvalidChar);
         }
@@ -1554,9 +1584,9 @@ impl From<iox_http::write::WriteParams> for WriteParams {
     }
 }
 
-/// Request definition for the `POST /api/v3/configure/meta_cache` API
+/// Request definition for the `POST /api/v3/configure/distinct_cache` API
 #[derive(Debug, Deserialize)]
-struct MetaCacheCreateRequest {
+struct DistinctCacheCreateRequest {
     /// The name of the database associated with the cache
     db: String,
     /// The name of the table associated with the cache
@@ -1575,9 +1605,9 @@ struct MetaCacheCreateRequest {
     max_age: Option<u64>,
 }
 
-/// Request definition for the `DELETE /api/v3/configure/meta_cache` API
+/// Request definition for the `DELETE /api/v3/configure/distinct_cache` API
 #[derive(Debug, Deserialize)]
-struct MetaCacheDeleteRequest {
+struct DistinctCacheDeleteRequest {
     db: String,
     table: String,
     name: String,
@@ -1609,7 +1639,6 @@ struct ProcessingEnginePluginCreateRequest {
     db: String,
     plugin_name: String,
     code: String,
-    function_name: String,
     plugin_type: PluginType,
 }
 
@@ -1751,15 +1780,15 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::GET | Method::POST, "/api/v3/query_influxql") => {
             http_server.query_influxql(req).await
         }
-        (Method::GET, "/query") => http_server.v1_query(req).await,
+        (Method::GET | Method::POST, "/query") => http_server.v1_query(req).await,
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
-        (Method::POST, "/api/v3/configure/meta_cache") => {
-            http_server.configure_meta_cache_create(req).await
+        (Method::POST, "/api/v3/configure/distinct_cache") => {
+            http_server.configure_distinct_cache_create(req).await
         }
-        (Method::DELETE, "/api/v3/configure/meta_cache") => {
-            http_server.configure_meta_cache_delete(req).await
+        (Method::DELETE, "/api/v3/configure/distinct_cache") => {
+            http_server.configure_distinct_cache_delete(req).await
         }
         (Method::POST, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_create(req).await

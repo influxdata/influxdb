@@ -3,6 +3,7 @@ use futures::StreamExt;
 use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
+use serde::Serialize;
 use serde_json::{json, Value};
 use test_helpers::assert_contains;
 
@@ -817,6 +818,13 @@ async fn api_v1_query_json_format() {
     }
 
     let test_cases = [
+        // Empty query result:
+        TestCase {
+            database: Some("foo"),
+            epoch: None,
+            query: "SELECT * FROM cpu WHERE host='c'",
+            expected: json!({"results":[{"statement_id":0}]}),
+        },
         // Basic Query:
         TestCase {
             database: Some("foo"),
@@ -1363,7 +1371,220 @@ async fn api_v1_query_data_conversion() {
 }
 
 #[tokio::test]
-async fn api_v3_query_sql_meta_cache() {
+async fn api_v1_query_uri_and_body() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            cpu,host=a usage=0.9 1\n\
+            cpu,host=b usage=0.89 1\n\
+            cpu,host=c usage=0.85 1\n\
+            mem,host=a usage=0.5 2\n\
+            mem,host=b usage=0.6 2\n\
+            mem,host=c usage=0.7 2\
+            ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    #[derive(Debug, Serialize)]
+    struct Params<'a> {
+        #[serde(rename = "q")]
+        query: Option<&'a str>,
+        db: Option<&'a str>,
+    }
+
+    struct TestCase<'a> {
+        description: &'a str,
+        uri: Option<Params<'a>>,
+        body: Option<Params<'a>>,
+        expected_status: StatusCode,
+        expected_body: Option<Value>,
+    }
+
+    let test_cases = [
+        TestCase {
+            description: "query and db in uri",
+            uri: Some(Params {
+                query: Some("SELECT * FROM cpu"),
+                db: Some("foo"),
+            }),
+            body: None,
+            expected_status: StatusCode::OK,
+            expected_body: Some(json!({
+              "results": [
+                {
+                  "series": [
+                    {
+                      "columns": [
+                        "time",
+                        "host",
+                        "usage"
+                      ],
+                      "name": "cpu",
+                      "values": [
+                        [
+                          "1970-01-01T00:00:01Z",
+                          "a",
+                          0.9
+                        ],
+                        [
+                          "1970-01-01T00:00:01Z",
+                          "b",
+                          0.89
+                        ],
+                        [
+                          "1970-01-01T00:00:01Z",
+                          "c",
+                          0.85
+                        ]
+                      ]
+                    }
+                  ],
+                  "statement_id": 0
+                }
+              ]
+            })),
+        },
+        TestCase {
+            description: "query in uri, db in body",
+            uri: Some(Params {
+                query: Some("SELECT * FROM cpu"),
+                db: None,
+            }),
+            body: Some(Params {
+                query: None,
+                db: Some("foo"),
+            }),
+            expected_status: StatusCode::OK,
+            // don't care about the response:
+            expected_body: None,
+        },
+        TestCase {
+            description: "query in uri, db in uri overwritten by db in body",
+            uri: Some(Params {
+                query: Some("SELECT * FROM cpu"),
+                db: Some("not_a_valid_db"),
+            }),
+            body: Some(Params {
+                query: None,
+                db: Some("foo"),
+            }),
+            expected_status: StatusCode::OK,
+            expected_body: None,
+        },
+        TestCase {
+            description: "query in uri, db in uri overwritten by db in body, db not valid",
+            uri: Some(Params {
+                query: Some("SELECT * FROM cpu"),
+                db: Some("foo"),
+            }),
+            body: Some(Params {
+                query: None,
+                db: Some("not_a_valid_db"),
+            }),
+            // db does not exist:
+            expected_status: StatusCode::NOT_FOUND,
+            expected_body: None,
+        },
+        TestCase {
+            description: "db in uri, query in body",
+            uri: Some(Params {
+                query: None,
+                db: Some("foo"),
+            }),
+            body: Some(Params {
+                query: Some("SELECT * FROM mem"),
+                db: None,
+            }),
+            expected_status: StatusCode::OK,
+            expected_body: Some(json!({
+              "results": [
+                {
+                  "series": [
+                    {
+                      "columns": [
+                        "time",
+                        "host",
+                        "usage"
+                      ],
+                      "name": "mem",
+                      "values": [
+                        [
+                          "1970-01-01T00:00:02Z",
+                          "a",
+                          0.5
+                        ],
+                        [
+                          "1970-01-01T00:00:02Z",
+                          "b",
+                          0.6
+                        ],
+                        [
+                          "1970-01-01T00:00:02Z",
+                          "c",
+                          0.7
+                        ]
+                      ]
+                    }
+                  ],
+                  "statement_id": 0
+                }
+              ]
+            })),
+        },
+        TestCase {
+            description: "no query specified",
+            uri: Some(Params {
+                query: None,
+                db: Some("foo"),
+            }),
+            body: Some(Params {
+                query: None,
+                db: None,
+            }),
+            expected_status: StatusCode::BAD_REQUEST,
+            expected_body: None,
+        },
+    ];
+
+    for t in test_cases {
+        let url = format!("{base}/query", base = server.client_addr());
+        // test both GET and POST:
+        for mut req in [server.http_client.get(&url), server.http_client.post(&url)] {
+            println!("test: {desc}", desc = t.description);
+            if let Some(ref uri) = t.uri {
+                req = req.query(uri);
+            }
+            if let Some(ref body) = t.body {
+                req = req.body(serde_urlencoded::to_string(body).expect("serialize body"));
+            }
+            let resp = req.send().await.expect("send request");
+            let status = resp.status();
+            assert_eq!(
+                t.expected_status, status,
+                "status code did not match expectation"
+            );
+            if let Some(ref expected_body) = t.expected_body {
+                let actual = resp.json::<Value>().await.expect("parse JSON body");
+                if expected_body != &actual {
+                    // use a panic so we can format the output for copy/paste more easily:
+                    panic!(
+                        "JSON body did not match expectation,\n\
+                        expected:\n{expected_body:#}\n\
+                        actual:\n{actual:#}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn api_v3_query_sql_distinct_cache() {
     let server = TestServer::spawn().await;
     server
         .write_lp_to_db("foo", "cpu,region=us,host=a usage=99", Precision::Second)
@@ -1373,7 +1594,7 @@ async fn api_v3_query_sql_meta_cache() {
     server
         .http_client
         .post(format!(
-            "{base}/api/v3/configure/meta_cache",
+            "{base}/api/v3/configure/distinct_cache",
             base = server.client_addr()
         ))
         .json(&serde_json::json!({
@@ -1402,7 +1623,7 @@ async fn api_v3_query_sql_meta_cache() {
         .api_v3_query_sql(&[
             ("db", "foo"),
             ("format", "pretty"),
-            ("q", "SELECT * FROM meta_cache('cpu')"),
+            ("q", "SELECT * FROM distinct_cache('cpu')"),
         ])
         .await
         .text()
@@ -1426,7 +1647,7 @@ async fn api_v3_query_sql_meta_cache() {
         .api_v3_query_sql(&[
             ("db", "foo"),
             ("format", "json"),
-            ("q", "SELECT * FROM meta_cache('cpu')"),
+            ("q", "SELECT * FROM distinct_cache('cpu')"),
         ])
         .await
         .json::<Value>()

@@ -14,7 +14,7 @@ use arrow::{
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::{ColumnId, TableId};
-use influxdb3_wal::{FieldData, MetaCacheDefinition, Row};
+use influxdb3_wal::{DistinctCacheDefinition, FieldData, Row};
 use iox_time::TimeProvider;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::Deserialize;
@@ -24,7 +24,7 @@ pub enum CacheError {
     #[error("must pass a non-empty set of column ids")]
     EmptyColumnSet,
     #[error(
-        "cannot use a column of type {attempted} in a metadata cache, only \
+        "cannot use a column of type {attempted} in a distinct value cache, only \
                     tags and string fields can be used"
     )]
     NonTagOrStringColumn { attempted: InfluxColumnType },
@@ -34,9 +34,9 @@ pub enum CacheError {
     Unexpected(#[from] anyhow::Error),
 }
 
-/// A metadata cache for storing distinct values for a set of columns in a table
+/// A cache for storing distinct values for a set of columns in a table
 #[derive(Debug)]
-pub(crate) struct MetaCache {
+pub(crate) struct DistinctCache {
     time_provider: Arc<dyn TimeProvider>,
     /// The maximum number of unique value combinations in the cache
     max_cardinality: usize,
@@ -45,23 +45,23 @@ pub(crate) struct MetaCache {
     /// The fixed Arrow schema used to produce record batches from the cache
     schema: SchemaRef,
     /// Holds current state of the cache
-    state: MetaCacheState,
+    state: DistinctCacheState,
     /// The identifiers of the columns used in the cache
     column_ids: Vec<ColumnId>,
     /// The cache data, stored in a tree
     data: Node,
 }
 
-/// Type for tracking the current state of a [`MetaCache`]
+/// Type for tracking the current state of a [`DistinctCache`]
 #[derive(Debug, Default)]
-struct MetaCacheState {
+struct DistinctCacheState {
     /// The current number of unique value combinations in the cache
     cardinality: usize,
 }
 
-/// Arguments to create a new [`MetaCache`]
+/// Arguments to create a new [`DistinctCache`]
 #[derive(Debug)]
-pub struct CreateMetaCacheArgs {
+pub struct CreateDistinctCacheArgs {
     pub table_def: Arc<TableDefinition>,
     pub max_cardinality: MaxCardinality,
     pub max_age: MaxAge,
@@ -130,19 +130,19 @@ impl MaxAge {
     }
 }
 
-impl MetaCache {
-    /// Create a new [`MetaCache`]
+impl DistinctCache {
+    /// Create a new [`DistinctCache`]
     ///
     /// Must pass a non-empty set of [`ColumnId`]s which correspond to valid columns in the provided
     /// [`TableDefinition`].
     pub(crate) fn new(
         time_provider: Arc<dyn TimeProvider>,
-        CreateMetaCacheArgs {
+        CreateDistinctCacheArgs {
             table_def,
             max_cardinality,
             max_age,
             column_ids,
-        }: CreateMetaCacheArgs,
+        }: CreateDistinctCacheArgs,
     ) -> Result<Self, CacheError> {
         if column_ids.is_empty() {
             return Err(CacheError::EmptyColumnSet);
@@ -151,7 +151,7 @@ impl MetaCache {
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get(id).with_context(|| {
-                format!("invalid column id ({id}) encountered while creating metadata cache")
+                format!("invalid column id ({id}) encountered while creating distinct value cache")
             })?;
             let data_type = match col.data_type {
                 InfluxColumnType::Tag | InfluxColumnType::Field(InfluxFieldType::String) => {
@@ -166,7 +166,7 @@ impl MetaCache {
             time_provider,
             max_cardinality: max_cardinality.into(),
             max_age: max_age.into(),
-            state: MetaCacheState::default(),
+            state: DistinctCacheState::default(),
             schema: Arc::new(builder.finish()),
             column_ids,
             data: Node::default(),
@@ -341,14 +341,14 @@ impl MetaCache {
         Ok(())
     }
 
-    /// Create a [`MetaCacheDefinition`] from this cache along with the given args
+    /// Create a [`DistinctCacheDefinition`] from this cache along with the given args
     pub(super) fn to_definition(
         &self,
         table_id: TableId,
         table_name: Arc<str>,
         cache_name: Arc<str>,
-    ) -> MetaCacheDefinition {
-        MetaCacheDefinition {
+    ) -> DistinctCacheDefinition {
+        DistinctCacheDefinition {
             table_id,
             table_name,
             cache_name,
@@ -359,7 +359,7 @@ impl MetaCache {
     }
 }
 
-/// A node in the `data` tree of a [`MetaCache`]
+/// A node in the `data` tree of a [`DistinctCache`]
 ///
 /// Recursive struct holding a [`BTreeMap`] whose keys are the values nested under this node, and
 /// whose values hold the last seen time as an [`i64`] of each value, and an optional reference to
@@ -473,7 +473,7 @@ impl Node {
                         let block = builder.append_block(value.0.as_bytes().into());
                         for _ in 0..count {
                             builder
-                                .try_append_view(block, 0u32, value.0.as_bytes().len() as u32)
+                                .try_append_view(block, 0u32, value.0.len() as u32)
                                 .expect("append view for known valid block, offset and length");
                         }
                     }
@@ -541,7 +541,7 @@ impl From<&FieldData> for Value {
             | FieldData::Integer(_)
             | FieldData::UInteger(_)
             | FieldData::Float(_)
-            | FieldData::Boolean(_) => panic!("unexpected field type for metadata cache"),
+            | FieldData::Boolean(_) => panic!("unexpected field type for distinct value cache"),
         }
     }
 }
@@ -552,7 +552,7 @@ impl From<String> for Value {
     }
 }
 
-/// A predicate that can be applied when gathering [`RecordBatch`]es from a [`MetaCache`]
+/// A predicate that can be applied when gathering [`RecordBatch`]es from a [`DistinctCache`]
 ///
 /// This is intended to be derived from a set of filter expressions in Datafusion by analyzing
 /// them with a `LiteralGuarantee`.

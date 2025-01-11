@@ -1,4 +1,5 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
+use anyhow::Context;
 use influxdb3_client::plugin_development::WalPluginTestRequest;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
@@ -53,26 +54,10 @@ pub struct WalPluginConfig {
     /// If given pass this map of string key/value pairs as input arguments
     #[clap(long = "input-arguments")]
     pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
-    /// The name of the plugin, which should match its file name on the server `<plugin-dir>/<name>.py`
+    /// The file name of the plugin, which should exist on the server in `<plugin-dir>/<filename>`.
+    /// The plugin-dir is provided on server startup.
     #[clap(required = true)]
-    pub name: String,
-}
-
-impl From<WalPluginConfig> for WalPluginTestRequest {
-    fn from(val: WalPluginConfig) -> Self {
-        let input_arguments = val.input_arguments.map(|a| {
-            a.into_iter()
-                .map(|SeparatedKeyValue((k, v))| (k, v))
-                .collect::<HashMap<String, String>>()
-        });
-
-        Self {
-            name: val.name,
-            input_lp: val.input_lp,
-            input_file: val.input_file,
-            input_arguments,
-        }
-    }
+    pub filename: String,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -80,7 +65,28 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
     match config.cmd {
         SubCommand::WalPlugin(plugin_config) => {
-            let wal_plugin_test_request: WalPluginTestRequest = plugin_config.into();
+            let input_arguments = plugin_config.input_arguments.map(|a| {
+                a.into_iter()
+                    .map(|SeparatedKeyValue((k, v))| (k, v))
+                    .collect::<HashMap<String, String>>()
+            });
+
+            let input_lp = match plugin_config.input_lp {
+                Some(lp) => lp,
+                None => {
+                    let file_path = plugin_config
+                        .input_file
+                        .context("either input_lp or input_file must be provided")?;
+                    std::fs::read_to_string(file_path).context("unable to read input file")?
+                }
+            };
+
+            let wal_plugin_test_request = WalPluginTestRequest {
+                filename: plugin_config.filename,
+                database: plugin_config.influxdb3_config.database_name,
+                input_lp,
+                input_arguments,
+            };
 
             let response = client.wal_plugin_test(wal_plugin_test_request).await?;
 

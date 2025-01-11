@@ -38,7 +38,7 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::MetaCache(MetaCacheConfig {
+            | SubCommand::DistinctCache(DistinctCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -94,9 +94,9 @@ pub enum SubCommand {
     /// Delete a last value cache
     #[clap(name = "last_cache")]
     LastCache(LastCacheConfig),
-    /// Delete a meta value cache
-    #[clap(name = "meta_cache")]
-    MetaCache(MetaCacheConfig),
+    /// Delete a distinct value cache
+    #[clap(name = "distinct_cache")]
+    DistinctCache(DistinctCacheConfig),
     /// Delete an existing processing engine plugin
     Plugin(PluginConfig),
     /// Delete a table in a database
@@ -150,7 +150,7 @@ pub struct LastCacheConfig {
 }
 
 #[derive(Debug, clap::Args)]
-pub struct MetaCacheConfig {
+pub struct DistinctCacheConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
@@ -233,16 +233,16 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
             println!("last cache deleted successfully");
         }
-        SubCommand::MetaCache(MetaCacheConfig {
+        SubCommand::DistinctCache(DistinctCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
         }) => {
             client
-                .api_v3_configure_meta_cache_delete(database_name, table, cache_name)
+                .api_v3_configure_distinct_cache_delete(database_name, table, cache_name)
                 .await?;
 
-            println!("meta cache deleted successfully");
+            println!("distinct cache deleted successfully");
         }
         SubCommand::Plugin(PluginConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
