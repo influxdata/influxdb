@@ -891,8 +891,7 @@ async fn load_and_validate_license(
             stdin.read_line(&mut email)?;
             let email = url::form_urlencoded::byte_serialize(email.trim().as_bytes())
                 .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("");
+                .collect::<String>();
 
             let client = reqwest::Client::new();
             let resp = client
