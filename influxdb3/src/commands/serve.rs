@@ -81,6 +81,7 @@ use {
     object_store::path::Path as ObjPath,
     object_store::PutPayload,
     serde::{Deserialize, Serialize},
+    std::io::IsTerminal,
     std::sync::atomic::Ordering,
     std::time::SystemTime,
     std::time::UNIX_EPOCH,
@@ -165,6 +166,14 @@ pub enum Error {
     #[cfg(not(feature = "no_license"))]
     #[error("Failed to poll for license. Response code was {0}")]
     UnexpectedLicenseResponse(u16),
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("No interactive TTY detected. Cannot prompt for email.")]
+    NoTTY,
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("Invalid email address")]
+    InvalidEmail,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -881,6 +890,11 @@ async fn load_and_validate_license(
         Ok(get_result) => get_result.bytes().await?,
         // The license does not exist so we need to create one
         Err(object_store::Error::NotFound { .. }) => {
+            // Check for a TTY / stdin to prompt the user for their email
+            if !std::io::stdin().is_terminal() {
+                return Err(Error::NoTTY);
+            }
+
             println!(
                 "\nWelcome to InfluxDB 3 Enterprise\n\
                  No license file was detected. Please enter your email: \
@@ -892,6 +906,10 @@ async fn load_and_validate_license(
             let email = url::form_urlencoded::byte_serialize(email.trim().as_bytes())
                 .map(ToString::to_string)
                 .collect::<String>();
+
+            if email.is_empty() {
+                return Err(Error::InvalidEmail);
+            }
 
             let client = reqwest::Client::new();
             let resp = client
