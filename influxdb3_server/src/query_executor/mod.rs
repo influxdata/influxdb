@@ -713,7 +713,7 @@ mod tests {
             },
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
-            num_wal_files_to_keep: 1,
+            snapshotted_wal_files_to_keep: 1,
         })
         .await
         .unwrap();

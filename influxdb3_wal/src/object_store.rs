@@ -17,17 +17,6 @@ use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 
-// struct WalObjectStoreArgs {
-//     time_provider: Arc<dyn TimeProvider>,
-//     object_store: Arc<dyn ObjectStore>,
-//     host_identifier_prefix: String,
-//     file_notifier: Arc<dyn WalFileNotifier>,
-//     config: WalConfig,
-//     last_wal_sequence_number: Option<WalFileSequenceNumber>,
-//     last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
-//     all_wal_file_paths: &[Path],
-// }
-
 #[derive(Debug)]
 pub struct WalObjectStore {
     object_store: Arc<dyn ObjectStore>,
@@ -36,16 +25,15 @@ pub struct WalObjectStore {
     added_file_notifiers: parking_lot::Mutex<Vec<Arc<dyn WalFileNotifier>>>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
     flush_buffer: Mutex<FlushBuffer>,
-    /// oldest, last and latest wal file nums are used to keep track of what wal files
-    /// to remove from the OS
-    num_wal_files_to_keep: u64,
-    // we need atomics or mutex
+    /// number of snapshotted wal files to retain in object store
+    snapshotted_wal_files_to_keep: u64,
     wal_remover: parking_lot::Mutex<WalFileRemover>,
 }
 
 impl WalObjectStore {
     /// Creates a new WAL. This will replay files into the notifier and trigger any snapshots that
     /// exist in the WAL files that haven't been cleaned up yet.
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
@@ -54,7 +42,7 @@ impl WalObjectStore {
         config: WalConfig,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
-        num_wal_files_to_keep: u64,
+        snapshotted_wal_files_to_keep: u64,
     ) -> Result<Arc<Self>, crate::Error> {
         let host_identifier = host_identifier_prefix.into();
         let all_wal_file_paths =
@@ -69,7 +57,7 @@ impl WalObjectStore {
             last_wal_sequence_number,
             last_snapshot_sequence_number,
             &all_wal_file_paths,
-            num_wal_files_to_keep,
+            snapshotted_wal_files_to_keep,
         );
 
         wal.replay(last_wal_sequence_number, &all_wal_file_paths)
@@ -80,6 +68,7 @@ impl WalObjectStore {
         Ok(wal)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn new_without_replay(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
@@ -118,10 +107,10 @@ impl WalObjectStore {
                     last_snapshot_sequence_number,
                 ),
             )),
-            num_wal_files_to_keep,
+            snapshotted_wal_files_to_keep: num_wal_files_to_keep,
             wal_remover: parking_lot::Mutex::new(WalFileRemover {
                 oldest_wal_file: oldest_wal_file_num,
-                last_wal_sequence_number,
+                last_snapshotted_wal_sequence_number: last_wal_sequence_number,
             }),
         }
     }
@@ -415,12 +404,12 @@ impl WalObjectStore {
             ">>> checking num wal files to delete"
         );
 
-        if curr_num_files > self.num_wal_files_to_keep {
-            let num_files_to_delete = curr_num_files - self.num_wal_files_to_keep;
+        if curr_num_files > self.snapshotted_wal_files_to_keep {
+            let num_files_to_delete = curr_num_files - self.snapshotted_wal_files_to_keep;
             let last_to_delete = oldest + num_files_to_delete;
 
             debug!(
-                num_files_to_keep = ?self.num_wal_files_to_keep,
+                num_files_to_keep = ?self.snapshotted_wal_files_to_keep,
                 ?curr_num_files,
                 ?num_files_to_delete,
                 ?last_to_delete,
@@ -496,6 +485,7 @@ async fn load_all_wal_file_paths(
         }
 
         if path_count == paths.len() {
+            paths.sort();
             break;
         }
 
@@ -839,26 +829,26 @@ impl<'a> TryFrom<&'a Path> for WalFileSequenceNumber {
 #[derive(Debug)]
 struct WalFileRemover {
     oldest_wal_file: Option<WalFileSequenceNumber>,
-    last_wal_sequence_number: Option<WalFileSequenceNumber>,
+    last_snapshotted_wal_sequence_number: Option<WalFileSequenceNumber>,
 }
 
 impl WalFileRemover {
     fn get_current_state(&self) -> (u64, u64) {
         (
             self.oldest_wal_file.map(|num| num.as_u64()).unwrap_or(0),
-            self.last_wal_sequence_number
+            self.last_snapshotted_wal_sequence_number
                 .map(|num| num.as_u64())
                 .unwrap_or(0),
         )
     }
 
     fn update_last_wal_num(&mut self, last_wal: WalFileSequenceNumber) {
-        self.last_wal_sequence_number.replace(last_wal);
+        self.last_snapshotted_wal_sequence_number.replace(last_wal);
     }
 
     fn update_state(&mut self, oldest: u64, last: u64) {
         self.oldest_wal_file = Some(WalFileSequenceNumber::new(oldest));
-        self.last_wal_sequence_number = Some(WalFileSequenceNumber::new(last));
+        self.last_snapshotted_wal_sequence_number = Some(WalFileSequenceNumber::new(last));
     }
 }
 
@@ -1109,13 +1099,28 @@ mod tests {
             1,
         );
         assert_eq!(
-            replay_wal.load_existing_wal_file_paths(None, &[]),
+            replay_wal.load_existing_wal_file_paths(
+                None,
+                &[
+                    Path::from("my_host/wal/00000000001.wal"),
+                    Path::from("my_host/wal/00000000002.wal")
+                ]
+            ),
             vec![
                 Path::from("my_host/wal/00000000001.wal"),
                 Path::from("my_host/wal/00000000002.wal")
             ]
         );
-        replay_wal.replay(None, &[]).await.unwrap();
+        replay_wal
+            .replay(
+                None,
+                &[
+                    Path::from("my_host/wal/00000000001.wal"),
+                    Path::from("my_host/wal/00000000002.wal"),
+                ],
+            )
+            .await
+            .unwrap();
         let replay_notifier = replay_notifier
             .as_any()
             .downcast_ref::<TestNotifier>()
@@ -1253,10 +1258,14 @@ mod tests {
             1,
         );
         assert_eq!(
-            replay_wal.load_existing_wal_file_paths(None, &[]),
+            replay_wal
+                .load_existing_wal_file_paths(None, &[Path::from("my_host/wal/00000000003.wal")]),
             vec![Path::from("my_host/wal/00000000003.wal")]
         );
-        replay_wal.replay(None, &[]).await.unwrap();
+        replay_wal
+            .replay(None, &[Path::from("my_host/wal/00000000003.wal")])
+            .await
+            .unwrap();
         let replay_notifier = replay_notifier
             .as_any()
             .downcast_ref::<TestNotifier>()

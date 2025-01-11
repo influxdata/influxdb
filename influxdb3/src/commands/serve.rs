@@ -208,15 +208,16 @@ pub struct Config {
     )]
     pub wal_max_write_buffer_size: usize,
 
-    /// Number of wal files to keep behind, wal flush does not clear the wal files immediately
-    /// instead they are only deleted when num wal files count exceed this keep behind size
+    /// Number of snapshotted wal files to retain in object store, wal flush does not clear
+    /// the wal files immediately instead they are only deleted when snapshotted and num wal files
+    /// count exceeds this size
     #[clap(
-        long = "num-wal-files-to-keep",
+        long = "snapshotted-wal-files-to-keep",
         env = "INFLUXDB3_NUM_WAL_FILES_TO_KEEP",
         default_value = "300",
         action
     )]
-    pub num_wal_files_to_keep: u64,
+    pub snapshotted_wal_files_to_keep: u64,
 
     // TODO - tune this default:
     /// The size of the query log. Up to this many queries will remain in the log before
@@ -512,7 +513,7 @@ pub async fn command(config: Config) -> Result<()> {
         wal_config,
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
-        num_wal_files_to_keep: config.num_wal_files_to_keep,
+        snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
