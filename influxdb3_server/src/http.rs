@@ -217,7 +217,7 @@ pub enum Error {
     #[error("Python plugins not enabled on this server")]
     PythonPluginsNotEnabled,
 
-    #[error("Plugin error")]
+    #[error("Plugin error: {0}")]
     Plugin(#[from] influxdb3_processing_engine::plugins::Error),
 
     #[error("Processing engine error: {0}")]
