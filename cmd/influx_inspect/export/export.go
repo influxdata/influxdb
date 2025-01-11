@@ -119,7 +119,7 @@ func (cmd *Command) Run(args ...string) error {
 
 func (cmd *Command) validate() error {
 	if cmd.retentionPolicy != "" && cmd.database == "" {
-		return fmt.Errorf("must specify a db")
+		return fmt.Errorf("must specify a db (-database)")
 	}
 	if cmd.tsmFile != "" && (cmd.database == "" || cmd.retentionPolicy == "") {
 		return fmt.Errorf("must specify a db (-database) and retention policy (-retention)")
