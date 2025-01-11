@@ -91,4 +91,5 @@ func NewTestService(t *testing.T, tscfg *email.Config) *TestService {
 		Store:  postgres.NewStore(testDB.DB),
 		Mailer: cfg.Mailer,
 		Svc:    email.NewService(cfg),
-	}}
+	}
+}
