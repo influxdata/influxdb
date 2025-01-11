@@ -12,10 +12,21 @@ use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutPayload};
 use observability_deps::tracing::{debug, error, info};
-use std::sync::Arc;
 use std::time::Duration;
+use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
+
+// struct WalObjectStoreArgs {
+//     time_provider: Arc<dyn TimeProvider>,
+//     object_store: Arc<dyn ObjectStore>,
+//     host_identifier_prefix: String,
+//     file_notifier: Arc<dyn WalFileNotifier>,
+//     config: WalConfig,
+//     last_wal_sequence_number: Option<WalFileSequenceNumber>,
+//     last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
+//     all_wal_file_paths: &[Path],
+// }
 
 #[derive(Debug)]
 pub struct WalObjectStore {
@@ -25,6 +36,11 @@ pub struct WalObjectStore {
     added_file_notifiers: parking_lot::Mutex<Vec<Arc<dyn WalFileNotifier>>>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
     flush_buffer: Mutex<FlushBuffer>,
+    /// oldest, last and latest wal file nums are used to keep track of what wal files
+    /// to remove from the OS
+    num_wal_files_to_keep: u64,
+    // we need atomics or mutex
+    wal_remover: parking_lot::Mutex<WalFileRemover>,
 }
 
 impl WalObjectStore {
@@ -38,19 +54,26 @@ impl WalObjectStore {
         config: WalConfig,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
+        num_wal_files_to_keep: u64,
     ) -> Result<Arc<Self>, crate::Error> {
+        let host_identifier = host_identifier_prefix.into();
+        let all_wal_file_paths =
+            load_all_wal_file_paths(Arc::clone(&object_store), host_identifier.clone()).await?;
         let flush_interval = config.flush_interval;
         let wal = Self::new_without_replay(
             time_provider,
             object_store,
-            host_identifier_prefix,
+            host_identifier,
             file_notifier,
             config,
             last_wal_sequence_number,
             last_snapshot_sequence_number,
+            &all_wal_file_paths,
+            num_wal_files_to_keep,
         );
 
-        wal.replay(last_wal_sequence_number).await?;
+        wal.replay(last_wal_sequence_number, &all_wal_file_paths)
+            .await?;
         let wal = Arc::new(wal);
         background_wal_flush(Arc::clone(&wal), flush_interval);
 
@@ -65,8 +88,12 @@ impl WalObjectStore {
         config: WalConfig,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
+        all_wal_file_paths: &[Path],
+        num_wal_files_to_keep: u64,
     ) -> Self {
         let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
+        let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
+
         Self {
             object_store,
             host_identifier_prefix: host_identifier_prefix.into(),
@@ -91,6 +118,11 @@ impl WalObjectStore {
                     last_snapshot_sequence_number,
                 ),
             )),
+            num_wal_files_to_keep,
+            wal_remover: parking_lot::Mutex::new(WalFileRemover {
+                oldest_wal_file: oldest_wal_file_num,
+                last_wal_sequence_number,
+            }),
         }
     }
 
@@ -99,11 +131,10 @@ impl WalObjectStore {
     pub async fn replay(
         &self,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
+        all_wal_file_paths: &[Path],
     ) -> crate::Result<()> {
         debug!(">>> replaying");
-        let paths = self
-            .load_existing_wal_file_paths(last_wal_sequence_number)
-            .await?;
+        let paths = self.load_existing_wal_file_paths(last_wal_sequence_number, all_wal_file_paths);
 
         let last_snapshot_sequence_number = {
             self.flush_buffer
@@ -191,7 +222,7 @@ impl WalObjectStore {
     }
 
     /// Stop accepting write operations, flush of buffered writes to a WAL file and return when done.
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&mut self) {
         // stop accepting writes
         self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
 
@@ -340,43 +371,31 @@ impl WalObjectStore {
         snapshot_response
     }
 
-    async fn load_existing_wal_file_paths(
+    fn load_existing_wal_file_paths(
         &self,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
-    ) -> crate::Result<Vec<Path>> {
-        let mut paths = Vec::new();
-        let mut offset: Option<Path> = None;
-        let path = Path::from(format!("{host}/wal", host = self.host_identifier_prefix));
-        loop {
-            let mut listing = if let Some(offset) = offset {
-                self.object_store.list_with_offset(Some(&path), &offset)
-            } else {
-                self.object_store.list(Some(&path))
-            };
-            let path_count = paths.len();
-
-            while let Some(item) = listing.next().await {
-                paths.push(item?.location);
-            }
-
-            if path_count == paths.len() {
-                break;
-            }
-
-            paths.sort();
-            offset = Some(paths.last().unwrap().clone())
-        }
-
+        all_wal_file_paths: &[Path],
+    ) -> Vec<Path> {
         // if we have a last wal path from persisted snapshots, we don't need to load the wal files
         // that came before it:
-        if let Some(last_wal_sequence_number) = last_wal_sequence_number {
-            let last_wal_path = wal_path(&self.host_identifier_prefix, last_wal_sequence_number);
-            paths.retain(|path| path >= &last_wal_path);
-        }
-
-        paths.sort();
-
-        Ok(paths)
+        all_wal_file_paths
+            .iter()
+            .filter(|path| {
+                if let Some(last_wal_sequence_number) = last_wal_sequence_number {
+                    let last_wal_path =
+                        wal_path(&self.host_identifier_prefix, last_wal_sequence_number);
+                    debug!(
+                        ?path,
+                        ?last_wal_path,
+                        ">>> path and last_wal_path check when replaying"
+                    );
+                    *path >= &last_wal_path
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect()
     }
 
     async fn remove_snapshot_wal_files(
@@ -384,36 +403,106 @@ impl WalObjectStore {
         snapshot_details: SnapshotDetails,
         snapshot_permit: OwnedSemaphorePermit,
     ) {
-        let start = snapshot_details.first_wal_sequence_number.as_u64();
-        let end = snapshot_details.last_wal_sequence_number.as_u64();
-        for period in start..=end {
-            let path = wal_path(
-                &self.host_identifier_prefix,
-                WalFileSequenceNumber::new(period),
-            );
-            debug!(?path, ">>> deleting wal file");
+        let (oldest, last, curr_num_files) = {
+            let (oldest, last) = self.wal_remover.lock().get_current_state();
+            let curr_num_files = last - oldest;
+            (oldest, last, curr_num_files)
+        };
+        debug!(
+            ?oldest,
+            ?last,
+            ?curr_num_files,
+            ">>> checking num wal files to delete"
+        );
 
-            loop {
-                match self.object_store.delete(&path).await {
-                    Ok(_) => break,
-                    Err(object_store::Error::Generic { store, source }) => {
-                        error!(%store, %source, "error deleting wal file");
-                        // hopefully just a temporary error, keep trying until we succeed
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                    Err(e) => {
-                        // this must be configuration or file not there error or something else,
-                        // log it and move on
-                        error!(%e, "error deleting wal file");
-                        break;
+        if curr_num_files > self.num_wal_files_to_keep {
+            let num_files_to_delete = curr_num_files - self.num_wal_files_to_keep;
+            let last_to_delete = oldest + num_files_to_delete;
+
+            debug!(
+                num_files_to_keep = ?self.num_wal_files_to_keep,
+                ?curr_num_files,
+                ?num_files_to_delete,
+                ?last_to_delete,
+                ">>> more wal files than num files to keep around"
+            );
+
+            for idx in oldest..last_to_delete {
+                let path = wal_path(
+                    &self.host_identifier_prefix,
+                    WalFileSequenceNumber::new(idx),
+                );
+                debug!(?path, ">>> deleting wal file");
+
+                loop {
+                    match self.object_store.delete(&path).await {
+                        Ok(_) => break,
+                        Err(object_store::Error::Generic { store, source }) => {
+                            error!(%store, %source, "error deleting wal file");
+                            // hopefully just a temporary error, keep trying until we succeed
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
+                        Err(e) => {
+                            // this must be configuration or file not there error or something else,
+                            // log it and move on
+                            error!(%e, "error deleting wal file");
+                            break;
+                        }
                     }
                 }
+            }
+
+            {
+                self.wal_remover.lock().update_state(
+                    last_to_delete,
+                    snapshot_details.last_wal_sequence_number.as_u64(),
+                );
+            }
+        } else {
+            {
+                self.wal_remover
+                    .lock()
+                    .update_last_wal_num(snapshot_details.last_wal_sequence_number);
             }
         }
 
         // release the permit so the next snapshot can be run when the time comes
         drop(snapshot_permit);
     }
+}
+
+fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNumber> {
+    let file_name = all_wal_file_paths.first()?.filename()?;
+    WalFileSequenceNumber::from_str(file_name).ok()
+}
+
+async fn load_all_wal_file_paths(
+    object_store: Arc<dyn ObjectStore>,
+    host_identifier_prefix: String,
+) -> Result<Vec<Path>, crate::Error> {
+    let mut paths = Vec::new();
+    let mut offset: Option<Path> = None;
+    let path = Path::from(format!("{host}/wal", host = host_identifier_prefix));
+    loop {
+        let mut listing = if let Some(offset) = offset {
+            object_store.list_with_offset(Some(&path), &offset)
+        } else {
+            object_store.list(Some(&path))
+        };
+        let path_count = paths.len();
+
+        while let Some(item) = listing.next().await {
+            paths.push(item?.location);
+        }
+
+        if path_count == paths.len() {
+            break;
+        }
+
+        paths.sort();
+        offset = Some(paths.last().unwrap().clone())
+    }
+    Ok(paths)
 }
 
 #[async_trait::async_trait]
@@ -704,6 +793,10 @@ impl WalBuffer {
         if ops.is_empty() && forced_snapshot && self.no_op.is_some() {
             let time = self.no_op.unwrap();
             ops.push(WalOp::Noop(NoopDetails { timestamp_ns: time }));
+            // when we leave behind wals, these noops need min/max time as snapshot tracker falls
+            // over without them when adding wal period by default
+            min_timestamp_ns = time;
+            max_timestamp_ns = time + 1;
         }
 
         (
@@ -743,6 +836,32 @@ impl<'a> TryFrom<&'a Path> for WalFileSequenceNumber {
     }
 }
 
+#[derive(Debug)]
+struct WalFileRemover {
+    oldest_wal_file: Option<WalFileSequenceNumber>,
+    last_wal_sequence_number: Option<WalFileSequenceNumber>,
+}
+
+impl WalFileRemover {
+    fn get_current_state(&self) -> (u64, u64) {
+        (
+            self.oldest_wal_file.map(|num| num.as_u64()).unwrap_or(0),
+            self.last_wal_sequence_number
+                .map(|num| num.as_u64())
+                .unwrap_or(0),
+        )
+    }
+
+    fn update_last_wal_num(&mut self, last_wal: WalFileSequenceNumber) {
+        self.last_wal_sequence_number.replace(last_wal);
+    }
+
+    fn update_state(&mut self, oldest: u64, last: u64) {
+        self.oldest_wal_file = Some(WalFileSequenceNumber::new(oldest));
+        self.last_wal_sequence_number = Some(WalFileSequenceNumber::new(last));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -770,6 +889,7 @@ mod tests {
             snapshot_size: 2,
             gen1_duration: Gen1Duration::new_1m(),
         };
+        let paths = vec![];
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
             Arc::clone(&object_store),
@@ -778,6 +898,8 @@ mod tests {
             wal_config,
             None,
             None,
+            &paths,
+            1,
         );
 
         let db_name: Arc<str> = "db1".into();
@@ -974,6 +1096,7 @@ mod tests {
 
         // before we trigger a snapshot, test replay with a new wal and notifier
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+        let paths = vec![];
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
             Arc::clone(&object_store),
@@ -982,15 +1105,17 @@ mod tests {
             wal_config,
             None,
             None,
+            &paths,
+            1,
         );
         assert_eq!(
-            replay_wal.load_existing_wal_file_paths(None).await.unwrap(),
+            replay_wal.load_existing_wal_file_paths(None, &[]),
             vec![
                 Path::from("my_host/wal/00000000001.wal"),
                 Path::from("my_host/wal/00000000002.wal")
             ]
         );
-        replay_wal.replay(None).await.unwrap();
+        replay_wal.replay(None, &[]).await.unwrap();
         let replay_notifier = replay_notifier
             .as_any()
             .downcast_ref::<TestNotifier>()
@@ -1115,6 +1240,7 @@ mod tests {
 
         // test that replay now only has file 3
         let replay_notifier: Arc<dyn WalFileNotifier> = Arc::new(TestNotifier::default());
+        let paths = vec![];
         let replay_wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
             object_store,
@@ -1123,12 +1249,14 @@ mod tests {
             wal_config,
             None,
             None,
+            &paths,
+            1,
         );
         assert_eq!(
-            replay_wal.load_existing_wal_file_paths(None).await.unwrap(),
+            replay_wal.load_existing_wal_file_paths(None, &[]),
             vec![Path::from("my_host/wal/00000000003.wal")]
         );
-        replay_wal.replay(None).await.unwrap();
+        replay_wal.replay(None, &[]).await.unwrap();
         let replay_notifier = replay_notifier
             .as_any()
             .downcast_ref::<TestNotifier>()
@@ -1155,6 +1283,7 @@ mod tests {
             snapshot_size: 2,
             gen1_duration: Gen1Duration::new_1m(),
         };
+        let paths = vec![];
         let wal = WalObjectStore::new_without_replay(
             time_provider,
             Arc::clone(&object_store),
@@ -1163,6 +1292,8 @@ mod tests {
             wal_config,
             None,
             None,
+            &paths,
+            10,
         );
 
         assert!(wal.flush_buffer(false).await.is_none());

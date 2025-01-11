@@ -778,6 +778,7 @@ mod tests {
                 wal_config: WalConfig::test_config(),
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
+                num_wal_files_to_keep: 100,
             },
         )
         .await

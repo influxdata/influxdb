@@ -865,6 +865,7 @@ mod tests {
             wal_config,
             parquet_cache: None,
             metric_registry: Arc::clone(&metric_registry),
+            num_wal_files_to_keep: 10,
         })
         .await
         .unwrap();

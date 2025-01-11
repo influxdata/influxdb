@@ -179,12 +179,6 @@ impl QueryableBuffer {
 
         let persist_jobs = {
             let mut buffer = self.buffer.write();
-            buffer.buffer_ops(
-                &write.ops,
-                &self.last_cache_provider,
-                &self.distinct_cache_provider,
-            );
-
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
@@ -226,6 +220,12 @@ impl QueryableBuffer {
                     }
                 }
             }
+
+            buffer.buffer_ops(
+                &write.ops,
+                &self.last_cache_provider,
+                &self.distinct_cache_provider,
+            );
 
             persisting_chunks
         };
