@@ -85,6 +85,11 @@ commands:
           command: |
             gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file <(echo "${GCLOUD_SERVICE_ACCOUNT_KEY}")
             gcloud auth configure-docker us-docker.pkg.dev
+  quay-docker-login:
+    steps:
+      - run:
+          name: Login to Quay.io
+          command: echo "${QUAY_INFLUXDB3_PASSWORD}" |docker login --username="${QUAY_INFLUXDB3_USERNAME}" --password-stdin quay.io
 
 jobs:
   fmt:
@@ -437,11 +442,17 @@ jobs:
             export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
             aws cloudfront create-invalidation --distribution-id "${RELEASE_ARTIFACTS_CLOUDFRONT}" --paths '/influxdb/<< parameters.destination >>/*'
   build-docker:
-    # need a machine executor to have a full-powered docker daemon (the `setup_remote_docker` system just provides a
-    # kinda small node)
+    parameters:
+      platform:
+        type: string
+      resource_class:
+        type: string
+      profile:
+        type: string
+        default: release
     machine:
       image: default
-    resource_class: 2xlarge+ # CPU bound, so make it fast
+    resource_class: << parameters.resource_class >>
     steps:
       - checkout
       - run:
@@ -449,17 +460,19 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
-              "influxdb3-edge:latest"
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
+              "influxdb3:latest-<< parameters.platform>>" \
+              "<< parameters.platform >>" \
+              "<< parameters.profile >>"
 
           # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 30m
+          no_output_timeout: 60m
       - run: |
-          docker save influxdb3-edge:latest >influxdb3-edge.tar
+          docker save influxdb3:latest-<<parameters.platform>> > influxdb3-<<parameters.platform>>.tar
       - persist_to_workspace:
           root: .
           paths:
-            - influxdb3-edge.tar
+            - influxdb3-<<parameters.platform>>.tar
   publish-docker:
     docker:
       - image: cimg/gcp:2023.02
@@ -467,12 +480,13 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
-      - gcloud-docker-login
+      - quay-docker-login
       - attach_workspace:
           at: .
       - run: |
-          docker load <influxdb3-edge.tar
-          .circleci/scripts/publish.bash influxdb3-edge
+          docker load <influxdb3-arm64.tar
+          docker load <influxdb3-amd64.tar
+          .circleci/scripts/publish.bash influxdb3 ${CIRCLE_SHA1}
 
   wait-for-docker:
     resource_class: small
@@ -601,13 +615,27 @@ workflows:
             - fmt
             - cargo-audit
       - build-docker:
-          <<: *release_filter
+          <<: *nofork_filter
+          name: build-docker-amd64
+          matrix:
+            parameters:
+              platform: [amd64]
+              resource_class: [2xlarge+]
+              profile: [quick-release]
+      - build-docker:
+          <<: *nofork_filter
+          name: build-docker-arm64
+          matrix:
+            parameters:
+              platform: [arm64]
+              resource_class: [arm.2xlarge]
+              profile: [quick-release]
       - publish-docker:
-          <<: *release_filter
           requires:
-            - build-docker
+            - build-docker-amd64
+            - build-docker-arm64
       - wait-for-docker:
-          <<: *release_filter
           requires:
-            - build-docker
+            - build-docker-amd64
+            - build-docker-arm64
             - publish-docker
