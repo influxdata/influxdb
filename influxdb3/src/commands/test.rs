@@ -76,7 +76,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 None => {
                     let file_path = plugin_config
                         .input_file
-                        .context("either input_lp or input_file must be provided")?;
+                        .context("either --lp or --file must be provided")?;
                     std::fs::read_to_string(file_path).context("unable to read input file")?
                 }
             };

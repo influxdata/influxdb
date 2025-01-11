@@ -116,7 +116,7 @@ impl PyPluginCallApi {
     }
 
     #[pyo3(signature = (query, args=None))]
-    fn query_rows(
+    fn query(
         &self,
         query: String,
         args: Option<std::collections::HashMap<String, String>>,
@@ -282,6 +282,14 @@ class LineBuilder:
         self.tags[key] = str(value)
         return self
 
+    def uint64_field(self, key: str, value: int) -> 'LineBuilder':
+        """Add an unsigned integer field to the line protocol."""
+        self._validate_key(key, "field")
+        if value < 0:
+            raise ValueError(f"uint64 field '{key}' cannot be negative")
+        self.fields[key] = f"{value}u"
+        return self
+
     def int64_field(self, key: str, value: int) -> 'LineBuilder':
         """Add an integer field to the line protocol."""
         self._validate_key(key, "field")
@@ -301,6 +309,12 @@ class LineBuilder:
         # Escape quotes and backslashes in string values
         escaped_value = value.replace('"', '\\"').replace('\\', '\\\\')
         self.fields[key] = f'"{escaped_value}"'
+        return self
+
+    def bool_field(self, key: str, value: bool) -> 'LineBuilder':
+        """Add a boolean field to the line protocol."""
+        self._validate_key(key, "field")
+        self.fields[key] = 't' if value else 'f'
         return self
 
     def time_ns(self, timestamp_ns: int) -> 'LineBuilder':
