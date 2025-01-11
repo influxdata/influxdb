@@ -15,7 +15,7 @@ use influxdb3_wal::{
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{info, warn};
 use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
@@ -51,6 +51,7 @@ impl PluginChannels {
         if let Some(trigger_map) = self.active_triggers.get_mut(&db) {
             if let Some(sender) = trigger_map.remove(&trigger) {
                 if sender.send(PluginEvent::Shutdown(tx)).await.is_ok() {
+                    info!("waiting for shutdown response");
                     rx.await.ok();
                 }
             }
@@ -328,7 +329,9 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             self.wal.write_ops(vec![wal_op]).await?;
         }
 
+        info!("taking lock on plugin_event_tx for shutdown");
         let mut plugin_channels = self.plugin_event_tx.lock().await;
+        info!("got lock on plugin_event_tx for shutdown");
         plugin_channels
             .shutdown(db_name.to_string(), trigger_name.to_string())
             .await;
@@ -412,7 +415,9 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
 #[async_trait::async_trait]
 impl WalFileNotifier for ProcessingEngineManagerImpl {
     async fn notify(&self, write: Arc<WalContents>) {
+        info!("taking plugin_event_tx lock for notify");
         let plugin_channels = self.plugin_event_tx.lock().await;
+        info!("got lock on plugin_event_tx");
         plugin_channels.send_wal_contents(write).await;
     }
 

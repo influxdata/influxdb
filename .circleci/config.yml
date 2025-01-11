@@ -290,7 +290,7 @@ jobs:
           name: Cargo release build
           command: target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
-          no_output_timeout: 30m
+          no_output_timeout: 60m
       - run:
           name: tar and gzip build artifacts
           command: |
@@ -473,7 +473,7 @@ jobs:
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
               "influxdb3-edge-arm64:latest"
-          no_output_timeout: 30m
+          no_output_timeout: 60m
       - run: |
           docker save influxdb3-edge-arm64:latest >influxdb3-edge-arm64.tar
       - persist_to_workspace:
