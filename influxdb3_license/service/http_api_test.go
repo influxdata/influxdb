@@ -41,8 +41,8 @@ func testHandler(t *testing.T) *HTTPHandler {
 	lic, err := license.NewCreator(signMethod, privKey, pubKey)
 
 	cfg := config.Config{
-    TrialEndDate: time.Now().Add(time.Second * 120),
-  }
+		TrialEndDate: time.Now().Add(time.Second * 120),
+	}
 	logger := zaptest.NewLogger(t)
 	logLimiter := &rate.Sometimes{First: 10, Interval: 10 * time.Second}
 
