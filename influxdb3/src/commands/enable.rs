@@ -32,7 +32,7 @@ impl Config {
 
 #[derive(Debug, clap::Subcommand)]
 enum SubCommand {
-    /// Deactivate a plugin trigger
+    /// Enable a trigger to enable plugin execution
     Trigger(TriggerConfig),
 }
 
@@ -41,7 +41,7 @@ struct TriggerConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
 
-    /// Name of trigger to deactivate
+    /// Name of trigger to enable
     #[clap(required = true)]
     trigger_name: String,
 }
@@ -54,9 +54,9 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             trigger_name,
         }) => {
             client
-                .api_v3_configure_processing_engine_trigger_deactivate(database_name, &trigger_name)
+                .api_v3_configure_processing_engine_trigger_enable(database_name, &trigger_name)
                 .await?;
-            println!("Trigger {} deactivated successfully", trigger_name);
+            println!("Trigger {} enabled successfully", trigger_name);
         }
     }
     Ok(())
