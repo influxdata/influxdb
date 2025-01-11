@@ -463,7 +463,7 @@ jobs:
   build-docker-arm64:
     machine:
       image: default 
-    resource_class: arm.2xlarge+
+    resource_class: arm.2xlarge
     steps:
       - checkout
       - run:
