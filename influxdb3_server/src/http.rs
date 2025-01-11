@@ -247,6 +247,10 @@ impl Error {
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
+            Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => Response::builder()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::DatabaseNotFound { db_name: _ }) => {
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)
@@ -1254,7 +1258,7 @@ fn json_content_type(headers: &HeaderMap) -> bool {
     };
 
     let is_json_content_type = mime.type_() == "application"
-        && (mime.subtype() == "json" || mime.suffix().map_or(false, |name| name == "json"));
+        && (mime.subtype() == "json" || mime.suffix().is_some_and(|name| name == "json"));
 
     is_json_content_type
 }
@@ -1329,7 +1333,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
     let mut rp_seperator_found = false;
     let mut last_char = None;
     for grapheme in name.graphemes(true) {
-        if grapheme.as_bytes().len() > 1 {
+        if grapheme.len() > 1 {
             // In the case of a unicode we need to handle multibyte chars
             return Err(ValidateDbNameError::InvalidChar);
         }

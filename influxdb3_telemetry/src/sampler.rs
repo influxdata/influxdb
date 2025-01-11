@@ -125,7 +125,8 @@ mod tests {
     #[test]
     fn test_sample_all_metrics() {
         let mut mock_sys_info_provider = MockSystemInfoProvider::new();
-        let store = TelemetryStore::new_without_background_runners(Arc::from(MockParquetMetrics));
+        let store =
+            TelemetryStore::new_without_background_runners(Some(Arc::from(MockParquetMetrics)));
 
         mock_sys_info_provider
             .expect_get_pid()
@@ -145,7 +146,8 @@ mod tests {
     #[test]
     fn test_sample_all_metrics_with_call_failure() {
         let mut mock_sys_info_provider = MockSystemInfoProvider::new();
-        let store = TelemetryStore::new_without_background_runners(Arc::from(MockParquetMetrics));
+        let store =
+            TelemetryStore::new_without_background_runners(Some(Arc::from(MockParquetMetrics)));
 
         mock_sys_info_provider
             .expect_get_pid()

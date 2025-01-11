@@ -24,6 +24,8 @@ pub enum QueryExecutorError {
     DatabasesToRecordBatch(#[source] ArrowError),
     #[error("unable to compose record batches from retention policies: {0}")]
     RetentionPoliciesToRecordBatch(#[source] ArrowError),
+    #[error("invokded a method that is not implemented: {0}")]
+    MethodNotImplemented(&'static str),
 }
 
 #[async_trait]

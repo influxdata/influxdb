@@ -852,7 +852,7 @@ impl<'c> WriteRequestBuilder<'c, NoBody> {
     }
 }
 
-impl<'c> WriteRequestBuilder<'c, Body> {
+impl WriteRequestBuilder<'_, Body> {
     /// Send the request to the server
     pub async fn send(self) -> Result<()> {
         let url = self.client.base_url.join("/api/v3/write_lp")?;
@@ -900,7 +900,7 @@ pub struct QueryRequestBuilder<'c> {
 // TODO - for now the send method just returns the bytes from the response.
 //   It may be nicer to have the format parameter dictate how we return from
 //   send, e.g., using types more specific to the format selected.
-impl<'c> QueryRequestBuilder<'c> {
+impl QueryRequestBuilder<'_> {
     /// Specify the format, `json`, `csv`, `pretty`, or `parquet`
     pub fn format(mut self, format: Format) -> Self {
         self.format = Some(format);
@@ -1101,7 +1101,7 @@ pub struct ShowDatabasesRequestBuilder<'c> {
     show_deleted: bool,
 }
 
-impl<'c> ShowDatabasesRequestBuilder<'c> {
+impl ShowDatabasesRequestBuilder<'_> {
     /// Specify whether or not to show deleted databases in the output
     pub fn with_show_deleted(mut self, show_deleted: bool) -> Self {
         self.show_deleted = show_deleted;

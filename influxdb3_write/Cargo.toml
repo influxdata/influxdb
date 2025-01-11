@@ -32,6 +32,7 @@ influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_telemetry = { path = "../influxdb3_telemetry" }
+influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 influxdb3_py_api = {path = "../influxdb3_py_api"}
 
 # crates.io dependencies

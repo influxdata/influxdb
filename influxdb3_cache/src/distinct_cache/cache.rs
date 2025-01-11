@@ -473,7 +473,7 @@ impl Node {
                         let block = builder.append_block(value.0.as_bytes().into());
                         for _ in 0..count {
                             builder
-                                .try_append_view(block, 0u32, value.0.as_bytes().len() as u32)
+                                .try_append_view(block, 0u32, value.0.len() as u32)
                                 .expect("append view for known valid block, offset and length");
                         }
                     }
