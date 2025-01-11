@@ -19,17 +19,6 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-type mockMailer struct {
-	SendErr error
-}
-
-func (m mockMailer) SendMail(ctx context.Context, email *store.Email) (resp string, id string, err error) {
-	if m.SendErr != nil {
-		return "", "", m.SendErr
-	}
-	return "Queued. Thank you.", uuid.New().String(), nil
-}
-
 func newServiceConfig() *Config {
 	return &Config{
 		MaxEmailsPerUserPerLicense: -1,
@@ -39,77 +28,6 @@ func newServiceConfig() *Config {
 		UserRateLimitBurst:         -1,
 		IPRateLimit:                rate.Limit(-1.0),
 		IPRateLimitBurst:           -1,
-	}
-}
-
-type testService struct {
-	db     *sql.DB
-	ctx    context.Context
-	store  store.Store
-	mailer Mailer
-	svc    *Service
-}
-
-func newTestService(t *testing.T, tscfg *Config) *testService {
-	t.Helper()
-
-	testDB := testutil.NewTestDB(t)
-	ctx := context.Background()
-	testDB.Setup(ctx)
-	t.Cleanup(func() { testDB.Cleanup() })
-
-	mailer := &mockMailer{}
-	stor := postgres.NewStore(testDB.DB)
-	logger := zap.NewNop()
-
-	cfg := DefaultConfig(mailer, stor, logger)
-
-	// Apply default config overrides
-	if tscfg != nil {
-		if tscfg.Domain != "" {
-			cfg.Domain = tscfg.Domain
-		}
-		if tscfg.EmailTemplateName != "" {
-			cfg.EmailTemplateName = tscfg.EmailTemplateName
-		}
-		if tscfg.MaxEmailsPerUserPerLicense > -1 {
-			cfg.MaxEmailsPerUserPerLicense = tscfg.MaxEmailsPerUserPerLicense
-		}
-		if tscfg.RateLimit > -1.0 {
-			cfg.RateLimit = tscfg.RateLimit
-		}
-		if tscfg.RateLimitBurst > -1 {
-			cfg.RateLimitBurst = tscfg.RateLimitBurst
-		}
-		if tscfg.UserRateLimit > -1.0 {
-			cfg.UserRateLimit = tscfg.UserRateLimit
-		}
-		if tscfg.UserRateLimitBurst > -1 {
-			cfg.UserRateLimitBurst = tscfg.UserRateLimitBurst
-		}
-		if tscfg.IPRateLimit > -1.0 {
-			cfg.IPRateLimit = tscfg.IPRateLimit
-		}
-		if tscfg.IPRateLimitBurst > -1 {
-			cfg.IPRateLimitBurst = tscfg.IPRateLimitBurst
-		}
-		if tscfg.Mailer != nil {
-			cfg.Mailer = tscfg.Mailer
-		}
-		if tscfg.Store != nil {
-			cfg.Store = tscfg.Store
-		}
-		if tscfg.Logger != nil {
-			cfg.Logger = tscfg.Logger
-		}
-	}
-
-	return &testService{
-		db:     testDB.DB,
-		ctx:    ctx,
-		store:  postgres.NewStore(testDB.DB),
-		mailer: cfg.Mailer,
-		svc:    NewService(cfg),
 	}
 }
 
@@ -138,25 +56,25 @@ func deleteAllEmails(t *testing.T, s store.Store) {
 }
 
 func TestService_StartStop(t *testing.T) {
-	tstSvc := newTestService(t, nil)
+	tstSvc := testutil.NewTestService(t, nil)
 	pollInterval := time.Second
-	tstSvc.svc.Start(pollInterval)
-	tstSvc.svc.Stop()
+	tstSvc.Svc.Start(pollInterval)
+	tstSvc.Svc.Stop()
 }
 
 func TestService_SendEmail(t *testing.T) {
 	// Create the service under test
-	ts := newTestService(t, nil)
+	ts := testutil.NewTestService(t, nil)
 
 	// We'll tell the service under test to poll the DB frequently for
 	// emails in the queue to send so the test runs quickly. In prod,
 	// this would likely be every 2 or 3 seconds at the fastest.
 	pollInterval := 100 * time.Millisecond
-	ts.svc.Start(pollInterval)
-	t.Cleanup(func() { ts.svc.Stop() })
+	ts.Svc.Start(pollInterval)
+	t.Cleanup(func() { ts.Svc.Stop() })
 
 	// Create a db transaction
-	tx, err := ts.store.BeginTx(ts.ctx)
+	tx, err := ts.Store.BeginTx(ts.Ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +84,7 @@ func TestService_SendEmail(t *testing.T) {
 		Email: "test@example.com",
 	}
 
-	if err := ts.store.CreateUser(ts.ctx, tx, user); err != nil {
+	if err := ts.Store.CreateUser(ts.Ctx, tx, user); err != nil {
 		t.Fatal(err)
 	}
 
@@ -176,7 +94,7 @@ func TestService_SendEmail(t *testing.T) {
 		IPAddr: net.ParseIP("127.0.0.1"),
 	}
 
-	if err := ts.store.CreateUserIP(ts.ctx, tx, uip); err != nil {
+	if err := ts.Store.CreateUserIP(ts.Ctx, tx, uip); err != nil {
 		t.Fatal(err)
 	}
 
@@ -192,7 +110,7 @@ func TestService_SendEmail(t *testing.T) {
 		ValidUntil: now.Add(time.Hour),
 	}
 
-	if err := ts.store.CreateLicense(ts.ctx, tx, license); err != nil {
+	if err := ts.Store.CreateLicense(ts.Ctx, tx, license); err != nil {
 		t.Fatal(err)
 	}
 
@@ -216,13 +134,13 @@ func TestService_SendEmail(t *testing.T) {
 		State: store.EmailStateSent,
 	}
 
-	tx, err = ts.store.BeginTx(ts.ctx)
+	tx, err = ts.Store.BeginTx(ts.Ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Send the email the first time
-	if err := ts.svc.QueueEmail(ts.ctx, tx, email); err != nil {
+	if err := ts.Svc.QueueEmail(ts.Ctx, tx, email); err != nil {
 		t.Fatal(err)
 	}
 
@@ -238,7 +156,7 @@ func TestService_SendEmail(t *testing.T) {
 
 	// Loop waiting for the send to complete and email to update
 	// in the DB
-	tx, err = ts.store.BeginTx(ts.ctx)
+	tx, err = ts.Store.BeginTx(ts.Ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +168,7 @@ func TestService_SendEmail(t *testing.T) {
 
 	passed := false
 	for n := 0; n < 10; n++ {
-		email, err = ts.store.GetEmailByID(ts.ctx, tx, email.ID)
+		email, err = ts.Store.GetEmailByID(ts.Ctx, tx, email.ID)
 		if err != nil {
 			t.Fatal(err)
 		} else if email == nil {
@@ -292,7 +210,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 		tscfg.Logger = zap.NewNop()
 	}
 
-	ts := newTestService(t, tscfg)
+	ts := testutil.NewTestService(t, tscfg)
 
 	// We'll tell the service under test to poll the DB frequently
 	//pollInterval := 100 * time.Millisecond
@@ -301,7 +219,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 
 	// Helper function to create a test user with IP and license
 	createTestUserWithIP := func(ctx context.Context, email, ipAddr string) (*store.User, *store.UserIP, *store.License, error) {
-		tx, err := ts.store.BeginTx(ctx)
+		tx, err := ts.Store.BeginTx(ctx)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -311,7 +229,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 		user := &store.User{
 			Email: email,
 		}
-		if err := ts.store.CreateUser(ctx, tx, user); err != nil {
+		if err := ts.Store.CreateUser(ctx, tx, user); err != nil {
 			return nil, nil, nil, err
 		}
 
@@ -320,7 +238,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 			UserID: user.ID,
 			IPAddr: net.ParseIP(ipAddr),
 		}
-		if err := ts.store.CreateUserIP(ctx, tx, uip); err != nil {
+		if err := ts.Store.CreateUserIP(ctx, tx, uip); err != nil {
 			return nil, nil, nil, err
 		}
 
@@ -334,7 +252,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 			ValidFrom:  now,
 			ValidUntil: now.Add(time.Hour),
 		}
-		if err := ts.store.CreateLicense(ctx, tx, license); err != nil {
+		if err := ts.Store.CreateLicense(ctx, tx, license); err != nil {
 			return nil, nil, nil, err
 		}
 
@@ -369,16 +287,16 @@ func TestService_EmailRateLimits(t *testing.T) {
 		}
 
 		// Try to send more emails than the user burst limit
-		for i := 0; i < ts.svc.cfg.UserRateLimitBurst+1; i++ {
+		for i := 0; i < ts.Svc.cfg.UserRateLimitBurst+1; i++ {
 			email := createTestEmail(user, uip, license)
-			tx, err := ts.store.BeginTx(ctx)
+			tx, err := ts.Store.BeginTx(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback() }()
 
-			err = ts.svc.QueueEmail(ts.ctx, tx, email)
-			if i < ts.svc.cfg.UserRateLimitBurst {
+			err = ts.Svc.QueueEmail(ts.Ctx, tx, email)
+			if i < ts.Svc.cfg.UserRateLimitBurst {
 				if err != nil {
 					t.Errorf("expected email %d to be accepted, got error: %v", i+1, err)
 				}
@@ -402,7 +320,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 		var licenses []*store.License
 
 		// Create enough users sharing an IP to exceed the IP rate limit
-		for i := 0; i < ts.svc.cfg.IPRateLimitBurst+1; i++ {
+		for i := 0; i < ts.Svc.cfg.IPRateLimitBurst+1; i++ {
 			user, uip, license, err := createTestUserWithIP(ctx,
 				fmt.Sprintf("ip_limit_%d@test.com", i),
 				sharedIP)
@@ -417,14 +335,14 @@ func TestService_EmailRateLimits(t *testing.T) {
 		// Try to send emails from different users but same IP
 		for i, user := range users {
 			email := createTestEmail(user, uips[i], licenses[i])
-			tx, err := ts.store.BeginTx(ctx)
+			tx, err := ts.Store.BeginTx(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback() }()
 
-			err = ts.svc.QueueEmail(ts.ctx, tx, email)
-			if i < ts.svc.cfg.IPRateLimitBurst {
+			err = ts.Svc.QueueEmail(ts.Ctx, tx, email)
+			if i < ts.Svc.cfg.IPRateLimitBurst {
 				if err != nil {
 					t.Errorf("expected email %d to be accepted, got error: %v", i+1, err)
 				}
@@ -464,13 +382,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 		// Try to send all emails rapidly to trigger overall rate limit
 		gotExpErr := false
 		for i, email := range emails {
-			tx, err := ts.store.BeginTx(ctx)
+			tx, err := ts.Store.BeginTx(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback() }()
 
-			err = ts.svc.QueueEmail(ts.ctx, tx, email)
+			err = ts.Svc.QueueEmail(ts.Ctx, tx, email)
 			if i < len(emails)-1 {
 				if err != nil {
 					t.Fatalf("expected email %d to be accepted, got error: %v", i+1, err)
@@ -497,13 +415,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 	t.Run("ErrOutboundEmailQueueFull", func(t *testing.T) {
 		// To make this test simpler to reason about, clear the emails table
 		// and reset the global rate limiter.
-		deleteAllEmails(t, ts.store)
-		ts.svc.limiter = rate.NewLimiter(tscfg.RateLimit, tscfg.RateLimitBurst)
+		deleteAllEmails(t, ts.Store)
+		ts.Svc.limiter = rate.NewLimiter(tscfg.RateLimit, tscfg.RateLimitBurst)
 
 		// Create enough users and associated emails to exceed the overall
 		// rate limit
 		var emails []*store.Email
-		maxQueueLen := ts.svc.cfg.MaxQueueLength
+		maxQueueLen := ts.Svc.cfg.MaxQueueLength
 
 		for i := 0; i <= maxQueueLen+1; i++ {
 			user, uip, license, err := createTestUserWithIP(ctx,
@@ -519,13 +437,13 @@ func TestService_EmailRateLimits(t *testing.T) {
 
 		// Try to send all emails rapidly to trigger queue full error
 		for i, email := range emails {
-			tx, err := ts.store.BeginTx(ctx)
+			tx, err := ts.Store.BeginTx(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback() }()
 
-			err = ts.svc.QueueEmail(ts.ctx, tx, email)
+			err = ts.Svc.QueueEmail(ts.Ctx, tx, email)
 			switch err {
 			case nil:
 				// nothing to do
