@@ -645,13 +645,13 @@ impl Client {
         }
     }
 
-    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/activate`
-    pub async fn api_v3_configure_processing_engine_trigger_activate(
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/enable`
+    pub async fn api_v3_configure_processing_engine_trigger_enable(
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/activate";
+        let api_path = "/api/v3/configure/processing_engine_trigger/enable";
         let url = self.base_url.join(api_path)?;
 
         let mut req = self
@@ -676,13 +676,13 @@ impl Client {
         }
     }
 
-    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/deactivate`
-    pub async fn api_v3_configure_processing_engine_trigger_deactivate(
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/disable`
+    pub async fn api_v3_configure_processing_engine_trigger_disable(
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/deactivate";
+        let api_path = "/api/v3/configure/processing_engine_trigger/disable";
         let url = self.base_url.join(api_path)?;
 
         let mut req = self

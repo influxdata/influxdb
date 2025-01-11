@@ -235,14 +235,14 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         // Do this first to avoid a dangling running plugin.
         // Potential edge-case of a plugin being stopped but not deleted,
         // but should be okay given desire to force delete.
-        let needs_deactivate = force
+        let needs_disable = force
             && db_schema
                 .processing_engine_triggers
                 .get(trigger_name)
                 .is_some_and(|trigger| !trigger.disabled);
 
-        if needs_deactivate {
-            self.deactivate_trigger(db, trigger_name).await?;
+        if needs_disable {
+            self.disable_trigger(db, trigger_name).await?;
         }
 
         if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
@@ -293,7 +293,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn deactivate_trigger(
+    async fn disable_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
@@ -336,7 +336,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn activate_trigger(
+    async fn enable_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
@@ -705,8 +705,8 @@ mod tests {
         .await
         .unwrap();
 
-        // Deactivate the trigger
-        let result = pem.deactivate_trigger("foo", "test_trigger").await;
+        // Disable the trigger
+        let result = pem.disable_trigger("foo", "test_trigger").await;
         assert!(result.is_ok());
 
         // Verify trigger is disabled in schema
@@ -717,9 +717,9 @@ mod tests {
             .unwrap();
         assert!(trigger.disabled);
 
-        // Activate the trigger
+        // Enable the trigger
         let result = pem
-            .activate_trigger(
+            .enable_trigger(
                 Arc::clone(&write_buffer),
                 Arc::clone(&pem._query_executor),
                 "foo",
@@ -797,7 +797,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_activate_nonexistent_trigger() -> influxdb3_write::write_buffer::Result<()> {
+    async fn test_enable_nonexistent_trigger() -> influxdb3_write::write_buffer::Result<()> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -822,7 +822,7 @@ mod tests {
             .await?;
 
         let result = pem
-            .activate_trigger(
+            .enable_trigger(
                 Arc::clone(&write_buffer),
                 Arc::clone(&pem._query_executor),
                 "foo",

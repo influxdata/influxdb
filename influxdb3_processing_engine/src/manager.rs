@@ -65,13 +65,13 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
-    async fn deactivate_trigger(
+    async fn disable_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
-    async fn activate_trigger(
+    async fn enable_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
