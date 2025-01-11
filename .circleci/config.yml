@@ -460,6 +460,27 @@ jobs:
           root: .
           paths:
             - influxdb3-edge.tar
+  build-docker-arm64:
+    machine:
+      image: default 
+    resource_class: arm.2xlarge+
+    steps:
+      - checkout
+      - run:
+          name: Build the ARM64 docker image
+          command: |
+            .circleci/scripts/docker_build_release.bash \
+              "influxdb3" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
+              "influxdb3-edge-arm64:latest"
+          no_output_timeout: 30m
+      - run: |
+          docker save influxdb3-edge-arm64:latest >influxdb3-edge-arm64.tar
+      - persist_to_workspace:
+          root: .
+          paths:
+            - influxdb3-edge-arm64.tar
+
   publish-docker:
     docker:
       - image: cimg/gcp:2023.02
@@ -473,6 +494,19 @@ jobs:
       - run: |
           docker load <influxdb3-edge.tar
           .circleci/scripts/publish.bash influxdb3-edge
+  publish-docker-arm64:
+    docker:
+      - image: cimg/gcp:2023.02
+    resource_class: medium
+    steps:
+      - checkout
+      - setup_remote_docker
+      - gcloud-docker-login
+      - attach_workspace:
+          at: .
+      - run: |
+          docker load <influxdb3-edge-arm64.tar
+          .circleci/scripts/publish.bash influxdb3-edge-arm64
 
   wait-for-docker:
     resource_class: small
@@ -480,7 +514,7 @@ jobs:
       - image: busybox
     steps:
       - run: |
-          echo build executed successfully
+          echo builds executed successfully
 
 workflows:
   version: 2
@@ -601,10 +635,16 @@ workflows:
             - fmt
             - cargo-audit
       - build-docker
+      - build-docker-arm64
       - publish-docker:
           requires:
             - build-docker
+      - publish-docker-arm64:
+          requires:
+            - build-docker-arm64
       - wait-for-docker:
           requires:
             - build-docker
+            - build-docker-arm64
             - publish-docker
+            - publish-docker-arm64
