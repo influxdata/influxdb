@@ -911,7 +911,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
 
     query_params = {"host": args["host"]}
-    query_result = influxdb3_local.query_rows("SELECT * FROM cpu where host = $host", query_params)
+    query_result = influxdb3_local.query("SELECT * FROM cpu where host = $host", query_params)
     influxdb3_local.info("query result: " + str(query_result))
 
     for table_batch in table_batches:

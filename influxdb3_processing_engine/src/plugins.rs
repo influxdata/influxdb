@@ -470,7 +470,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     cpu_valid = LineBuilder("cpu")\
         .tag("host", "A")\
-        .int64_field("f1", 10)
+        .int64_field("f1", 10)\
+        .uint64_field("f2", 20)\
+        .bool_field("f3", True)
     influxdb3_local.write_to_db("foodb", cpu_valid)
 
     cpu_invalid = LineBuilder("cpu")\
@@ -509,7 +511,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
         // the lines should still come through in the output because that's what Python sent
         let expected_foodb_lines = vec![
-            "cpu,host=A f1=10i".to_string(),
+            "cpu,host=A f1=10i,f2=20u,f3=t".to_string(),
             "cpu,host=A f1=\"not_an_int\"".to_string(),
         ];
         assert_eq!(
