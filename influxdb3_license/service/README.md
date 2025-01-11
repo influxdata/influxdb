@@ -2,7 +2,21 @@
 
 This directory contains the InfluxDB 3 Enterprise (internally known as InfluxDB 3 Pro) trial license server project. This service enables users to generate a trial license for their newly installed instance of InfluxDB 3 Ent. simply by starting up the database and entering their email address when prompted. InfluxDB then makes a request to this service for a trial license. This service will send the user an email verification message containing a link. Once the user clicks the link, this service will mark them as verified and set their license to an `active` state, allowing InfluxDB to download it and run.
 
-This service is deployed using...TBD.
+This service is deployed using Google Cloud Run.
+
+#### Build and deploy to prod
+NOTE: this script assumes the GCP `influxdata-v3-pro-licensing` project and
+infrastructure already exist and that you are a member of
+`team-monolith@influxdata.com`. Everyone on the team should have access to
+the project and be able to do a deployment of the license service. If the
+project doesn't exist for some reason, it will have to be created. If the 
+expected resource need to be deployed, see the "Creating or modifying project
+infrastructure" section below (it's unlikely you need to do this).
+
+Run the `release.sh` script. In a terminal and in the project root directory:
+```
+influxdb3_licensing/service/release.sh
+```
 
 #### Build for local testing
 ```
@@ -88,3 +102,23 @@ curl -X POST "http://localhost:8687/licenses" \
      -d "host-id=influxdbpro2" \
      -d "instance-id=`uuidgen`"
 ```
+
+#### Creating or modifying project infrastucture
+This section is about creating or changing resources within the Google Cloud
+Project where this license servic is deployed. This is not necessary for normal
+day-to-day builds and deployments of the service. This is only required
+if you need to, for example, increase the number of CPUs or GBs of RAM
+Postgress has, create new service accounts, modify the VPC, etc.
+
+This infrastructure is maintained using Terraform and those and you'll need
+it installed to make changes. When it doubt, please consult someone in SRE
+or your manager before applying infrastruture changes to this project. It 
+is customer-facing.
+
+The terraform files are in the `influxdb3_licensing/terraform` directory.
+Make the necessary changes there and then:
+```
+terraform apply
+```
+It will display its planned changes. Review them and they type 'yes' and hit
+Enter to apply them.
