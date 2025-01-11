@@ -133,55 +133,16 @@ impl QueryExecutor for QueryExecutorImpl {
                 db_name: database.to_string(),
             })?;
 
-        let params = params.unwrap_or_default();
-
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            kind.query_type(),
-            Box::new(query.to_string()),
-            params.clone(),
-        );
-
-        // NOTE - we use the default query configuration on the IOxSessionContext here:
-        let ctx = db.new_query_context(span_ctx, Default::default());
-        let planner = Planner::new(&ctx);
-        let query = query.to_string();
-
-        // Perform query planning on a separate threadpool than the IO runtime that is servicing
-        // this request by using `IOxSessionContext::run`.
-        let plan = ctx
-            .run(async move {
-                match kind {
-                    QueryKind::Sql => planner.sql(query, params).await,
-                    QueryKind::InfluxQl => planner.influxql(query, params).await,
-                }
-            })
-            .await;
-
-        let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
-            Ok(plan) => plan,
-            Err(e) => {
-                token.fail();
-                return Err(e);
-            }
-        };
-        let token = token.planned(&ctx, Arc::clone(&plan));
-
-        // TODO: Enforce concurrency limit here
-        let token = token.permit();
-
-        self.telemetry_store.update_num_queries();
-
-        match ctx.execute_stream(Arc::clone(&plan)).await {
-            Ok(query_results) => {
-                token.success();
-                Ok(query_results)
-            }
-            Err(err) => {
-                token.fail();
-                Err(QueryExecutorError::ExecuteStream(err))
-            }
-        }
+        query_database(
+            db,
+            query,
+            params,
+            kind,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.telemetry_store),
+        )
+        .await
     }
 
     fn show_databases(
@@ -271,6 +232,66 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 }
 
+async fn query_database(
+    db: Arc<dyn QueryNamespace>,
+    query: &str,
+    params: Option<StatementParams>,
+    kind: QueryKind,
+    span_ctx: Option<SpanContext>,
+    external_span_ctx: Option<RequestLogContext>,
+    telemetry_store: Arc<TelemetryStore>,
+) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+    let params = params.unwrap_or_default();
+
+    let token = db.record_query(
+        external_span_ctx.as_ref().map(RequestLogContext::ctx),
+        kind.query_type(),
+        Box::new(query.to_string()),
+        params.clone(),
+    );
+
+    // NOTE - we use the default query configuration on the IOxSessionContext here:
+    let ctx = db.new_query_context(span_ctx, Default::default());
+    let planner = Planner::new(&ctx);
+    let query = query.to_string();
+
+    // Perform query planning on a separate threadpool than the IO runtime that is servicing
+    // this request by using `IOxSessionContext::run`.
+    let plan = ctx
+        .run(async move {
+            match kind {
+                QueryKind::Sql => planner.sql(query, params).await,
+                QueryKind::InfluxQl => planner.influxql(query, params).await,
+            }
+        })
+        .await;
+
+    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
+        Ok(plan) => plan,
+        Err(e) => {
+            token.fail();
+            return Err(e);
+        }
+    };
+    let token = token.planned(&ctx, Arc::clone(&plan));
+
+    // TODO: Enforce concurrency limit here
+    let token = token.permit();
+
+    telemetry_store.update_num_queries();
+
+    match ctx.execute_stream(Arc::clone(&plan)).await {
+        Ok(query_results) => {
+            token.success();
+            Ok(query_results)
+        }
+        Err(err) => {
+            token.fail();
+            Err(QueryExecutorError::ExecuteStream(err))
+        }
+    }
+}
+
 #[derive(Debug)]
 struct RetentionPolicyRow {
     database: String,
@@ -351,26 +372,44 @@ impl QueryDatabase for QueryExecutorImpl {
                 db_name: name.into(),
             }))
         })?;
-        Ok(Some(Arc::new(Database::new(
+        Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
             db_schema,
-            Arc::clone(&self.write_buffer),
-            Arc::clone(&self.exec),
-            Arc::clone(&self.datafusion_config),
-            Arc::clone(&self.query_log),
-            Arc::clone(&self.sys_events_store),
-        ))))
+            write_buffer: Arc::clone(&self.write_buffer),
+            exec: Arc::clone(&self.exec),
+            datafusion_config: Arc::clone(&self.datafusion_config),
+            query_log: Arc::clone(&self.query_log),
+            sys_events_store: Arc::clone(&self.sys_events_store),
+        }))))
     }
 
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
-        Arc::clone(&self.query_execution_semaphore)
-            .acquire_owned(span)
-            .await
-            .expect("Semaphore should not be closed by anyone")
+        acquire_semaphore(Arc::clone(&self.query_execution_semaphore), span).await
     }
 
     fn query_log(&self) -> QueryLogEntries {
         self.query_log.entries()
     }
+}
+
+async fn acquire_semaphore(
+    semaphore: Arc<InstrumentedAsyncSemaphore>,
+    span: Option<Span>,
+) -> InstrumentedAsyncOwnedSemaphorePermit {
+    semaphore
+        .acquire_owned(span)
+        .await
+        .expect("Semaphore should not be closed by anyone")
+}
+
+/// Arguments for [`Database::new`]
+#[derive(Debug)]
+pub struct CreateDatabaseArgs {
+    db_schema: Arc<DatabaseSchema>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    exec: Arc<Executor>,
+    datafusion_config: Arc<HashMap<String, String>>,
+    query_log: Arc<QueryLog>,
+    sys_events_store: Arc<SysEventStore>,
 }
 
 #[derive(Debug, Clone)]
@@ -385,12 +424,14 @@ pub struct Database {
 
 impl Database {
     pub fn new(
-        db_schema: Arc<DatabaseSchema>,
-        write_buffer: Arc<dyn WriteBuffer>,
-        exec: Arc<Executor>,
-        datafusion_config: Arc<HashMap<String, String>>,
-        query_log: Arc<QueryLog>,
-        sys_events_store: Arc<SysEventStore>,
+        CreateDatabaseArgs {
+            db_schema,
+            write_buffer,
+            exec,
+            datafusion_config,
+            query_log,
+            sys_events_store,
+        }: CreateDatabaseArgs,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
             AllSystemSchemaTablesProvider::new(
@@ -626,6 +667,7 @@ impl TableProvider for QueryTable {
         provider.scan(ctx, projection, &filters, limit).await
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
@@ -679,7 +721,12 @@ mod tests {
         ))
     }
 
-    async fn setup() -> (Arc<dyn WriteBuffer>, QueryExecutorImpl, Arc<MockProvider>) {
+    pub(crate) async fn setup() -> (
+        Arc<dyn WriteBuffer>,
+        QueryExecutorImpl,
+        Arc<MockProvider>,
+        Arc<SysEventStore>,
+    ) {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
@@ -718,7 +765,7 @@ mod tests {
         .unwrap();
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
-        let telemetry_store = TelemetryStore::new_without_background_runners(persisted_files);
+        let telemetry_store = TelemetryStore::new_without_background_runners(Some(persisted_files));
         let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
             &time_provider,
         )));
@@ -733,15 +780,20 @@ mod tests {
             datafusion_config,
             query_log_size: 10,
             telemetry_store,
-            sys_events_store,
+            sys_events_store: Arc::clone(&sys_events_store),
         });
 
-        (write_buffer, query_executor, time_provider)
+        (
+            write_buffer,
+            query_executor,
+            time_provider,
+            sys_events_store,
+        )
     }
 
     #[test_log::test(tokio::test)]
     async fn system_parquet_files_success() {
-        let (write_buffer, query_executor, time_provider) = setup().await;
+        let (write_buffer, query_executor, time_provider, _) = setup().await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots

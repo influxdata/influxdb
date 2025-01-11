@@ -1,7 +1,8 @@
 # Configuration documentation:
-#   https://embarkstudios.github.io/cargo-deny/index.html
+#   https://embarkstudios.github.io/cargo-deny/index.html
 
 [advisories]
+version = 2
 yanked = "deny"
 ignore = [
     # dependent on datafusion-common moving away from instant
@@ -11,6 +12,8 @@ ignore = [
 git-fetch-with-cli = true
 
 [licenses]
+version = 2
+unused-allowed-license = "warn"
 allow = [
     "Apache-2.0",
     "BSD-2-Clause",
@@ -22,7 +25,6 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
-
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
@@ -41,10 +43,10 @@ license-files = [
 github = ["influxdata"]
 
 [bans]
-multiple-versions = "warn"
+multiple-versions = "allow"
 deny = [
-    # We are using rustls as the TLS implementation, so we shouldn't be linking
-    # in OpenSSL too.
+    # We are using rustls as the TLS implementation, so we shouldn't be linking
+    # in OpenSSL too.
     #
     # If you're hitting this, you might want to take a look at what new
     # dependencies you have introduced and check if there's a way to depend on
@@ -53,4 +55,6 @@ deny = [
     # We've decided to use the `humantime` crate to parse and generate friendly time formats; use
     # that rather than chrono-english.
     { name = "chrono-english" },
+    # Use stdlib ( https://doc.rust-lang.org/stable/std/io/trait.IsTerminal.html )
+    { name = "atty" },
 ]

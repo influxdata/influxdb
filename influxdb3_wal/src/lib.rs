@@ -16,7 +16,6 @@ use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
-use observability_deps::tracing::error;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -319,6 +318,10 @@ impl OrderedCatalogBatch {
 
     pub fn batch(&self) -> &CatalogBatch {
         &self.catalog
+    }
+
+    pub fn into_batch(self) -> CatalogBatch {
+        self.catalog
     }
 }
 

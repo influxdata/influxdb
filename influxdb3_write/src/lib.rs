@@ -260,6 +260,32 @@ impl PersistedSnapshot {
             .or_default()
             .push(parquet_file);
     }
+
+    pub fn db_table_and_file_count(&self) -> (u64, u64, u64) {
+        let mut db_count = 0;
+        let mut table_count = 0;
+        let mut file_count = 0;
+        for (_, db_tables) in &self.databases {
+            db_count += 1;
+            table_count += db_tables.tables.len() as u64;
+            file_count += db_tables.tables.values().fold(0, |mut acc, files| {
+                acc += files.len() as u64;
+                acc
+            });
+        }
+        (db_count, table_count, file_count)
+    }
+
+    pub fn overall_db_table_file_counts(host_snapshots: &[PersistedSnapshot]) -> (u64, u64, u64) {
+        let overall_counts = host_snapshots.iter().fold((0, 0, 0), |mut acc, item| {
+            let (db_count, table_count, file_count) = item.db_table_and_file_count();
+            acc.0 += db_count;
+            acc.1 += table_count;
+            acc.2 += file_count;
+            acc
+        });
+        overall_counts
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
@@ -274,8 +300,11 @@ pub struct ParquetFile {
     pub path: String,
     pub size_bytes: u64,
     pub row_count: u64,
+    /// chunk time nanos
     pub chunk_time: i64,
+    /// min time nanos
     pub min_time: i64,
+    /// max time nanos
     pub max_time: i64,
 }
 
@@ -427,5 +456,177 @@ pub(crate) mod test_help {
             },
             DedicatedExecutor::new_testing(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+
+    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+
+    #[test]
+    fn test_overall_counts() {
+        let host = "host_id";
+        // db 1 setup
+        let db_id_1 = DbId::from(0);
+        let mut dbs_1 = SerdeVecMap::new();
+        let table_id_1 = TableId::from(0);
+        let mut tables_1 = SerdeVecMap::new();
+        let parquet_files_1 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(1),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(2),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_1.insert(table_id_1, parquet_files_1);
+        dbs_1.insert(db_id_1, DatabaseTables { tables: tables_1 });
+
+        // add dbs_1 to snapshot
+        let persisted_snapshot_1 = PersistedSnapshot {
+            host_id: host.to_string(),
+            next_file_id: ParquetFileId::from(0),
+            next_db_id: DbId::from(1),
+            next_table_id: TableId::from(1),
+            next_column_id: ColumnId::from(1),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(124),
+            wal_file_sequence_number: WalFileSequenceNumber::new(100),
+            catalog_sequence_number: CatalogSequenceNumber::new(100),
+            databases: dbs_1,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
+        };
+
+        // db 2 setup
+        let db_id_2 = DbId::from(2);
+        let mut dbs_2 = SerdeVecMap::new();
+        let table_id_2 = TableId::from(2);
+        let mut tables_2 = SerdeVecMap::new();
+        let parquet_files_2 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(4),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(5),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_2.insert(table_id_2, parquet_files_2);
+        dbs_2.insert(db_id_2, DatabaseTables { tables: tables_2 });
+
+        // add dbs_2 to snapshot
+        let persisted_snapshot_2 = PersistedSnapshot {
+            host_id: host.to_string(),
+            next_file_id: ParquetFileId::from(5),
+            next_db_id: DbId::from(2),
+            next_table_id: TableId::from(22),
+            next_column_id: ColumnId::from(22),
+            snapshot_sequence_number: SnapshotSequenceNumber::new(124),
+            wal_file_sequence_number: WalFileSequenceNumber::new(100),
+            catalog_sequence_number: CatalogSequenceNumber::new(100),
+            databases: dbs_2,
+            min_time: 0,
+            max_time: 1,
+            row_count: 0,
+            parquet_size_bytes: 0,
+        };
+
+        let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[
+            persisted_snapshot_1,
+            persisted_snapshot_2,
+        ]);
+        assert_eq!((2, 2, 4), overall_counts);
+    }
+
+    #[test]
+    fn test_overall_counts_zero() {
+        // db 1 setup
+        let db_id_1 = DbId::from(0);
+        let mut dbs_1 = SerdeVecMap::new();
+        let table_id_1 = TableId::from(0);
+        let mut tables_1 = SerdeVecMap::new();
+        let parquet_files_1 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(1),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(2),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_1.insert(table_id_1, parquet_files_1);
+        dbs_1.insert(db_id_1, DatabaseTables { tables: tables_1 });
+
+        // db 2 setup
+        let db_id_2 = DbId::from(2);
+        let mut dbs_2 = SerdeVecMap::new();
+        let table_id_2 = TableId::from(2);
+        let mut tables_2 = SerdeVecMap::new();
+        let parquet_files_2 = vec![
+            ParquetFile {
+                id: ParquetFileId::from(4),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+            ParquetFile {
+                id: ParquetFileId::from(5),
+                path: "some_path".to_string(),
+                size_bytes: 100_000,
+                row_count: 200,
+                chunk_time: 1123456789,
+                min_time: 11234567777,
+                max_time: 11234567788,
+            },
+        ];
+        tables_2.insert(table_id_2, parquet_files_2);
+        dbs_2.insert(db_id_2, DatabaseTables { tables: tables_2 });
+
+        // add dbs_2 to snapshot
+        let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[]);
+        assert_eq!((0, 0, 0), overall_counts);
     }
 }

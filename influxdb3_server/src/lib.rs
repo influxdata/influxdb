@@ -1,4 +1,4 @@
-//! InfluxDB 3 Core server implementation
+//! InfluxDB 3 Enterprise server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
@@ -789,7 +789,7 @@ mod tests {
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
-            TelemetryStore::new_without_background_runners(parquet_metrics_provider);
+            TelemetryStore::new_without_background_runners(Some(parquet_metrics_provider));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
