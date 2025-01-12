@@ -300,7 +300,7 @@ jobs:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-edge_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
@@ -402,7 +402,7 @@ jobs:
               # Since all artifacts are present, sign them here. This saves Circle
               # credits over spinning up another instance just to separate out the
               # checksum job.
-              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-edge.${CIRCLE_TAG}.digests"
+              sha256sum "${target}" | sed "s#$WORK_DIR##" >> "/tmp/workspace/artifacts/influxdb3-core.${CIRCLE_TAG}.digests"
 
               # write individual checksums
               md5sum    "${target}" | sed "s#$WORK_DIR##" >> "${target}.md5"
