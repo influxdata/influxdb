@@ -140,7 +140,7 @@ impl TestServer {
     ) -> Response {
         self.http_client
             .post(format!(
-                "{base}/api/v3/pro/configure/file_index",
+                "{base}/api/v3/enterprise/configure/file_index",
                 base = self.client_addr()
             ))
             .json(request)
@@ -155,7 +155,7 @@ impl TestServer {
     ) -> Response {
         self.http_client
             .delete(format!(
-                "{base}/api/v3/pro/configure/file_index",
+                "{base}/api/v3/enterprise/configure/file_index",
                 base = self.client_addr()
             ))
             .json(request)
