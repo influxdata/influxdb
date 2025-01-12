@@ -5,7 +5,7 @@ use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 
-use crate::server::{pro::tmp_dir, ConfigProvider, TestServer};
+use crate::server::{enterprise::tmp_dir, ConfigProvider, TestServer};
 
 #[test_log::test(tokio::test)]
 async fn compactor_only_node_should_respond_to_compaction_events_query() {

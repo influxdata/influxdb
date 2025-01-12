@@ -1770,11 +1770,11 @@ pub(crate) async fn route_request<T: TimeProvider>(
 
             http_server.write_lp_inner(params, req, false).await
         }
-        (Method::POST, "/api/v3/pro/echo") => http_server.pro_echo(req).await,
-        (Method::POST, "/api/v3/pro/configure/file_index") => {
+        (Method::POST, "/api/v3/enterprise/echo") => http_server.enterprise_echo(req).await,
+        (Method::POST, "/api/v3/enterprise/configure/file_index") => {
             http_server.configure_file_index_create(req).await
         }
-        (Method::DELETE, "/api/v3/pro/configure/file_index") => {
+        (Method::DELETE, "/api/v3/enterprise/configure/file_index") => {
             http_server.configure_file_index_delete(req).await
         }
         (Method::POST, "/api/v3/write_lp") => http_server.write_lp(req).await,

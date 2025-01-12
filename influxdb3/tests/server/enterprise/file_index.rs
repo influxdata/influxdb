@@ -1,4 +1,4 @@
-use crate::server::{pro::tmp_dir, ConfigProvider, TestServer};
+use crate::server::{enterprise::tmp_dir, ConfigProvider, TestServer};
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::json;
