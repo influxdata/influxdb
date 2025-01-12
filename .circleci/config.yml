@@ -513,7 +513,7 @@ workflows:
           matrix:
             parameters:
               profile:
-                - quick-release
+                - release
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
@@ -628,7 +628,7 @@ workflows:
             parameters:
               platform: [amd64]
               resource_class: [2xlarge+]
-              profile: [quick-release]
+              profile: [release]
       - build-docker:
           <<: *nofork_filter
           name: build-docker-arm64
@@ -636,7 +636,7 @@ workflows:
             parameters:
               platform: [arm64]
               resource_class: [arm.2xlarge]
-              profile: [quick-release]
+              profile: [release]
       - publish-docker:
           <<: *main_filter
           requires:
