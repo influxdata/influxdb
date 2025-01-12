@@ -638,6 +638,7 @@ workflows:
               resource_class: [arm.2xlarge]
               profile: [quick-release]
       - publish-docker:
+          <<: *main_filter
           requires:
             - build-docker-amd64
             - build-docker-arm64
