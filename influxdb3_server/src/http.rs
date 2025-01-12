@@ -995,7 +995,7 @@ where
         let ProcessingEnginePluginCreateRequest {
             db,
             plugin_name,
-            code,
+            file_name,
             plugin_type,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
@@ -1003,7 +1003,7 @@ where
             self.read_body_json(req).await?
         };
         self.processing_engine
-            .insert_plugin(&db, plugin_name, code, plugin_type)
+            .insert_plugin(&db, plugin_name, file_name, plugin_type)
             .await?;
 
         Ok(Response::builder()
@@ -1596,7 +1596,7 @@ struct LastCacheDeleteRequest {
 struct ProcessingEnginePluginCreateRequest {
     db: String,
     plugin_name: String,
-    code: String,
+    file_name: String,
     plugin_type: PluginType,
 }
 

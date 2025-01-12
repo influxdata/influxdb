@@ -481,7 +481,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
-        code: impl Into<String> + Send,
+        file_name: impl Into<String> + Send,
         plugin_type: impl Into<String> + Send,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/processing_engine_plugin";
@@ -492,14 +492,14 @@ impl Client {
         struct Req {
             db: String,
             plugin_name: String,
-            code: String,
+            file_name: String,
             plugin_type: String,
         }
 
         let mut req = self.http_client.post(url).json(&Req {
             db: db.into(),
             plugin_name: plugin_name.into(),
-            code: code.into(),
+            file_name: file_name.into(),
             plugin_type: plugin_type.into(),
         });
 

@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use crate::TestServer;
+use crate::{ConfigProvider, TestServer};
 use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
@@ -441,24 +441,28 @@ async fn test_create_delete_distinct_cache() {
 
 #[test_log::test(tokio::test)]
 async fn test_create_plugin() {
-    let server = TestServer::spawn().await;
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+    );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let plugin_name = "test_plugin";
 
     // Create database first
     let result = run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
     assert_contains!(&result, "Database \"foo\" created successfully");
 
-    // Create plugin file
-    let plugin_file = create_plugin_file(
-        r#"
-def process_rows(iterator, output):
-    pass
-"#,
-    );
-
     // Create plugin
+    let plugin_name = "test_plugin";
     let result = run_with_confirmation(&[
         "create",
         "plugin",
@@ -466,8 +470,8 @@ def process_rows(iterator, output):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
     debug!(result = ?result, "create plugin");
@@ -476,21 +480,26 @@ def process_rows(iterator, output):
 
 #[test_log::test(tokio::test)]
 async fn test_delete_plugin() {
-    let server = TestServer::spawn().await;
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+    );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let plugin_name = "test_plugin";
 
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_file = create_plugin_file(
-        r#"
-def process_rows(iterator, output):
-    pass
-"#,
-    );
-
+    let plugin_name = "test_plugin";
     run_with_confirmation(&[
         "create",
         "plugin",
@@ -498,8 +507,8 @@ def process_rows(iterator, output):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
 
@@ -522,19 +531,14 @@ def process_rows(iterator, output):
 async fn test_create_trigger_and_run() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
-    let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
-    let db_name = "foo";
-    let plugin_name = "test_plugin";
-    let trigger_name = "test_trigger";
-
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-
     let plugin_file = create_plugin_file(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     for table_batch in table_batches:
+        # Skip if table_name is write_reports
+        if table_batch["table_name"] == "write_reports":
+            continue
+
         row_count = len(table_batch["rows"])
 
         # Double row count if table name matches args table_name
@@ -547,6 +551,21 @@ def process_writes(influxdb3_local, table_batches, args=None):
         influxdb3_local.write(line)
 "#,
     );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let plugin_name = "test_plugin";
 
     run_with_confirmation(&[
         "create",
@@ -555,8 +574,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
 
@@ -636,22 +655,27 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
 #[test_log::test(tokio::test)]
 async fn test_trigger_enable() {
-    let server = TestServer::spawn().await;
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+    );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let plugin_name = "test_plugin";
     let trigger_name = "test_trigger";
 
     // Setup: create database, plugin, and trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_file = create_plugin_file(
-        r#"
-def process_rows(iterator, output):
-    pass
-"#,
-    );
-
+    let plugin_name = "test_plugin";
     run_with_confirmation(&[
         "create",
         "plugin",
@@ -659,8 +683,8 @@ def process_rows(iterator, output):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
 
@@ -707,22 +731,27 @@ def process_rows(iterator, output):
 
 #[test_log::test(tokio::test)]
 async fn test_delete_enabled_trigger() {
-    let server = TestServer::spawn().await;
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+    );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
     let server_addr = server.client_addr();
     let db_name = "foo";
-    let plugin_name = "test_plugin";
     let trigger_name = "test_trigger";
 
     // Setup: create database, plugin, and enable trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_file = create_plugin_file(
-        r#"
-def process_rows(iterator, output):
-    pass
-"#,
-    );
-
+    let plugin_name = "test_plugin";
     run_with_confirmation(&[
         "create",
         "plugin",
@@ -730,8 +759,8 @@ def process_rows(iterator, output):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
 
@@ -779,11 +808,22 @@ def process_rows(iterator, output):
 
 #[test_log::test(tokio::test)]
 async fn test_table_specific_trigger() {
-    let server = TestServer::spawn().await;
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+    );
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
     let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
-    let plugin_name = "test_plugin";
     let trigger_name = "test_trigger";
 
     // Setup: create database, table, and plugin
@@ -803,13 +843,7 @@ async fn test_table_specific_trigger() {
         table_name,
     ]);
 
-    let plugin_file = create_plugin_file(
-        r#"
-def process_rows(iterator, output):
-    pass
-"#,
-    );
-
+    let plugin_name = "test_plugin";
     run_with_confirmation(&[
         "create",
         "plugin",
@@ -817,8 +851,8 @@ def process_rows(iterator, output):
         db_name,
         "--host",
         &server_addr,
-        "--code-filename",
-        plugin_file.path().to_str().unwrap(),
+        "--filename",
+        plugin_filename,
         plugin_name,
     ]);
 
