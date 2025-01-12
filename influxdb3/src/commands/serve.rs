@@ -240,10 +240,17 @@ pub struct Config {
     )]
     pub buffer_mem_limit_mb: usize,
 
-    /// The host idendifier used as a prefix in all object store file paths. This should be unique
-    /// for any hosts that share the same object store configuration, i.e., the same bucket.
-    #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
-    pub host_identifier_prefix: String,
+    /// The writer idendifier used as a prefix in all object store file paths. This should be unique
+    /// for any InfluxDB 3 Core servers that share the same object store configuration, i.e., the
+    /// same bucket.
+    #[clap(
+        long = "writer-id",
+        // TODO: deprecate this alias in future version
+        alias = "host-id",
+        env = "INFLUXDB3_WRITER_IDENTIFIER_PREFIX",
+        action
+    )]
+    pub writer_identifier_prefix: String,
 
     /// The size of the in-memory Parquet cache in megabytes (MB).
     #[clap(
@@ -383,7 +390,7 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        host_id = %config.host_identifier_prefix,
+        writer_id = %config.writer_identifier_prefix,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID.as_ref() as &str,
@@ -473,7 +480,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.host_identifier_prefix,
+        config.writer_identifier_prefix,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,

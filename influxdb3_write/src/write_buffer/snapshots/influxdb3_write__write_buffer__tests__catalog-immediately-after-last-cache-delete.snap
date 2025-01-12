@@ -1,7 +1,6 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
-snapshot_kind: text
 ---
 {
   "databases": [
@@ -87,7 +86,7 @@ snapshot_kind: text
       "name": "db"
     }
   ],
-  "host_id": "test_host",
   "instance_id": "[uuid]",
-  "sequence": 4
+  "sequence": 4,
+  "writer_id": "test_host"
 }
