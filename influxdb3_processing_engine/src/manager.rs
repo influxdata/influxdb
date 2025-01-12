@@ -29,6 +29,12 @@ pub enum ProcessingEngineError {
 
     #[error("plugin error: {0}")]
     PluginError(#[from] crate::plugins::Error),
+
+    #[error("failed to shutdown trigger {trigger_name} in database {database}")]
+    TriggerShutdownError {
+        database: String,
+        trigger_name: String,
+    },
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
