@@ -639,8 +639,8 @@ func TestLicenseInvariants(t *testing.T) {
 		}
 
 		err = s.CreateLicense(ctx, tx, license2)
-		if err == nil {
-			t.Error("expected error creating license with duplicate email + writer_id")
+		if err != nil {
+			t.Errorf("unexpected error creating license with duplicate email + writer_id: %v", err)
 		}
 
 		// Try duplicate email + instance_id

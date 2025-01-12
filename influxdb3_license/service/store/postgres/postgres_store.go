@@ -978,6 +978,50 @@ func (s *Store) GetLicenseByEmailAndWriterID(ctx context.Context, tx store.Tx, e
 	return &license, nil
 }
 
+func (s *Store) GetLicensesByEmailAndWriterID(ctx context.Context, tx store.Tx, email, writerID string) ([]*store.License, error) {
+	query := `
+		SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+			   valid_until, state, created_at, updated_at
+		FROM licenses
+		WHERE email = $1 AND writer_id = $2`
+
+	sqlTx := tx.(*sql.Tx)
+	rows, err := sqlTx.QueryContext(ctx, query, email, writerID)
+	if err != nil {
+		return nil, fmt.Errorf("querying licenses: %w", err)
+	}
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
+
+	var licenses []*store.License
+	for rows.Next() {
+		var license store.License
+		err := rows.Scan(
+			&license.ID,
+			&license.UserID,
+			&license.Email,
+			&license.WriterID,
+			&license.InstanceID,
+			&license.LicenseKey,
+			&license.ValidFrom,
+			&license.ValidUntil,
+			&license.State,
+			&license.CreatedAt,
+			&license.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scanning license: %w", err)
+		}
+		licenses = append(licenses, &license)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating licenses: %w", err)
+	}
+
+	return licenses, nil
+}
+
 func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanceID string) (*store.License, error) {
 	doCommit := false
 	var err error

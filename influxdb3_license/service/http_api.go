@@ -560,22 +560,16 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	instanceID := ctx.Value(instanceIDKey).(string)
 
 	// Check if the user already has a license for this writer ID
-	lic, err := h.store.GetLicenseByEmailAndWriterID(ctx, tx, user.Email, writerID)
+	lics, err := h.store.GetLicensesByEmailAndWriterID(ctx, tx, user.Email, writerID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return -1, fmt.Errorf("createLicense: error getting license by writer ID: %w", err)
-	} else if lic != nil {
-		return -1, fmt.Errorf("createLicense: %w: writer ID: %s", ErrLicenseAlreadyExists, writerID)
+		return -1, fmt.Errorf("createLicense: error getting license by email and writer ID: %w", err)
 	}
 
-	// Check if the user already has a license for this instance ID
-	lic, err = h.store.GetLicenseByInstanceID(ctx, tx, instanceID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return -1, fmt.Errorf("createLicense: error getting license by instance ID: %w", err)
-	} else if lic != nil {
-		if lic.Email != user.Email {
-			return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrInstanceIDCollision, instanceID)
+	// Check if the user already has an active license for this instance ID
+	for _, lic := range lics {
+		if lic.InstanceID == instanceID && lic.State == store.LicenseStateActive {
+			return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrLicenseAlreadyExists, instanceID)
 		}
-		return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrLicenseAlreadyExists, instanceID)
 	}
 
 	// create a signed license token
@@ -587,7 +581,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	}
 
 	// Save the license in the database
-	lic = &store.License{
+	lic := &store.License{
 		UserID:     user.ID,
 		Email:      user.Email,
 		WriterID:   writerID,
