@@ -11,6 +11,7 @@ use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
 use influxdb3_wal::{FieldData, WriteBatch};
 use iox_query_params::StatementParams;
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::{PyAnyMethods, PyModule};
@@ -67,6 +68,7 @@ impl std::fmt::Debug for LogLine {
 #[pymethods]
 impl PyPluginCallApi {
     fn info(&self, line: &str) -> PyResult<()> {
+        info!("processing engine: {}", line);
         self.return_state
             .lock()
             .log_lines
@@ -75,6 +77,7 @@ impl PyPluginCallApi {
     }
 
     fn warn(&self, line: &str) -> PyResult<()> {
+        warn!("processing engine: {}", line);
         self.return_state
             .lock()
             .log_lines
@@ -83,6 +86,7 @@ impl PyPluginCallApi {
     }
 
     fn error(&self, line: &str) -> PyResult<()> {
+        error!("processing engine: {}", line);
         self.return_state
             .lock()
             .log_lines

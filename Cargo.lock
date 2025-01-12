@@ -3007,6 +3007,7 @@ dependencies = [
  "influxdb3_internal_api",
  "influxdb3_wal",
  "iox_query_params",
+ "observability_deps",
  "parking_lot",
  "pyo3",
  "tokio",
