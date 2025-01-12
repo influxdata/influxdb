@@ -20,6 +20,15 @@ pub enum ProcessingEngineError {
 
     #[error("wal error: {0}")]
     WalError(#[from] influxdb3_wal::Error),
+
+    #[error("server not started with --plugin-dir")]
+    PluginDirNotSet,
+
+    #[error("plugin not found: {0}")]
+    PluginNotFound(String),
+
+    #[error("plugin error: {0}")]
+    PluginError(#[from] crate::plugins::Error),
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -32,7 +41,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         &self,
         db: &str,
         plugin_name: String,
-        code: String,
+        file_name: String,
         plugin_type: PluginType,
     ) -> Result<(), ProcessingEngineError>;
 

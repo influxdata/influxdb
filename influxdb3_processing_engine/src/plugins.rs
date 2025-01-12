@@ -47,12 +47,14 @@ pub enum Error {
 #[cfg(feature = "system-py")]
 pub(crate) fn run_plugin(
     db_name: String,
+    plugin_code: String,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
         db_name,
+        plugin_code,
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
     };
@@ -89,6 +91,7 @@ trait RunnablePlugin {
 #[derive(Debug)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
+    plugin_code: String,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
@@ -170,7 +173,7 @@ mod python_plugin {
                                 };
 
                                 let result = execute_python_with_batch(
-                                    &self.trigger_definition.plugin.code,
+                                    &self.plugin_code,
                                     write_batch,
                                     Arc::clone(&schema),
                                     Arc::clone(&self.query_executor),

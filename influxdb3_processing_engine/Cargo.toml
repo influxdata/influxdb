@@ -37,6 +37,7 @@ influxdb3_cache = { path = "../influxdb3_cache" }
 metric.workspace = true
 object_store.workspace = true
 parquet_file.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
