@@ -988,7 +988,7 @@ async fn load_and_validate_license(
 
             let client = reqwest::Client::new();
             let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&host-id={writer_id}"))
+                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&writer-id={writer_id}"))
             .send()
             .await?;
 
