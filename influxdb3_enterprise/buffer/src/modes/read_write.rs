@@ -34,7 +34,7 @@ use tokio::sync::watch::Receiver;
 #[derive(Debug)]
 pub struct ReadWriteMode {
     primary: Arc<WriteBufferImpl>,
-    host_id: Arc<str>,
+    writer_id: Arc<str>,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     replicas: Option<Replicas>,
@@ -43,7 +43,7 @@ pub struct ReadWriteMode {
 
 #[derive(Debug)]
 pub struct CreateReadWriteModeArgs {
-    pub host_id: Arc<str>,
+    pub writer_id: Arc<str>,
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
@@ -61,7 +61,7 @@ pub struct CreateReadWriteModeArgs {
 impl ReadWriteMode {
     pub(crate) async fn new(
         CreateReadWriteModeArgs {
-            host_id,
+            writer_id,
             persister,
             catalog,
             last_cache,
@@ -93,12 +93,12 @@ impl ReadWriteMode {
 
         let replicas = if let Some(ReplicationConfig {
             interval: replication_interval,
-            hosts,
+            writer_ids,
         }) = replication_config.and_then(|mut config| {
-            // remove this host from the list of replicas if it was provided to prevent from
+            // remove this writer from the list of replicas if it was provided to prevent from
             // replicating the local primary buffer.
-            config.hosts.retain(|h| h != host_id.as_ref());
-            (!config.hosts.is_empty()).then_some(config)
+            config.writer_ids.retain(|h| h != writer_id.as_ref());
+            (!config.writer_ids.is_empty()).then_some(config)
         }) {
             Some(
                 Replicas::new(CreateReplicasArgs {
@@ -107,7 +107,7 @@ impl ReadWriteMode {
                     object_store: Arc::clone(&object_store),
                     metric_registry,
                     replication_interval,
-                    hosts,
+                    writer_ids,
                     parquet_cache,
                     catalog,
                     time_provider,
@@ -119,7 +119,7 @@ impl ReadWriteMode {
             None
         };
         Ok(Self {
-            host_id,
+            writer_id,
             primary,
             replicas,
             compacted_data,
@@ -216,41 +216,40 @@ impl ChunkContainer for ReadWriteMode {
         }
 
         // now add in the compacted chunks so that they have the lowest chunk order precedence and
-        // pull out the host markers to get gen1 chunks from primary and replicas
-        let host_markers =
-            if let Some(compacted_data) = &self.compacted_data {
-                let (parquet_files, host_markers) = compacted_data
-                    .get_parquet_files_and_host_markers(database_name, table_name, filters);
+        // pull out the writer markers to get gen1 chunks from primary and replicas
+        let writer_markers = if let Some(compacted_data) = &self.compacted_data {
+            let (parquet_files, writer_markers) = compacted_data
+                .get_parquet_files_and_writer_markers(database_name, table_name, filters);
 
-                chunks.extend(
-                    parquet_files
-                        .into_iter()
-                        .map(|file| {
-                            Arc::new(parquet_chunk_from_file(
-                                &file,
-                                &table_schema,
-                                self.object_store_url.clone(),
-                                Arc::clone(&self.object_store),
-                                chunks.len() as i64,
-                            )) as Arc<dyn QueryChunk>
-                        })
-                        .collect::<Vec<_>>(),
-                );
+            chunks.extend(
+                parquet_files
+                    .into_iter()
+                    .map(|file| {
+                        Arc::new(parquet_chunk_from_file(
+                            &file,
+                            &table_schema,
+                            self.object_store_url.clone(),
+                            Arc::clone(&self.object_store),
+                            chunks.len() as i64,
+                        )) as Arc<dyn QueryChunk>
+                    })
+                    .collect::<Vec<_>>(),
+            );
 
-                Some(host_markers)
-            } else {
-                None
-            };
+            Some(writer_markers)
+        } else {
+            None
+        };
 
         // add the gen1 persisted chunks from the replicas
         if let Some(replicas) = &self.replicas {
-            let gen1_persisted_chunks = if let Some(host_markers) = &host_markers {
+            let gen1_persisted_chunks = if let Some(writer_markers) = &writer_markers {
                 replicas.get_persisted_chunks(
                     database_name,
                     table_name,
                     table_schema.clone(),
                     filters,
-                    host_markers,
+                    writer_markers,
                     chunks.len() as i64,
                 )
             } else {
@@ -267,9 +266,9 @@ impl ChunkContainer for ReadWriteMode {
         }
 
         // now add in the gen1 chunks from primary
-        let next_non_compacted_parquet_file_id = host_markers.as_ref().and_then(|markers| {
+        let next_non_compacted_parquet_file_id = writer_markers.as_ref().and_then(|markers| {
             markers.iter().find_map(|marker| {
-                if marker.host_id == self.host_id.as_ref() {
+                if marker.writer_id == self.writer_id.as_ref() {
                     Some(marker.next_file_id)
                 } else {
                     None

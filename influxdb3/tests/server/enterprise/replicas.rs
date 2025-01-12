@@ -11,19 +11,19 @@ async fn two_primaries_one_replica() {
     let obj_store_path = tmp_dir();
     // create two primaries:
     let spock = TestServer::configure_pro()
-        .with_host_id("spock")
+        .with_writer_id("spock")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
     let tuvok = TestServer::configure_pro()
-        .with_host_id("tuvok")
+        .with_writer_id("tuvok")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
 
     // create a replica that replicates both:
     let replica = TestServer::configure_pro()
-        .with_host_id("replica")
+        .with_writer_id("replica")
         .with_mode(BufferMode::Read)
         .with_replicas(["spock", "tuvok"])
         .with_replication_interval("10ms")
@@ -84,12 +84,12 @@ async fn replicate_last_cache() {
     let obj_store_path = tmp_dir();
     // create two primaries:
     let spock = TestServer::configure_pro()
-        .with_host_id("spock")
+        .with_writer_id("spock")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
     let tuvok = TestServer::configure_pro()
-        .with_host_id("tuvok")
+        .with_writer_id("tuvok")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
@@ -116,7 +116,7 @@ async fn replicate_last_cache() {
 
     // create a replica that replicates both:
     let replica = TestServer::configure_pro()
-        .with_host_id("replica")
+        .with_writer_id("replica")
         .with_mode(BufferMode::Read)
         .with_replicas(["spock", "tuvok"])
         .with_replication_interval("10ms")

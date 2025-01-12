@@ -7,7 +7,7 @@ use serde_json::json;
 async fn file_index_config() {
     let obj_store_path = tmp_dir();
     let idx_server = TestServer::configure_pro()
-        .with_host_id("idx_server")
+        .with_writer_id("idx_server")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;

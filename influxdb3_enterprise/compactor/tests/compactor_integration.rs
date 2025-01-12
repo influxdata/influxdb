@@ -93,7 +93,7 @@ async fn two_writers_gen1_compaction() {
 
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id,
-        hosts: vec!["writer1".to_string(), "writer2".to_string()],
+        writer_ids: vec!["writer1".to_string(), "writer2".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
@@ -108,7 +108,7 @@ async fn two_writers_gen1_compaction() {
 
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            host_id: writer1_id.into(),
+            writer_id: writer1_id.into(),
             persister: Arc::clone(&writer1_persister),
             catalog: Arc::clone(&writer1_catalog),
             last_cache,
@@ -245,16 +245,16 @@ async fn compact_consumer_picks_up_latest_summary() {
 
     // create two write buffers to write data that will be compacted:
     let mut write_buffers = HashMap::new();
-    for host_id in ["spock", "tuvok"] {
+    for writer_id in ["spock", "tuvok"] {
         let b = setup_write_buffer(
-            host_id,
+            writer_id,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
             Arc::clone(&exec),
             Arc::clone(&metrics),
         )
         .await;
-        write_buffers.insert(host_id, b);
+        write_buffers.insert(writer_id, b);
     }
 
     // make a bnch of writes to them:
@@ -273,7 +273,7 @@ async fn compact_consumer_picks_up_latest_summary() {
     let compaction_producer = Arc::new(
         CompactedDataProducer::new(CompactedDataProducerArgs {
             compactor_id: Arc::clone(&compactor_id),
-            hosts: vec!["spock".to_string(), "tuvok".to_string()],
+            writer_ids: vec!["spock".to_string(), "tuvok".to_string()],
             compaction_config,
             enterprise_config: Default::default(),
             datafusion_config: Default::default(),
@@ -391,13 +391,13 @@ fn make_exec_and_register_runtime(
 }
 
 async fn setup_write_buffer(
-    host_id: &str,
+    writer_id: &str,
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
 ) -> WriteBufferEnterprise<ReadWriteMode> {
-    let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+    let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
     let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
     let distinct_cache =
@@ -411,7 +411,7 @@ async fn setup_write_buffer(
         snapshot_size: 1,
     };
     WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-        host_id: host_id.into(),
+        writer_id: writer_id.into(),
         persister,
         catalog,
         last_cache,

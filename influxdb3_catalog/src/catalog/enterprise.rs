@@ -98,7 +98,7 @@ impl DatabaseSchema {
                 id_map.extend(mapped_ids);
             } else {
                 let (mapped_ids, new_tbl_def) =
-                    TableDefinition::new_from_other_host(Arc::clone(other_tbl))?;
+                    TableDefinition::new_from_other_writer(Arc::clone(other_tbl))?;
                 new_or_updated_tables.insert(new_tbl_def.table_id, new_tbl_def);
                 id_map.extend(mapped_ids);
             };
@@ -183,7 +183,7 @@ impl TableDefinition {
                 if local_last_cache != &mapped_other_last_cache_def {
                     return Err(
                         Error::Other(
-                            anyhow!("the last cache definition from the other host does not match the local one.\n\
+                            anyhow!("the last cache definition from the other writer does not match the local one.\n\
                             local: {local_last_cache:#?}\n\
                             other: {mapped_other_last_cache_def:#?}")
                     ));
@@ -211,7 +211,7 @@ impl TableDefinition {
     /// This is intended for the case where a table exists in the other catalog that does not exist
     /// locally. The main difference being that it will recreate the series key (with mapped column
     /// ids).
-    fn new_from_other_host(other: Arc<Self>) -> Result<(CatalogIdMap, Arc<Self>)> {
+    fn new_from_other_writer(other: Arc<Self>) -> Result<(CatalogIdMap, Arc<Self>)> {
         let mut id_map = CatalogIdMap::default();
         let table_id = TableId::new();
         id_map.tables.insert(other.table_id, table_id);
@@ -322,7 +322,7 @@ impl ColumnDefinition {
     }
 }
 
-/// Holds a set of maps for mapping identifiers from another host's [`Catalog`] onto the one being
+/// Holds a set of maps for mapping identifiers from another writer's [`Catalog`] onto the one being
 /// used locally. This is generated via methods on the various catalog types, e.g., see
 /// [`DatabaseSchema::merge`], [`TableDefinition::merge`], etc.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -340,22 +340,22 @@ impl CatalogIdMap {
         self.columns.extend(other.columns.drain());
     }
 
-    /// Map the given `database_id` from the other host's [`Catalog`] to the local one
+    /// Map the given `database_id` from the other writer's [`Catalog`] to the local one
     pub fn map_db_id(&self, database_id: &DbId) -> Option<DbId> {
         self.dbs.get(database_id).copied()
     }
 
-    /// Map the given `table_id` from the other host's [`Catalog`] to the local one
+    /// Map the given `table_id` from the other writer's [`Catalog`] to the local one
     pub fn map_table_id(&self, table_id: &TableId) -> Option<TableId> {
         self.tables.get(table_id).copied()
     }
 
-    /// Map the given `column_id` from the other host's [`Catalog`] to the local one
+    /// Map the given `column_id` from the other writer's [`Catalog`] to the local one
     pub fn map_column_id(&self, column_id: &ColumnId) -> Option<ColumnId> {
         self.columns.get(column_id).copied()
     }
 
-    /// Map the given `other_db_id` from another host's [`Catalog`] to the local one, or if it
+    /// Map the given `other_db_id` from another writer's [`Catalog`] to the local one, or if it
     /// does not exist locally, create a new [`DbId`]. This first checks the internal ID map, then
     /// checks to see if `other_db_name` exists in the local catalog to find a match before generating
     /// a new [`DbId`].
@@ -379,7 +379,7 @@ impl CatalogIdMap {
             })
     }
 
-    /// Map the given `other_table_id` from another host's [`Catalog`] to the local one, or if it
+    /// Map the given `other_table_id` from another writer's [`Catalog`] to the local one, or if it
     /// does not exist locally, create a new [`TableId`]. This first checks the internal ID map, then
     /// checks to see if `other_table_name` exists in the local catalog to find a match before generating
     /// a new [`TableId`].
@@ -406,7 +406,7 @@ impl CatalogIdMap {
             })
     }
 
-    /// Map the given `other_column_id` from another host's [`Catalog`] to the local one, or if it
+    /// Map the given `other_column_id` from another writer's [`Catalog`] to the local one, or if it
     /// does not exist locally, create a new [`ColumnId`]. This first checks the internal ID map, then
     /// checks to see if `other_column_name` exists in the local catalog to find a match before generating
     /// a new [`ColumnId`].
@@ -447,7 +447,7 @@ impl CatalogIdMap {
             })
     }
 
-    /// Take the [`WalContents`] from another host and use the internal maps to map all of its
+    /// Take the [`WalContents`] from another writer and use the internal maps to map all of its
     /// identifiers over to their local equivalent.
     pub fn map_wal_contents(
         &mut self,
@@ -473,25 +473,25 @@ impl CatalogIdMap {
         })
     }
 
-    /// Map a [`WalOp`] from a replicated host to the local host
+    /// Map a [`WalOp`] from a replicated writer to the local writer
     ///
     /// This leverages the [`Mapped`] type to determine [`CatalogOp`]s that need to be replayed or
     /// ignored. In general, if a `CatalogOp` results in something new being created on the local
-    /// host, then we want to apply the `CatalogOp`, while those that would result in a no-op should
+    /// writer, then we want to apply the `CatalogOp`, while those that would result in a no-op should
     /// be ignored.
     ///
     /// Although `CatalogOp`s are handled idempotently, we need to make this distinction for high
-    /// availability configurations where more than one host is accepting writes and replicating
-    /// the WAL from another write-enabled host. Consider the following scenario:
+    /// availability configurations where more than one writer is accepting writes and replicating
+    /// the WAL from another write-enabled writer. Consider the following scenario:
     ///
-    /// * Host `A` is accepting writes and replicating the WAL of host `B`
-    /// * Host `B` is accepting writes and replicating the WAL of host `A`
+    /// * Writer `A` is accepting writes and replicating the WAL of writer `B`
+    /// * Writer `B` is accepting writes and replicating the WAL of writer `A`
     ///
     /// When `A` receives a write that alters the catalog, e.g., one that creates a table, its WAL
     /// will look like so:
     ///
     /// ```text
-    ///            Host `A` WAL
+    ///            Writer `A` WAL
     /// ╔═════════════════════════════════╗
     /// ║ CreateTable{id: 0, name: 'foo'} ║
     /// ║ Write{table_id: 0, data: ...}   ║
@@ -502,12 +502,12 @@ impl CatalogIdMap {
     /// it to the local equivalent, i.e., by creating a new [`TableId`] for the 'foo' table:
     ///
     /// ```text
-    ///            Host `A` WAL                                       Host `B` WAL
+    ///            Writer `A` WAL                                     Writer `B` WAL
     /// ╔═════════════════════════════════╗   Map/Replay   ╔═════════════════════════════════╗
     /// ║ CreateTable{id: 0, name: 'foo'} ║ ━━━━━━━━━━━━━▶ ║ CreateTable{id: 1, name: 'foo'} ║
     /// ║ Write{table_id: 0, data: ...}   ║                ╚═════════════════════════════════╝
     /// ╚═════════════════════════════════╝                ╔═════════════════════════════════╗
-    ///                                                    ║   Host `B` ⏐ {                  ║
+    ///                                                    ║ Writer `B` ⏐ {                  ║
     ///                                                    ║ Catalog ID ⏐   tables: {0 ━▶ 1} ║
     ///                                                    ║     Map    ⏐ }                  ║
     ///                                                    ╚═════════════════════════════════╝
@@ -526,14 +526,14 @@ impl CatalogIdMap {
     /// updating its `CatalogIdMap`, but then wrap it in `Mapped::Ignore`.
     ///
     /// ```text
-    ///            Host `A` WAL
+    ///            Writer `A` WAL
     /// ╔═════════════════════════════════╗
-    /// ║ CreateTable{id: 0, name: 'foo'} ║                           Host `B` WAL
+    /// ║ CreateTable{id: 0, name: 'foo'} ║                           Writer `B` WAL
     /// ║ Write{table_id: 0, data: ... }  ║   Map/Replay  ╔═════════════════════════════════╗
     /// ║                                 ║ ◀━━━━━━━━━━━━ ║ CreateTable{id: 1, name: 'foo'} ║
     /// ╚═════════════════════════════════╝               ╚═════════════════════════════════╝
     /// ╔═════════════════════════════════╗
-    /// ║   Host `A` ⏐ {                  ║
+    /// ║ Writer `A` ⏐ {                  ║
     /// ║ Catalog ID ⏐   tables: {1 ━▶ 0} ║
     /// ║     Map    ⏐ }                  ║
     /// ╚═════════════════════════════════╝
@@ -543,7 +543,7 @@ impl CatalogIdMap {
     /// in-memory replicated buffer:
     ///
     /// ```text
-    ///            Host `A` WAL                                       Host `B` WAL
+    ///            Writer `A` WAL                                    Writer `B` WAL
     /// ╔═════════════════════════════════╗               ╔═════════════════════════════════╗
     /// ║ CreateTable{id: 0, name: 'foo'} ║               ║ CreateTable{id: 1, name: 'foo'} ║
     /// ║ Write{table_id: 0, data: ... }  ║   Map/Replay  ║             ...                 ║
@@ -786,7 +786,7 @@ impl CatalogIdMap {
             }
             // The following last cache ops will throw an error if they are for a table that does
             // not exist. If such an op is encountered, that would indicate that the WAL is
-            // corrupted on the other host, since there should always be a CreateTable op preceding
+            // corrupted on the other writer, since there should always be a CreateTable op preceding
             // one of these last cache ops.
             CatalogOp::CreateLastCache(def) => {
                 let mapped_def = self.map_last_cache_definition_column_ids(&def)?;
@@ -801,8 +801,8 @@ impl CatalogIdMap {
                         return Err(Error::Other(
                                 anyhow!("WAL contained a CreateLastCache operation with a last cache \
                                 name that already exists in the local catalog, but is not compatible. \
-                                This means that the catalogs for these two hosts have diverged and the \
-                                last cache named '{name}' needs to be removed on one of the hosts.",
+                                This means that the catalogs for these two writers have diverged and the \
+                                last cache named '{name}' needs to be removed on one of the writers.",
                                 name = def.name
                             )));
                     }
@@ -845,8 +845,8 @@ impl CatalogIdMap {
                         return Err(Error::Other(anyhow!(
                             "WAL contained a CreateMetaCache operation with a metadata cache \
                             name that already exists in the local catalog, but is not compatible. \
-                            This means that the catalogs for these two hosts have diverged and the \
-                            meta cache named '{name}' needs to be removed on one of the hosts.",
+                            This means that the catalogs for these two writers have diverged and the \
+                            meta cache named '{name}' needs to be removed on one of the writers.",
                             name = def.cache_name
                         )));
                     }
@@ -928,7 +928,7 @@ impl CatalogIdMap {
             .collect()
     }
 
-    /// Map all of the [`ColumnId`]s within a [`LastCacheDefinition`] from another host's catalog to
+    /// Map all of the [`ColumnId`]s within a [`LastCacheDefinition`] from another writer's catalog to
     /// their respective IDs on the local catalog. This assumes that all columns have been mapped
     /// already via the caller, and will throw errors if there are columns that cannot be found.
     fn map_last_cache_definition_column_ids(
@@ -1476,7 +1476,7 @@ mod tests {
             .expect_err("merging incompatible last caches should fail");
         assert_contains!(
             err.to_string(),
-            "the last cache definition from the other host does not match the local one."
+            "the last cache definition from the other writer does not match the local one."
         );
     }
 }

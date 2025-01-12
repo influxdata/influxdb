@@ -38,7 +38,7 @@ pub struct CompactedDataSystemTableQueryResult {
     pub parquet_files: Vec<Arc<ParquetFile>>,
 }
 
-/// The `CompactionSummary` keeps track of the last snapshot from each host that has been compacted.
+/// The `CompactionSummary` keeps track of the last snapshot from each writer that has been compacted.
 /// Every table will have its own `CompactionDetail` and the summary contains a pointer to
 /// whatever the latest compaction detail is for each table.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,22 +53,22 @@ pub struct CompactionSummary {
     /// The last `GenerationId` that was used. This will be used to initialize the `GenerationId`
     /// on startup to ensure that we don't reuse generation ids.
     pub last_generation_id: GenerationId,
-    /// The last `SnapshotSequenceNumber` for each host that is getting compacted.
-    pub snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
+    /// The last `SnapshotSequenceNumber` for each writer that is getting compacted.
+    pub snapshot_markers: Vec<Arc<WriterSnapshotMarker>>,
     /// The compactions sequence number that each table last had a compaction run. This can be used
     /// to construct a path to read the `CompactionDetail`
     pub compaction_details: SerdeVecMap<(DbId, TableId), CompactionSequenceNumber>,
 }
 
-/// The last snapshot sequence number for each host that is getting compacted.
+/// The last snapshot sequence number for each writer that is getting compacted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HostSnapshotMarker {
-    /// the host prefix this snapshot tracker is for
-    pub host_id: String,
-    /// the last snapshot sequence number we compacted for this host. All < than this will have
+pub struct WriterSnapshotMarker {
+    /// The writer identifier prefix this snapshot tracker is for
+    pub writer_id: String,
+    /// The last snapshot sequence number we compacted for this writer. All < than this will have
     /// been compacted.
     pub snapshot_sequence_number: SnapshotSequenceNumber,
-    /// The next file id this host would use after this last snapshot. Any file ids < than this
+    /// The next file id this writer would use after this last snapshot. Any file ids < than this
     /// will have been compacted.
     pub next_file_id: ParquetFileId,
 }
@@ -93,18 +93,18 @@ pub struct CompactionDetail {
     pub sequence_number: CompactionSequenceNumber,
     /// The snapshot markers for this run. Since the compaction details get created as each
     /// table gets compacted, they can run ahead of the global compaction summary. This information
-    /// will allow downstream hosts using the compacted data to know which gen1 files they
+    /// will allow downstream writers using the compacted data to know which gen1 files they
     /// have that should be used vs. what is already compacted in.
-    pub snapshot_markers: Vec<Arc<HostSnapshotMarker>>,
+    pub snapshot_markers: Vec<Arc<WriterSnapshotMarker>>,
     /// This is the list of all generations of compacted data. The ids of the generations are
     /// unique and can be used to lookup the `GenerationDetail` which contains the list of
     /// `ParquetFile`s that are in that generation and the `FileIndex` for the generation.
     pub compacted_generations: Vec<Generation>,
     /// We keep leftover gen1 files separate from the main generations so that we can advance the
-    /// snapshot tracker on the hosts. These leftovers will either be stuff that has yet to be
+    /// snapshot tracker on the writers. These leftovers will either be stuff that has yet to be
     /// compacted or is historical backfill. We will want to wait to do those compactions with
     /// later generations. Keeping this record lets us have the files referenced but compact them
-    /// at a later time. The location of these files will all be from the hosts that did the
+    /// at a later time. The location of these files will all be from the writers that did the
     /// original persistence.
     pub leftover_gen1_files: Vec<Gen1File>,
 }
@@ -168,7 +168,7 @@ impl Ord for Generation {
 pub struct CompactionConfig {
     /// Starting with the gen2 duration, which is the first compacted generation. Its duration
     /// should be a multiple of the gen1 files that are compacted into it. However, the writing
-    /// hosts creating gen1 files can have different configurations for different gen1 durations.
+    /// writers creating gen1 files can have different configurations for different gen1 durations.
     /// This will ensure that they get compacted into a gen2 time and then later generations will
     /// be multiples of the previous ones.
     generation_durations: Vec<time::Duration>,

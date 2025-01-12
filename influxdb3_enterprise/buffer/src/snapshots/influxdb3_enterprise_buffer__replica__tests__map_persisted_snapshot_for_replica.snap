@@ -2,10 +2,9 @@
 source: influxdb3_enterprise/buffer/src/replica.rs
 description: "persisted snapshot as it was created on the replica, before mapping"
 expression: snapshot
-snapshot_kind: text
 ---
 {
-  "host_id": "host-primary",
+  "writer_id": "host-primary",
   "next_file_id": 0,
   "next_db_id": 2,
   "next_table_id": 2,

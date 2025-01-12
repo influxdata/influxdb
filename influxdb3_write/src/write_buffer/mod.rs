@@ -220,7 +220,7 @@ impl WriteBufferImpl {
         let wal = WalObjectStore::new(
             Arc::clone(&time_provider),
             persister.object_store(),
-            persister.host_identifier_prefix(),
+            persister.writer_identifier_prefix(),
             Arc::clone(&queryable_buffer) as Arc<dyn WalFileNotifier>,
             wal_config,
             last_wal_sequence_number,
@@ -887,9 +887,9 @@ mod tests {
 
     #[test]
     fn parse_lp_into_buffer() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(host_id, instance_id));
+        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
         let db_name = NamespaceName::new("foo").unwrap();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
         WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)

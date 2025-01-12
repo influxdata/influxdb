@@ -247,10 +247,10 @@ mod tests {
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let non_cached_obj_store =
             Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
-        let host_id = "picard";
+        let writer_id = "picard";
         let persister = Arc::new(Persister::new(
             Arc::clone(&non_cached_obj_store) as _,
-            host_id,
+            writer_id,
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -266,7 +266,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            host_id: "picard".into(),
+            writer_id: "picard".into(),
             persister,
             catalog,
             last_cache,
@@ -312,7 +312,7 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, host_id).await;
+        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, writer_id).await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -362,8 +362,11 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let host_id = "picard";
-        let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, host_id));
+        let writer_id = "picard";
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&cached_obj_store) as _,
+            writer_id,
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -378,7 +381,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            host_id: "picard".into(),
+            writer_id: "picard".into(),
             persister,
             catalog,
             last_cache,
@@ -424,7 +427,7 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, host_id).await;
+        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, writer_id).await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -468,23 +471,26 @@ mod tests {
 
         // create two read_write nodes simultaneously:
         struct WorkerConfig {
-            host_id: &'static str,
+            writer_id: &'static str,
             replicas: &'static [&'static str],
         }
         let mut handles = vec![];
-        for WorkerConfig { host_id, replicas } in [
+        for WorkerConfig {
+            writer_id,
+            replicas,
+        } in [
             WorkerConfig {
-                host_id: "worker-0",
+                writer_id: "worker-0",
                 replicas: &["worker-1"],
             },
             WorkerConfig {
-                host_id: "worker-1",
+                writer_id: "worker-1",
                 replicas: &["worker-0"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, host_id, replicas.into()));
+            let h = tokio::spawn(setup_read_write(tp, os, writer_id, replicas.into()));
             handles.push(h);
         }
         let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -602,42 +608,42 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn host_should_not_replicate_itself() {
+    async fn write_buffer_should_not_replicate_itself() {
         // setup a single read_write host that replicates itself
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
-        let host_id = "skwisgaar";
-        let host = setup_read_write(
+        let writer_id = "skwisgaar";
+        let write_buffer = setup_read_write(
             Arc::<MockProvider>::clone(&time_provider),
             object_store,
-            host_id,
-            // pass in the host itself to be replicated (which we don't want it to do):
-            vec![host_id],
+            writer_id,
+            // pass in the writer itself to be replicated (which we don't want it to do):
+            vec![writer_id],
         )
         .await;
 
-        // write to the host:
+        // write to the writer:
         do_writes(
             "test_db",
-            &host,
+            &write_buffer,
             &[TestWrite {
-                lp: format!("cpu,host={host_id} usage=99"),
+                lp: format!("cpu,host={writer_id} usage=99"),
                 time_seconds: 1,
             }],
         )
         .await;
 
-        // allow host to replicate:
+        // allow writer to replicate:
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // query the host:
+        // query the writer:
         let ctx = IOxSessionContext::with_testing();
-        let chunks = host
+        let chunks = write_buffer
             .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
             .unwrap();
         let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
-        // there should only be a single line, because the host didn't replicate itself:
+        // there should only be a single line, because the writer didn't replicate itself:
         assert_batches_sorted_eq!(
             [
                 "+-----------+---------------------+-------+",
@@ -651,47 +657,50 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn create_db_and_table_on_separate_write_hosts() {
+    async fn create_db_and_table_on_separate_replicated_write_buffers() {
         // setup globals:
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
         // create two read_write nodes simultaneously that replicate each other:
         struct Config {
-            host_id: &'static str,
+            writer_id: &'static str,
             replicas: &'static [&'static str],
         }
         let mut handles = vec![];
-        for Config { host_id, replicas } in [
+        for Config {
+            writer_id,
+            replicas,
+        } in [
             Config {
-                host_id: "holt",
+                writer_id: "holt",
                 replicas: &["cheddar"],
             },
             Config {
-                host_id: "cheddar",
+                writer_id: "cheddar",
                 replicas: &["holt"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, host_id, replicas.into()));
+            let h = tokio::spawn(setup_read_write(tp, os, writer_id, replicas.into()));
             handles.push(h);
         }
-        let hosts: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
+        let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
             .await
             .unwrap()
             .into_iter()
             .map(Arc::new)
             .collect();
 
-        // create the db on the first host:
-        hosts[0]
+        // create the db on the first writer:
+        writer_buffers[0]
             .create_database("foo".to_string())
             .await
             .expect("create database foo");
 
-        // now create the table on the second host:
-        hosts[1]
+        // now create the table on the second writer:
+        writer_buffers[1]
             .create_table(
                 "foo".to_string(),
                 "bar".to_string(),
@@ -703,12 +712,12 @@ mod tests {
 
         // now write to each node simultaneously, to the same table/db:
         let mut handles = vec![];
-        for (i, host) in hosts.iter().enumerate() {
-            let host_cloned = Arc::clone(host);
+        for (i, write_buffer) in writer_buffers.iter().enumerate() {
+            let write_buffer_cloned = Arc::clone(write_buffer);
             let handle = tokio::spawn(async move {
                 do_writes(
                     "foo",
-                    host_cloned.as_ref(),
+                    write_buffer_cloned.as_ref(),
                     &[
                         TestWrite {
                             lp: format!("bar,tag1={i} field1=1u"),
@@ -730,13 +739,13 @@ mod tests {
         }
         try_join_all(handles).await.unwrap();
 
-        // allow hosts to replicate each other:
+        // allow write buffers to replicate each other:
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // do a query to check that results are there from each host (on each host):
+        // do a query to check that results are there from each write buffer (on each):
         let ctx = IOxSessionContext::with_testing();
-        for host in hosts {
-            let chunks = host
+        for write_buffer in writer_buffers {
+            let chunks = write_buffer
                 .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
                 .unwrap();
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
@@ -833,10 +842,10 @@ mod test_helpers {
     pub(crate) async fn verify_snapshot_count(
         n: usize,
         object_store: Arc<dyn ObjectStore>,
-        host_id: &str,
+        writer_id: &str,
     ) {
         let mut checks = 0;
-        let persister = Persister::new(object_store, host_id);
+        let persister = Persister::new(object_store, writer_id);
         loop {
             let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
             if persisted_snapshots.len() > n {
@@ -872,10 +881,10 @@ mod test_helpers {
     pub(crate) async fn setup_read_write(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
-        host_id: &str,
+        writer_id: &str,
         replicas: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -887,10 +896,10 @@ mod test_helpers {
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = Some(ReplicationConfig {
             interval: Duration::from_millis(250),
-            hosts: replicas.iter().map(|s| s.to_string()).collect(),
+            writer_ids: replicas.iter().map(|s| s.to_string()).collect(),
         });
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            host_id: host_id.into(),
+            writer_id: writer_id.into(),
             persister,
             catalog,
             last_cache,

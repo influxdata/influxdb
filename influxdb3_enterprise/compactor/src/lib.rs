@@ -1,11 +1,11 @@
-//! The compactor crate contains code for compacting data and for downstream hosts to consume
+//! The compactor crate contains code for compacting data and for downstream writers to consume
 //! the compacted data. The compactor writes data into an object store location identified
-//! by the compactor_id, similar to hosts that write data. Hosts write generation 1 (gen1)
+//! by the compactor_id, similar to writers that write data. Writers write generation 1 (gen1)
 //! files. The compactor picks up those files and rewrites them into larger gen2 blocks.
 //!
 //! The compactor also keeps its own catalog along with the compacted data. The catalog is the
-//! union of the catalog of all hosts that are getting compacted together. The compacted catalog
-//! also keeps a mapping of host ids to the compacted catalog id.
+//! union of the catalog of all writers that are getting compacted together. The compacted catalog
+//! also keeps a mapping of writer ids to the compacted catalog id.
 //!
 //! This module is split between the producer (which produces the compacted data view), the
 //! consumer, which can poll object storage for updated compacted data views, the catalog, and
@@ -811,7 +811,7 @@ mod test_helpers {
     }
 
     impl TestWriter {
-        pub(crate) fn new(host_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
+        pub(crate) fn new(writer_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
             let metrics = Arc::new(metric::Registry::default());
 
             let parquet_store =
@@ -833,8 +833,8 @@ mod test_helpers {
             register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
             register_current_runtime_for_io();
 
-            let catalog = Arc::new(Catalog::new(host_id.into(), "foo".into()));
-            let persister = Arc::new(Persister::new(Arc::clone(&object_store), host_id));
+            let catalog = Arc::new(Catalog::new(writer_id.into(), "foo".into()));
+            let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
             let time_provider: Arc<dyn TimeProvider> =
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
