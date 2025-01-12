@@ -160,6 +160,14 @@ resource "google_sql_database_instance" "instance" {
       private_network                               = google_compute_network.private_network.self_link
       enable_private_path_for_google_cloud_services = true
     }
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
+      start_time                     = "02:00" # 2 AM UTC
+      backup_retention_settings {
+        retained_backups = 7
+      }
+    }
   }
 }
 
