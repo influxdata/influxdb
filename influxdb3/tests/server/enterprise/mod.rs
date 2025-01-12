@@ -5,6 +5,7 @@ use crate::server::{ConfigProvider, TestServer};
 
 pub mod compactor;
 mod file_index;
+mod query;
 mod replicas;
 
 /// Configuration for a [`TestServer`]
