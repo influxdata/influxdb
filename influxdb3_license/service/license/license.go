@@ -14,7 +14,7 @@ import (
 var (
 	ErrEmailEmpty      = errors.New("email cannot be empty")
 	ErrInstanceIDEmpty = errors.New("instance ID cannot be empty")
-	ErrHostIDEmpty     = errors.New("host ID cannot be empty")
+	ErrWriterIDEmpty   = errors.New("writer ID cannot be empty")
 	ErrDuration        = errors.New("duration must be >= 1 day")
 
 	IssuerDefault = "InfluxData - InfluxDB Pro Licensning Server"
@@ -66,17 +66,17 @@ type Claims struct {
 	jwt.RegisteredClaims
 	LicenseExp *jwt.NumericDate `json:"license_exp"`
 	Email      string           `json:"email"`
-	HostID     string           `json:"host_id"`
+	WriterID   string           `json:"writer_id"`
 	InstanceID string           `json:"instance_id"`
 }
 
 // Create creates a new signed license.
-func (c *Creator) Create(email, hostID, instanceID string, d time.Duration) (string, error) {
+func (c *Creator) Create(email, writerID, instanceID string, d time.Duration) (string, error) {
 	// Validate input
 	if email == "" {
 		return "", ErrEmailEmpty
-	} else if hostID == "" {
-		return "", ErrHostIDEmpty
+	} else if writerID == "" {
+		return "", ErrWriterIDEmpty
 	} else if instanceID == "" {
 		return "", ErrInstanceIDEmpty
 	}
@@ -92,7 +92,7 @@ func (c *Creator) Create(email, hostID, instanceID string, d time.Duration) (str
 		},
 		LicenseExp: jwt.NewNumericDate(now.Add(d)),
 		Email:      email,
-		HostID:     hostID,
+		WriterID:   writerID,
 		InstanceID: instanceID,
 	}
 

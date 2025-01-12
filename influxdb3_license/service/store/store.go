@@ -151,7 +151,7 @@ type License struct {
 	ID         int64
 	UserID     int64
 	Email      string
-	HostID     string
+	WriterID   string
 	InstanceID string
 	LicenseKey string
 	ValidFrom  time.Time
@@ -230,7 +230,7 @@ type Store interface {
 	DeleteLicense(ctx context.Context, tx Tx, id int64) error
 	GetLicensesByEmail(ctx context.Context, tx Tx, email string) ([]*License, error)
 	GetLicenseCntByUserID(ctx context.Context, tx Tx, userID int64) (int64, error)
-	GetLicenseByEmailAndHostID(ctx context.Context, tx Tx, email, hostID string) (*License, error)
+	GetLicenseByEmailAndWriterID(ctx context.Context, tx Tx, email, writerID string) (*License, error)
 	GetLicenseByInstanceID(ctx context.Context, tx Tx, instanceID string) (*License, error)
 	GetLicenseByID(ctx context.Context, tx Tx, id int64) (*License, error)
 	SetLicenseState(ctx context.Context, tx Tx, id int64, state LicenseState) error

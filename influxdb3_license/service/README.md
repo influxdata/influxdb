@@ -77,7 +77,7 @@ Create a new user and request a license:
 ```
 curl -X POST "http://localhost:8687/licenses" \
      -d "email=david@influxdata.com" \
-     -d "host-id=influxdbpro1" \
+     -d "writer-id=influxdbpro1" \
      -d "instance-id=`uuidgen`"
 ```
 
@@ -85,6 +85,6 @@ You can also use an email address like `david+test1@influxdata.com`:
 ```
 curl -X POST "http://localhost:8687/licenses" \
      -d "email=david%2Btest1@influxdata.com" \
-     -d "host-id=influxdbpro2" \
+     -d "writer-id=influxdbpro2" \
      -d "instance-id=`uuidgen`"
 ```
