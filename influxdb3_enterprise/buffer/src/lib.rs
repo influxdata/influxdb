@@ -472,25 +472,30 @@ mod tests {
         // create two read_write nodes simultaneously:
         struct WorkerConfig {
             writer_id: &'static str,
-            replicas: &'static [&'static str],
+            read_from_writer_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for WorkerConfig {
             writer_id,
-            replicas,
+            read_from_writer_ids,
         } in [
             WorkerConfig {
                 writer_id: "worker-0",
-                replicas: &["worker-1"],
+                read_from_writer_ids: &["worker-1"],
             },
             WorkerConfig {
                 writer_id: "worker-1",
-                replicas: &["worker-0"],
+                read_from_writer_ids: &["worker-0"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, writer_id, replicas.into()));
+            let h = tokio::spawn(setup_read_write(
+                tp,
+                os,
+                writer_id,
+                read_from_writer_ids.into(),
+            ));
             handles.push(h);
         }
         let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -665,25 +670,30 @@ mod tests {
         // create two read_write nodes simultaneously that replicate each other:
         struct Config {
             writer_id: &'static str,
-            replicas: &'static [&'static str],
+            read_from_writer_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for Config {
             writer_id,
-            replicas,
+            read_from_writer_ids,
         } in [
             Config {
                 writer_id: "holt",
-                replicas: &["cheddar"],
+                read_from_writer_ids: &["cheddar"],
             },
             Config {
                 writer_id: "cheddar",
-                replicas: &["holt"],
+                read_from_writer_ids: &["holt"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, writer_id, replicas.into()));
+            let h = tokio::spawn(setup_read_write(
+                tp,
+                os,
+                writer_id,
+                read_from_writer_ids.into(),
+            ));
             handles.push(h);
         }
         let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -882,7 +892,7 @@ mod test_helpers {
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
         writer_id: &str,
-        replicas: Vec<&str>,
+        read_from_writer_ids: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
@@ -896,7 +906,7 @@ mod test_helpers {
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = Some(ReplicationConfig {
             interval: Duration::from_millis(250),
-            writer_ids: replicas.iter().map(|s| s.to_string()).collect(),
+            writer_ids: read_from_writer_ids.iter().map(|s| s.to_string()).collect(),
         });
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
             writer_id: writer_id.into(),

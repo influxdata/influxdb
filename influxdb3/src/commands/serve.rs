@@ -653,8 +653,8 @@ pub async fn command(config: Config) -> Result<()> {
                 }
             } else {
                 let mut writer_ids = vec![config.writer_identifier_prefix.clone()];
-                if let Some(replicas) = &config.enterprise_config.replicas {
-                    writer_ids.extend(replicas.iter().cloned());
+                if let Some(read_from_writer_ids) = &config.enterprise_config.read_from_writer_ids {
+                    writer_ids.extend(read_from_writer_ids.iter().cloned());
                 }
                 writer_ids
             };
@@ -715,12 +715,15 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeDistinctCache)?;
 
-    let replica_config = config.enterprise_config.replicas.map(|replicas| {
-        ReplicationConfig::new(
-            config.enterprise_config.replication_interval.into(),
-            replicas.into(),
-        )
-    });
+    let replica_config = config
+        .enterprise_config
+        .read_from_writer_ids
+        .map(|writer_ids| {
+            ReplicationConfig::new(
+                config.enterprise_config.replication_interval.into(),
+                writer_ids.into(),
+            )
+        });
 
     type CreateBufferModeResult = (
         Arc<dyn WriteBuffer>,
@@ -728,69 +731,71 @@ pub async fn command(config: Config) -> Result<()> {
         Option<Arc<WriteBufferImpl>>,
     );
 
-    let (write_buffer, persisted_files, write_buffer_impl): CreateBufferModeResult =
-        match config.enterprise_config.mode {
-            BufferMode::Read => {
-                let ReplicationConfig {
-                    interval,
-                    writer_ids,
-                } = replica_config
-                    .context("must supply a replicas list when starting in read-only mode")
-                    .map_err(Error::WriteBufferInit)?;
-                (
-                    Arc::new(
-                        WriteBufferEnterprise::read(CreateReadModeArgs {
-                            last_cache,
-                            distinct_cache,
-                            object_store: Arc::clone(&object_store),
-                            catalog: Arc::clone(&catalog),
-                            metric_registry: Arc::clone(&metrics),
-                            replication_interval: interval,
-                            writer_ids,
-                            parquet_cache: parquet_cache.clone(),
-                            compacted_data: compacted_data.clone(),
-                            time_provider: Arc::<SystemProvider>::clone(&time_provider),
-                        })
-                        .await
-                        .map_err(Error::WriteBufferInit)?,
-                    ),
-                    None,
-                    None,
-                )
-            }
-            BufferMode::ReadWrite => {
-                let buf = Arc::new(
-                    WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-                        writer_id: persister.writer_identifier_prefix().into(),
-                        persister: Arc::clone(&persister),
-                        catalog: Arc::clone(&catalog),
+    let (write_buffer, persisted_files, write_buffer_impl): CreateBufferModeResult = match config
+        .enterprise_config
+        .mode
+    {
+        BufferMode::Read => {
+            let ReplicationConfig {
+                interval,
+                writer_ids,
+            } = replica_config
+                .context("must supply a read-from-writer-ids list when starting in read-only mode")
+                .map_err(Error::WriteBufferInit)?;
+            (
+                Arc::new(
+                    WriteBufferEnterprise::read(CreateReadModeArgs {
                         last_cache,
                         distinct_cache,
-                        time_provider: Arc::<SystemProvider>::clone(&time_provider),
-                        executor: Arc::clone(&exec),
-                        wal_config,
+                        object_store: Arc::clone(&object_store),
+                        catalog: Arc::clone(&catalog),
                         metric_registry: Arc::clone(&metrics),
-                        replication_config: replica_config,
+                        replication_interval: interval,
+                        writer_ids,
                         parquet_cache: parquet_cache.clone(),
                         compacted_data: compacted_data.clone(),
-                        snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+                        time_provider: Arc::<SystemProvider>::clone(&time_provider),
                     })
                     .await
                     .map_err(Error::WriteBufferInit)?,
-                );
-                let persisted_files = buf.persisted_files();
-                let write_buffer_impl = buf.write_buffer_impl();
-                (buf, Some(persisted_files), Some(write_buffer_impl))
-            }
-            BufferMode::Compactor => {
-                let catalog = compacted_data
-                    .as_ref()
-                    .map(|cd| cd.compacted_catalog.catalog())
-                    .expect("there was no compacted data initialized");
-                let buf = Arc::new(WriteBufferEnterprise::compactor(catalog));
-                (buf, None, None)
-            }
-        };
+                ),
+                None,
+                None,
+            )
+        }
+        BufferMode::ReadWrite => {
+            let buf = Arc::new(
+                WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
+                    writer_id: persister.writer_identifier_prefix().into(),
+                    persister: Arc::clone(&persister),
+                    catalog: Arc::clone(&catalog),
+                    last_cache,
+                    distinct_cache,
+                    time_provider: Arc::<SystemProvider>::clone(&time_provider),
+                    executor: Arc::clone(&exec),
+                    wal_config,
+                    metric_registry: Arc::clone(&metrics),
+                    replication_config: replica_config,
+                    parquet_cache: parquet_cache.clone(),
+                    compacted_data: compacted_data.clone(),
+                    snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+                })
+                .await
+                .map_err(Error::WriteBufferInit)?,
+            );
+            let persisted_files = buf.persisted_files();
+            let write_buffer_impl = buf.write_buffer_impl();
+            (buf, Some(persisted_files), Some(write_buffer_impl))
+        }
+        BufferMode::Compactor => {
+            let catalog = compacted_data
+                .as_ref()
+                .map(|cd| cd.compacted_catalog.catalog())
+                .expect("there was no compacted data initialized");
+            let buf = Arc::new(WriteBufferEnterprise::compactor(catalog));
+            (buf, None, None)
+        }
+    };
 
     if let Some(write_buffer_impl) = write_buffer_impl {
         info!("setting up background mem check for query buffer");

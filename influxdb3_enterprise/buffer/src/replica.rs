@@ -77,7 +77,7 @@ pub(crate) struct Replicas {
     object_store_url: ObjectStoreUrl,
     last_cache: Arc<LastCacheProvider>,
     distinct_cache: Arc<DistinctCacheProvider>,
-    replicas: Vec<Arc<ReplicatedBuffer>>,
+    replicated_buffers: Vec<Arc<ReplicatedBuffer>>,
 }
 
 pub(crate) struct CreateReplicasArgs {
@@ -108,7 +108,7 @@ impl Replicas {
             wal,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
-        let mut replicas = vec![];
+        let mut replicated_buffers = vec![];
         for (i, writer_identifier_prefix) in writer_ids.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
@@ -119,7 +119,7 @@ impl Replicas {
             let time_provider = Arc::clone(&time_provider);
             let wal = wal.clone();
             info!(%writer_identifier_prefix, "creating replicated buffer for writer");
-            replicas.push(
+            replicated_buffers.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
                     replica_order: i as i64,
                     object_store,
@@ -141,7 +141,7 @@ impl Replicas {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             last_cache,
             distinct_cache,
-            replicas,
+            replicated_buffers,
         })
     }
 
@@ -154,7 +154,7 @@ impl Replicas {
     }
 
     pub(crate) fn catalog(&self) -> Arc<Catalog> {
-        self.replicas[0].catalog()
+        self.replicated_buffers[0].catalog()
     }
 
     pub(crate) fn last_cache(&self) -> Arc<LastCacheProvider> {
@@ -167,7 +167,7 @@ impl Replicas {
 
     pub(crate) fn parquet_files(&self, db_id: DbId, tbl_id: TableId) -> Vec<ParquetFile> {
         let mut files = vec![];
-        for replica in &self.replicas {
+        for replica in &self.replicated_buffers {
             files.append(&mut replica.parquet_files(db_id, tbl_id));
         }
         files
@@ -201,7 +201,7 @@ impl Replicas {
         filters: &[Expr],
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks = vec![];
-        for replica in &self.replicas {
+        for replica in &self.replicated_buffers {
             chunks.append(&mut replica.get_buffer_chunks(database_name, table_name, filters)?);
         }
         Ok(chunks)
@@ -217,7 +217,7 @@ impl Replicas {
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
         let mut chunks = vec![];
-        for replica in &self.replicas {
+        for replica in &self.replicated_buffers {
             let last_parquet_file_id = writer_markers.iter().find_map(|marker| {
                 if marker.writer_id == replica.writer_identifier_prefix {
                     Some(marker.next_file_id)
@@ -665,11 +665,6 @@ impl ReplicatedBuffer {
     ///
     /// If this replicated buffer is running on a write-enabled server, any catalog batches will be
     /// extracted from the `WalContents` and written to the local pirimary buffer's WAL.
-    ///
-    /// The `calculate_ttbr` argument will determine if the time to be readable (TTBR) for the
-    /// contents of the replayed file is recorded in the metric registry. This is optional so that
-    /// we can avoid calculating TTBR when replaying WAL files on server startup, as the resulting
-    /// values would likely skew the metric distribution.
     async fn replay_wal_file(&self, wal_contents: WalContents) -> Result<()> {
         let persist_time_ms = wal_contents.persist_timestamp_ms;
 
@@ -796,6 +791,7 @@ impl ReplicatedBuffer {
             }
         }
 
+        let writer_id = self.writer_identifier_prefix.clone();
         let snapshot_path = SnapshotInfoFilePath::new(
             &self.writer_identifier_prefix,
             snapshot_details.snapshot_sequence_number,
@@ -826,10 +822,10 @@ impl ReplicatedBuffer {
                         let snapshot = replica_catalog
                             .map_snapshot_contents(snapshot)
                             .inspect_err(|error| {
-                                let msg = format!("{error:#}");
                                 error!(
-                                    path = ?snapshot_path,
-                                    error = %msg,
+                                    from_writer = writer_id,
+                                    ?snapshot_path,
+                                    %error,
                                     "the replicated write buffer produced an invalid snapshot file"
                                 );
                             })
@@ -1497,7 +1493,7 @@ mod tests {
             .get_observer(&Attributes::from(&[("from_writer_id", "newton")]))
             .expect("failed to get observer")
             .fetch();
-        debug!(?ttbr_ms, "ttbr metric for host");
+        debug!(?ttbr_ms, "ttbr metric for writer");
         assert_eq!(ttbr_ms.sample_count(), 3);
         assert_eq!(ttbr_ms.total, Duration::from_millis(200));
         assert!(ttbr_ms

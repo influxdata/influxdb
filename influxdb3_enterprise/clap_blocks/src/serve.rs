@@ -9,19 +9,25 @@ pub struct EnterpriseServeConfig {
     #[clap(long = "mode", value_enum, default_value_t = BufferMode::ReadWrite, env = "INFLUXDB3_ENTERPRISE_MODE", action)]
     pub mode: BufferMode,
 
-    /// Comma-separated list of host identifier prefixes to replicate
+    /// Comma-separated list of writer identifier prefixes, i.e., `writer-id`s to read WAL files from
     ///
-    /// Each host in the list will have its buffer replicated by checking for new WAL files produced
-    /// by that host on object storage on the interval specified by the `replication-interval` option.
+    /// Each writer in the list will have its data queryable by this server by checking for new WAL files produced
+    /// by that writer on object storage on the interval specified by the `replication-interval` option.
     ///
-    /// If `run-compactions` is set to true, this replica list, if provided, will also serve as
-    /// the list of hosts to compact data from.
+    /// If `run-compactions` is set to true, this writer list, if provided, will also serve as
+    /// the list of writers to compact data from.
     ///
-    /// If the replica for any given host fails to initialize, the server will not start.
-    #[clap(long = "replicas", env = "INFLUXDB3_ENTERPRISE_REPLICAS", action)]
-    pub replicas: Option<WriterIdList>,
+    /// If the reader for any given writer fails to initialize, the server will not start.
+    #[clap(
+        long = "read-from-writer-ids",
+        // TODO: this alias should be deprecated
+        alias = "replicas",
+        env = "INFLUXDB3_ENTERPRISE_READ_FROM_WRITER_IDS",
+        action
+    )]
+    pub read_from_writer_ids: Option<WriterIdList>,
 
-    /// The interval at which each replica specified in the `replicas` option will be replicated
+    /// The interval at which each reader specified in the `read-from-writer-ids` option will be replicated
     #[clap(
         long = "replication-interval",
         env = "INFLUXDB3_ENTERPRISE_REPLICATION_INTERVAL",
