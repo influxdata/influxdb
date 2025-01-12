@@ -179,6 +179,13 @@ impl QueryableBuffer {
 
         let persist_jobs = {
             let mut buffer = self.buffer.write();
+            // need to buffer first before snapshotting
+            buffer.buffer_ops(
+                &write.ops,
+                &self.last_cache_provider,
+                &self.distinct_cache_provider,
+            );
+
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
@@ -208,7 +215,7 @@ impl QueryableBuffer {
                                 table_name.as_ref(),
                                 table_id.as_u32(),
                                 chunk.chunk_time,
-                                write.wal_file_number,
+                                snapshot_details.last_wal_sequence_number,
                             ),
                             batch: chunk.record_batch,
                             schema: chunk.schema,
@@ -220,12 +227,6 @@ impl QueryableBuffer {
                     }
                 }
             }
-
-            buffer.buffer_ops(
-                &write.ops,
-                &self.last_cache_provider,
-                &self.distinct_cache_provider,
-            );
 
             persisting_chunks
         };
@@ -278,7 +279,7 @@ impl QueryableBuffer {
             let mut persisted_snapshot = PersistedSnapshot::new(
                 persister.host_identifier_prefix().to_string(),
                 snapshot_details.snapshot_sequence_number,
-                wal_file_number,
+                snapshot_details.last_wal_sequence_number,
                 catalog.sequence_number(),
             );
             let mut cache_notifiers = vec![];

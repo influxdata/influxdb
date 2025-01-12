@@ -365,11 +365,11 @@ impl WalObjectStore {
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         all_wal_file_paths: &[Path],
     ) -> Vec<Path> {
-        // if we have a last wal path from persisted snapshots, we don't need to load the wal files
-        // that came before it:
         all_wal_file_paths
             .iter()
             .filter(|path| {
+                // if we have a last wal path from persisted snapshots, we don't need to load the wal files
+                // that came before it:
                 if let Some(last_wal_sequence_number) = last_wal_sequence_number {
                     let last_wal_path =
                         wal_path(&self.host_identifier_prefix, last_wal_sequence_number);
@@ -378,7 +378,10 @@ impl WalObjectStore {
                         ?last_wal_path,
                         ">>> path and last_wal_path check when replaying"
                     );
-                    *path >= &last_wal_path
+                    // last_wal_sequence_number that comes from persisted snapshot is
+                    // holds the last wal number (inclusive) that has been snapshotted
+                    // so, anything greater than that needs to be loaded
+                    *path > &last_wal_path
                 } else {
                     true
                 }
