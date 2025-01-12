@@ -760,9 +760,9 @@ mod tests {
             DedicatedExecutor::new_testing(),
         ));
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let sample_host_id = Arc::from("sample-host-id");
+        let sample_writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(sample_host_id, instance_id));
+        let catalog = Arc::new(Catalog::new(sample_writer_id, instance_id));
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),

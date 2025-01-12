@@ -1349,9 +1349,9 @@ mod tests {
             .insert(table_def.table_id, Arc::new(table_def));
         // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
         // initialized from):
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let catalog = Catalog::new(host_id, instance_id);
+        let catalog = Catalog::new(writer_id, instance_id);
         let db_id = database.id;
         catalog.insert_database(database);
         let catalog = Arc::new(catalog);

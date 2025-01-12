@@ -195,9 +195,9 @@ impl Catalog {
     /// Limit for the number of tables across all DBs that InfluxDB 3 Core OSS can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
-    pub fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
+    pub fn new(writer_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
-            inner: RwLock::new(InnerCatalog::new(host_id, instance_id)),
+            inner: RwLock::new(InnerCatalog::new(writer_id, instance_id)),
         }
     }
 
@@ -304,8 +304,8 @@ impl Catalog {
         Arc::clone(&self.inner.read().instance_id)
     }
 
-    pub fn host_id(&self) -> Arc<str> {
-        Arc::clone(&self.inner.read().host_id)
+    pub fn writer_id(&self) -> Arc<str> {
+        Arc::clone(&self.inner.read().writer_id)
     }
 
     #[cfg(test)]
@@ -364,8 +364,9 @@ pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
     sequence: CatalogSequenceNumber,
-    /// The host_id is the prefix that is passed in when starting up (`host_identifier_prefix`)
-    host_id: Arc<str>,
+    /// The `writer_id` is the prefix that is passed in when starting up
+    /// (`writer_identifier_prefix`)
+    writer_id: Arc<str>,
     /// The instance_id uniquely identifies the instance that generated the catalog
     instance_id: Arc<str>,
     /// If true, the catalog has been updated since the last time it was serialized
@@ -429,11 +430,11 @@ serde_with::serde_conv!(
 );
 
 impl InnerCatalog {
-    pub(crate) fn new(host_id: Arc<str>, instance_id: Arc<str>) -> Self {
+    pub(crate) fn new(writer_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
             databases: SerdeVecMap::new(),
             sequence: CatalogSequenceNumber::new(0),
-            host_id,
+            writer_id,
             instance_id,
             updated: false,
             db_map: BiHashMap::new(),
@@ -1419,10 +1420,10 @@ mod tests {
 
     #[test]
     fn catalog_serialization() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(host_id, cloned_instance_id);
+        let catalog = Catalog::new(writer_id, cloned_instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1532,7 +1533,7 @@ mod tests {
                     ]
                 ],
                 "sequence": 0,
-                "host_id": "test",
+                "writer_id": "test",
                 "instance_id": "test",
                 "db_map": []
             }"#;
@@ -1578,7 +1579,7 @@ mod tests {
                     ]
                 ],
                 "sequence": 0,
-                "host_id": "test",
+                "writer_id": "test",
                 "instance_id": "test",
                 "db_map": []
             }"#;
@@ -1691,9 +1692,9 @@ mod tests {
 
     #[test]
     fn serialize_series_keys() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(host_id, instance_id);
+        let catalog = Catalog::new(writer_id, instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1748,9 +1749,9 @@ mod tests {
 
     #[test]
     fn serialize_last_cache() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(host_id, instance_id);
+        let catalog = Catalog::new(writer_id, instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1814,14 +1815,14 @@ mod tests {
     }
 
     #[test]
-    fn catalog_instance_and_host_ids() {
-        let host_id = Arc::from("sample-host-id");
+    fn catalog_instance_and_writer_ids() {
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let cloned_host_id = Arc::clone(&host_id);
+        let cloned_writer_id = Arc::clone(&writer_id);
         let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(cloned_host_id, cloned_instance_id);
+        let catalog = Catalog::new(cloned_writer_id, cloned_instance_id);
         assert_eq!(instance_id, catalog.instance_id());
-        assert_eq!(host_id, catalog.host_id());
+        assert_eq!(writer_id, catalog.writer_id());
     }
 
     /// See: https://github.com/influxdata/influxdb/issues/25524
