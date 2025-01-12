@@ -1055,7 +1055,7 @@ async fn api_v3_configure_table_create_then_write() {
     server
         .write_lp_to_db(
             "foo",
-            "bar,tag1=1,tag2=2 field1=1u,field2=2i,field3=3,field4=\"4\",field5=true 1000",
+            "bar,tag1=1,tag2=2 field1=1u,field2=2i,field3=3,field4=\"4\",field5=true 2998574938",
             influxdb3_client::Precision::Second,
         )
         .await
@@ -1080,7 +1080,7 @@ async fn api_v3_configure_table_create_then_write() {
             "field3": 3.0,
             "field4": "4",
             "field5": true,
-            "time": "1970-01-01T00:16:40"
+            "time": "2065-01-07T17:28:58"
         }])
     );
 }
@@ -1129,7 +1129,7 @@ async fn api_v3_configure_table_create_no_fields() {
     server
         .write_lp_to_db(
             "foo",
-            "bar,one=1,two=2 new_field=0 1000",
+            "bar,one=1,two=2 new_field=0 2998574938",
             influxdb3_client::Precision::Second,
         )
         .await
@@ -1150,7 +1150,7 @@ async fn api_v3_configure_table_create_no_fields() {
             "one": "1",
             "two": "2",
             "new_field": 0.0,
-            "time": "1970-01-01T00:16:40"
+            "time": "2065-01-07T17:28:58"
         }])
     );
 }

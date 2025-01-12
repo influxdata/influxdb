@@ -842,7 +842,10 @@ mod test_helpers {
                 exec,
                 catalog,
                 persister,
-                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(vec![])),
+                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(
+                    Arc::clone(&time_provider),
+                    vec![],
+                )),
                 wal_file_sequence_number: WalFileSequenceNumber::new(0),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(0),
                 time_provider,
@@ -895,8 +898,12 @@ mod test_helpers {
                     Arc::clone(&self.catalog),
                 )
                 .unwrap(),
-                persisted_files: Arc::new(Default::default()),
+                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(
+                    Arc::clone(&self.time_provider),
+                    vec![],
+                )),
                 parquet_cache: None,
+                time_provider: Arc::clone(&self.time_provider),
             };
             let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 

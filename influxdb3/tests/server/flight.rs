@@ -14,10 +14,10 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-        cpu,host=s1,region=us-east usage=0.89 2\n\
-        cpu,host=s1,region=us-east usage=0.85 3",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574936\n\
+             cpu,host=s1,region=us-east usage=0.89 2998574937\n\
+             cpu,host=s1,region=us-east usage=0.85 2998574938",
+            Precision::Second,
         )
         .await?;
 
@@ -33,13 +33,13 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
             [
-                "+------+---------+--------------------------------+-------+",
-                "| host | region  | time                           | usage |",
-                "+------+---------+--------------------------------+-------+",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
-                "+------+---------+--------------------------------+-------+",
+                "+------+---------+----------------------+-------+",
+                "| host | region  | time                 | usage |",
+                "+------+---------+----------------------+-------+",
+                "| s1   | us-east | 2065-01-07T17:28:56Z | 0.9   |",
+                "| s1   | us-east | 2065-01-07T17:28:57Z | 0.89  |",
+                "| s1   | us-east | 2065-01-07T17:28:58Z | 0.85  |",
+                "+------+---------+----------------------+-------+",
             ],
             &batches
         );
@@ -68,13 +68,13 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
         let batches = collect_stream(stream).await;
         assert_batches_sorted_eq!(
             [
-                "+------+---------+--------------------------------+-------+",
-                "| host | region  | time                           | usage |",
-                "+------+---------+--------------------------------+-------+",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
-                "+------+---------+--------------------------------+-------+",
+                "+------+---------+----------------------+-------+",
+                "| host | region  | time                 | usage |",
+                "+------+---------+----------------------+-------+",
+                "| s1   | us-east | 2065-01-07T17:28:56Z | 0.9   |",
+                "| s1   | us-east | 2065-01-07T17:28:57Z | 0.89  |",
+                "| s1   | us-east | 2065-01-07T17:28:58Z | 0.85  |",
+                "+------+---------+----------------------+-------+",
             ],
             &batches
         );
@@ -158,10 +158,10 @@ async fn flight_influxql() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s1,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574936\n\
+             cpu,host=s1,region=us-east usage=0.89 2998574937\n\
+             cpu,host=s1,region=us-east usage=0.85 2998574938",
+            Precision::Second,
         )
         .await
         .unwrap();

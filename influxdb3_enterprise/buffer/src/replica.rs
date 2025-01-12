@@ -397,6 +397,7 @@ impl ReplicatedBuffer {
             .first()
             .map(|snapshot| snapshot.wal_file_sequence_number);
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
+            Arc::clone(&time_provider),
             persisted_snapshots,
         ));
         let replicated_buffer = Self {
