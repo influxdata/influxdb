@@ -721,6 +721,7 @@ impl ReplicatedBuffer {
                 from_writer_id = self.writer_identifier_prefix,
                 "writing catalog ops from replicated write buffer to local WAL"
             );
+            debug!(?catalog_ops, ">>> catalog ops being written");
             wal.write_ops(catalog_ops)
                 .await
                 .context("failed to write replicated catalog ops to local WAL")?;
