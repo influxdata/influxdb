@@ -8,16 +8,8 @@ use influxdb3_cache::{
     last_cache::LastCacheProvider,
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_internal_api::query_executor::QueryExecutor;
-use influxdb3_processing_engine::{
-    manager::{ProcessingEngineError, ProcessingEngineManager},
-    plugins,
-};
-use influxdb3_wal::{
-    DistinctCacheDefinition, LastCacheDefinition, PluginType, TriggerSpecificationDefinition, Wal,
-};
+use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal};
 use influxdb3_write::{
     write_buffer::{
         self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
@@ -219,97 +211,6 @@ impl<Mode: DatabaseManager> DatabaseManager for WriteBufferEnterprise<Mode> {
     }
 }
 
-#[async_trait::async_trait]
-impl<Mode: ProcessingEngineManager> ProcessingEngineManager for WriteBufferEnterprise<Mode> {
-    async fn insert_plugin(
-        &self,
-        db: &str,
-        plugin_name: String,
-        code: String,
-        plugin_type: PluginType,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode
-            .insert_plugin(db, plugin_name, code, plugin_type)
-            .await
-    }
-
-    async fn delete_plugin(
-        &self,
-        db: &str,
-        plugin_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode.delete_plugin(db, plugin_name).await
-    }
-
-    async fn activate_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode
-            .activate_trigger(write_buffer, query_executor, db_name, trigger_name)
-            .await
-    }
-
-    async fn deactivate_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode.deactivate_trigger(db_name, trigger_name).await
-    }
-
-    async fn insert_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: String,
-        plugin_name: String,
-        trigger_specification: TriggerSpecificationDefinition,
-        disabled: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode
-            .insert_trigger(
-                db_name,
-                trigger_name,
-                plugin_name,
-                trigger_specification,
-                disabled,
-            )
-            .await
-    }
-
-    async fn delete_trigger(
-        &self,
-        db: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode.delete_trigger(db, trigger_name, force).await
-    }
-
-    async fn run_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        self.mode
-            .run_trigger(write_buffer, query_executor, db_name, trigger_name)
-            .await
-    }
-
-    async fn test_wal_plugin(
-        &self,
-        request: WalPluginTestRequest,
-        query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, plugins::Error> {
-        self.mode.test_wal_plugin(request, query_executor).await
-    }
-}
-
 impl<Mode: WriteBuffer> WriteBuffer for WriteBufferEnterprise<Mode> {}
 
 #[cfg(test)]
@@ -386,6 +287,7 @@ mod tests {
             replication_config: None,
             parquet_cache: None,
             compacted_data: None,
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -497,6 +399,7 @@ mod tests {
             replication_config: None,
             parquet_cache: Some(parquet_cache),
             compacted_data: None,
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -999,6 +902,7 @@ mod test_helpers {
             replication_config,
             parquet_cache: None,
             compacted_data: None,
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap()

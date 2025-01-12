@@ -1,7 +1,7 @@
 //! Request structs for the /api/v3/plugin_test API
 
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Request definition for `POST /api/v3/plugin_test/wal` API
 #[derive(Debug, Serialize, Deserialize)]

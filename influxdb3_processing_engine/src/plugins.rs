@@ -47,12 +47,14 @@ pub enum Error {
 #[cfg(feature = "system-py")]
 pub(crate) fn run_plugin(
     db_name: String,
+    plugin_code: String,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
         db_name,
+        plugin_code,
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
     };
@@ -89,6 +91,7 @@ trait RunnablePlugin {
 #[derive(Debug)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
+    plugin_code: String,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
@@ -104,13 +107,15 @@ mod python_plugin {
     use influxdb3_wal::WalOp;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use observability_deps::tracing::warn;
+    use observability_deps::tracing::{info, warn};
     use std::time::SystemTime;
     use tokio::sync::mpsc::Receiver;
 
     #[async_trait::async_trait]
     impl RunnablePlugin for TriggerPlugin {
         async fn run_plugin(&self, mut receiver: Receiver<PluginEvent>) -> Result<(), Error> {
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting trigger plugin");
+
             loop {
                 let event = match receiver.recv().await {
                     Some(event) => event,
@@ -168,12 +173,12 @@ mod python_plugin {
                                 };
 
                                 let result = execute_python_with_batch(
-                                    &self.trigger_definition.plugin.code,
+                                    &self.plugin_code,
                                     write_batch,
                                     Arc::clone(&schema),
                                     Arc::clone(&self.query_executor),
                                     table_filter,
-                                    None,
+                                    &self.trigger_definition.trigger_arguments,
                                 )?;
 
                                 // write the output lines to the appropriate database
@@ -258,7 +263,7 @@ pub(crate) fn run_test_wal_plugin(
         db,
         query_executor,
         None,
-        request.input_arguments,
+        &request.input_arguments,
     )?;
 
     // validate the generated output lines
@@ -346,12 +351,12 @@ pub(crate) fn run_test_wal_plugin(
 mod tests {
     use super::*;
     use data_types::NamespaceName;
+    use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_write::write_buffer::validator::WriteValidator;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use std::collections::HashMap;
 
     #[test]
     fn test_wal_plugin() {
@@ -468,7 +473,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     cpu_valid = LineBuilder("cpu")\
         .tag("host", "A")\
-        .int64_field("f1", 10)
+        .int64_field("f1", 10)\
+        .uint64_field("f2", 20)\
+        .bool_field("f3", True)
     influxdb3_local.write_to_db("foodb", cpu_valid)
 
     cpu_invalid = LineBuilder("cpu")\
@@ -507,7 +514,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
         // the lines should still come through in the output because that's what Python sent
         let expected_foodb_lines = vec![
-            "cpu,host=A f1=10i".to_string(),
+            "cpu,host=A f1=10i,f2=20u,f3=t".to_string(),
             "cpu,host=A f1=\"not_an_int\"".to_string(),
         ];
         assert_eq!(

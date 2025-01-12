@@ -80,6 +80,7 @@ async fn two_writers_gen1_compaction() {
         wal_config,
         parquet_cache: None,
         metric_registry: Arc::clone(&metrics),
+        snapshotted_wal_files_to_keep: 10,
     })
     .await
     .unwrap();
@@ -122,6 +123,7 @@ async fn two_writers_gen1_compaction() {
             )),
             parquet_cache: None,
             compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap(),
@@ -421,6 +423,7 @@ async fn setup_write_buffer(
         replication_config: None,
         parquet_cache: None,
         compacted_data: None,
+        snapshotted_wal_files_to_keep: 10,
     })
     .await
     .unwrap()

@@ -1,9 +1,9 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
 use anyhow::Context;
+use hashbrown::HashMap;
 use influxdb3_client::plugin_development::WalPluginTestRequest;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
-use std::collections::HashMap;
 use std::error::Error;
 
 #[derive(Debug, clap::Parser)]
@@ -76,7 +76,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 None => {
                     let file_path = plugin_config
                         .input_file
-                        .context("either input_lp or input_file must be provided")?;
+                        .context("either --lp or --file must be provided")?;
                     std::fs::read_to_string(file_path).context("unable to read input file")?
                 }
             };

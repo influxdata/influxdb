@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
@@ -19,6 +20,15 @@ pub enum ProcessingEngineError {
 
     #[error("wal error: {0}")]
     WalError(#[from] influxdb3_wal::Error),
+
+    #[error("server not started with --plugin-dir")]
+    PluginDirNotSet,
+
+    #[error("plugin not found: {0}")]
+    PluginNotFound(String),
+
+    #[error("plugin error: {0}")]
+    PluginError(#[from] crate::plugins::Error),
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -31,7 +41,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         &self,
         db: &str,
         plugin_name: String,
-        code: String,
+        file_name: String,
         plugin_type: PluginType,
     ) -> Result<(), ProcessingEngineError>;
 
@@ -44,6 +54,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<(), ProcessingEngineError>;
 
@@ -63,13 +74,13 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
-    async fn deactivate_trigger(
+    async fn disable_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
-    async fn activate_trigger(
+    async fn enable_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,

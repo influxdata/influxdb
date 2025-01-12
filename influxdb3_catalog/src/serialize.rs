@@ -103,8 +103,9 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                     TriggerDefinition {
                         trigger_name: trigger.trigger_name,
                         plugin_name: plugin.plugin_name.to_string(),
-                        plugin,
+                        plugin_file_name: plugin.file_name.clone(),
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
+                        trigger_arguments: trigger.trigger_arguments,
                         disabled: trigger.disabled,
                         database_name: trigger.database_name,
                     },
@@ -163,7 +164,7 @@ struct TableSnapshot {
 #[derive(Debug, Serialize, Deserialize)]
 struct ProcessingEnginePluginSnapshot {
     pub plugin_name: String,
-    pub code: String,
+    pub file_name: String,
     pub plugin_type: PluginType,
 }
 
@@ -173,6 +174,7 @@ struct ProcessingEngineTriggerSnapshot {
     pub plugin_name: String,
     pub database_name: String,
     pub trigger_specification: String,
+    pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
 
@@ -412,7 +414,7 @@ impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
     fn from(plugin: &PluginDefinition) -> Self {
         Self {
             plugin_name: plugin.plugin_name.to_string(),
-            code: plugin.code.to_string(),
+            file_name: plugin.file_name.to_string(),
             plugin_type: plugin.plugin_type,
         }
     }
@@ -422,7 +424,7 @@ impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
     fn from(plugin: ProcessingEnginePluginSnapshot) -> Self {
         Self {
             plugin_name: plugin.plugin_name.to_string(),
-            code: plugin.code.to_string(),
+            file_name: plugin.file_name.to_string(),
             plugin_type: plugin.plugin_type,
         }
     }
@@ -436,6 +438,7 @@ impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
             database_name: trigger.database_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
+            trigger_arguments: trigger.trigger_arguments.clone(),
             disabled: trigger.disabled,
         }
     }

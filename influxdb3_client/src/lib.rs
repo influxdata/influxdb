@@ -1,15 +1,13 @@
 pub mod plugin_development;
 
-use std::{
-    collections::HashMap, fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration,
-};
-
 use crate::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use bytes::Bytes;
+use hashbrown::HashMap;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, Method, StatusCode};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
+use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
 use url::Url;
 
 /// Primary error type for the [`Client`]
@@ -548,7 +546,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
-        code: impl Into<String> + Send,
+        file_name: impl Into<String> + Send,
         plugin_type: impl Into<String> + Send,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/processing_engine_plugin";
@@ -559,14 +557,14 @@ impl Client {
         struct Req {
             db: String,
             plugin_name: String,
-            code: String,
+            file_name: String,
             plugin_type: String,
         }
 
         let mut req = self.http_client.post(url).json(&Req {
             db: db.into(),
             plugin_name: plugin_name.into(),
-            code: code.into(),
+            file_name: file_name.into(),
             plugin_type: plugin_type.into(),
         });
 
@@ -630,6 +628,7 @@ impl Client {
         trigger_name: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
         trigger_spec: impl Into<String> + Send,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/processing_engine_trigger";
@@ -642,6 +641,7 @@ impl Client {
             trigger_name: String,
             plugin_name: String,
             trigger_specification: String,
+            trigger_arguments: Option<HashMap<String, String>>,
             disabled: bool,
         }
         let mut req = self.http_client.post(url).json(&Req {
@@ -649,6 +649,7 @@ impl Client {
             trigger_name: trigger_name.into(),
             plugin_name: plugin_name.into(),
             trigger_specification: trigger_spec.into(),
+            trigger_arguments,
             disabled,
         });
 
@@ -709,13 +710,13 @@ impl Client {
         }
     }
 
-    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/activate`
-    pub async fn api_v3_configure_processing_engine_trigger_activate(
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/enable`
+    pub async fn api_v3_configure_processing_engine_trigger_enable(
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/activate";
+        let api_path = "/api/v3/configure/processing_engine_trigger/enable";
         let url = self.base_url.join(api_path)?;
 
         let mut req = self
@@ -740,13 +741,13 @@ impl Client {
         }
     }
 
-    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/deactivate`
-    pub async fn api_v3_configure_processing_engine_trigger_deactivate(
+    /// Make a request to `POST /api/v3/configure/processing_engine_trigger/disable`
+    pub async fn api_v3_configure_processing_engine_trigger_disable(
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/deactivate";
+        let api_path = "/api/v3/configure/processing_engine_trigger/disable";
         let url = self.base_url.join(api_path)?;
 
         let mut req = self
