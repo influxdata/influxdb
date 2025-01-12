@@ -33,7 +33,7 @@ type contextKey int
 
 const (
 	realIPKey contextKey = iota
-	hostIDKey
+	writerIDKey
 	instanceIDKey
 )
 
@@ -119,19 +119,19 @@ func (h *HTTPHandler) handleLicenses(w http.ResponseWriter, r *http.Request, log
 // This handler requires the following parameters:
 // - email: the email address of the user
 // - instance-id: the instance ID of the InfluxDB instance
-// - host-id: the host ID of the InfluxDB instance
+// - writer-id: the writer ID of the InfluxDB instance
 func (h *HTTPHandler) handlePostLicenses(w http.ResponseWriter, r *http.Request, log *zap.Logger) {
 	to := r.FormValue("email")
 	instanceID := r.FormValue("instance-id")
-	hostID := r.FormValue("host-id")
+	writerID := r.FormValue("writer-id")
 
-	if to == "" || instanceID == "" || hostID == "" {
+	if to == "" || instanceID == "" || writerID == "" {
 		h.logHTTPRequest("missing required parameters", r, zapcore.InfoLevel, log)
 		http.Error(w, "missing required parameters", http.StatusBadRequest)
 		return
 	}
 
-	r = r.WithContext(context.WithValue(r.Context(), hostIDKey, hostID))
+	r = r.WithContext(context.WithValue(r.Context(), writerIDKey, writerID))
 	r = r.WithContext(context.WithValue(r.Context(), instanceIDKey, instanceID))
 
 	// Get user from database
@@ -337,7 +337,7 @@ func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log 
 		return
 	}
 
-	// Get the host ID and instance ID from the request context
+	// Get the writer ID and instance ID from the request context
 	instanceID := r.Context().Value(instanceIDKey).(string)
 
 	// Send a response to the client with Location header to download
@@ -556,15 +556,15 @@ func (h *HTTPHandler) handleVerify(w http.ResponseWriter, r *http.Request, log *
 }
 
 func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *store.User) (licenseID int64, err error) {
-	hostID := ctx.Value(hostIDKey).(string)
+	writerID := ctx.Value(writerIDKey).(string)
 	instanceID := ctx.Value(instanceIDKey).(string)
 
-	// Check if the user already has a license for this host ID
-	lic, err := h.store.GetLicenseByEmailAndHostID(ctx, tx, user.Email, hostID)
+	// Check if the user already has a license for this writer ID
+	lic, err := h.store.GetLicenseByEmailAndWriterID(ctx, tx, user.Email, writerID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return -1, fmt.Errorf("createLicense: error getting license by host ID: %w", err)
+		return -1, fmt.Errorf("createLicense: error getting license by writer ID: %w", err)
 	} else if lic != nil {
-		return -1, fmt.Errorf("createLicense: %w: host ID: %s", ErrLicenseAlreadyExists, hostID)
+		return -1, fmt.Errorf("createLicense: %w: writer ID: %s", ErrLicenseAlreadyExists, writerID)
 	}
 
 	// Check if the user already has a license for this instance ID
@@ -581,7 +581,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	// create a signed license token
 	now, dur := h.trialLicenseDuration()
 
-	token, err := h.lic.Create(user.Email, hostID, instanceID, dur)
+	token, err := h.lic.Create(user.Email, writerID, instanceID, dur)
 	if err != nil {
 		return -1, fmt.Errorf("createLicense: error creating signed license token: %w", err)
 	}
@@ -590,7 +590,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	lic = &store.License{
 		UserID:     user.ID,
 		Email:      user.Email,
-		HostID:     hostID,
+		WriterID:   writerID,
 		InstanceID: instanceID,
 		LicenseKey: token,
 		ValidFrom:  now,

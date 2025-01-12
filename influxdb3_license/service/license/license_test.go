@@ -22,7 +22,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 		name        string
 		skip        bool
 		email       string
-		hostID      string
+		writerID    string
 		instanceID  string
 		duration    time.Duration
 		privKey     string
@@ -36,7 +36,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 			name:       "Google KMS valid license",
 			skip:       true,
 			email:      "jdoe@some.com",
-			hostID:     "host123",
+			writerID:   "writer123",
 			instanceID: "instance123",
 			duration:   licDuration_30Days,
 			privKey:    "projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1",
@@ -50,7 +50,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				},
 				LicenseExp: jwt.NewNumericDate(now.Add(licDuration_30Days)),
 				Email:      "jdoe@some.com",
-				HostID:     "host123",
+				WriterID:   "writer123",
 				InstanceID: "instance123",
 			},
 			timeFn: timeFn,
@@ -59,7 +59,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 			name:        "Google KMS expired license",
 			skip:        true,
 			email:       "jdoe@some.com",
-			hostID:      "host123",
+			writerID:    "writer123",
 			instanceID:  "instance123",
 			duration:    0,
 			privKey:     "projects/influxdata-team-clustered/locations/global/keyRings/clustered-licensing/cryptoKeys/signing-key/cryptoKeyVersions/1",
@@ -74,7 +74,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				},
 				LicenseExp: jwt.NewNumericDate(now),
 				Email:      "jdoe@some.com",
-				HostID:     "host123",
+				WriterID:   "writer123",
 				InstanceID: "instance123",
 			},
 			timeFn: time.Now,
@@ -83,7 +83,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 			name:       "Locally signed valid license",
 			skip:       false,
 			email:      "jdoe@some.com",
-			hostID:     "host123",
+			writerID:   "writer123",
 			instanceID: "instance123",
 			duration:   licDuration_30Days,
 			privKey:    "self-managed_test_private-key.pem",
@@ -97,7 +97,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				},
 				LicenseExp: jwt.NewNumericDate(now.Add(licDuration_30Days)),
 				Email:      "jdoe@some.com",
-				HostID:     "host123",
+				WriterID:   "writer123",
 				InstanceID: "instance123",
 			},
 			timeFn: timeFn,
@@ -106,7 +106,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 			name:        "Locally signed expired license",
 			skip:        false,
 			email:       "jdoe@some.com",
-			hostID:      "host123",
+			writerID:    "writer123",
 			instanceID:  "instance123",
 			duration:    0,
 			privKey:     "self-managed_test_private-key.pem",
@@ -121,7 +121,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				},
 				LicenseExp: jwt.NewNumericDate(now),
 				Email:      "jdoe@some.com",
-				HostID:     "host123",
+				WriterID:   "writer123",
 				InstanceID: "instance123",
 			},
 			timeFn: time.Now,
@@ -158,7 +158,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 			creator.TimeFn = timeFn
 
 			// Create license
-			lic, err := creator.Create(tt.email, tt.hostID, tt.instanceID, tt.duration)
+			lic, err := creator.Create(tt.email, tt.writerID, tt.instanceID, tt.duration)
 			if err != nil {
 				t.Fatalf("Error creating license: %v", err)
 			}
@@ -195,8 +195,8 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				t.Errorf("Expected email %q, got %q", tt.expClaims.Email, claims.Email)
 			}
 
-			if claims.HostID != tt.expClaims.HostID {
-				t.Errorf("Expected host ID %q, got %q", tt.expClaims.HostID, claims.HostID)
+			if claims.WriterID != tt.expClaims.WriterID {
+				t.Errorf("Expected writer ID %q, got %q", tt.expClaims.WriterID, claims.WriterID)
 			}
 
 			if claims.InstanceID != tt.expClaims.InstanceID {
