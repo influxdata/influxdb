@@ -491,7 +491,7 @@ jobs:
         default: release
       image_name:
         type: string
-        default: influxdb3-core
+        default: influxdb3-enterprise
     machine:
       image: default
     resource_class: << parameters.resource_class >>
@@ -524,7 +524,7 @@ jobs:
     parameters:
       image_name:
         type: string
-        default: influxdb3-core
+        default: influxdb3-enterprise
     resource_class: medium
     steps:
       - add_ssh_keys:
