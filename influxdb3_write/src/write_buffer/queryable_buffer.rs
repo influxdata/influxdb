@@ -26,6 +26,7 @@ use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
+use iox_time::TimeProvider;
 use object_store::path::Path;
 use observability_deps::tracing::{debug, error, info};
 use parking_lot::RwLock;
@@ -47,6 +48,7 @@ pub struct QueryableBuffer {
     persisted_files: Arc<PersistedFiles>,
     buffer: Arc<RwLock<BufferState>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    time_provider: Arc<dyn TimeProvider>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
@@ -60,6 +62,7 @@ pub struct QueryableBufferArgs {
     pub distinct_cache_provider: Arc<DistinctCacheProvider>,
     pub persisted_files: Arc<PersistedFiles>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    pub time_provider: Arc<dyn TimeProvider>,
 }
 
 impl QueryableBuffer {
@@ -72,6 +75,7 @@ impl QueryableBuffer {
             distinct_cache_provider,
             persisted_files,
             parquet_cache,
+            time_provider,
         }: QueryableBufferArgs,
     ) -> Self {
         let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
@@ -86,6 +90,7 @@ impl QueryableBuffer {
             persisted_files,
             buffer,
             parquet_cache,
+            time_provider,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
         }
@@ -118,6 +123,9 @@ impl QueryableBuffer {
             .partitioned_record_batches(Arc::clone(&table_def), filters)
             .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?
             .into_iter()
+            .filter(|(_, (ts_min_max, _))| {
+                ts_min_max.min > (self.time_provider.now() - crate::THREE_DAYS).timestamp_nanos()
+            })
             .map(|(gen_time, (ts_min_max, batches))| {
                 let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
                 let chunk_stats = create_chunk_statistics(
@@ -755,7 +763,8 @@ mod tests {
                 Arc::clone(&catalog),
             )
             .unwrap(),
-            persisted_files: Arc::new(Default::default()),
+            time_provider: Arc::clone(&time_provider),
+            persisted_files: Arc::new(PersistedFiles::new(Arc::clone(&time_provider))),
             parquet_cache: None,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
@@ -764,10 +773,18 @@ mod tests {
 
         // create the initial write with two tags
         let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog), 0).unwrap();
-        let lp = "foo,t1=a,t2=b f1=1i 1000000000";
+        let lp = format!(
+            "foo,t1=a,t2=b f1=1i {}",
+            time_provider.now().timestamp_nanos()
+        );
 
         let lines = val
-            .v1_parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .v1_parse_lines_and_update_schema(
+                &lp,
+                false,
+                time_provider.now(),
+                Precision::Nanosecond,
+            )
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();

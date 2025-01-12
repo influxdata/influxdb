@@ -128,11 +128,11 @@ async fn api_v1_write_round_trip() {
 
     client
         .post(write_url)
-        .query(&[("db", "foo")])
+        .query(&[("db", "foo"), ("precision", "s")])
         .body(
-            "cpu,host=a usage=0.5 1
-            cpu,host=a usage=0.6 2
-            cpu,host=a usage=0.7 3",
+            "cpu,host=a usage=0.5 2998574931
+            cpu,host=a usage=0.6 2998574932
+            cpu,host=a usage=0.7 2998574933",
         )
         .send()
         .await
@@ -150,13 +150,13 @@ async fn api_v1_write_round_trip() {
 
     assert_eq!(
         resp,
-        "+------------------+-------------------------------+------+-------+\n\
-        | iox::measurement | time                          | host | usage |\n\
-        +------------------+-------------------------------+------+-------+\n\
-        | cpu              | 1970-01-01T00:00:00.000000001 | a    | 0.5   |\n\
-        | cpu              | 1970-01-01T00:00:00.000000002 | a    | 0.6   |\n\
-        | cpu              | 1970-01-01T00:00:00.000000003 | a    | 0.7   |\n\
-        +------------------+-------------------------------+------+-------+"
+        "+------------------+---------------------+------+-------+\n\
+        | iox::measurement | time                | host | usage |\n\
+        +------------------+---------------------+------+-------+\n\
+        | cpu              | 2065-01-07T17:28:51 | a    | 0.5   |\n\
+        | cpu              | 2065-01-07T17:28:52 | a    | 0.6   |\n\
+        | cpu              | 2065-01-07T17:28:53 | a    | 0.7   |\n\
+        +------------------+---------------------+------+-------+"
     );
 }
 
@@ -266,11 +266,11 @@ async fn api_v2_write_round_trip() {
 
     client
         .post(write_url)
-        .query(&[("bucket", "foo")])
+        .query(&[("bucket", "foo"), ("precision", "s")])
         .body(
-            "cpu,host=a usage=0.5 1
-            cpu,host=a usage=0.6 2
-            cpu,host=a usage=0.7 3",
+            "cpu,host=a usage=0.5 2998574931
+            cpu,host=a usage=0.6 2998574932
+            cpu,host=a usage=0.7 2998574933",
         )
         .send()
         .await
@@ -288,13 +288,13 @@ async fn api_v2_write_round_trip() {
 
     assert_eq!(
         resp,
-        "+------------------+-------------------------------+------+-------+\n\
-        | iox::measurement | time                          | host | usage |\n\
-        +------------------+-------------------------------+------+-------+\n\
-        | cpu              | 1970-01-01T00:00:00.000000001 | a    | 0.5   |\n\
-        | cpu              | 1970-01-01T00:00:00.000000002 | a    | 0.6   |\n\
-        | cpu              | 1970-01-01T00:00:00.000000003 | a    | 0.7   |\n\
-        +------------------+-------------------------------+------+-------+"
+        "+------------------+---------------------+------+-------+\n\
+        | iox::measurement | time                | host | usage |\n\
+        +------------------+---------------------+------+-------+\n\
+        | cpu              | 2065-01-07T17:28:51 | a    | 0.5   |\n\
+        | cpu              | 2065-01-07T17:28:52 | a    | 0.6   |\n\
+        | cpu              | 2065-01-07T17:28:53 | a    | 0.7   |\n\
+        +------------------+---------------------+------+-------+"
     );
 }
 
@@ -309,8 +309,8 @@ async fn writes_with_different_schema_should_fail() {
         .write_lp_to_db(
             "foo",
             "\
-            t0,t0_tag0=initTag t0_f0=0i 1715694000\n\
-            t0,t0_tag0=initTag t0_f0=1i 1715694001",
+            t0,t0_tag0=initTag t0_f0=0i\n\
+            t0,t0_tag0=initTag t0_f0=1i 2998574931",
             Precision::Second,
         )
         .await
@@ -321,8 +321,8 @@ async fn writes_with_different_schema_should_fail() {
         .write_lp_to_db(
             "foo",
             "\
-            t0,t0_tag0=initTag t0_f0=0u 1715694000\n\
-            t0,t0_tag0=initTag t0_f0=1u 1715694001",
+            t0,t0_tag0=initTag t0_f0=0u 2998574930\n\
+            t0,t0_tag0=initTag t0_f0=1u 2998574931",
             Precision::Second,
         )
         .await

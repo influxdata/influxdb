@@ -26,7 +26,7 @@ async fn auth() {
         client
             .post(&write_lp_url)
             .query(&write_lp_params)
-            .body("cpu,host=a val=1i 123")
+            .body("cpu,host=a val=1i 2998574937")
             .send()
             .await
             .unwrap()
@@ -47,7 +47,7 @@ async fn auth() {
         client
             .post(&write_lp_url)
             .query(&write_lp_params)
-            .body("cpu,host=a val=1i 123")
+            .body("cpu,host=a val=1i 2998574937")
             .bearer_auth(TOKEN)
             .send()
             .await
@@ -59,7 +59,7 @@ async fn auth() {
         client
             .post(&write_lp_url)
             .query(&write_lp_params)
-            .body("cpu,host=a val=1i 123")
+            .body("cpu,host=a val=1i 2998574937")
             // support both Bearer and Token auth schemes
             .header("Authorization", format!("Token {TOKEN}"))
             .send()
@@ -141,10 +141,10 @@ async fn auth_grpc() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s1,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574937\n\
+            cpu,host=s1,region=us-east usage=0.89 2998574938\n\
+            cpu,host=s1,region=us-east usage=0.85 2998574939",
+            Precision::Second,
         )
         .await
         .unwrap();
@@ -167,13 +167,13 @@ async fn auth_grpc() {
         let batches = collect_stream(response).await;
         assert_batches_sorted_eq!(
             [
-                "+------+---------+--------------------------------+-------+",
-                "| host | region  | time                           | usage |",
-                "+------+---------+--------------------------------+-------+",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000001Z | 0.9   |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000002Z | 0.89  |",
-                "| s1   | us-east | 1970-01-01T00:00:00.000000003Z | 0.85  |",
-                "+------+---------+--------------------------------+-------+",
+                "+------+---------+----------------------+-------+",
+                "| host | region  | time                 | usage |",
+                "+------+---------+----------------------+-------+",
+                "| s1   | us-east | 2065-01-07T17:28:57Z | 0.9   |",
+                "| s1   | us-east | 2065-01-07T17:28:58Z | 0.89  |",
+                "| s1   | us-east | 2065-01-07T17:28:59Z | 0.85  |",
+                "+------+---------+----------------------+-------+",
             ],
             &batches
         );

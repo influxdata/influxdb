@@ -276,7 +276,7 @@ async fn test_create_table() {
     server
         .write_lp_to_db(
             db_name,
-            format!("{table_name},one=1,two=2,three=3 four=\"4\",five=5u,six=6,seven=7i,eight=true 1000"),
+            format!("{table_name},one=1,two=2,three=3 four=\"4\",five=5u,six=6,seven=7i,eight=true 2998574937"),
             influxdb3_client::Precision::Second,
         )
         .await
@@ -303,7 +303,7 @@ async fn test_create_table() {
             "six": 6.0,
             "seven": 7,
             "eight": true,
-            "time": "1970-01-01T00:16:40"
+            "time": "2065-01-07T17:28:57"
         }])
     );
 }
