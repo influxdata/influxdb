@@ -26,7 +26,7 @@ fi
 
 # Send the POST request to the license service.
 resp=$(curl -s -w '@-' -X POST "http://localhost:8687/licenses" \
-     -d "email=${email}" \
+     --data-urlencode "email=${email}" \
      -d "writer-id=${writer_id}" \
      -d "instance-id=${instance_id}" <<EOF
 {
