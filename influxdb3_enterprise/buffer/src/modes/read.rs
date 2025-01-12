@@ -39,7 +39,7 @@ pub struct CreateReadModeArgs {
     pub catalog: Arc<Catalog>,
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
-    pub hosts: Vec<String>,
+    pub writer_ids: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
     pub time_provider: Arc<dyn TimeProvider>,
@@ -55,7 +55,7 @@ impl ReadMode {
             catalog,
             metric_registry,
             replication_interval,
-            hosts,
+            writer_ids,
             parquet_cache,
             compacted_data,
             time_provider,
@@ -68,7 +68,7 @@ impl ReadMode {
                 object_store,
                 metric_registry,
                 replication_interval,
-                hosts,
+                writer_ids,
                 parquet_cache,
                 catalog,
                 time_provider,
@@ -136,11 +136,8 @@ impl ChunkContainer for ReadMode {
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
         if let Some(compacted_data) = &self.compacted_data {
-            let (parquet_files, host_markers) = compacted_data.get_parquet_files_and_host_markers(
-                database_name,
-                table_name,
-                filters,
-            );
+            let (parquet_files, writer_markers) = compacted_data
+                .get_parquet_files_and_writer_markers(database_name, table_name, filters);
 
             buffer_chunks.extend(
                 parquet_files
@@ -162,7 +159,7 @@ impl ChunkContainer for ReadMode {
                 table_name,
                 table_schema.clone(),
                 filters,
-                &host_markers,
+                &writer_markers,
                 buffer_chunks.len() as i64,
             );
             buffer_chunks.extend(gen1_persisted_chunks);

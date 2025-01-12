@@ -1,4 +1,4 @@
-//! Module for the compacted catalog, which is a unified view of the catalgos across all hosts
+//! Module for the compacted catalog, which is a unified view of the catalgos across all writers
 //! that have been compacted.
 
 use anyhow::Context;
@@ -31,9 +31,9 @@ pub enum Error {
     LoadError(#[from] object_store::Error),
     #[error("Error serializing compacted catalog: {0}")]
     SerializationError(#[from] serde_json::Error),
-    #[error("Error loading host catalog: {0}")]
-    HostCatalogLoadError(#[from] influxdb3_write::persister::Error),
-    #[error("Error merging host catalogs: {0}")]
+    #[error("Error loading writer catalog: {0}")]
+    WriterCatalogLoadError(#[from] influxdb3_write::persister::Error),
+    #[error("Error merging writer catalogs: {0}")]
     MergeError(#[from] influxdb3_catalog::catalog::Error),
     #[error("Unknown error: {0}")]
     Unexpected(#[from] anyhow::Error),
@@ -50,10 +50,10 @@ pub struct CompactedCatalog {
 
 #[derive(Debug)]
 struct InnerCompactedCatalog {
-    /// The catalog that is the union of all the host catalogs
+    /// The catalog that is the union of all the writer catalogs
     catalog: Arc<Catalog>,
-    /// map of host id to ids id map into this catalog
-    host_maps: HashMap<String, HostCatalog>,
+    /// Map of writer id to ids id map into this catalog
+    writer_maps: HashMap<String, WriterCatalog>,
 }
 
 // First, create a helper struct for serialization
@@ -61,7 +61,7 @@ struct InnerCompactedCatalog {
 struct CompactedCatalogHelper {
     compactor_id: String,
     catalog: InnerCatalog,
-    host_maps: HashMap<String, HostCatalog>,
+    writer_maps: HashMap<String, WriterCatalog>,
 }
 
 // Implement Serialize for CompactedCatalog
@@ -77,7 +77,7 @@ impl Serialize for CompactedCatalog {
             compactor_id: self.compactor_id.to_string(),
             catalog: inner.catalog.clone_inner(),
             // We need to block here to get the mutex contents
-            host_maps: inner.host_maps.clone(),
+            writer_maps: inner.writer_maps.clone(),
         };
         helper.serialize(serializer)
     }
@@ -96,7 +96,7 @@ impl<'de> Deserialize<'de> for CompactedCatalog {
             compactor_id: helper.compactor_id.into(),
             inner: RwLock::new(InnerCompactedCatalog {
                 catalog: Arc::new(Catalog::from_inner(helper.catalog)),
-                host_maps: helper.host_maps,
+                writer_maps: helper.writer_maps,
             }),
         })
     }
@@ -112,11 +112,11 @@ impl CompactedCatalog {
         persisted_snapshot: PersistedSnapshot,
     ) -> Result<PersistedSnapshot> {
         let inner = self.inner.read();
-        let hostmap = inner
-            .host_maps
-            .get(&persisted_snapshot.host_id)
-            .context("Host not found in catalog")?;
-        map_snapshot_contents(&hostmap.catalog_id_map, persisted_snapshot)
+        let writer_id_map = inner
+            .writer_maps
+            .get(&persisted_snapshot.writer_id)
+            .context("writer id not found in catalog")?;
+        map_snapshot_contents(&writer_id_map.catalog_id_map, persisted_snapshot)
     }
 
     /// Load the `CompactedCatalog` from the object store.
@@ -164,7 +164,7 @@ impl CompactedCatalog {
             let helper: CompactedCatalogHelper = serde_json::from_slice(&bytes)?;
             let mut inner = self.inner.write();
             inner.catalog = Arc::new(Catalog::from_inner(helper.catalog));
-            inner.host_maps = helper.host_maps;
+            inner.writer_maps = helper.writer_maps;
         }
         Ok(())
     }
@@ -203,7 +203,7 @@ impl CompactedCatalog {
     }
 
     /// Updates the catalog id maps and persists the new catalog if any of the passed in markers
-    /// have a sequence number greater than the last sequence number for the host.
+    /// have a sequence number greater than the last sequence number for the writer.
     pub async fn update_from_markers(
         &self,
         catalog_snapshot_markers: Vec<CatalogSnapshotMarker>,
@@ -217,8 +217,8 @@ impl CompactedCatalog {
                 .iter()
                 .filter(|marker| {
                     let last_sequence_number = inner
-                        .host_maps
-                        .get(&marker.host)
+                        .writer_maps
+                        .get(&marker.writer_id)
                         .map(|h| h.last_catalog_sequence_number)
                         .unwrap_or(CatalogSequenceNumber::new(0));
                     marker.catalog_sequence_number > last_sequence_number
@@ -231,11 +231,12 @@ impl CompactedCatalog {
         }
 
         // now fetch all the catalogs while we're not holding any locks
-        let mut updated_host_maps = HashMap::new();
+        let mut updated_writer_maps = HashMap::new();
 
         for marker in catalogs_to_update {
             let start = Instant::now();
-            let catalog_path = CatalogFilePath::new(&marker.host, marker.catalog_sequence_number);
+            let catalog_path =
+                CatalogFilePath::new(&marker.writer_id, marker.catalog_sequence_number);
             let Some(updated_catalog) =
                 get_bytes_at_path(catalog_path.as_ref(), Arc::clone(&object_store)).await
             else {
@@ -248,16 +249,16 @@ impl CompactedCatalog {
 
             let catalog_id_map =
                 self.merge_catalog_and_record_error(&catalog, marker, &sys_events_store)?;
-            updated_host_maps.insert(
-                catalog.host_id(),
-                HostCatalog {
+            updated_writer_maps.insert(
+                catalog.writer_id(),
+                WriterCatalog {
                     last_catalog_sequence_number: catalog.sequence_number(),
                     catalog_id_map,
                 },
             );
-            info!(host = %catalog.host_id(), sequence = %catalog.sequence_number().as_u32(), "Updated host catalog");
+            info!(writer_id = %catalog.writer_id(), sequence = %catalog.sequence_number().as_u32(), "Updated writer catalog");
             let event = catalog_fetched::SuccessInfo {
-                host: catalog.host_id(),
+                writer_id: catalog.writer_id(),
                 catalog_sequence_number: catalog.sequence_number().as_u32(),
                 duration: start.elapsed(),
             };
@@ -265,12 +266,12 @@ impl CompactedCatalog {
         }
 
         {
-            // and update the host maps
+            // and update the writer maps
             let mut inner = self.inner.write();
-            for (host, updated_host_catalog) in updated_host_maps {
+            for (writer, updated_writer_catalog) in updated_writer_maps {
                 inner
-                    .host_maps
-                    .insert(host.to_string(), updated_host_catalog);
+                    .writer_maps
+                    .insert(writer.to_string(), updated_writer_catalog);
             }
         }
 
@@ -297,7 +298,7 @@ impl CompactedCatalog {
                 if let crate::catalog::Error::MergeError(error) = err {
                     let error_msg = error.to_string();
                     let failed_event = catalog_fetched::FailedInfo {
-                        host: Arc::from(marker.host.as_str()),
+                        writer_id: Arc::from(marker.writer_id.as_str()),
                         sequence_number: marker.snapshot_sequence_number.as_u64(),
                         error: error_msg,
                         duration: start.elapsed(),
@@ -308,40 +309,40 @@ impl CompactedCatalog {
         Ok(catalog_id_map)
     }
 
-    /// Loads the most recently persisted catalog from each of the hosts. Returns a new catalog
-    /// that is the union of all the host catalogs. If none of the hosts has persisted a catalog,
+    /// Loads the most recently persisted catalog from each of the writers. Returns a new catalog
+    /// that is the union of all the writer catalogs. If none of the writers has persisted a catalog,
     /// returns a newly initialized one.
-    pub async fn load_merged_from_hosts(
+    pub async fn load_merged_from_writer_ids(
         compactor_id: Arc<str>,
-        hosts: Vec<String>,
+        writer_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<CompactedCatalog> {
         let uuid = Uuid::new_v4().to_string();
         let instance_id = Arc::from(uuid.as_str());
 
         let primary_catalog = Catalog::new(Arc::clone(&compactor_id), instance_id);
-        let mut host_maps = HashMap::new();
+        let mut writer_maps = HashMap::new();
 
-        for host in hosts {
-            let persister = Persister::new(Arc::clone(&object_store), &host);
+        for writer_id in writer_ids {
+            let persister = Persister::new(Arc::clone(&object_store), &writer_id);
             if let Some(catalog) = persister.load_catalog().await? {
                 let last_catalog_sequence_number = catalog.sequence_number();
                 let catalog = Arc::new(Catalog::from_inner(catalog));
                 let catalog_id_map = primary_catalog.merge(catalog)?;
 
-                info!(host = %host, "Loaded host catalog");
-                host_maps.insert(
-                    host,
-                    HostCatalog {
+                info!(%writer_id, "Loaded writer catalog");
+                writer_maps.insert(
+                    writer_id,
+                    WriterCatalog {
                         last_catalog_sequence_number,
                         catalog_id_map,
                     },
                 );
             } else {
-                info!(host = %host, "No host catalog found");
-                host_maps.insert(
-                    host,
-                    HostCatalog {
+                info!(%writer_id, "No writer catalog found");
+                writer_maps.insert(
+                    writer_id,
+                    WriterCatalog {
                         last_catalog_sequence_number: CatalogSequenceNumber::new(0),
                         catalog_id_map: CatalogIdMap::default(),
                     },
@@ -353,14 +354,14 @@ impl CompactedCatalog {
             compactor_id,
             inner: RwLock::new(InnerCompactedCatalog {
                 catalog: Arc::new(primary_catalog),
-                host_maps,
+                writer_maps,
             }),
         })
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-struct HostCatalog {
+struct WriterCatalog {
     last_catalog_sequence_number: CatalogSequenceNumber,
     catalog_id_map: CatalogIdMap,
 }
@@ -369,7 +370,7 @@ struct HostCatalog {
 pub struct CatalogSnapshotMarker {
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     pub catalog_sequence_number: CatalogSequenceNumber,
-    pub host: String,
+    pub writer_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -438,14 +439,14 @@ pub(crate) mod test_helpers {
     use object_store::ObjectStore;
     use std::sync::Arc;
 
-    pub(crate) async fn create_host_catalog_with_table(
-        host_id: &str,
+    pub(crate) async fn create_writer_catalog_with_table(
+        writer_id: &str,
         db_name: &str,
         table_name: &str,
         tag_column_type: FieldDataType,
         object_store: Arc<dyn ObjectStore>,
     ) -> Arc<Catalog> {
-        let catalog = Catalog::new(host_id.into(), host_id.into());
+        let catalog = Catalog::new(writer_id.into(), writer_id.into());
         let database_id = DbId::new();
         let table_id = TableId::new();
         let tag_id = ColumnId::new();
@@ -489,7 +490,7 @@ pub(crate) mod test_helpers {
         };
         catalog.apply_catalog_batch(&batch).unwrap();
 
-        let persister = Persister::new(object_store, host_id);
+        let persister = Persister::new(object_store, writer_id);
         persister.persist_catalog(&catalog).await.unwrap();
 
         Arc::new(catalog)
@@ -509,22 +510,22 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[tokio::test]
-    async fn loads_merged_from_hosts() {
+    async fn loads_merged_from_writers() {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let compactor_id = "compactor_id".into();
-        let host1 = "host1";
-        let host2 = "host2";
+        let writer1 = "host1";
+        let writer2 = "host2";
 
-        let catalog1 = test_helpers::create_host_catalog_with_table(
-            host1,
+        let catalog1 = test_helpers::create_writer_catalog_with_table(
+            writer1,
             "db1",
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
         )
         .await;
-        let catalog2 = test_helpers::create_host_catalog_with_table(
-            host2,
+        let catalog2 = test_helpers::create_writer_catalog_with_table(
+            writer2,
             "db1",
             "table2",
             FieldDataType::Tag,
@@ -532,72 +533,72 @@ mod tests {
         )
         .await;
 
-        let catalog = CompactedCatalog::load_merged_from_hosts(
+        let catalog = CompactedCatalog::load_merged_from_writer_ids(
             Arc::clone(&compactor_id),
-            vec![host1.into(), host2.into()],
+            vec![writer1.into(), writer2.into()],
             Arc::clone(&object_store),
         )
         .await
         .expect("failed to load merged catalog");
 
         assert_eq!(catalog.compactor_id, compactor_id);
-        assert_eq!(catalog.inner.read().host_maps.len(), 2);
+        assert_eq!(catalog.inner.read().writer_maps.len(), 2);
 
         let db = catalog.db_schema("db1").expect("db not found");
         assert!(db.table_definition("table1").is_some());
         assert!(db.table_definition("table2").is_some());
 
         let inner = catalog.inner.read();
-        let host1dbid = catalog1.db_name_to_id("db1").expect("db not found");
-        let host2dbid = catalog2.db_name_to_id("db1").expect("db not found");
+        let writer1dbid = catalog1.db_name_to_id("db1").expect("db not found");
+        let writer2dbid = catalog2.db_name_to_id("db1").expect("db not found");
         assert_eq!(
             inner
-                .host_maps
-                .get(host1)
+                .writer_maps
+                .get(writer1)
                 .unwrap()
                 .catalog_id_map
-                .map_db_id(&host1dbid)
+                .map_db_id(&writer1dbid)
                 .unwrap(),
             db.id
         );
         assert_eq!(
             inner
-                .host_maps
-                .get(host2)
+                .writer_maps
+                .get(writer2)
                 .unwrap()
                 .catalog_id_map
-                .map_db_id(&host2dbid)
+                .map_db_id(&writer2dbid)
                 .unwrap(),
             db.id
         );
 
-        let host1tableid = catalog1
+        let writer1tableid = catalog1
             .db_schema("db1")
             .expect("db not found")
             .table_name_to_id("table1")
             .expect("table not found");
-        let host2tableid = catalog2
+        let writer2tableid = catalog2
             .db_schema("db1")
             .expect("db not found")
             .table_name_to_id("table2")
             .expect("table not found");
         assert_eq!(
             inner
-                .host_maps
-                .get(host1)
+                .writer_maps
+                .get(writer1)
                 .unwrap()
                 .catalog_id_map
-                .map_table_id(&host1tableid)
+                .map_table_id(&writer1tableid)
                 .unwrap(),
             db.table_name_to_id("table1").unwrap()
         );
         assert_eq!(
             inner
-                .host_maps
-                .get(host2)
+                .writer_maps
+                .get(writer2)
                 .unwrap()
                 .catalog_id_map
-                .map_table_id(&host2tableid)
+                .map_table_id(&writer2tableid)
                 .unwrap(),
             db.table_name_to_id("table2").unwrap()
         );
@@ -610,7 +611,7 @@ mod tests {
         let host1 = "host1";
         let host2 = "host2";
 
-        let _ = test_helpers::create_host_catalog_with_table(
+        let _ = test_helpers::create_writer_catalog_with_table(
             host1,
             "db1",
             "table1",
@@ -618,7 +619,7 @@ mod tests {
             Arc::clone(&object_store),
         )
         .await;
-        let catalog2 = test_helpers::create_host_catalog_with_table(
+        let catalog2 = test_helpers::create_writer_catalog_with_table(
             host2,
             "db1",
             "table2",
@@ -627,7 +628,7 @@ mod tests {
         )
         .await;
 
-        let catalog = CompactedCatalog::load_merged_from_hosts(
+        let catalog = CompactedCatalog::load_merged_from_writer_ids(
             compactor_id,
             vec![host1.into()],
             Arc::clone(&object_store),
@@ -638,7 +639,7 @@ mod tests {
         let marker = CatalogSnapshotMarker {
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             catalog_sequence_number: CatalogSequenceNumber::new(345),
-            host: "host-id".to_string(),
+            writer_id: "host-id".to_string(),
         };
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -661,7 +662,7 @@ mod tests {
         let host1 = "host1";
         let host2 = "host2";
 
-        let _ = test_helpers::create_host_catalog_with_table(
+        let _ = test_helpers::create_writer_catalog_with_table(
             host1,
             "db1",
             "table1",
@@ -669,7 +670,7 @@ mod tests {
             Arc::clone(&object_store),
         )
         .await;
-        let catalog2 = test_helpers::create_host_catalog_with_table(
+        let catalog2 = test_helpers::create_writer_catalog_with_table(
             host2,
             "db1",
             "table1",
@@ -678,7 +679,7 @@ mod tests {
         )
         .await;
 
-        let catalog = CompactedCatalog::load_merged_from_hosts(
+        let catalog = CompactedCatalog::load_merged_from_writer_ids(
             compactor_id,
             vec![host1.into()],
             Arc::clone(&object_store),
@@ -689,7 +690,7 @@ mod tests {
         let marker = CatalogSnapshotMarker {
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             catalog_sequence_number: CatalogSequenceNumber::new(345),
-            host: "host-id".to_string(),
+            writer_id: "host-id".to_string(),
         };
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -708,7 +709,7 @@ mod tests {
             CompactionEvent::CatalogFetched(catalog_info) => match catalog_info {
                 CatalogFetched::Success(_) => panic!("cannot be success"),
                 CatalogFetched::Failed(failed_event_info) => {
-                    assert_eq!(Arc::from("host-id"), failed_event_info.host);
+                    assert_eq!(Arc::from("host-id"), failed_event_info.writer_id);
                     assert_eq!(123, failed_event_info.sequence_number);
                     assert_eq!("Field type mismatch on table table1 column tag1. Existing column is iox::column_type::tag but attempted to add iox::column_type::field::integer".to_string(),
                         failed_event_info.error);

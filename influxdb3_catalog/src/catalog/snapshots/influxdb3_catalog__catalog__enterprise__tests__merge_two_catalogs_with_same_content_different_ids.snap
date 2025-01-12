@@ -1,7 +1,6 @@
 ---
 source: influxdb3_catalog/src/catalog/enterprise.rs
 expression: a
-snapshot_kind: text
 ---
 databases:
   - - 0
@@ -44,7 +43,7 @@ databases:
       processing_engine_triggers: []
       deleted: false
 sequence: 1
-host_id: host-a
+writer_id: host-a
 instance_id: instance-a
 db_map:
   - db_id: 0

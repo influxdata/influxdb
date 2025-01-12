@@ -2,7 +2,6 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: catalog
-snapshot_kind: text
 ---
 {
   "databases": [
@@ -105,7 +104,7 @@ snapshot_kind: text
     ]
   ],
   "sequence": 0,
-  "host_id": "sample-host-id",
+  "writer_id": "sample-host-id",
   "instance_id": "instance-id",
   "db_map": []
 }

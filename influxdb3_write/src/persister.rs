@@ -84,19 +84,19 @@ pub struct Persister {
     /// The interface to the object store being used
     object_store: Arc<dyn ObjectStore>,
     /// Prefix used for all paths in the object store for this persister
-    host_identifier_prefix: String,
+    writer_identifier_prefix: String,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
 }
 
 impl Persister {
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
-        host_identifier_prefix: impl Into<String>,
+        writer_identifier_prefix: impl Into<String>,
     ) -> Self {
         Self {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
-            host_identifier_prefix: host_identifier_prefix.into(),
+            writer_identifier_prefix: writer_identifier_prefix.into(),
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
         }
     }
@@ -114,8 +114,8 @@ impl Persister {
     }
 
     /// Get the host identifier prefix
-    pub fn host_identifier_prefix(&self) -> &str {
-        &self.host_identifier_prefix
+    pub fn writer_identifier_prefix(&self) -> &str {
+        &self.writer_identifier_prefix
     }
 
     /// Try loading the catalog, if there is no catalog generate new
@@ -127,8 +127,10 @@ impl Persister {
                 let uuid = Uuid::new_v4().to_string();
                 let instance_id = Arc::from(uuid.as_str());
                 info!(instance_id = ?instance_id, "Catalog not found, creating new instance id");
-                let new_catalog =
-                    Catalog::new(Arc::from(self.host_identifier_prefix.as_str()), instance_id);
+                let new_catalog = Catalog::new(
+                    Arc::from(self.writer_identifier_prefix.as_str()),
+                    instance_id,
+                );
                 self.persist_catalog(&new_catalog).await?;
                 new_catalog
             }
@@ -142,7 +144,7 @@ impl Persister {
     pub async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
         let mut list = self
             .object_store
-            .list(Some(&CatalogFilePath::dir(&self.host_identifier_prefix)));
+            .list(Some(&CatalogFilePath::dir(&self.writer_identifier_prefix)));
         let mut catalog_path: Option<ObjPath> = None;
         while let Some(item) = list.next().await {
             let item = item?;
@@ -202,12 +204,12 @@ impl Persister {
 
             let mut snapshot_list = if let Some(offset) = offset {
                 self.object_store.list_with_offset(
-                    Some(&SnapshotInfoFilePath::dir(&self.host_identifier_prefix)),
+                    Some(&SnapshotInfoFilePath::dir(&self.writer_identifier_prefix)),
                     &offset,
                 )
             } else {
                 self.object_store.list(Some(&SnapshotInfoFilePath::dir(
-                    &self.host_identifier_prefix,
+                    &self.writer_identifier_prefix,
                 )))
             };
 
@@ -271,7 +273,7 @@ impl Persister {
     /// be the catalog that is returned the next time `load_catalog` is called.
     pub async fn persist_catalog(&self, catalog: &Catalog) -> Result<()> {
         let catalog_path = CatalogFilePath::new(
-            self.host_identifier_prefix.as_str(),
+            self.writer_identifier_prefix.as_str(),
             catalog.sequence_number(),
         );
         let json = serde_json::to_vec_pretty(&catalog)?;
@@ -280,7 +282,7 @@ impl Persister {
             .await?;
         // It's okay if this fails as it's just cleanup of the old catalog
         // a new persist will come in and clean the old one up.
-        let prefix = self.host_identifier_prefix.clone();
+        let prefix = self.writer_identifier_prefix.clone();
         let obj_store = Arc::clone(&self.object_store);
         tokio::spawn(async move {
             let mut items = Vec::new();
@@ -309,7 +311,7 @@ impl Persister {
     /// Persists the snapshot file
     pub async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
         let snapshot_file_path = SnapshotInfoFilePath::new(
-            self.host_identifier_prefix.as_str(),
+            self.writer_identifier_prefix.as_str(),
             persisted_snapshot.snapshot_sequence_number,
         );
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
@@ -456,12 +458,12 @@ mod tests {
 
     #[tokio::test]
     async fn persist_catalog() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
-        let catalog = Catalog::new(host_id, instance_id);
+        let catalog = Catalog::new(writer_id, instance_id);
         let _ = catalog.db_or_create("my_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
@@ -469,13 +471,13 @@ mod tests {
 
     #[tokio::test]
     async fn persist_catalog_with_cleanup() {
-        let host_id = Arc::from("sample-host-id");
+        let writer_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let prefix = test_helpers::tmp_dir().unwrap();
         let local_disk = LocalFileSystem::new_with_prefix(prefix).unwrap();
         let obj_store: Arc<dyn ObjectStore> = Arc::new(local_disk);
         let persister = Persister::new(Arc::clone(&obj_store), "test_host");
-        let catalog = Catalog::new(Arc::clone(&host_id), instance_id);
+        let catalog = Catalog::new(Arc::clone(&writer_id), instance_id);
         persister.persist_catalog(&catalog).await.unwrap();
         let db_schema = catalog.db_or_create("my_db_1").unwrap();
         persister.persist_catalog(&catalog).await.unwrap();
@@ -587,17 +589,17 @@ mod tests {
 
     #[tokio::test]
     async fn persist_and_load_newest_catalog() {
-        let host_id: Arc<str> = Arc::from("sample-host-id");
+        let writer_id: Arc<str> = Arc::from("sample-host-id");
         let instance_id: Arc<str> = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
-        let catalog = Catalog::new(host_id.clone(), instance_id.clone());
+        let catalog = Catalog::new(writer_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
 
-        let catalog = Catalog::new(host_id.clone(), instance_id.clone());
+        let catalog = Catalog::new(writer_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_second_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
@@ -620,7 +622,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            host_id: "test_host".to_string(),
+            writer_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -644,7 +646,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            host_id: "test_host".to_string(),
+            writer_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -659,7 +661,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_2 = PersistedSnapshot {
-            host_id: "test_host".to_string(),
+            writer_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -674,7 +676,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_3 = PersistedSnapshot {
-            host_id: "test_host".to_string(),
+            writer_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -710,7 +712,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host");
         let info_file = PersistedSnapshot {
-            host_id: "test_host".to_string(),
+            writer_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -739,7 +741,7 @@ mod tests {
         let persister = Persister::new(Arc::new(local_disk), "test_host");
         for id in 0..1001 {
             let info_file = PersistedSnapshot {
-                host_id: "test_host".to_string(),
+                writer_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
                 next_db_id: DbId::from(1),
                 next_table_id: TableId::from(1),
@@ -866,7 +868,7 @@ mod tests {
         ]
         .into();
         let snapshot = PersistedSnapshot {
-            host_id: "host".to_string(),
+            writer_id: "host".to_string(),
             next_file_id: ParquetFileId::new(),
             next_db_id: DbId::new(),
             next_table_id: TableId::new(),
@@ -971,7 +973,7 @@ mod tests {
             {
               "databases": [],
               "sequence": 0,
-              "host_id": "test_host",
+              "writer_id": "test_host",
               "instance_id": "24b1e1bf-b301-4101-affa-e3d668fe7d20",
               "db_map": [],
               "table_map": []

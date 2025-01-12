@@ -27,7 +27,7 @@ use tokio::sync::watch::Receiver;
 
 #[derive(Debug, Clone)]
 pub struct CompactorMode {
-    /// The compactor's catalog, which is the union of host catalogs being compacted
+    /// The compactor's catalog, which is the union of writer catalogs being compacted
     catalog: Arc<Catalog>,
 }
 

@@ -15,8 +15,8 @@ use std::sync::Arc;
 /// Errors
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("host {} is not getting tracked", .0)]
-    NotTrackingHost(String),
+    #[error("writer id {} is not getting tracked", .0)]
+    NotTrackingWriterId(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -239,7 +239,7 @@ fn compaction_for_level(
 
         // ensure we have at least one generation newer than this block to keep around. We want
         // to do this because we could have lagged data coming in, or another gen1 file coming
-        // in from another host. We don't want to compact too aggressively, otherwise we'll
+        // in from another writer. We don't want to compact too aggressively, otherwise we'll
         // end up redoing all that work.
         let gen_end_time = gen_time
             + compaction_config
@@ -274,7 +274,7 @@ fn compaction_for_level(
 /// This plan is what gets created when the only compaction to be done is with gen1 files
 /// that overlap with older generations (3+) or there aren't enough gen1 files to compact into a larger gen2 generation. In that case, we'll want to just update the
 /// `CompactionDetail` for the table with this information so that the historical compaction
-/// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 hosts.
+/// can be run later. For now, we want to advance the snapshot trackers of the upstream gen1 writers.
 #[derive(Debug)]
 pub(crate) struct LeftoverPlan {
     pub(crate) db_schema: Arc<DatabaseSchema>,

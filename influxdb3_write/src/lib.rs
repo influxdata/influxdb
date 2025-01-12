@@ -189,8 +189,8 @@ pub struct BufferedWriteRequest {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
-    /// The host identifier that persisted this snapshot
-    pub host_id: String,
+    /// The writer identifier that persisted this snapshot
+    pub writer_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
     /// The next db id to be used for databases when the snapshot is loaded
@@ -220,13 +220,13 @@ pub struct PersistedSnapshot {
 
 impl PersistedSnapshot {
     pub fn new(
-        host_id: String,
+        writer_id: String,
         snapshot_sequence_number: SnapshotSequenceNumber,
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog_sequence_number: CatalogSequenceNumber,
     ) -> Self {
         Self {
-            host_id,
+            writer_id,
             next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
             next_table_id: TableId::next_id(),
@@ -503,7 +503,7 @@ mod tests {
 
         // add dbs_1 to snapshot
         let persisted_snapshot_1 = PersistedSnapshot {
-            host_id: host.to_string(),
+            writer_id: host.to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -548,7 +548,7 @@ mod tests {
 
         // add dbs_2 to snapshot
         let persisted_snapshot_2 = PersistedSnapshot {
-            host_id: host.to_string(),
+            writer_id: host.to_string(),
             next_file_id: ParquetFileId::from(5),
             next_db_id: DbId::from(2),
             next_table_id: TableId::from(22),

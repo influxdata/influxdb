@@ -19,7 +19,7 @@ pub struct EnterpriseServeConfig {
     ///
     /// If the replica for any given host fails to initialize, the server will not start.
     #[clap(long = "replicas", env = "INFLUXDB3_ENTERPRISE_REPLICAS", action)]
-    pub replicas: Option<HostList>,
+    pub replicas: Option<WriterIdList>,
 
     /// The interval at which each replica specified in the `replicas` option will be replicated
     #[clap(
@@ -43,17 +43,19 @@ pub struct EnterpriseServeConfig {
     )]
     pub compactor_id: Option<Arc<str>>,
 
-    /// Comma-separated list of host identifier prefixes to compact data from.
+    /// Comma-separated list of writer identifier prefixes to compact data from.
     ///
-    /// The compactor will look for new snapshot files from each host in the list of
-    /// `compaction-hosts`. It will compact gen1 file from those hosts into a single compacted
-    /// view under the `compactor-id` prefix.
+    /// The compactor will look for new snapshot files from each writer in the list of
+    /// `compact-from-writer-ids`. It will compact gen1 file from those writers into a single
+    /// compacted view under the `compactor-id` prefix.
     #[clap(
-        long = "compaction-hosts",
-        env = "INFLUXDB3_ENTERPRISE_COMPACTION_HOSTS",
+        long = "compact-from-writer-ids",
+        // TODO: deprecate this alias
+        alias = "compaction-hosts",
+        env = "INFLUXDB3_ENTERPRISE_COMPACT_FROM_WRITER_IDS",
         action
     )]
-    pub compaction_hosts: Option<HostList>,
+    pub compact_from_writer_ids: Option<WriterIdList>,
 
     /// This tells the server to run compactions. Only a single server should ever be running
     /// compactions for a given compactor_id. All other servers can read from that compactor id
@@ -156,15 +158,15 @@ impl std::fmt::Display for BufferMode {
 }
 
 #[derive(Debug, Clone)]
-pub struct HostList(Vec<String>);
+pub struct WriterIdList(Vec<String>);
 
-impl From<HostList> for Vec<String> {
-    fn from(list: HostList) -> Self {
+impl From<WriterIdList> for Vec<String> {
+    fn from(list: WriterIdList) -> Self {
         list.0
     }
 }
 
-impl Deref for HostList {
+impl Deref for WriterIdList {
     type Target = Vec<String>;
 
     fn deref(&self) -> &Self::Target {
@@ -172,7 +174,7 @@ impl Deref for HostList {
     }
 }
 
-impl FromStr for HostList {
+impl FromStr for WriterIdList {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

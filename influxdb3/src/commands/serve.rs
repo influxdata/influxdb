@@ -148,8 +148,8 @@ pub enum Error {
     #[error("Error initializing compaction consumer: {0}")]
     CompactionConsumer(#[from] anyhow::Error),
 
-    #[error("Must have `compaction-hosts` specfied if running in compactor mode")]
-    CompactorModeWithoutHosts,
+    #[error("Must have `compact-from-writer-ids` specfied if running in compactor mode")]
+    CompactorModeWithoutWriterIds,
 
     #[error("IO Error occurred: {0}")]
     Io(#[from] std::io::Error),
@@ -320,10 +320,17 @@ pub struct Config {
     )]
     pub buffer_mem_limit_mb: usize,
 
-    /// The host idendifier used as a prefix in all object store file paths. This should be unique
-    /// for any hosts that share the same object store configuration, i.e., the same bucket.
-    #[clap(long = "host-id", env = "INFLUXDB3_HOST_IDENTIFIER_PREFIX", action)]
-    pub host_identifier_prefix: String,
+    /// The writer idendifier used as a prefix in all object store file paths. This should be unique
+    /// for any InfluxDB 3 Core servers that share the same object store configuration, i.e., the
+    /// same bucket.
+    #[clap(
+        long = "writer-id",
+        // TODO: deprecate this alias in future version
+        alias = "host-id",
+        env = "INFLUXDB3_WRITER_IDENTIFIER_PREFIX",
+        action
+    )]
+    pub writer_identifier_prefix: String,
 
     #[clap(flatten)]
     pub enterprise_config: influxdb3_enterprise_clap_blocks::serve::EnterpriseServeConfig,
@@ -403,8 +410,8 @@ pub struct Config {
     pub force_snapshot_mem_threshold: MemorySize,
 }
 
-/// The interval to check for new snapshots from hosts to compact data from. This will do an S3
-/// GET for every host in the replica list every interval.
+/// The interval to check for new snapshots from writers to compact data from. This will do an S3
+/// GET for every writer in the replica list every interval.
 const COMPACTION_CHECK_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -470,7 +477,7 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        host_id = %config.host_identifier_prefix,
+        writer_id = %config.writer_identifier_prefix,
         mode = %config.enterprise_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
@@ -565,7 +572,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.host_identifier_prefix.clone(),
+        config.writer_identifier_prefix.clone(),
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -586,7 +593,7 @@ pub async fn command(config: Config) -> Result<()> {
     {
         load_and_validate_license(
             Arc::clone(&object_store),
-            config.host_identifier_prefix.clone(),
+            config.writer_identifier_prefix.clone(),
             catalog.instance_id(),
         )
         .await?;
@@ -598,7 +605,7 @@ pub async fn command(config: Config) -> Result<()> {
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
             let config = EnterpriseConfig::default();
-            config.persist(catalog.host_id(), &object_store).await?;
+            config.persist(catalog.writer_id(), &object_store).await?;
             Arc::new(RwLock::new(EnterpriseConfig::default()))
         }
         Err(err) => return Err(err.into()),
@@ -636,23 +643,25 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let hosts = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
-                if let Some(compaction_hosts) = &config.enterprise_config.compaction_hosts {
-                    compaction_hosts.to_vec()
+            let writer_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
+                if let Some(compact_from_writer_ids) =
+                    &config.enterprise_config.compact_from_writer_ids
+                {
+                    compact_from_writer_ids.to_vec()
                 } else {
-                    return Err(Error::CompactorModeWithoutHosts);
+                    return Err(Error::CompactorModeWithoutWriterIds);
                 }
             } else {
-                let mut hosts = vec![config.host_identifier_prefix.clone()];
+                let mut writer_ids = vec![config.writer_identifier_prefix.clone()];
                 if let Some(replicas) = &config.enterprise_config.replicas {
-                    hosts.extend(replicas.iter().cloned());
+                    writer_ids.extend(replicas.iter().cloned());
                 }
-                hosts
+                writer_ids
             };
 
             let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
                 compactor_id,
-                hosts,
+                writer_ids,
                 compaction_config,
                 enterprise_config: Arc::clone(&enterprise_config),
                 datafusion_config: compactor_datafusion_config,
@@ -722,7 +731,10 @@ pub async fn command(config: Config) -> Result<()> {
     let (write_buffer, persisted_files, write_buffer_impl): CreateBufferModeResult =
         match config.enterprise_config.mode {
             BufferMode::Read => {
-                let ReplicationConfig { interval, hosts } = replica_config
+                let ReplicationConfig {
+                    interval,
+                    writer_ids,
+                } = replica_config
                     .context("must supply a replicas list when starting in read-only mode")
                     .map_err(Error::WriteBufferInit)?;
                 (
@@ -734,7 +746,7 @@ pub async fn command(config: Config) -> Result<()> {
                             catalog: Arc::clone(&catalog),
                             metric_registry: Arc::clone(&metrics),
                             replication_interval: interval,
-                            hosts,
+                            writer_ids,
                             parquet_cache: parquet_cache.clone(),
                             compacted_data: compacted_data.clone(),
                             time_provider: Arc::<SystemProvider>::clone(&time_provider),
@@ -749,7 +761,7 @@ pub async fn command(config: Config) -> Result<()> {
             BufferMode::ReadWrite => {
                 let buf = Arc::new(
                     WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-                        host_id: persister.host_identifier_prefix().into(),
+                        writer_id: persister.writer_identifier_prefix().into(),
                         persister: Arc::clone(&persister),
                         catalog: Arc::clone(&catalog),
                         last_cache,
@@ -940,10 +952,10 @@ async fn background_buffer_checker(
 #[cfg(not(feature = "no_license"))]
 async fn load_and_validate_license(
     object_store: Arc<dyn ObjectStore>,
-    host_id: String,
+    writer_id: String,
     instance_id: Arc<str>,
 ) -> Result<()> {
-    let license_path: ObjPath = format!("{host_id}/license").into();
+    let license_path: ObjPath = format!("{writer_id}/license").into();
     let license = match object_store.get(&license_path).await {
         Ok(get_result) => get_result.bytes().await?,
         // The license does not exist so we need to create one
@@ -971,7 +983,7 @@ async fn load_and_validate_license(
 
             let client = reqwest::Client::new();
             let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&host-id={host_id}"))
+                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&host-id={writer_id}"))
             .send()
             .await?;
 
@@ -1043,14 +1055,14 @@ async fn load_and_validate_license(
     {
         error!("License is expired please acquire a new one. Queries will be disabled");
         influxdb3_server::EXPIRED_LICENSE.store(true, std::sync::atomic::Ordering::Relaxed);
-    } else if host_id != claims.host_id {
-        eprintln!("Invalid host_id for license");
+    } else if writer_id != claims.writer_id {
+        eprintln!("Invalid writer_id for license");
         std::process::exit(1);
     }
 
     async fn recurring_license_validation_check(
         mut claims: Claims,
-        host_id: String,
+        writer_id: String,
         license_path: ObjPath,
         object_store: Arc<dyn ObjectStore>,
     ) {
@@ -1090,8 +1102,8 @@ async fn load_and_validate_license(
                 > claims.license_exp
             {
                 EXPIRED_LICENSE.store(true, Ordering::Relaxed);
-            } else if host_id != claims.host_id {
-                error!("Invalid host_id for license. Aborting process.");
+            } else if writer_id != claims.writer_id {
+                error!("Invalid writer_id for license. Aborting process.");
                 std::process::exit(1);
             } else {
                 EXPIRED_LICENSE.store(false, Ordering::Relaxed);
@@ -1100,7 +1112,7 @@ async fn load_and_validate_license(
     }
     tokio::task::spawn(recurring_license_validation_check(
         claims,
-        host_id,
+        writer_id,
         license_path,
         object_store,
     ));
@@ -1113,7 +1125,7 @@ async fn load_and_validate_license(
 struct Claims {
     email: String,
     exp: u64,
-    host_id: String,
+    writer_id: String,
     iat: u64,
     instance_id: String,
     iss: String,
