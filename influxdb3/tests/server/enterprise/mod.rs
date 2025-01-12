@@ -12,7 +12,7 @@ mod replicas;
 pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
     writer_id: Option<String>,
-    replicas: Vec<String>,
+    read_from_writer_ids: Vec<String>,
     compact_from_writer_ids: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<BufferMode>,
@@ -35,8 +35,11 @@ impl ConfigProvider for TestConfigEnterprise {
         if let Some(mode) = self.mode {
             args.append(&mut vec!["--mode".to_string(), mode.to_string()]);
         }
-        if !self.replicas.is_empty() {
-            args.append(&mut vec!["--replicas".to_string(), self.replicas.join(",")])
+        if !self.read_from_writer_ids.is_empty() {
+            args.append(&mut vec![
+                "--read-from-writer-ids".to_string(),
+                self.read_from_writer_ids.join(","),
+            ])
         }
         if !self.compact_from_writer_ids.is_empty() {
             args.append(&mut vec![
@@ -108,8 +111,12 @@ impl TestConfigEnterprise {
     }
 
     /// Give a set of host identifier prefixes to be replicated by this server
-    pub fn with_replicas(mut self, replicas: impl IntoIterator<Item: Into<String>>) -> Self {
-        self.replicas.extend(replicas.into_iter().map(Into::into));
+    pub fn with_read_from_writer_ids(
+        mut self,
+        read_from_writer_ids: impl IntoIterator<Item: Into<String>>,
+    ) -> Self {
+        self.read_from_writer_ids
+            .extend(read_from_writer_ids.into_iter().map(Into::into));
         self
     }
 
