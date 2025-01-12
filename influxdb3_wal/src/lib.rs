@@ -675,7 +675,7 @@ pub struct DistinctCacheDelete {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PluginDefinition {
     pub plugin_name: String,
-    pub code: String,
+    pub file_name: String,
     pub plugin_type: PluginType,
 }
 
@@ -694,11 +694,10 @@ pub enum PluginType {
 pub struct TriggerDefinition {
     pub trigger_name: String,
     pub plugin_name: String,
+    pub plugin_file_name: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_arguments: Option<HashMap<String, String>>,
-    // TODO: decide whether this should be populated from a reference rather than stored on its own.
-    pub plugin: PluginDefinition,
     pub disabled: bool,
 }
 

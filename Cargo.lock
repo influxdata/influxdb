@@ -3180,6 +3180,7 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "pyo3",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
 ]

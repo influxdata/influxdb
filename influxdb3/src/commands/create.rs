@@ -13,7 +13,6 @@ use secrecy::Secret;
 use sha2::Digest;
 use sha2::Sha512;
 use std::error::Error;
-use std::fs;
 use std::num::NonZeroUsize;
 use std::str;
 use std::time::Duration;
@@ -233,9 +232,9 @@ pub struct DistinctCacheConfig {
 pub struct PluginConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
-    /// Python file containing the plugin code
-    #[clap(long = "code-filename")]
-    code_file: String,
+    /// Python file name of the file on the server's plugin-dir containing the plugin code
+    #[clap(long = "filename")]
+    file_name: String,
     /// Type of trigger the plugin processes. Options: wal_rows, scheduled
     #[clap(long = "plugin-type", default_value = "wal_rows")]
     plugin_type: String,
@@ -374,15 +373,14 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Plugin(PluginConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             plugin_name,
-            code_file,
+            file_name,
             plugin_type,
         }) => {
-            let code = fs::read_to_string(&code_file)?;
             client
                 .api_v3_configure_processing_engine_plugin_create(
                     database_name,
                     &plugin_name,
-                    code,
+                    file_name,
                     plugin_type,
                 )
                 .await?;
