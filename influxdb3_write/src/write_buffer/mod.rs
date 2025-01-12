@@ -166,6 +166,7 @@ pub struct WriteBufferImplArgs {
     pub wal_config: WalConfig,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub metric_registry: Arc<Registry>,
+    pub snapshotted_wal_files_to_keep: u64,
 }
 
 impl WriteBufferImpl {
@@ -180,6 +181,7 @@ impl WriteBufferImpl {
             wal_config,
             parquet_cache,
             metric_registry,
+            snapshotted_wal_files_to_keep,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -223,6 +225,7 @@ impl WriteBufferImpl {
             wal_config,
             last_wal_sequence_number,
             last_snapshot_sequence_number,
+            snapshotted_wal_files_to_keep,
         )
         .await?;
 
@@ -937,6 +940,7 @@ mod tests {
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap();
@@ -1023,6 +1027,7 @@ mod tests {
             },
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap();
@@ -1091,6 +1096,7 @@ mod tests {
                 },
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
+                snapshotted_wal_files_to_keep: 10,
             })
             .await
             .unwrap()
@@ -1320,6 +1326,7 @@ mod tests {
             },
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap();
@@ -2607,6 +2614,7 @@ mod tests {
             wal_config,
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap();

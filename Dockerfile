@@ -1,12 +1,12 @@
 #syntax=docker/dockerfile:1.2
-ARG RUST_VERSION=$RUST_VERSION
+ARG RUST_VERSION=1.84
 FROM rust:${RUST_VERSION}-slim-bookworm as build
 
 # cache mounts below may already exist and owned by root
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler openssh-client \
+    && apt install --yes binutils build-essential pkg-config libssl-dev clang lld git protobuf-compiler openssh-client python3 python3-dev python3-pip \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -18,7 +18,7 @@ WORKDIR /influxdb3
 ARG CARGO_INCREMENTAL=yes
 ARG CARGO_NET_GIT_FETCH_WITH_CLI=false
 ARG PROFILE=release
-ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc
+ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc,system-py
 ARG PACKAGE=influxdb3
 ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
     CARGO_NET_GIT_FETCH_WITH_CLI=$CARGO_NET_GIT_FETCH_WITH_CLI \
@@ -42,7 +42,7 @@ RUN \
 FROM debian:bookworm-slim
 
 RUN apt update \
-    && apt install --yes ca-certificates gettext-base libssl3 --no-install-recommends \
+    && apt install --yes ca-certificates gettext-base libssl3 python3 python3-dev python3-pip --no-install-recommends \
     && rm -rf /var/lib/{apt,dpkg,cache,log} \
     && groupadd --gid 1500 influxdb3 \
     && useradd --uid 1500 --gid influxdb3 --shell /bin/bash --create-home influxdb3

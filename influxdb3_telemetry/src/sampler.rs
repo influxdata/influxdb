@@ -103,7 +103,7 @@ fn sample_all_metrics(sampler: &mut CpuAndMemorySampler, store: &Arc<TelemetrySt
     } else {
         debug!("Cannot get cpu/mem usage stats for this process");
     }
-    store.rollup_events();
+    store.rollup_events_1m();
 }
 
 #[cfg(test)]

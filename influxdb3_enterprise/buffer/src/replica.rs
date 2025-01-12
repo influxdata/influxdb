@@ -40,7 +40,6 @@ use object_store::{path::Path, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
 use schema::Schema;
-use tokio::sync::Mutex;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
@@ -244,7 +243,6 @@ pub(crate) struct ReplicatedBuffer {
     object_store_url: ObjectStoreUrl,
     object_store: Arc<dyn ObjectStore>,
     host_identifier_prefix: String,
-    last_wal_file_sequence_number: Mutex<Option<WalFileSequenceNumber>>,
     buffer: Arc<RwLock<BufferState>>,
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
@@ -392,11 +390,9 @@ impl ReplicatedBuffer {
             .into_iter()
             .map(|snapshot| replica_catalog.map_snapshot_contents(snapshot))
             .collect::<Result<Vec<_>>>()?;
-        let last_wal_file_sequence_number = Mutex::new(
-            persisted_snapshots
-                .first()
-                .map(|snapshot| snapshot.wal_file_sequence_number),
-        );
+        let last_snapshotted_wal_file_sequence_number = persisted_snapshots
+            .first()
+            .map(|snapshot| snapshot.wal_file_sequence_number);
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             persisted_snapshots,
         ));
@@ -405,7 +401,6 @@ impl ReplicatedBuffer {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
             host_identifier_prefix,
-            last_wal_file_sequence_number,
             buffer,
             persisted_files,
             last_cache,
@@ -416,9 +411,15 @@ impl ReplicatedBuffer {
             time_provider,
             wal,
         };
-        let _ = replicated_buffer.replay().await?;
+        let last_wal_file_sequence_number = replicated_buffer
+            .replay(last_snapshotted_wal_file_sequence_number)
+            .await?;
         let replicated_buffer = Arc::new(replicated_buffer);
-        background_replication_interval(Arc::clone(&replicated_buffer), replication_interval);
+        background_replication_interval(
+            Arc::clone(&replicated_buffer),
+            last_wal_file_sequence_number,
+            replication_interval,
+        );
 
         Ok(replicated_buffer)
     }
@@ -568,8 +569,13 @@ impl ReplicatedBuffer {
     /// Replay the WAL of the replicated host to catch up
     ///
     /// Returns `true` if any WAL files were replayed
-    async fn replay(&self) -> Result<bool> {
-        let paths = self.load_existing_wal_paths().await?;
+    async fn replay(
+        &self,
+        last_snapshotted_wal_file_sequence_number: Option<WalFileSequenceNumber>,
+    ) -> Result<Option<WalFileSequenceNumber>> {
+        let paths = self
+            .load_existing_wal_paths(last_snapshotted_wal_file_sequence_number)
+            .await?;
         let last_path = paths.last().cloned();
         // track some information about the paths loaded for this replicated host
         info!(
@@ -604,20 +610,18 @@ impl ReplicatedBuffer {
             );
         }
 
-        if let Some(path) = last_path {
-            let wal_number =
-                WalFileSequenceNumber::try_from(&path).context("invalid wal file path")?;
-            self.last_wal_file_sequence_number
-                .lock()
-                .await
-                .replace(wal_number);
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        last_path
+            .as_ref()
+            .map(WalFileSequenceNumber::try_from)
+            .transpose()
+            .context("invalid wal file path")
+            .map_err(Into::into)
     }
 
-    async fn load_existing_wal_paths(&self) -> Result<Vec<Path>> {
+    async fn load_existing_wal_paths(
+        &self,
+        last_snapshotted_wal_file_sequence_number: Option<WalFileSequenceNumber>,
+    ) -> Result<Vec<Path>> {
         let mut paths = vec![];
         let mut offset: Option<Path> = None;
         let path = Path::from(format!("{host}/wal", host = self.host_identifier_prefix));
@@ -639,6 +643,12 @@ impl ReplicatedBuffer {
             paths.sort();
             offset = Some(paths.last().unwrap().clone());
         }
+
+        if let Some(last_wal_number) = last_snapshotted_wal_file_sequence_number {
+            let last_wal_path = wal_path(&self.host_identifier_prefix, last_wal_number);
+            paths.retain(|path| path > &last_wal_path);
+        }
+
         paths.sort();
 
         Ok(paths)
@@ -951,6 +961,7 @@ async fn cache_parquet_from_snapshot(
 
 fn background_replication_interval(
     replicated_buffer: Arc<ReplicatedBuffer>,
+    mut last_wal_file_sequence_number: Option<WalFileSequenceNumber>,
     interval: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -961,8 +972,7 @@ fn background_replication_interval(
             interval.tick().await;
 
             // try to fetch new WAL files and buffer them...
-            let mut last_wal_number = replicated_buffer.last_wal_file_sequence_number.lock().await;
-            if let Some(mut wal_number) = *last_wal_number {
+            if let Some(mut wal_number) = last_wal_file_sequence_number {
                 // Fetch WAL files until a NOT FOUND is encountered or other error:
                 'inner: loop {
                     wal_number = wal_number.next();
@@ -1000,7 +1010,7 @@ fn background_replication_interval(
                                 wal_file_path = %wal_path,
                                 "replayed wal file"
                             );
-                            last_wal_number.replace(wal_number);
+                            last_wal_file_sequence_number.replace(wal_number);
                             // Don't break the inner loop here, since we want to try for more
                             // WAL files if they exist...
                         }
@@ -1017,30 +1027,26 @@ fn background_replication_interval(
                 }
             } else {
                 // If we don't have a last WAL file, we don't know what WAL number to fetch yet, so
-                // need to rely on replay to get that. In this case, we need to drop the lock to
-                // prevent a deadlock:
-                drop(last_wal_number);
-                match replicated_buffer.replay().await {
-                    Ok(did_replay) => {
-                        // If nothing was replayed, then it could mean that the target host ran a snapshot
-                        // before the replica could replicate its WAL files. There would then be an updated
-                        // catalog and snapshot files that the replica can initialize from, so we try to
-                        // reload those before replaying again on the next loop.
-                        //
-                        // TODO - this may change if we make it so the primary buffers always leave some
-                        //        WAL files behind...
-                        if !did_replay {
-                            if let Err(error) =
-                                replicated_buffer.reload_snapshots_and_catalog().await
-                            {
-                                error!(
-                                    %error,
-                                    from_host = replicated_buffer.host_identifier_prefix,
-                                    "failed to reload snapshots and catalog for replicated host"
-                                );
-                            }
+                // need to rely on replay to get that.
+                match replicated_buffer
+                    .replay(last_wal_file_sequence_number)
+                    .await
+                {
+                    Ok(Some(new_last_wal_number)) => {
+                        last_wal_file_sequence_number.replace(new_last_wal_number);
+                    }
+                    Ok(None) => {
+                        // if nothing was replayed, for whatever reason, we try to do the initial
+                        // snapshot and catalog load again...
+                        if let Err(error) = replicated_buffer.reload_snapshots_and_catalog().await {
+                            error!(
+                                %error,
+                                from_host = replicated_buffer.host_identifier_prefix,
+                                "failed to reload snapshots and catalog for replicated host"
+                            );
                         }
                     }
+
                     Err(error) => {
                         error!(
                             %error,
@@ -1098,7 +1104,6 @@ mod tests {
     // TODO - this needs to be addressed, see:
     // https://github.com/influxdata/influxdb_pro/issues/375
     #[test_log::test(tokio::test)]
-    #[ignore = "see comment"]
     async fn replay_and_replicate_other_wal() {
         // Spin up a primary write buffer to do some writes and generate files in an object store:
         let primary_id = "espresso";
@@ -2719,6 +2724,7 @@ mod tests {
             wal_config,
             parquet_cache: None,
             metric_registry,
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap()

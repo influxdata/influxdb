@@ -105,6 +105,7 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                         plugin_name: plugin.plugin_name.to_string(),
                         plugin,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
+                        trigger_arguments: trigger.trigger_arguments,
                         disabled: trigger.disabled,
                         database_name: trigger.database_name,
                     },
@@ -173,6 +174,7 @@ struct ProcessingEngineTriggerSnapshot {
     pub plugin_name: String,
     pub database_name: String,
     pub trigger_specification: String,
+    pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
 
@@ -436,6 +438,7 @@ impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
             database_name: trigger.database_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
+            trigger_arguments: trigger.trigger_arguments.clone(),
             disabled: trigger.disabled,
         }
     }

@@ -55,6 +55,7 @@ pub struct CreateReadWriteModeArgs {
     pub replication_config: Option<ReplicationConfig>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
+    pub snapshotted_wal_files_to_keep: u64,
 }
 
 impl ReadWriteMode {
@@ -72,6 +73,7 @@ impl ReadWriteMode {
             replication_config,
             parquet_cache,
             compacted_data,
+            snapshotted_wal_files_to_keep,
         }: CreateReadWriteModeArgs,
     ) -> Result<Self, anyhow::Error> {
         let object_store = persister.object_store();
@@ -85,6 +87,7 @@ impl ReadWriteMode {
             wal_config,
             parquet_cache: parquet_cache.clone(),
             metric_registry: Arc::clone(&metric_registry),
+            snapshotted_wal_files_to_keep,
         })
         .await?;
 

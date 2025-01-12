@@ -146,55 +146,16 @@ impl QueryExecutor for QueryExecutorImpl {
                 db_name: database.to_string(),
             })?;
 
-        let params = params.unwrap_or_default();
-
-        let token = db.record_query(
-            external_span_ctx.as_ref().map(RequestLogContext::ctx),
-            kind.query_type(),
-            Box::new(query.to_string()),
-            params.clone(),
-        );
-
-        // NOTE - we use the default query configuration on the IOxSessionContext here:
-        let ctx = db.new_query_context(span_ctx, Default::default());
-        let planner = Planner::new(&ctx);
-        let query = query.to_string();
-
-        // Perform query planning on a separate threadpool than the IO runtime that is servicing
-        // this request by using `IOxSessionContext::run`.
-        let plan = ctx
-            .run(async move {
-                match kind {
-                    QueryKind::Sql => planner.sql(query, params).await,
-                    QueryKind::InfluxQl => planner.influxql(query, params).await,
-                }
-            })
-            .await;
-
-        let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
-            Ok(plan) => plan,
-            Err(e) => {
-                token.fail();
-                return Err(e);
-            }
-        };
-        let token = token.planned(&ctx, Arc::clone(&plan));
-
-        // TODO: Enforce concurrency limit here
-        let token = token.permit();
-
-        self.telemetry_store.update_num_queries();
-
-        match ctx.execute_stream(Arc::clone(&plan)).await {
-            Ok(query_results) => {
-                token.success();
-                Ok(query_results)
-            }
-            Err(err) => {
-                token.fail();
-                Err(QueryExecutorError::ExecuteStream(err))
-            }
-        }
+        query_database(
+            db,
+            query,
+            params,
+            kind,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.telemetry_store),
+        )
+        .await
     }
 
     fn show_databases(
@@ -281,6 +242,66 @@ impl QueryExecutor for QueryExecutorImpl {
         //           grpc setup in `make_flight_server`
         let cloned_self = (*self).clone();
         Arc::new(cloned_self) as _
+    }
+}
+
+async fn query_database(
+    db: Arc<dyn QueryNamespace>,
+    query: &str,
+    params: Option<StatementParams>,
+    kind: QueryKind,
+    span_ctx: Option<SpanContext>,
+    external_span_ctx: Option<RequestLogContext>,
+    telemetry_store: Arc<TelemetryStore>,
+) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+    let params = params.unwrap_or_default();
+
+    let token = db.record_query(
+        external_span_ctx.as_ref().map(RequestLogContext::ctx),
+        kind.query_type(),
+        Box::new(query.to_string()),
+        params.clone(),
+    );
+
+    // NOTE - we use the default query configuration on the IOxSessionContext here:
+    let ctx = db.new_query_context(span_ctx, Default::default());
+    let planner = Planner::new(&ctx);
+    let query = query.to_string();
+
+    // Perform query planning on a separate threadpool than the IO runtime that is servicing
+    // this request by using `IOxSessionContext::run`.
+    let plan = ctx
+        .run(async move {
+            match kind {
+                QueryKind::Sql => planner.sql(query, params).await,
+                QueryKind::InfluxQl => planner.influxql(query, params).await,
+            }
+        })
+        .await;
+
+    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
+        Ok(plan) => plan,
+        Err(e) => {
+            token.fail();
+            return Err(e);
+        }
+    };
+    let token = token.planned(&ctx, Arc::clone(&plan));
+
+    // TODO: Enforce concurrency limit here
+    let token = token.permit();
+
+    telemetry_store.update_num_queries();
+
+    match ctx.execute_stream(Arc::clone(&plan)).await {
+        Ok(query_results) => {
+            token.success();
+            Ok(query_results)
+        }
+        Err(err) => {
+            token.fail();
+            Err(QueryExecutorError::ExecuteStream(err))
+        }
     }
 }
 
@@ -396,6 +417,16 @@ pub struct CreateDatabaseArgs {
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     sys_events_store: Arc<SysEventStore>,
+}
+
+async fn acquire_semaphore(
+    semaphore: Arc<InstrumentedAsyncSemaphore>,
+    span: Option<Span>,
+) -> InstrumentedAsyncOwnedSemaphorePermit {
+    semaphore
+        .acquire_owned(span)
+        .await
+        .expect("Semaphore should not be closed by anyone")
 }
 
 #[derive(Debug, Clone)]
@@ -658,76 +689,6 @@ impl TableProvider for QueryTable {
     }
 }
 
-async fn query_database(
-    db: Arc<dyn QueryNamespace>,
-    query: &str,
-    params: Option<StatementParams>,
-    kind: QueryKind,
-    span_ctx: Option<SpanContext>,
-    external_span_ctx: Option<RequestLogContext>,
-    telemetry_store: Arc<TelemetryStore>,
-) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-    let params = params.unwrap_or_default();
-
-    let token = db.record_query(
-        external_span_ctx.as_ref().map(RequestLogContext::ctx),
-        kind.query_type(),
-        Box::new(query.to_string()),
-        params.clone(),
-    );
-
-    // NOTE - we use the default query configuration on the IOxSessionContext here:
-    let ctx = db.new_query_context(span_ctx, Default::default());
-    let planner = Planner::new(&ctx);
-    let query = query.to_string();
-
-    // Perform query planning on a separate threadpool than the IO runtime that is servicing
-    // this request by using `IOxSessionContext::run`.
-    let plan = ctx
-        .run(async move {
-            match kind {
-                QueryKind::Sql => planner.sql(query, params).await,
-                QueryKind::InfluxQl => planner.influxql(query, params).await,
-            }
-        })
-        .await;
-
-    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
-        Ok(plan) => plan,
-        Err(e) => {
-            token.fail();
-            return Err(e);
-        }
-    };
-    let token = token.planned(&ctx, Arc::clone(&plan));
-
-    // TODO: Enforce concurrency limit here
-    let token = token.permit();
-
-    telemetry_store.update_num_queries();
-
-    match ctx.execute_stream(Arc::clone(&plan)).await {
-        Ok(query_results) => {
-            token.success();
-            Ok(query_results)
-        }
-        Err(err) => {
-            token.fail();
-            Err(QueryExecutorError::ExecuteStream(err))
-        }
-    }
-}
-
-async fn acquire_semaphore(
-    semaphore: Arc<InstrumentedAsyncSemaphore>,
-    span: Option<Span>,
-) -> InstrumentedAsyncOwnedSemaphorePermit {
-    semaphore
-        .acquire_owned(span)
-        .await
-        .expect("Semaphore should not be closed by anyone")
-}
-
 #[cfg(test)]
 mod tests {
     use std::{num::NonZeroUsize, sync::Arc, time::Duration};
@@ -872,6 +833,7 @@ mod tests {
             },
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
+            snapshotted_wal_files_to_keep: 1,
         })
         .await
         .unwrap();

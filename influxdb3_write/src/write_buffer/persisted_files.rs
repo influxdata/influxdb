@@ -26,14 +26,6 @@ impl PersistedFiles {
         }
     }
 
-    /// Add a file to the list of persisted files
-    pub fn add_file(&self, db_id: DbId, table_id: TableId, file: ParquetFile) {
-        let mut inner = self.inner.write();
-        let tables = inner.files.entry(db_id).or_default();
-        let table_files = tables.entry(table_id).or_default();
-        table_files.push(file);
-    }
-
     /// Add all files from a persisted snapshot
     pub fn add_persisted_snapshot_files(&self, persisted_snapshot: PersistedSnapshot) {
         let mut inner = self.inner.write();

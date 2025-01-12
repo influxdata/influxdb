@@ -10,12 +10,15 @@ use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestRe
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
-    PluginType, TriggerDefinition, TriggerIdentifier, TriggerSpecificationDefinition, Wal,
-    WalContents, WalOp,
+    PluginType, SnapshotDetails, TriggerDefinition, TriggerIdentifier,
+    TriggerSpecificationDefinition, Wal, WalContents, WalFileNotifier, WalOp,
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
+use observability_deps::tracing::warn;
+use std::any::Any;
 use std::sync::Arc;
+use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 pub mod manager;
@@ -62,6 +65,19 @@ impl PluginChannels {
             .or_default()
             .insert(trigger, tx);
         rx
+    }
+
+    async fn send_wal_contents(&self, wal_contents: Arc<WalContents>) {
+        for (db, trigger_map) in &self.active_triggers {
+            for (trigger, sender) in trigger_map {
+                if let Err(e) = sender
+                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
+                    .await
+                {
+                    warn!(%e, %db, ?trigger, "error sending wal contents to plugin");
+                }
+            }
+        }
     }
 }
 
@@ -159,6 +175,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         trigger_name: String,
         plugin_name: String,
         trigger_specification: TriggerSpecificationDefinition,
+        trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<(), ProcessingEngineError> {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
@@ -176,6 +193,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             plugin_name,
             plugin: plugin.clone(),
             trigger: trigger_specification,
+            trigger_arguments,
             disabled,
             database_name: db_name.to_string(),
         });
@@ -217,14 +235,14 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         // Do this first to avoid a dangling running plugin.
         // Potential edge-case of a plugin being stopped but not deleted,
         // but should be okay given desire to force delete.
-        let needs_deactivate = force
+        let needs_disable = force
             && db_schema
                 .processing_engine_triggers
                 .get(trigger_name)
                 .is_some_and(|trigger| !trigger.disabled);
 
-        if needs_deactivate {
-            self.deactivate_trigger(db, trigger_name).await?;
+        if needs_disable {
+            self.disable_trigger(db, trigger_name).await?;
         }
 
         if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
@@ -275,7 +293,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn deactivate_trigger(
+    async fn disable_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
@@ -318,7 +336,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn activate_trigger(
+    async fn enable_trigger(
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
@@ -388,6 +406,32 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Err(plugins::Error::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
+    }
+}
+
+#[async_trait::async_trait]
+impl WalFileNotifier for ProcessingEngineManagerImpl {
+    async fn notify(&self, write: Arc<WalContents>) {
+        let plugin_channels = self.plugin_event_tx.lock().await;
+        plugin_channels.send_wal_contents(write).await;
+    }
+
+    async fn notify_and_snapshot(
+        &self,
+        write: Arc<WalContents>,
+        snapshot_details: SnapshotDetails,
+    ) -> Receiver<SnapshotDetails> {
+        let plugin_channels = self.plugin_event_tx.lock().await;
+        plugin_channels.send_wal_contents(write).await;
+
+        // configure a reciever that we immediately close
+        let (tx, rx) = oneshot::channel();
+        tx.send(snapshot_details).ok();
+        rx
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -585,6 +629,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             false,
         )
         .await
@@ -645,6 +690,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             false,
         )
         .await
@@ -659,8 +705,8 @@ mod tests {
         .await
         .unwrap();
 
-        // Deactivate the trigger
-        let result = pem.deactivate_trigger("foo", "test_trigger").await;
+        // Disable the trigger
+        let result = pem.disable_trigger("foo", "test_trigger").await;
         assert!(result.is_ok());
 
         // Verify trigger is disabled in schema
@@ -671,9 +717,9 @@ mod tests {
             .unwrap();
         assert!(trigger.disabled);
 
-        // Activate the trigger
+        // Enable the trigger
         let result = pem
-            .activate_trigger(
+            .enable_trigger(
                 Arc::clone(&write_buffer),
                 Arc::clone(&pem._query_executor),
                 "foo",
@@ -731,6 +777,7 @@ mod tests {
             "test_trigger".to_string(),
             "test_plugin".to_string(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
+            None,
             true,
         )
         .await
@@ -750,7 +797,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_activate_nonexistent_trigger() -> influxdb3_write::write_buffer::Result<()> {
+    async fn test_enable_nonexistent_trigger() -> influxdb3_write::write_buffer::Result<()> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
         let wal_config = WalConfig {
@@ -775,7 +822,7 @@ mod tests {
             .await?;
 
         let result = pem
-            .activate_trigger(
+            .enable_trigger(
                 Arc::clone(&write_buffer),
                 Arc::clone(&pem._query_executor),
                 "foo",
@@ -818,6 +865,7 @@ mod tests {
             wal_config,
             parquet_cache: None,
             metric_registry: Arc::clone(&metric_registry),
+            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .unwrap();

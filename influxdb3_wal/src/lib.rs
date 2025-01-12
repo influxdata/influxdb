@@ -112,6 +112,12 @@ pub trait Wal: Debug + Send + Sync + 'static {
 
     /// Stop all writes to the WAL and flush the buffer to a WAL file.
     async fn shutdown(&self);
+
+    /// Adds a new file notifier listener to the WAL (for use by the processing engine). The WAL
+    /// will send new file notifications to the listener, but ignore any snapshot receiver.
+    /// Only the notifier passed in the WAL constructor should be used for snapshots (i.e. the
+    /// `QueryableBuffer`).
+    fn add_file_notifier(&self, notifier: Arc<dyn WalFileNotifier>);
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -161,6 +167,8 @@ impl Wal for NoopWal {
     async fn last_snapshot_sequence_number(&self) -> SnapshotSequenceNumber {
         panic!("no-op wal does not track snapshot sequence number")
     }
+
+    fn add_file_notifier(&self, _notifier: Arc<dyn WalFileNotifier>) {}
 
     async fn shutdown(&self) {}
 }
@@ -688,6 +696,7 @@ pub struct TriggerDefinition {
     pub plugin_name: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
+    pub trigger_arguments: Option<HashMap<String, String>>,
     // TODO: decide whether this should be populated from a reference rather than stored on its own.
     pub plugin: PluginDefinition,
     pub disabled: bool,

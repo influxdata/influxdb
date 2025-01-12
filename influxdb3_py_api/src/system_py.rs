@@ -5,6 +5,7 @@ use arrow_array::{
 };
 use arrow_schema::DataType;
 use futures::TryStreamExt;
+use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
@@ -17,7 +18,6 @@ use pyo3::types::{PyDict, PyList};
 use pyo3::{
     pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyObject, PyResult, Python,
 };
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::Arc;
 
@@ -116,10 +116,10 @@ impl PyPluginCallApi {
     }
 
     #[pyo3(signature = (query, args=None))]
-    fn query_rows(
+    fn query(
         &self,
         query: String,
-        args: Option<HashMap<String, String>>,
+        args: Option<std::collections::HashMap<String, String>>,
     ) -> PyResult<Py<PyList>> {
         let query_executor = Arc::clone(&self.query_executor);
         let db_schema_name = Arc::clone(&self.db_schema.name);
@@ -282,6 +282,14 @@ class LineBuilder:
         self.tags[key] = str(value)
         return self
 
+    def uint64_field(self, key: str, value: int) -> 'LineBuilder':
+        """Add an unsigned integer field to the line protocol."""
+        self._validate_key(key, "field")
+        if value < 0:
+            raise ValueError(f"uint64 field '{key}' cannot be negative")
+        self.fields[key] = f"{value}u"
+        return self
+
     def int64_field(self, key: str, value: int) -> 'LineBuilder':
         """Add an integer field to the line protocol."""
         self._validate_key(key, "field")
@@ -301,6 +309,12 @@ class LineBuilder:
         # Escape quotes and backslashes in string values
         escaped_value = value.replace('"', '\\"').replace('\\', '\\\\')
         self.fields[key] = f'"{escaped_value}"'
+        return self
+
+    def bool_field(self, key: str, value: bool) -> 'LineBuilder':
+        """Add a boolean field to the line protocol."""
+        self._validate_key(key, "field")
+        self.fields[key] = 't' if value else 'f'
         return self
 
     def time_ns(self, timestamp_ns: int) -> 'LineBuilder':
@@ -341,7 +355,7 @@ pub fn execute_python_with_batch(
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
     table_filter: Option<TableId>,
-    args: Option<HashMap<String, String>>,
+    args: &Option<HashMap<String, String>>,
 ) -> PyResult<PluginReturnState> {
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
@@ -424,7 +438,7 @@ pub fn execute_python_with_batch(
         let local_api = api.into_pyobject(py)?;
 
         // turn args into an optional dict to pass into python
-        let args = args.map(|args| {
+        let args = args.as_ref().map(|args| {
             let dict = PyDict::new(py);
             for (key, value) in args {
                 dict.set_item(key, value).unwrap();

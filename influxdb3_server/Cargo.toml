@@ -64,6 +64,7 @@ csv.workspace = true
 datafusion.workspace = true
 flate2.workspace = true
 futures.workspace = true
+hashbrown.workspace = true
 hex.workspace = true
 hyper.workspace = true
 humantime.workspace = true
@@ -90,7 +91,7 @@ features = ["auto-initialize"]
 optional = true
 
 [features]
-system-py = ["pyo3"]
+system-py = ["pyo3", "influxdb3_processing_engine/system-py"]
 
 [dev-dependencies]
 # Core Crates

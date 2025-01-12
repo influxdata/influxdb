@@ -21,11 +21,11 @@ use trogging::{
 };
 
 mod commands {
-    pub mod activate;
     pub(crate) mod common;
     pub mod create;
-    pub mod deactivate;
     pub mod delete;
+    pub mod disable;
+    pub mod enable;
     pub mod query;
     pub mod serve;
     pub mod show;
@@ -84,14 +84,14 @@ struct Config {
 #[derive(Debug, clap::Parser)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
-    /// Activate a resource such as a trigger
-    Activate(commands::activate::Config),
+    /// Enable a resource such as a trigger
+    Enable(commands::enable::Config),
 
     /// Create a resource such as a database or auth token
     Create(commands::create::Config),
 
-    /// Deactivate a resource such as a trigger
-    Deactivate(commands::deactivate::Config),
+    /// Disable a resource such as a trigger
+    Disable(commands::disable::Config),
 
     /// Delete a resource such as a database or table
     Delete(commands::delete::Config),
@@ -136,9 +136,9 @@ fn main() -> Result<(), std::io::Error> {
 
         match config.command {
             None => println!("command required, -h/--help for help"),
-            Some(Command::Activate(config)) => {
-                if let Err(e) = commands::activate::command(config).await {
-                    eprintln!("Activate command failed: {e}");
+            Some(Command::Enable(config)) => {
+                if let Err(e) = commands::enable::command(config).await {
+                    eprintln!("Enable command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
@@ -148,9 +148,9 @@ fn main() -> Result<(), std::io::Error> {
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Deactivate(config)) => {
-                if let Err(e) = commands::deactivate::command(config).await {
-                    eprintln!("Deactivate command failed: {e}");
+            Some(Command::Disable(config)) => {
+                if let Err(e) = commands::disable::command(config).await {
+                    eprintln!("Disable command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

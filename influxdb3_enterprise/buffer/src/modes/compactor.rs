@@ -11,17 +11,8 @@ use influxdb3_cache::{
     last_cache::LastCacheProvider,
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_internal_api::query_executor::QueryExecutor;
-use influxdb3_processing_engine::{
-    manager::{ProcessingEngineError, ProcessingEngineManager},
-    plugins,
-};
-use influxdb3_wal::{
-    DistinctCacheDefinition, LastCacheDefinition, NoopWal, PluginType,
-    TriggerSpecificationDefinition, Wal,
-};
+use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::{
     write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -169,82 +160,6 @@ impl DatabaseManager for CompactorMode {
         _table_name: String,
     ) -> Result<(), WriteBufferError> {
         unimplemented!("soft_delete_table not implemented for CompactorMode")
-    }
-}
-
-#[async_trait]
-impl ProcessingEngineManager for CompactorMode {
-    async fn insert_plugin(
-        &self,
-        _db: &str,
-        _plugin_name: String,
-        _code: String,
-        _plugin_type: PluginType,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot insert processing engine plugin in CompactorMode")
-    }
-
-    async fn delete_plugin(
-        &self,
-        _db: &str,
-        _plugin_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot delete processing engine plugin in CompactorMode")
-    }
-
-    async fn activate_trigger(
-        &self,
-        _write_buffer: Arc<dyn WriteBuffer>,
-        _query_executor: Arc<dyn QueryExecutor>,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot activate trigger in CompactorMode")
-    }
-
-    async fn deactivate_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot activate trigger in CompactorMode")
-    }
-
-    async fn insert_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: String,
-        _plugin_name: String,
-        _trigger_specification: TriggerSpecificationDefinition,
-        _disabled: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot insert processing engine trigger in CompactorMode")
-    }
-
-    async fn delete_trigger(
-        &self,
-        _db_name: &str,
-        _trigger_name: &str,
-        _force: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot delete processing engine trigger in CompactorMode")
-    }
-
-    async fn run_trigger(
-        &self,
-        _write_buffer: Arc<dyn WriteBuffer>,
-        _query_executor: Arc<dyn QueryExecutor>,
-        _db_name: &str,
-        _trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        unimplemented!("cannot run processing engine trigger in CompactorMode")
-    }
-    async fn test_wal_plugin(
-        &self,
-        _request: WalPluginTestRequest,
-        _query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, plugins::Error> {
-        unimplemented!("cannot test wal plugin in CompactorMode")
     }
 }
 

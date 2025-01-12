@@ -517,8 +517,11 @@ def process_rows(iterator, output):
     assert_contains!(&result, "Plugin test_plugin deleted successfully");
 }
 
+#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
-async fn test_create_trigger() {
+async fn test_create_trigger_and_run() {
+    // create a plugin and trigger and write data in, verifying that the trigger is enabled
+    // and sent data
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
@@ -530,8 +533,18 @@ async fn test_create_trigger() {
 
     let plugin_file = create_plugin_file(
         r#"
-def process_rows(iterator, output):
-    pass
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        row_count = len(table_batch["rows"])
+
+        # Double row count if table name matches args table_name
+        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
+            row_count *= 2
+
+        line = LineBuilder("write_reports")\
+            .tag("table_name", table_batch["table_name"])\
+            .int64_field("row_count", row_count)
+        influxdb3_local.write(line)
 "#,
     );
 
@@ -547,7 +560,7 @@ def process_rows(iterator, output):
         plugin_name,
     ]);
 
-    // Create trigger
+    // creating the trigger should enable it
     let result = run_with_confirmation(&[
         "create",
         "trigger",
@@ -559,14 +572,70 @@ def process_rows(iterator, output):
         plugin_name,
         "--trigger-spec",
         "all_tables",
+        "--trigger-arguments",
+        "double_count_table=cpu",
         trigger_name,
     ]);
     debug!(result = ?result, "create trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
+
+    // now let's write data and see if it gets processed
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let expected = json!(
+        [
+            {"table_name": "cpu", "row_count": 4},
+            {"table_name": "mem", "row_count": 1}
+        ]
+    );
+
+    // query to see if the processed data is there. we loop because it could take a bit to write
+    // back the data. There's also a condition where the table may have been created, but the
+    // write hasn't happend yet, which returns empty results. This ensures we don't hit that race.
+    let mut check_count = 0;
+    loop {
+        match server
+            .api_v3_query_sql(&[
+                ("db", db_name),
+                ("q", "SELECT table_name, row_count FROM write_reports"),
+                ("format", "json"),
+            ])
+            .await
+            .json::<Value>()
+            .await
+        {
+            Ok(value) => {
+                if value == expected {
+                    return;
+                }
+                check_count += 1;
+                if check_count > 10 {
+                    panic!(
+                        "Unexpected query result, got: {:#?}, expected {:#?}",
+                        value, expected
+                    );
+                }
+            }
+            Err(e) => {
+                check_count += 1;
+                if check_count > 10 {
+                    panic!("Failed to query processed data: {}", e);
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            }
+        };
+    }
 }
 
 #[test_log::test(tokio::test)]
-async fn test_trigger_activation() {
+async fn test_trigger_enable() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
@@ -609,9 +678,9 @@ def process_rows(iterator, output):
         trigger_name,
     ]);
 
-    // Test activation
+    // Test enabling
     let result = run_with_confirmation(&[
-        "activate",
+        "enable",
         "trigger",
         "--database",
         db_name,
@@ -619,12 +688,12 @@ def process_rows(iterator, output):
         &server_addr,
         trigger_name,
     ]);
-    debug!(result = ?result, "activate trigger");
-    assert_contains!(&result, "Trigger test_trigger activated successfully");
+    debug!(result = ?result, "enable trigger");
+    assert_contains!(&result, "Trigger test_trigger enabled successfully");
 
-    // Test deactivation
+    // Test disable
     let result = run_with_confirmation(&[
-        "deactivate",
+        "disable",
         "trigger",
         "--database",
         db_name,
@@ -632,19 +701,19 @@ def process_rows(iterator, output):
         &server_addr,
         trigger_name,
     ]);
-    debug!(result = ?result, "deactivate trigger");
-    assert_contains!(&result, "Trigger test_trigger deactivated successfully");
+    debug!(result = ?result, "disable trigger");
+    assert_contains!(&result, "Trigger test_trigger disabled successfully");
 }
 
 #[test_log::test(tokio::test)]
-async fn test_delete_active_trigger() {
+async fn test_delete_enabled_trigger() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();
     let db_name = "foo";
     let plugin_name = "test_plugin";
     let trigger_name = "test_trigger";
 
-    // Setup: create database, plugin, and active trigger
+    // Setup: create database, plugin, and enable trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
     let plugin_file = create_plugin_file(
@@ -680,17 +749,7 @@ def process_rows(iterator, output):
         trigger_name,
     ]);
 
-    run_with_confirmation(&[
-        "activate",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
-
-    // Try to delete active trigger without force flag
+    // Try to delete the enabled trigger without force flag
     let result = run_with_confirmation_and_err(&[
         "delete",
         "trigger",
@@ -700,7 +759,7 @@ def process_rows(iterator, output):
         &server_addr,
         trigger_name,
     ]);
-    debug!(result = ?result, "delete active trigger without force");
+    debug!(result = ?result, "delete enabled trigger without force");
     assert_contains!(&result, "command failed");
 
     // Delete active trigger with force flag
@@ -714,7 +773,7 @@ def process_rows(iterator, output):
         trigger_name,
         "--force",
     ]);
-    debug!(result = ?result, "delete active trigger with force");
+    debug!(result = ?result, "delete enabled trigger with force");
     assert_contains!(&result, "Trigger test_trigger deleted successfully");
 }
 
@@ -852,7 +911,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
 
     query_params = {"host": args["host"]}
-    query_result = influxdb3_local.query_rows("SELECT * FROM cpu where host = $host", query_params)
+    query_result = influxdb3_local.query("SELECT * FROM cpu where host = $host", query_params)
     influxdb3_local.info("query result: " + str(query_result))
 
     for table_batch in table_batches:

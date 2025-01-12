@@ -12,6 +12,7 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{StreamExt, TryStreamExt};
+use hashbrown::HashMap;
 use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
@@ -227,7 +228,7 @@ pub enum Error {
     #[error("Python plugins not enabled on this server")]
     PythonPluginsNotEnabled,
 
-    #[error("Plugin error")]
+    #[error("Plugin error: {0}")]
     Plugin(#[from] influxdb3_processing_engine::plugins::Error),
 
     #[error("Processing engine error: {0}")]
@@ -1077,12 +1078,14 @@ where
             plugin_name,
             trigger_name,
             trigger_specification,
+            trigger_arguments,
             disabled,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
         };
+        debug!(%db, %plugin_name, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
         let Ok(trigger_spec) =
             TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
         else {
@@ -1098,6 +1101,7 @@ where
                 trigger_name.clone(),
                 plugin_name,
                 trigger_spec,
+                trigger_arguments,
                 disabled,
             )
             .await?;
@@ -1134,27 +1138,24 @@ where
             .body(Body::empty())?)
     }
 
-    async fn deactivate_processing_engine_trigger(
+    async fn disable_processing_engine_trigger(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
         self.processing_engine
-            .deactivate_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
+            .disable_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
-    async fn activate_processing_engine_trigger(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
+    async fn enable_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
         self.processing_engine
-            .activate_trigger(
+            .enable_trigger(
                 Arc::clone(&self.write_buffer),
                 Arc::clone(&self.query_executor),
                 delete_req.db.as_str(),
@@ -1655,6 +1656,7 @@ struct ProcessEngineTriggerCreateRequest {
     plugin_name: String,
     trigger_name: String,
     trigger_specification: String,
+    trigger_arguments: Option<HashMap<String, String>>,
     disabled: bool,
 }
 
@@ -1802,11 +1804,11 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::DELETE, "/api/v3/configure/processing_engine_plugin") => {
             http_server.delete_processing_engine_plugin(req).await
         }
-        (Method::POST, "/api/v3/configure/processing_engine_trigger/deactivate") => {
-            http_server.deactivate_processing_engine_trigger(req).await
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/disable") => {
+            http_server.disable_processing_engine_trigger(req).await
         }
-        (Method::POST, "/api/v3/configure/processing_engine_trigger/activate") => {
-            http_server.activate_processing_engine_trigger(req).await
+        (Method::POST, "/api/v3/configure/processing_engine_trigger/enable") => {
+            http_server.enable_processing_engine_trigger(req).await
         }
         (Method::POST, "/api/v3/configure/processing_engine_trigger") => {
             http_server.configure_processing_engine_trigger(req).await

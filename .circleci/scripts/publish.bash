@@ -2,15 +2,31 @@
 set -euo pipefail
 
 release() {
-  image_src="${1}:latest"
-  image_dst="us-docker.pkg.dev/influxdata-team-edge/influxdb3-enterprise/${1}:${2}"
+  # This is a raw name, e.g. influxdb3-core
+  image_name="${1}"
+  image_dst="quay.io/influxdb/${1}:${2}"
 
-  if docker pull "${image_dst}" ; then
-    echo "docker image ${image_dst} already exists"
-    exit 0
-  fi
-  docker tag  "${image_src}" "${image_dst}"
-  docker push "${image_dst}"
+
+  # Tag images for each architecture
+  docker tag  "${image_name}:latest-amd64" "${image_dst}-amd64"
+  docker tag  "${image_name}:latest-arm64" "${image_dst}-arm64"
+
+  # push images for each architecture
+  docker push "${image_dst}-amd64"
+  docker push "${image_dst}-arm64"
+
+  docker manifest create "${image_dst}" \
+    --amend "${image_dst}-amd64" \
+    --amend "${image_dst}-arm64"
+
+  # Annotate the manifest with architecture and OS information
+  docker manifest annotate "${image_dst}" \
+    "${image_dst}-amd64" --arch amd64 --os linux
+  docker manifest annotate "${image_dst}" \
+    "${image_dst}-arm64" --arch arm64 --os linux
+
+  # Push up the manifest to create a multi-arch image.
+  docker manifest push "${image_dst}"
 }
 
 release "${1}" "${CIRCLE_SHA1}"
