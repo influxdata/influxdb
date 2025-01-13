@@ -52,7 +52,7 @@ func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 }
 
 func NewEncoder(format string) (zapcore.Encoder, error) {
-	config := NewEncoderConfig()
+	config := newEncoderConfig()
 	switch format {
 	case "json":
 		return zapcore.NewJSONEncoder(config), nil
@@ -65,7 +65,7 @@ func NewEncoder(format string) (zapcore.Encoder, error) {
 	}
 }
 
-func NewEncoderConfig() zapcore.EncoderConfig {
+func newEncoderConfig() zapcore.EncoderConfig {
 	config := zap.NewProductionEncoderConfig()
 	config.EncodeTime = func(ts time.Time, encoder zapcore.PrimitiveArrayEncoder) {
 		encoder.AppendString(ts.UTC().Format(TimeFormat))
