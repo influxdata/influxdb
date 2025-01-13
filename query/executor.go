@@ -11,11 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	l "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -289,42 +287,6 @@ func (e *Executor) Close() error {
 func (e *Executor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
-}
-
-func (e *Executor) WithLogWriter(log *zap.Logger, path string, format string) error {
-	// Don't allow console logger for query log writing
-	if format == "console" {
-		return fmt.Errorf("%s is not an allowed format for query logging to file", format)
-	}
-
-	// If the format is empty or auto set to default 'logfmt'
-	if format == "" || format == "auto" {
-		format = "logfmt"
-	}
-
-	logFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
-	if err != nil {
-		return err
-	}
-
-	existingCore := log.Core()
-	encoder, err := l.NewEncoder(format)
-	if err != nil {
-		return err
-	}
-
-	fileCore := zapcore.NewCore(
-		encoder,
-		zapcore.Lock(logFile),
-		zapcore.InfoLevel,
-	)
-
-	newCore := zapcore.NewTee(existingCore, fileCore)
-	logger := zap.New(newCore)
-	e.Logger = logger
-	e.TaskManager.Logger = e.Logger
-
-	return nil
 }
 
 // ExecuteQuery executes each statement within a query.
