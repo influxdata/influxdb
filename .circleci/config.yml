@@ -67,6 +67,13 @@ nofork_filter: &nofork_filter
     branches:
       ignore: /pull\/[0-9]+/
 
+docker_filter: &docker_filter
+  filters:
+    branches:
+      only:
+        - main
+        - /.*docker.*/
+
 commands:
   rust_components:
     description: Verify installed components
@@ -447,9 +454,6 @@ jobs:
         type: string
       resource_class:
         type: string
-      profile:
-        type: string
-        default: release
       image_name:
         type: string
         default: influxdb3-core
@@ -459,6 +463,14 @@ jobs:
     steps:
       - checkout
       - run:
+          name: "Set Cargo profile based on branch"
+          command: |
+            if [ "$CIRCLE_BRANCH" = "main" ]; then
+              echo "export DOCKER_PROFILE=release" >> "$BASH_ENV"
+            else
+              echo "export DOCKER_PROFILE=quick-release" >> "$BASH_ENV"
+            fi
+      - run:
           name: Build the docker image
           command: |
             .circleci/scripts/docker_build_release.bash \
@@ -466,7 +478,7 @@ jobs:
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
               "<< parameters.platform >>" \
-              "<< parameters.profile >>"
+              "$DOCKER_PROFILE"
 
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
@@ -513,7 +525,7 @@ workflows:
           matrix:
             parameters:
               profile:
-                - quick-release
+                - release
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
@@ -622,28 +634,17 @@ workflows:
             - fmt
             - cargo-audit
       - build-docker:
-          <<: *nofork_filter
+          <<: *docker_filter
           name: build-docker-amd64
-          matrix:
-            parameters:
-              platform: [amd64]
-              resource_class: [2xlarge+]
-              profile: [quick-release]
+          platform: amd64
+          resource_class: 2xlarge+
       - build-docker:
-          <<: *nofork_filter
+          <<: *docker_filter
           name: build-docker-arm64
-          matrix:
-            parameters:
-              platform: [arm64]
-              resource_class: [arm.2xlarge]
-              profile: [quick-release]
+          platform: arm64
+          resource_class: arm.2xlarge
       - publish-docker:
-          <<: *main_filter
+          <<: *docker_filter
           requires:
             - build-docker-amd64
             - build-docker-arm64
-      - wait-for-docker:
-          requires:
-            - build-docker-amd64
-            - build-docker-arm64
-            - publish-docker
