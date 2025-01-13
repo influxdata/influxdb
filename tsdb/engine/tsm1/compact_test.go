@@ -2282,7 +2282,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 	furtherCompactedTests := []PlanOptimizeTests{
 		// Large multi generation group with files at and under 2GB
-		PlanOptimizeTests{
+		{
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2330,7 +2330,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			3,
 		},
 		// ~650mb group size
-		PlanOptimizeTests{
+		{
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2354,7 +2354,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			1,
 		},
 		// ~650 MB total group size with generations under 4
-		PlanOptimizeTests{
+		{
 			[]tsm1.FileStat{
 				{
 					Path: "01-02.tsm1",
