@@ -3,6 +3,9 @@ package query_test
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -593,6 +596,31 @@ func TestQueryExecutor_InvalidSource(t *testing.T) {
 			t.Errorf("%d. unexpected error: %s", i, result.Err)
 		}
 	}
+}
+
+func TestQueryExecutor_WriteQueryToLog(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	require.NoError(t, err, "parse query")
+
+	testLogger := zaptest.NewLogger(t)
+	testFile := t.TempDir() + "/test.log"
+
+	e := NewQueryExecutor()
+	err = e.WithLogWriter(testLogger, testFile, "logfmt")
+	require.NoError(t, err, "error with log writer")
+
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+			require.Equal(t, uint64(1), ctx.QueryID, "query ID")
+			return nil
+		},
+	}
+
+	discardOutput(e.ExecuteQuery(q, query.ExecutionOptions{}, nil))
+
+	dat, err := os.ReadFile(testFile)
+	require.NoError(t, err, "error reading file")
+	require.True(t, strings.Contains(string(dat), `SELECT count(value) FROM cpu`))
 }
 
 func discardOutput(results <-chan *query.Result) {
