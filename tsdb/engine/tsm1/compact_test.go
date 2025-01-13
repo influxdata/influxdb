@@ -2274,15 +2274,17 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	// bc are the block counts for the tsm files
 	// bc can be an empty list
 	type PlanOptimizeTests struct {
-		fs                      []tsm1.FileStat
-		bc                      []int
-		fullyCompactedReasonExp string
-		generationCount         int64
+		name                            string
+		fs                              []tsm1.FileStat
+		bc                              []int
+		expectedFullyCompactedReasonExp string
+		expectedgenerationCount         int64
 	}
 
 	furtherCompactedTests := []PlanOptimizeTests{
 		// Large multi generation group with files at and under 2GB
 		{
+			"Large multi generation group with files at and under 2GB",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2331,6 +2333,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 		// ~650mb group size
 		{
+			"Small group size with single generation",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2355,6 +2358,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 		// ~650 MB total group size with generations under 4
 		{
+			"Small group size with single generation and levels under 4",
 			[]tsm1.FileStat{
 				{
 					Path: "01-02.tsm1",
@@ -2374,6 +2378,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			1,
 		},
 		{
+			"Small group size with single generation all at DefaultMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2395,10 +2400,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
-
 		// > 2 GB total group size
 		// 50% of files are at aggressive max block size
 		{
+			"Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at AggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2447,8 +2452,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			1,
 		},
 		{
-			// > 2 GB total group size
-			// 100% of files are at aggressive max block size
+			"Group size over 2GB with single generation",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2473,6 +2477,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		{
 			// Last files are lower than first files generations
 			// Mix of less than 4 level files and > level 4 files
+			"Generations with files under level 4",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2529,6 +2534,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			// shard with many generations. The initial generation should be fully
 			// compacted, but we have some new generations that are not. We need to ensure
 			// the optimize planner will pick these up and compact everything together.
+			"Backfill mock condition",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2601,47 +2607,47 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 	}
 
-	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64) {
+	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64, testName string) {
 		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
-		require.False(t, compacted, "is fully compacted")
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason", testName)
+		require.False(t, compacted, "is fully compacted", testName)
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)", testName)
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)", testName)
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)", testName)
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
+		require.Zero(t, len(tsmP), "compaction group; Plan()", testName)
+		require.Zero(t, pLenP, "compaction group length; Plan()", testName)
 
 		_, cgLen, genLen := cp.PlanOptimize()
-		require.Equal(t, int64(1), cgLen, "compaction group length")
-		require.Equal(t, generationCountExp, genLen, "generation count")
+		require.Equal(t, int64(1), cgLen, "compaction group length", testName)
+		require.Equal(t, generationCountExp, genLen, "generation count", testName)
 
 	}
 
-	for _, fileStat := range furtherCompactedTests {
+	for _, test := range furtherCompactedTests {
 		ffs := &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
-				return fileStat.fs
+				return test.fs
 			},
 		}
 
-		if len(fileStat.bc) > 0 {
-			err := ffs.SetBlockCounts(fileStat.bc)
+		if len(test.bc) > 0 {
+			err := ffs.SetBlockCounts(test.bc)
 			require.NoError(t, err, "setting block counts")
 		}
 
 		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedNotFullyCompacted(cp, fileStat.fullyCompactedReasonExp, fileStat.generationCount)
+		expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount, test.name)
 
 		// Reverse test files and re-run tests
-		slices.Reverse(fileStat.fs)
+		slices.Reverse(test.fs)
 		cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedNotFullyCompacted(cp, fileStat.fullyCompactedReasonExp, fileStat.generationCount)
+		expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount, test.name)
 	}
 
 	areFullyCompactedTests := []PlanOptimizeTests{
@@ -2649,6 +2655,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			// This test is added to account for halting state after
 			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
 			// will need to ensure that once we have single TSM file under 2 GB we stop
+			"Single TSM file",
 			[]tsm1.FileStat{
 				{
 					Path: "01-09.tsm1",
@@ -2662,6 +2669,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			// This test is added to account for a single generation that has a group size
 			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
 			// It should not compact any further.
+			"TSM files at AggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2681,6 +2689,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			// over 2 GB at max points per block with aggressive compaction, and, 1 file
 			// under 2 GB at default max points per block.
 			// It should not compact any further.
+			"TSM files cannot compact further, single file under 2G and at DefaultMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2700,6 +2709,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		{
 			// This test is added to account for a single generation that has a group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
+			"Group size over 2 with multiple files under 2GB and at AggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2721,47 +2731,47 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 	}
 
-	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string) {
+	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, testName string) {
 		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
-		require.True(t, compacted, "is fully compacted")
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason", testName)
+		require.True(t, compacted, "is fully compacted", testName)
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)", testName)
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)", testName)
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)", testName)
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()")
-		require.Zero(t, pLenP, "compaction group length; Plan()")
+		require.Zero(t, len(tsmP), "compaction group; Plan()", testName)
+		require.Zero(t, pLenP, "compaction group length; Plan()", testName)
 
 		cgroup, cgLen, genLen := cp.PlanOptimize()
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-		require.Zero(t, cgLen, "compaction group length")
-		require.Zero(t, genLen, "generation count")
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group", testName)
+		require.Zero(t, cgLen, "compaction group length", testName)
+		require.Zero(t, genLen, "generation count", testName)
 	}
 
-	for _, fileStat := range areFullyCompactedTests {
+	for _, test := range areFullyCompactedTests {
 		ffs := &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
-				return fileStat.fs
+				return test.fs
 			},
 		}
 
-		if len(fileStat.bc) > 0 {
-			err := ffs.SetBlockCounts(fileStat.bc)
+		if len(test.bc) > 0 {
+			err := ffs.SetBlockCounts(test.bc)
 			require.NoError(t, err, "setting block counts")
 		}
 
 		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedFullyCompacted(cp, fileStat.fullyCompactedReasonExp)
+		expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.name)
 
 		// Reverse test files and re-run tests
-		slices.Reverse(fileStat.fs)
+		slices.Reverse(test.fs)
 		cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedFullyCompacted(cp, fileStat.fullyCompactedReasonExp)
+		expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.name)
 	}
 
 }
