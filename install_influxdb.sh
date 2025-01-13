@@ -56,7 +56,7 @@ elif [ "${OS}" = "Darwin" ]; then
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
         printf "Intel Mac support is coming soon!\n"
         printf "Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
-        printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb/${EDITION_TAG}/${NC}.\n"
+        printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
         exit 1
     else
         ARTIFACT="aarch64-apple-darwin"
@@ -67,7 +67,7 @@ fi
 [ -n "${ARTIFACT}" ] || { 
     printf "Unfortunately this script doesn't support your '${OS}' | '${ARCHITECTURE}' setup, or was unable to identify it correctly.\n"
     printf "Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
-    printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb/${EDITION_TAG}/${NC}.\n"
+    printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
     exit 1
 }
 
@@ -112,7 +112,7 @@ case "$INSTALL_TYPE" in
         printf "1) Run the Docker image:\n"
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
         printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --writer-id writer0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
-        printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/${NC}\n\n"
+        printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
 
         END_TIME=$(date +%s)
         DURATION=$((END_TIME - START_TIME))
@@ -377,7 +377,7 @@ if [ -n "$shellrc" ]; then
 else
     printf "├─ Access InfluxDB with the ${BOLD}%s${NC} command.\n" "$INSTALL_LOC/$BINARY_NAME"
 fi
-printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb/${EDITION_TAG}/${NC}.\n"
+printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
 printf "└─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
 echo
 
