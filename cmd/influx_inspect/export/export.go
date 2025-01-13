@@ -33,6 +33,7 @@ type Command struct {
 	out             string
 	database        string
 	retentionPolicy string
+	tsmFile         string
 	startTime       int64
 	endTime         int64
 	compress        bool
@@ -71,6 +72,7 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "'-' for standard out or the destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
+	fs.StringVar(&cmd.tsmFile, "tsmfile", "", "Optional: path to a single tsm file to export (requires -database and -retention")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
 	fs.BoolVar(&cmd.lponly, "lponly", false, "Only export line protocol")
@@ -117,7 +119,10 @@ func (cmd *Command) Run(args ...string) error {
 
 func (cmd *Command) validate() error {
 	if cmd.retentionPolicy != "" && cmd.database == "" {
-		return fmt.Errorf("must specify a db")
+		return fmt.Errorf("must specify a db (-database)")
+	}
+	if cmd.tsmFile != "" && (cmd.database == "" || cmd.retentionPolicy == "") {
+		return fmt.Errorf("must specify a db (-database) and retention policy (-retention)")
 	}
 	if cmd.startTime != 0 && cmd.endTime != 0 && cmd.endTime < cmd.startTime {
 		return fmt.Errorf("end time before start time")
@@ -126,6 +131,13 @@ func (cmd *Command) validate() error {
 }
 
 func (cmd *Command) export() error {
+	if cmd.tsmFile != "" {
+		key := cmd.database + string(os.PathSeparator) + cmd.retentionPolicy
+		cmd.manifest[key] = struct{}{}
+		cmd.tsmFiles[key] = []string{cmd.tsmFile}
+		return cmd.write()
+	}
+
 	if err := cmd.walkTSMFiles(); err != nil {
 		return err
 	}
