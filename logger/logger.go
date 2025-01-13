@@ -40,7 +40,7 @@ func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 		}
 	}
 
-	encoder, err := NewEncoder(format)
+	encoder, err := newEncoder(format)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 	), zap.Fields(zap.String("log_id", nextID()))), nil
 }
 
-func NewEncoder(format string) (zapcore.Encoder, error) {
+func newEncoder(format string) (zapcore.Encoder, error) {
 	config := newEncoderConfig()
 	switch format {
 	case "json":
