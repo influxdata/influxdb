@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	l "github.com/influxdata/influxdb/logger"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -13,9 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	l "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
