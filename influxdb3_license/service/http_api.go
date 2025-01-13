@@ -24,9 +24,12 @@ import (
 )
 
 var (
-	ErrInvalidIP            = errors.New("invalid IP address")
+	// ErrInvalidIP indicates an invalid IP address.
+	ErrInvalidIP = errors.New("invalid IP address")
+	// ErrLicenseAlreadyExists indicates that a license already exists.
 	ErrLicenseAlreadyExists = errors.New("license already exists")
-	ErrInstanceIDCollision  = errors.New("instance ID collision")
+	// ErrInstanceIDCollision indicates that an instance ID already exists.
+	ErrInstanceIDCollision = errors.New("instance ID collision")
 )
 
 type contextKey int
@@ -227,12 +230,11 @@ func (h *HTTPHandler) handleGetLicenses(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "Not Found", http.StatusNotFound)
-			return
 		} else {
 			log.Error("error getting license by instance ID", zap.Error(err))
 			http.Error(w, "error processing request", http.StatusInternalServerError)
-			return
 		}
+		return
 	} else if lic == nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -292,12 +294,12 @@ func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log 
 	}
 
 	// Create the user's IP address entry in the database
-	user_ip := &store.UserIP{
+	userIP := &store.UserIP{
 		IPAddr: r.Context().Value(realIPKey).(net.IP),
 		UserID: user.ID,
 	}
 
-	if err := h.store.CreateUserIP(r.Context(), tx, user_ip); err != nil {
+	if err := h.store.CreateUserIP(r.Context(), tx, userIP); err != nil {
 		log.Error("error creating user ip", zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
 		return

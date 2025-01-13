@@ -108,6 +108,14 @@ type Service struct {
 	ticker       *time.Ticker
 }
 
+func (s *Service) Cfg() *Config {
+	return s.cfg
+}
+
+func (s *Service) SetLimiter(l *rate.Limiter) {
+	s.limiter = l
+}
+
 // rateLimiterPair pairs a rate limiter with a logging rate limiter.
 // Each active user and IP address will have one of these pairs associated
 // with it. The limiter will limit the user or IP address request frequency

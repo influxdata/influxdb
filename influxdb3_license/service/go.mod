@@ -5,6 +5,7 @@ go 1.23.3
 require (
 	cloud.google.com/go/kms v1.20.2
 	github.com/alecthomas/kong v1.6.0
+	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/influxdata/influxdb v1.11.8
