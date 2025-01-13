@@ -169,7 +169,7 @@ jobs:
     machine:
       enabled: true
       docker_layer_caching: true
-      image: ubuntu-2004:202107-02
+      image: ubuntu-2204:current
     steps:
       - attach_workspace:
           at: /tmp/workspace
