@@ -66,7 +66,6 @@
   # Whether queries should be logged before execution. Very useful for troubleshooting, but will
   # log any sensitive data contained within a query.
   # query-log-enabled = true
-  # query-log-path = ""
 
   # It is possible to collect statistics of points written per-measurement and/or per-login.
   # These can be accessed via the monitoring subsystem.

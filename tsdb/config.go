@@ -105,9 +105,6 @@ type Config struct {
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
-	// Query logging directed to a log file
-	QueryLogPath string `toml:"query-log-path"`
-
 	// Compaction options for tsm1 (descriptions above with defaults)
 	CacheMaxMemorySize             toml.Size     `toml:"cache-max-memory-size"`
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
