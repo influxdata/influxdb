@@ -93,6 +93,11 @@ impl SnapshotTracker {
 
     fn should_run_snapshot(&mut self, force_snapshot: bool) -> bool {
         // wal buffer can be empty but wal periods shouldn't be
+        // this assumption doesn't hold anymore, we might have just added a single
+        // no-op wal and it's wal period that means when force snapshot is set
+        // wal periods are never empty but the queryable buffer may not hold
+        // data that will get evicted to be snapshottedif the snapshots are happening
+        // very close to each other.
         if self.wal_periods.is_empty() {
             if force_snapshot {
                 info!("cannot force a snapshot when wal periods are empty");
