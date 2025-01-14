@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io/fs"
 	"math"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -2258,186 +2260,532 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, gLen := cp.PlanOptimize()
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
 		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
+	} else if gLen != int64(3) {
+		t.Fatalf("generation len plan mismatch: got %v, exp %v", gLen, 3)
 	}
 }
 
-func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
-	data := []tsm1.FileStat{
-		{
-			Path: "01-04.tsm1",
-			Size: 251 * 1024 * 1024,
-		},
-		{
-			Path: "02-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "03-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "04-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "05-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "06-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "07-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
+func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
+	type PlanOptimizeTests struct {
+		name                            string
+		fs                              []tsm1.FileStat
+		bc                              []int
+		expectedFullyCompactedReasonExp string
+		expectedgenerationCount         int64
 	}
 
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
+	furtherCompactedTests := []PlanOptimizeTests{
+		// Large multi generation group with files at and under 2GB
+		{
+			"Large multi generation group with files at and under 2GB",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "02-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "03-05.tsm1",
+					Size: 512 * 1024 * 1024,
+				},
 			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4], data[5]}
-	tsm, pLen := cp.PlanOptimize()
-	if exp, got := 1, len(tsm); exp != got {
-		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
-	} else if pLen != int64(len(tsm)) {
-		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
-	}
-
-	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles1 {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-}
-
-func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
-	data := []tsm1.FileStat{
-		{
-			Path: "01-04.tsm1",
-			Size: 251 * 1024 * 1024,
+			[]int{},
+			"not fully compacted and not idle because of more than one generation",
+			3,
 		},
+		// ~650mb group size
 		{
-			Path: "02-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "03-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "04-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "05-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "06-03.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "07-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "08-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "09-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-		{
-			Path: "10-04.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-	}
-
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
+			"Small group size with single generation",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 300 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 200 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 100 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 50 * 1024 * 1024,
+				},
 			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-
-	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
-	expFiles2 := []tsm1.FileStat{data[6], data[7], data[8], data[9]}
-
-	tsm, pLen := cp.PlanOptimize()
-	if exp, got := 2, len(tsm); exp != got {
-		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
-	} else if pLen != int64(len(tsm)) {
-		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
-	}
-
-	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles1 {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-
-	if exp, got := len(expFiles2), len(tsm[1]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles2 {
-		if got, exp := tsm[1][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-}
-
-func TestDefaultPlanner_PlanOptimize_Optimized(t *testing.T) {
-	data := []tsm1.FileStat{
-		{
-			Path: "01-03.tsm1",
-			Size: 251 * 1024 * 1024,
+			[]int{},
+			tsdb.SingleGenerationReasonText,
+			1,
 		},
+		// ~650 MB total group size with generations under 4
 		{
-			Path: "01-04.tsm1",
-			Size: 1 * 1024 * 1024,
-		},
-		{
-			Path: "01-05.tsm1",
-			Size: 2 * 1024 * 1024 * 1024,
-		},
-	}
-
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
+			"Small group size with single generation and levels under 4",
+			[]tsm1.FileStat{
+				{
+					Path: "01-02.tsm1",
+					Size: 300 * 1024 * 1024,
+				},
+				{
+					Path: "01-03.tsm1",
+					Size: 200 * 1024 * 1024,
+				},
+				{
+					Path: "01-04.tsm1",
+					Size: 100 * 1024 * 1024,
+				},
 			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
+			[]int{},
+			tsdb.SingleGenerationReasonText,
+			1,
+		},
+		{
+			"Small group size with single generation all at DefaultMaxPointsPerBlock",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 300 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 200 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 100 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 50 * 1024 * 1024,
+				},
+			}, []int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock},
+			tsdb.SingleGenerationReasonText,
+			1,
+		},
+		// > 2 GB total group size
+		// 50% of files are at aggressive max block size
+		{
+			"Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at AggressiveMaxPointsPerBlock",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 300 * 1024 * 1024,
+				},
+				{
+					Path: "01-09.tsm1",
+					Size: 200 * 1024 * 1024,
+				},
+				{
+					Path: "01-10.tsm1",
+					Size: 100 * 1024 * 1024,
+				},
+				{
+					Path: "01-11.tsm1",
+					Size: 50 * 1024 * 1024,
+				},
+				{
+					Path: "01-12.tsm1",
+					Size: 25 * 1024 * 1024,
+				},
+			},
+			[]int{
+				tsdb.AggressiveMaxPointsPerBlock,
+				tsdb.AggressiveMaxPointsPerBlock,
+				tsdb.AggressiveMaxPointsPerBlock,
+				tsdb.AggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
+			tsdb.SingleGenerationReasonText,
+			1,
+		},
+		{
+			"Group size over 2GB with single generation",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 650 * 1024 * 1024,
+				},
+				{
+					Path: "01-15.tsm1",
+					Size: 450 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
+			tsdb.SingleGenerationReasonText,
+			1,
+		},
+		{
+			// Last files are lower than first files generations
+			// Mix of less than 4 level files and > level 4 files
+			"Generations with files under level 4",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "02-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 600 * 1024 * 1024,
+				},
+				{
+					Path: "03-06.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+			}, []int{}, "not fully compacted and not idle because of more than one generation", 3,
+		},
+		{
+			// This test will mock a 'backfill' condition where we have a single
+			// shard with many generations. The initial generation should be fully
+			// compacted, but we have some new generations that are not. We need to ensure
+			// the optimize planner will pick these up and compact everything together.
+			"Backfill mock condition",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-04.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "02-05.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "02-06.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+				{
+					Path: "03-02.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+				{
+					Path: "04-01.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "04-02.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
 
-	expFiles := []tsm1.FileStat{}
-	tsm, pLen := cp.PlanOptimize()
-	if exp, got := len(expFiles), len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	} else if pLen != int64(len(tsm)) {
-		t.Fatalf("tsm file plan length mismatch: got %v, exp %v", pLen, exp)
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+
+			tsdb.DefaultMaxPointsPerBlock,
+			// Use some magic numbers but these are just small values for block counts
+			100,
+			10,
+		},
+			"not fully compacted and not idle because of more than one generation",
+			4,
+		},
+	}
+
+	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64) {
+		compacted, reason := cp.FullyCompacted()
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+		require.False(t, compacted, "is fully compacted")
+
+		_, cgLen := cp.PlanLevel(1)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		_, cgLen = cp.PlanLevel(2)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		_, cgLen = cp.PlanLevel(3)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+		require.Zero(t, len(tsmP), "compaction group; Plan()")
+		require.Zero(t, pLenP, "compaction group length; Plan()")
+
+		_, cgLen, genLen := cp.PlanOptimize()
+		require.Equal(t, int64(1), cgLen, "compaction group length")
+		require.Equal(t, generationCountExp, genLen, "generation count")
+
+	}
+
+	for _, test := range furtherCompactedTests {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
+
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
+
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
+
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			if len(test.bc) > 0 {
+				slices.Reverse(test.bc)
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting reverse block counts")
+			}
+
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
+		})
+	}
+
+	areFullyCompactedTests := []PlanOptimizeTests{
+		{
+			// This test is added to account for halting state after
+			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
+			// will need to ensure that once we have single TSM file under 2 GB we stop
+			"Single TSM file",
+			[]tsm1.FileStat{
+				{
+					Path: "01-09.tsm1",
+					Size: 650 * 1024 * 1024,
+				},
+			},
+			[]int{},
+			"", 0,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
+			// It should not compact any further.
+			"TSM files at AggressiveMaxPointsPerBlock",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 691 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+		}, "", 0,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB at max points per block with aggressive compaction, and, 1 file
+			// under 2 GB at default max points per block.
+			// It should not compact any further.
+			"TSM files cannot compact further, single file under 2G and at DefaultMaxPointsPerBlock",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 691 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
+			"",
+			0,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
+			"Group size over 2 with multiple files under 2GB and at AggressiveMaxPointsPerBlock",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 650 * 1024 * 1024,
+				},
+				{
+					Path: "01-15.tsm1",
+					Size: 450 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.AggressiveMaxPointsPerBlock,
+		}, "", 0,
+		},
+	}
+
+	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string) {
+		compacted, reason := cp.FullyCompacted()
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+		require.True(t, compacted, "is fully compacted")
+
+		_, cgLen := cp.PlanLevel(1)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		_, cgLen = cp.PlanLevel(2)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		_, cgLen = cp.PlanLevel(3)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+		require.Zero(t, len(tsmP), "compaction group; Plan()")
+		require.Zero(t, pLenP, "compaction group length; Plan()")
+
+		cgroup, cgLen, genLen := cp.PlanOptimize()
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+		require.Zero(t, cgLen, "compaction group length")
+		require.Zero(t, genLen, "generation count")
+	}
+
+	for _, test := range areFullyCompactedTests {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
+
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
+
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
+
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			if len(test.bc) > 0 {
+				slices.Reverse(test.bc)
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting reverse block counts")
+			}
+
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
+		})
 	}
 }
 
@@ -2467,7 +2815,7 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
-	tsm, pLen := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize()
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2591,10 +2939,13 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return testSet
 		},
-		blockCount: 1000,
 	}
 
+	err := ffs.SetBlockCounts([]int{tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock, tsdb.DefaultMaxPointsPerBlock})
+	require.NoError(t, err, "SetBlockCounts")
+
 	cp := tsm1.NewDefaultPlanner(ffs, time.Nanosecond)
+
 	plan, pLen := cp.Plan(time.Now().Add(-time.Second))
 	// first verify that our test set would return files
 	if exp, got := 4, len(plan[0]); got != exp {
@@ -2632,8 +2983,16 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return over
 		},
-		blockCount: 1000,
 	}
+
+	err = overFs.SetBlockCounts([]int{
+		tsdb.DefaultMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+		tsdb.DefaultMaxPointsPerBlock,
+	})
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp.FileStore = overFs
 	plan, pLen = cp.Plan(time.Now().Add(-time.Second))
@@ -2644,7 +3003,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	}
 	cp.Release(plan)
 
-	plan, pLen = cp.PlanOptimize()
+	plan, pLen, _ = cp.PlanOptimize()
 	// ensure the optimize planner would pick this up
 	if exp, got := 1, len(plan); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
@@ -2712,14 +3071,21 @@ func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
 		},
 	}
 
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			blockCount: 1000,
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
+	fs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return data
 		},
-		time.Hour)
+	}
+
+	var bcs []int
+	for range data {
+		bcs = append(bcs, tsdb.DefaultMaxPointsPerBlock)
+	}
+
+	err := fs.SetBlockCounts(bcs)
+	require.NoError(t, err, "SetBlockCounts")
+
+	cp := tsm1.NewDefaultPlanner(fs, time.Hour)
 
 	tsm, pLen := cp.Plan(time.Now().Add(-24 * time.Hour))
 	if exp, got := 1, len(tsm); got != exp {
@@ -2755,8 +3121,15 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return testSet
 		},
-		blockCount: 100,
 	}
+
+	var bcs []int
+	for range testSet {
+		bcs = append(bcs, 100)
+	}
+
+	err := ffs.SetBlockCounts(bcs)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp := tsm1.NewDefaultPlanner(
 		ffs,
@@ -2788,8 +3161,15 @@ func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return over
 		},
-		blockCount: 100,
 	}
+
+	bcs = make([]int, 0)
+	for range over {
+		bcs = append(bcs, 100)
+	}
+
+	err = overFs.SetBlockCounts(bcs)
+	require.NoError(t, err, "SetBlockCounts")
 
 	cp.FileStore = overFs
 	cGroups, pLen := cp.Plan(time.Now().Add(-time.Second))
@@ -3099,8 +3479,10 @@ func MustOpenTSMReader(name string) *tsm1.TSMReader {
 type fakeFileStore struct {
 	PathsFn      func() []tsm1.FileStat
 	lastModified time.Time
-	blockCount   int
-	readers      []*tsm1.TSMReader
+	// fakeFileStore blockCount holds a map of file paths from
+	// PathsFn.FileStat to a mock block count as an integer.
+	blockCount map[string]int
+	readers    []*tsm1.TSMReader
 }
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
@@ -3115,8 +3497,30 @@ func (w *fakeFileStore) LastModified() time.Time {
 	return w.lastModified
 }
 
+// Utility function to set mock block counts on a TSM file basis
+// If the number of inputs supplied is less then the amount of TSM
+// files in a given PathsFn it will error.
+func (w *fakeFileStore) SetBlockCounts(inputs []int) error {
+	if len(inputs) != len(w.PathsFn()) {
+		return errors.New("inputs []int length does not equal length of PathsFn()")
+	}
+
+	bc := make(map[string]int)
+	for i, f := range w.PathsFn() {
+		bc[f.Path] = inputs[i]
+	}
+
+	w.blockCount = bc
+	return nil
+}
+
 func (w *fakeFileStore) BlockCount(path string, idx int) int {
-	return w.blockCount
+	for _, f := range w.PathsFn() {
+		if f.Path == path {
+			return w.blockCount[path]
+		}
+	}
+	return 0
 }
 
 func (w *fakeFileStore) TSMReader(path string) (*tsm1.TSMReader, error) {
