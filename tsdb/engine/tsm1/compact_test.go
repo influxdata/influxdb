@@ -2271,8 +2271,6 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 }
 
 func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
-	// bc are the block counts for the tsm files
-	// bc can be an empty list
 	type PlanOptimizeTests struct {
 		name                            string
 		fs                              []tsm1.FileStat
@@ -2607,47 +2605,49 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 	}
 
-	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64, testName string) {
+	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64) {
 		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason", testName)
-		require.False(t, compacted, "is fully compacted", testName)
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+		require.False(t, compacted, "is fully compacted")
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()", testName)
-		require.Zero(t, pLenP, "compaction group length; Plan()", testName)
+		require.Zero(t, len(tsmP), "compaction group; Plan()")
+		require.Zero(t, pLenP, "compaction group length; Plan()")
 
 		_, cgLen, genLen := cp.PlanOptimize()
-		require.Equal(t, int64(1), cgLen, "compaction group length", testName)
-		require.Equal(t, generationCountExp, genLen, "generation count", testName)
+		require.Equal(t, int64(1), cgLen, "compaction group length")
+		require.Equal(t, generationCountExp, genLen, "generation count")
 
 	}
 
 	for _, test := range furtherCompactedTests {
-		ffs := &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return test.fs
-			},
-		}
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
 
-		if len(test.bc) > 0 {
-			err := ffs.SetBlockCounts(test.bc)
-			require.NoError(t, err, "setting block counts")
-		}
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
 
-		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount, test.name)
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
 
-		// Reverse test files and re-run tests
-		slices.Reverse(test.fs)
-		cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount, test.name)
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
+		})
 	}
 
 	areFullyCompactedTests := []PlanOptimizeTests{
@@ -2731,49 +2731,50 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 	}
 
-	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, testName string) {
+	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string) {
 		compacted, reason := cp.FullyCompacted()
-		require.Equal(t, reason, reasonExp, "fullyCompacted reason", testName)
-		require.True(t, compacted, "is fully compacted", testName)
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+		require.True(t, compacted, "is fully compacted")
 
 		_, cgLen := cp.PlanLevel(1)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
 		_, cgLen = cp.PlanLevel(2)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
 		_, cgLen = cp.PlanLevel(3)
-		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)", testName)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
 		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
-		require.Zero(t, len(tsmP), "compaction group; Plan()", testName)
-		require.Zero(t, pLenP, "compaction group length; Plan()", testName)
+		require.Zero(t, len(tsmP), "compaction group; Plan()")
+		require.Zero(t, pLenP, "compaction group length; Plan()")
 
 		cgroup, cgLen, genLen := cp.PlanOptimize()
-		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group", testName)
-		require.Zero(t, cgLen, "compaction group length", testName)
-		require.Zero(t, genLen, "generation count", testName)
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+		require.Zero(t, cgLen, "compaction group length")
+		require.Zero(t, genLen, "generation count")
 	}
 
 	for _, test := range areFullyCompactedTests {
-		ffs := &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return test.fs
-			},
-		}
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
 
-		if len(test.bc) > 0 {
-			err := ffs.SetBlockCounts(test.bc)
-			require.NoError(t, err, "setting block counts")
-		}
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
 
-		cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.name)
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
 
-		// Reverse test files and re-run tests
-		slices.Reverse(test.fs)
-		cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-		expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.name)
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
+		})
 	}
-
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
