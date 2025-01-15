@@ -132,6 +132,13 @@ pub struct EnterpriseServeConfig {
         action
     )]
     pub preemptive_cache_age: humantime::Duration,
+
+    #[clap(
+        long = "license-email",
+        env = "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL",
+        action
+    )]
+    pub license_email: Option<String>,
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer

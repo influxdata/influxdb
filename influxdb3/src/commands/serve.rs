@@ -595,6 +595,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&object_store),
             config.writer_identifier_prefix.clone(),
             catalog.instance_id(),
+            config.enterprise_config.license_email,
         )
         .await?;
         info!("valid license found, happy data crunching");
@@ -959,6 +960,7 @@ async fn load_and_validate_license(
     object_store: Arc<dyn ObjectStore>,
     writer_id: String,
     instance_id: Arc<str>,
+    license_email: Option<String>,
 ) -> Result<()> {
     let license_path: ObjPath = format!("{writer_id}/license").into();
     let license = match object_store.get(&license_path).await {
@@ -966,29 +968,37 @@ async fn load_and_validate_license(
         // The license does not exist so we need to create one
         Err(object_store::Error::NotFound { .. }) => {
             // Check for a TTY / stdin to prompt the user for their email
-            if !std::io::stdin().is_terminal() {
+            if !std::io::stdin().is_terminal() && license_email.is_none() {
                 return Err(Error::NoTTY);
             }
 
-            println!(
-                "\nWelcome to InfluxDB 3 Enterprise\n\
-                 No license file was detected. Please enter your email: \
-            "
-            );
-            let mut email = String::new();
-            let stdin = std::io::stdin();
-            stdin.read_line(&mut email)?;
-            let email = url::form_urlencoded::byte_serialize(email.trim().as_bytes())
-                .map(ToString::to_string)
-                .collect::<String>();
+            println!("\nWelcome to InfluxDB 3 Enterprise\n");
 
-            if email.is_empty() {
+            let (encoded_email, display_email) = license_email
+                .clone()
+                .map(Ok)
+                .unwrap_or_else(|| -> Result<String> {
+                    println!("No license file was detected. Please enter your email: ");
+                    let mut email = String::new();
+                    let stdin = std::io::stdin();
+                    stdin.read_line(&mut email)?;
+                    Ok(email)
+                })
+                .map(|s| {
+                    (
+                        url::form_urlencoded::byte_serialize(s.trim().as_bytes())
+                            .collect::<String>(),
+                        s,
+                    )
+                })?;
+
+            if encoded_email.is_empty() {
                 return Err(Error::InvalidEmail);
             }
 
             let client = reqwest::Client::new();
             let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&writer-id={writer_id}"))
+                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
             .send()
             .await?;
 
@@ -1006,7 +1016,8 @@ async fn load_and_validate_license(
                     .expect("Location header to be a valid utf-8 string")
             );
 
-            println!("Email sent. Please check your inbox to verify your email address and proceed.\nWaiting for verification...");
+            println!("Email sent to {display_email}. Please check your inbox to verify your email address and proceed.");
+            println!("Waiting for verification...");
             let start = Instant::now();
             loop {
                 // If 20 minutes have passed timeout and return an error
