@@ -2366,7 +2366,7 @@ func MoveTsmOnReadErr(err error, log *zap.Logger, ReplaceWithCallback func([]str
 	// We hit a bad TSM file - rename so the next compaction can proceed.
 	if ok := errors.As(err, &blockReadErr); ok {
 		path := blockReadErr.file
-		log.Error("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
+		log.Info("Renaming a corrupt TSM file due to compaction error", zap.String("file", path), zap.Error(err))
 		if err := ReplaceWithCallback([]string{path}, nil, nil); err != nil {
 			log.Info("Error removing bad TSM file", zap.String("file", path), zap.Error(err))
 		} else if e := os.Rename(path, path+"."+BadTSMFileExtension); e != nil {
