@@ -1252,8 +1252,8 @@ async fn get_license(encoded_email: &str, instance_id: &str) -> Result<bytes::By
     debug!("getting license from server");
     match resp.status().as_u16() {
         200 => Ok(resp.bytes().await?),
-        400 => Err(Error::LicenseNotFound),
-        404 => Err(Error::BadLicenseRequest),
+        404 => Err(Error::LicenseNotFound),
+        400 => Err(Error::BadLicenseRequest),
         i => Err(Error::UnexpectedLicenseResponse(i)),
     }
 }
