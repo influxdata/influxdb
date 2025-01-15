@@ -9,14 +9,25 @@ NOTE: this script assumes the GCP `influxdata-v3-pro-licensing` project and
 infrastructure already exist and that you are a member of
 `team-monolith@influxdata.com`. Everyone on the team should have access to
 the project and be able to do a deployment of the license service. If the
-project doesn't exist for some reason, it will have to be created. If the 
-expected resource need to be deployed, see the "Creating or modifying project
-infrastructure" section below (it's unlikely you need to do this).
+project doesn't exist for some reason, it will have to be created first.
 
-Run the `release.sh` script. In a terminal and in the project root directory:
+**Build** - run the `release.sh` script. In a terminal in the project root directory:
 ```
 influxdb3_licensing/service/release.sh
 ```
+
+If `release.sh` runs successfully, it will output the SHA of the current git commit.
+
+**Deploy**
+
+1. In `terraform/terraform.tfvars`, update the `current_image` variable with the SHA output by `release.sh` in the previous step.
+2. Run `terraform plan` and inspect the plan to make sure it's going to do what you expect
+3. Run `terraform apply`
+4. Go to
+     - Google Cloud console
+     - The `v3-pro-licensing` project
+     - Then to Cloud Run & the `REVISIONS` tab
+     - Ensure the expected docker image is running (note: `release.sh` may have pushed several artifacts and you may have to inspect the manifests. The tagged artifiact may be an index manifest that points to the actual running container)
 
 #### Build for local testing
 ```
@@ -102,23 +113,3 @@ curl -X POST "http://localhost:8687/licenses" \
      -d "writer-id=influxdbpro2" \
      -d "instance-id=`uuidgen`"
 ```
-
-#### Creating or modifying project infrastucture
-This section is about creating or changing resources within the Google Cloud
-Project where this license servic is deployed. This is not necessary for normal
-day-to-day builds and deployments of the service. This is only required
-if you need to, for example, increase the number of CPUs or GBs of RAM
-Postgress has, create new service accounts, modify the VPC, etc.
-
-This infrastructure is maintained using Terraform and those and you'll need
-it installed to make changes. When it doubt, please consult someone in SRE
-or your manager before applying infrastruture changes to this project. It 
-is customer-facing.
-
-The terraform files are in the `influxdb3_licensing/terraform` directory.
-Make the necessary changes there and then:
-```
-terraform apply
-```
-It will display its planned changes. Review them and they type 'yes' and hit
-Enter to apply them.
