@@ -357,17 +357,12 @@ impl Catalog {
         &self.inner
     }
 
-    pub fn table_id(&self, db_id: &DbId, name: Arc<str>) -> Option<TableId> {
+    pub fn table_id(&self, db_id: &DbId, table_name: Arc<str>) -> Option<TableId> {
         let inner = self.inner.read();
-        inner.databases.get(db_id).and_then(|db| {
-            db.tables().find_map(|table_defn| {
-                if table_defn.table_name == name {
-                    Some(table_defn.table_id)
-                } else {
-                    None
-                }
-            })
-        })
+        inner
+            .databases
+            .get(db_id)
+            .and_then(|db| db.table_name_to_id(table_name))
     }
 }
 

@@ -198,7 +198,6 @@ impl WriteBufferImpl {
             first_snapshot.next_file_id.set_next_id();
         }
 
-        debug!(?persisted_snapshots, ">>> all loaded snapshots");
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
             Arc::clone(&time_provider),
             persisted_snapshots,
@@ -2647,9 +2646,11 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_check_mem_and_force_snapshot() {
-        // let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let tmp_dir = test_helpers::tmp_dir().unwrap();
-        debug!(?tmp_dir, ">>> using tmp dir for test");
+        debug!(
+            ?tmp_dir,
+            ">>> using tmp dir for test_check_mem_and_force_snapshot"
+        );
         let obj_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(tmp_dir).unwrap());
         let (write_buffer, _, _) = setup(
@@ -2702,28 +2703,10 @@ mod tests {
         let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
         debug!(?total_buffer_size_bytes_after, ">>> total buffer size");
         assert!(total_buffer_size_bytes_before > total_buffer_size_bytes_after);
-        let from = object_store::path::Path::from("test_host/snapshots/");
-        let file_paths = load_files_from_obj_store(&obj_store, &from).await;
-        debug!(?file_paths, ">>> obj store snapshots");
-        for file_path in file_paths {
-            let bytes = obj_store
-                .get(&file_path)
-                .await
-                .unwrap()
-                .bytes()
-                .await
-                .unwrap();
-            let persisted_snapshot: PersistedSnapshot = serde_json::from_slice(&bytes).unwrap();
-            assert!(persisted_snapshot.min_time != i64::MAX);
-            assert!(persisted_snapshot.max_time != i64::MIN);
-        }
+        assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
 
         let total_buffer_size_bytes_before = total_buffer_size_bytes_after;
         debug!(">>> 2nd snapshot..");
-        // This is technically the same issue that has been observed when running under
-        // high memory pressure, a snapshot file with no real content inside. The sample
-        // file looks like below,
-        //
         //   PersistedSnapshot{
         //     writer_id: "test_host",
         //     next_file_id: ParquetFileId(1),
@@ -2739,35 +2722,28 @@ mod tests {
         //     max_time: -9223372036854775808,
         //     databases: SerdeVecMap({})
         // }
+        // This snapshot file was observed when running under high memory pressure.
         //
         // The min/max time comes from the snapshot chunks that have been evicted from
         // the query buffer. But when there's nothing evicted then the min/max stays
         // the same as what they were initialized to i64::MAX/i64::MIN respectively.
         //
-        // When forcing the snapshot for 2nd time here, the snapshotting process
-        // kicks off again because force_snapshot is set although wal buffer is empty
-        // and the wal periods are empty (cleared in 1st snapshot). In real run, the
-        // _theory_ is when under high mem pressure, with 1s flush interval and snapshot
-        // size 1, somehow the snapshotting process is queued to run immediately after
-        // the previous one which leads to this undesirable state.
-        //
-        // So, queryable buffer is empty (or doesn't hold data to filter out with new no-ops end
-        // time marker) when snapshot tracker's wal period is not empty
-        // this leads to writing a wal file and a snapshot file with empty rows, dbs etc.
-        // This however does not stop loading the data into memory as no empty parquet files are
-        // written out.
-        //
+        // This however does not stop loading the data into memory as no empty
+        // parquet files are written out. But this test recreates that issue and checks
+        // object store directly to make sure inconsistent snapshot file isn't written
+        // out in the first place
         check_mem_and_force_snapshot(&Arc::clone(&write_buffer), 50).await;
         let total_buffer_size_bytes_after = write_buffer.buffer.get_total_size_bytes();
         // no other writes so nothing can be snapshotted, so mem should stay same
         assert!(total_buffer_size_bytes_before == total_buffer_size_bytes_after);
 
         drop(write_buffer);
+        assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
 
         // restart
         debug!(">>> Restarting..");
-        let (_, _, _) = setup(
-            Time::from_timestamp_nanos(0),
+        let (write_buffer_after_restart, _, _) = setup(
+            Time::from_timestamp_nanos(300),
             Arc::clone(&obj_store),
             WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
@@ -2778,8 +2754,28 @@ mod tests {
         )
         .await;
 
-        let from = object_store::path::Path::from("test_host/snapshots/");
-        let file_paths = load_files_from_obj_store(&obj_store, &from).await;
+        assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+        drop(write_buffer_after_restart);
+
+        // restart
+        debug!(">>> Restarting again..");
+        let (_, _, _) = setup(
+            Time::from_timestamp_nanos(400),
+            Arc::clone(&obj_store),
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100_000,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 10,
+            },
+        )
+        .await;
+        assert_dbs_not_empty_in_snapshot_file(&obj_store, "test_host").await;
+    }
+
+    async fn assert_dbs_not_empty_in_snapshot_file(obj_store: &Arc<dyn ObjectStore>, host: &str) {
+        let from = Path::from(format!("{host}/snapshots/"));
+        let file_paths = load_files_from_obj_store(obj_store, &from).await;
         debug!(?file_paths, ">>> obj store snapshots");
         for file_path in file_paths {
             let bytes = obj_store
@@ -2790,6 +2786,9 @@ mod tests {
                 .await
                 .unwrap();
             let persisted_snapshot: PersistedSnapshot = serde_json::from_slice(&bytes).unwrap();
+            // dbs not empty
+            assert!(!persisted_snapshot.databases.is_empty());
+            // min and max times aren't defaults
             assert!(persisted_snapshot.min_time != i64::MAX);
             assert!(persisted_snapshot.max_time != i64::MIN);
         }
