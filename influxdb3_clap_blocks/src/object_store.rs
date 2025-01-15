@@ -544,7 +544,7 @@ macro_rules! object_store_config_inner {
                 pub fn s3_builder(&self) -> object_store::aws::AmazonS3Builder {
                     use object_store::aws::AmazonS3Builder;
 
-                    let mut builder = AmazonS3Builder::new()
+                    let mut builder = AmazonS3Builder::from_env()
                         .with_client_options(self.client_options())
                         .with_allow_http(self.aws_allow_http)
                         .with_region(&self.aws_default_region)
@@ -623,7 +623,7 @@ macro_rules! object_store_config_inner {
                         return Ok(None);
                     };
 
-                    let store = object_store::aws::AmazonS3Builder::new()
+                    let store = object_store::aws::AmazonS3Builder::from_env()
                         // bucket name is ignored by our cache server
                         .with_bucket_name(self.bucket.as_deref().unwrap_or("placeholder"))
                         .with_client_options(
