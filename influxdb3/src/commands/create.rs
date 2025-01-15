@@ -93,8 +93,8 @@ impl Config {
                 Ok(client)
             }
             // We don't need a client for this, so we're just creating a
-            // placeholder client
-            SubCommand::Token => Ok(Client::new("http://localhost")?),
+            // placeholder client with an unusable URL
+            SubCommand::Token => Ok(Client::new("http://recall.invalid")?),
         }
     }
 }
