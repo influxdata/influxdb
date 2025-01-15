@@ -1171,6 +1171,17 @@ static SIGNING_KEYS: phf::Map<&'static str, &[u8]> = phf::phf_map! {
 };
 
 #[cfg(not(feature = "no_license"))]
+const LICENSE_SERVER_URL: &'static str = if cfg!(feature = "local_dev") {
+    if let Some(url) = option_env!("LICENSE_SERVER_URL") {
+        url
+    } else {
+        "http://localhost:8687"
+    }
+} else {
+    "https://licenses.enterprise.influxdata.com"
+};
+
+#[cfg(not(feature = "no_license"))]
 async fn license_onboarding(
     object_store: &Arc<dyn ObjectStore>,
     writer_id: &str,
@@ -1181,7 +1192,7 @@ async fn license_onboarding(
 ) -> Result<bytes::Bytes> {
     let client = reqwest::Client::new();
     let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
+                .post(format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
             .send()
             .await?;
 
@@ -1191,7 +1202,7 @@ async fn license_onboarding(
 
     //TODO: Handle url for local vs actual production code
     let poll_url = format!(
-        "https://licenses.enterprise.influxdata.com{}",
+        "{LICENSE_SERVER_URL}{}",
         resp.headers()
             .get("Location")
             .expect("Location header to be present")
@@ -1232,7 +1243,8 @@ async fn license_onboarding(
 #[cfg(not(feature = "no_license"))]
 async fn get_license(encoded_email: &str, instance_id: &str) -> Result<bytes::Bytes> {
     //TODO: Handle url for local vs actual production code
-    let get_url = format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}");
+    let get_url =
+        format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}");
 
     let client = reqwest::Client::new();
     let resp = client.get(get_url).send().await?;
