@@ -44,7 +44,7 @@ fi
 
 # Expect 201 Created HTTP status code.
 http_code=$(echo "$resp" | jq -r '.http_code')
-if [ "$http_code" != "201" ]; then
+if [ "$http_code" != "201" ] && [ "$http_code" != "202" ]; then
   echo "Error: HTTP status code $http_code" >&2
   exit 1
 fi

@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/license"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/license/signer"
 	"github.com/influxdata/influxdb_pro/influxdb3_license/service/license/verifier"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_LicenseCreateAndVerify(t *testing.T) {
@@ -134,12 +135,13 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 				t.Skip("skipping test")
 			}
 
-			var signMethod jwt.SigningMethod
+			var signMethod license.Signer
 			var err error
 
 			// Create the license signer
 			if strings.HasPrefix(tt.pubKey, "gcloud-kms") {
-				signMethod = signer.NewKMSSigningMethod()
+				signMethod, err = signer.NewKMSSigningMethod(tt.privKey, tt.pubKey)
+				require.NoError(t, err)
 			} else {
 				if signMethod, err = signer.NewLocalSigningMethod(tt.privKey, tt.pubKey); err != nil {
 					t.Fatalf("Error creating local signer: %v", err)
@@ -148,7 +150,7 @@ func Test_LicenseCreateAndVerify(t *testing.T) {
 
 			// Create license creator
 			signer := jwt.SigningMethodES256
-			creator, err := license.NewCreator(signMethod, tt.privKey, tt.pubKey)
+			creator, err := license.NewCreator(signMethod)
 			if err != nil {
 				t.Fatalf("Error creating license creator: %v", err)
 			}

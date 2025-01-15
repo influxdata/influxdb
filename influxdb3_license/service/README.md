@@ -53,11 +53,11 @@ On Fedora, RHEL/CentOS, or Arch, install `postgresql`
 
 #### Create the schema for the license service in Postgres
 ```
-createdb -h localhost -U postgres influxdb3_eprolicenses
+createdb -h localhost -U postgres influxdb_pro_license
 ```
 Then run the migration script:
 ```
-psql -h localhost -U postgres -d influxdb3_pro_licenses < store/migrations/000001_initial_setup.up.postgres.sql
+psql -h localhost -U postgres -d influxdb_pro_license < store/migrations/000001_initial_setup.up.postgres.sql
 ```
 
 #### Run the service
@@ -113,3 +113,31 @@ curl -X POST "http://localhost:8687/licenses" \
      -d "writer-id=influxdbpro2" \
      -d "instance-id=`uuidgen`"
 ```
+
+#### Manual integration testing w/ InfluxDB3
+
+First, you will need to run the license service in `--local-signer` mode and
+specify the testing key signing/verification key pair:
+
+```
+./license_service \
+  --local-signer \
+  --private-key=self-managed_test_private-key.pem \
+  --public-key=self-managed_test_public-key.pem
+```
+
+Then you'll need to compile the InfluxDB3 Pro binary with the `local_dev`
+feature flag enabled:
+
+```
+cd ../../
+cargo build -F local_dev
+```
+
+By default the binary built with this feature flag will point to
+`http://localhost:8687`, but during a non-cached `cargo build -F local_dev` you
+can set the `LICENSE_SERVER_URL` to another host and port as needed (eg you
+can't run the license service at port 8687 for some reason).
+
+Then you can run the `influxdb3` binary as usual. You should see license server
+logs locally.

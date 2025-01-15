@@ -56,7 +56,7 @@ func NewTestDB(t *testing.T) *TestDB {
 	db.Close()
 
 	// Connect to the new database with SSL disabled
-	testDBConnStr := fmt.Sprintf("%s dbname=%s", baseConnStr, dbName)
+	testDBConnStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", defaultHost, defaultPort, defaultUser, defaultPassword, dbName)
 	db, err = sql.Open("postgres", testDBConnStr)
 	if err != nil {
 		t.Fatalf("Failed to connect to test database: %v", err)

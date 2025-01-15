@@ -6,42 +6,62 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"math/big"
+	"strings"
 
 	kms "cloud.google.com/go/kms/apiv1"
 	kmspb "cloud.google.com/go/kms/apiv1/kmspb"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/keyring"
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/license"
 )
 
 // KMSSigningMethod is a custom JWT signing method that uses Google Cloud KMS.
 // It implements the jwt.SigningMethod interface.
 type KMSSigningMethod struct {
 	jwt.SigningMethod
+	privKey string
+	pubKey  string
 }
 
 // NewKMSSigningMethod creates a new KMSSigningMethod instance.
-func NewKMSSigningMethod() *KMSSigningMethod {
+func NewKMSSigningMethod(privKey, pubKey string) (license.Signer, error) {
+	// Make sure the public key is available in the local keyring. Otherwise,
+	// the license cannot be verified.
+	kr, err := keyring.LoadKeys()
+	if err != nil {
+		return nil, fmt.Errorf("license creator failed to load local keyring: %w", err)
+	}
+
+	if _, err := kr.GetKey(pubKey); err != nil {
+		return nil, fmt.Errorf("could not find pubKey in local keyring: %w", err)
+	}
+
+	// If the pub key is for Google Cloud KMS, make sure it is in the correct format
+	// to convert to a KMS key path.
+	if strings.HasPrefix(pubKey, "gcloud-kms") {
+		_, err := kr.KMSPrivateKey("any", pubKey)
+		if err != nil {
+			return nil, fmt.Errorf("pubKey appears to be a Google KMS key but couldn't derive path to KMS privKey resrource: %w", err)
+		}
+	}
 	return &KMSSigningMethod{
 		SigningMethod: jwt.SigningMethodES256,
-	}
+		privKey:       privKey,
+		pubKey:        pubKey,
+	}, nil
 }
 
 // Sign implements the jwt.SigningMethod interface, which signs the given
 // signing string using Google Cloud KMS.
-func (m *KMSSigningMethod) Sign(signingString string, privKey interface{}) ([]byte, error) {
+func (m *KMSSigningMethod) Sign(signingString string, _privKey interface{}) ([]byte, error) {
 	// Hash the signing string
 	hasher := crypto.SHA256.New()
 	hasher.Write([]byte(signingString))
 	digest := hasher.Sum(nil)
 
-	// Convert privKey to KMS key name
-	kmsKeyPath, ok := privKey.(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid key type: expected string, got %T", privKey)
-	}
-
 	// Sign with KMS
 	req := &kmspb.AsymmetricSignRequest{
-		Name: kmsKeyPath,
+		Name: m.privKey,
 		Digest: &kmspb.Digest{
 			Digest: &kmspb.Digest_Sha256{
 				Sha256: digest,
@@ -76,6 +96,10 @@ func (m *KMSSigningMethod) Sign(signingString string, privKey interface{}) ([]by
 
 	// Return rawSig as the signature bytes (the jwt library will handle base64)
 	return rawSig, nil
+}
+
+func (m *KMSSigningMethod) Kid() string {
+	return m.pubKey
 }
 
 // ecdsaSignature is used for ASN.1 DER decoding

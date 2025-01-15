@@ -1230,8 +1230,18 @@ async fn license_onboarding(
             .send()
             .await?;
 
-    if resp.status() == 400 {
-        return Err(Error::BadLicenseRequest);
+    match resp.status().as_u16() {
+        // * If this is the first time the user is attmpting to create a license without verification
+        // we should see a 201 response.
+        // * If the user has been verified and they haven't created a license for this
+        // email/instance_id combo then they will probably successfully create a license and see a
+        // 201 response.
+        201 => {}
+        // * If this is the second time without verification, they should should see a 202
+        // response.
+        202 => {}
+        400 => return Err(Error::BadLicenseRequest),
+        i => return Err(Error::UnexpectedLicenseResponse(i)),
     }
 
     //TODO: Handle url for local vs actual production code
