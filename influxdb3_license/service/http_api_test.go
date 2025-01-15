@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -78,10 +79,11 @@ func TestLicenseCreate(t *testing.T) {
 	testFixtures := getTestFixtures(t)
 
 	tests := []struct {
-		name       string
-		email      string
-		hostID     string
-		doActivate bool
+		name              string
+		email             string
+		hostID            string
+		doActivateLicense bool
+		doVerifyUser      bool
 
 		expectedPostResponseStatus  int
 		expectedPostResponseHeaders map[string]string
@@ -89,10 +91,10 @@ func TestLicenseCreate(t *testing.T) {
 		expectedGetResponseHeaders  map[string]string
 	}{
 		{
-			name:       "email username must be url-encoded",
-			email:      "invalid+email@influxdata.com",
-			hostID:     "meow",
-			doActivate: true,
+			name:              "email username must be url-encoded",
+			email:             "invalid+email@influxdata.com",
+			hostID:            "meow",
+			doActivateLicense: true,
 			// TODO: this might should probably be a bug but it works
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
@@ -103,7 +105,7 @@ func TestLicenseCreate(t *testing.T) {
 			name:                        "404 response for unverified email address",
 			email:                       "fake1@influxdata.com",
 			hostID:                      "meow",
-			doActivate:                  false,
+			doActivateLicense:           false,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
 			expectedGetResponseStatus:   404,
@@ -113,7 +115,7 @@ func TestLicenseCreate(t *testing.T) {
 			name:                        "only user name needs to be url-encoded",
 			email:                       "valid_1%2Bemail@influxdata.com",
 			hostID:                      "meow",
-			doActivate:                  true,
+			doActivateLicense:           true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
 			expectedGetResponseStatus:   200,
@@ -123,7 +125,18 @@ func TestLicenseCreate(t *testing.T) {
 			name:                        "at-sign can also be url-encoded",
 			email:                       "valid_2%2Bemail%40influxdata.com",
 			hostID:                      "meow",
-			doActivate:                  true,
+			doActivateLicense:           true,
+			expectedPostResponseStatus:  201,
+			expectedPostResponseHeaders: map[string]string{},
+			expectedGetResponseStatus:   200,
+			expectedGetResponseHeaders:  map[string]string{},
+		},
+		{
+			name:                        "existing user, new license (same as previous test case)",
+			email:                       "valid_2%2Bemail%40influxdata.com",
+			hostID:                      "meow",
+			doActivateLicense:           true,
+			doVerifyUser:                true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
 			expectedGetResponseStatus:   200,
@@ -135,6 +148,25 @@ func TestLicenseCreate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.doVerifyUser {
+				t.Logf("verifying user")
+				ctx := context.Background()
+				tx, err := testFixtures.store.BeginTx(ctx)
+				require.NoError(t, err)
+
+				dbEmail, err := url.QueryUnescape(tt.email)
+				require.NoError(t, err)
+
+				user, err := testFixtures.store.GetUserByEmailTx(ctx, tx, dbEmail)
+				require.NoError(t, err)
+
+				err = testFixtures.store.MarkUserAsVerified(ctx, tx, user.ID)
+				require.NoError(t, err)
+
+				err = tx.Commit()
+				require.NoError(t, err)
+			}
+
 			instanceID, _ := uuid.NewV4()
 			url := fmt.Sprintf("%s/licenses?email=%s&writer-id=%s&instance-id=%s", testFixtures.srv.URL, tt.email, tt.hostID, instanceID)
 			res, err := http.Post(url, "", nil)
@@ -147,13 +179,14 @@ func TestLicenseCreate(t *testing.T) {
 			require.True(t, url != "", "must return a 'Location' header")
 			url = fmt.Sprintf("%s%s", testFixtures.srv.URL, location)
 
-			if tt.doActivate {
+			if tt.doActivateLicense {
 				ctx := context.Background()
 				tx, err := testFixtures.store.BeginTx(ctx)
 				require.NoError(t, err)
 
 				license, err := testFixtures.store.GetLicenseByInstanceID(ctx, tx, instanceID.String())
 				require.NoError(t, err)
+				require.NotNil(t, license)
 
 				err = testFixtures.store.SetLicenseState(ctx, tx, license.ID, store.LicenseStateActive)
 				require.NoError(t, err)
