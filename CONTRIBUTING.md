@@ -34,10 +34,10 @@ For features we don't plan to support we will close the feature request ticket (
 
 ## Contributing Changes
 
-InfluxDB 3 is written mostly in idiomatic Rust—please see the [Style Guide] for more details.
+InfluxDB 3 is written mostly in idiomatic Rust. Please refer to the [Rust API Guidelines][rust-api-guide] for more details.
 All code must adhere to the `rustfmt` format, and pass all of the `clippy` checks we run in CI (there are more details further down this README).
 
-[Style Guide]: docs/style_guide.md
+[rust-api-guide]: https://rust-lang.github.io/api-guidelines/about.html
 
 ### Finding Issues To Work On
 
@@ -93,76 +93,53 @@ There are some tips on verifying the above in the [next section](#running-tests)
 
 ## Running Tests
 
-The `cargo` build tool runs tests as well. Run:
+Testing `influxdb3` requires the use of [`cargo-nextest`](https://nexte.st/) which can be installed
+via:
+```
+cargo install cargo-nextest --locked
+```
+
+You can then run all tests in the workspace:
 
 ```shell
-cargo test --workspace
+cargo nextest run --workspace
 ```
 
 ### Enabling logging in tests
 
-To enable logging to stderr during a run of `cargo test` set the Rust
-`RUST_LOG` environment variable. For example, to see all INFO messages:
+To enable logging to stdout/stderr during a run of `cargo nextest` set the Rust `TEST_LOG`, `RUST_LOG`,
+and `RUST_LOG_SPAN_EVENTS` environment variables. For example, to see all `INFO` messages:
 
 ```shell
-RUST_LOG=info cargo test --workspace
+TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full cargo nextest run --workspace --nocapture
 ```
 
-Since this feature uses
-[`EnvFilter`](https://docs.rs/tracing-subscriber/0.2.15/tracing_subscriber/filter/struct.EnvFilter.html) internally, you
-can use all the features of that crate. For example, to disable the
-(somewhat noisy) logs in some h2 modules, you can use a value of
+`TEST_LOG` will emit logs from the running test server (see [End-to-End Tests](#end-to-end-tests)).
+
+Since this feature uses [`EnvFilter`][env-filter] internally, you can use all the features of that
+crate. For example, to disable the (somewhat noisy) logs in some h2 modules, you can use a value of
 `RUST_LOG` such as:
 
 ```shell
-RUST_LOG=debug,hyper::proto::h1=info,h2=info cargo test --workspace
+RUST_LOG=debug,hyper::proto::h1=info,h2=info RUST_LOG_SPAN_EVENTS=full cargo nextest run --workspace --nocapture
 ```
 
-See [logging.md](docs/logging.md) for more information on logging.
+Many tests use the [`test-log`](https://crates.io/crates/test-log) crate to enable this logging
+behaviour, which requires the use of the `RUST_LOG_SPAN_EVENTS` environment variable.
+
+[env-filter]: https://docs.rs/tracing-subscriber/0.2.15/tracing_subscriber/filter/struct.EnvFilter.html
 
 ### End-to-End Tests
 
-There are end-to-end tests that spin up a server and make requests via the client library and API. They can be found in `tests/end_to_end_cases`
+There are end-to-end tests that spin up a server and make requests via the client library and API.
+They can be found in `influxdb3/tests/`
 
-These require additional setup as described in [testing.md](docs/testing.md).
+When running these tests, you can have the logs of the running server emitted to stdout by adding
+the `TEST_LOG` environment variable, for example:
 
-### Visually showing explain plans
-
-Some query plans are output in the log in [graphviz](https://graphviz.org/) format. To display them you can use the `tools/iplan` helper.
-
-For example, if you want to display this plan:
-
+```shell
+TEST_LOG= cargo nextest run -p influxdb3 --nocapture
 ```
-// Begin DataFusion GraphViz Plan (see https://graphviz.org)
-digraph {
-  subgraph cluster_1
-  {
-    graph[label="LogicalPlan"]
-    2[shape=box label="SchemaPivot"]
-    3[shape=box label="Projection: "]
-    2 -> 3 [arrowhead=none, arrowtail=normal, dir=back]
-    4[shape=box label="Filter: Int64(0) LtEq #time And #time Lt Int64(10000) And #host Eq Utf8(_server01_)"]
-    3 -> 4 [arrowhead=none, arrowtail=normal, dir=back]
-    5[shape=box label="TableScan: attributes projection=None"]
-    4 -> 5 [arrowhead=none, arrowtail=normal, dir=back]
-  }
-  subgraph cluster_6
-  {
-    graph[label="Detailed LogicalPlan"]
-    7[shape=box label="SchemaPivot\nSchema: [non_null_column:Utf8]"]
-    8[shape=box label="Projection: \nSchema: []"]
-    7 -> 8 [arrowhead=none, arrowtail=normal, dir=back]
-    9[shape=box label="Filter: Int64(0) LtEq #time And #time Lt Int64(10000) And #host Eq Utf8(_server01_)\nSchema: [color:Utf8;N, time:Int64]"]
-    8 -> 9 [arrowhead=none, arrowtail=normal, dir=back]
-    10[shape=box label="TableScan: attributes projection=None\nSchema: [color:Utf8;N, time:Int64]"]
-    9 -> 10 [arrowhead=none, arrowtail=normal, dir=back]
-  }
-}
-// End DataFusion GraphViz Plan
-```
-
-You can pipe it to `iplan` and render as a .pdf
-
 
 ## Running `rustfmt` and `clippy`
 
@@ -194,7 +171,3 @@ cargo clippy --all-targets --workspace -- -D warnings
 
 [`rustfmt`]: https://github.com/rust-lang/rustfmt
 [`clippy`]: https://github.com/rust-lang/rust-clippy
-
-## Distributed Tracing
-
-See [tracing.md](docs/tracing.md) for more information on the distributed tracing functionality within InfluxDB 3
