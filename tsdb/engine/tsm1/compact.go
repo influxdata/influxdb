@@ -1649,11 +1649,11 @@ func (k *tsmBatchKeyIterator) merge() {
 }
 
 func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
