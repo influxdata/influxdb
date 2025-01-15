@@ -356,6 +356,14 @@ impl Catalog {
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
     }
+
+    pub fn table_id(&self, db_id: &DbId, table_name: Arc<str>) -> Option<TableId> {
+        let inner = self.inner.read();
+        inner
+            .databases
+            .get(db_id)
+            .and_then(|db| db.table_name_to_id(table_name))
+    }
 }
 
 #[serde_with::serde_as]
