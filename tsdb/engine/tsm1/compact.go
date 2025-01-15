@@ -85,6 +85,15 @@ type errBlockRead struct {
 	err  error
 }
 
+func (e errBlockRead) Unwrap() error {
+	return e.err
+}
+
+func (e errBlockRead) Is(target error) bool {
+	_, ok := target.(errBlockRead)
+	return ok
+}
+
 func (e errBlockRead) Error() string {
 	if e.err != nil {
 		return fmt.Sprintf("block read error on %s: %s", e.file, e.err)
@@ -1684,7 +1693,7 @@ func (k *tsmBatchKeyIterator) Err() error {
 	errs = make([]error, 0, len(k.errs)+1)
 	errs = append(errs, k.errs...)
 	errs = append(errs, fmt.Errorf("additional errors dropped: %d", k.overflowErrors))
-	return errs
+	return errors.Join(errs...)
 }
 
 type cacheKeyIterator struct {
