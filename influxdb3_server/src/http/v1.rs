@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    ops::{Deref, DerefMut},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -17,15 +18,18 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
+use arrow_schema::{Field, SchemaRef};
 use bytes::Bytes;
 use chrono::{format::SecondsFormat, DateTime};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::{ready, stream::Fuse, Stream, StreamExt};
 use hyper::http::HeaderValue;
 use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
+use influxdb_influxql_parser::select::{Dimension, GroupByClause};
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
-use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
+use regex::Regex;
+use schema::{InfluxColumnType, INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -73,9 +77,9 @@ where
 
         // TODO - Currently not supporting parameterized queries, see
         //        https://github.com/influxdata/influxdb/issues/24805
-        let stream = self.query_influxql_inner(database, &query, None).await?;
-        let stream =
-            QueryResponseStream::new(0, stream, chunk_size, format, epoch).map_err(QueryError)?;
+        let (stream, group_by) = self.query_influxql_inner(database, &query, None).await?;
+        let stream = QueryResponseStream::new(0, stream, chunk_size, format, epoch, group_by)
+            .map_err(QueryError)?;
         let body = Body::wrap_stream(stream);
 
         Ok(Response::builder()
@@ -249,7 +253,7 @@ enum Precision {
 /// [`anyhow::Error`] is used as a catch-all because if anything fails during
 /// that process it will result in a 500 INTERNAL ERROR.
 #[derive(Debug, thiserror::Error)]
-#[error("unexpected query error: {0}")]
+#[error("unexpected query error: {0:#}")]
 pub struct QueryError(#[from] anyhow::Error);
 
 /// The response structure returned by the v1 query API
@@ -354,6 +358,8 @@ struct StatementResponse {
 #[derive(Debug, Serialize)]
 struct Series {
     name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tags: Option<HashMap<String, Option<String>>>,
     columns: Vec<String>,
     values: Vec<Row>,
 }
@@ -362,14 +368,29 @@ struct Series {
 #[derive(Debug, Serialize)]
 struct Row(Vec<Value>);
 
+impl Deref for Row {
+    type Target = Vec<Value>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Row {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// A buffer for storing records from a stream of [`RecordBatch`]es
 ///
 /// The optional `size` indicates whether this is operating in `chunked` mode (see
 /// [`QueryResponseStream`]), and when specified, gives the size of chunks that will
 /// be emitted.
+#[derive(Debug)]
 struct ChunkBuffer {
     size: Option<usize>,
-    series: VecDeque<(String, Vec<Row>)>,
+    series: VecDeque<(String, BufferGroupByTagSet, Vec<Row>)>,
 }
 
 impl ChunkBuffer {
@@ -382,27 +403,80 @@ impl ChunkBuffer {
 
     /// Get the name of the current measurement [`Series`] being streamed
     fn current_measurement_name(&self) -> Option<&str> {
-        self.series.front().map(|(n, _)| n.as_str())
+        self.series.front().map(|(n, _, _)| n.as_str())
     }
 
     /// For queries that produce multiple [`Series`], this will be called when
     /// the current series is completed streaming
     fn push_next_measurement<S: Into<String>>(&mut self, name: S) {
-        self.series.push_front((name.into(), vec![]));
+        self.series.push_front((name.into(), None, vec![]));
     }
 
     /// Push a new [`Row`] into the current measurement [`Series`]
-    fn push_row(&mut self, row: Row) -> Result<(), anyhow::Error> {
-        self.series
-            .front_mut()
-            .context("tried to push row with no measurements buffered")?
-            .1
-            .push(row);
+    ///
+    /// If the stream is producing tags that are part of a `GROUP BY` clause, then `group_by` should
+    /// hold a map of those tag keys to tag values for the given row.
+    fn push_row(
+        &mut self,
+        group_by: Option<HashMap<String, Option<String>>>,
+        row: Row,
+    ) -> Result<(), anyhow::Error> {
+        let (_, tags, rows) = self
+            .series
+            .front()
+            .context("tried to push row with no measurements buffered")?;
+
+        // Usually series are split on the measurement name. This functin is not concerned with
+        // that split, as the caller does that. However, if we are processing a query with a `GROUP BY`
+        // clause, then we make the decision here. If the incoming `group_by` tag key/value pairs do
+        // not match the those for the current row set, then we need to start a new entry in the
+        // `series` on the chunk buffer.
+        use BufferGroupByDecision::*;
+        let group_by_decision = match (tags, &group_by) {
+            (None, None) => NotAGroupBy,
+            (Some(tags), Some(group_by)) => {
+                if group_by.len() == tags.len() {
+                    if group_by == tags {
+                        NewRowInExistingSet
+                    } else {
+                        NewSet
+                    }
+                } else {
+                    bail!(
+                        "group by columns in query result and chunk buffer are not the same size"
+                    );
+                }
+            }
+            (None, Some(_)) => {
+                if rows.is_empty() {
+                    FirstRowInSeries
+                } else {
+                    bail!("received inconsistent group by tags in query result");
+                }
+            }
+            (Some(_), None) => bail!(
+                "chunk buffer expects group by tags but none were present in the query result"
+            ),
+        };
+
+        match group_by_decision {
+            NotAGroupBy | NewRowInExistingSet => self.series.front_mut().unwrap().2.push(row),
+            FirstRowInSeries => {
+                let (_, tags, rows) = self.series.front_mut().unwrap();
+                *tags = group_by;
+                rows.push(row);
+            }
+            NewSet => {
+                let name = self.series.front().unwrap().0.clone();
+                self.series.push_front((name, group_by, vec![row]));
+            }
+        }
+
         Ok(())
     }
 
     /// Flush a single chunk from the [`ChunkBuffer`], if possible
-    fn flush_one(&mut self) -> Option<(String, Vec<Row>)> {
+    fn flush_one(&mut self) -> Option<(String, BufferGroupByTagSet, Vec<Row>)> {
         if !self.can_flush() {
             return None;
         }
@@ -411,23 +485,23 @@ impl ChunkBuffer {
         if self
             .series
             .back()
-            .is_some_and(|(_, rows)| rows.len() <= size)
+            .is_some_and(|(_, _, rows)| rows.len() <= size)
         {
             // the back series is smaller than the chunk size, so we just
             // pop and take the whole thing:
             self.series.pop_back()
         } else {
             // only drain a chunk's worth from the back series:
-            self.series
-                .back_mut()
-                .map(|(name, rows)| (name.to_owned(), rows.drain(..size).collect()))
+            self.series.back_mut().map(|(name, tags, rows)| {
+                (name.to_owned(), tags.clone(), rows.drain(..size).collect())
+            })
         }
     }
 
     /// The [`ChunkBuffer`] is operating in chunked mode, and can flush a chunk
     fn can_flush(&self) -> bool {
         if let (Some(size), Some(m)) = (self.size, self.series.back()) {
-            m.1.len() >= size || self.series.len() > 1
+            m.2.len() >= size || self.series.len() > 1
         } else {
             false
         }
@@ -437,6 +511,24 @@ impl ChunkBuffer {
     fn is_empty(&self) -> bool {
         self.series.is_empty()
     }
+}
+
+/// Convenience type for representing an optional map of tag name to optional tag values
+type BufferGroupByTagSet = Option<HashMap<String, Option<String>>>;
+
+/// Decide how to handle an incoming set of `GROUP BY` tag key value pairs when pushing a row into
+/// the `ChunkBuffer`
+enum BufferGroupByDecision {
+    /// The query is not using a `GROUP BY` with tags
+    NotAGroupBy,
+    /// This is the first time a row has been pushed to the series with this `GROUP BY` tag
+    /// key/value combination
+    FirstRowInSeries,
+    /// Still adding rows to the current set of `GROUP BY` tag key/value pairs
+    NewRowInExistingSet,
+    /// The incoming set of `GROUP BY` tag key/value pairs do not match, so we need to start a
+    /// new row set in the series.
+    NewSet,
 }
 
 /// The state of the [`QueryResponseStream`]
@@ -473,7 +565,7 @@ impl State {
 struct QueryResponseStream {
     buffer: ChunkBuffer,
     input: Fuse<SendableRecordBatchStream>,
-    column_map: HashMap<String, usize>,
+    column_map: ColumnMap,
     statement_id: usize,
     format: QueryFormat,
     epoch: Option<Precision>,
@@ -490,22 +582,11 @@ impl QueryResponseStream {
         chunk_size: Option<usize>,
         format: QueryFormat,
         epoch: Option<Precision>,
+        group_by_clause: Option<GroupByClause>,
     ) -> Result<Self, anyhow::Error> {
-        let buffer = ChunkBuffer::new(chunk_size);
         let schema = input.schema();
-        let column_map = schema
-            .fields
-            .iter()
-            .map(|f| f.name().to_owned())
-            .enumerate()
-            .flat_map(|(i, n)| {
-                if n != INFLUXQL_MEASUREMENT_COLUMN_NAME && i > 0 {
-                    Some((n, i - 1))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let buffer = ChunkBuffer::new(chunk_size);
+        let column_map = ColumnMap::new(schema, group_by_clause)?;
         Ok(Self {
             buffer,
             column_map,
@@ -543,7 +624,8 @@ impl QueryResponseStream {
         let schema = batch.schema();
 
         for row_index in 0..batch.num_rows() {
-            let mut row = vec![Value::Null; column_map.len()];
+            let mut row = vec![Value::Null; column_map.row_size()];
+            let mut tags = None;
 
             for (col_index, column) in columns.iter().enumerate() {
                 let field = schema.field(col_index);
@@ -577,32 +659,43 @@ impl QueryResponseStream {
                         cell_value = convert_ns_epoch(cell_value, precision)?
                     }
                 }
-                let col_position = column_map
-                    .get(column_name)
-                    .context("failed to retrieve column position")?;
-                row[*col_position] = cell_value;
+                if let Some(index) = column_map.as_row_index(column_name) {
+                    row[index] = cell_value;
+                } else if column_map.is_group_by_tag(column_name) {
+                    let tag_val = match cell_value {
+                        Value::Null => None,
+                        Value::String(s) => Some(s),
+                        other => bail!(
+                            "tag column {column_name} expected as a string or null, got {other:?}"
+                        ),
+                    };
+                    tags.get_or_insert_with(HashMap::new)
+                        .insert(column_name.to_string(), tag_val);
+                } else if column_map.is_orphan_group_by_tag(column_name) {
+                    tags.get_or_insert_with(HashMap::new)
+                        .insert(column_name.to_string(), Some(String::default()));
+                } else {
+                    bail!("failed to retrieve column position for column with name {column_name}");
+                }
             }
-            self.buffer.push_row(Row(row))?;
+            self.buffer.push_row(tags.take(), Row(row))?;
         }
         Ok(())
     }
 
-    fn columns(&self) -> Vec<String> {
-        let mut columns = vec!["".to_string(); self.column_map.len()];
-        self.column_map
-            .iter()
-            .for_each(|(k, i)| k.clone_into(&mut columns[*i]));
-        columns
+    fn column_names(&self) -> Vec<String> {
+        self.column_map.row_column_names()
     }
 
     /// Flush a single chunk, or time series, when operating in chunked mode
     fn flush_one(&mut self) -> QueryResponse {
-        let columns = self.columns();
+        let columns = self.column_names();
         // this unwrap is okay because we only ever call flush_one
         // after calling can_flush on the buffer:
-        let (name, values) = self.buffer.flush_one().unwrap();
+        let (name, tags, values) = self.buffer.flush_one().unwrap();
         let series = vec![Series {
             name,
+            tags,
             columns,
             values,
         }];
@@ -618,13 +711,14 @@ impl QueryResponseStream {
 
     /// Flush the entire buffer
     fn flush_all(&mut self) -> QueryResponse {
-        let columns = self.columns();
+        let columns = self.column_names();
         let series = self
             .buffer
             .series
             .drain(..)
-            .map(|(name, values)| Series {
+            .map(|(name, tags, values)| Series {
                 name,
+                tags,
                 columns: columns.clone(),
                 values,
             })
@@ -771,6 +865,191 @@ fn cast_column_value(column: &ArrayRef, row_index: usize) -> Result<Value, anyho
     Ok(value)
 }
 
+/// Map column names to their respective [`ColumnType`]
+struct ColumnMap {
+    /// The map of column names to column types
+    map: HashMap<String, ColumnType>,
+    /// How many columns are in the `values` set, i.e., that are not `GROUP BY` tags
+    row_size: usize,
+}
+
+/// A column's type in the context of a v1 /query API response
+enum ColumnType {
+    /// A value to be included in the `series.[].values` array, at the given `index`
+    Value { index: usize },
+    /// A tag that is part of the `GROUP BY` clause, either explicitly, or by a regex/wildcard match
+    /// and is included in the `series.[].tags` map
+    GroupByTag,
+    /// This is a case where a GROUP BY clause contains a field which doesn't exist in the table
+    ///
+    /// For example,
+    /// ```text
+    /// select * from foo group by t1, t2
+    /// ```
+    /// If `t1` is a tag in the table, but `t2` is not, nor is a field in the table, then the v1
+    /// /query API response will include `t2` in the `series.[].tags` property in the results with
+    /// an empty string for a value (`""`).
+    OrphanGroupByTag,
+}
+
+impl ColumnMap {
+    /// Create a new `ColumnMap`
+    fn new(
+        schema: SchemaRef,
+        group_by_clause: Option<GroupByClause>,
+    ) -> Result<Self, anyhow::Error> {
+        let mut map = HashMap::new();
+        let group_by = if let Some(clause) = group_by_clause {
+            GroupByEval::from_clause(clause)?
+        } else {
+            None
+        };
+        let mut index = 0;
+        for field in schema
+            .fields()
+            .into_iter()
+            .filter(|f| f.name() != INFLUXQL_MEASUREMENT_COLUMN_NAME)
+        {
+            if group_by
+                .as_ref()
+                .is_some_and(|gb| is_tag(field) && gb.evaluate_tag(field.name()))
+            {
+                map.insert(field.name().to_string(), ColumnType::GroupByTag);
+            } else if group_by.as_ref().is_some_and(|gb| {
+                field.metadata().is_empty() && gb.contains_explicit_col_name(field.name())
+            }) {
+                map.insert(field.name().to_string(), ColumnType::OrphanGroupByTag);
+            } else {
+                map.insert(field.name().to_string(), ColumnType::Value { index });
+                index += 1;
+            }
+        }
+        Ok(Self {
+            map,
+            row_size: index,
+        })
+    }
+
+    fn row_size(&self) -> usize {
+        self.row_size
+    }
+
+    fn row_column_names(&self) -> Vec<String> {
+        let mut result = vec![None; self.row_size];
+        self.map.iter().for_each(|(name, c)| {
+            if let ColumnType::Value { index } = c {
+                result[*index].replace(name.to_owned());
+            }
+        });
+        result.into_iter().flatten().collect()
+    }
+
+    /// If this column is part of the `values` row data, get its index, or `None` otherwise
+    fn as_row_index(&self, column_name: &str) -> Option<usize> {
+        self.map.get(column_name).and_then(|col| match col {
+            ColumnType::Value { index } => Some(*index),
+            ColumnType::GroupByTag | ColumnType::OrphanGroupByTag => None,
+        })
+    }
+
+    /// This column is a `GROUP BY` tag
+    fn is_group_by_tag(&self, column_name: &str) -> bool {
+        self.map
+            .get(column_name)
+            .is_some_and(|col| matches!(col, ColumnType::GroupByTag))
+    }
+
+    /// This column is an orphan `GROUP BY` tag
+    fn is_orphan_group_by_tag(&self, column_name: &str) -> bool {
+        self.map
+            .get(column_name)
+            .is_some_and(|col| matches!(col, ColumnType::OrphanGroupByTag))
+    }
+}
+
+// TODO: this is defined in schema crate, so needs to be made pub there:
+const COLUMN_METADATA_KEY: &str = "iox::column::type";
+
+/// Decide based on metadata if this [`Field`] is a tag column
+fn is_tag(field: &Arc<Field>) -> bool {
+    field
+        .metadata()
+        .get(COLUMN_METADATA_KEY)
+        .map(|s| InfluxColumnType::try_from(s.as_str()))
+        .transpose()
+        .ok()
+        .flatten()
+        .is_some_and(|t| matches!(t, InfluxColumnType::Tag))
+}
+
+/// Derived from a [`GroupByClause`] and used to evaluate whether a given tag column is part of the
+/// `GROUP BY` clause in an InfluxQL query
+struct GroupByEval(Vec<GroupByEvalType>);
+
+/// The kind of `GROUP BY` evaluator
+enum GroupByEvalType {
+    /// An explicit tag name in a `GROUP BY` clause, e.g., `GROUP BY t1, t2`
+    Tag(String),
+    /// A regex in a `GROUP BY` that could match 0-or-more tags, e.g., `GROUP BY /t[1,2]/`
+    Regex(Regex),
+    /// A wildcard that matches all tags, e.g., `GROUP BY *`
+    Wildcard,
+}
+
+impl GroupByEval {
+    /// Convert a [`GroupByClause`] to a [`GroupByEval`] if any of its members match on tag columns
+    ///
+    /// This will produce an error if an invalid regex is provided as one of the `GROUP BY` clauses.
+    /// That will likely be caught upstream during query parsing, but handle it here anyway.
+    fn from_clause(clause: GroupByClause) -> Result<Option<Self>, anyhow::Error> {
+        let v = clause
+            .iter()
+            .filter_map(|dim| match dim {
+                Dimension::Time(_) => None,
+                Dimension::VarRef(tag) => Some(Ok(GroupByEvalType::Tag(tag.to_string()))),
+                Dimension::Regex(regex) => Some(
+                    Regex::new(regex.as_str())
+                        .map(GroupByEvalType::Regex)
+                        .context("invalid regex in group by clause"),
+                ),
+                Dimension::Wildcard => Some(Ok(GroupByEvalType::Wildcard)),
+            })
+            .collect::<Result<Vec<GroupByEvalType>, anyhow::Error>>()?;
+
+        if v.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Self(v)))
+        }
+    }
+
+    /// Check if a tag is matched by this set of `GROUP BY` clauses
+    fn evaluate_tag(&self, tag_name: &str) -> bool {
+        self.0.iter().any(|eval| eval.test(tag_name))
+    }
+
+    /// Check if the tag name is included explicitly in the `GROUP BY` clause.
+    ///
+    /// This is for determining orphan `GROUP BY` tag columns.
+    fn contains_explicit_col_name(&self, col_name: &str) -> bool {
+        self.0.iter().any(|eval| match eval {
+            GroupByEvalType::Tag(t) => t == col_name,
+            _ => false,
+        })
+    }
+}
+
+impl GroupByEvalType {
+    /// Test the given `tag_name` agains this evaluator
+    fn test(&self, tag_name: &str) -> bool {
+        match self {
+            Self::Tag(t) => t == tag_name,
+            Self::Regex(regex) => regex.is_match(tag_name),
+            Self::Wildcard => true,
+        }
+    }
+}
+
 impl Stream for QueryResponseStream {
     type Item = Result<QueryResponse, anyhow::Error>;
 
@@ -808,6 +1087,7 @@ impl Stream for QueryResponseStream {
                     // this is why the input stream is fused, because we will end up
                     // polling the input stream again if we end up here.
                     Poll::Ready(Some(Ok(self.flush_all())))
+                    // Poll::Ready(None)
                 } else if self.state.is_initialized() {
                     // we are still in an initialized state, which means no records were buffered
                     // and therefore we need to emit an empty result set before ending the stream:

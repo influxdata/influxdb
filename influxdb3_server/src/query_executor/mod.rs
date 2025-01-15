@@ -21,10 +21,11 @@ use datafusion_util::MemoryStream;
 use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
+use influxdb_influxql_parser::statement::Statement;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryLog;
@@ -109,35 +110,66 @@ impl QueryExecutorImpl {
             sys_events_store,
         }
     }
+
+    async fn get_db_namespace(
+        &self,
+        database_name: &str,
+        span_ctx: &Option<SpanContext>,
+    ) -> Result<Arc<dyn QueryNamespace>, QueryExecutorError> {
+        self.namespace(
+            database_name,
+            span_ctx.child_span("get_db_namespace"),
+            false,
+        )
+        .await
+        .map_err(|_| QueryExecutorError::DatabaseNotFound {
+            db_name: database_name.to_string(),
+        })?
+        .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
+            db_name: database_name.to_string(),
+        })
+    }
 }
 
 #[async_trait]
 impl QueryExecutor for QueryExecutorImpl {
-    async fn query(
+    async fn query_sql(
         &self,
         database: &str,
         query: &str,
         params: Option<StatementParams>,
-        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
-        let db = self
-            .namespace(database, span_ctx.child_span("get database"), false)
-            .await
-            .map_err(|_| QueryExecutorError::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?
-            .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?;
-
-        query_database(
+        info!(%database, %query, ?params, "executing sql query");
+        let db = self.get_db_namespace(database, &span_ctx).await?;
+        query_database_sql(
             db,
             query,
             params,
-            kind,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.telemetry_store),
+        )
+        .await
+    }
+
+    async fn query_influxql(
+        &self,
+        database: &str,
+        query: &str,
+        influxql_statement: Statement,
+        params: Option<StatementParams>,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        info!(database, query, ?params, "executing influxql query");
+        let db = self.get_db_namespace(database, &span_ctx).await?;
+        query_database_influxql(
+            db,
+            query,
+            influxql_statement,
+            params,
             span_ctx,
             external_span_ctx,
             Arc::clone(&self.telemetry_store),
@@ -232,11 +264,12 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 }
 
-async fn query_database(
+// NOTE: this method is separated out as it is called from a separate query executor
+// implementation in Enterprise
+async fn query_database_sql(
     db: Arc<dyn QueryNamespace>,
     query: &str,
     params: Option<StatementParams>,
-    kind: QueryKind,
     span_ctx: Option<SpanContext>,
     external_span_ctx: Option<RequestLogContext>,
     telemetry_store: Arc<TelemetryStore>,
@@ -245,7 +278,7 @@ async fn query_database(
 
     let token = db.record_query(
         external_span_ctx.as_ref().map(RequestLogContext::ctx),
-        kind.query_type(),
+        "sql",
         Box::new(query.to_string()),
         params.clone(),
     );
@@ -258,12 +291,7 @@ async fn query_database(
     // Perform query planning on a separate threadpool than the IO runtime that is servicing
     // this request by using `IOxSessionContext::run`.
     let plan = ctx
-        .run(async move {
-            match kind {
-                QueryKind::Sql => planner.sql(query, params).await,
-                QueryKind::InfluxQl => planner.influxql(query, params).await,
-            }
-        })
+        .run(async move { planner.sql(query, params).await })
         .await;
 
     let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
@@ -276,6 +304,55 @@ async fn query_database(
     let token = token.planned(&ctx, Arc::clone(&plan));
 
     // TODO: Enforce concurrency limit here
+    let token = token.permit();
+
+    telemetry_store.update_num_queries();
+
+    match ctx.execute_stream(Arc::clone(&plan)).await {
+        Ok(query_results) => {
+            token.success();
+            Ok(query_results)
+        }
+        Err(err) => {
+            token.fail();
+            Err(QueryExecutorError::ExecuteStream(err))
+        }
+    }
+}
+
+async fn query_database_influxql(
+    db: Arc<dyn QueryNamespace>,
+    query_str: &str,
+    statement: Statement,
+    params: Option<StatementParams>,
+    span_ctx: Option<SpanContext>,
+    external_span_ctx: Option<RequestLogContext>,
+    telemetry_store: Arc<TelemetryStore>,
+) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+    let params = params.unwrap_or_default();
+    let token = db.record_query(
+        external_span_ctx.as_ref().map(RequestLogContext::ctx),
+        "influxql",
+        Box::new(query_str.to_string()),
+        params.clone(),
+    );
+
+    let ctx = db.new_query_context(span_ctx, Default::default());
+    let planner = Planner::new(&ctx);
+    let plan = ctx
+        .run(async move { planner.influxql(statement, params).await })
+        .await;
+
+    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
+        Ok(plan) => plan,
+        Err(e) => {
+            token.fail();
+            return Err(e);
+        }
+    };
+
+    let token = token.planned(&ctx, Arc::clone(&plan));
+
     let token = token.permit();
 
     telemetry_store.update_num_queries();
@@ -682,7 +759,7 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
+    use influxdb3_internal_api::query_executor::QueryExecutor;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -895,7 +972,7 @@ mod tests {
 
         for t in test_cases {
             let batch_stream = query_executor
-                .query(db_name, t.query, None, QueryKind::Sql, None, None)
+                .query_sql(db_name, t.query, None, None, None)
                 .await
                 .unwrap();
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
