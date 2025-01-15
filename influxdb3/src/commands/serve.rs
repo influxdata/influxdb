@@ -166,6 +166,10 @@ pub enum Error {
     BadLicenseRequest,
 
     #[cfg(not(feature = "no_license"))]
+    #[error("Requested license not available.")]
+    LicenseNotFound,
+
+    #[cfg(not(feature = "no_license"))]
     #[error("Failed to poll for license. Response code was {0}")]
     UnexpectedLicenseResponse(u16),
 
@@ -968,6 +972,7 @@ async fn load_and_validate_license(
         // The license does not exist so we need to create one
         Err(object_store::Error::NotFound { .. }) => {
             // Check for a TTY / stdin to prompt the user for their email
+
             if !std::io::stdin().is_terminal() && license_email.is_none() {
                 return Err(Error::NoTTY);
             }
@@ -996,53 +1001,24 @@ async fn load_and_validate_license(
                 return Err(Error::InvalidEmail);
             }
 
-            let client = reqwest::Client::new();
-            let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
-            .send()
-            .await?;
-
-            if resp.status() == 400 {
-                return Err(Error::BadLicenseRequest);
-            }
-
-            //TODO: Handle url for local vs actual production code
-            let poll_url = format!(
-                "https://licenses.enterprise.influxdata.com{}",
-                resp.headers()
-                    .get("Location")
-                    .expect("Location header to be present")
-                    .to_str()
-                    .expect("Location header to be a valid utf-8 string")
-            );
-
-            println!("Email sent to {display_email}. Please check your inbox to verify your email address and proceed.");
-            println!("Waiting for verification...");
-            let start = Instant::now();
-            loop {
-                // If 20 minutes have passed timeout and return an error
-                let duration = start.duration_since(Instant::now()).as_secs();
-                if duration > (20 * 60) {
-                    return Err(Error::LicenseTimeout);
+            // first check if license exists on in the license server
+            match get_license(&encoded_email, &instance_id).await {
+                Ok(l) => l,
+                // if license server reports 404 Not Found, then initiate onboarding process
+                Err(Error::LicenseNotFound) => {
+                    debug!("license not found on server, initiating onboarding process");
+                    license_onboarding(
+                        &object_store,
+                        &writer_id,
+                        instance_id,
+                        &display_email,
+                        &encoded_email,
+                        &license_path,
+                    )
+                    .await?
                 }
-
-                let resp = client.get(&poll_url).send().await?;
-                match resp.status().as_u16() {
-                    404 => {
-                        debug!("Polling license service again in 5 seconds");
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                        continue;
-                    }
-                    200 => {
-                        let license = resp.bytes().await?;
-                        object_store
-                            .put(&license_path, PutPayload::from_bytes(license.clone()))
-                            .await?;
-                        break license;
-                    }
-                    400 => return Err(Error::BadLicenseRequest),
-                    code => return Err(Error::UnexpectedLicenseResponse(code)),
-                }
+                // anything else is an error (eg Bad Request, Internal Server Error, etc) that needs to be reported to the user
+                Err(e) => return Err(e),
             }
         }
         Err(e) => return Err(e.into()),
@@ -1193,3 +1169,79 @@ static SIGNING_KEYS: phf::Map<&'static str, &[u8]> = phf::phf_map! {
          "../../../influxdb3_license/service/keyring/keys/self-managed_test_public-key.pem"
      ),
 };
+
+#[cfg(not(feature = "no_license"))]
+async fn license_onboarding(
+    object_store: &Arc<dyn ObjectStore>,
+    writer_id: &str,
+    instance_id: Arc<str>,
+    display_email: &str,
+    encoded_email: &str,
+    license_path: &ObjPath,
+) -> Result<bytes::Bytes> {
+    let client = reqwest::Client::new();
+    let resp = client
+                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
+            .send()
+            .await?;
+
+    if resp.status() == 400 {
+        return Err(Error::BadLicenseRequest);
+    }
+
+    //TODO: Handle url for local vs actual production code
+    let poll_url = format!(
+        "https://licenses.enterprise.influxdata.com{}",
+        resp.headers()
+            .get("Location")
+            .expect("Location header to be present")
+            .to_str()
+            .expect("Location header to be a valid utf-8 string")
+    );
+
+    println!("Email sent to {display_email}. Please check your inbox to verify your email address and proceed.");
+    println!("Waiting for verification...");
+    let start = Instant::now();
+    loop {
+        // If 20 minutes have passed timeout and return an error
+        let duration = start.duration_since(Instant::now()).as_secs();
+        if duration > (20 * 60) {
+            return Err(Error::LicenseTimeout);
+        }
+
+        let resp = client.get(&poll_url).send().await?;
+        match resp.status().as_u16() {
+            404 => {
+                debug!("Polling license service again in 5 seconds");
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+            200 => {
+                let license = resp.bytes().await?;
+                object_store
+                    .put(license_path, PutPayload::from_bytes(license.clone()))
+                    .await?;
+                break Ok(license);
+            }
+            400 => return Err(Error::BadLicenseRequest),
+            code => return Err(Error::UnexpectedLicenseResponse(code)),
+        }
+    }
+}
+
+#[cfg(not(feature = "no_license"))]
+async fn get_license(encoded_email: &str, instance_id: &str) -> Result<bytes::Bytes> {
+    //TODO: Handle url for local vs actual production code
+    let get_url = format!("https://licenses.enterprise.influxdata.com/licenses?email={encoded_email}&instance-id={instance_id}");
+
+    let client = reqwest::Client::new();
+    let resp = client.get(get_url).send().await?;
+
+    debug!("getting license from server");
+    match resp.status().as_u16() {
+        200 => Ok(resp.bytes().await?),
+        400 => Err(Error::LicenseNotFound),
+        404 => Err(Error::BadLicenseRequest),
+        i => Err(Error::UnexpectedLicenseResponse(i)),
+    }
+}

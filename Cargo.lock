@@ -2739,6 +2739,7 @@ dependencies = [
  "authz",
  "backtrace",
  "base64 0.21.7",
+ "bytes",
  "chrono",
  "clap",
  "console-subscriber",

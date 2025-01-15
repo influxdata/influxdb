@@ -73,6 +73,7 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+bytes.workspace = true
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
