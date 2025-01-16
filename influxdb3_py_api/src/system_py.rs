@@ -74,11 +74,7 @@ impl std::fmt::Debug for LogLine {
 impl PyPluginCallApi {
     #[pyo3(signature = (*args))]
     fn info(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let line = args
-            .try_iter()?
-            .map(|arg| arg?.str()?.extract::<String>())
-            .collect::<Result<Vec<String>, _>>()?
-            .join(" ");
+        let line = self.log_args_to_string(args)?;
 
         info!("processing engine: {}", line);
         self.return_state.lock().log_lines.push(LogLine::Info(line));
@@ -87,11 +83,7 @@ impl PyPluginCallApi {
 
     #[pyo3(signature = (*args))]
     fn warn(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let line = args
-            .try_iter()?
-            .map(|arg| arg?.str()?.extract::<String>())
-            .collect::<Result<Vec<String>, _>>()?
-            .join(" ");
+        let line = self.log_args_to_string(args)?;
 
         warn!("processing engine: {}", line);
         self.return_state
@@ -103,11 +95,7 @@ impl PyPluginCallApi {
 
     #[pyo3(signature = (*args))]
     fn error(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
-        let line = args
-            .try_iter()?
-            .map(|arg| arg?.str()?.extract::<String>())
-            .collect::<Result<Vec<String>, _>>()?
-            .join(" ");
+        let line = self.log_args_to_string(args)?;
 
         error!("processing engine: {}", line);
         self.return_state
@@ -115,6 +103,15 @@ impl PyPluginCallApi {
             .log_lines
             .push(LogLine::Error(line.to_string()));
         Ok(())
+    }
+
+    fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
+        let line = args
+            .try_iter()?
+            .map(|arg| arg?.str()?.extract::<String>())
+            .collect::<Result<Vec<String>, _>>()?
+            .join(" ");
+        Ok(line)
     }
 
     fn write(&self, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {
