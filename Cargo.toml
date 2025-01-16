@@ -73,8 +73,8 @@ datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git",
 dashmap = "6.1.0"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
-futures = "0.3.28"
-futures-util = "0.3.30"
+futures = "0.3.31"
+futures-util = "0.3.31"
 hashbrown = { version = "0.15.1", features = ["serde"] }
 hex = "0.4.3"
 http = "0.2.9"
@@ -106,6 +106,7 @@ prost-build = "0.12.6"
 prost-types = "0.12.6"
 proptest = { version = "1", default-features = false, features = ["std"] }
 rand = "0.8.5"
+regex = "1.11.1"
 reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
 secrecy = "0.8.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -122,8 +123,8 @@ sysinfo = "0.30.8"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.42", features = ["full"] }
-tokio-util = "0.7.9"
+tokio = { version = "1.43", features = ["full"] }
+tokio-util = "0.7.13"
 tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
 tonic-build = "0.11.0"
 tonic-health = "0.11.0"

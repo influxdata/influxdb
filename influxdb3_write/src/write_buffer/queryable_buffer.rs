@@ -28,7 +28,7 @@ use iox_query::frontend::reorg::ReorgPlanner;
 use iox_query::QueryChunk;
 use iox_time::TimeProvider;
 use object_store::path::Path;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{error, info};
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::sort::SortKey;
@@ -201,9 +201,6 @@ impl QueryableBuffer {
                         .expect("table exists");
                     let snapshot_chunks =
                         table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
-                    for chunk in &snapshot_chunks {
-                        debug!(?chunk.chunk_time, num_rows_in_chunk = ?chunk.record_batch.num_rows(), ">>> removing chunk with records");
-                    }
 
                     for chunk in snapshot_chunks {
                         let table_name =
@@ -288,6 +285,7 @@ impl QueryableBuffer {
                 catalog.sequence_number(),
             );
             let mut cache_notifiers = vec![];
+            let persist_jobs_empty = persist_jobs.is_empty();
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
                 let database_id = persist_job.database_id;
@@ -335,19 +333,53 @@ impl QueryableBuffer {
                 )
             }
 
-            // persist the snapshot file
-            loop {
-                match persister.persist_snapshot(&persisted_snapshot).await {
-                    Ok(_) => {
-                        let persisted_snapshot = Some(persisted_snapshot.clone());
-                        notify_snapshot_tx
-                            .send(persisted_snapshot)
-                            .expect("persisted snapshot notify tx should not be closed");
-                        break;
-                    }
-                    Err(e) => {
-                        error!(%e, "Error persisting snapshot, sleeping and retrying...");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+            // persist the snapshot file - only if persist jobs are present
+            // if persist_jobs is empty, then parquet file wouldn't have been
+            // written out, so it's desirable to not write empty snapshot file.
+            //
+            // How can persist jobs be empty even though snapshot is triggered?
+            //
+            // When force snapshot is set, wal_periods (tracked by
+            // snapshot_tracker) will never be empty as a no-op is added. This
+            // means even though there is a wal period the query buffer might
+            // still be empty. The reason is, when snapshots are happening very
+            // close to each other (when force snapshot is set), they could get
+            // queued to run immediately one after the other as illustrated in
+            // example series of flushes and force snapshots below,
+            //
+            //   1 (only wal flush) // triggered by flush interval 1s
+            //   2 (snapshot)       // triggered by flush interval 1s
+            //   3 (force_snapshot) // triggered by mem check interval 10s
+            //   4 (force_snapshot) // triggered by mem check interval 10s
+            //
+            // Although the flush interval an mem check intervals aren't same
+            // there's a good chance under high memory pressure there will be
+            // a lot of overlapping.
+            //
+            // In this setup - after 2 (snapshot), we emptied wal buffer and as
+            // soon as snapshot is done, 3 will try to run the snapshot but wal
+            // buffer can be empty at this point, which means it adds a no-op.
+            // no-op has the current time which will be used as the
+            // end_time_marker. That would evict everything from query buffer, so
+            // when 4 (force snapshot) runs there's no data in the query
+            // buffer though it has a wal_period. When normal (i.e without
+            // force_snapshot) snapshot runs, snapshot_tracker will check if
+            // wal_periods are empty so it won't trigger a snapshot in the first
+            // place.
+            if !persist_jobs_empty {
+                loop {
+                    match persister.persist_snapshot(&persisted_snapshot).await {
+                        Ok(_) => {
+                            let persisted_snapshot = Some(persisted_snapshot.clone());
+                            notify_snapshot_tx
+                                .send(persisted_snapshot)
+                                .expect("persisted snapshot notify tx should not be closed");
+                            break;
+                        }
+                        Err(e) => {
+                            error!(%e, "Error persisting snapshot, sleeping and retrying...");
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
                     }
                 }
             }
@@ -360,14 +392,19 @@ impl QueryableBuffer {
                 for notifier in cache_notifiers.into_iter().flatten() {
                     let _ = notifier.await;
                 }
-                let mut buffer = buffer.write();
-                for (_, table_map) in buffer.db_to_table.iter_mut() {
-                    for (_, table_buffer) in table_map.iter_mut() {
-                        table_buffer.clear_snapshots();
-                    }
-                }
 
-                persisted_files.add_persisted_snapshot_files(persisted_snapshot);
+                // same reason as explained above, if persist jobs are empty, no snapshotting
+                // has happened so no need to clear the snapshots
+                if !persist_jobs_empty {
+                    let mut buffer = buffer.write();
+                    for (_, table_map) in buffer.db_to_table.iter_mut() {
+                        for (_, table_buffer) in table_map.iter_mut() {
+                            table_buffer.clear_snapshots();
+                        }
+                    }
+
+                    persisted_files.add_persisted_snapshot_files(persisted_snapshot);
+                }
             });
 
             let _ = sender.send(snapshot_details);
