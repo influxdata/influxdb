@@ -87,7 +87,7 @@ pub(crate) struct TelemetryPayload {
 /// This function runs in the background and if any call fails
 /// there is no retrying mechanism and it is ok to lose a few samples
 pub(crate) async fn send_telemetry_in_background(
-    full_url: &'static str,
+    full_url: String,
     store: Arc<TelemetryStore>,
     duration_secs: Duration,
 ) -> tokio::task::JoinHandle<()> {

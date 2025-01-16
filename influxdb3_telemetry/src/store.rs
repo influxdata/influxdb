@@ -43,7 +43,7 @@ impl TelemetryStore {
         storage_type: Arc<str>,
         cores: usize,
         persisted_files: Option<Arc<dyn ParquetMetrics>>,
-        telemetry_endpoint: &'static str,
+        telemetry_endpoint: String,
     ) -> Arc<Self> {
         debug!(
             instance_id = ?instance_id,
@@ -322,7 +322,7 @@ mod tests {
             Arc::from("Memory"),
             10,
             Some(parqet_file_metrics),
-            "http://localhost/telemetry",
+            "http://localhost/telemetry".to_string(),
         )
         .await;
         tokio::time::sleep(Duration::from_secs(1)).await;

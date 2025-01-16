@@ -60,7 +60,7 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
-pub const DEFAULT_TELMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
+pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -335,6 +335,16 @@ pub struct Config {
         action
     )]
     pub disable_telemetry_upload: bool,
+
+    /// Send telemetry data to the specified endpoint.
+    #[clap(
+        long = "telemetry-endpoint",
+        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
+        default_value = DEFAULT_TELEMETRY_ENDPOINT,
+        hide = true,
+        action
+    )]
+    pub telemetry_endpoint: String,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -548,7 +558,7 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         Some(Arc::clone(&write_buffer_impl.persisted_files())),
-        DEFAULT_TELMETRY_ENDPOINT,
+        config.telemetry_endpoint.as_str(),
         config.disable_telemetry_upload,
     )
     .await;
@@ -604,7 +614,7 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: &'static str,
+    telemetry_endpoint: &str,
     disable_upload: bool,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
@@ -627,7 +637,7 @@ async fn setup_telemetry_store(
             Arc::from(storage_type),
             num_cpus,
             persisted_files.map(|p| p as _),
-            telemetry_endpoint,
+            telemetry_endpoint.to_string(),
         )
         .await
     }
