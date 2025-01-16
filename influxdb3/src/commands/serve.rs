@@ -125,7 +125,7 @@ pub enum Error {
     #[error("invalid token: {0}")]
     InvalidToken(#[from] hex::FromHexError),
 
-    #[error("failed to initialized write buffer: {0}")]
+    #[error("failed to initialized write buffer: {0:?}")]
     WriteBufferInit(#[source] anyhow::Error),
 
     #[error("failed to initialize from persisted catalog: {0}")]
@@ -145,7 +145,7 @@ pub enum Error {
         #[from] influxdb3_enterprise_compactor::producer::CompactedDataProducerError,
     ),
 
-    #[error("Error initializing compaction consumer: {0}")]
+    #[error("Error initializing compaction consumer: {0:?}")]
     CompactionConsumer(#[from] anyhow::Error),
 
     #[error("Must have `compact-from-writer-ids` specfied if running in compactor mode")]
