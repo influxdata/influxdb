@@ -53,11 +53,11 @@ On Fedora, RHEL/CentOS, or Arch, install `postgresql`
 
 #### Create the schema for the license service in Postgres
 ```
-createdb -h localhost -U postgres influxdb3_ent_licenses
+createdb -h localhost -U postgres influxdb3_eprolicenses
 ```
 Then run the migration script:
 ```
-psql -h localhost -U postgres -d influxdb3_ent_licenses < store/migrations/000001_initial_setup.up.postgres.sql
+psql -h localhost -U postgres -d influxdb3_pro_licenses < store/migrations/000001_initial_setup.up.postgres.sql
 ```
 
 #### Run the service
