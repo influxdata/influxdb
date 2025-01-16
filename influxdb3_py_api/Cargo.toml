@@ -9,6 +9,7 @@ license.workspace = true
 system-py = ["pyo3"]
 
 [dependencies]
+anyhow.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
 hashbrown.workspace = true

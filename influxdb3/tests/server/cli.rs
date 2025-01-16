@@ -10,7 +10,9 @@ use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use test_helpers::assert_contains;
-use test_helpers::tempfile::{NamedTempFile, TempDir};
+use test_helpers::tempfile::NamedTempFile;
+#[cfg(feature = "system-py")]
+use test_helpers::tempfile::TempDir;
 
 pub fn run(args: &[&str]) -> String {
     let process = Command::cargo_bin("influxdb3")

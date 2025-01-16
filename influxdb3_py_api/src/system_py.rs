@@ -1,3 +1,5 @@
+use crate::ExecutePluginError;
+use anyhow::Context;
 use arrow_array::types::Int32Type;
 use arrow_array::{
     BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
@@ -21,15 +23,6 @@ use pyo3::{
 };
 use std::ffi::CString;
 use std::sync::Arc;
-
-#[derive(Debug, thiserror::Error)]
-pub enum ExecutePluginError {
-    #[error("the process_writes function is not present in the plugin. Should be defined as: process_writes(influxdb3_local, table_batches, args=None)")]
-    MissingProcessWritesFunction,
-
-    #[error("{0}")]
-    PythonError(#[from] pyo3::PyErr),
-}
 
 #[pyclass]
 #[derive(Debug)]
@@ -378,7 +371,8 @@ pub fn execute_python_with_batch(
             &CString::new(LINE_BUILDER_CODE).unwrap(),
             Some(&globals),
             None,
-        )?;
+        )
+        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
 
         // convert the write batch into a python object
         let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
@@ -389,11 +383,11 @@ pub fn execute_python_with_batch(
                     continue;
                 }
             }
-            let table_def = schema.tables.get(table_id).unwrap();
+            let table_def = schema.tables.get(table_id).context("table not found")?;
 
             let dict = PyDict::new(py);
             dict.set_item("table_name", table_def.table_name.as_ref())
-                .unwrap();
+                .context("failed to set table_name")?;
 
             let mut rows: Vec<PyObject> = Vec::new();
             for chunk in table_chunks.chunk_time_to_chunk.values() {
@@ -401,31 +395,49 @@ pub fn execute_python_with_batch(
                     let py_row = PyDict::new(py);
 
                     for field in &row.fields {
-                        let field_name = table_def.column_id_to_name(&field.id).unwrap();
+                        let field_name = table_def
+                            .column_id_to_name(&field.id)
+                            .context("field not found")?;
                         match &field.value {
                             FieldData::String(s) => {
-                                py_row.set_item(field_name.as_ref(), s.as_str()).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), s.as_str())
+                                    .context("failed to set string field")?;
                             }
                             FieldData::Integer(i) => {
-                                py_row.set_item(field_name.as_ref(), i).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), i)
+                                    .context("failed to set integer field")?;
                             }
                             FieldData::UInteger(u) => {
-                                py_row.set_item(field_name.as_ref(), u).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), u)
+                                    .context("failed to set unsigned integer field")?;
                             }
                             FieldData::Float(f) => {
-                                py_row.set_item(field_name.as_ref(), f).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), f)
+                                    .context("failed to set float field")?;
                             }
                             FieldData::Boolean(b) => {
-                                py_row.set_item(field_name.as_ref(), b).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), b)
+                                    .context("failed to set boolean field")?;
                             }
                             FieldData::Tag(t) => {
-                                py_row.set_item(field_name.as_ref(), t.as_str()).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), t.as_str())
+                                    .context("failed to set tag field")?;
                             }
                             FieldData::Key(k) => {
-                                py_row.set_item(field_name.as_ref(), k.as_str()).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), k.as_str())
+                                    .context("failed to set key field")?;
                             }
                             FieldData::Timestamp(t) => {
-                                py_row.set_item(field_name.as_ref(), t).unwrap();
+                                py_row
+                                    .set_item(field_name.as_ref(), t)
+                                    .context("failed to set timestamp")?;
                             }
                         };
                     }
@@ -434,13 +446,15 @@ pub fn execute_python_with_batch(
                 }
             }
 
-            let rows = PyList::new(py, rows).unwrap();
+            let rows = PyList::new(py, rows).context("failed to create rows list")?;
 
-            dict.set_item("rows", rows.unbind()).unwrap();
+            dict.set_item("rows", rows.unbind())
+                .context("failed to set rows")?;
             table_batches.push(dict);
         }
 
-        let py_batches = PyList::new(py, table_batches).unwrap();
+        let py_batches =
+            PyList::new(py, table_batches).context("failed to create table_batches list")?;
 
         let api = PyPluginCallApi {
             db_schema: schema,
@@ -448,7 +462,7 @@ pub fn execute_python_with_batch(
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
-        let local_api = api.into_pyobject(py)?;
+        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
         let args = args.as_ref().map(|args| {
@@ -460,7 +474,8 @@ pub fn execute_python_with_batch(
         });
 
         // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)?;
+        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+            .map_err(anyhow::Error::from)?;
         let py_func = py
             .eval(
                 &CString::new(PROCESS_WRITES_CALL_SITE).unwrap(),
@@ -469,7 +484,9 @@ pub fn execute_python_with_batch(
             )
             .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?;
 
-        py_func.call1((local_api, py_batches.unbind(), args))?;
+        py_func
+            .call1((local_api, py_batches.unbind(), args))
+            .map_err(anyhow::Error::from)?;
 
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();

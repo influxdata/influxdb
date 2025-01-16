@@ -2998,6 +2998,7 @@ dependencies = [
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow-array",
  "arrow-schema",
  "futures",
