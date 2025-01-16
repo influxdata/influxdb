@@ -422,6 +422,20 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError> {
+        let triggers = self.catalog.active_triggers();
+        for (db_name, trigger_name) in triggers {
+            self.run_trigger(
+                Arc::clone(&self._write_buffer),
+                Arc::clone(&self._query_executor),
+                &db_name,
+                &trigger_name,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn test_wal_plugin(
         &self,
@@ -870,7 +884,7 @@ mod tests {
         assert!(trigger.disabled);
 
         // Verify trigger is not in active triggers list
-        assert!(pem.catalog.triggers().is_empty());
+        assert!(pem.catalog.active_triggers().is_empty());
         Ok(())
     }
 

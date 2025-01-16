@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{auth::DefaultAuthorizer, http::HttpApi, CommonServerState, Server};
 use authz::Authorizer;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_processing_engine::manager::ProcessingEngineManager;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_write::{persister::Persister, WriteBuffer};
 use iox_time::TimeProvider;
@@ -149,7 +150,7 @@ impl<W, Q, P, T> ServerBuilder<W, Q, P, T, NoListener> {
 impl<T: TimeProvider>
     ServerBuilder<WithWriteBuf, WithQueryExec, WithPersister, WithTimeProvider<T>, WithListener>
 {
-    pub fn build(self) -> Server<T> {
+    pub async fn build(self) -> Server<T> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::new(ProcessingEngineManagerImpl::new(
@@ -160,6 +161,12 @@ impl<T: TimeProvider>
             Arc::clone(&self.time_provider.0) as _,
             self.write_buffer.0.wal(),
         ));
+
+        processing_engine
+            .start_triggers()
+            .await
+            .expect("failed to start processing engine triggers");
+
         self.write_buffer
             .0
             .wal()

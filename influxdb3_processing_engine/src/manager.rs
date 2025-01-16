@@ -94,6 +94,8 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError>;
+
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
