@@ -1629,7 +1629,6 @@ mod tests {
             .unwrap();
 
         let snapshot_permit = Arc::new(Semaphore::new(1)).acquire_owned().await.unwrap();
-        // this will not delete any files - we've added the 3rd file still no deletes
         wal.remove_snapshot_wal_files(snapshot_details, snapshot_permit)
             .await;
 
@@ -1712,7 +1711,6 @@ mod tests {
         let snapshot_details = SnapshotDetails {
             snapshot_sequence_number: SnapshotSequenceNumber::new(20),
             end_time_marker: 10,
-            // snapshot size is 1, so we just snapshotted to a single file
             first_wal_sequence_number: WalFileSequenceNumber::new(31),
             last_wal_sequence_number: WalFileSequenceNumber::new(35),
             forced: false,
