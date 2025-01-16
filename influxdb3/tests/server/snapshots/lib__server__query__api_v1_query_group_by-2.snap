@@ -1,0 +1,71 @@
+---
+source: influxdb3/tests/server/query.rs
+description: "query: select * from bar group by t1, chunked: true"
+expression: values
+---
+[
+  {
+    "results": [
+      {
+        "series": [
+          {
+            "columns": [
+              "time",
+              "t2",
+              "val"
+            ],
+            "name": "bar",
+            "tags": {
+              "t1": "a"
+            },
+            "values": [
+              [
+                "2065-01-07T17:28:51Z",
+                "aa",
+                1.0
+              ],
+              [
+                "2065-01-07T17:28:53Z",
+                "bb",
+                3.0
+              ]
+            ]
+          }
+        ],
+        "statement_id": 0
+      }
+    ]
+  },
+  {
+    "results": [
+      {
+        "series": [
+          {
+            "columns": [
+              "time",
+              "t2",
+              "val"
+            ],
+            "name": "bar",
+            "tags": {
+              "t1": "b"
+            },
+            "values": [
+              [
+                "2065-01-07T17:28:52Z",
+                "aa",
+                2.0
+              ],
+              [
+                "2065-01-07T17:28:54Z",
+                "bb",
+                4.0
+              ]
+            ]
+          }
+        ],
+        "statement_id": 0
+      }
+    ]
+  }
+]

@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use datafusion::arrow::error::ArrowError;
 use datafusion::common::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
+use influxdb_influxql_parser::statement::Statement;
 use iox_query::query_log::QueryLogEntries;
 use iox_query::{QueryDatabase, QueryNamespace};
 use iox_query_params::StatementParams;
@@ -30,12 +31,21 @@ pub enum QueryExecutorError {
 
 #[async_trait]
 pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
-    async fn query(
+    async fn query_sql(
         &self,
         database: &str,
         q: &str,
         params: Option<StatementParams>,
-        kind: QueryKind,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError>;
+
+    async fn query_influxql(
+        &self,
+        database_name: &str,
+        query_str: &str,
+        influxql_statement: Statement,
+        params: Option<StatementParams>,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError>;
@@ -52,21 +62,6 @@ pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
     ) -> Result<SendableRecordBatchStream, QueryExecutorError>;
 
     fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)>;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum QueryKind {
-    Sql,
-    InfluxQl,
-}
-
-impl QueryKind {
-    pub fn query_type(&self) -> &'static str {
-        match self {
-            Self::Sql => "sql",
-            Self::InfluxQl => "influxql",
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -97,27 +92,34 @@ impl QueryDatabase for UnimplementedQueryExecutor {
 
 #[async_trait]
 impl QueryExecutor for UnimplementedQueryExecutor {
-    async fn query(
+    async fn query_sql(
         &self,
         _database: &str,
         _q: &str,
         _params: Option<StatementParams>,
-        _kind: QueryKind,
         _span_ctx: Option<SpanContext>,
         _external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-        Err(QueryExecutorError::DatabaseNotFound {
-            db_name: "unimplemented".to_string(),
-        })
+        Err(QueryExecutorError::MethodNotImplemented("query_sql"))
+    }
+
+    async fn query_influxql(
+        &self,
+        _database_name: &str,
+        _query_str: &str,
+        _influxql_statement: Statement,
+        _params: Option<StatementParams>,
+        _span_ctx: Option<SpanContext>,
+        _external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        Err(QueryExecutorError::MethodNotImplemented("query_influxql"))
     }
 
     fn show_databases(
         &self,
         _include_deleted: bool,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-        Err(QueryExecutorError::DatabaseNotFound {
-            db_name: "unimplemented".to_string(),
-        })
+        Err(QueryExecutorError::MethodNotImplemented("show_databases"))
     }
 
     async fn show_retention_policies(
@@ -125,9 +127,9 @@ impl QueryExecutor for UnimplementedQueryExecutor {
         _database: Option<&str>,
         _span_ctx: Option<SpanContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-        Err(QueryExecutorError::DatabaseNotFound {
-            db_name: "unimplemented".to_string(),
-        })
+        Err(QueryExecutorError::MethodNotImplemented(
+            "show_retention_policies",
+        ))
     }
 
     fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {

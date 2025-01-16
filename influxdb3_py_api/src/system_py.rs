@@ -8,7 +8,7 @@ use futures::TryStreamExt;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
+use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{FieldData, WriteBatch};
 use iox_query_params::StatementParams;
 use observability_deps::tracing::{error, info, warn};
@@ -139,14 +139,7 @@ impl PyPluginCallApi {
         // Spawn the async task
         let handle = tokio::spawn(async move {
             let res = query_executor
-                .query(
-                    db_schema_name.as_ref(),
-                    &query,
-                    params,
-                    QueryKind::Sql,
-                    None,
-                    None,
-                )
+                .query_sql(db_schema_name.as_ref(), &query, params, None, None)
                 .await
                 .map_err(|e| PyValueError::new_err(format!("Error executing query: {}", e)))?;
 
