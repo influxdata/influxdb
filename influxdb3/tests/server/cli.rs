@@ -1086,7 +1086,25 @@ def process_writes(table_batches, args=None):
     influxdb3_local.info("done")
 "#,
             expected_error: "error executing plugin: TypeError: process_writes() takes from 1 to 2 positional arguments but 3 were given",
-        }];
+        },
+        Test {
+            name: "line_builder_no_field",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    line = LineBuilder("some_table")
+    influxdb3_local.write(line)
+"#,
+            expected_error: "error executing plugin: InvalidLineError: At least one field is required: some_table",
+        },
+        Test {
+            name: "query_no_table",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.query("SELECT foo FROM not_here")
+"#,
+            expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query: SELECT foo FROM not_here",
+        }
+    ];
 
     let plugin_dir = TempDir::new().unwrap();
 
