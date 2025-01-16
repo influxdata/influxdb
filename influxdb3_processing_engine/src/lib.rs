@@ -28,8 +28,8 @@ pub mod plugins;
 pub struct ProcessingEngineManagerImpl {
     plugin_dir: Option<std::path::PathBuf>,
     catalog: Arc<Catalog>,
-    _write_buffer: Arc<dyn WriteBuffer>,
-    _query_executor: Arc<dyn QueryExecutor>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     wal: Arc<dyn Wal>,
     plugin_event_tx: Mutex<PluginChannels>,
@@ -109,8 +109,8 @@ impl ProcessingEngineManagerImpl {
         Self {
             plugin_dir,
             catalog,
-            _write_buffer: write_buffer,
-            _query_executor: query_executor,
+            write_buffer,
+            query_executor,
             time_provider,
             wal,
             plugin_event_tx: Default::default(),
@@ -288,6 +288,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
+        println!("running trigger {}", trigger_name);
         #[cfg(feature = "system-py")]
         {
             let db_schema = self
@@ -426,8 +427,8 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         let triggers = self.catalog.active_triggers();
         for (db_name, trigger_name) in triggers {
             self.run_trigger(
-                Arc::clone(&self._write_buffer),
-                Arc::clone(&self._query_executor),
+                Arc::clone(&self.write_buffer),
+                Arc::clone(&self.query_executor),
                 &db_name,
                 &trigger_name,
             )
@@ -546,7 +547,7 @@ mod tests {
             .unwrap()
             .to_string();
 
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -621,7 +622,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -681,7 +682,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -746,7 +747,7 @@ mod tests {
             .to_string();
 
         // convert to Arc<WriteBuffer>
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -783,7 +784,7 @@ mod tests {
         // Run the trigger
         pem.run_trigger(
             Arc::clone(&write_buffer),
-            Arc::clone(&pem._query_executor),
+            Arc::clone(&pem.query_executor),
             "foo",
             "test_trigger",
         )
@@ -806,7 +807,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "test_trigger",
             )
@@ -843,7 +844,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -900,7 +901,7 @@ mod tests {
         };
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -916,7 +917,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "nonexistent_trigger",
             )

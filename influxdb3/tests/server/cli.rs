@@ -14,6 +14,25 @@ use test_helpers::tempfile::NamedTempFile;
 #[cfg(feature = "system-py")]
 use test_helpers::tempfile::TempDir;
 
+const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        # Skip if table_name is write_reports
+        if table_batch["table_name"] == "write_reports":
+            continue
+
+        row_count = len(table_batch["rows"])
+
+        # Double row count if table name matches args table_name
+        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
+            row_count *= 2
+
+        line = LineBuilder("write_reports")\
+            .tag("table_name", table_batch["table_name"])\
+            .int64_field("row_count", row_count)
+        influxdb3_local.write(line)
+"#;
+
 pub fn run(args: &[&str]) -> String {
     let process = Command::cargo_bin("influxdb3")
         .unwrap()
@@ -533,26 +552,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 async fn test_create_trigger_and_run() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    for table_batch in table_batches:
-        # Skip if table_name is write_reports
-        if table_batch["table_name"] == "write_reports":
-            continue
-
-        row_count = len(table_batch["rows"])
-
-        # Double row count if table name matches args table_name
-        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
-            row_count *= 2
-
-        line = LineBuilder("write_reports")\
-            .tag("table_name", table_batch["table_name"])\
-            .int64_field("row_count", row_count)
-        influxdb3_local.write(line)
-"#,
-    );
+    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
     let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
     let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
 
@@ -619,7 +619,129 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     // query to see if the processed data is there. we loop because it could take a bit to write
     // back the data. There's also a condition where the table may have been created, but the
-    // write hasn't happend yet, which returns empty results. This ensures we don't hit that race.
+    // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
+    let mut check_count = 0;
+    loop {
+        match server
+            .api_v3_query_sql(&[
+                ("db", db_name),
+                ("q", "SELECT table_name, row_count FROM write_reports"),
+                ("format", "json"),
+            ])
+            .await
+            .json::<Value>()
+            .await
+        {
+            Ok(value) => {
+                if value == expected {
+                    return;
+                }
+                check_count += 1;
+                if check_count > 10 {
+                    panic!(
+                        "Unexpected query result, got: {:#?}, expected {:#?}",
+                        value, expected
+                    );
+                }
+            }
+            Err(e) => {
+                check_count += 1;
+                if check_count > 10 {
+                    panic!("Failed to query processed data: {}", e);
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            }
+        };
+    }
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_triggers_are_started() {
+    // create a plugin and trigger and write data in, verifying that the trigger is enabled
+    // and sent data
+    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    // create tmp dir for object store
+    let tmp_file = TempDir::new().unwrap();
+    let tmp_dir = tmp_file.path().to_str().unwrap();
+
+    let mut server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let plugin_name = "test_plugin";
+
+    run_with_confirmation(&[
+        "create",
+        "plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--filename",
+        plugin_filename,
+        plugin_name,
+    ]);
+
+    // creating the trigger should enable it
+    let result = run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin",
+        plugin_name,
+        "--trigger-spec",
+        "all_tables",
+        "--trigger-arguments",
+        "double_count_table=cpu",
+        trigger_name,
+    ]);
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "Trigger test_trigger created successfully");
+
+    // restart the server
+    server.kill();
+
+    server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+
+    // now let's write data and see if it gets processed
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let expected = json!(
+        [
+            {"table_name": "cpu", "row_count": 4},
+            {"table_name": "mem", "row_count": 1}
+        ]
+    );
+
+    // query to see if the processed data is there. we loop because it could take a bit to write
+    // back the data. There's also a condition where the table may have been created, but the
+    // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
     let mut check_count = 0;
     loop {
         match server
