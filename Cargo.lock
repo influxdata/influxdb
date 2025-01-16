@@ -3010,6 +3010,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "pyo3",
+ "thiserror 1.0.69",
  "tokio",
 ]
 

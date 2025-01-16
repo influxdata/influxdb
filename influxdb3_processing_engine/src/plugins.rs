@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("reading plugin file: {0}")]
     ReadPluginError(#[from] std::io::Error),
+
+    #[error("error executing plugin: {0}")]
+    PluginExecutionError(#[from] influxdb3_py_api::system_py::ExecutePluginError),
 }
 
 #[cfg(feature = "system-py")]

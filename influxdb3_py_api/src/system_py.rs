@@ -22,6 +22,15 @@ use pyo3::{
 use std::ffi::CString;
 use std::sync::Arc;
 
+#[derive(Debug, thiserror::Error)]
+pub enum ExecutePluginError {
+    #[error("the process_writes function is not present in the plugin. Should be defined as: process_writes(influxdb3_local, table_batches, args=None)")]
+    MissingProcessWritesFunction,
+
+    #[error("{0}")]
+    PythonError(#[from] pyo3::PyErr),
+}
+
 #[pyclass]
 #[derive(Debug)]
 struct PyPluginCallApi {
@@ -360,7 +369,7 @@ pub fn execute_python_with_batch(
     query_executor: Arc<dyn QueryExecutor>,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
-) -> PyResult<PluginReturnState> {
+) -> Result<PluginReturnState, ExecutePluginError> {
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);
@@ -452,11 +461,13 @@ pub fn execute_python_with_batch(
 
         // run the code and get the python function to call
         py.run(&CString::new(code).unwrap(), Some(&globals), None)?;
-        let py_func = py.eval(
-            &CString::new(PROCESS_WRITES_CALL_SITE).unwrap(),
-            Some(&globals),
-            None,
-        )?;
+        let py_func = py
+            .eval(
+                &CString::new(PROCESS_WRITES_CALL_SITE).unwrap(),
+                Some(&globals),
+                None,
+            )
+            .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?;
 
         py_func.call1((local_api, py_batches.unbind(), args))?;
 

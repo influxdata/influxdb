@@ -20,6 +20,7 @@ iox_query_params.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
 futures.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 
 [dependencies.pyo3]
