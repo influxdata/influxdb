@@ -325,6 +325,16 @@ pub struct Config {
         action
     )]
     pub force_snapshot_mem_threshold: MemorySize,
+
+    /// Disable sending telemetry data to telemetry.v3.influxdata.com.
+    #[clap(
+        long = "disable-telemetry-upload",
+        env = "INFLUXDB3_TELEMETRY_DISABLE_UPLOAD",
+        default_value_t = false,
+        hide = true,
+        action
+    )]
+    pub disable_telemetry_upload: bool,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -539,6 +549,7 @@ pub async fn command(config: Config) -> Result<()> {
         num_cpus,
         Some(Arc::clone(&write_buffer_impl.persisted_files())),
         DEFAULT_TELMETRY_ENDPOINT,
+        config.disable_telemetry_upload,
     )
     .await;
 
@@ -594,6 +605,7 @@ async fn setup_telemetry_store(
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
     telemetry_endpoint: &'static str,
+    disable_upload: bool,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -605,16 +617,20 @@ async fn setup_telemetry_store(
         .unwrap_or(ObjectStoreType::Memory);
     let storage_type = obj_store_type.as_str();
 
-    TelemetryStore::new(
-        instance_id,
-        Arc::from(os),
-        Arc::from(influx_version),
-        Arc::from(storage_type),
-        num_cpus,
-        persisted_files.map(|p| p as _),
-        telemetry_endpoint,
-    )
-    .await
+    if disable_upload {
+        TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
+    } else {
+        TelemetryStore::new(
+            instance_id,
+            Arc::from(os),
+            Arc::from(influx_version),
+            Arc::from(storage_type),
+            num_cpus,
+            persisted_files.map(|p| p as _),
+            telemetry_endpoint,
+        )
+        .await
+    }
 }
 
 async fn background_buffer_checker(
