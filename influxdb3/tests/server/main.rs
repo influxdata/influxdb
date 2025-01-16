@@ -155,6 +155,7 @@ impl TestServer {
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
+            .arg("--disable-telemetry-upload")
             // bind to port 0 to get a random port assigned:
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])

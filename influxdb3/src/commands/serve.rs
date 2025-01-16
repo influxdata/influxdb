@@ -628,8 +628,10 @@ async fn setup_telemetry_store(
     let storage_type = obj_store_type.as_str();
 
     if disable_upload {
+        debug!("Initializing TelemetryStore with upload disabled.");
         TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
     } else {
+        debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
         TelemetryStore::new(
             instance_id,
             Arc::from(os),

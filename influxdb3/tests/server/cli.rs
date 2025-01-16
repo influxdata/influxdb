@@ -6,7 +6,9 @@ use std::{
 
 use crate::{ConfigProvider, TestServer};
 use assert_cmd::cargo::CommandCargoExt;
+use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
+use predicates::boolean::PredicateBooleanExt;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use test_helpers::assert_contains;
@@ -105,6 +107,105 @@ fn create_plugin_file(code: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
     writeln!(file, "{}", code).unwrap();
     file
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+
+    // validate we get a debug message indicating upload disabled
+    AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains(expected_disabled));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+    // validate no message when debug output disabled
+    AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains(expected_disabled).not());
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_enabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate debug output shows which endpoint we are hitting when telemetry enabled
+    AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains(expected_enabled));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telementry_enabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate no telemetry endpoint reported when debug output not enabled
+    AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .stdout(predicates::str::contains(expected_enabled).not());
 }
 
 #[test_log::test(tokio::test)]
