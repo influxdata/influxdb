@@ -1,3 +1,5 @@
+use core::str;
+
 use crate::TestServer;
 use futures::StreamExt;
 use hyper::StatusCode;
@@ -1579,6 +1581,104 @@ async fn api_v1_query_uri_and_body() {
                 }
             }
         }
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_group_by() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=a,t2=aa val=1 2998574931\n\
+            bar,t1=b,t2=aa val=2 2998574932\n\
+            bar,t1=a,t2=bb val=3 2998574933\n\
+            bar,t1=b,t2=bb val=4 2998574934",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    for (chunked, query) in [
+        (false, "select * from bar group by t1"),
+        (true, "select * from bar group by t1"),
+        (false, "select * from bar group by t1, t2"),
+        (true, "select * from bar group by t1, t2"),
+        (false, "select * from bar group by /t/"),
+        (true, "select * from bar group by /t/"),
+        (false, "select * from bar group by /t[1]/"),
+        (true, "select * from bar group by /t[1]/"),
+        (false, "select * from bar group by /t[1,2]/"),
+        (true, "select * from bar group by /t[1,2]/"),
+        (false, "select * from bar group by t1, t2, t3"),
+        (true, "select * from bar group by t1, t2, t3"),
+        (false, "select * from bar group by *"),
+        (true, "select * from bar group by *"),
+        (false, "select * from bar group by /not_a_match/"),
+        (true, "select * from bar group by /not_a_match/"),
+    ] {
+        let params = vec![
+            ("db", "foo"),
+            ("q", query),
+            ("chunked", if chunked { "true" } else { "false" }),
+        ];
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
+        let values = stream
+            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .collect::<Vec<Value>>()
+            .await;
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
+        // array for the snapshot.
+        insta::with_settings!({
+            description => format!("query: {query}, chunked: {chunked}"),
+        }, {
+            insta::assert_json_snapshot!(values);
+        });
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_group_by_with_nulls() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=a val=1 2998574931\n\
+            bar val=2 2998574932\n\
+            bar,t1=a val=3 2998574933\n\
+            ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    for (chunked, query) in [
+        (false, "select * from bar group by t1"),
+        (true, "select * from bar group by t1"),
+    ] {
+        let params = vec![
+            ("db", "foo"),
+            ("q", query),
+            ("chunked", if chunked { "true" } else { "false" }),
+        ];
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
+        let values = stream
+            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .collect::<Vec<Value>>()
+            .await;
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
+        // array for the snapshot.
+        insta::with_settings!({
+            description => format!("query: {query}, chunked: {chunked}"),
+        }, {
+            insta::assert_json_snapshot!(values);
+        });
     }
 }
 
