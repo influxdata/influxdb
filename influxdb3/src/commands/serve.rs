@@ -39,12 +39,13 @@ use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
+use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
         enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
-        CreateQueryExecutorArgs, QueryExecutorImpl,
+        CreateQueryExecutorArgs,
     },
     serve, CommonServerState,
 };
@@ -846,18 +847,20 @@ pub async fn command(config: Config) -> Result<()> {
                 compacted_data: sys_table_compacted_data,
             },
         )),
-        _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-            catalog: write_buffer.catalog(),
-            write_buffer: Arc::clone(&write_buffer),
-            exec: Arc::clone(&exec),
-            metrics: Arc::clone(&metrics),
-            datafusion_config,
-            query_log_size: config.query_log_size,
-            telemetry_store: Arc::clone(&telemetry_store),
-            compacted_data: sys_table_compacted_data,
-            enterprise_config: Arc::clone(&enterprise_config),
-            sys_events_store: Arc::clone(&sys_events_store),
-        })),
+        _ => Arc::new(QueryExecutorEnterprise::new(
+            CreateQueryExecutorArgs {
+                catalog: write_buffer.catalog(),
+                write_buffer: Arc::clone(&write_buffer),
+                exec: Arc::clone(&exec),
+                metrics: Arc::clone(&metrics),
+                datafusion_config,
+                query_log_size: config.query_log_size,
+                telemetry_store: Arc::clone(&telemetry_store),
+            },
+            sys_table_compacted_data,
+            Arc::clone(&enterprise_config),
+            Arc::clone(&sys_events_store),
+        )),
     };
 
     let listener = TcpListener::bind(*config.http_bind_address)

@@ -1,5 +1,6 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::{
@@ -9,6 +10,7 @@ use datafusion::{
 };
 use datafusion_util::config::DEFAULT_SCHEMA;
 use influxdb3_catalog::catalog::DatabaseSchema;
+use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
@@ -23,9 +25,9 @@ use iox_query_params::StatementParams;
 use iox_system_tables::SystemTableProvider;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
-use tokio::sync::Semaphore;
-use trace::ctx::SpanContext;
+use tokio::sync::{RwLock, Semaphore};
 use trace::span::{Span, SpanExt};
+use trace::{ctx::SpanContext, span::SpanRecorder};
 use trace_http::ctx::RequestLogContext;
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -34,10 +36,166 @@ use tracker::{
 use crate::{
     query_executor::{acquire_semaphore, query_database_sql},
     system_tables::{
-        compaction_events::CompactionEventsSysTable, SystemSchemaProvider,
-        COMPACTION_EVENTS_TABLE_NAME, SYSTEM_SCHEMA_NAME,
+        enterprise::{
+            compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
+            COMPACTED_DATA_TABLE_NAME, COMPACTION_EVENTS_TABLE_NAME,
+        },
+        SystemSchemaProvider, SYSTEM_SCHEMA_NAME,
     },
 };
+
+use super::{
+    AllSystemSchemaTablesProvider, CreateDatabaseArgs, CreateQueryExecutorArgs, Database,
+    QueryExecutorImpl,
+};
+
+#[derive(Debug, Clone)]
+pub struct QueryExecutorEnterprise {
+    core: QueryExecutorImpl,
+    compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+    sys_events_store: Arc<SysEventStore>,
+}
+
+impl QueryExecutorEnterprise {
+    pub fn new(
+        core_args: CreateQueryExecutorArgs,
+        compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
+        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+        sys_events_store: Arc<SysEventStore>,
+    ) -> Self {
+        Self {
+            core: QueryExecutorImpl::new(core_args),
+            compacted_data,
+            enterprise_config,
+            sys_events_store,
+        }
+    }
+}
+
+#[async_trait]
+impl QueryExecutor for QueryExecutorEnterprise {
+    async fn query_sql(
+        &self,
+        database: &str,
+        query: &str,
+        params: Option<StatementParams>,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        // this can't call its core impl because for SQL we need
+        // to ensure the enterprise-specific system tables are
+        // injected in the QueryNamespace provider, i.e., that we
+        // call `QueryExecutor::get_db_namespace` on self, and not
+        // on self.core.
+        info!(%database, %query, ?params, "executing sql query");
+        let db = self.get_db_namespace(database, &span_ctx).await?;
+        query_database_sql(
+            db,
+            query,
+            params,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.core.telemetry_store),
+        )
+        .await
+    }
+
+    async fn query_influxql(
+        &self,
+        database: &str,
+        query: &str,
+        influxql_statement: Statement,
+        params: Option<StatementParams>,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        self.core
+            .query_influxql(
+                database,
+                query,
+                influxql_statement,
+                params,
+                span_ctx,
+                external_span_ctx,
+            )
+            .await
+    }
+
+    fn show_databases(
+        &self,
+        include_deleted: bool,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        self.core.show_databases(include_deleted)
+    }
+
+    async fn show_retention_policies(
+        &self,
+        database: Option<&str>,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        self.core.show_retention_policies(database, span_ctx).await
+    }
+
+    fn upcast(&self) -> Arc<(dyn QueryDatabase + 'static)> {
+        // NB: This clone is required to get compiler to be happy
+        //     to convert `self` to dyn QueryDatabase. This wasn't
+        //     possible without getting owned value of self.
+        //     TODO: see if this clone can be removed satisfying
+        //           grpc setup in `make_flight_server`
+        let cloned_self = (*self).clone();
+        Arc::new(cloned_self) as _
+    }
+}
+
+// This implementation is for the Flight service
+#[async_trait]
+impl QueryDatabase for QueryExecutorEnterprise {
+    async fn namespace(
+        &self,
+        name: &str,
+        span: Option<Span>,
+        // We expose the `system` tables by default in the monolithic versions of InfluxDB 3
+        _include_debug_info_tables: bool,
+    ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
+        let _span_recorder = SpanRecorder::new(span);
+
+        let db_schema = self.core.catalog.db_schema(name).ok_or_else(|| {
+            DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
+                db_name: name.into(),
+            }))
+        })?;
+
+        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
+            AllSystemSchemaTablesProvider::new(
+                Arc::clone(&db_schema),
+                Arc::clone(&self.core.query_log),
+                Arc::clone(&self.core.write_buffer),
+            )
+            .add_enterprise_tables(
+                self.compacted_data.clone(),
+                Arc::clone(&self.enterprise_config),
+                Arc::clone(&self.sys_events_store),
+            ),
+        ));
+        Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
+            db_schema,
+            write_buffer: Arc::clone(&__self.core.write_buffer),
+            exec: Arc::clone(&__self.core.exec),
+            datafusion_config: Arc::clone(&__self.core.datafusion_config),
+            query_log: Arc::clone(&__self.core.query_log),
+            system_schema_provider,
+        }))))
+    }
+
+    async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit {
+        acquire_semaphore(Arc::clone(&self.core.query_execution_semaphore), span).await
+    }
+
+    fn query_log(&self) -> QueryLogEntries {
+        self.core.query_log.entries()
+    }
+}
 
 #[derive(Debug)]
 pub struct CompactionSysTableQueryExecutorArgs {
@@ -175,20 +333,24 @@ impl QueryDatabase for CompactionSysTableQueryExecutorImpl {
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         // NOTE: Here we're not using `Catalog` instead a `CompactedCatalog` to find
         //       the db schema
-        let db_schema = self
+        let compacted_data = self
             .compacted_data
             .clone()
-            .and_then(|compacted_data| compacted_data.catalog().db_schema(name))
             .ok_or_else(|| {
-                DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
-                    db_name: name.into(),
-                }))
-            })?;
+                DataFusionError::External(Box::new(QueryExecutorError::Anyhow(anyhow!("there was no compacted data available to the compaction system table query executor"))))
+            })?
+        ;
+        let db_schema = compacted_data.catalog().db_schema(name).ok_or_else(|| {
+            DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
+                db_name: name.into(),
+            }))
+        })?;
         let database = CompactionEventsQueryableDatabase::new(
             db_schema,
             Arc::clone(&self.exec),
             Arc::clone(&self.datafusion_config),
             Arc::clone(&self.query_log),
+            compacted_data,
             Arc::clone(&self.sys_events_store),
         );
         Ok(Some(Arc::new(database)))
@@ -293,10 +455,15 @@ impl CompactionEventsQueryableDatabase {
         exec: Arc<Executor>,
         datafusion_config: Arc<HashMap<String, String>>,
         query_log: Arc<QueryLog>,
+        compacted_data: Arc<dyn CompactedDataSystemTableView>,
         sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let system_schema_provider = Arc::new(SystemSchemaProvider::CompactionSystemTables(
-            CompactionSystemTablesProvider::new(Arc::clone(&sys_events_store)),
+            CompactionSystemTablesProvider::new(
+                Arc::clone(&db_schema),
+                compacted_data,
+                Arc::clone(&sys_events_store),
+            ),
         ));
         Self {
             db_schema,
@@ -359,14 +526,23 @@ impl SchemaProvider for CompactionSystemTablesProvider {
 }
 
 impl CompactionSystemTablesProvider {
-    pub fn new(sys_events_store: Arc<SysEventStore>) -> Self {
+    pub fn new(
+        db_schema: Arc<DatabaseSchema>,
+        compacted_data: Arc<dyn CompactedDataSystemTableView>,
+        sys_events_store: Arc<SysEventStore>,
+    ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
+        let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
+            CompactedDataTable::new(db_schema, Some(compacted_data)),
+        )));
+        tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
         tables.insert(
             COMPACTION_EVENTS_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(
                 CompactionEventsSysTable::new(Arc::clone(&sys_events_store)),
             ))),
         );
+        // let file_index_table = FileIndex
         Self { tables }
     }
 }
@@ -379,18 +555,183 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, error::DataFusionError};
     use futures::TryStreamExt;
-    use influxdb3_enterprise_compactor::sys_events::{
-        catalog_fetched,
-        compaction_completed::{self, PlanIdentifier},
-        compaction_consumed, compaction_planned,
-        snapshot_fetched::{FailedInfo, SuccessInfo},
-        CompactionEventStore,
+    use influxdb3_cache::{
+        distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
+        parquet_cache::test_cached_obj_store_and_oracle,
     };
+    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_enterprise_compactor::{
+        catalog::CompactedCatalog,
+        compacted_data::CompactedDataSystemTableView,
+        sys_events::{
+            catalog_fetched,
+            compaction_completed::{self, PlanIdentifier},
+            compaction_consumed, compaction_planned,
+            snapshot_fetched::{FailedInfo, SuccessInfo},
+            CompactionEventStore,
+        },
+    };
+    use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
+    use influxdb3_id::{DbId, ParquetFileId, TableId};
     use influxdb3_internal_api::query_executor::QueryExecutor;
-    use iox_time::Time;
+    use influxdb3_sys_events::SysEventStore;
+    use influxdb3_telemetry::store::TelemetryStore;
+    use influxdb3_wal::{Gen1Duration, WalConfig};
+    use influxdb3_write::{
+        persister::Persister,
+        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
+        ParquetFile, WriteBuffer,
+    };
+    use iox_time::{MockProvider, Time};
+    use metric::Registry;
+    use object_store::{local::LocalFileSystem, memory::InMemory, ObjectStore};
     use observability_deps::tracing::debug;
+    use tokio::sync::RwLock;
 
-    use crate::query_executor::tests::setup;
+    use crate::query_executor::{
+        enterprise::{
+            CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl,
+            QueryExecutorEnterprise,
+        },
+        tests::make_exec,
+        CreateQueryExecutorArgs,
+    };
+
+    #[derive(Debug)]
+    struct MockCompactedDataSysTable {
+        catalog: CompactedCatalog,
+    }
+
+    impl MockCompactedDataSysTable {
+        fn new(catalog: Arc<Catalog>) -> Self {
+            Self {
+                catalog: CompactedCatalog::new_for_testing("mock-compactor", catalog),
+            }
+        }
+    }
+
+    impl CompactedDataSystemTableView for MockCompactedDataSysTable {
+        fn query(
+            &self,
+            _db_name: &str,
+            _table_name: &str,
+        ) -> Option<Vec<influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult>>
+        {
+            Some(vec![
+                CompactedDataSystemTableQueryResult {
+                    generation_id: 1,
+                    generation_level: 2,
+                    generation_time: "2024-01-02/23-00".to_owned(),
+                    parquet_files: vec![Arc::new(ParquetFile {
+                        id: ParquetFileId::new(),
+                        path: "/some/path.parquet".to_owned(),
+                        size_bytes: 450_000,
+                        row_count: 100_000,
+                        chunk_time: 1234567890000000000,
+                        min_time: 1234567890000000000,
+                        max_time: 1234567890000000000,
+                    })],
+                },
+                CompactedDataSystemTableQueryResult {
+                    generation_id: 2,
+                    generation_level: 3,
+                    generation_time: "2024-01-02/23-00".to_owned(),
+                    parquet_files: vec![Arc::new(ParquetFile {
+                        id: ParquetFileId::new(),
+                        path: "/some/path2.parquet".to_owned(),
+                        size_bytes: 450_000,
+                        row_count: 100_000,
+                        chunk_time: 1234567890000000000,
+                        min_time: 1234567890000000000,
+                        max_time: 1234567890000000000,
+                    })],
+                },
+            ])
+        }
+
+        fn catalog(&self) -> &CompactedCatalog {
+            &self.catalog
+        }
+    }
+
+    // This is copy/pasted from the core module that is super to this, to replace the query
+    // executor impl with the enterprise one
+    async fn setup() -> (
+        Arc<dyn WriteBuffer>,
+        QueryExecutorEnterprise,
+        Arc<MockProvider>,
+        Arc<SysEventStore>,
+    ) {
+        // Set up QueryExecutor
+        let object_store: Arc<dyn ObjectStore> =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            object_store,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let exec = make_exec(Arc::clone(&object_store));
+        let writer_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("instance-id");
+        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
+            persister,
+            catalog: Arc::clone(&catalog),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
+                Arc::<MockProvider>::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            time_provider: Arc::<MockProvider>::clone(&time_provider),
+            executor: Arc::clone(&exec),
+            wal_config: WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            parquet_cache: Some(parquet_cache),
+            metric_registry: Default::default(),
+            snapshotted_wal_files_to_keep: 1,
+        })
+        .await
+        .unwrap();
+
+        let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
+        let telemetry_store = TelemetryStore::new_without_background_runners(Some(persisted_files));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+            &time_provider,
+        )));
+        let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
+        let metrics = Arc::new(Registry::new());
+        let datafusion_config = Arc::new(Default::default());
+        let query_executor = QueryExecutorEnterprise::new(
+            CreateQueryExecutorArgs {
+                catalog: write_buffer.catalog(),
+                write_buffer: Arc::clone(&write_buffer),
+                exec,
+                metrics,
+                datafusion_config,
+                query_log_size: 10,
+                telemetry_store,
+            },
+            Some(Arc::new(MockCompactedDataSysTable::new(Arc::clone(
+                &catalog,
+            )))),
+            Arc::new(RwLock::new(Default::default())),
+            Arc::clone(&sys_events_store),
+        );
+
+        (
+            write_buffer,
+            query_executor,
+            time_provider,
+            sys_events_store,
+        )
+    }
 
     #[test_log::test(tokio::test)]
     async fn test_sys_table_compaction_events_snapshot_success() {
@@ -712,5 +1053,67 @@ mod tests {
                 "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
             ],
             &batches);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn compacted_data_sys_table_in_compactor_query_exec() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let exec = make_exec(Arc::clone(&object_store));
+        let sys_events_store = Arc::new(SysEventStore::new(time_provider));
+        let catalog = Catalog::new("test".into(), "test".into());
+        let db_id = DbId::new();
+        catalog
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
+                db_id,
+                "test_db",
+                0,
+                [influxdb3_wal::create::create_table_op(
+                    db_id,
+                    "test_db",
+                    TableId::new(),
+                    "test_table",
+                    [],
+                    [],
+                )],
+            ))
+            .unwrap();
+        let query_exec =
+            CompactionSysTableQueryExecutorImpl::new(CompactionSysTableQueryExecutorArgs {
+                exec,
+                metrics: Default::default(),
+                datafusion_config: Default::default(),
+                query_log_size: 10,
+                telemetry_store: TelemetryStore::new_without_background_runners(None),
+                compacted_data: Some(Arc::new(MockCompactedDataSysTable::new(Arc::new(catalog)))),
+                sys_events_store,
+            });
+
+        // don't add parquet_id as it's changes everytime it's ran now
+        let query = "SELECT
+            table_name,
+            generation_id,
+            generation_level,
+            generation_time,
+            parquet_path,
+            parquet_size_bytes,
+            parquet_row_count,
+            parquet_chunk_time,
+            parquet_min_time,
+            parquet_max_time
+            FROM system.compacted_data WHERE table_name = 'test_table'";
+        let stream = query_exec
+            .query_sql("test_db", query, None, None, None)
+            .await
+            .unwrap();
+        let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
+        assert_batches_sorted_eq!([
+            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+            "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
+            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+            "| test_table | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+            "| test_table | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+        ], &batches);
     }
 }
