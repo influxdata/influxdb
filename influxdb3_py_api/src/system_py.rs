@@ -17,7 +17,7 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyDict, PyList, PyTuple};
 use pyo3::{
     create_exception, pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyObject,
     PyResult, Python,
@@ -72,16 +72,19 @@ impl std::fmt::Debug for LogLine {
 
 #[pymethods]
 impl PyPluginCallApi {
-    fn info(&self, line: &str) -> PyResult<()> {
+    #[pyo3(signature = (*args))]
+    fn info(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let line = self.log_args_to_string(args)?;
+
         info!("processing engine: {}", line);
-        self.return_state
-            .lock()
-            .log_lines
-            .push(LogLine::Info(line.to_string()));
+        self.return_state.lock().log_lines.push(LogLine::Info(line));
         Ok(())
     }
 
-    fn warn(&self, line: &str) -> PyResult<()> {
+    #[pyo3(signature = (*args))]
+    fn warn(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let line = self.log_args_to_string(args)?;
+
         warn!("processing engine: {}", line);
         self.return_state
             .lock()
@@ -90,13 +93,25 @@ impl PyPluginCallApi {
         Ok(())
     }
 
-    fn error(&self, line: &str) -> PyResult<()> {
+    #[pyo3(signature = (*args))]
+    fn error(&self, args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        let line = self.log_args_to_string(args)?;
+
         error!("processing engine: {}", line);
         self.return_state
             .lock()
             .log_lines
             .push(LogLine::Error(line.to_string()));
         Ok(())
+    }
+
+    fn log_args_to_string(&self, args: &Bound<'_, PyTuple>) -> PyResult<String> {
+        let line = args
+            .try_iter()?
+            .map(|arg| arg?.str()?.extract::<String>())
+            .collect::<Result<Vec<String>, _>>()?
+            .join(" ");
+        Ok(line)
     }
 
     fn write(&self, line_builder: &Bound<'_, PyAny>) -> PyResult<()> {

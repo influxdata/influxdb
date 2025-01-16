@@ -949,6 +949,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
     query_params = {"host": args["host"]}
     query_result = influxdb3_local.query("SELECT host, region, usage FROM cpu where host = $host", query_params)
     influxdb3_local.info("query result: " + str(query_result))
+    influxdb3_local.info("i", query_result, args["host"])
+    influxdb3_local.warn("w:", query_result)
+    influxdb3_local.error("err", query_result)
 
     for table_batch in table_batches:
         influxdb3_local.info("table: " + table_batch["table_name"])
@@ -1018,6 +1021,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
   "log_lines": [
     "INFO: arg1: arg1_value",
     "INFO: query result: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+    "INFO: i [{'host': 's2', 'region': 'us-east', 'usage': 0.89}] s2",
+    "WARN: w: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+    "ERROR: err [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
     "INFO: table: test_input",
     "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
     "INFO: done"
