@@ -11,6 +11,8 @@ use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use test_helpers::assert_contains;
 use test_helpers::tempfile::NamedTempFile;
+#[cfg(feature = "system-py")]
+use test_helpers::tempfile::TempDir;
 
 pub fn run(args: &[&str]) -> String {
     let process = Command::cargo_bin("influxdb3")
@@ -945,7 +947,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
 
     query_params = {"host": args["host"]}
-    query_result = influxdb3_local.query("SELECT * FROM cpu where host = $host", query_params)
+    query_result = influxdb3_local.query("SELECT host, region, usage FROM cpu where host = $host", query_params)
     influxdb3_local.info("query result: " + str(query_result))
 
     for table_batch in table_batches:
@@ -984,9 +986,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s2,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
             Precision::Nanosecond,
         )
         .await
@@ -1015,7 +1017,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let expected_result = r#"{
   "log_lines": [
     "INFO: arg1: arg1_value",
-    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'time': 2, 'usage': 0.89}]",
+    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
     "INFO: table: test_input",
     "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
     "INFO: done"
@@ -1032,4 +1034,109 @@ def process_writes(influxdb3_local, table_batches, args=None):
 }"#;
     let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
     assert_eq!(res, expected_result);
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_wal_plugin_errors() {
+    use crate::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    struct Test {
+        name: &'static str,
+        plugin_code: &'static str,
+        expected_error: &'static str,
+    }
+
+    let  tests = vec![
+        Test {
+            name: "invalid_python",
+            plugin_code: r#"
+        lkjasdf9823
+        jjjjj / sss"#,
+            expected_error: "error executing plugin: IndentationError: unexpected indent (<string>, line 2)",
+        },
+        Test {
+            name: "no_process_writes",
+            plugin_code: r#"
+def not_process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")"#,
+            expected_error: "error executing plugin: the process_writes function is not present in the plugin. Should be defined as: process_writes(influxdb3_local, table_batches, args=None)",
+        },
+        Test {
+            name: "no_args",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes 2 positional arguments but 3 were given",
+        },
+        Test {
+            name: "no_table_batches",
+            plugin_code: r#"
+def process_writes(influxdb3_local, args=None):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes from 1 to 2 positional arguments but 3 were given",
+        },
+        Test {
+            name: "no_influxdb3_local",
+            plugin_code: r#"
+def process_writes(table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes from 1 to 2 positional arguments but 3 were given",
+        }];
+
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    for test in tests {
+        let mut plugin_file = NamedTempFile::new_in(plugin_dir.path()).unwrap();
+        writeln!(plugin_file, "{}", test.plugin_code).unwrap();
+        let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+        let result = run_with_confirmation(&[
+            "test",
+            "wal_plugin",
+            "--database",
+            db_name,
+            "--host",
+            &server_addr,
+            "--lp",
+            "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+            "--input-arguments",
+            "arg1=arg1_value,host=s2",
+            plugin_name,
+        ]);
+        debug!(result = ?result, "test wal plugin");
+
+        println!("{}", result);
+        let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+        let errors = res.get("errors").unwrap().as_array().unwrap();
+        let error = errors[0].as_str().unwrap();
+        assert_eq!(
+            error, test.expected_error,
+            "test: {}, response was: {}",
+            test.name, result
+        );
+    }
 }
