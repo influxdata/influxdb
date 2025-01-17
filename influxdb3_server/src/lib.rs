@@ -784,9 +784,7 @@ mod tests {
         .await
         .unwrap();
 
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
