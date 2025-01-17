@@ -579,8 +579,9 @@ pub async fn command(config: Config) -> Result<()> {
         builder
             .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
             .build()
+            .await
     } else {
-        builder.build()
+        builder.build().await
     };
     serve(server, frontend_shutdown, startup_timer).await?;
 

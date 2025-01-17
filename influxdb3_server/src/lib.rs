@@ -825,7 +825,8 @@ mod tests {
             .authorizer(Arc::new(DefaultAuthorizer))
             .time_provider(Arc::clone(&time_provider))
             .tcp_listener(listener)
-            .build();
+            .build()
+            .await;
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
