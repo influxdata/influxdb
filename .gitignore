@@ -1,3 +1,5 @@
+# influxdb 3 license service binary:
+influxdb3_license/service/license_service
 # default results directory for the load generator:
 results/
 # datafusion-cli history:

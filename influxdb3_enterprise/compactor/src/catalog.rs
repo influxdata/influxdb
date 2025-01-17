@@ -358,6 +358,17 @@ impl CompactedCatalog {
             }),
         })
     }
+
+    /// Create a compacted catalog that is empty and can be used in mocks/tests
+    pub fn new_for_testing(id: impl Into<Arc<str>>, catalog: Arc<Catalog>) -> Self {
+        Self {
+            compactor_id: id.into(),
+            inner: RwLock::new(InnerCompactedCatalog {
+                catalog,
+                writer_maps: Default::default(),
+            }),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
