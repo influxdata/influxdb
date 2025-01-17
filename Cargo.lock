@@ -2991,6 +2991,7 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "pyo3",
+ "reqwest 0.11.27",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",

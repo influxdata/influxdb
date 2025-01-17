@@ -1286,3 +1286,64 @@ def process_writes(influxdb3_local, table_batches, args=None):
         );
     }
 }
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_load_wal_plugin_from_gh() {
+    use crate::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // this will pull from https://github.com/influxdata/influxdb3_plugins/blob/main/examples/wal_plugin/wal_plugin.py
+    let plugin_name = "gh:examples/wal_plugin";
+
+    // Run the test to make sure it'll load from GH
+    let result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test wal plugin");
+
+    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+
+    let expected_result = r#"{
+  "log_lines": [
+    "INFO: wal_plugin.py done"
+  ],
+  "database_writes": {
+    "foo": [
+      "write_reports,table_name=test_input row_count=1i"
+    ]
+  },
+  "errors": []
+}"#;
+    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
+    assert_eq!(res, expected_result);
+}
