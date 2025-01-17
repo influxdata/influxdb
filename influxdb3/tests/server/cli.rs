@@ -8,13 +8,12 @@ use crate::{ConfigProvider, TestServer};
 use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
-use predicates::boolean::PredicateBooleanExt;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
-use test_helpers::assert_contains;
 use test_helpers::tempfile::NamedTempFile;
 #[cfg(feature = "system-py")]
 use test_helpers::tempfile::TempDir;
+use test_helpers::{assert_contains, assert_not_contains};
 
 const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
@@ -122,7 +121,7 @@ async fn test_telemetry_disabled_with_debug_msg() {
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
 
     // validate we get a debug message indicating upload disabled
-    AssertCmd::cargo_bin("influxdb3")
+    let output = AssertCmd::cargo_bin("influxdb3")
         .unwrap()
         .args(serve_args)
         .arg("-vv")
@@ -130,7 +129,11 @@ async fn test_telemetry_disabled_with_debug_msg() {
         .timeout(std::time::Duration::from_millis(500))
         .assert()
         .failure()
-        .stdout(predicates::str::contains(expected_disabled));
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_disabled);
 }
 
 #[test_log::test(tokio::test)]
@@ -145,7 +148,7 @@ async fn test_telemetry_disabled() {
 
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
     // validate no message when debug output disabled
-    AssertCmd::cargo_bin("influxdb3")
+    let output = AssertCmd::cargo_bin("influxdb3")
         .unwrap()
         .args(serve_args)
         .arg("-v")
@@ -153,7 +156,11 @@ async fn test_telemetry_disabled() {
         .timeout(std::time::Duration::from_millis(500))
         .assert()
         .failure()
-        .stdout(predicates::str::contains(expected_disabled).not());
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_disabled);
 }
 
 #[test_log::test(tokio::test)]
@@ -170,7 +177,7 @@ async fn test_telemetry_enabled_with_debug_msg() {
         "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
 
     // validate debug output shows which endpoint we are hitting when telemetry enabled
-    AssertCmd::cargo_bin("influxdb3")
+    let output = AssertCmd::cargo_bin("influxdb3")
         .unwrap()
         .args(serve_args)
         .arg("-vv")
@@ -179,7 +186,11 @@ async fn test_telemetry_enabled_with_debug_msg() {
         .timeout(std::time::Duration::from_millis(500))
         .assert()
         .failure()
-        .stdout(predicates::str::contains(expected_enabled));
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_enabled);
 }
 
 #[test_log::test(tokio::test)]
@@ -196,7 +207,7 @@ async fn test_telementry_enabled() {
         "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
 
     // validate no telemetry endpoint reported when debug output not enabled
-    AssertCmd::cargo_bin("influxdb3")
+    let output = AssertCmd::cargo_bin("influxdb3")
         .unwrap()
         .args(serve_args)
         .arg("-v")
@@ -205,7 +216,11 @@ async fn test_telementry_enabled() {
         .timeout(std::time::Duration::from_millis(500))
         .assert()
         .failure()
-        .stdout(predicates::str::contains(expected_enabled).not());
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_enabled);
 }
 
 #[test_log::test(tokio::test)]
