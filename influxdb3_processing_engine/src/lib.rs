@@ -1,4 +1,5 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use anyhow::Context;
@@ -6,7 +7,9 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_client::plugin_development::{
+    CronPluginTestRequest, CronPluginTestResponse, WalPluginTestRequest, WalPluginTestResponse,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
@@ -339,7 +342,30 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 query_executor,
             };
             let plugin_code = self.read_plugin_code(&trigger.plugin_file_name).await?;
-            plugins::run_plugin(db_name.to_string(), plugin_code, trigger, plugin_context);
+            let Some(plugin_definition) = db_schema
+                .processing_engine_plugins
+                .get(&trigger.plugin_name)
+            else {
+                return Err(catalog::Error::ProcessingEnginePluginNotFound {
+                    plugin_name: trigger.plugin_name,
+                    database_name: db_name.to_string(),
+                }
+                .into());
+            };
+            match plugin_definition.plugin_type {
+                PluginType::WalRows => plugins::run_wal_contents_plugin(
+                    db_name.to_string(),
+                    plugin_code,
+                    trigger,
+                    plugin_context,
+                ),
+                PluginType::CronSchedule => plugins::run_cron_plugin(
+                    db_name.to_string(),
+                    plugin_code,
+                    trigger,
+                    plugin_context,
+                ),
+            }
         }
 
         Ok(())
@@ -479,6 +505,37 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     log_lines: vec![],
                     database_writes: Default::default(),
                     errors: vec![e.to_string()],
+                });
+
+            return Ok(res);
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_cron_plugin(
+        &self,
+        request: CronPluginTestRequest,
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<CronPluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.filename).await?;
+
+            let res = plugins::run_test_cron_plugin(now, catalog, query_executor, code, request)
+                .unwrap_or_else(|e| CronPluginTestResponse {
+                    log_lines: vec![],
+                    database_writes: Default::default(),
+                    errors: vec![e.to_string()],
+                    trigger_time: None,
                 });
 
             return Ok(res);

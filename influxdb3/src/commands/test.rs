@@ -1,7 +1,7 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
 use anyhow::Context;
 use hashbrown::HashMap;
-use influxdb3_client::plugin_development::WalPluginTestRequest;
+use influxdb3_client::plugin_development::{CronPluginTestRequest, WalPluginTestRequest};
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
 use std::error::Error;
@@ -16,6 +16,15 @@ impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
         match &self.cmd {
             SubCommand::WalPlugin(WalPluginConfig {
+                influxdb3_config:
+                    InfluxDb3Config {
+                        host_url,
+                        auth_token,
+                        ..
+                    },
+                ..
+            })
+            | SubCommand::CronPlugin(CronPluginConfig {
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -39,6 +48,9 @@ pub enum SubCommand {
     /// Test a WAL Plugin
     #[clap(name = "wal_plugin")]
     WalPlugin(WalPluginConfig),
+    /// Test a Cron Plugin
+    #[clap(name = "cron_plugin")]
+    CronPlugin(CronPluginConfig),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -58,6 +70,22 @@ pub struct WalPluginConfig {
     /// The plugin-dir is provided on server startup.
     #[clap(required = true)]
     pub filename: String,
+}
+
+#[derive(Debug, clap::Parser)]
+pub struct CronPluginConfig {
+    #[clap(flatten)]
+    influxdb3_config: InfluxDb3Config,
+    /// If given pass this map of string key/value pairs as input arguments
+    #[clap(long = "input-arguments")]
+    pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
+    /// The file name of the plugin, which should exist on the server in `<plugin-dir>/<filename>`.
+    /// The plugin-dir is provided on server startup.
+    #[clap(required = true)]
+    pub filename: String,
+    /// Cron schedule to test against. If not given will use * * * * *
+    #[clap(long = "schedule")]
+    pub schedule: Option<String>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -94,6 +122,21 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 "{}",
                 serde_json::to_string_pretty(&response)
                     .expect("serialize wal plugin test response as JSON")
+            );
+        }
+        SubCommand::CronPlugin(plugin_config) => {
+            let cron_plugin_test_request = CronPluginTestRequest {
+                filename: plugin_config.filename,
+                database: plugin_config.influxdb3_config.database_name,
+                schedule: plugin_config.schedule,
+                input_arguments: None,
+            };
+            let response = client.cron_plugin_test(cron_plugin_test_request).await?;
+
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&response)
+                    .expect("serialize cron plugin test response as JSON")
             );
         }
     }

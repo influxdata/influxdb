@@ -1,6 +1,8 @@
 pub mod plugin_development;
 
-use crate::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use crate::plugin_development::{
+    CronPluginTestRequest, CronPluginTestResponse, WalPluginTestRequest, WalPluginTestResponse,
+};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use iox_query_params::StatementParam;
@@ -718,6 +720,33 @@ impl Client {
 
         let mut req = self.http_client.post(url).json(&wal_plugin_test_request);
 
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
+
+        if resp.status().is_success() {
+            resp.json().await.map_err(Error::Json)
+        } else {
+            Err(Error::ApiError {
+                code: resp.status(),
+                message: resp.text().await.map_err(Error::Text)?,
+            })
+        }
+    }
+
+    /// Make a request to the `POST /api/v3/plugin_test/cron` API
+    pub async fn cron_plugin_test(
+        &self,
+        cron_plugin_test_request: CronPluginTestRequest,
+    ) -> Result<CronPluginTestResponse> {
+        let api_path = "/api/v3/plugin_test/cron";
+        let url = self.base_url.join(api_path)?;
+
+        let mut req = self.http_client.post(url).json(&cron_plugin_test_request);
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
