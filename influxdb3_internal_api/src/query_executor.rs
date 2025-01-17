@@ -9,7 +9,7 @@ use iox_query_params::StatementParams;
 use std::fmt::Debug;
 use std::sync::Arc;
 use trace::ctx::SpanContext;
-use trace::span::Span;
+use trace::span::{Span, SpanExt};
 use trace_http::ctx::RequestLogContext;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
@@ -27,10 +27,31 @@ pub enum QueryExecutorError {
     RetentionPoliciesToRecordBatch(#[source] ArrowError),
     #[error("invokded a method that is not implemented: {0}")]
     MethodNotImplemented(&'static str),
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 #[async_trait]
 pub trait QueryExecutor: QueryDatabase + Debug + Send + Sync + 'static {
+    async fn get_db_namespace(
+        &self,
+        database_name: &str,
+        span_ctx: &Option<SpanContext>,
+    ) -> Result<Arc<dyn QueryNamespace>, QueryExecutorError> {
+        self.namespace(
+            database_name,
+            span_ctx.child_span("get_db_namespace"),
+            false,
+        )
+        .await
+        .map_err(|_| QueryExecutorError::DatabaseNotFound {
+            db_name: database_name.to_string(),
+        })?
+        .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
+            db_name: database_name.to_string(),
+        })
+    }
+
     async fn query_sql(
         &self,
         database: &str,

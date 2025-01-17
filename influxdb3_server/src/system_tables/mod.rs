@@ -71,6 +71,10 @@ impl SchemaProvider for SystemSchemaProvider {
 }
 
 pub(crate) struct AllSystemSchemaTablesProvider {
+    #[allow(dead_code)]
+    buffer: Arc<dyn WriteBuffer>,
+    #[allow(dead_code)]
+    db_schema: Arc<DatabaseSchema>,
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
 }
 
@@ -108,7 +112,7 @@ impl AllSystemSchemaTablesProvider {
         tables.insert(DISTINCT_CACHES_TABLE_NAME, distinct_caches);
         let parquet_files = Arc::new(SystemTableProvider::new(Arc::new(ParquetFilesTable::new(
             db_schema.id,
-            buffer,
+            Arc::clone(&buffer),
         ))));
         tables.insert(
             PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
@@ -135,7 +139,11 @@ impl AllSystemSchemaTablesProvider {
             ))),
         );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
-        Self { tables }
+        Self {
+            buffer,
+            db_schema,
+            tables,
+        }
     }
 }
 

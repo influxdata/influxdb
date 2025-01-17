@@ -449,13 +449,21 @@ impl QueryDatabase for QueryExecutorImpl {
                 db_name: name.into(),
             }))
         })?;
+        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
+            AllSystemSchemaTablesProvider::new(
+                Arc::clone(&db_schema),
+                Arc::clone(&self.query_log),
+                Arc::clone(&self.write_buffer),
+                Arc::clone(&self.sys_events_store),
+            ),
+        ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
             db_schema,
             write_buffer: Arc::clone(&self.write_buffer),
             exec: Arc::clone(&self.exec),
             datafusion_config: Arc::clone(&self.datafusion_config),
             query_log: Arc::clone(&self.query_log),
-            sys_events_store: Arc::clone(&self.sys_events_store),
+            system_schema_provider,
         }))))
     }
 
@@ -478,19 +486,19 @@ async fn acquire_semaphore(
         .expect("Semaphore should not be closed by anyone")
 }
 
-/// Arguments for [`Database::new`]
-#[derive(Debug)]
-pub struct CreateDatabaseArgs {
+#[derive(Debug, Clone)]
+pub struct Database {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
     query_log: Arc<QueryLog>,
-    sys_events_store: Arc<SysEventStore>,
+    system_schema_provider: Arc<SystemSchemaProvider>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Database {
+/// Arguments for [`Database::new`]
+#[derive(Debug)]
+pub struct CreateDatabaseArgs {
     db_schema: Arc<DatabaseSchema>,
     write_buffer: Arc<dyn WriteBuffer>,
     exec: Arc<Executor>,
@@ -507,17 +515,9 @@ impl Database {
             exec,
             datafusion_config,
             query_log,
-            sys_events_store,
+            system_schema_provider,
         }: CreateDatabaseArgs,
     ) -> Self {
-        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
-            AllSystemSchemaTablesProvider::new(
-                Arc::clone(&db_schema),
-                Arc::clone(&query_log),
-                Arc::clone(&write_buffer),
-                Arc::clone(&sys_events_store),
-            ),
-        ));
         Self {
             db_schema,
             write_buffer,
