@@ -117,7 +117,30 @@ impl ProcessingEngineManagerImpl {
         }
     }
 
-    pub fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+        // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
+        if name.starts_with("gh:") {
+            let plugin_path = name.strip_prefix("gh:").unwrap();
+            // the filename should be the last part of the name after the last /
+            let plugin_name = plugin_path
+                .split('/')
+                .last()
+                .context("plugin name for github plugins must be <dir>/<name>")?;
+            let url = format!(
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}/{}.py",
+                plugin_path, plugin_name
+            );
+            let resp = reqwest::get(&url)
+                .await
+                .context("error getting plugin from github repo")?;
+            let resp_body = resp
+                .text()
+                .await
+                .context("error reading plugin from github repo")?;
+            return Ok(resp_body);
+        }
+
+        // otherwise we assume it is a local file
         let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
         let path = plugin_dir.join(name);
         Ok(std::fs::read_to_string(path)?)
@@ -314,7 +337,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 write_buffer,
                 query_executor,
             };
-            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name)?;
+            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name).await?;
             plugins::run_plugin(db_name.to_string(), plugin_code, trigger, plugin_context);
         }
 
@@ -434,7 +457,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
             let now = self.time_provider.now();
 
-            let code = self.read_plugin_code(&request.filename)?;
+            let code = self.read_plugin_code(&request.filename).await?;
 
             let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
                 .unwrap_or_else(|e| WalPluginTestResponse {
