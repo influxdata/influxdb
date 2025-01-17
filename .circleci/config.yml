@@ -146,6 +146,23 @@ jobs:
           command: |
             go install github.com/jdstrand/language-checker@latest
             language-checker --exit-1-on-failure .
+  check:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+      CARGO_INCREMENTAL: "0"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      CARGO_PROFILE_DEV_DEBUG: "1"
+      # https://github.com/rust-lang/cargo/issues/10280
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - checkout
+      - rust_components
+      - run:
+          name: Cargo check
+          command: cargo check --future-incompat-report
   cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -555,6 +572,8 @@ workflows:
           <<: *any_filter
       - lint:
           <<: *any_filter
+      - check:
+          <<: *any_filter
       - inclusivity:
           <<: *any_filter
       - cargo-audit:
@@ -631,6 +650,7 @@ workflows:
             - test
             - doc
             - lint
+            - check
             - fmt
             - cargo-audit
       - build-docker:
