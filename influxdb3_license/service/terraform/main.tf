@@ -97,10 +97,6 @@ resource "google_project_service" "required_apis" {
   for_each = toset([
     "secretmanager.googleapis.com", # Secret Manager API
     "run.googleapis.com",           # Cloud Run API
-    # "sql-component.googleapis.com",     # Cloud SQL
-    # "sqladmin.googleapis.com",         # Cloud SQL Admin
-    # "vpcaccess.googleapis.com",        # VPC Access API
-    # "servicenetworking.googleapis.com" # Service Networking API
   ])
 
   project = var.project_id

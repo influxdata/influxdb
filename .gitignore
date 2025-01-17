@@ -12,6 +12,7 @@ results/
 **/.DS_Store
 **/.vscode
 **/target
+**/.terraform
 *.pdb
 *.pending-snap
 *.tsm
