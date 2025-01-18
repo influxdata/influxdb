@@ -6,13 +6,14 @@ use std::{
 
 use crate::{ConfigProvider, TestServer};
 use assert_cmd::cargo::CommandCargoExt;
+use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
-use test_helpers::assert_contains;
 use test_helpers::tempfile::NamedTempFile;
 #[cfg(feature = "system-py")]
 use test_helpers::tempfile::TempDir;
+use test_helpers::{assert_contains, assert_not_contains};
 
 const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
@@ -105,6 +106,121 @@ fn create_plugin_file(code: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
     writeln!(file, "{}", code).unwrap();
     file
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+
+    // validate we get a debug message indicating upload disabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_disabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+    // validate no message when debug output disabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_disabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_enabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate debug output shows which endpoint we are hitting when telemetry enabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_enabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telementry_enabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate no telemetry endpoint reported when debug output not enabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_enabled);
 }
 
 #[test_log::test(tokio::test)]
