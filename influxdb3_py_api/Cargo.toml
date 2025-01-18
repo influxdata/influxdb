@@ -9,8 +9,10 @@ license.workspace = true
 system-py = ["pyo3"]
 
 [dependencies]
+anyhow.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
+chrono.workspace = true
 hashbrown.workspace = true
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }
@@ -20,6 +22,7 @@ iox_query_params.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
 futures.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 
 [dependencies.pyo3]

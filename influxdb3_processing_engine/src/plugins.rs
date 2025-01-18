@@ -1,5 +1,6 @@
 #[cfg(feature = "system-py")]
 use crate::PluginEvent;
+use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 #[cfg(feature = "system-py")]
@@ -14,10 +15,19 @@ use influxdb3_write::WriteBuffer;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
 #[cfg(feature = "system-py")]
+use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 #[cfg(feature = "system-py")]
 use tokio::sync::mpsc;
+
+use data_types::NamespaceName;
+use hashbrown::HashMap;
+use influxdb3_wal::Gen1Duration;
+use influxdb3_write::write_buffer::validator::WriteValidator;
+use influxdb3_write::Precision;
+#[cfg(feature = "system-py")]
+use iox_time::TimeProvider;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -42,10 +52,22 @@ pub enum Error {
 
     #[error("reading plugin file: {0}")]
     ReadPluginError(#[from] std::io::Error),
+
+    #[error("error executing plugin: {0}")]
+    PluginExecutionError(#[from] influxdb3_py_api::ExecutePluginError),
+
+    #[error("invalid cron syntax: {0}")]
+    InvalidCronSyntax(#[from] cron::error::Error),
+
+    #[error("cron schedule never triggers: {0}")]
+    CronScheduleNeverTriggers(String),
+
+    #[error("tried to run a schedule plugin but the schedule iterator is over.")]
+    ScheduledMissingTime,
 }
 
 #[cfg(feature = "system-py")]
-pub(crate) fn run_plugin(
+pub(crate) fn run_wal_contents_plugin(
     db_name: String,
     plugin_code: String,
     trigger_definition: TriggerDefinition,
@@ -60,9 +82,37 @@ pub(crate) fn run_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_plugin(context.trigger_rx)
+            .run_wal_contents_plugin(context.trigger_rx)
             .await
             .expect("trigger plugin failed");
+    });
+}
+
+#[cfg(feature = "system-py")]
+pub(crate) fn run_schedule_plugin(
+    db_name: String,
+    plugin_code: String,
+    trigger_definition: TriggerDefinition,
+    time_provider: Arc<dyn TimeProvider>,
+    context: PluginContext,
+) {
+    let TriggerSpecificationDefinition::Schedule { schedule } = &trigger_definition.trigger else {
+        // TODO: these linkages should be guaranteed by code.
+        unreachable!("this should've been checked");
+    };
+    let schedule = schedule.to_string();
+    let trigger_plugin = TriggerPlugin {
+        trigger_definition,
+        db_name,
+        plugin_code,
+        write_buffer: context.write_buffer,
+        query_executor: context.query_executor,
+    };
+    tokio::task::spawn(async move {
+        trigger_plugin
+            .run_schedule_plugin(context.trigger_rx, schedule, time_provider)
+            .await
+            .expect("cron trigger plugin failed");
     });
 }
 
@@ -74,17 +124,6 @@ pub(crate) struct PluginContext {
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
     // query executor to hand off to the plugin
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
-}
-
-#[cfg(feature = "system-py")]
-#[async_trait::async_trait]
-trait RunnablePlugin {
-    // Returns true if it should exit
-    async fn process_event(&self, event: PluginEvent) -> Result<bool, Error>;
-    async fn run_plugin(
-        &self,
-        receiver: tokio::sync::mpsc::Receiver<PluginEvent>,
-    ) -> Result<(), Error>;
 }
 
 #[cfg(feature = "system-py")]
@@ -100,20 +139,26 @@ struct TriggerPlugin {
 #[cfg(feature = "system-py")]
 mod python_plugin {
     use super::*;
-    use anyhow::Context;
+    use anyhow::{anyhow, Context};
+    use chrono::{DateTime, Utc};
+    use cron::{OwnedScheduleIterator, Schedule};
     use data_types::NamespaceName;
     use hashbrown::HashMap;
-    use influxdb3_py_api::system_py::execute_python_with_batch;
+    use influxdb3_catalog::catalog::DatabaseSchema;
+    use influxdb3_py_api::system_py::{execute_python_with_batch, execute_schedule_trigger};
     use influxdb3_wal::WalOp;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use observability_deps::tracing::{info, warn};
+    use observability_deps::tracing::{debug, info, warn};
+    use std::str::FromStr;
     use std::time::SystemTime;
     use tokio::sync::mpsc::Receiver;
 
-    #[async_trait::async_trait]
-    impl RunnablePlugin for TriggerPlugin {
-        async fn run_plugin(&self, mut receiver: Receiver<PluginEvent>) -> Result<(), Error> {
+    impl TriggerPlugin {
+        pub(crate) async fn run_wal_contents_plugin(
+            &self,
+            mut receiver: Receiver<PluginEvent>,
+        ) -> Result<(), Error> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting trigger plugin");
 
             loop {
@@ -139,12 +184,54 @@ mod python_plugin {
 
             Ok(())
         }
+
+        pub(crate) async fn run_schedule_plugin(
+            &self,
+            mut receiver: Receiver<PluginEvent>,
+            schedule: String,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Result<(), Error> {
+            let schedule = Schedule::from_str(schedule.as_str())?;
+            let mut runner = ScheduleTriggerRunner::new(schedule, Arc::clone(&time_provider));
+
+            loop {
+                let Some(next_run_instant) = runner.next_run_time() else {
+                    break;
+                };
+
+                tokio::select! {
+                    _ = time_provider.sleep_until(next_run_instant) => {
+                        let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
+                            return Err(Error::MissingDb);
+                        };
+                        runner.run_at_time(self, schema).await?;
+                    }
+                    event = receiver.recv() => {
+                        match event {
+                            None => {
+                                warn!(?self.trigger_definition, "trigger plugin receiver closed");
+                                break;
+                            }
+                            Some(PluginEvent::WriteWalContents(_)) => {
+                                debug!("ignoring wal contents in cron plugin.")
+                            }
+                            Some(PluginEvent::Shutdown(sender)) => {
+                                sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Ok(())
+        }
         async fn process_event(&self, event: PluginEvent) -> Result<bool, Error> {
             let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                 return Err(Error::MissingDb);
             };
 
-            let mut db_writes: HashMap<String, Vec<String>> = HashMap::new();
+            let mut db_writes = DatabaseWriteBuffer::new();
 
             match event {
                 PluginEvent::WriteWalContents(wal_contents) => {
@@ -170,6 +257,12 @@ mod python_plugin {
                                             .context("table not found")?;
                                         Some(table_id)
                                     }
+                                    // This should not occur
+                                    TriggerSpecificationDefinition::Schedule {
+                                        schedule
+                                    } => {
+                                        return Err(anyhow!("unexpectedly found scheduled trigger specification {} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                                    }
                                 };
 
                                 let result = execute_python_with_batch(
@@ -183,14 +276,12 @@ mod python_plugin {
 
                                 // write the output lines to the appropriate database
                                 if !result.write_back_lines.is_empty() {
-                                    let lines =
-                                        db_writes.entry_ref(schema.name.as_ref()).or_default();
-                                    lines.extend(result.write_back_lines);
+                                    db_writes
+                                        .add_lines(schema.name.as_ref(), result.write_back_lines);
                                 }
 
                                 for (db_name, add_lines) in result.write_db_lines {
-                                    let lines = db_writes.entry(db_name).or_default();
-                                    lines.extend(add_lines);
+                                    db_writes.add_lines(&db_name, add_lines);
                                 }
                             }
                             WalOp::Catalog(_) => {}
@@ -205,23 +296,101 @@ mod python_plugin {
             }
 
             if !db_writes.is_empty() {
-                for (db_name, output_lines) in db_writes {
-                    let ingest_time = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap();
-                    self.write_buffer
-                        .write_lp(
-                            NamespaceName::new(db_name).unwrap(),
-                            output_lines.join("\n").as_str(),
-                            Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
-                            false,
-                            Precision::Nanosecond,
-                        )
-                        .await?;
-                }
+                db_writes.execute(&self.write_buffer).await?;
             }
 
             Ok(false)
+        }
+    }
+
+    struct DatabaseWriteBuffer {
+        writes: HashMap<String, Vec<String>>,
+    }
+    impl DatabaseWriteBuffer {
+        fn new() -> Self {
+            Self {
+                writes: HashMap::new(),
+            }
+        }
+
+        fn add_lines(&mut self, db_name: &str, lines: Vec<String>) {
+            self.writes.entry_ref(db_name).or_default().extend(lines);
+        }
+
+        fn is_empty(&self) -> bool {
+            self.writes.is_empty()
+        }
+
+        async fn execute(self, write_buffer: &Arc<dyn WriteBuffer>) -> Result<(), Error> {
+            for (db_name, output_lines) in self.writes {
+                let ingest_time = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap();
+                write_buffer
+                    .write_lp(
+                        NamespaceName::new(db_name).unwrap(),
+                        output_lines.join("\n").as_str(),
+                        Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
+                        false,
+                        Precision::Nanosecond,
+                    )
+                    .await?;
+            }
+            Ok(())
+        }
+    }
+
+    struct ScheduleTriggerRunner {
+        schedule: OwnedScheduleIterator<Utc>,
+        next_trigger_time: Option<DateTime<Utc>>,
+    }
+    impl ScheduleTriggerRunner {
+        fn new(cron_schedule: Schedule, time_provider: Arc<dyn TimeProvider>) -> Self {
+            let mut schedule = cron_schedule.after_owned(time_provider.now().date_time());
+            let next_trigger_time = schedule.next();
+            Self {
+                schedule,
+                next_trigger_time,
+            }
+        }
+
+        async fn run_at_time(
+            &mut self,
+            plugin: &TriggerPlugin,
+            db_schema: Arc<DatabaseSchema>,
+        ) -> Result<(), Error> {
+            let Some(trigger_time) = self.next_trigger_time else {
+                return Err(anyhow!("running a cron trigger that is finished.").into());
+            };
+            let result = execute_schedule_trigger(
+                &plugin.plugin_code,
+                trigger_time,
+                Arc::clone(&db_schema),
+                Arc::clone(&plugin.query_executor),
+                &plugin.trigger_definition.trigger_arguments,
+            )?;
+
+            let mut db_writes = DatabaseWriteBuffer::new();
+            // write the output lines to the appropriate database
+            if !result.write_back_lines.is_empty() {
+                db_writes.add_lines(db_schema.name.as_ref(), result.write_back_lines);
+            }
+
+            for (db_name, add_lines) in result.write_db_lines {
+                db_writes.add_lines(&db_name, add_lines);
+            }
+            db_writes.execute(&plugin.write_buffer).await?;
+            self.advance_time();
+            Ok(())
+        }
+        fn advance_time(&mut self) {
+            self.next_trigger_time = self.schedule.next();
+        }
+
+        /// A funky little method to get a tokio Instant that we can call `tokio::time::sleep_until()` on.
+        fn next_run_time(&self) -> Option<Time> {
+            let next_trigger_time = Time::from_datetime(*self.next_trigger_time.as_ref()?);
+            Some(next_trigger_time)
         }
     }
 }
@@ -266,52 +435,62 @@ pub(crate) fn run_test_wal_plugin(
         &request.input_arguments,
     )?;
 
-    // validate the generated output lines
-    let mut errors = Vec::new();
+    let log_lines = plugin_return_state.log();
 
-    // first for the write back database
-    let validator =
-        WriteValidator::initialize(namespace, Arc::clone(&catalog), now_time.timestamp_nanos())?;
-    let lp = plugin_return_state.write_back_lines.join("\n");
-    match validator.v1_parse_lines_and_update_schema(&lp, false, now_time, Precision::Nanosecond) {
-        Ok(data) => {
-            let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
+    let mut database_writes = plugin_return_state.write_db_lines;
+    database_writes.insert(database, plugin_return_state.write_back_lines);
 
-            for err in data.errors {
-                errors.push(format!("{:?}", err));
-            }
-        }
-        Err(write_buffer::Error::ParseError(e)) => {
-            errors.push(format!("line protocol parse error on write back: {:?}", e));
-        }
-        Err(e) => {
-            errors.push(format!(
-                "Failed to validate output lines on write back: {}",
-                e
-            ));
-        }
+    let test_write_handler = TestWriteHandler::new(Arc::clone(&catalog), now_time);
+    let errors = test_write_handler.validate_all_writes(&database_writes);
+
+    Ok(WalPluginTestResponse {
+        log_lines,
+        database_writes,
+        errors,
+    })
+}
+
+#[derive(Debug)]
+pub struct TestWriteHandler {
+    catalog: Arc<Catalog>,
+    now_time: iox_time::Time,
+}
+
+impl TestWriteHandler {
+    pub fn new(catalog: Arc<Catalog>, now_time: iox_time::Time) -> Self {
+        Self { catalog, now_time }
     }
 
-    // now for any other dbs that received writes
-    for (db_name, lines) in &plugin_return_state.write_db_lines {
-        let namespace = match NamespaceName::new(db_name.to_string()) {
-            Ok(namespace) => namespace,
+    /// Validates a vec of lines for a namespace, returning any errors that arise as strings
+    fn validate_write_lines(
+        &self,
+        namespace: NamespaceName<'static>,
+        lines: &[String],
+    ) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        let db_name = namespace.as_str();
+
+        let validator = match WriteValidator::initialize(
+            namespace.clone(),
+            Arc::clone(&self.catalog),
+            self.now_time.timestamp_nanos(),
+        ) {
+            Ok(v) => v,
             Err(e) => {
-                errors.push(format!("database name {} is invalid: {}", db_name, e));
-                continue;
+                errors.push(format!(
+                    "Failed to initialize validator for db {}: {}",
+                    db_name, e
+                ));
+                return errors;
             }
         };
 
-        let validator = WriteValidator::initialize(
-            namespace,
-            Arc::clone(&catalog),
-            now_time.timestamp_nanos(),
-        )?;
         let lp = lines.join("\n");
         match validator.v1_parse_lines_and_update_schema(
             &lp,
             false,
-            now_time,
+            self.now_time,
             Precision::Nanosecond,
         ) {
             Ok(data) => {
@@ -333,17 +512,72 @@ pub(crate) fn run_test_wal_plugin(
                 ));
             }
         }
+        errors
     }
+    pub fn validate_all_writes(&self, writes: &HashMap<String, Vec<String>>) -> Vec<String> {
+        let mut all_errors = Vec::new();
+        for (db_name, lines) in writes {
+            let namespace = match NamespaceName::new(db_name.to_string()) {
+                Ok(namespace) => namespace,
+                Err(e) => {
+                    all_errors.push(format!("database name {} is invalid: {}", db_name, e));
+                    continue;
+                }
+            };
+
+            let db_errors = self.validate_write_lines(namespace, lines);
+            all_errors.extend(db_errors);
+        }
+
+        all_errors
+    }
+}
+
+#[cfg(feature = "system-py")]
+pub(crate) fn run_test_schedule_plugin(
+    now_time: iox_time::Time,
+    catalog: Arc<Catalog>,
+    query_executor: Arc<dyn QueryExecutor>,
+    code: String,
+    request: influxdb3_client::plugin_development::SchedulePluginTestRequest,
+) -> Result<influxdb3_client::plugin_development::SchedulePluginTestResponse, Error> {
+    let database = request.database;
+    let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
+
+    let cron_schedule = request.schedule.as_deref().unwrap_or("* * * * * *");
+
+    let schedule = cron::Schedule::from_str(cron_schedule)?;
+    let Some(schedule_time) = schedule.after(&now_time.date_time()).next() else {
+        return Err(Error::CronScheduleNeverTriggers(cron_schedule.to_string()));
+    };
+
+    let plugin_return_state = influxdb3_py_api::system_py::execute_schedule_trigger(
+        &code,
+        schedule_time,
+        db,
+        query_executor,
+        &request.input_arguments,
+    )?;
 
     let log_lines = plugin_return_state.log();
-    let mut database_writes = plugin_return_state.write_db_lines;
-    database_writes.insert(database, plugin_return_state.write_back_lines);
 
-    Ok(WalPluginTestResponse {
-        log_lines,
-        database_writes,
-        errors,
-    })
+    let mut database_writes = plugin_return_state.write_db_lines;
+    if !plugin_return_state.write_back_lines.is_empty() {
+        database_writes.insert(database, plugin_return_state.write_back_lines);
+    }
+
+    let test_write_handler = TestWriteHandler::new(Arc::clone(&catalog), now_time);
+    let errors = test_write_handler.validate_all_writes(&database_writes);
+    let trigger_time = schedule_time.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
+
+    Ok(
+        influxdb3_client::plugin_development::SchedulePluginTestResponse {
+            trigger_time: Some(trigger_time),
+            log_lines,
+            database_writes,
+            errors,
+        },
+    )
 }
 
 #[cfg(feature = "system-py")]

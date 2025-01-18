@@ -98,7 +98,7 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
-pub const DEFAULT_TELMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
+pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -413,6 +413,26 @@ pub struct Config {
         action
     )]
     pub force_snapshot_mem_threshold: MemorySize,
+
+    /// Disable sending telemetry data to telemetry.v3.influxdata.com.
+    #[clap(
+        long = "disable-telemetry-upload",
+        env = "INFLUXDB3_TELEMETRY_DISABLE_UPLOAD",
+        default_value_t = false,
+        hide = true,
+        action
+    )]
+    pub disable_telemetry_upload: bool,
+
+    /// Send telemetry data to the specified endpoint.
+    #[clap(
+        long = "telemetry-endpoint",
+        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
+        default_value = DEFAULT_TELEMETRY_ENDPOINT,
+        hide = true,
+        action
+    )]
+    pub telemetry_endpoint: String,
 }
 
 /// The interval to check for new snapshots from writers to compact data from. This will do an S3
@@ -818,7 +838,8 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         persisted_files,
-        DEFAULT_TELMETRY_ENDPOINT,
+        config.telemetry_endpoint.as_str(),
+        config.disable_telemetry_upload,
     )
     .await;
 
@@ -860,10 +881,10 @@ pub async fn command(config: Config) -> Result<()> {
                 datafusion_config,
                 query_log_size: config.query_log_size,
                 telemetry_store: Arc::clone(&telemetry_store),
+                sys_events_store: Arc::clone(&sys_events_store),
             },
             sys_table_compacted_data,
             Arc::clone(&enterprise_config),
-            Arc::clone(&sys_events_store),
         )),
     };
 
@@ -883,8 +904,9 @@ pub async fn command(config: Config) -> Result<()> {
         builder
             .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
             .build()
+            .await
     } else {
-        builder.build()
+        builder.build().await
     };
 
     let mut futures = Vec::new();
@@ -927,7 +949,8 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: &'static str,
+    telemetry_endpoint: &str,
+    disable_upload: bool,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -939,16 +962,22 @@ async fn setup_telemetry_store(
         .unwrap_or(ObjectStoreType::Memory);
     let storage_type = obj_store_type.as_str();
 
-    TelemetryStore::new(
-        instance_id,
-        Arc::from(os),
-        Arc::from(influx_version),
-        Arc::from(storage_type),
-        num_cpus,
-        persisted_files.map(|p| p as _),
-        telemetry_endpoint,
-    )
-    .await
+    if disable_upload {
+        debug!("Initializing TelemetryStore with upload disabled.");
+        TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
+    } else {
+        debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
+        TelemetryStore::new(
+            instance_id,
+            Arc::from(os),
+            Arc::from(influx_version),
+            Arc::from(storage_type),
+            num_cpus,
+            persisted_files.map(|p| p as _),
+            telemetry_endpoint.to_string(),
+        )
+        .await
+    }
 }
 
 async fn background_buffer_checker(
@@ -1176,7 +1205,7 @@ static SIGNING_KEYS: phf::Map<&'static str, &[u8]> = phf::phf_map! {
 };
 
 #[cfg(not(feature = "no_license"))]
-const LICENSE_SERVER_URL: &'static str = if cfg!(feature = "local_dev") {
+const LICENSE_SERVER_URL: &str = if cfg!(feature = "local_dev") {
     if let Some(url) = option_env!("LICENSE_SERVER_URL") {
         url
     } else {

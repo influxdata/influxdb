@@ -337,7 +337,7 @@ impl Catalog {
         }
     }
 
-    pub fn triggers(&self) -> Vec<(String, String)> {
+    pub fn active_triggers(&self) -> Vec<(String, String)> {
         let inner = self.inner.read();
         let result = inner
             .databases

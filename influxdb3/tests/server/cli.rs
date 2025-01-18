@@ -7,11 +7,34 @@ use std::{
 use crate::server::ConfigProvider;
 use crate::server::TestServer;
 use assert_cmd::cargo::CommandCargoExt;
+use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
-use test_helpers::assert_contains;
 use test_helpers::tempfile::NamedTempFile;
+#[cfg(feature = "system-py")]
+use test_helpers::tempfile::TempDir;
+use test_helpers::{assert_contains, assert_not_contains};
+
+#[cfg(feature = "system-py")]
+pub const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    for table_batch in table_batches:
+        # Skip if table_name is write_reports
+        if table_batch["table_name"] == "write_reports":
+            continue
+
+        row_count = len(table_batch["rows"])
+
+        # Double row count if table name matches args table_name
+        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
+            row_count *= 2
+
+        line = LineBuilder("write_reports")\
+            .tag("table_name", table_batch["table_name"])\
+            .int64_field("row_count", row_count)
+        influxdb3_local.write(line)
+"#;
 
 pub fn run(args: &[&str]) -> String {
     let process = Command::cargo_bin("influxdb3")
@@ -85,6 +108,121 @@ fn create_plugin_file(code: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
     writeln!(file, "{}", code).unwrap();
     file
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+
+    // validate we get a debug message indicating upload disabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_disabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_disabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
+    // validate no message when debug output disabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--disable-telemetry-upload")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_disabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telemetry_enabled_with_debug_msg() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate debug output shows which endpoint we are hitting when telemetry enabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-vv")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_contains!(output, expected_enabled);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_telementry_enabled() {
+    let serve_args = &[
+        "serve",
+        "--writer-id",
+        "the-best-writer",
+        "--object-store",
+        "memory",
+    ];
+
+    let expected_enabled: &str =
+        "Initializing TelemetryStore with upload enabled for http://localhost:9999.";
+
+    // validate no telemetry endpoint reported when debug output not enabled
+    let output = AssertCmd::cargo_bin("influxdb3")
+        .unwrap()
+        .args(serve_args)
+        .arg("-v")
+        .arg("--telemetry-endpoint")
+        .arg("http://localhost:9999")
+        .timeout(std::time::Duration::from_millis(500))
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).expect("must be able to convert output to String");
+    assert_not_contains!(output, expected_enabled);
 }
 
 #[test_log::test(tokio::test)]
@@ -532,26 +670,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 async fn test_create_trigger_and_run() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    for table_batch in table_batches:
-        # Skip if table_name is write_reports
-        if table_batch["table_name"] == "write_reports":
-            continue
-
-        row_count = len(table_batch["rows"])
-
-        # Double row count if table name matches args table_name
-        if args and "double_count_table" in args and table_batch["table_name"] == args["double_count_table"]:
-            row_count *= 2
-
-        line = LineBuilder("write_reports")\
-            .tag("table_name", table_batch["table_name"])\
-            .int64_field("row_count", row_count)
-        influxdb3_local.write(line)
-"#,
-    );
+    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
     let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
     let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
 
@@ -618,7 +737,129 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     // query to see if the processed data is there. we loop because it could take a bit to write
     // back the data. There's also a condition where the table may have been created, but the
-    // write hasn't happend yet, which returns empty results. This ensures we don't hit that race.
+    // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
+    let mut check_count = 0;
+    loop {
+        match server
+            .api_v3_query_sql(&[
+                ("db", db_name),
+                ("q", "SELECT table_name, row_count FROM write_reports"),
+                ("format", "json"),
+            ])
+            .await
+            .json::<Value>()
+            .await
+        {
+            Ok(value) => {
+                if value == expected {
+                    return;
+                }
+                check_count += 1;
+                if check_count > 10 {
+                    panic!(
+                        "Unexpected query result, got: {:#?}, expected {:#?}",
+                        value, expected
+                    );
+                }
+            }
+            Err(e) => {
+                check_count += 1;
+                if check_count > 10 {
+                    panic!("Failed to query processed data: {}", e);
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            }
+        };
+    }
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_triggers_are_started() {
+    // create a plugin and trigger and write data in, verifying that the trigger is enabled
+    // and sent data
+    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    // create tmp dir for object store
+    let tmp_file = TempDir::new().unwrap();
+    let tmp_dir = tmp_file.path().to_str().unwrap();
+
+    let mut server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let trigger_name = "test_trigger";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let plugin_name = "test_plugin";
+
+    run_with_confirmation(&[
+        "create",
+        "plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--filename",
+        plugin_filename,
+        plugin_name,
+    ]);
+
+    // creating the trigger should enable it
+    let result = run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin",
+        plugin_name,
+        "--trigger-spec",
+        "all_tables",
+        "--trigger-arguments",
+        "double_count_table=cpu",
+        trigger_name,
+    ]);
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "Trigger test_trigger created successfully");
+
+    // restart the server
+    server.kill();
+
+    server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+
+    // now let's write data and see if it gets processed
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,host=a f1=1.0\ncpu,host=b f1=2.0\nmem,host=a usage=234",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    let expected = json!(
+        [
+            {"table_name": "cpu", "row_count": 4},
+            {"table_name": "mem", "row_count": 1}
+        ]
+    );
+
+    // query to see if the processed data is there. we loop because it could take a bit to write
+    // back the data. There's also a condition where the table may have been created, but the
+    // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
     let mut check_count = 0;
     loop {
         match server
@@ -946,8 +1187,11 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
 
     query_params = {"host": args["host"]}
-    query_result = influxdb3_local.query("SELECT * FROM cpu where host = $host", query_params)
+    query_result = influxdb3_local.query("SELECT host, region, usage FROM cpu where host = $host", query_params)
     influxdb3_local.info("query result: " + str(query_result))
+    influxdb3_local.info("i", query_result, args["host"])
+    influxdb3_local.warn("w:", query_result)
+    influxdb3_local.error("err", query_result)
 
     for table_batch in table_batches:
         influxdb3_local.info("table: " + table_batch["table_name"])
@@ -985,9 +1229,9 @@ def process_writes(influxdb3_local, table_batches, args=None):
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s2,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
             Precision::Nanosecond,
         )
         .await
@@ -1016,7 +1260,10 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let expected_result = r#"{
   "log_lines": [
     "INFO: arg1: arg1_value",
-    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'time': 2, 'usage': 0.89}]",
+    "INFO: query result: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+    "INFO: i [{'host': 's2', 'region': 'us-east', 'usage': 0.89}] s2",
+    "WARN: w: [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
+    "ERROR: err [{'host': 's2', 'region': 'us-east', 'usage': 0.89}]",
     "INFO: table: test_input",
     "INFO: row: {'tag1': 'tag1_value', 'tag2': 'tag2_value', 'field1': 1, 'time': 500}",
     "INFO: done"
@@ -1027,6 +1274,263 @@ def process_writes(influxdb3_local, table_batches, args=None):
     ],
     "foo": [
       "some_table,tag1=tag1_value,tag2=tag2_value field1=1i,field2=2.0,field3=\"number three\""
+    ]
+  },
+  "errors": []
+}"#;
+    let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
+    assert_eq!(res, expected_result);
+}
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_schedule_plugin_test() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    // Create plugin file with a scheduled task
+    let plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    influxdb3_local.info(f"args are {args}")
+    influxdb3_local.info("Successfully called")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    // Write some test data
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=host1,region=us-east usage=0.75\n\
+             cpu,host=host2,region=us-west usage=0.82\n\
+             cpu,host=host3,region=us-east usage=0.91",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "*/5 * * * * *", // Run every 5 seconds
+        "--input-arguments",
+        "region=us-east",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test schedule plugin");
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // The trigger_time will be dynamic, so we'll just verify it exists and is in the right format
+    let trigger_time = res["trigger_time"].as_str().unwrap();
+    assert!(trigger_time.contains('T')); // Basic RFC3339 format check
+
+    // Check the rest of the response structure
+    let expected_result = serde_json::json!({
+        "log_lines": [
+            "INFO: args are {'region': 'us-east'}",
+            "INFO: Successfully called"
+        ],
+        "database_writes": {
+        },
+        "errors": []
+    });
+    assert_eq!(res["log_lines"], expected_result["log_lines"]);
+    assert_eq!(res["database_writes"], expected_result["database_writes"]);
+    assert_eq!(res["errors"], expected_result["errors"]);
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_wal_plugin_errors() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    struct Test {
+        name: &'static str,
+        plugin_code: &'static str,
+        expected_error: &'static str,
+    }
+
+    let  tests = vec![
+        Test {
+            name: "invalid_python",
+            plugin_code: r#"
+        lkjasdf9823
+        jjjjj / sss"#,
+            expected_error: "error executing plugin: IndentationError: unexpected indent (<string>, line 2)",
+        },
+        Test {
+            name: "no_process_writes",
+            plugin_code: r#"
+def not_process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.info("done")"#,
+            expected_error: "error executing plugin: the process_writes function is not present in the plugin. Should be defined as: process_writes(influxdb3_local, table_batches, args=None)",
+        },
+        Test {
+            name: "no_args",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes 2 positional arguments but 3 were given",
+        },
+        Test {
+            name: "no_table_batches",
+            plugin_code: r#"
+def process_writes(influxdb3_local, args=None):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes from 1 to 2 positional arguments but 3 were given",
+        },
+        Test {
+            name: "no_influxdb3_local",
+            plugin_code: r#"
+def process_writes(table_batches, args=None):
+    influxdb3_local.info("done")
+"#,
+            expected_error: "error executing plugin: TypeError: process_writes() takes from 1 to 2 positional arguments but 3 were given",
+        },
+        Test {
+            name: "line_builder_no_field",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    line = LineBuilder("some_table")
+    influxdb3_local.write(line)
+"#,
+            expected_error: "error executing plugin: InvalidLineError: At least one field is required: some_table",
+        },
+        Test {
+            name: "query_no_table",
+            plugin_code: r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    influxdb3_local.query("SELECT foo FROM not_here")
+"#,
+            expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query: SELECT foo FROM not_here",
+        }
+    ];
+
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    for test in tests {
+        let mut plugin_file = NamedTempFile::new_in(plugin_dir.path()).unwrap();
+        writeln!(plugin_file, "{}", test.plugin_code).unwrap();
+        let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+        let result = run_with_confirmation(&[
+            "test",
+            "wal_plugin",
+            "--database",
+            db_name,
+            "--host",
+            &server_addr,
+            "--lp",
+            "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+            "--input-arguments",
+            "arg1=arg1_value,host=s2",
+            plugin_name,
+        ]);
+        debug!(result = ?result, "test wal plugin");
+
+        println!("{}", result);
+        let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+        let errors = res.get("errors").unwrap().as_array().unwrap();
+        let error = errors[0].as_str().unwrap();
+        assert_eq!(
+            error, test.expected_error,
+            "test: {}, response was: {}",
+            test.name, result
+        );
+    }
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_load_wal_plugin_from_gh() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=s1,region=us-east usage=0.9\n\
+            cpu,host=s2,region=us-east usage=0.89\n\
+            cpu,host=s1,region=us-east usage=0.85",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // this will pull from https://github.com/influxdata/influxdb3_plugins/blob/main/examples/wal_plugin/wal_plugin.py
+    let plugin_name = "gh:examples/wal_plugin";
+
+    // Run the test to make sure it'll load from GH
+    let result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test wal plugin");
+
+    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+
+    let expected_result = r#"{
+  "log_lines": [
+    "INFO: wal_plugin.py done"
+  ],
+  "database_writes": {
+    "foo": [
+      "write_reports,table_name=test_input row_count=1i"
     ]
   },
   "errors": []

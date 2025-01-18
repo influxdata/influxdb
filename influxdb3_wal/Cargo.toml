@@ -21,6 +21,7 @@ async-trait.workspace = true
 bitcode.workspace = true
 bytes.workspace = true
 byteorder.workspace = true
+cron = "0.14"
 crc32fast.workspace  = true
 futures-util.workspace = true
 hashbrown.workspace = true

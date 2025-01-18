@@ -50,6 +50,8 @@ pub struct TestConfig {
     auth_token: Option<(String, String)>,
     writer_id: Option<String>,
     plugin_dir: Option<String>,
+    // If None, use memory object store.
+    object_store_dir: Option<String>,
 }
 
 impl TestConfig {
@@ -74,6 +76,12 @@ impl TestConfig {
         self.plugin_dir = Some(plugin_dir.into());
         self
     }
+
+    // Set the object store dir for this [`TestServer`]
+    pub fn with_object_store_dir<S: Into<String>>(mut self, object_store_dir: S) -> Self {
+        self.object_store_dir = Some(object_store_dir.into());
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -91,10 +99,19 @@ impl ConfigProvider for TestConfig {
         } else {
             args.push("test-server".to_string());
         }
-        args.append(&mut vec![
-            "--object-store".to_string(),
-            "memory".to_string(),
-        ]);
+        if let Some(object_store_dir) = &self.object_store_dir {
+            args.append(&mut vec![
+                "--object-store".to_string(),
+                "file".to_string(),
+                "--data-dir".to_string(),
+                object_store_dir.to_owned(),
+            ]);
+        } else {
+            args.append(&mut vec![
+                "--object-store".to_string(),
+                "memory".to_string(),
+            ]);
+        }
         args
     }
 
@@ -139,6 +156,7 @@ impl TestServer {
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
+            .arg("--disable-telemetry-upload")
             // bind to port 0 to get a random port assigned:
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
