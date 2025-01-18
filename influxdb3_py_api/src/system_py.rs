@@ -6,6 +6,7 @@ use arrow_array::{
     TimestampNanosecondArray, UInt64Array,
 };
 use arrow_schema::DataType;
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
@@ -17,7 +18,7 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
-use pyo3::types::{PyDict, PyList, PyTuple};
+use pyo3::types::{PyDateTime, PyDict, PyList, PyTuple};
 use pyo3::{
     create_exception, pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyObject,
     PyResult, Python,
@@ -257,6 +258,8 @@ impl PyPluginCallApi {
 // constant for the process writes call site string
 const PROCESS_WRITES_CALL_SITE: &str = "process_writes";
 
+const PROCESS_SCHEDULED_CALL_SITE: &str = "process_scheduled_call";
+
 const LINE_BUILDER_CODE: &str = r#"
 from typing import Optional
 from collections import OrderedDict
@@ -370,6 +373,18 @@ class LineBuilder:
 
         return line"#;
 
+fn args_to_py_object<'py>(
+    py: Python<'py>,
+    args: &Option<HashMap<String, String>>,
+) -> Option<Bound<'py, PyDict>> {
+    args.as_ref().map(|args| {
+        let dict = PyDict::new(py);
+        for (key, value) in args {
+            dict.set_item(key, value).unwrap();
+        }
+        dict
+    })
+}
 pub fn execute_python_with_batch(
     code: &str,
     write_batch: &WriteBatch,
@@ -480,13 +495,7 @@ pub fn execute_python_with_batch(
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
-        let args = args.as_ref().map(|args| {
-            let dict = PyDict::new(py);
-            for (key, value) in args {
-                dict.set_item(key, value).unwrap();
-            }
-            dict
-        });
+        let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
         py.run(&CString::new(code).unwrap(), Some(&globals), None)
@@ -502,6 +511,54 @@ pub fn execute_python_with_batch(
         py_func
             .call1((local_api, py_batches.unbind(), args))
             .map_err(anyhow::Error::from)?;
+
+        // swap with an empty return state to avoid cloning
+        let empty_return_state = PluginReturnState::default();
+        let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
+
+        Ok(ret)
+    })
+}
+
+pub fn execute_schedule_trigger(
+    code: &str,
+    schedule_time: DateTime<Utc>,
+    schema: Arc<DatabaseSchema>,
+    query_executor: Arc<dyn QueryExecutor>,
+    args: &Option<HashMap<String, String>>,
+) -> PyResult<PluginReturnState> {
+    Python::with_gil(|py| {
+        // import the LineBuilder for use in the python code
+        let globals = PyDict::new(py);
+
+        let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)?;
+
+        py.run(
+            &CString::new(LINE_BUILDER_CODE).unwrap(),
+            Some(&globals),
+            None,
+        )?;
+
+        let api = PyPluginCallApi {
+            db_schema: schema,
+            query_executor,
+            return_state: Default::default(),
+        };
+        let return_state = Arc::clone(&api.return_state);
+        let local_api = api.into_pyobject(py)?;
+
+        // turn args into an optional dict to pass into python
+        let args = args_to_py_object(py, args);
+
+        // run the code and get the python function to call
+        py.run(&CString::new(code).unwrap(), Some(&globals), None)?;
+        let py_func = py.eval(
+            &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
+            Some(&globals),
+            None,
+        )?;
+
+        py_func.call1((local_api, py_datetime, args))?;
 
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();

@@ -1175,6 +1175,34 @@ where
         Err(Error::PythonPluginsNotEnabled)
     }
 
+    /// Endpoint for testing a plugin that will be trigger on some cron schedule.
+    #[cfg(feature = "system-py")]
+    async fn test_processing_engine_schedule_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let request: influxdb3_client::plugin_development::SchedulePluginTestRequest =
+            self.read_body_json(req).await?;
+
+        let output = self
+            .processing_engine
+            .test_schedule_plugin(request, Arc::clone(&self.query_executor))
+            .await?;
+        let body = serde_json::to_string(&output)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(body))?)
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn test_processing_engine_schedule_plugin(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
+    }
+
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
@@ -1774,6 +1802,11 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
         (Method::POST, "/api/v3/plugin_test/wal") => {
             http_server.test_processing_engine_wal_plugin(req).await
+        }
+        (Method::POST, "/api/v3/plugin_test/schedule") => {
+            http_server
+                .test_processing_engine_schedule_plugin(req)
+                .await
         }
         _ => {
             let body = Body::from("not found");

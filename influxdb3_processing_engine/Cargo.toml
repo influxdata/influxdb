@@ -11,6 +11,8 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
+chrono.workspace = true
+cron.workspace =  true
 data_types.workspace = true
 hashbrown.workspace = true
 iox_time.workspace = true
