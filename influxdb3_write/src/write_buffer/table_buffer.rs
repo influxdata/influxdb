@@ -8,8 +8,8 @@ use arrow::array::{
 use arrow::datatypes::{GenericStringType, Int32Type};
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
-use datafusion::logical_expr::{BinaryExpr, Expr};
-use hashbrown::HashMap;
+use datafusion::physical_expr::utils::Guarantee;
+use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
@@ -17,10 +17,12 @@ use observability_deps::tracing::{debug, error};
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
+
+use crate::{BufferFilter, BufferGuarantee};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -68,14 +70,21 @@ impl TableBuffer {
     /// Produce a partitioned set of record batches along with their min/max timestamp
     ///
     /// The partitions are stored and returned in a `HashMap`, keyed on the generation time.
+    ///
+    /// This uses the provided `filter` to prune out chunks from the buffer that do not fall in
+    /// the filter's time boundaries. If the filter contains literal guarantees on tag columns
+    /// that are in the buffer index, this will also leverage those to prune rows in the resulting
+    /// chunks that do not satisfy the guarantees specified in the filter.
     pub fn partitioned_record_batches(
         &self,
         table_def: Arc<TableDefinition>,
-        filter: &[Expr],
+        filter: &BufferFilter,
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
-        for sc in &self.snapshotting_chunks {
+        for sc in self.snapshotting_chunks.iter().filter(|sc| {
+            filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
+        }) {
             let cols: std::result::Result<Vec<_>, _> = schema
                 .fields()
                 .iter()
@@ -95,7 +104,11 @@ impl TableBuffer {
             *ts = ts.union(&sc.timestamp_min_max);
             v.push(rb);
         }
-        for (t, c) in &self.chunk_time_to_chunks {
+        for (t, c) in self
+            .chunk_time_to_chunks
+            .iter()
+            .filter(|(_, c)| filter.test_time_stamp_min_max(c.timestamp_min, c.timestamp_max))
+        {
             let ts_min_max = TimestampMinMax::new(c.timestamp_min, c.timestamp_max);
             let (ts, v) = batches
                 .entry(*t)
@@ -103,40 +116,6 @@ impl TableBuffer {
             *ts = ts.union(&ts_min_max);
             v.push(c.record_batch(Arc::clone(&table_def), filter)?);
         }
-        Ok(batches)
-    }
-
-    pub fn record_batches(
-        &self,
-        table_def: Arc<TableDefinition>,
-        filter: &[Expr],
-    ) -> Result<Vec<RecordBatch>> {
-        let mut batches =
-            Vec::with_capacity(self.snapshotting_chunks.len() + self.chunk_time_to_chunks.len());
-        let schema = table_def.schema.as_arrow();
-
-        for sc in &self.snapshotting_chunks {
-            let cols: std::result::Result<Vec<_>, _> = schema
-                .fields()
-                .iter()
-                .map(|f| {
-                    let col = sc
-                        .record_batch
-                        .column_by_name(f.name())
-                        .ok_or(Error::FieldNotFound(f.name().to_string()));
-                    col.cloned()
-                })
-                .collect();
-            let cols = cols?;
-            let rb = RecordBatch::try_new(schema.clone(), cols)?;
-
-            batches.push(rb);
-        }
-
-        for c in self.chunk_time_to_chunks.values() {
-            batches.push(c.record_batch(Arc::clone(&table_def), filter)?)
-        }
-
         Ok(batches)
     }
 
@@ -265,7 +244,6 @@ impl MutableTableChunk {
                         self.timestamp_max = self.timestamp_max.max(*v);
 
                         let b = self.data.entry(f.id).or_insert_with(|| {
-                            debug!("Creating new timestamp builder");
                             let mut time_builder = TimestampNanosecondBuilder::new();
                             // append nulls for all previous rows
                             time_builder.append_nulls(row_index + self.row_count);
@@ -381,17 +359,22 @@ impl MutableTableChunk {
             }
 
             // add nulls for any columns not present
-            for (name, builder) in &mut self.data {
-                if !value_added.contains(name) {
-                    debug!("Adding null for column {}", name);
+            for (column_id, builder) in &mut self.data {
+                if !value_added.contains(column_id) {
                     match builder {
                         Builder::Bool(b) => b.append_null(),
                         Builder::F64(b) => b.append_null(),
                         Builder::I64(b) => b.append_null(),
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
-                        Builder::Tag(b) => b.append_value(""),
-                        Builder::Key(b) => b.append_value(""),
+                        Builder::Tag(b) | Builder::Key(b) => {
+                            // NOTE: we use an empty string "" for tags that are omitted and still
+                            //       update the index for rows that contain the empty tag
+                            let value = "";
+                            self.index
+                                .add_row_if_indexed_column(row_index, *column_id, value);
+                            b.append_value(value);
+                        }
                         Builder::Time(b) => b.append_null(),
                     }
                 }
@@ -408,18 +391,16 @@ impl MutableTableChunk {
     fn record_batch(
         &self,
         table_def: Arc<TableDefinition>,
-        filter: &[Expr],
+        filter: &BufferFilter,
     ) -> Result<RecordBatch> {
-        let row_ids = self
-            .index
-            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter);
+        let row_ids = self.index.get_rows_from_index_for_filter(filter);
         let schema = table_def.schema.as_arrow();
 
         let mut cols = Vec::with_capacity(schema.fields().len());
 
         for f in schema.fields() {
             match row_ids {
-                Some(row_ids) => {
+                Some(ref row_ids) => {
                     let b = table_def
                         .column_name_to_id(f.name().as_str())
                         .and_then(|id| self.data.get(&id));
@@ -576,7 +557,7 @@ impl std::fmt::Debug for MutableTableChunk {
 #[derive(Debug, Clone)]
 struct BufferIndex {
     // column id -> string value -> row indexes
-    columns: HashMap<ColumnId, HashMap<String, Vec<usize>>>,
+    columns: HashMap<ColumnId, HashMap<String, HashSet<usize>>>,
 }
 
 impl BufferIndex {
@@ -594,34 +575,71 @@ impl BufferIndex {
         if let Some(column) = self.columns.get_mut(&column_id) {
             column
                 .entry_ref(value)
-                .and_modify(|c| c.push(row_index))
-                .or_insert(vec![row_index]);
+                .and_modify(|c| {
+                    c.insert(row_index);
+                })
+                .or_insert([row_index].into_iter().collect());
         }
     }
 
-    fn get_rows_from_index_for_filter(
-        &self,
-        table_def: Arc<TableDefinition>,
-        filter: &[Expr],
-    ) -> Option<&Vec<usize>> {
-        for expr in filter {
-            if let Expr::BinaryExpr(BinaryExpr { left, op, right }) = expr {
-                if *op == datafusion::logical_expr::Operator::Eq {
-                    if let Expr::Column(c) = left.as_ref() {
-                        if let Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(v))) =
-                            right.as_ref()
-                        {
-                            return table_def
-                                .column_name_to_id(c.name())
-                                .and_then(|id| self.columns.get(&id))
-                                .and_then(|m| m.get(v.as_str()));
+    fn get_rows_from_index_for_filter(&self, filter: &BufferFilter) -> Option<HashSet<usize>> {
+        debug!(?filter, "processing filter");
+        let mut row_ids = RowIndexSet::new();
+        for (
+            col_id,
+            BufferGuarantee {
+                guarantee,
+                literals,
+            },
+        ) in filter.guarantees()
+        {
+            debug!(
+                ?col_id,
+                ?guarantee,
+                ?literals,
+                current = ?row_ids,
+                ">>> processing buffer guarantee"
+            );
+            let Some(row_map) = self.columns.get(col_id) else {
+                continue;
+            };
+            match guarantee {
+                Guarantee::In => {
+                    // If the literal set is empty, that means the evaluated filter is scanning for
+                    // rows where the tag is in nothing. That should yield no rows, so we give back
+                    // an empty set...
+                    // NOTE: tags cannot be NULL. They are given a value of "" if omitted in writes
+                    if literals.is_empty() {
+                        return Some(Default::default());
+                    }
+                    row_ids.start_in();
+                    for literal in literals {
+                        if let Some(row) = row_map.get(literal.as_ref()) {
+                            row_ids.update_in(row);
                         }
                     }
+                    row_ids.finish_column();
+                }
+                Guarantee::NotIn => {
+                    let in_rows = row_map
+                        .values()
+                        .flatten()
+                        .copied()
+                        .collect::<HashSet<usize>>();
+                    row_ids.start_not_in(in_rows);
+                    for literal in literals {
+                        if let Some(row) = row_map.get(literal.as_ref()) {
+                            row_ids.update_not_in(row);
+                        };
+                    }
+                    row_ids.finish_column();
                 }
             }
         }
 
-        None
+        debug!(result = ?row_ids, ">>> done processing filter guarantees");
+
+        row_ids.finish()
     }
 
     #[allow(dead_code)]
@@ -637,6 +655,65 @@ impl BufferIndex {
             }
         }
         size
+    }
+}
+
+#[derive(Debug)]
+struct RowIndexSet {
+    set: HashSet<usize>,
+    temp: HashSet<usize>,
+    state: IndexingState,
+}
+
+#[derive(Debug)]
+enum IndexingState {
+    Initialized,
+    Processing,
+}
+
+impl RowIndexSet {
+    fn new() -> Self {
+        Self {
+            set: HashSet::new(),
+            temp: HashSet::new(),
+            state: IndexingState::Initialized,
+        }
+    }
+
+    fn start_in(&mut self) {
+        self.temp.clear();
+    }
+
+    fn update_in(&mut self, indexes: &HashSet<usize>) {
+        self.temp = self.temp.union(indexes).copied().collect();
+    }
+
+    fn start_not_in(&mut self, initial_indexes: HashSet<usize>) {
+        self.temp = initial_indexes;
+    }
+
+    fn update_not_in(&mut self, indexes: &HashSet<usize>) {
+        self.temp = self.temp.difference(indexes).copied().collect();
+    }
+
+    fn finish_column(&mut self) {
+        debug!(row_ids = ?self.temp, state = ?self.state, set = ?self.set, ">>> update set with row ids");
+        use IndexingState::*;
+        match self.state {
+            Initialized => {
+                std::mem::swap(&mut self.set, &mut self.temp);
+            }
+            Processing => self.set = self.set.intersection(&self.temp).copied().collect(),
+        };
+        self.state = Processing;
+    }
+
+    fn finish(self) -> Option<HashSet<usize>> {
+        use IndexingState::*;
+        match self.state {
+            Initialized => None,
+            Processing => Some(self.set),
+        }
     }
 }
 
@@ -695,7 +772,7 @@ impl Builder {
         }
     }
 
-    fn get_rows(&self, rows: &[usize]) -> ArrayRef {
+    fn get_rows(&self, rows: &HashSet<usize>) -> ArrayRef {
         match self {
             Self::Bool(b) => {
                 let b = b.finish_cloned();
@@ -795,82 +872,79 @@ impl Builder {
 
 #[cfg(test)]
 mod tests {
+    use crate::{write_buffer::validator::WriteValidator, Precision};
+
     use super::*;
-    use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
-    use datafusion::common::Column;
-    use influxdb3_id::TableId;
-    use influxdb3_wal::Field;
-    use schema::InfluxFieldType;
+    use arrow_util::assert_batches_sorted_eq;
+    use data_types::NamespaceName;
+    use datafusion::prelude::{col, lit, lit_timestamp_nano, Expr};
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use iox_time::Time;
+
+    struct TestWriter {
+        catalog: Arc<Catalog>,
+    }
+
+    impl TestWriter {
+        const DB_NAME: &str = "test-db";
+
+        fn new() -> Self {
+            let catalog = Arc::new(Catalog::new("test-node".into(), "test-instance".into()));
+            Self { catalog }
+        }
+
+        fn write_to_rows(&self, lp: impl AsRef<str>, ingest_time_sec: i64) -> Vec<Row> {
+            let db = NamespaceName::try_from(Self::DB_NAME).unwrap();
+            let ingest_time_ns = ingest_time_sec * 1_000_000_000;
+            let validator =
+                WriteValidator::initialize(db, Arc::clone(&self.catalog), ingest_time_ns).unwrap();
+            validator
+                .v1_parse_lines_and_update_schema(
+                    lp.as_ref(),
+                    false,
+                    Time::from_timestamp_nanos(ingest_time_ns),
+                    Precision::Nanosecond,
+                )
+                .map(|r| r.into_inner().to_rows())
+                .unwrap()
+        }
+
+        fn db_schema(&self) -> Arc<DatabaseSchema> {
+            self.catalog.db_schema(Self::DB_NAME).unwrap()
+        }
+    }
 
     #[test]
-    fn partitioned_table_buffer_batches() {
-        let table_def = Arc::new(
-            TableDefinition::new(
-                TableId::new(),
-                "test_table".into(),
-                vec![
-                    (ColumnId::from(0), "tag".into(), InfluxColumnType::Tag),
-                    (
-                        ColumnId::from(1),
-                        "val".into(),
-                        InfluxColumnType::Field(InfluxFieldType::String),
-                    ),
-                    (
-                        ColumnId::from(2),
-                        "time".into(),
-                        InfluxColumnType::Timestamp,
-                    ),
-                ],
-                vec![0.into()],
-            )
-            .unwrap(),
-        );
-        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
+    fn test_partitioned_table_buffer_batches() {
+        let writer = TestWriter::new();
 
+        let mut row_batches = Vec::new();
         for t in 0..10 {
             let offset = t * 10;
-            let rows = vec![
-                Row {
-                    time: offset + 1,
-                    fields: vec![
-                        Field {
-                            id: ColumnId::from(0),
-                            value: FieldData::Tag("a".to_string()),
-                        },
-                        Field {
-                            id: ColumnId::from(1),
-                            value: FieldData::String(format!("thing {t}-1")),
-                        },
-                        Field {
-                            id: ColumnId::from(2),
-                            value: FieldData::Timestamp(offset + 1),
-                        },
-                    ],
-                },
-                Row {
-                    time: offset + 2,
-                    fields: vec![
-                        Field {
-                            id: ColumnId::from(0),
-                            value: FieldData::Tag("b".to_string()),
-                        },
-                        Field {
-                            id: ColumnId::from(1),
-                            value: FieldData::String(format!("thing {t}-2")),
-                        },
-                        Field {
-                            id: ColumnId::from(2),
-                            value: FieldData::Timestamp(offset + 2),
-                        },
-                    ],
-                },
-            ];
+            let rows = writer.write_to_rows(
+                format!(
+                    "\
+            tbl,tag=a val=\"thing {t}-1\" {o1}\n\
+            tbl,tag=b val=\"thing {t}-2\" {o2}\n\
+            ",
+                    o1 = offset + 1,
+                    o2 = offset + 2,
+                ),
+                offset,
+            );
+            row_batches.push((rows, offset));
+        }
 
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let tag_col_id = table_def.column_name_to_id("tag").unwrap();
+
+        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
+        for (rows, offset) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
         }
 
         let partitioned_batches = table_buffer
-            .partitioned_record_batches(Arc::clone(&table_def), &[])
+            .partitioned_record_batches(Arc::clone(&table_def), &BufferFilter::default())
             .unwrap();
 
         assert_eq!(10, partitioned_batches.len());
@@ -902,209 +976,165 @@ mod tests {
     }
 
     #[test]
-    fn tag_row_index() {
-        let table_def = Arc::new(
-            TableDefinition::new(
-                TableId::new(),
-                "test_table".into(),
-                vec![
-                    (ColumnId::from(0), "tag".into(), InfluxColumnType::Tag),
-                    (
-                        ColumnId::from(1),
-                        "value".into(),
-                        InfluxColumnType::Field(InfluxFieldType::Integer),
-                    ),
-                    (
-                        ColumnId::from(2),
-                        "time".into(),
-                        InfluxColumnType::Timestamp,
-                    ),
-                ],
-                vec![0.into()],
-            )
-            .unwrap(),
+    fn test_row_index_tag_filtering() {
+        let writer = TestWriter::new();
+        let rows = writer.write_to_rows(
+            "\
+            tbl,tag=a value=1i 1\n\
+            tbl,tag=b value=2i 1\n\
+            tbl,tag=a value=3i 2\n\
+            tbl,tag=b value=4i 2\n\
+            tbl,tag=a value=5i 3\n\
+            tbl,tag=c value=6i 3",
+            0,
         );
-        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
-
-        let rows = vec![
-            Row {
-                time: 1,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("a".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(1),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(1),
-                    },
-                ],
-            },
-            Row {
-                time: 2,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("b".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(2),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(2),
-                    },
-                ],
-            },
-            Row {
-                time: 3,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("a".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(3),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(3),
-                    },
-                ],
-            },
-        ];
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let tag_id = table_def.column_name_to_id("tag").unwrap();
+        let mut table_buffer = TableBuffer::new(vec![tag_id], SortKey::empty());
 
         table_buffer.buffer_chunk(0, &rows);
 
-        let filter = &[Expr::BinaryExpr(BinaryExpr {
-            left: Box::new(Expr::Column(Column {
-                relation: None,
-                name: "tag".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
-                "a".to_string(),
-            )))),
-        })];
-        let a_rows = table_buffer
-            .chunk_time_to_chunks
-            .get(&0)
-            .unwrap()
-            .index
-            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter)
-            .unwrap();
-        assert_eq!(a_rows, &[0, 2]);
+        struct TestCase<'a> {
+            filter: &'a [Expr],
+            expected_rows: &'a [usize],
+            expected_output: &'a [&'a str],
+        }
 
-        let a = table_buffer
-            .record_batches(Arc::clone(&table_def), filter)
-            .unwrap();
-        let expected_a = vec![
-            "+-----+--------------------------------+-------+",
-            "| tag | time                           | value |",
-            "+-----+--------------------------------+-------+",
-            "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
-            "| a   | 1970-01-01T00:00:00.000000003Z | 3     |",
-            "+-----+--------------------------------+-------+",
+        let test_cases = [
+            TestCase {
+                filter: &[col("tag").eq(lit("a"))],
+                expected_rows: &[0, 2, 4],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
+                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
+                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").eq(lit("b"))],
+                expected_rows: &[1, 3],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
+                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").eq(lit("c"))],
+                expected_rows: &[5],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").eq(lit("a")).or(col("tag").eq(lit("c")))],
+                expected_rows: &[0, 2, 4, 5],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
+                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
+                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
+                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").not_eq(lit("a"))],
+                expected_rows: &[1, 3, 5],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
+                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
+                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").in_list(vec![lit("a"), lit("c")], false)],
+                expected_rows: &[0, 2, 4, 5],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
+                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
+                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
+                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("tag").in_list(vec![lit("a"), lit("c")], true)],
+                expected_rows: &[1, 3],
+                expected_output: &[
+                    "+-----+--------------------------------+-------+",
+                    "| tag | time                           | value |",
+                    "+-----+--------------------------------+-------+",
+                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
+                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
+                    "+-----+--------------------------------+-------+",
+                ],
+            },
         ];
-        assert_batches_eq!(&expected_a, &a);
 
-        let filter = &[Expr::BinaryExpr(BinaryExpr {
-            left: Box::new(Expr::Column(Column {
-                relation: None,
-                name: "tag".to_string(),
-            })),
-            op: datafusion::logical_expr::Operator::Eq,
-            right: Box::new(Expr::Literal(datafusion::scalar::ScalarValue::Utf8(Some(
-                "b".to_string(),
-            )))),
-        })];
-
-        let b_rows = table_buffer
-            .chunk_time_to_chunks
-            .get(&0)
-            .unwrap()
-            .index
-            .get_rows_from_index_for_filter(Arc::clone(&table_def), filter)
-            .unwrap();
-        assert_eq!(b_rows, &[1]);
-
-        let b = table_buffer
-            .record_batches(Arc::clone(&table_def), filter)
-            .unwrap();
-        let expected_b = vec![
-            "+-----+--------------------------------+-------+",
-            "| tag | time                           | value |",
-            "+-----+--------------------------------+-------+",
-            "| b   | 1970-01-01T00:00:00.000000002Z | 2     |",
-            "+-----+--------------------------------+-------+",
-        ];
-        assert_batches_eq!(&expected_b, &b);
+        for t in test_cases {
+            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let rows = table_buffer
+                .chunk_time_to_chunks
+                .get(&0)
+                .unwrap()
+                .index
+                .get_rows_from_index_for_filter(&filter)
+                .unwrap();
+            assert_eq!(
+                rows,
+                HashSet::<usize>::from_iter(t.expected_rows.iter().copied())
+            );
+            let batches = table_buffer
+                .partitioned_record_batches(Arc::clone(&table_def), &filter)
+                .unwrap()
+                .into_values()
+                .flat_map(|(_, batch)| batch.into_iter())
+                .collect::<Vec<RecordBatch>>();
+            assert_batches_sorted_eq!(t.expected_output, &batches);
+        }
     }
 
     #[test]
-    fn computed_size_of_buffer() {
-        let mut table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
+    fn test_computed_size_of_buffer() {
+        let writer = TestWriter::new();
 
-        let rows = vec![
-            Row {
-                time: 1,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("a".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(1),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(1),
-                    },
-                ],
-            },
-            Row {
-                time: 2,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("b".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(2),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(2),
-                    },
-                ],
-            },
-            Row {
-                time: 3,
-                fields: vec![
-                    Field {
-                        id: ColumnId::from(0),
-                        value: FieldData::Tag("this is a long tag value to store".to_string()),
-                    },
-                    Field {
-                        id: ColumnId::from(1),
-                        value: FieldData::Integer(3),
-                    },
-                    Field {
-                        id: ColumnId::from(2),
-                        value: FieldData::Timestamp(3),
-                    },
-                ],
-            },
-        ];
+        let rows = writer.write_to_rows(
+            "\
+            tbl,tag=a value=1i 1\n\
+            tbl,tag=b value=2i 2\n\
+            tbl,tag=this\\ is\\ a\\ long\\ tag\\ value\\ to\\ store value=3i 3\n\
+            ",
+            0,
+        );
 
+        let tag_col_id = writer
+            .db_schema()
+            .table_definition("tbl")
+            .and_then(|tbl| tbl.column_name_to_id("tag"))
+            .unwrap();
+
+        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
@@ -1117,5 +1147,294 @@ mod tests {
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);
+    }
+
+    #[test_log::test]
+    fn test_time_filters() {
+        let writer = TestWriter::new();
+
+        let mut row_batches = Vec::new();
+        for offset in 0..100 {
+            let rows = writer.write_to_rows(
+                format!(
+                    "\
+                tbl,tag=a val={}\n\
+                tbl,tag=b val={}\n\
+                ",
+                    offset + 1,
+                    offset + 2
+                ),
+                offset,
+            );
+            row_batches.push((offset, rows));
+        }
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let tag_col_id = table_def.column_name_to_id("tag").unwrap();
+        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
+
+        for (offset, rows) in row_batches {
+            table_buffer.buffer_chunk(offset, &rows);
+        }
+
+        struct TestCase<'a> {
+            filter: &'a [Expr],
+            expected_output: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                filter: &[col("time").gt(lit_timestamp_nano(97_000_000_000i64))],
+                expected_output: &[
+                    "+-----+----------------------+-------+",
+                    "| tag | time                 | val   |",
+                    "+-----+----------------------+-------+",
+                    "| a   | 1970-01-01T00:01:38Z | 99.0  |",
+                    "| a   | 1970-01-01T00:01:39Z | 100.0 |",
+                    "| b   | 1970-01-01T00:01:38Z | 100.0 |",
+                    "| b   | 1970-01-01T00:01:39Z | 101.0 |",
+                    "+-----+----------------------+-------+",
+                ],
+            },
+            TestCase {
+                filter: &[col("time").lt(lit_timestamp_nano(3_000_000_000i64))],
+                expected_output: &[
+                    "+-----+----------------------+-----+",
+                    "| tag | time                 | val |",
+                    "+-----+----------------------+-----+",
+                    "| a   | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a   | 1970-01-01T00:00:01Z | 2.0 |",
+                    "| a   | 1970-01-01T00:00:02Z | 3.0 |",
+                    "| b   | 1970-01-01T00:00:00Z | 2.0 |",
+                    "| b   | 1970-01-01T00:00:01Z | 3.0 |",
+                    "| b   | 1970-01-01T00:00:02Z | 4.0 |",
+                    "+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("time")
+                    .gt(lit_timestamp_nano(3_000_000_000i64))
+                    .and(col("time").lt(lit_timestamp_nano(6_000_000_000i64)))],
+                expected_output: &[
+                    "+-----+----------------------+-----+",
+                    "| tag | time                 | val |",
+                    "+-----+----------------------+-----+",
+                    "| a   | 1970-01-01T00:00:04Z | 5.0 |",
+                    "| a   | 1970-01-01T00:00:05Z | 6.0 |",
+                    "| b   | 1970-01-01T00:00:04Z | 6.0 |",
+                    "| b   | 1970-01-01T00:00:05Z | 7.0 |",
+                    "+-----+----------------------+-----+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let batches = table_buffer
+                .partitioned_record_batches(Arc::clone(&table_def), &filter)
+                .unwrap()
+                .into_values()
+                .flat_map(|(_, batches)| batches)
+                .collect::<Vec<RecordBatch>>();
+            assert_batches_sorted_eq!(t.expected_output, &batches);
+        }
+    }
+
+    #[test_log::test]
+    fn test_multiple_tag_filters() {
+        let writer = TestWriter::new();
+
+        let rows = writer.write_to_rows(
+            "\
+            tbl,t1=a,t2=aa,t3=aaa val=1\n\
+            tbl,t1=b,t2=aa,t3=aaa val=2\n\
+            tbl,t1=a,t2=bb,t3=aaa val=3\n\
+            tbl,t1=b,t2=bb,t3=aaa val=4\n\
+            tbl,t1=a,t2=aa,t3=bbb val=5\n\
+            tbl,t1=b,t2=aa,t3=bbb val=6\n\
+            tbl,t1=a,t2=bb,t3=bbb val=7\n\
+            tbl,t1=b,t2=bb,t3=bbb val=8\n\
+            ",
+            0,
+        );
+        let table_def = writer.db_schema().table_definition("tbl").unwrap();
+        let t1_id = table_def.column_name_to_id("t1").unwrap();
+        let t2_id = table_def.column_name_to_id("t2").unwrap();
+        let t3_id = table_def.column_name_to_id("t3").unwrap();
+        let mut table_buffer = TableBuffer::new(vec![t1_id, t2_id, t3_id], SortKey::empty());
+
+        table_buffer.buffer_chunk(0, &rows);
+
+        struct TestCase<'a> {
+            filter: &'a [Expr],
+            expected_output: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                filter: &[],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
+                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
+                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
+                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
+                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
+                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").eq(lit("a"))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
+                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").eq(lit("a")).and(col("t2").eq(lit("aa")))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").eq(lit("a")).and(col("t2").not_eq(lit("aa")))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
+                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").eq(lit("a")).and(col("t1").not_eq(lit("a")))],
+                expected_output: &[
+                    "+----+----+----+------+-----+",
+                    "| t1 | t2 | t3 | time | val |",
+                    "+----+----+----+------+-----+",
+                    "+----+----+----+------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").in_list(vec![lit("a"), lit("b")], false)],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
+                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
+                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
+                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
+                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
+                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").in_list(vec![lit("a"), lit("b")], true)],
+                expected_output: &[
+                    "+----+----+----+------+-----+",
+                    "| t1 | t2 | t3 | time | val |",
+                    "+----+----+----+------+-----+",
+                    "+----+----+----+------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1")
+                    .in_list(vec![lit("a"), lit("b")], false)
+                    .and(col("t2").in_list(vec![lit("bb")], false))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
+                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
+                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
+                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1")
+                    .in_list(vec![lit("a"), lit("b")], false)
+                    .and(col("t2").in_list(vec![lit("bb")], true))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
+                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1")
+                    .in_list(vec![lit("a"), lit("b")], false)
+                    .and(col("t2").in_list(vec![lit("bb")], true))
+                    .and(col("t3").eq(lit("aaa")))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
+                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1")
+                    .in_list(vec![lit("a"), lit("b")], false)
+                    .and(col("t2").in_list(vec![lit("bb")], true))
+                    .and(col("t3").not_eq(lit("aaa")))],
+                expected_output: &[
+                    "+----+----+-----+----------------------+-----+",
+                    "| t1 | t2 | t3  | time                 | val |",
+                    "+----+----+-----+----------------------+-----+",
+                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
+                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
+                    "+----+----+-----+----------------------+-----+",
+                ],
+            },
+            TestCase {
+                filter: &[col("t1").eq(lit("not-a-valid-value"))],
+                expected_output: &[
+                    "+----+----+----+------+-----+",
+                    "| t1 | t2 | t3 | time | val |",
+                    "+----+----+----+------+-----+",
+                    "+----+----+----+------+-----+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let batches = table_buffer
+                .partitioned_record_batches(Arc::clone(&table_def), &filter)
+                .unwrap()
+                .into_values()
+                .flat_map(|(_, batch)| batch.into_iter())
+                .collect::<Vec<RecordBatch>>();
+            assert_batches_sorted_eq!(t.expected_output, &batches);
+        }
     }
 }

@@ -9,14 +9,29 @@ pub mod paths;
 pub mod persister;
 pub mod write_buffer;
 
+use anyhow::Context;
 use async_trait::async_trait;
 use data_types::{NamespaceName, TimestampMinMax};
-use datafusion::{catalog::Session, error::DataFusionError, prelude::Expr};
+use datafusion::{
+    catalog::Session,
+    common::{Column, DFSchema},
+    error::DataFusionError,
+    execution::context::ExecutionProps,
+    logical_expr::interval_arithmetic::Interval,
+    physical_expr::{
+        analyze, create_physical_expr,
+        utils::{Guarantee, LiteralGuarantee},
+        AnalysisContext, ExprBoundaries,
+    },
+    prelude::Expr,
+    scalar::ScalarValue,
+};
+use hashbrown::{HashMap, HashSet};
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
 };
-use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
@@ -24,6 +39,8 @@ use influxdb3_wal::{
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
+use observability_deps::tracing::debug;
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
@@ -41,6 +58,9 @@ pub enum Error {
 
     #[error("persister error: {0}")]
     Persister(#[from] persister::Error),
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -90,7 +110,16 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     fn wal(&self) -> Arc<dyn Wal>;
 
     /// Returns the parquet files for a given database and table
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.parquet_files_filtered(db_id, table_id, &BufferFilter::default())
+    }
+
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
     fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
@@ -459,6 +488,190 @@ pub(crate) mod test_help {
             },
             DedicatedExecutor::new_testing(),
         ))
+    }
+}
+
+/// A derived set of filters that are used to prune data in the buffer when serving queries
+#[derive(Debug, Default)]
+pub struct BufferFilter {
+    time_lower_bound: Option<i64>,
+    time_upper_bound: Option<i64>,
+    guarantees: HashMap<ColumnId, BufferGuarantee>,
+}
+
+#[derive(Debug)]
+pub struct BufferGuarantee {
+    pub guarantee: Guarantee,
+    pub literals: HashSet<Arc<str>>,
+}
+
+impl BufferFilter {
+    /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
+    /// a logical query plan.
+    ///
+    /// This method analyzes the incoming `exprs` to do two things:
+    ///
+    /// - determine if there are any filters on the `time` column, in which case, attempt to derive
+    ///   an interval that defines the boundaries on `time` from the query.
+    /// - determine if there are any _literal guarantees_ on tag columns contained in the filter
+    ///   predicates of the query.
+    pub fn new(table_def: &Arc<TableDefinition>, exprs: &[Expr]) -> Result<Self> {
+        debug!(input = ?exprs, ">>> creating buffer filter");
+        let mut time_interval: Option<Interval> = None;
+        let arrow_schema = table_def.schema.as_arrow();
+        let time_col_index = arrow_schema
+            .fields()
+            .iter()
+            .position(|f| f.name() == TIME_COLUMN_NAME)
+            .context("table should have a time column")?;
+        let mut guarantees = HashMap::new();
+
+        // DF schema and execution properties used for handling physical expressions:
+        let df_schema = DFSchema::try_from(Arc::clone(&arrow_schema))
+            .context("table schema was not able to convert to datafusion schema")?;
+        let props = ExecutionProps::new();
+
+        for expr in exprs.iter().filter(|e| {
+            // NOTE: filter out most expression types, as they are not relevant to time bound
+            // analysis, or deriving literal guarantees on tag columns
+            matches!(
+                e,
+                Expr::BinaryExpr(_) | Expr::Not(_) | Expr::Between(_) | Expr::InList(_)
+            )
+        }) {
+            let Ok(physical_expr) = create_physical_expr(expr, &df_schema, &props) else {
+                continue;
+            };
+            // Check if the expression refers to the `time` column:
+            if expr
+                .column_refs()
+                .contains(&Column::new_unqualified(TIME_COLUMN_NAME))
+            {
+                // Determine time bounds, if provided:
+                let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
+                    .context("unable to create unbounded expr boundaries on incoming expression")?;
+                let mut analysis = analyze(
+                    &physical_expr,
+                    AnalysisContext::new(boundaries),
+                    &arrow_schema,
+                )
+                .context("unable to analyze provided filters for a boundary on the time column")?;
+
+                // Set the boundaries on the time column using the evaluated interval, if it exisxts
+                // If an interval was already derived from a previous expression, we take their
+                // intersection, or produce an error if:
+                // - the derived intervals are not compatible (different types)
+                // - the derived intervals do not intersect, this should be a user error, i.e., a
+                //   poorly formed query
+                if let Some(ExprBoundaries { interval, .. }) = (time_col_index
+                    < analysis.boundaries.len())
+                .then_some(analysis.boundaries.remove(time_col_index))
+                {
+                    if let Some(existing) = time_interval.take() {
+                        let intersection = existing.intersect(interval).context(
+                                "failed to derive a time interval from provided filters",
+                            )?.context("provided filters on time column did not produce a valid set of boundaries")?;
+                        time_interval.replace(intersection);
+                    } else {
+                        time_interval.replace(interval);
+                    }
+                }
+            }
+
+            // Determine any literal guarantees made on tag columns:
+            let literal_guarantees = LiteralGuarantee::analyze(&physical_expr);
+            for LiteralGuarantee {
+                column,
+                guarantee,
+                literals,
+            } in literal_guarantees
+            {
+                // We are only interested in literal guarantees on tag columns for the buffer index:
+                let Some((column_id, InfluxColumnType::Tag)) = table_def
+                    .column_definition(column.name())
+                    .map(|def| (def.id, def.data_type))
+                else {
+                    continue;
+                };
+
+                // We are only interested in string literals with respect to tag columns:
+                let literals = literals
+                    .into_iter()
+                    .filter_map(|l| match l {
+                        ScalarValue::Utf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => {
+                            Some(Arc::<str>::from(s.as_str()))
+                        }
+                        _ => None,
+                    })
+                    .collect::<HashSet<Arc<str>>>();
+
+                if literals.is_empty() {
+                    continue;
+                }
+
+                // Update the guarantees on this column. We handle multiple guarantees here, i.e.,
+                // if there are multiple Expr's that lead to multiple guarantees on a given column.
+                guarantees
+                    .entry(column_id)
+                    .and_modify(|e: &mut BufferGuarantee| {
+                        debug!(current = ?e.guarantee, incoming = ?guarantee, ">>> updating existing guarantee");
+                        use Guarantee::*;
+                        match (e.guarantee, guarantee) {
+                            (In, In) | (NotIn, NotIn) => {
+                                e.literals = e.literals.union(&literals).cloned().collect()
+                            }
+                            (In, NotIn) => {
+                                e.literals = e.literals.difference(&literals).cloned().collect()
+                            }
+                            (NotIn, In) => {
+                                e.literals = literals.difference(&e.literals).cloned().collect()
+                            }
+                        }
+                    })
+                    .or_insert(BufferGuarantee {
+                        guarantee,
+                        literals,
+                    });
+                debug!(?guarantees, ">>> updated guarantees");
+            }
+        }
+
+        // Determine the lower and upper bound from the derived interval on time:
+        let (time_lower_bound, time_upper_bound) = if let Some(i) = time_interval {
+            let low = if let ScalarValue::TimestampNanosecond(Some(l), _) = i.lower() {
+                Some(*l)
+            } else {
+                None
+            };
+            let high = if let ScalarValue::TimestampNanosecond(Some(h), _) = i.upper() {
+                Some(*h)
+            } else {
+                None
+            };
+
+            (low, high)
+        } else {
+            (None, None)
+        };
+
+        Ok(Self {
+            time_lower_bound,
+            time_upper_bound,
+            guarantees,
+        })
+    }
+
+    pub fn test_time_stamp_min_max(&self, min: i64, max: i64) -> bool {
+        match (self.time_lower_bound, self.time_upper_bound) {
+            (None, None) => true,
+            (None, Some(u)) => min <= u,
+            (Some(l), None) => max >= l,
+            (Some(l), Some(u)) => min <= u && max >= l,
+        }
+    }
+
+    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &BufferGuarantee)> {
+        self.guarantees.iter()
     }
 }
 

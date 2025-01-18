@@ -3,7 +3,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{ParquetFile, ParquetFileId, PersistedSnapshot};
+use crate::{BufferFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -13,7 +13,6 @@ use data_types::{
 };
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
-use datafusion::logical_expr::Expr;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -100,7 +99,7 @@ impl QueryableBuffer {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
-        filters: &[Expr],
+        buffer_filter: &BufferFilter,
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
@@ -120,7 +119,7 @@ impl QueryableBuffer {
         };
 
         Ok(table_buffer
-            .partitioned_record_batches(Arc::clone(&table_def), filters)
+            .partitioned_record_batches(Arc::clone(&table_def), buffer_filter)
             .map_err(|e| DataFusionError::Execution(format!("error getting batches {}", e)))?
             .into_iter()
             .filter(|(_, (ts_min_max, _))| {
@@ -416,8 +415,13 @@ impl QueryableBuffer {
         receiver
     }
 
-    pub fn persisted_parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.persisted_files.get_files(db_id, table_id)
+    pub fn persisted_parquet_files(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
+        self.persisted_files.get_files(db_id, table_id, filter)
     }
 
     pub fn persisted_snapshot_notify_rx(
@@ -877,9 +881,11 @@ mod tests {
         // validate we have a single persisted file
         let db = catalog.db_schema("testdb").unwrap();
         let table = db.table_definition("foo").unwrap();
-        let files = queryable_buffer
-            .persisted_files
-            .get_files(db.id, table.table_id);
+        let files = queryable_buffer.persisted_files.get_files(
+            db.id,
+            table.table_id,
+            &BufferFilter::default(),
+        );
         assert_eq!(files.len(), 1);
 
         // now force another snapshot, persisting the data to parquet file
@@ -908,9 +914,11 @@ mod tests {
             .unwrap();
 
         // validate we have two persisted files
-        let files = queryable_buffer
-            .persisted_files
-            .get_files(db.id, table.table_id);
+        let files = queryable_buffer.persisted_files.get_files(
+            db.id,
+            table.table_id,
+            &BufferFilter::default(),
+        );
         assert_eq!(files.len(), 2);
     }
 }
