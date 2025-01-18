@@ -20,18 +20,18 @@ pub struct WalPluginTestResponse {
     pub errors: Vec<String>,
 }
 
-/// Request definition for `POST /api/v3/plugin_test/cron` API
+/// Request definition for `POST /api/v3/plugin_test/schedule` API
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CronPluginTestRequest {
+pub struct SchedulePluginTestRequest {
     pub filename: String,
     pub database: String,
     pub schedule: Option<String>,
     pub input_arguments: Option<HashMap<String, String>>,
 }
 
-/// Response definition for `POST /api/v3/plugin_test/cron` API
+/// Response definition for `POST /api/v3/plugin_test/schedule` API
 #[derive(Debug, Serialize, Deserialize)]
-pub struct CronPluginTestResponse {
+pub struct SchedulePluginTestResponse {
     pub trigger_time: Option<String>,
     pub log_lines: Vec<String>,
     pub database_writes: HashMap<String, Vec<String>>,

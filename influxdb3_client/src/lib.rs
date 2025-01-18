@@ -1,7 +1,8 @@
 pub mod plugin_development;
 
 use crate::plugin_development::{
-    CronPluginTestRequest, CronPluginTestResponse, WalPluginTestRequest, WalPluginTestResponse,
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
 };
 use bytes::Bytes;
 use hashbrown::HashMap;
@@ -738,15 +739,18 @@ impl Client {
         }
     }
 
-    /// Make a request to the `POST /api/v3/plugin_test/cron` API
-    pub async fn cron_plugin_test(
+    /// Make a request to the `POST /api/v3/plugin_test/schedule` API
+    pub async fn schedule_plugin_test(
         &self,
-        cron_plugin_test_request: CronPluginTestRequest,
-    ) -> Result<CronPluginTestResponse> {
-        let api_path = "/api/v3/plugin_test/cron";
+        schedule_plugin_test_request: SchedulePluginTestRequest,
+    ) -> Result<SchedulePluginTestResponse> {
+        let api_path = "/api/v3/plugin_test/schedule";
         let url = self.base_url.join(api_path)?;
 
-        let mut req = self.http_client.post(url).json(&cron_plugin_test_request);
+        let mut req = self
+            .http_client
+            .post(url)
+            .json(&schedule_plugin_test_request);
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }

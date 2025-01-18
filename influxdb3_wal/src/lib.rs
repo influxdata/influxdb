@@ -636,7 +636,7 @@ pub struct DeletePluginDefinition {
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
     WalRows,
-    CronSchedule,
+    Scheduled,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -668,7 +668,7 @@ pub struct TriggerIdentifier {
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
-    CronSchedule { schedule: String },
+    Schedule { schedule: String },
 }
 
 impl TriggerSpecificationDefinition {
@@ -687,14 +687,14 @@ impl TriggerSpecificationDefinition {
                 })
             }
             "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
-            s if s.starts_with("cron:") => {
-                let cron_schedule = s.trim_start_matches("cron:").trim();
+            s if s.starts_with("schedule:") => {
+                let cron_schedule = s.trim_start_matches("schedule:").trim();
                 if cron_schedule.is_empty() || Schedule::from_str(cron_schedule).is_err() {
                     return Err(Error::TriggerSpecificationParseError {
                         trigger_spec: spec_str.to_string(),
                     });
                 }
-                Ok(TriggerSpecificationDefinition::CronSchedule {
+                Ok(TriggerSpecificationDefinition::Schedule {
                     schedule: cron_schedule.to_string(),
                 })
             }
@@ -710,8 +710,8 @@ impl TriggerSpecificationDefinition {
                 format!("table:{}", table_name)
             }
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
-            TriggerSpecificationDefinition::CronSchedule { schedule } => {
-                format!("cron:{}", schedule)
+            TriggerSpecificationDefinition::Schedule { schedule } => {
+                format!("schedule:{}", schedule)
             }
         }
     }

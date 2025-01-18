@@ -21,6 +21,14 @@ use thiserror::Error;
 #[cfg(feature = "system-py")]
 use tokio::sync::mpsc;
 
+use data_types::NamespaceName;
+use hashbrown::HashMap;
+use influxdb3_wal::Gen1Duration;
+use influxdb3_write::write_buffer::validator::WriteValidator;
+use influxdb3_write::Precision;
+#[cfg(feature = "system-py")]
+use iox_time::TimeProvider;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("invalid database {0}")]
@@ -53,6 +61,9 @@ pub enum Error {
 
     #[error("cron schedule never triggers: {0}")]
     CronScheduleNeverTriggers(String),
+
+    #[error("tried to run a schedule plugin but the schedule iterator is over.")]
+    ScheduledMissingTime,
 }
 
 #[cfg(feature = "system-py")]
@@ -78,14 +89,14 @@ pub(crate) fn run_wal_contents_plugin(
 }
 
 #[cfg(feature = "system-py")]
-pub(crate) fn run_cron_plugin(
+pub(crate) fn run_schedule_plugin(
     db_name: String,
     plugin_code: String,
     trigger_definition: TriggerDefinition,
+    time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
 ) {
-    let TriggerSpecificationDefinition::CronSchedule { schedule } = &trigger_definition.trigger
-    else {
+    let TriggerSpecificationDefinition::Schedule { schedule } = &trigger_definition.trigger else {
         // TODO: these linkages should be guaranteed by code.
         unreachable!("this should've been checked");
     };
@@ -99,7 +110,7 @@ pub(crate) fn run_cron_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_cron_plugin(context.trigger_rx, schedule)
+            .run_schedule_plugin(context.trigger_rx, schedule, time_provider)
             .await
             .expect("cron trigger plugin failed");
     });
@@ -134,11 +145,11 @@ mod python_plugin {
     use data_types::NamespaceName;
     use hashbrown::HashMap;
     use influxdb3_catalog::catalog::DatabaseSchema;
-    use influxdb3_py_api::system_py::{execute_cron_trigger, execute_python_with_batch};
+    use influxdb3_py_api::system_py::{execute_python_with_batch, execute_schedule_trigger};
     use influxdb3_wal::WalOp;
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use observability_deps::tracing::{info, warn};
+    use observability_deps::tracing::{debug, info, warn};
     use std::str::FromStr;
     use std::time::{Duration, SystemTime};
     use tokio::sync::mpsc::Receiver;
@@ -175,26 +186,26 @@ mod python_plugin {
             Ok(())
         }
 
-        pub(crate) async fn run_cron_plugin(
+        pub(crate) async fn run_schedule_plugin(
             &self,
             mut receiver: Receiver<PluginEvent>,
             schedule: String,
+            time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), Error> {
             let schedule = Schedule::from_str(schedule.as_str())?;
-            let mut cron_runner = CronTriggerRunner::new(schedule);
+            let mut runner = ScheduleTriggerRunner::new(schedule, Arc::clone(&time_provider));
 
             loop {
-                let Some(next_run_instant) = cron_runner.next_run_time() else {
+                let Some(next_run_instant) = runner.next_run_time() else {
                     break;
                 };
 
                 tokio::select! {
-                    _ = tokio::time::sleep_until(next_run_instant) => {
-                        info!("running");
+                    _ = time_provider.sleep_until(next_run_instant) => {
                         let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                             return Err(Error::MissingDb);
                         };
-                        cron_runner.run_at_time(self, schema).await?;
+                        runner.run_at_time(self, schema).await?;
                     }
                     event = receiver.recv() => {
                         match event {
@@ -203,7 +214,7 @@ mod python_plugin {
                                 break;
                             }
                             Some(PluginEvent::WriteWalContents(_)) => {
-                                info!("ignoring wal contents in cron plugin.")
+                                debug!("ignoring wal contents in cron plugin.")
                             }
                             Some(PluginEvent::Shutdown(sender)) => {
                                 sender.send(()).map_err(|_| Error::FailedToShutdown)?;
@@ -248,10 +259,10 @@ mod python_plugin {
                                         Some(table_id)
                                     }
                                     // This should not occur
-                                    TriggerSpecificationDefinition::CronSchedule {
+                                    TriggerSpecificationDefinition::Schedule {
                                         schedule
                                     } => {
-                                        return Err(anyhow!("unexpectedly found cron trigger specification {} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                                        return Err(anyhow!("unexpectedly found scheduled trigger specification {} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
                                     }
                                 };
 
@@ -330,13 +341,13 @@ mod python_plugin {
         }
     }
 
-    struct CronTriggerRunner {
+    struct ScheduleTriggerRunner {
         schedule: OwnedScheduleIterator<Utc>,
         next_trigger_time: Option<DateTime<Utc>>,
     }
-    impl CronTriggerRunner {
-        fn new(cron_schedule: Schedule) -> Self {
-            let mut schedule = cron_schedule.upcoming_owned(Utc);
+    impl ScheduleTriggerRunner {
+        fn new(cron_schedule: Schedule, time_provider: Arc<dyn TimeProvider>) -> Self {
+            let mut schedule = cron_schedule.after_owned(time_provider.now().date_time());
             let next_trigger_time = schedule.next();
             Self {
                 schedule,
@@ -352,14 +363,13 @@ mod python_plugin {
             let Some(trigger_time) = self.next_trigger_time else {
                 return Err(anyhow!("running a cron trigger that is finished.").into());
             };
-            let result = execute_cron_trigger(
+            let result = execute_schedule_trigger(
                 &plugin.plugin_code,
                 trigger_time,
                 Arc::clone(&db_schema),
                 Arc::clone(&plugin.query_executor),
                 &plugin.trigger_definition.trigger_arguments,
-            )
-            .expect("should be able to run trigger");
+            )?;
 
             let mut db_writes = DatabaseWriteBuffer::new();
             // write the output lines to the appropriate database
@@ -379,14 +389,9 @@ mod python_plugin {
         }
 
         /// A funky little method to get a tokio Instant that we can call `tokio::time::sleep_until()` on.
-        fn next_run_time(&self) -> Option<Instant> {
-            let next_trigger_time = self.next_trigger_time.as_ref()?;
-            let wait = next_trigger_time.signed_duration_since(Utc::now());
-            if wait.num_milliseconds() < 0 {
-                Some(Instant::now())
-            } else {
-                Some(Instant::now() + Duration::from_millis(wait.num_milliseconds() as u64))
-            }
+        fn next_run_time(&self) -> Option<Time> {
+            let next_trigger_time = Time::from_datetime(*self.next_trigger_time.as_ref()?);
+            Some(next_trigger_time)
         }
     }
 }
@@ -451,12 +456,6 @@ pub struct TestWriteHandler {
     catalog: Arc<Catalog>,
     now_time: iox_time::Time,
 }
-
-use data_types::NamespaceName;
-use hashbrown::HashMap;
-use influxdb3_wal::Gen1Duration;
-use influxdb3_write::write_buffer::validator::WriteValidator;
-use influxdb3_write::Precision;
 
 impl TestWriteHandler {
     pub fn new(catalog: Arc<Catalog>, now_time: iox_time::Time) -> Self {
@@ -536,13 +535,13 @@ impl TestWriteHandler {
 }
 
 #[cfg(feature = "system-py")]
-pub(crate) fn run_test_cron_plugin(
+pub(crate) fn run_test_schedule_plugin(
     now_time: iox_time::Time,
-    catalog: Arc<influxdb3_catalog::catalog::Catalog>,
+    catalog: Arc<Catalog>,
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
-    request: influxdb3_client::plugin_development::CronPluginTestRequest,
-) -> Result<influxdb3_client::plugin_development::CronPluginTestResponse, Error> {
+    request: influxdb3_client::plugin_development::SchedulePluginTestRequest,
+) -> Result<influxdb3_client::plugin_development::SchedulePluginTestResponse, Error> {
     let database = request.database;
     let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
 
@@ -553,7 +552,7 @@ pub(crate) fn run_test_cron_plugin(
         return Err(Error::CronScheduleNeverTriggers(cron_schedule.to_string()));
     };
 
-    let plugin_return_state = influxdb3_py_api::system_py::execute_cron_trigger(
+    let plugin_return_state = influxdb3_py_api::system_py::execute_schedule_trigger(
         &code,
         schedule_time,
         db,
@@ -571,7 +570,7 @@ pub(crate) fn run_test_cron_plugin(
     let trigger_time = schedule_time.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
 
     Ok(
-        influxdb3_client::plugin_development::CronPluginTestResponse {
+        influxdb3_client::plugin_development::SchedulePluginTestResponse {
             trigger_time: Some(trigger_time),
             log_lines,
             database_writes,

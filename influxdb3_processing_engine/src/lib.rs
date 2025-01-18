@@ -8,7 +8,8 @@ use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_client::plugin_development::{
-    CronPluginTestRequest, CronPluginTestResponse, WalPluginTestRequest, WalPluginTestResponse,
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
@@ -359,10 +360,11 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     trigger,
                     plugin_context,
                 ),
-                PluginType::CronSchedule => plugins::run_cron_plugin(
+                PluginType::Scheduled => plugins::run_schedule_plugin(
                     db_name.to_string(),
                     plugin_code,
                     trigger,
+                    Arc::clone(&self.time_provider),
                     plugin_context,
                 ),
             }
@@ -517,11 +519,11 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
     }
 
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
-    async fn test_cron_plugin(
+    async fn test_schedule_plugin(
         &self,
-        request: CronPluginTestRequest,
+        request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<CronPluginTestResponse, Error> {
+    ) -> Result<SchedulePluginTestResponse, Error> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
@@ -530,13 +532,14 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
 
             let code = self.read_plugin_code(&request.filename).await?;
 
-            let res = plugins::run_test_cron_plugin(now, catalog, query_executor, code, request)
-                .unwrap_or_else(|e| CronPluginTestResponse {
-                    log_lines: vec![],
-                    database_writes: Default::default(),
-                    errors: vec![e.to_string()],
-                    trigger_time: None,
-                });
+            let res =
+                plugins::run_test_schedule_plugin(now, catalog, query_executor, code, request)
+                    .unwrap_or_else(|e| SchedulePluginTestResponse {
+                        log_lines: vec![],
+                        database_writes: Default::default(),
+                        errors: vec![e.to_string()],
+                        trigger_time: None,
+                    });
 
             return Ok(res);
         }

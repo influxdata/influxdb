@@ -373,6 +373,18 @@ class LineBuilder:
 
         return line"#;
 
+fn args_to_py_object<'py>(
+    py: Python<'py>,
+    args: &Option<HashMap<String, String>>,
+) -> Option<Bound<'py, PyDict>> {
+    args.as_ref().map(|args| {
+        let dict = PyDict::new(py);
+        for (key, value) in args {
+            dict.set_item(key, value).unwrap();
+        }
+        dict
+    })
+}
 pub fn execute_python_with_batch(
     code: &str,
     write_batch: &WriteBatch,
@@ -483,13 +495,7 @@ pub fn execute_python_with_batch(
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
-        let args = args.as_ref().map(|args| {
-            let dict = PyDict::new(py);
-            for (key, value) in args {
-                dict.set_item(key, value).unwrap();
-            }
-            dict
-        });
+        let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
         py.run(&CString::new(code).unwrap(), Some(&globals), None)
@@ -514,7 +520,7 @@ pub fn execute_python_with_batch(
     })
 }
 
-pub fn execute_cron_trigger(
+pub fn execute_schedule_trigger(
     code: &str,
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
@@ -542,13 +548,7 @@ pub fn execute_cron_trigger(
         let local_api = api.into_pyobject(py)?;
 
         // turn args into an optional dict to pass into python
-        let args = args.as_ref().map(|args| {
-            let dict = PyDict::new(py);
-            for (key, value) in args {
-                dict.set_item(key, value).unwrap();
-            }
-            dict
-        });
+        let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
         py.run(&CString::new(code).unwrap(), Some(&globals), None)?;

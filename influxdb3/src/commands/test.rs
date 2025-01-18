@@ -1,7 +1,7 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
 use anyhow::Context;
 use hashbrown::HashMap;
-use influxdb3_client::plugin_development::{CronPluginTestRequest, WalPluginTestRequest};
+use influxdb3_client::plugin_development::{SchedulePluginTestRequest, WalPluginTestRequest};
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
 use std::error::Error;
@@ -24,7 +24,7 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::CronPlugin(CronPluginConfig {
+            | SubCommand::SchedulePlugin(SchedulePluginConfig {
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -49,8 +49,8 @@ pub enum SubCommand {
     #[clap(name = "wal_plugin")]
     WalPlugin(WalPluginConfig),
     /// Test a Cron Plugin
-    #[clap(name = "cron_plugin")]
-    CronPlugin(CronPluginConfig),
+    #[clap(name = "schedule_plugin")]
+    SchedulePlugin(SchedulePluginConfig),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -73,7 +73,7 @@ pub struct WalPluginConfig {
 }
 
 #[derive(Debug, clap::Parser)]
-pub struct CronPluginConfig {
+pub struct SchedulePluginConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
     /// If given pass this map of string key/value pairs as input arguments
@@ -124,14 +124,16 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     .expect("serialize wal plugin test response as JSON")
             );
         }
-        SubCommand::CronPlugin(plugin_config) => {
-            let cron_plugin_test_request = CronPluginTestRequest {
+        SubCommand::SchedulePlugin(plugin_config) => {
+            let cron_plugin_test_request = SchedulePluginTestRequest {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 schedule: plugin_config.schedule,
                 input_arguments: None,
             };
-            let response = client.cron_plugin_test(cron_plugin_test_request).await?;
+            let response = client
+                .schedule_plugin_test(cron_plugin_test_request)
+                .await?;
 
             println!(
                 "{}",
