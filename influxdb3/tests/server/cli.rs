@@ -608,6 +608,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -645,6 +647,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -693,6 +697,8 @@ async fn test_create_trigger_and_run() {
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -806,6 +812,8 @@ async fn test_triggers_are_started() {
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -924,6 +932,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -1000,6 +1010,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -1092,6 +1104,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
+        "--plugin-type",
+        "wal_rows",
         "--filename",
         plugin_filename,
         plugin_name,
@@ -1536,4 +1550,114 @@ async fn test_load_wal_plugin_from_gh() {
 }"#;
     let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
     assert_eq!(res, expected_result);
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_request_plugin_and_trigger() {
+    let plugin_code = r#"
+import json
+
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    for k, v in query_parameters.items():
+        influxdb3_local.info(f"query_parameters: {k}={v}")
+    for k, v in request_headers.items():
+        influxdb3_local.info(f"request_headers: {k}={v}")
+
+    request_data = json.loads(request_body)
+
+    influxdb3_local.info("parsed JSON request body:", request_data)
+
+    # write the data to the database
+    line = LineBuilder("request_data").tag("tag1", "tag1_value").int64_field("field1", 1)
+    # get a string of the line to return as the body
+    line_str = line.build()
+
+    influxdb3_local.write(line)
+
+    return 200, {"Content-Type": "application/json"}, json.dumps({"status": "ok", "line": line_str})
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let plugin_name = "test_plugin";
+
+    run_with_confirmation(&[
+        "create",
+        "plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-type",
+        "request",
+        "--filename",
+        plugin_filename,
+        plugin_name,
+    ]);
+
+    let trigger_path = "foo";
+    // creating the trigger should enable it
+    let result = run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin",
+        plugin_name,
+        "--trigger-spec",
+        "request:foo",
+        "--trigger-arguments",
+        "test_arg=hello",
+        trigger_path,
+    ]);
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "Trigger foo created successfully");
+
+    // send an HTTP request to the server
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/v3/engine/foo", server_addr))
+        .header("Content-Type", "application/json")
+        .query(&[("q1", "whatevs")])
+        .body(r#"{"hello": "world"}"#)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let body = response.text().await.unwrap();
+    let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
+
+    // the plugin was just supposed to return the line that it wrote into the DB
+    assert_eq!(
+        body,
+        json!({"status": "ok", "line": "request_data,tag1=tag1_value field1=1i"})
+    );
+
+    // query to see if the plugin did the write into the DB
+    let val = server
+        .api_v3_query_sql(&[
+            ("db", db_name),
+            ("q", "SELECT tag1, field1 FROM request_data"),
+            ("format", "json"),
+        ])
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+
+    assert_eq!(val, json!([{"tag1": "tag1_value", "field1": 1}]));
 }

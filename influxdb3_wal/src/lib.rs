@@ -637,6 +637,7 @@ pub struct DeletePluginDefinition {
 pub enum PluginType {
     WalRows,
     Scheduled,
+    Request,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -669,6 +670,7 @@ pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
     Schedule { schedule: String },
+    RequestPath { path: String },
 }
 
 impl TriggerSpecificationDefinition {
@@ -698,6 +700,17 @@ impl TriggerSpecificationDefinition {
                     schedule: cron_schedule.to_string(),
                 })
             }
+            s if s.starts_with("request:") => {
+                let path = s.trim_start_matches("request:").trim();
+                if path.is_empty() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::RequestPath {
+                    path: path.to_string(),
+                })
+            }
             _ => Err(Error::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
             }),
@@ -712,6 +725,9 @@ impl TriggerSpecificationDefinition {
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
             TriggerSpecificationDefinition::Schedule { schedule } => {
                 format!("schedule:{}", schedule)
+            }
+            TriggerSpecificationDefinition::RequestPath { path } => {
+                format!("request:{}", path)
             }
         }
     }
