@@ -125,11 +125,16 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             );
         }
         SubCommand::SchedulePlugin(plugin_config) => {
+            let input_arguments = plugin_config.input_arguments.map(|a| {
+                a.into_iter()
+                    .map(|SeparatedKeyValue((k, v))| (k, v))
+                    .collect::<HashMap<String, String>>()
+            });
             let cron_plugin_test_request = SchedulePluginTestRequest {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 schedule: plugin_config.schedule,
-                input_arguments: None,
+                input_arguments,
             };
             let response = client
                 .schedule_plugin_test(cron_plugin_test_request)

@@ -151,9 +151,8 @@ mod python_plugin {
     use iox_time::Time;
     use observability_deps::tracing::{debug, info, warn};
     use std::str::FromStr;
-    use std::time::{Duration, SystemTime};
+    use std::time::SystemTime;
     use tokio::sync::mpsc::Receiver;
-    use tokio::time::Instant;
 
     impl TriggerPlugin {
         pub(crate) async fn run_wal_contents_plugin(
@@ -563,7 +562,9 @@ pub(crate) fn run_test_schedule_plugin(
     let log_lines = plugin_return_state.log();
 
     let mut database_writes = plugin_return_state.write_db_lines;
-    database_writes.insert(database, plugin_return_state.write_back_lines);
+    if !plugin_return_state.write_back_lines.is_empty() {
+        database_writes.insert(database, plugin_return_state.write_back_lines);
+    }
 
     let test_write_handler = TestWriteHandler::new(Arc::clone(&catalog), now_time);
     let errors = test_write_handler.validate_all_writes(&database_writes);
