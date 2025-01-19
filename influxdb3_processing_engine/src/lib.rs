@@ -23,7 +23,9 @@ use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
 use std::any::Any;
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
@@ -169,7 +171,7 @@ impl ProcessingEngineManagerImpl {
         }
     }
 
-    pub async fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::Error> {
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
@@ -189,13 +191,76 @@ impl ProcessingEngineManagerImpl {
                 .text()
                 .await
                 .context("error reading plugin from github repo")?;
-            return Ok(resp_body);
+            return Ok(PluginCode::Github(Arc::from(resp_body)));
         }
 
         // otherwise we assume it is a local file
         let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
-        let path = plugin_dir.join(name);
-        Ok(std::fs::read_to_string(path)?)
+        let plugin_path = plugin_dir.join(name);
+
+        // read it at least once to make sure it's there
+        let code = std::fs::read_to_string(plugin_path.clone())?;
+
+        // now we can return it
+        Ok(PluginCode::Local(LocalPlugin {
+            plugin_path,
+            last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(code))),
+        }))
+    }
+}
+
+#[derive(Debug)]
+pub enum PluginCode {
+    Github(Arc<str>),
+    Local(LocalPlugin),
+}
+
+impl PluginCode {
+    #[cfg(feature = "system-py")]
+    pub(crate) fn code(&self) -> Arc<str> {
+        match self {
+            PluginCode::Github(code) => Arc::clone(code),
+            PluginCode::Local(plugin) => plugin.read_if_modified(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct LocalPlugin {
+    plugin_path: PathBuf,
+    last_read_and_code: Mutex<(SystemTime, Arc<str>)>,
+}
+
+impl LocalPlugin {
+    #[cfg(feature = "system-py")]
+    fn read_if_modified(&self) -> Arc<str> {
+        let metadata = std::fs::metadata(&self.plugin_path);
+
+        let mut last_read_and_code = self.last_read_and_code.lock().unwrap();
+        let (last_read, code) = &mut *last_read_and_code;
+
+        match metadata {
+            Ok(metadata) => {
+                let is_modified = match metadata.modified() {
+                    Ok(modified) => modified > *last_read,
+                    Err(_) => true, // if we can't get the modified time, assume it is modified
+                };
+
+                if is_modified {
+                    // attempt to read the code, if it fails we will return the last known code
+                    if let Ok(new_code) = std::fs::read_to_string(&self.plugin_path) {
+                        *last_read = SystemTime::now();
+                        *code = Arc::from(new_code);
+                    } else {
+                        error!("error reading plugin file {:?}", self.plugin_path);
+                    }
+                }
+
+                Arc::clone(code)
+            }
+            Err(_) => Arc::clone(code),
+        }
     }
 }
 
@@ -555,13 +620,15 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let now = self.time_provider.now();
 
             let code = self.read_plugin_code(&request.filename).await?;
+            let code_string = code.code().to_string();
 
-            let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
-                .unwrap_or_else(|e| WalPluginTestResponse {
-                    log_lines: vec![],
-                    database_writes: Default::default(),
-                    errors: vec![e.to_string()],
-                });
+            let res =
+                plugins::run_test_wal_plugin(now, catalog, query_executor, code_string, request)
+                    .unwrap_or_else(|e| WalPluginTestResponse {
+                        log_lines: vec![],
+                        database_writes: Default::default(),
+                        errors: vec![e.to_string()],
+                    });
 
             return Ok(res);
         }
@@ -585,15 +652,21 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let now = self.time_provider.now();
 
             let code = self.read_plugin_code(&request.filename).await?;
+            let code_string = code.code().to_string();
 
-            let res =
-                plugins::run_test_schedule_plugin(now, catalog, query_executor, code, request)
-                    .unwrap_or_else(|e| SchedulePluginTestResponse {
-                        log_lines: vec![],
-                        database_writes: Default::default(),
-                        errors: vec![e.to_string()],
-                        trigger_time: None,
-                    });
+            let res = plugins::run_test_schedule_plugin(
+                now,
+                catalog,
+                query_executor,
+                code_string,
+                request,
+            )
+            .unwrap_or_else(|e| SchedulePluginTestResponse {
+                log_lines: vec![],
+                database_writes: Default::default(),
+                errors: vec![e.to_string()],
+                trigger_time: None,
+            });
 
             return Ok(res);
         }
