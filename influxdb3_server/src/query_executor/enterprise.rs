@@ -54,7 +54,6 @@ pub struct QueryExecutorEnterprise {
     core: QueryExecutorImpl,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     enterprise_config: Arc<RwLock<EnterpriseConfig>>,
-    sys_events_store: Arc<SysEventStore>,
 }
 
 impl QueryExecutorEnterprise {
@@ -62,13 +61,11 @@ impl QueryExecutorEnterprise {
         core_args: CreateQueryExecutorArgs,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
         enterprise_config: Arc<RwLock<EnterpriseConfig>>,
-        sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         Self {
             core: QueryExecutorImpl::new(core_args),
             compacted_data,
             enterprise_config,
-            sys_events_store,
         }
     }
 }
@@ -171,11 +168,12 @@ impl QueryDatabase for QueryExecutorEnterprise {
                 Arc::clone(&db_schema),
                 Arc::clone(&self.core.query_log),
                 Arc::clone(&self.core.write_buffer),
+                Arc::clone(&self.core.sys_events_store),
             )
             .add_enterprise_tables(
                 self.compacted_data.clone(),
                 Arc::clone(&self.enterprise_config),
-                Arc::clone(&self.sys_events_store),
+                Arc::clone(&self.core.sys_events_store),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -717,12 +715,12 @@ mod tests {
                 datafusion_config,
                 query_log_size: 10,
                 telemetry_store,
+                sys_events_store: Arc::clone(&sys_events_store),
             },
             Some(Arc::new(MockCompactedDataSysTable::new(Arc::clone(
                 &catalog,
             )))),
             Arc::new(RwLock::new(Default::default())),
-            Arc::clone(&sys_events_store),
         );
 
         (

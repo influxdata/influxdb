@@ -9,6 +9,7 @@ pub mod serialize;
 mod snapshot_tracker;
 
 use async_trait::async_trait;
+use cron::Schedule;
 use data_types::Timestamp;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
@@ -688,6 +689,7 @@ pub struct DeletePluginDefinition {
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
     WalRows,
+    Scheduled,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -719,6 +721,7 @@ pub struct TriggerIdentifier {
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
+    Schedule { schedule: String },
 }
 
 impl TriggerSpecificationDefinition {
@@ -737,6 +740,17 @@ impl TriggerSpecificationDefinition {
                 })
             }
             "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
+            s if s.starts_with("schedule:") => {
+                let cron_schedule = s.trim_start_matches("schedule:").trim();
+                if cron_schedule.is_empty() || Schedule::from_str(cron_schedule).is_err() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::Schedule {
+                    schedule: cron_schedule.to_string(),
+                })
+            }
             _ => Err(Error::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
             }),
@@ -749,6 +763,9 @@ impl TriggerSpecificationDefinition {
                 format!("table:{}", table_name)
             }
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
+            TriggerSpecificationDefinition::Schedule { schedule } => {
+                format!("schedule:{}", schedule)
+            }
         }
     }
 }

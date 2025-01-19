@@ -1,5 +1,8 @@
 use hashbrown::HashMap;
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_client::plugin_development::{
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::WriteBuffer;
@@ -94,9 +97,17 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError>;
+
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<WalPluginTestResponse, crate::plugins::Error>;
+
+    async fn test_schedule_plugin(
+        &self,
+        request: SchedulePluginTestRequest,
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<SchedulePluginTestResponse, crate::plugins::Error>;
 }

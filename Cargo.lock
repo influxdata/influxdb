@@ -1174,6 +1174,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "cron"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbe58904b68d95ad2c69a2e9607ffc70ce196c1910f83a340029c1448e06ed65"
+dependencies = [
+ "chrono",
+ "once_cell",
+ "winnow",
+]
+
+[[package]]
+name = "cron"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5877d3fbf742507b66bc2a1945106bd30dd8504019d596901ddd012a4dd01740"
+dependencies = [
+ "chrono",
+ "once_cell",
+ "winnow",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3166,6 +3188,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
+ "cron 0.15.0",
  "data_types",
  "datafusion_util",
  "hashbrown 0.15.2",
@@ -3183,6 +3207,7 @@ dependencies = [
  "observability_deps",
  "parquet_file",
  "pyo3",
+ "reqwest 0.11.27",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -3192,8 +3217,10 @@ dependencies = [
 name = "influxdb3_py_api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arrow-array",
  "arrow-schema",
+ "chrono",
  "futures",
  "hashbrown 0.15.2",
  "influxdb3_catalog",
@@ -3204,6 +3231,7 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "pyo3",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -3358,6 +3386,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "crc32fast",
+ "cron 0.14.0",
  "data_types",
  "futures-util",
  "hashbrown 0.15.2",
@@ -7662,6 +7691,15 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "winnow"
+version = "0.6.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8d71a593cc5c42ad7876e2c1fda56f314f3754c084128833e64f1345ff8a03a"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "winreg"

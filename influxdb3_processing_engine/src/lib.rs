@@ -1,4 +1,5 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use anyhow::Context;
@@ -6,7 +7,10 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_client::plugin_development::{
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
@@ -28,8 +32,8 @@ pub mod plugins;
 pub struct ProcessingEngineManagerImpl {
     plugin_dir: Option<std::path::PathBuf>,
     catalog: Arc<Catalog>,
-    _write_buffer: Arc<dyn WriteBuffer>,
-    _query_executor: Arc<dyn QueryExecutor>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     wal: Arc<dyn Wal>,
     plugin_event_tx: Mutex<PluginChannels>,
@@ -109,15 +113,38 @@ impl ProcessingEngineManagerImpl {
         Self {
             plugin_dir,
             catalog,
-            _write_buffer: write_buffer,
-            _query_executor: query_executor,
+            write_buffer,
+            query_executor,
             time_provider,
             wal,
             plugin_event_tx: Default::default(),
         }
     }
 
-    pub fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+        // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
+        if name.starts_with("gh:") {
+            let plugin_path = name.strip_prefix("gh:").unwrap();
+            // the filename should be the last part of the name after the last /
+            let plugin_name = plugin_path
+                .split('/')
+                .last()
+                .context("plugin name for github plugins must be <dir>/<name>")?;
+            let url = format!(
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}/{}.py",
+                plugin_path, plugin_name
+            );
+            let resp = reqwest::get(&url)
+                .await
+                .context("error getting plugin from github repo")?;
+            let resp_body = resp
+                .text()
+                .await
+                .context("error reading plugin from github repo")?;
+            return Ok(resp_body);
+        }
+
+        // otherwise we assume it is a local file
         let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
         let path = plugin_dir.join(name);
         Ok(std::fs::read_to_string(path)?)
@@ -288,6 +315,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
+        println!("running trigger {}", trigger_name);
         #[cfg(feature = "system-py")]
         {
             let db_schema = self
@@ -314,8 +342,32 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 write_buffer,
                 query_executor,
             };
-            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name)?;
-            plugins::run_plugin(db_name.to_string(), plugin_code, trigger, plugin_context);
+            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name).await?;
+            let Some(plugin_definition) = db_schema
+                .processing_engine_plugins
+                .get(&trigger.plugin_name)
+            else {
+                return Err(catalog::Error::ProcessingEnginePluginNotFound {
+                    plugin_name: trigger.plugin_name,
+                    database_name: db_name.to_string(),
+                }
+                .into());
+            };
+            match plugin_definition.plugin_type {
+                PluginType::WalRows => plugins::run_wal_contents_plugin(
+                    db_name.to_string(),
+                    plugin_code,
+                    trigger,
+                    plugin_context,
+                ),
+                PluginType::Scheduled => plugins::run_schedule_plugin(
+                    db_name.to_string(),
+                    plugin_code,
+                    trigger,
+                    Arc::clone(&self.time_provider),
+                    plugin_context,
+                ),
+            }
         }
 
         Ok(())
@@ -422,6 +474,20 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError> {
+        let triggers = self.catalog.active_triggers();
+        for (db_name, trigger_name) in triggers {
+            self.run_trigger(
+                Arc::clone(&self.write_buffer),
+                Arc::clone(&self.query_executor),
+                &db_name,
+                &trigger_name,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn test_wal_plugin(
         &self,
@@ -434,7 +500,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
             let now = self.time_provider.now();
 
-            let code = self.read_plugin_code(&request.filename)?;
+            let code = self.read_plugin_code(&request.filename).await?;
 
             let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
                 .unwrap_or_else(|e| WalPluginTestResponse {
@@ -442,6 +508,38 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     database_writes: Default::default(),
                     errors: vec![e.to_string()],
                 });
+
+            return Ok(res);
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_schedule_plugin(
+        &self,
+        request: SchedulePluginTestRequest,
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<SchedulePluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.filename).await?;
+
+            let res =
+                plugins::run_test_schedule_plugin(now, catalog, query_executor, code, request)
+                    .unwrap_or_else(|e| SchedulePluginTestResponse {
+                        log_lines: vec![],
+                        database_writes: Default::default(),
+                        errors: vec![e.to_string()],
+                        trigger_time: None,
+                    });
 
             return Ok(res);
         }
@@ -532,7 +630,7 @@ mod tests {
             .unwrap()
             .to_string();
 
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -607,7 +705,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -667,7 +765,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -732,7 +830,7 @@ mod tests {
             .to_string();
 
         // convert to Arc<WriteBuffer>
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -769,7 +867,7 @@ mod tests {
         // Run the trigger
         pem.run_trigger(
             Arc::clone(&write_buffer),
-            Arc::clone(&pem._query_executor),
+            Arc::clone(&pem.query_executor),
             "foo",
             "test_trigger",
         )
@@ -792,7 +890,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "test_trigger",
             )
@@ -829,7 +927,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -870,7 +968,7 @@ mod tests {
         assert!(trigger.disabled);
 
         // Verify trigger is not in active triggers list
-        assert!(pem.catalog.triggers().is_empty());
+        assert!(pem.catalog.active_triggers().is_empty());
         Ok(())
     }
 
@@ -886,7 +984,7 @@ mod tests {
         };
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -902,7 +1000,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "nonexistent_trigger",
             )

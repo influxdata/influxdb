@@ -26,6 +26,7 @@ use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::WriteBuffer;
 use influxdb_influxql_parser::statement::Statement;
@@ -63,6 +64,7 @@ pub struct QueryExecutorImpl {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
+    sys_events_store: Arc<SysEventStore>,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -75,6 +77,7 @@ pub struct CreateQueryExecutorArgs {
     pub datafusion_config: Arc<HashMap<String, String>>,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
+    pub sys_events_store: Arc<SysEventStore>,
 }
 
 impl QueryExecutorImpl {
@@ -87,6 +90,7 @@ impl QueryExecutorImpl {
             datafusion_config,
             query_log_size,
             telemetry_store,
+            sys_events_store,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -107,6 +111,7 @@ impl QueryExecutorImpl {
             query_execution_semaphore,
             query_log,
             telemetry_store,
+            sys_events_store,
         }
     }
 }
@@ -434,6 +439,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&db_schema),
                 Arc::clone(&self.query_log),
                 Arc::clone(&self.write_buffer),
+                Arc::clone(&self.sys_events_store),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -838,6 +844,7 @@ mod tests {
             datafusion_config,
             query_log_size: 10,
             telemetry_store,
+            sys_events_store: Arc::clone(&sys_events_store),
         });
 
         (

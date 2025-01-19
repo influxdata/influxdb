@@ -235,6 +235,7 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_config::EnterpriseConfig;
     use influxdb3_id::{DbId, TableId};
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::persister::Persister;
@@ -798,6 +799,7 @@ mod tests {
         .await
         .unwrap();
 
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
@@ -822,6 +824,7 @@ mod tests {
             datafusion_config: Default::default(),
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
+            sys_events_store,
         });
 
         // bind to port 0 will assign a random available port:
@@ -838,7 +841,8 @@ mod tests {
             .authorizer(Arc::new(DefaultAuthorizer))
             .time_provider(Arc::clone(&time_provider))
             .tcp_listener(listener)
-            .build();
+            .build()
+            .await;
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
