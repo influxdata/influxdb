@@ -2639,7 +2639,7 @@ mod tests {
             .await;
         }
 
-        // now introduce 20 - 50 timestamp data
+        // now introduce 20 - 30 timestamp data
         // this is similar to back filling
         for i in 20..=30 {
             do_writes(
