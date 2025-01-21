@@ -1042,6 +1042,7 @@ mod tests {
             parquet_cache: None,
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();

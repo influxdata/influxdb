@@ -8,35 +8,24 @@ use hashbrown::HashMap;
 use influxdb3_id::DbId;
 use influxdb3_id::TableId;
 use influxdb3_telemetry::ParquetMetrics;
-use iox_time::TimeProvider;
 use parking_lot::RwLock;
-use std::sync::Arc;
 
 type DatabaseToTables = HashMap<DbId, TableToFiles>;
 type TableToFiles = HashMap<TableId, Vec<ParquetFile>>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PersistedFiles {
-    /// The time provider to check if something is older than 3 days
-    time_provider: Arc<dyn TimeProvider>,
     inner: RwLock<Inner>,
 }
 
 impl PersistedFiles {
-    pub fn new(time_provider: Arc<dyn TimeProvider>) -> Self {
-        Self {
-            time_provider,
-            inner: Default::default(),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
     /// Create a new `PersistedFiles` from a list of persisted snapshots
-    pub fn new_from_persisted_snapshots(
-        time_provider: Arc<dyn TimeProvider>,
-        persisted_snapshots: Vec<PersistedSnapshot>,
-    ) -> Self {
+    pub fn new_from_persisted_snapshots(persisted_snapshots: Vec<PersistedSnapshot>) -> Self {
         let inner = Inner::new_from_persisted_snapshots(persisted_snapshots);
         Self {
-            time_provider,
             inner: RwLock::new(inner),
         }
     }
@@ -61,20 +50,16 @@ impl PersistedFiles {
         table_id: TableId,
         filter: &BufferFilter,
     ) -> Vec<ParquetFile> {
-        let three_days_ago = (self.time_provider.now() - crate::THREE_DAYS).timestamp_nanos();
-        let mut files = {
-            let inner = self.inner.read();
-            inner
-                .files
-                .get(&db_id)
-                .and_then(|tables| tables.get(&table_id))
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
-                .filter(|file| file.min_time > three_days_ago)
-                .collect::<Vec<_>>()
-        };
+        let inner = self.inner.read();
+        let mut files = inner
+            .files
+            .get(&db_id)
+            .and_then(|tables| tables.get(&table_id))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
+            .collect::<Vec<_>>();
 
         files.sort_by(|a, b| b.min_time.cmp(&a.min_time));
 
@@ -190,11 +175,10 @@ mod tests {
     use influxdb3_catalog::catalog::TableDefinition;
     use influxdb3_id::ColumnId;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
-    use iox_time::MockProvider;
-    use iox_time::Time;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
     use schema::InfluxColumnType;
+    use std::sync::Arc;
 
     use crate::ParquetFileId;
 
@@ -203,12 +187,8 @@ mod tests {
     #[test_log::test(test)]
     fn test_get_metrics_after_initial_load() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
-        let time_provider: Arc<dyn TimeProvider> =
-            Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
-        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
-            time_provider,
-            all_persisted_snapshot_files,
-        );
+        let persisted_file =
+            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
 
         let (file_count, size_in_mb, row_count) = persisted_file.get_metrics();
 
@@ -221,12 +201,8 @@ mod tests {
     #[test_log::test(test)]
     fn test_get_metrics_after_update() {
         let all_persisted_snapshot_files = build_persisted_snapshots();
-        let time_provider: Arc<dyn TimeProvider> =
-            Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
-        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
-            time_provider,
-            all_persisted_snapshot_files,
-        );
+        let persisted_file =
+            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
         let parquet_files = build_parquet_files(5);
         let new_snapshot = build_snapshot(parquet_files, 1, 1, 1);
         persisted_file.add_persisted_snapshot_files(new_snapshot);
@@ -255,12 +231,8 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let time_provider: Arc<dyn TimeProvider> =
-            Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
-        let persisted_file = PersistedFiles::new_from_persisted_snapshots(
-            time_provider,
-            all_persisted_snapshot_files,
-        );
+        let persisted_file =
+            PersistedFiles::new_from_persisted_snapshots(all_persisted_snapshot_files);
         let mut parquet_files = build_parquet_files(4);
         info!(all_persisted_files = ?persisted_file, "Full persisted file");
         info!(already_existing_file = ?already_existing_file, "Existing file");
@@ -300,10 +272,7 @@ mod tests {
             })
             .collect();
         let persisted_snapshots = vec![build_snapshot(parquet_files, 0, 0, 0)];
-        let persisted_files = PersistedFiles::new_from_persisted_snapshots(
-            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
-            persisted_snapshots,
-        );
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(persisted_snapshots);
 
         struct TestCase<'a> {
             filter: &'a [Expr],

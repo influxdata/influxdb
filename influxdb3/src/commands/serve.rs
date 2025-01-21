@@ -345,6 +345,15 @@ pub struct Config {
         action
     )]
     pub telemetry_endpoint: String,
+
+    /// Set the limit for number of parquet files allowed in a query. Defaults
+    /// to 432 which is about 3 days worth of files using default settings.
+    /// This number can be increased to allow more files to be queried, but
+    /// query performance will likely suffer, RAM usage will spike, and the
+    /// process might be OOM killed as a result. It would be better to specify
+    /// smaller time ranges if possible in a query.
+    #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
+    pub query_file_limit: Option<usize>,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -541,6 +550,7 @@ pub async fn command(config: Config) -> Result<()> {
         parquet_cache,
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+        query_file_limit: config.query_file_limit,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
