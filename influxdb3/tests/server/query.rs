@@ -2,7 +2,10 @@ use core::str;
 
 use crate::TestServer;
 use futures::StreamExt;
-use hyper::StatusCode;
+use hyper::{
+    header::{HeaderValue, ACCEPT},
+    HeaderMap, StatusCode,
+};
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde::Serialize;
@@ -1840,6 +1843,47 @@ async fn api_v3_query_null_tag_values_null_fields() {
          | b    |         | 0.1    | 2065-01-08T21:15:34 | 0.8   |\n\
          | a    | us-east |        | 2065-01-08T21:15:35 | 0.9   |\n\
          +------+---------+--------+---------------------+-------+",
+        resp
+    );
+}
+
+#[tokio::test]
+async fn api_query_with_default_browser_header() {
+    let server = TestServer::spawn().await;
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,region=us,host=a usage=99 2998674934",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let mut map = HeaderMap::new();
+    map.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    let resp = server
+        .api_v3_query_sql_with_header(
+            &[
+                ("db", "foo"),
+                ("format", "pretty"),
+                ("q", "SELECT * FROM cpu"),
+            ],
+            map,
+        )
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+--------+---------------------+-------+\n\
+        | host | region | time                | usage |\n\
+        +------+--------+---------------------+-------+\n\
+        | a    | us     | 2065-01-08T21:15:34 | 99.0  |\n\
+        +------+--------+---------------------+-------+",
         resp
     );
 }
