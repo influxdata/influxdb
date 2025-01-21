@@ -1502,7 +1502,12 @@ impl QueryFormat {
             Some(b"text/plain") => Ok(Self::Pretty),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Ok(s) => {
+                    if s.contains("text/html") || s.contains("*/*") {
+                        return Ok(Self::Json);
+                    }
+                    Err(Error::InvalidMimeType(s))
+                }
                 Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
@@ -1897,6 +1902,10 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
+    use http::{header::ACCEPT, HeaderMap, HeaderValue};
+
+    use crate::http::QueryFormat;
+
     use super::validate_db_name;
     use super::ValidateDbNameError;
 
@@ -1905,6 +1914,19 @@ mod tests {
             let actual = validate_db_name($name, $accept_rp);
             assert!(matches!(&actual, $expected), "got: {actual:?}",);
         };
+    }
+
+    #[test]
+    fn test_try_from_headers_default_browser_accept_headers_to_json() {
+        let mut map = HeaderMap::new();
+        map.append(
+            ACCEPT,
+            HeaderValue::from_static(
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            ),
+        );
+        let format = QueryFormat::try_from_headers(&map).unwrap();
+        assert!(matches!(format, QueryFormat::Json));
     }
 
     #[test]

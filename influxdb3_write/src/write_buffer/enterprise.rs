@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use datafusion::{catalog::Session, error::DataFusionError};
 use influxdb3_catalog::catalog::DatabaseSchema;
 use iox_query::QueryChunk;
 use schema::Schema;
 
-use crate::ParquetFileId;
+use crate::{BufferFilter, ParquetFileId};
 
 use super::{parquet_chunk_from_file, WriteBufferImpl};
 
@@ -14,13 +14,13 @@ impl WriteBufferImpl {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_name: &str,
-        filters: &[Expr],
+        filter: &BufferFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         let chunks = self
             .buffer
-            .get_table_chunks(db_schema, table_name, filters, projection, ctx)?;
+            .get_table_chunks(db_schema, table_name, filter, projection, ctx)?;
 
         Ok(chunks)
     }
@@ -30,7 +30,7 @@ impl WriteBufferImpl {
         database_name: &str,
         table_name: &str,
         table_schema: Schema,
-        _filters: &[Expr],
+        filter: &BufferFilter,
         last_compacted_parquet_file_id: Option<ParquetFileId>,
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
@@ -40,7 +40,9 @@ impl WriteBufferImpl {
         let Some(table_id) = db_schema.table_name_to_id(table_name) else {
             return vec![];
         };
-        let mut files = self.persisted_files.get_files(db_id, table_id);
+        let mut files = self
+            .persisted_files
+            .get_files_filtered(db_id, table_id, filter);
 
         // filter out any files that have been compacted
         if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {

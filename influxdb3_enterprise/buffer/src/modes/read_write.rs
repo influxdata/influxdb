@@ -22,8 +22,8 @@ use influxdb3_write::{
         self, parquet_chunk_from_file, persisted_files::PersistedFiles, WriteBufferImpl,
         WriteBufferImplArgs,
     },
-    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager,
+    DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
@@ -157,12 +157,17 @@ impl Bufferer for ReadWriteMode {
         Arc::clone(&self.primary.catalog())
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
         // Parquet files need to be retrieved across primary and replicas
         // TODO: could this fall into another trait?
-        let mut files = self.primary.parquet_files(db_id, table_id);
+        let mut files = self.primary.parquet_files_filtered(db_id, table_id, filter);
         if let Some(replicas) = &self.replicas {
-            files.append(&mut replicas.parquet_files(db_id, table_id));
+            files.append(&mut replicas.parquet_files_filtered(db_id, table_id, filter));
         }
         // NOTE: do we need to sort this since this is used by the system tables and the query
         // executor could sort if desired...
@@ -193,16 +198,19 @@ impl ChunkContainer for ReadWriteMode {
             DataFusionError::Execution(format!("Database {} not found", database_name))
         })?;
 
-        let table_schema = db_schema
-            .table_schema(table_name)
+        let table_def = db_schema
+            .table_definition(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
+
+        let filter = BufferFilter::new(&table_def, filters)
+            .map_err(|e| DataFusionError::Execution(format!("{e:?}")))?;
 
         // first add in all the buffer chunks from primary and replicas. These chunks have the
         // highest precedence set in chunk order
         let mut chunks = self.primary.get_buffer_chunks(
             Arc::clone(&db_schema),
             table_name,
-            filters,
+            &filter,
             projection,
             ctx,
         )?;
@@ -210,7 +218,7 @@ impl ChunkContainer for ReadWriteMode {
         if let Some(replicas) = &self.replicas {
             chunks.extend(
                 replicas
-                    .get_buffer_chunks(database_name, table_name, filters)
+                    .get_buffer_chunks(database_name, table_name, &filter)
                     .map_err(|e| DataFusionError::Execution(e.to_string()))?,
             );
         }
@@ -227,7 +235,7 @@ impl ChunkContainer for ReadWriteMode {
                     .map(|file| {
                         Arc::new(parquet_chunk_from_file(
                             &file,
-                            &table_schema,
+                            &table_def.schema,
                             self.object_store_url.clone(),
                             Arc::clone(&self.object_store),
                             chunks.len() as i64,
@@ -247,8 +255,8 @@ impl ChunkContainer for ReadWriteMode {
                 replicas.get_persisted_chunks(
                     database_name,
                     table_name,
-                    table_schema.clone(),
-                    filters,
+                    table_def.schema.clone(),
+                    &filter,
                     writer_markers,
                     chunks.len() as i64,
                 )
@@ -256,8 +264,8 @@ impl ChunkContainer for ReadWriteMode {
                 replicas.get_persisted_chunks(
                     database_name,
                     table_name,
-                    table_schema.clone(),
-                    filters,
+                    table_def.schema.clone(),
+                    &filter,
                     &[],
                     chunks.len() as i64,
                 )
@@ -279,8 +287,8 @@ impl ChunkContainer for ReadWriteMode {
         let gen1_persisted_chunks = self.primary.get_persisted_chunks(
             database_name,
             table_name,
-            table_schema.clone(),
-            filters,
+            table_def.schema.clone(),
+            &filter,
             next_non_compacted_parquet_file_id,
             chunks.len() as i64,
         );
