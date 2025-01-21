@@ -278,7 +278,7 @@ async fn test_show_databases() {
         "--host",
         &server_addr,
         "--format",
-        "json_lines",
+        "jsonl",
     ]);
     assert_eq!(
         "\
