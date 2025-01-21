@@ -375,18 +375,20 @@ impl WriteBufferImpl {
             DataFusionError::Execution(format!("database {} not found", database_name))
         })?;
 
-        let (_table_id, _table_schema) =
-            db_schema.table_id_and_schema(table_name).ok_or_else(|| {
-                DataFusionError::Execution(format!(
-                    "table {} not found in db {}",
-                    table_name, database_name
-                ))
-            })?;
+        let table_def = db_schema.table_definition(table_name).ok_or_else(|| {
+            DataFusionError::Execution(format!(
+                "table {} not found in db {}",
+                table_name, database_name
+            ))
+        })?;
+
+        let filter = BufferFilter::new(&table_def, filters)
+            .map_err(|e| DataFusionError::External(Box::new(e)))?;
 
         let chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
             table_name,
-            filters,
+            &filter,
             projection,
             ctx,
         )?;
