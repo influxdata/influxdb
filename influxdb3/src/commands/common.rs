@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use secrecy::Secret;
 use std::error::Error;
 use std::fmt::Display;
@@ -23,6 +23,35 @@ pub struct InfluxDb3Config {
     /// The token for authentication with the InfluxDB 3 Core server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub auth_token: Option<Secret<String>>,
+}
+
+#[derive(Debug, ValueEnum, Clone)]
+#[clap(rename_all = "snake_case")]
+pub enum Format {
+    Pretty,
+    Json,
+    #[clap(name = "jsonl")]
+    JsonLines,
+    Csv,
+    Parquet,
+}
+
+impl Format {
+    pub fn is_parquet(&self) -> bool {
+        matches!(self, Self::Parquet)
+    }
+}
+
+impl From<Format> for influxdb3_client::Format {
+    fn from(this: Format) -> Self {
+        match this {
+            Format::Pretty => Self::Pretty,
+            Format::Json => Self::Json,
+            Format::JsonLines => Self::JsonLines,
+            Format::Csv => Self::Csv,
+            Format::Parquet => Self::Parquet,
+        }
+    }
 }
 
 // A clap argument provided as a key/value pair separated by `SEPARATOR`, which by default is a '='
