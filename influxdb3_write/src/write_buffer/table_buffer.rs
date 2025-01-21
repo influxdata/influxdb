@@ -21,8 +21,11 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
+use twox_hash::XxHash64;
 
 use crate::{BufferFilter, BufferGuarantee};
+
+pub const INDEX_HASH_SEED: u64 = 0;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -554,10 +557,39 @@ impl std::fmt::Debug for MutableTableChunk {
     }
 }
 
+/// Tracks which rows in a [`TableBuffer`] have a given unique value on a per column basis
+///
+/// The index maps [`ColumnId`] to a `u64`, which is the hash of the original string literal, to a
+/// set of row indexes (`HashSet<usize>`).
+///
+/// # Example
+///
+/// Given the following writes to the `foo` table:
+///
+/// ```text
+/// foo,tag=a val=1 1
+/// foo,tag=b val=1 2
+/// foo,tag=c val=1 3
+/// foo,tag=a val=1 4
+/// ```
+///
+/// The `BufferIndex`, after these rows have been buffered, and assuming that the index is on the
+/// `tag` column, would have the following structure:
+///
+/// ```text
+///                    "tag"
+///                  /   |   \
+///                "a"  "b"  "c"
+///                 |    |    |
+///               [0,3] [1]  [2]
+/// ```
+///
+/// Though, instead of the `"tag"`, would be the column ID for the `"tag"` column, and instead of
+/// the literals `a`, `b`, and `c`, there would be the 64 bit hash for each value, respectively.
 #[derive(Debug, Clone)]
 struct BufferIndex {
-    // column id -> string value -> row indexes
-    columns: HashMap<ColumnId, HashMap<String, HashSet<usize>>>,
+    // column id -> hashed string value as u64 -> row indexes
+    columns: HashMap<ColumnId, HashMap<u64, HashSet<usize>>>,
 }
 
 impl BufferIndex {
@@ -573,8 +605,9 @@ impl BufferIndex {
 
     fn add_row_if_indexed_column(&mut self, row_index: usize, column_id: ColumnId, value: &str) {
         if let Some(column) = self.columns.get_mut(&column_id) {
+            let hashed_value = XxHash64::oneshot(INDEX_HASH_SEED, value.as_bytes());
             column
-                .entry_ref(value)
+                .entry(hashed_value)
                 .and_modify(|c| {
                     c.insert(row_index);
                 })
@@ -583,20 +616,20 @@ impl BufferIndex {
     }
 
     fn get_rows_from_index_for_filter(&self, filter: &BufferFilter) -> Option<HashSet<usize>> {
-        debug!(?filter, "processing filter");
+        debug!(?filter, ">>> processing filter");
         let mut row_ids = RowIndexSet::new();
         for (
             col_id,
             BufferGuarantee {
                 guarantee,
-                literals,
+                literal_hashes,
             },
         ) in filter.guarantees()
         {
             debug!(
                 ?col_id,
                 ?guarantee,
-                ?literals,
+                ?literal_hashes,
                 current = ?row_ids,
                 ">>> processing buffer guarantee"
             );
@@ -609,12 +642,12 @@ impl BufferIndex {
                     // rows where the tag is in nothing. That should yield no rows, so we give back
                     // an empty set...
                     // NOTE: tags cannot be NULL. They are given a value of "" if omitted in writes
-                    if literals.is_empty() {
+                    if literal_hashes.is_empty() {
                         return Some(Default::default());
                     }
                     row_ids.start_in();
-                    for literal in literals {
-                        if let Some(row) = row_map.get(literal.as_ref()) {
+                    for literal_hash in literal_hashes {
+                        if let Some(row) = row_map.get(literal_hash) {
                             row_ids.update_in(row);
                         }
                     }
@@ -627,8 +660,8 @@ impl BufferIndex {
                         .copied()
                         .collect::<HashSet<usize>>();
                     row_ids.start_not_in(in_rows);
-                    for literal in literals {
-                        if let Some(row) = row_map.get(literal.as_ref()) {
+                    for literal_hash in literal_hashes {
+                        if let Some(row) = row_map.get(literal_hash) {
                             row_ids.update_not_in(row);
                         };
                     }
@@ -642,15 +675,13 @@ impl BufferIndex {
         row_ids.finish()
     }
 
-    #[allow(dead_code)]
     fn size(&self) -> usize {
         let mut size = size_of::<Self>();
         for (_, v) in &self.columns {
-            size += size_of::<ColumnId>()
-                + size_of::<String>()
-                + size_of::<HashMap<String, Vec<usize>>>();
-            for (k, v) in v {
-                size += k.len() + size_of::<String>() + size_of::<Vec<usize>>();
+            size +=
+                size_of::<ColumnId>() + size_of::<u64>() + size_of::<HashMap<u64, Vec<usize>>>();
+            for (_, v) in v {
+                size += size_of::<u64>() + size_of::<Vec<usize>>();
                 size += v.len() * size_of::<usize>();
             }
         }
@@ -1138,7 +1169,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 18120);
+        assert_eq!(size, 18021);
     }
 
     #[test]

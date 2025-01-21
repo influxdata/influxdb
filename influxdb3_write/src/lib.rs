@@ -44,6 +44,8 @@ use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
+use twox_hash::XxHash64;
+use write_buffer::INDEX_HASH_SEED;
 
 /// Used to determine if writes are older than what we can accept or query
 pub const THREE_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 3);
@@ -503,7 +505,7 @@ pub struct BufferFilter {
 #[derive(Debug)]
 pub struct BufferGuarantee {
     pub guarantee: Guarantee,
-    pub literals: HashSet<Arc<str>>,
+    pub literal_hashes: HashSet<u64>,
 }
 
 impl BufferFilter {
@@ -599,12 +601,11 @@ impl BufferFilter {
                 let literals = literals
                     .into_iter()
                     .filter_map(|l| match l {
-                        ScalarValue::Utf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => {
-                            Some(Arc::<str>::from(s.as_str()))
-                        }
+                        ScalarValue::Utf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => Some(s),
                         _ => None,
                     })
-                    .collect::<HashSet<Arc<str>>>();
+                    .map(|s| XxHash64::oneshot(INDEX_HASH_SEED, s.as_bytes()))
+                    .collect::<HashSet<u64>>();
 
                 if literals.is_empty() {
                     continue;
@@ -619,19 +620,19 @@ impl BufferFilter {
                         use Guarantee::*;
                         match (e.guarantee, guarantee) {
                             (In, In) | (NotIn, NotIn) => {
-                                e.literals = e.literals.union(&literals).cloned().collect()
+                                e.literal_hashes = e.literal_hashes.union(&literals).cloned().collect()
                             }
                             (In, NotIn) => {
-                                e.literals = e.literals.difference(&literals).cloned().collect()
+                                e.literal_hashes = e.literal_hashes.difference(&literals).cloned().collect()
                             }
                             (NotIn, In) => {
-                                e.literals = literals.difference(&e.literals).cloned().collect()
+                                e.literal_hashes = literals.difference(&e.literal_hashes).cloned().collect()
                             }
                         }
                     })
                     .or_insert(BufferGuarantee {
                         guarantee,
-                        literals,
+                        literal_hashes: literals,
                     });
                 debug!(?guarantees, ">>> updated guarantees");
             }
