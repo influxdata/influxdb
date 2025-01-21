@@ -4,6 +4,7 @@ mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
+pub(crate) use table_buffer::INDEX_HASH_SEED;
 pub mod validator;
 
 use crate::persister::Persister;

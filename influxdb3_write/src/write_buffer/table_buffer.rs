@@ -21,8 +21,11 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
+use twox_hash::XxHash64;
 
 use crate::{BufferFilter, BufferGuarantee};
+
+pub const INDEX_HASH_SEED: u64 = 0;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -556,8 +559,8 @@ impl std::fmt::Debug for MutableTableChunk {
 
 #[derive(Debug, Clone)]
 struct BufferIndex {
-    // column id -> string value -> row indexes
-    columns: HashMap<ColumnId, HashMap<String, HashSet<usize>>>,
+    // column id -> hashed string value as u64 -> row indexes
+    columns: HashMap<ColumnId, HashMap<u64, HashSet<usize>>>,
 }
 
 impl BufferIndex {
@@ -572,9 +575,10 @@ impl BufferIndex {
     }
 
     fn add_row_if_indexed_column(&mut self, row_index: usize, column_id: ColumnId, value: &str) {
+        let hashed_value = XxHash64::oneshot(INDEX_HASH_SEED, value.as_bytes());
         if let Some(column) = self.columns.get_mut(&column_id) {
             column
-                .entry_ref(value)
+                .entry(hashed_value)
                 .and_modify(|c| {
                     c.insert(row_index);
                 })
@@ -614,7 +618,7 @@ impl BufferIndex {
                     }
                     row_ids.start_in();
                     for literal in literals {
-                        if let Some(row) = row_map.get(literal.as_ref()) {
+                        if let Some(row) = row_map.get(literal) {
                             row_ids.update_in(row);
                         }
                     }
@@ -628,7 +632,7 @@ impl BufferIndex {
                         .collect::<HashSet<usize>>();
                     row_ids.start_not_in(in_rows);
                     for literal in literals {
-                        if let Some(row) = row_map.get(literal.as_ref()) {
+                        if let Some(row) = row_map.get(literal) {
                             row_ids.update_not_in(row);
                         };
                     }
@@ -646,11 +650,10 @@ impl BufferIndex {
     fn size(&self) -> usize {
         let mut size = size_of::<Self>();
         for (_, v) in &self.columns {
-            size += size_of::<ColumnId>()
-                + size_of::<String>()
-                + size_of::<HashMap<String, Vec<usize>>>();
-            for (k, v) in v {
-                size += k.len() + size_of::<String>() + size_of::<Vec<usize>>();
+            size +=
+                size_of::<ColumnId>() + size_of::<u64>() + size_of::<HashMap<u64, Vec<usize>>>();
+            for (_, v) in v {
+                size += size_of::<u64>() + size_of::<Vec<usize>>();
                 size += v.len() * size_of::<usize>();
             }
         }
@@ -1138,7 +1141,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 18120);
+        assert_eq!(size, 18021);
     }
 
     #[test]
