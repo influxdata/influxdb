@@ -1,7 +1,9 @@
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use secrecy::{ExposeSecret, Secret};
 use std::error::Error;
 use url::Url;
+
+use crate::commands::common::Format;
 
 #[derive(Debug, Parser)]
 pub struct Config {
@@ -37,26 +39,6 @@ pub struct DatabaseConfig {
     /// The format in which to output the list of databases
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
-}
-
-#[derive(Debug, ValueEnum, Clone)]
-#[clap(rename_all = "snake_case")]
-enum Format {
-    Pretty,
-    Json,
-    JsonLines,
-    Csv,
-}
-
-impl From<Format> for influxdb3_client::Format {
-    fn from(this: Format) -> Self {
-        match this {
-            Format::Pretty => Self::Pretty,
-            Format::Json => Self::Json,
-            Format::JsonLines => Self::JsonLines,
-            Format::Csv => Self::Csv,
-        }
-    }
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {

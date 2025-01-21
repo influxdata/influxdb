@@ -780,7 +780,7 @@ async fn api_v3_query_jsonl_format() {
         },
     ];
     for t in test_cases {
-        let mut params = vec![("q", t.query), ("format", "json_lines")];
+        let mut params = vec![("q", t.query), ("format", "jsonl")];
         if let Some(db) = t.database {
             params.push(("db", db))
         }
