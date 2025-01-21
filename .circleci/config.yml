@@ -580,7 +580,7 @@ workflows:
       - doc:
           <<: *any_filter
       - build-release:
-          <<: *release_filter
+          <<: *main_filter
           name: build-release-<< matrix.target >>
           matrix:
             parameters:
@@ -592,15 +592,15 @@ workflows:
                 - x86_64-unknown-linux-gnu
                 - x86_64-unknown-linux-musl
       - build-packages:
-          <<: *release_filter
+          <<: *main_filter
           requires:
             - build-release
       - check_package_deb_arm64:
-          <<: *release_filter
+          <<: *main_filter
           requires:
             - build-packages
       - check_package_deb_amd64:
-          <<: *release_filter
+          <<: *main_filter
           requires:
             - build-packages
       - check_package_rpm:
@@ -613,7 +613,7 @@ workflows:
           requires:
             - build-packages
       - sign-packages:
-          <<: *release_filter
+          <<: *main_filter
           requires:
             - build-packages
             - check_package_rpm
@@ -621,7 +621,7 @@ workflows:
             - check_package_deb_amd64
             - test
       - publish-packages:
-          <<: *release_filter
+          <<: *main_filter
           matrix:
             parameters:
               destination: [ releases ]
