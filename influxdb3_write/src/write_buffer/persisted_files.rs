@@ -48,7 +48,14 @@ impl PersistedFiles {
     }
 
     /// Get the list of files for a given database and table, always return in descending order of min_time
-    pub fn get_files(
+    pub fn get_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.get_files_filtered(db_id, table_id, &BufferFilter::default())
+    }
+
+    /// Get the list of files for a given database and table, using the provided filter to filter results.
+    ///
+    /// Always return in descending order of min_time
+    pub fn get_files_filtered(
         &self,
         db_id: DbId,
         table_id: TableId,
@@ -383,7 +390,7 @@ mod tests {
         for t in test_cases {
             let filter = BufferFilter::new(&table_def, t.filter).unwrap();
             let filtered_files =
-                persisted_files.get_files(DbId::from(0), TableId::from(0), &filter);
+                persisted_files.get_files_filtered(DbId::from(0), TableId::from(0), &filter);
             assert_eq!(
                 t.expected_n_files,
                 filtered_files.len(),

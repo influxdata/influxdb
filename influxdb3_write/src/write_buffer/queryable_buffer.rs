@@ -421,7 +421,8 @@ impl QueryableBuffer {
         table_id: TableId,
         filter: &BufferFilter,
     ) -> Vec<ParquetFile> {
-        self.persisted_files.get_files(db_id, table_id, filter)
+        self.persisted_files
+            .get_files_filtered(db_id, table_id, filter)
     }
 
     pub fn persisted_snapshot_notify_rx(
@@ -881,11 +882,9 @@ mod tests {
         // validate we have a single persisted file
         let db = catalog.db_schema("testdb").unwrap();
         let table = db.table_definition("foo").unwrap();
-        let files = queryable_buffer.persisted_files.get_files(
-            db.id,
-            table.table_id,
-            &BufferFilter::default(),
-        );
+        let files = queryable_buffer
+            .persisted_files
+            .get_files(db.id, table.table_id);
         assert_eq!(files.len(), 1);
 
         // now force another snapshot, persisting the data to parquet file
@@ -914,11 +913,9 @@ mod tests {
             .unwrap();
 
         // validate we have two persisted files
-        let files = queryable_buffer.persisted_files.get_files(
-            db.id,
-            table.table_id,
-            &BufferFilter::default(),
-        );
+        let files = queryable_buffer
+            .persisted_files
+            .get_files(db.id, table.table_id);
         assert_eq!(files.len(), 2);
     }
 }

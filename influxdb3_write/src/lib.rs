@@ -114,6 +114,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         self.parquet_files_filtered(db_id, table_id, &BufferFilter::default())
     }
 
+    /// Returns the parquet files for a given database and table that satisfy the given filter
     fn parquet_files_filtered(
         &self,
         db_id: DbId,
@@ -494,8 +495,8 @@ pub(crate) mod test_help {
 /// A derived set of filters that are used to prune data in the buffer when serving queries
 #[derive(Debug, Default)]
 pub struct BufferFilter {
-    time_lower_bound: Option<i64>,
-    time_upper_bound: Option<i64>,
+    time_lower_bound_ns: Option<i64>,
+    time_upper_bound_ns: Option<i64>,
     guarantees: HashMap<ColumnId, BufferGuarantee>,
 }
 
@@ -513,7 +514,7 @@ impl BufferFilter {
     ///
     /// - determine if there are any filters on the `time` column, in which case, attempt to derive
     ///   an interval that defines the boundaries on `time` from the query.
-    /// - determine if there are any _literal guarantees_ on tag columns contained in the filter
+    /// - determine if there are any [`LiteralGuarantee`]s on tag columns contained in the filter
     ///   predicates of the query.
     pub fn new(table_def: &Arc<TableDefinition>, exprs: &[Expr]) -> Result<Self> {
         debug!(input = ?exprs, ">>> creating buffer filter");
@@ -637,7 +638,9 @@ impl BufferFilter {
         }
 
         // Determine the lower and upper bound from the derived interval on time:
-        let (time_lower_bound, time_upper_bound) = if let Some(i) = time_interval {
+        // TODO: we may open this up more to other scalar types, e.g., other timestamp types
+        //       depending on how users define time bounds.
+        let (time_lower_bound_ns, time_upper_bound_ns) = if let Some(i) = time_interval {
             let low = if let ScalarValue::TimestampNanosecond(Some(l), _) = i.lower() {
                 Some(*l)
             } else {
@@ -655,18 +658,20 @@ impl BufferFilter {
         };
 
         Ok(Self {
-            time_lower_bound,
-            time_upper_bound,
+            time_lower_bound_ns,
+            time_upper_bound_ns,
             guarantees,
         })
     }
 
-    pub fn test_time_stamp_min_max(&self, min: i64, max: i64) -> bool {
-        match (self.time_lower_bound, self.time_upper_bound) {
+    /// Test a `min` and `max` time against this filter to check if the range they define overlaps
+    /// with the range defined by the bounds in this filter.
+    pub fn test_time_stamp_min_max(&self, min_time_ns: i64, max_time_ns: i64) -> bool {
+        match (self.time_lower_bound_ns, self.time_upper_bound_ns) {
             (None, None) => true,
-            (None, Some(u)) => min <= u,
-            (Some(l), None) => max >= l,
-            (Some(l), Some(u)) => min <= u && max >= l,
+            (None, Some(u)) => min_time_ns <= u,
+            (Some(l), None) => max_time_ns >= l,
+            (Some(l), Some(u)) => min_time_ns <= u && max_time_ns >= l,
         }
     }
 

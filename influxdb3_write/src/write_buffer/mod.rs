@@ -327,7 +327,6 @@ impl WriteBufferImpl {
         })?;
 
         let buffer_filter = BufferFilter::new(&table_def, filters)
-            .inspect_err(|error| warn!(?error, "buffer filter generation failed"))
             .map_err(|error| DataFusionError::External(Box::new(error)))?;
 
         let mut chunks = self.buffer.get_table_chunks(
@@ -338,9 +337,11 @@ impl WriteBufferImpl {
             ctx,
         )?;
 
-        let parquet_files =
-            self.persisted_files
-                .get_files(db_schema.id, table_def.table_id, &buffer_filter);
+        let parquet_files = self.persisted_files.get_files_filtered(
+            db_schema.id,
+            table_def.table_id,
+            &buffer_filter,
+        );
 
         let mut chunk_order = chunks.len() as i64;
 
@@ -2102,9 +2103,7 @@ mod tests {
         verify_snapshot_count(1, &wbuf.persister).await;
 
         // get the path for the created parquet file:
-        let persisted_files =
-            wbuf.persisted_files()
-                .get_files(db_id, tbl_id, &BufferFilter::default());
+        let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
@@ -2210,9 +2209,7 @@ mod tests {
         verify_snapshot_count(1, &wbuf.persister).await;
 
         // get the path for the created parquet file:
-        let persisted_files =
-            wbuf.persisted_files()
-                .get_files(db_id, tbl_id, &BufferFilter::default());
+        let persisted_files = wbuf.persisted_files().get_files(db_id, tbl_id);
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
