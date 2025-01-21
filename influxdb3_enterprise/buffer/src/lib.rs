@@ -14,8 +14,8 @@ use influxdb3_write::{
     write_buffer::{
         self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
     },
-    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager,
+    DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -88,8 +88,13 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
         self.mode.catalog()
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.mode.parquet_files(db_id, table_id)
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
+        self.mode.parquet_files_filtered(db_id, table_id, filter)
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {

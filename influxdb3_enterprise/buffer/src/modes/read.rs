@@ -18,7 +18,7 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{DatabaseManager, DistinctCacheManager};
+use influxdb3_write::{BufferFilter, DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -98,8 +98,15 @@ impl Bufferer for ReadMode {
         Arc::clone(&self.replicas.catalog())
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        let mut files = self.replicas.parquet_files(db_id, table_id);
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
+        let mut files = self
+            .replicas
+            .parquet_files_filtered(db_id, table_id, filter);
         files.sort_unstable_by(|a, b| a.chunk_time.cmp(&b.chunk_time));
         files
     }
@@ -126,13 +133,16 @@ impl ChunkContainer for ReadMode {
             DataFusionError::Execution(format!("Database {} not found", database_name))
         })?;
 
-        let table_schema = db_schema
-            .table_schema(table_name)
+        let table_def = db_schema
+            .table_definition(table_name)
             .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
+
+        let filter = BufferFilter::new(&table_def, filters)
+            .map_err(|e| DataFusionError::Execution(format!("failed to evaluate filter: {e:?}")))?;
 
         let mut buffer_chunks = self
             .replicas
-            .get_buffer_chunks(database_name, table_name, filters)
+            .get_buffer_chunks(database_name, table_name, &filter)
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
         if let Some(compacted_data) = &self.compacted_data {
@@ -145,7 +155,7 @@ impl ChunkContainer for ReadMode {
                     .map(|file| {
                         Arc::new(parquet_chunk_from_file(
                             &file,
-                            &table_schema,
+                            &table_def.schema,
                             self.replicas.object_store_url(),
                             self.replicas.object_store(),
                             buffer_chunks.len() as i64,
@@ -157,8 +167,8 @@ impl ChunkContainer for ReadMode {
             let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
                 database_name,
                 table_name,
-                table_schema.clone(),
-                filters,
+                table_def.schema.clone(),
+                &filter,
                 &writer_markers,
                 buffer_chunks.len() as i64,
             );
@@ -167,8 +177,8 @@ impl ChunkContainer for ReadMode {
             let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
                 database_name,
                 table_name,
-                table_schema.clone(),
-                filters,
+                table_def.schema.clone(),
+                &filter,
                 &[],
                 buffer_chunks.len() as i64,
             );

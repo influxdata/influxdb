@@ -292,6 +292,23 @@ impl TestServer {
             .await
     }
 
+    pub async fn api_v3_query_sql_with_header(
+        &self,
+        params: &[(&str, &str)],
+        headers: HeaderMap<HeaderValue>,
+    ) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/query_sql",
+                base = self.client_addr()
+            ))
+            .query(params)
+            .headers(headers)
+            .send()
+            .await
+            .expect("send /api/v3/query_sql request to server")
+    }
+
     pub async fn api_v3_query_sql(&self, params: &[(&str, &str)]) -> Response {
         self.http_client
             .get(format!(

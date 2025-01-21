@@ -15,7 +15,7 @@ use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::{
     write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
+    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
 use influxdb3_write::{DatabaseManager, DistinctCacheManager};
@@ -54,7 +54,12 @@ impl Bufferer for CompactorMode {
         Arc::clone(&self.catalog)
     }
 
-    fn parquet_files(&self, _db_id: DbId, _table_id: TableId) -> Vec<ParquetFile> {
+    fn parquet_files_filtered(
+        &self,
+        _db_id: DbId,
+        _table_id: TableId,
+        _filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
         vec![]
     }
 

@@ -2,6 +2,7 @@
 //! When queries come in they will combine whatever chunks exist from `QueryableBuffer` with
 //! the persisted files to get the full set of data to query.
 
+use crate::BufferFilter;
 use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::HashMap;
 use influxdb3_id::DbId;
@@ -48,6 +49,18 @@ impl PersistedFiles {
 
     /// Get the list of files for a given database and table, always return in descending order of min_time
     pub fn get_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.get_files_filtered(db_id, table_id, &BufferFilter::default())
+    }
+
+    /// Get the list of files for a given database and table, using the provided filter to filter results.
+    ///
+    /// Always return in descending order of min_time
+    pub fn get_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
         let mut files = {
             let inner = self.inner.read();
             inner
@@ -57,6 +70,7 @@ impl PersistedFiles {
                 .cloned()
                 .unwrap_or_default()
                 .into_iter()
+                .filter(|file| filter.test_time_stamp_min_max(file.min_time, file.max_time))
                 .collect::<Vec<_>>()
         };
 
@@ -167,12 +181,18 @@ fn update_persisted_files_with_snapshot(
 #[cfg(test)]
 mod tests {
 
+    use datafusion::prelude::col;
+    use datafusion::prelude::lit_timestamp_nano;
+    use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_catalog::catalog::TableDefinition;
+    use influxdb3_id::ColumnId;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_time::MockProvider;
     use iox_time::Time;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
+    use schema::InfluxColumnType;
 
     use crate::ParquetFileId;
 
@@ -258,6 +278,125 @@ mod tests {
         //       doesn't check for duplicates
         assert_eq!(0.75, size_in_mb);
         assert_eq!(150, row_count);
+    }
+
+    #[test]
+    fn test_get_files_with_filters() {
+        let parquet_files = (0..100)
+            .step_by(10)
+            .map(|i| {
+                let chunk_time = i;
+                ParquetFile {
+                    id: ParquetFileId::new(),
+                    path: format!("/path/{i:03}.parquet"),
+                    size_bytes: 1,
+                    row_count: 1,
+                    chunk_time,
+                    min_time: chunk_time,
+                    max_time: chunk_time + 10,
+                }
+            })
+            .collect();
+        let persisted_snapshots = vec![build_snapshot(parquet_files, 0, 0, 0)];
+        let persisted_files = PersistedFiles::new_from_persisted_snapshots(
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            persisted_snapshots,
+        );
+
+        struct TestCase<'a> {
+            filter: &'a [Expr],
+            expected_n_files: usize,
+        }
+
+        let test_cases = [
+            TestCase {
+                filter: &[],
+                expected_n_files: 10,
+            },
+            TestCase {
+                filter: &[col("time").gt(lit_timestamp_nano(0))],
+                expected_n_files: 10,
+            },
+            TestCase {
+                filter: &[col("time").gt(lit_timestamp_nano(50))],
+                expected_n_files: 5,
+            },
+            TestCase {
+                filter: &[col("time").gt(lit_timestamp_nano(90))],
+                expected_n_files: 1,
+            },
+            TestCase {
+                filter: &[col("time").gt(lit_timestamp_nano(100))],
+                expected_n_files: 0,
+            },
+            TestCase {
+                filter: &[col("time").lt(lit_timestamp_nano(100))],
+                expected_n_files: 10,
+            },
+            TestCase {
+                filter: &[col("time").lt(lit_timestamp_nano(50))],
+                expected_n_files: 5,
+            },
+            TestCase {
+                filter: &[col("time").lt(lit_timestamp_nano(10))],
+                expected_n_files: 1,
+            },
+            TestCase {
+                filter: &[col("time").lt(lit_timestamp_nano(0))],
+                expected_n_files: 0,
+            },
+            TestCase {
+                filter: &[col("time")
+                    .gt(lit_timestamp_nano(20))
+                    .and(col("time").lt(lit_timestamp_nano(40)))],
+                expected_n_files: 2,
+            },
+            TestCase {
+                filter: &[col("time")
+                    .gt(lit_timestamp_nano(20))
+                    .and(col("time").lt(lit_timestamp_nano(30)))],
+                expected_n_files: 1,
+            },
+            TestCase {
+                filter: &[col("time")
+                    .gt(lit_timestamp_nano(21))
+                    .and(col("time").lt(lit_timestamp_nano(29)))],
+                expected_n_files: 1,
+            },
+            TestCase {
+                filter: &[col("time")
+                    .gt(lit_timestamp_nano(0))
+                    .and(col("time").lt(lit_timestamp_nano(100)))],
+                expected_n_files: 10,
+            },
+        ];
+
+        let table_def = Arc::new(
+            TableDefinition::new(
+                TableId::from(0),
+                "test-tbl".into(),
+                vec![(
+                    ColumnId::from(0),
+                    "time".into(),
+                    InfluxColumnType::Timestamp,
+                )],
+                vec![],
+            )
+            .unwrap(),
+        );
+
+        for t in test_cases {
+            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let filtered_files =
+                persisted_files.get_files_filtered(DbId::from(0), TableId::from(0), &filter);
+            assert_eq!(
+                t.expected_n_files,
+                filtered_files.len(),
+                "wrong number of filtered files:\n\
+                result: {filtered_files:?}\n\
+                filter provided: {filter:?}"
+            );
+        }
     }
 
     fn build_persisted_snapshots() -> Vec<PersistedSnapshot> {
