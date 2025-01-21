@@ -12,8 +12,8 @@ use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{chunk::ParquetChunk, DatabaseManager};
 use crate::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, DistinctCacheManager, LastCacheManager,
-    ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
+    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DistinctCacheManager,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -319,30 +319,36 @@ impl WriteBufferImpl {
             DataFusionError::Execution(format!("database {} not found", database_name))
         })?;
 
-        let (table_id, table_schema) =
-            db_schema.table_id_and_schema(table_name).ok_or_else(|| {
-                DataFusionError::Execution(format!(
-                    "table {} not found in db {}",
-                    table_name, database_name
-                ))
-            })?;
+        let table_def = db_schema.table_definition(table_name).ok_or_else(|| {
+            DataFusionError::Execution(format!(
+                "table {} not found in db {}",
+                table_name, database_name
+            ))
+        })?;
+
+        let buffer_filter = BufferFilter::new(&table_def, filters)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?;
 
         let mut chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
             table_name,
-            filters,
+            &buffer_filter,
             projection,
             ctx,
         )?;
 
-        let parquet_files = self.persisted_files.get_files(db_schema.id, table_id);
+        let parquet_files = self.persisted_files.get_files_filtered(
+            db_schema.id,
+            table_def.table_id,
+            &buffer_filter,
+        );
 
         let mut chunk_order = chunks.len() as i64;
 
         for parquet_file in parquet_files {
             let parquet_chunk = parquet_chunk_from_file(
                 &parquet_file,
-                &table_schema,
+                &table_def.schema,
                 self.persister.object_store_url().clone(),
                 self.persister.object_store(),
                 chunk_order,
@@ -459,8 +465,13 @@ impl Bufferer for WriteBufferImpl {
         Arc::clone(&self.wal)
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.buffer.persisted_parquet_files(db_id, table_id)
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &BufferFilter,
+    ) -> Vec<ParquetFile> {
+        self.buffer.persisted_parquet_files(db_id, table_id, filter)
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
