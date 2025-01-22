@@ -428,10 +428,11 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 
 /// A derived set of filters that are used to prune data in the buffer when serving queries
 #[derive(Debug, Default)]
-pub struct ChunkFilter {
+pub struct ChunkFilter<'a> {
     time_lower_bound_ns: Option<i64>,
     time_upper_bound_ns: Option<i64>,
     guarantees: HashMap<ColumnId, HashedLiteralGuarantee>,
+    filters: &'a [Expr],
 }
 
 #[derive(Debug)]
@@ -440,7 +441,7 @@ pub struct HashedLiteralGuarantee {
     pub literal_hashes: HashSet<u64>,
 }
 
-impl ChunkFilter {
+impl<'a> ChunkFilter<'a> {
     /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
     /// a logical query plan.
     ///
@@ -450,7 +451,7 @@ impl ChunkFilter {
     ///   an interval that defines the boundaries on `time` from the query.
     /// - determine if there are any [`LiteralGuarantee`]s on tag columns contained in the filter
     ///   predicates of the query.
-    pub fn new(table_def: &Arc<TableDefinition>, exprs: &[Expr]) -> Result<Self> {
+    pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
         debug!(input = ?exprs, ">>> creating buffer filter");
         let mut time_interval: Option<Interval> = None;
         let arrow_schema = table_def.schema.as_arrow();
@@ -594,6 +595,7 @@ impl ChunkFilter {
             time_lower_bound_ns,
             time_upper_bound_ns,
             guarantees,
+            filters: exprs,
         })
     }
 
@@ -610,6 +612,10 @@ impl ChunkFilter {
 
     pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &HashedLiteralGuarantee)> {
         self.guarantees.iter()
+    }
+
+    pub fn original_filters(&self) -> &[Expr] {
+        &self.filters
     }
 }
 
