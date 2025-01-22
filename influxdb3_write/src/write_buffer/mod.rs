@@ -870,6 +870,8 @@ async fn check_mem_and_force_snapshot(
 #[cfg(test)]
 #[allow(clippy::await_holding_lock)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use super::*;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
@@ -879,13 +881,14 @@ mod tests {
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
+    use executor::DedicatedExecutor;
     use futures_util::StreamExt;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
-    use iox_query::exec::IOxSessionContext;
+    use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext};
     use iox_time::{MockProvider, Time};
     use metric::{Attributes, Metric, U64Counter};
     use metrics::{
@@ -895,6 +898,7 @@ mod tests {
     use object_store::memory::InMemory;
     use object_store::path::Path;
     use object_store::{ObjectStore, PutPayload};
+    use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -948,7 +952,7 @@ mod tests {
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),
-            executor: crate::test_help::make_exec(),
+            executor: make_exec(),
             wal_config: WalConfig::test_config(),
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
@@ -1034,7 +1038,7 @@ mod tests {
             last_cache,
             distinct_cache,
             time_provider,
-            executor: crate::test_help::make_exec(),
+            executor: make_exec(),
             wal_config: WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -3034,7 +3038,7 @@ mod tests {
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),
-            executor: crate::test_help::make_exec(),
+            executor: make_exec(),
             wal_config,
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
@@ -3123,5 +3127,28 @@ mod tests {
             offset = Some(paths.last().unwrap().clone())
         }
         paths
+    }
+
+    fn make_exec() -> Arc<Executor> {
+        let metrics = Arc::new(metric::Registry::default());
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        let parquet_store = ParquetStorage::new(
+            Arc::clone(&object_store),
+            StorageId::from("test_exec_storage"),
+        );
+        Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                // Default to 1gb
+                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+            },
+            DedicatedExecutor::new_testing(),
+        ))
     }
 }
