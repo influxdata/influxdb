@@ -37,7 +37,7 @@ func testHandler(t *testing.T) *HTTPHandler {
 
 	signMethod, err := signer.NewLocalSigningMethod(privKey, pubKey)
 	require.NoError(t, err)
-	lic, err := license.NewCreator(signMethod, privKey, pubKey)
+	lic, err := license.NewCreator(signMethod)
 	require.NoError(t, err)
 
 	cfg := config.Config{
@@ -76,14 +76,11 @@ func getTestFixtures(t *testing.T) testFixtures {
 }
 
 func TestLicenseCreate(t *testing.T) {
-	testFixtures := getTestFixtures(t)
-
 	tests := []struct {
 		name              string
 		email             string
 		hostID            string
 		doActivateLicense bool
-		doVerifyUser      bool
 
 		expectedPostResponseStatus  int
 		expectedPostResponseHeaders map[string]string
@@ -91,11 +88,10 @@ func TestLicenseCreate(t *testing.T) {
 		expectedGetResponseHeaders  map[string]string
 	}{
 		{
-			name:              "email username must be url-encoded",
-			email:             "invalid+email@influxdata.com",
-			hostID:            "meow",
-			doActivateLicense: true,
-			// TODO: this might should probably be a bug but it works
+			name:                        "email username must be url-encoded",
+			email:                       "invalid+email@influxdata.com",
+			hostID:                      "meow",
+			doActivateLicense:           true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
 			expectedGetResponseStatus:   200,
@@ -131,41 +127,15 @@ func TestLicenseCreate(t *testing.T) {
 			expectedGetResponseStatus:   200,
 			expectedGetResponseHeaders:  map[string]string{},
 		},
-		{
-			name:                        "existing user, new license (same as previous test case)",
-			email:                       "valid_2%2Bemail%40influxdata.com",
-			hostID:                      "meow",
-			doActivateLicense:           true,
-			doVerifyUser:                true,
-			expectedPostResponseStatus:  201,
-			expectedPostResponseHeaders: map[string]string{},
-			expectedGetResponseStatus:   200,
-			expectedGetResponseHeaders:  map[string]string{},
-		},
 	}
 
 	client := &http.Client{}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.doVerifyUser {
-				t.Logf("verifying user")
-				ctx := context.Background()
-				tx, err := testFixtures.store.BeginTx(ctx)
-				require.NoError(t, err)
-
-				dbEmail, err := url.QueryUnescape(tt.email)
-				require.NoError(t, err)
-
-				user, err := testFixtures.store.GetUserByEmailTx(ctx, tx, dbEmail)
-				require.NoError(t, err)
-
-				err = testFixtures.store.MarkUserAsVerified(ctx, tx, user.ID)
-				require.NoError(t, err)
-
-				err = tx.Commit()
-				require.NoError(t, err)
-			}
+			// need to initialize test fixures on a per-test-case basis since to
+			// avoid cross-test interference
+			testFixtures := getTestFixtures(t)
 
 			instanceID, _ := uuid.NewV4()
 			url := fmt.Sprintf("%s/licenses?email=%s&writer-id=%s&instance-id=%s", testFixtures.srv.URL, tt.email, tt.hostID, instanceID)
@@ -211,5 +181,137 @@ func TestLicenseCreate(t *testing.T) {
 
 		})
 	}
+}
 
+// users may prematurely exit the database process or it may time out waiting
+// for license verification; because of this, the license server needs to
+// return 2xx response rather than a 4xx
+func TestLicenseCreateContinuation(t *testing.T) {
+	testFixtures := getTestFixtures(t)
+
+	instanceID, _ := uuid.NewV4()
+	email := "fake2@influxdata.com"
+	hostID := "meow"
+
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
+	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
+
+	// first attempt leads to license creation in database and a '201 Created' response
+	res, err := http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 201, res.StatusCode)
+	header, ok := res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
+
+	// second should also result in a '202 Accepted' response
+	res, err = http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 202, res.StatusCode)
+
+	header, ok = res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
+
+	ctx := context.Background()
+	tx, err := testFixtures.store.BeginTx(ctx)
+	require.NoError(t, err)
+	ls, err := testFixtures.store.GetLicensesByEmail(ctx, tx, email)
+	require.NoError(t, err)
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// verify there is only one license for this email address/instance combo
+	// even though we POST'd twice
+	require.Equal(t, 1, len(ls))
+}
+
+// this test covers the case where the same user (ie same email address)
+// attempts to create a license for two different instances at the same time
+// (before email verification)
+func TestLicenseCreateSameEmailDifferentInstances(t *testing.T) {
+	testFixtures := getTestFixtures(t)
+
+	email := "fake2@influxdata.com"
+	hostID := "meow"
+
+	instanceID, _ := uuid.NewV4()
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
+	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
+
+	// first attempt leads to license creation in database and a '201 Created' response
+	res, err := http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 201, res.StatusCode)
+	header, ok := res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
+
+	instanceID, _ = uuid.NewV4()
+	pathAndQuery = fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	targetUrl = fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
+	expectedLocationHeader = []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
+
+	// second should also result in a '201 Created' response
+	res, err = http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 201, res.StatusCode)
+	header, ok = res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
+}
+
+// this test covers the case where the same user (ie same email address)
+// attempts to create a license for two different instances at the same time
+// (verification after first attempt but before second)
+func TestLicenseCreateSameEmailDifferentInstancesWithVerification(t *testing.T) {
+	testFixtures := getTestFixtures(t)
+
+	email := "fake2@influxdata.com"
+	hostID := "meow"
+
+	instanceID, _ := uuid.NewV4()
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
+	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
+
+	// first attempt leads to license creation in database and a '201 Created' response
+	res, err := http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 201, res.StatusCode)
+	header, ok := res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
+
+	t.Logf("verifying user")
+	ctx := context.Background()
+	tx, err := testFixtures.store.BeginTx(ctx)
+	require.NoError(t, err)
+
+	dbEmail, err := url.QueryUnescape(email)
+	require.NoError(t, err)
+
+	user, err := testFixtures.store.GetUserByEmailTx(ctx, tx, dbEmail)
+	require.NoError(t, err)
+
+	err = testFixtures.store.MarkUserAsVerified(ctx, tx, user.ID)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	instanceID, _ = uuid.NewV4()
+	pathAndQuery = fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	targetUrl = fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
+	expectedLocationHeader = []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
+
+	// second should result in a '201 Created' response
+	res, err = http.Post(targetUrl, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, 201, res.StatusCode)
+	header, ok = res.Header["Location"]
+	require.True(t, ok, "must have Location header in every 2xx POST response")
+	require.Equal(t, expectedLocationHeader, header)
 }

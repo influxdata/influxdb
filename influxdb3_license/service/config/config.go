@@ -24,6 +24,7 @@ type Config struct {
 	TrialDuration        time.Duration `help:"Trial license duration (e.g. 2160h for 90 days)" env:"IFLX_PRO_LIC_TRIAL_DURATION" default:"2160h"`
 	TrialEndDate         time.Time     `help:"A fixed date that all trials end. Ignored if empty or expired and TrialDuration used instead" env:"IFLX_PRO_LIC_TRIAL_END_DATE"`
 	TrustedProxies       []string      `help:"Trusted proxy CIDR ranges (e.g., '10.0.0.0/8,172.16.0.0/12')" env:"IFLX_PRO_LIC_TRUSTED_PROXIES" default:"127.0.0.1/32"`
+	LocalSigner          bool          `help:"Use the local dev signer" env:"IFLX_PRO_LIC_LOCAL_SIGNER" default:"false"`
 	trustedProxies       []net.IPNet
 }
 

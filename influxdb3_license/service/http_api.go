@@ -77,6 +77,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Save the realIP in the request context so later methods don't have to re-parse
 	r = r.WithContext(context.WithValue(r.Context(), realIPKey, realIP))
 
+	w = newLoggingResponseWriter(w, h.logger, r.Method, r.URL.Redacted())
 	// Log the request
 	h.logHTTPRequest("ServeHTTP (start)", r, zapcore.InfoLevel, log)
 	defer log.Info("ServeHTTP (end)")
@@ -138,14 +139,8 @@ func (h *HTTPHandler) handlePostLicenses(w http.ResponseWriter, r *http.Request,
 	r = r.WithContext(context.WithValue(r.Context(), instanceIDKey, instanceID))
 
 	// Get user from database
-	user, err := h.store.GetUserByEmail(r.Context(), to)
+	user, err := h.getOrCreateUser(r.Context(), to)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// This user doesn't exist in the database yet so handle that flow
-			h.handleNewUser(w, r, log, to)
-			return
-		}
-
 		// Something went wrong internally :-(
 		log.Error("error getting user from database", zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
@@ -166,15 +161,8 @@ func (h *HTTPHandler) handlePostLicenses(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	// Ensure that user is verified
-	if user.VerifiedAt == nil || user.VerifiedAt.IsZero() {
-		log.Info("user is not verified", zap.String("email", to))
-		http.Error(w, "bad request - please verify your email address", http.StatusBadRequest)
-		return
-	}
-
 	// User isn't blocked so create a license for them.
-	h.handleExistingUserNewLicense(w, r, log, user)
+	h.createLicenseForUser(w, r, log, user)
 }
 
 func (h *HTTPHandler) isIPBlocked(r *http.Request) (bool, error) {
@@ -271,48 +259,76 @@ func (h *HTTPHandler) handleGetLicenses(w http.ResponseWriter, r *http.Request, 
 	log.Info("License sent", zap.String("email", email), zap.String("instance-id", instanceID))
 }
 
-func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log *zap.Logger, to string) {
-	// Create a transaction for the database operations to keep them atomic
+func (h *HTTPHandler) getOrCreateUser(ctx context.Context, to string) (*store.User, error) {
+	tx, err := h.store.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			h.logger.Error("error rolling back transaction", zap.Error(err))
+		}
+	}()
+
+	user, err := h.store.GetUserByEmailTx(ctx, tx, to)
+	if err == nil {
+		return user, nil
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("error getting user from database: %w", err)
+	}
+
+	err = h.store.CreateUser(ctx, tx, &store.User{Email: to})
+	if err != nil {
+		return nil, fmt.Errorf("error creating user: %w", err)
+	}
+
+	user, err = h.store.GetUserByEmailTx(ctx, tx, to)
+	if err != nil {
+		return nil, fmt.Errorf("error getting user from database after successful creation: %w", err)
+	}
+
+	// Create the user's IP address entry in the database
+	userIP := &store.UserIP{
+		IPAddr: ctx.Value(realIPKey).(net.IP),
+		UserID: user.ID,
+	}
+
+	err = h.store.CreateUserIP(ctx, tx, userIP)
+	if err != nil {
+		return nil, fmt.Errorf("error creating user ip: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, fmt.Errorf("error commiting transaction: %w", err)
+	}
+
+	return user, nil
+}
+
+func (h *HTTPHandler) createLicenseForUser(w http.ResponseWriter, r *http.Request, log *zap.Logger, user *store.User) {
 	tx, err := h.store.BeginTx(r.Context())
 	if err != nil {
 		log.Error("error starting transaction", zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
 		return
 	}
-	defer func(tx store.Tx) {
+	defer func() {
 		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 			log.Error("error rolling back transaction", zap.Error(err))
 		}
-	}(tx)
-
-	// Create a new user record in the database
-	user := &store.User{Email: to}
-	if err := h.store.CreateUser(r.Context(), tx, user); err != nil {
-		log.Error("error creating user", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-
-	// Create the user's IP address entry in the database
-	userIP := &store.UserIP{
-		IPAddr: r.Context().Value(realIPKey).(net.IP),
-		UserID: user.ID,
-	}
-
-	if err := h.store.CreateUserIP(r.Context(), tx, userIP); err != nil {
-		log.Error("error creating user ip", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
+	}()
 
 	// Create a license for the user
-	licenseID, err := h.createLicense(r.Context(), tx, user)
+	license, err := h.createLicense(r.Context(), tx, user)
 	if err != nil {
 		if errors.Is(err, ErrLicenseAlreadyExists) {
 			log.Info("license already exists for user", zap.String("email", user.Email), zap.Error(err))
 			// If the license already exists, we can just return the existing license
-			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(to), r.Context().Value(instanceIDKey).(string)))
-			w.WriteHeader(http.StatusCreated)
+			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), r.Context().Value(instanceIDKey).(string)))
+			w.WriteHeader(http.StatusAccepted)
 			return
 		} else if errors.Is(err, ErrInstanceIDCollision) {
 			log.Error("instance ID already exists for another user", zap.String("email", user.Email), zap.Error(err))
@@ -325,11 +341,54 @@ func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log 
 		return
 	}
 
-	// Queue a verification email to be sent
-	if err := h.sendEmailVerification(r.Context(), tx, user, licenseID); err != nil {
-		log.Error("error sending email verification", zap.Error(err))
+	if user.VerifiedAt != nil {
+		log.Info("setting license state", zap.Error(err))
+		err = h.store.SetLicenseState(r.Context(), tx, license.ID, store.LicenseStateRequested)
+		if err != nil {
+			log.Error("setting license state", zap.Error(err))
+			http.Error(w, "error processing request", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), license.InstanceID))
+		w.WriteHeader(http.StatusCreated)
+		return
+	}
+
+	switch license.State {
+	case store.LicenseStateInactive:
+		// "inactive" probably shouldn't be possible since it's never set anywhere,
+		// but handle it here anyway
+		log.Error("error creating license", zap.Error(err))
 		http.Error(w, "error processing request", http.StatusInternalServerError)
 		return
+	case store.LicenseStateRequested:
+		// Queue a verification email to be sent
+
+		// NOTE: the logic around when we send the email verification is incomplete
+		// at the time of writing this comment since there is no reliable way to
+		// know whether we've already sent an email verification for a given user
+		// without making some assumptions about the number of licenses (ie if
+		// there is more than one license, assume a verification email has gone
+		// out) OR without changing the LicenseState data model on the backend with
+		// new data migration
+		//
+		// this means that whenever a license is created before verification the
+		// user will receive a new verification request.
+		//
+		// this could result in redundant un-verified tokens that stick around in
+		// the database even after one of them has been verified
+		err := h.sendEmailVerification(r.Context(), tx, user, license.ID)
+		if err != nil {
+			log.Error("error sending email verification", zap.Error(err))
+			http.Error(w, "error processing request", http.StatusInternalServerError)
+			return
+		}
+	default:
+		log.Error("unhandled license state during creation", zap.Error(err))
+		http.Error(w, "error processing request", http.StatusInternalServerError)
+		return
+
 	}
 
 	// Commit the transaction
@@ -339,12 +398,9 @@ func (h *HTTPHandler) handleNewUser(w http.ResponseWriter, r *http.Request, log 
 		return
 	}
 
-	// Get the writer ID and instance ID from the request context
-	instanceID := r.Context().Value(instanceIDKey).(string)
-
 	// Send a response to the client with Location header to download
 	// the license
-	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(to), instanceID))
+	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), license.InstanceID))
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -373,71 +429,6 @@ func (h *HTTPHandler) sendEmailVerification(ctx context.Context, tx store.Tx, us
 	}
 
 	return nil
-}
-
-func (h *HTTPHandler) handleExistingUserNewLicense(w http.ResponseWriter, r *http.Request, log *zap.Logger, user *store.User) {
-	tx, err := h.store.BeginTx(r.Context())
-	if err != nil {
-		log.Error("error starting transaction", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			log.Error("error rolling back transaction", zap.Error(err))
-		}
-	}()
-
-	// Create a record for the user's IP address if it doesn't already exist
-	userIP := &store.UserIP{
-		UserID: user.ID,
-		IPAddr: r.Context().Value(realIPKey).(net.IP),
-	}
-	if err := h.store.CreateUserIP(r.Context(), tx, userIP); err != nil {
-		log.Error("error creating user ip", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-
-	// Create another license for his user in the database
-	licID, err := h.createLicense(r.Context(), tx, user)
-	if err != nil {
-		if errors.Is(err, ErrLicenseAlreadyExists) {
-			// If the license already exists, we can just return the existing license
-			w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), r.Context().Value(instanceIDKey).(string)))
-			w.WriteHeader(http.StatusCreated)
-			return
-		} else if errors.Is(err, ErrInstanceIDCollision) {
-			log.Error("instance ID already exists for another user", zap.String("email", user.Email), zap.Error(err))
-			http.Error(w, "bad request", http.StatusBadRequest)
-			return
-		}
-
-		log.Error("error creating license for existing user", zap.Int64("user-id", user.ID), zap.String("email", user.Email), zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-
-	// Since this is an existing user, we don't need to send a verification
-	// email and we need to mark the license as active
-	if err := h.store.SetLicenseState(r.Context(), tx, licID, store.LicenseStateActive); err != nil {
-		log.Error("error setting license state", zap.Int64("license-id", licID), zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		log.Error("error committing transaction", zap.Error(err))
-		http.Error(w, "error processing request", http.StatusInternalServerError)
-		return
-	}
-
-	// Send a response to the client with Location header to download
-	// the license
-	instanceID := r.Context().Value(instanceIDKey).(string)
-	w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), instanceID))
-	w.WriteHeader(http.StatusCreated)
 }
 
 // handleVerify handles requests to the /verify endpoint, which is called when
@@ -557,29 +548,26 @@ func (h *HTTPHandler) handleVerify(w http.ResponseWriter, r *http.Request, log *
 	`, days, urlSafeEmail, lic.InstanceID)
 }
 
-func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *store.User) (licenseID int64, err error) {
+func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *store.User) (*store.License, error) {
 	writerID := ctx.Value(writerIDKey).(string)
 	instanceID := ctx.Value(instanceIDKey).(string)
 
-	// Check if the user already has a license for this writer ID
-	lics, err := h.store.GetLicensesByEmailAndWriterID(ctx, tx, user.Email, writerID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return -1, fmt.Errorf("createLicense: error getting license by email and writer ID: %w", err)
+	// Check if the user already has a license for this instance ID
+	license, err := h.store.GetLicenseByInstanceID(ctx, tx, instanceID)
+	if license != nil {
+		return nil, ErrLicenseAlreadyExists
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("createLicense: error getting license by instance ID: %w", err)
 	}
 
-	// Check if the user already has an active license for this instance ID
-	for _, lic := range lics {
-		if lic.InstanceID == instanceID && lic.State == store.LicenseStateActive {
-			return -1, fmt.Errorf("createLicense: %w: instance ID: %s", ErrLicenseAlreadyExists, instanceID)
-		}
-	}
+	// no license exists, so create a new one
 
 	// create a signed license token
 	now, dur := h.trialLicenseDuration()
 
 	token, err := h.lic.Create(user.Email, writerID, instanceID, dur)
 	if err != nil {
-		return -1, fmt.Errorf("createLicense: error creating signed license token: %w", err)
+		return nil, fmt.Errorf("createLicense: error creating signed license token: %w", err)
 	}
 
 	// Save the license in the database
@@ -594,11 +582,12 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 		State:      store.LicenseStateRequested,
 	}
 
-	if err := h.store.CreateLicense(ctx, tx, lic); err != nil {
-		return -1, fmt.Errorf("createLicense: error creating license in database: %w", err)
+	err = h.store.CreateLicense(ctx, tx, lic)
+	if err != nil {
+		return nil, fmt.Errorf("createLicense: error creating license in database: %w", err)
 	}
 
-	return lic.ID, nil
+	return lic, nil
 }
 
 func (h *HTTPHandler) trialLicenseDuration() (now time.Time, dur time.Duration) {
@@ -693,4 +682,69 @@ func getRealIP(r *http.Request, trustedProxies []net.IPNet) (net.IP, error) {
 	}
 
 	return clientIP, nil
+}
+
+// loggingResponseWriter implments http.ResponseWriter in such a way that
+// if either Write or WriteHeader are called the response gets logged. If a
+// response handler doesn't call either of these methods then nothing is
+// logged.
+//
+// Since it's possible that both Write and WriteHeader are called in a given
+// response, we also keep track of whether or not anything at all has been
+// logged in order to avoid duplicate logs.
+type loggingResponseWriter struct {
+	w      http.ResponseWriter
+	logger *zap.Logger
+
+	statusCode int
+	method     string
+	url        string
+
+	logged bool
+}
+
+func newLoggingResponseWriter(w http.ResponseWriter, logger *zap.Logger, method, url string) http.ResponseWriter {
+	return &loggingResponseWriter{
+		w:          w,
+		logger:     logger,
+		statusCode: http.StatusOK,
+		method:     method,
+		url:        url,
+		logged:     false,
+	}
+}
+
+// Header implements http.ResponseWriter
+func (w *loggingResponseWriter) Header() http.Header {
+	return w.w.Header()
+}
+
+// Write implements http.ResponseWriter
+func (w *loggingResponseWriter) Write(bs []byte) (int, error) {
+	w.log()
+	return w.w.Write(bs)
+}
+
+// WriteHeader implements http.ResponseWriter
+func (w *loggingResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.log()
+	w.w.WriteHeader(statusCode)
+}
+
+func (w *loggingResponseWriter) log() {
+	if w.logger != nil && !w.logged {
+		fields := []zap.Field{
+			zap.String("method", w.method),
+			zap.String("url", w.url),
+			zap.Int("status_code", w.statusCode),
+		}
+		if w.logger.Level() == zapcore.DebugLevel {
+			for k, v := range w.w.Header() {
+				fields = append(fields, zap.Strings(k, v))
+			}
+		}
+		w.logger.Info("Writing HTTP response", fields...)
+		w.logged = true
+	}
 }
