@@ -1,4 +1,6 @@
+use bytes::Bytes;
 use hashbrown::HashMap;
+use hyper::{Body, Response};
 use influxdb3_client::plugin_development::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
@@ -38,6 +40,12 @@ pub enum ProcessingEngineError {
         database: String,
         trigger_name: String,
     },
+
+    #[error("request trigger not found")]
+    RequestTriggerNotFound,
+
+    #[error("request handler for trigger down")]
+    RequestHandlerDown,
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -110,4 +118,12 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<SchedulePluginTestResponse, crate::plugins::Error>;
+
+    async fn request_trigger(
+        &self,
+        trigger_path: &str,
+        query_params: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
+        request_body: Bytes,
+    ) -> Result<Response<Body>, ProcessingEngineError>;
 }

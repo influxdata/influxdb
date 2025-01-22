@@ -3,7 +3,9 @@ use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use anyhow::Context;
+use bytes::Bytes;
 use hashbrown::HashMap;
+use hyper::{Body, Response};
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
@@ -19,11 +21,11 @@ use influxdb3_wal::{
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, error, warn};
 use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
 pub mod manager;
 pub mod plugins;
@@ -36,13 +38,15 @@ pub struct ProcessingEngineManagerImpl {
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     wal: Arc<dyn Wal>,
-    plugin_event_tx: Mutex<PluginChannels>,
+    plugin_event_tx: RwLock<PluginChannels>,
 }
 
 #[derive(Debug, Default)]
 struct PluginChannels {
     /// Map of database to trigger name to sender
     active_triggers: HashMap<String, HashMap<String, mpsc::Sender<PluginEvent>>>,
+    /// Map of request path to the sender
+    request_triggers: HashMap<String, mpsc::Sender<PluginEvent>>,
 }
 
 #[cfg(feature = "system-py")]
@@ -78,12 +82,39 @@ impl PluginChannels {
     }
 
     #[cfg(feature = "system-py")]
-    fn add_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<PluginEvent> {
+    fn add_trigger(
+        &mut self,
+        trigger_spec: &TriggerSpecificationDefinition,
+        db: String,
+        trigger: String,
+    ) -> mpsc::Receiver<PluginEvent> {
+        observability_deps::tracing::info!(%db, ?trigger, ?trigger_spec, "adding trigger to plugin event channel");
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
-        self.active_triggers
-            .entry(db)
-            .or_default()
-            .insert(trigger, tx);
+
+        match trigger_spec {
+            TriggerSpecificationDefinition::SingleTableWalWrite { .. } => {
+                self.active_triggers
+                    .entry(db)
+                    .or_default()
+                    .insert(trigger, tx);
+            }
+            TriggerSpecificationDefinition::AllTablesWalWrite => {
+                self.active_triggers
+                    .entry(db)
+                    .or_default()
+                    .insert(trigger, tx);
+            }
+            TriggerSpecificationDefinition::Schedule { .. } => {
+                self.active_triggers
+                    .entry(db)
+                    .or_default()
+                    .insert(trigger, tx);
+            }
+            TriggerSpecificationDefinition::RequestPath { path } => {
+                self.request_triggers.insert(path.to_string(), tx);
+            }
+        }
+
         rx
     }
 
@@ -98,6 +129,23 @@ impl PluginChannels {
                 }
             }
         }
+    }
+
+    async fn send_request(
+        &self,
+        trigger_path: &str,
+        request: Request,
+    ) -> Result<(), ProcessingEngineError> {
+        let event = PluginEvent::Request(request);
+        if let Some(sender) = self.request_triggers.get(trigger_path) {
+            if sender.send(event).await.is_err() {
+                return Err(ProcessingEngineError::RequestTriggerNotFound);
+            }
+        } else {
+            return Err(ProcessingEngineError::RequestTriggerNotFound);
+        }
+
+        Ok(())
     }
 }
 
@@ -315,7 +363,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
-        println!("running trigger {}", trigger_name);
+        debug!(db_name, trigger_name, "starting trigger");
         #[cfg(feature = "system-py")]
         {
             let db_schema = self
@@ -331,11 +379,11 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 })?
                 .clone();
 
-            let trigger_rx = self
-                .plugin_event_tx
-                .lock()
-                .await
-                .add_trigger(db_name.to_string(), trigger_name.to_string());
+            let trigger_rx = self.plugin_event_tx.write().await.add_trigger(
+                &trigger.trigger,
+                db_name.to_string(),
+                trigger_name.to_string(),
+            );
 
             let plugin_context = PluginContext {
                 trigger_rx,
@@ -365,6 +413,12 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     plugin_code,
                     trigger,
                     Arc::clone(&self.time_provider),
+                    plugin_context,
+                ),
+                PluginType::Request => plugins::run_request_plugin(
+                    db_name.to_string(),
+                    plugin_code,
+                    trigger,
                     plugin_context,
                 ),
             }
@@ -410,7 +464,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
-            .lock()
+            .write()
             .await
             .send_shutdown(db_name.to_string(), trigger_name.to_string())
             .await?
@@ -424,7 +478,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             );
         } else {
             self.plugin_event_tx
-                .lock()
+                .write()
                 .await
                 .remove_trigger(db_name.to_string(), trigger_name.to_string());
         }
@@ -549,12 +603,40 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             "system-py feature not enabled"
         )))
     }
+
+    async fn request_trigger(
+        &self,
+        trigger_path: &str,
+        query_params: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
+        request_body: Bytes,
+    ) -> Result<Response<Body>, ProcessingEngineError> {
+        // oneshot channel for the response
+        let (tx, rx) = oneshot::channel();
+        let request = Request {
+            query_params,
+            headers: request_headers,
+            body: request_body,
+            response_tx: tx,
+        };
+
+        self.plugin_event_tx
+            .write()
+            .await
+            .send_request(trigger_path, request)
+            .await?;
+
+        Ok(rx.await.map_err(|e| {
+            error!(%e, "error receiving response from plugin");
+            ProcessingEngineError::RequestHandlerDown
+        })?)
+    }
 }
 
 #[async_trait::async_trait]
 impl WalFileNotifier for ProcessingEngineManagerImpl {
     async fn notify(&self, write: Arc<WalContents>) {
-        let plugin_channels = self.plugin_event_tx.lock().await;
+        let plugin_channels = self.plugin_event_tx.read().await;
         plugin_channels.send_wal_contents(write).await;
     }
 
@@ -563,7 +645,7 @@ impl WalFileNotifier for ProcessingEngineManagerImpl {
         write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        let plugin_channels = self.plugin_event_tx.lock().await;
+        let plugin_channels = self.plugin_event_tx.read().await;
         plugin_channels.send_wal_contents(write).await;
 
         // configure a reciever that we immediately close
@@ -580,7 +662,17 @@ impl WalFileNotifier for ProcessingEngineManagerImpl {
 #[allow(unused)]
 pub(crate) enum PluginEvent {
     WriteWalContents(Arc<WalContents>),
+    Request(Request),
     Shutdown(oneshot::Sender<()>),
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub(crate) struct Request {
+    pub query_params: HashMap<String, String>,
+    pub headers: HashMap<String, String>,
+    pub body: Bytes,
+    pub response_tx: oneshot::Sender<Response<Body>>,
 }
 
 #[cfg(test)]

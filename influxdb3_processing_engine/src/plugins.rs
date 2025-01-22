@@ -117,6 +117,28 @@ pub(crate) fn run_schedule_plugin(
 }
 
 #[cfg(feature = "system-py")]
+pub(crate) fn run_request_plugin(
+    db_name: String,
+    plugin_code: String,
+    trigger_definition: TriggerDefinition,
+    context: PluginContext,
+) {
+    let trigger_plugin = TriggerPlugin {
+        trigger_definition,
+        db_name,
+        plugin_code,
+        write_buffer: context.write_buffer,
+        query_executor: context.query_executor,
+    };
+    tokio::task::spawn(async move {
+        trigger_plugin
+            .run_request_plugin(context.trigger_rx)
+            .await
+            .expect("trigger plugin failed");
+    });
+}
+
+#[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
     // tokio channel for inputs
     pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
@@ -143,13 +165,17 @@ mod python_plugin {
     use chrono::{DateTime, Utc};
     use cron::{OwnedScheduleIterator, Schedule};
     use data_types::NamespaceName;
-    use hashbrown::HashMap;
+    use hyper::http::HeaderValue;
+    use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
-    use influxdb3_py_api::system_py::{execute_python_with_batch, execute_schedule_trigger};
-    use influxdb3_wal::WalOp;
+    use influxdb3_py_api::system_py::{
+        execute_python_with_batch, execute_request_trigger, execute_schedule_trigger,
+        PluginReturnState,
+    };
+    use influxdb3_wal::{WalContents, WalOp};
     use influxdb3_write::Precision;
     use iox_time::Time;
-    use observability_deps::tracing::{debug, info, warn};
+    use observability_deps::tracing::{info, warn};
     use std::str::FromStr;
     use std::time::SystemTime;
     use tokio::sync::mpsc::Receiver;
@@ -159,7 +185,7 @@ mod python_plugin {
             &self,
             mut receiver: Receiver<PluginEvent>,
         ) -> Result<(), Error> {
-            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting trigger plugin");
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting wal contents plugin");
 
             loop {
                 let event = match receiver.recv().await {
@@ -170,14 +196,18 @@ mod python_plugin {
                     }
                 };
 
-                match self.process_event(event).await {
-                    Ok(stop) => {
-                        if stop {
-                            break;
+                match event {
+                    PluginEvent::WriteWalContents(wal_contents) => {
+                        if let Err(e) = self.process_wal_contents(wal_contents).await {
+                            error!(?self.trigger_definition, "error processing wal contents: {}", e);
                         }
                     }
-                    Err(e) => {
-                        error!(?self.trigger_definition, "error processing event: {}", e);
+                    PluginEvent::Request(_) => {
+                        warn!("ignoring request in wal contents plugin.")
+                    }
+                    PluginEvent::Shutdown(sender) => {
+                        sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                        break;
                     }
                 }
             }
@@ -213,7 +243,10 @@ mod python_plugin {
                                 break;
                             }
                             Some(PluginEvent::WriteWalContents(_)) => {
-                                debug!("ignoring wal contents in cron plugin.")
+                                warn!("ignoring wal contents in cron plugin.")
+                            }
+                            Some(PluginEvent::Request(_)) => {
+                                warn!("ignoring request in cron plugin.")
                             }
                             Some(PluginEvent::Shutdown(sender)) => {
                                 sender.send(()).map_err(|_| Error::FailedToShutdown)?;
@@ -226,25 +259,109 @@ mod python_plugin {
 
             Ok(())
         }
-        async fn process_event(&self, event: PluginEvent) -> Result<bool, Error> {
+
+        pub(crate) async fn run_request_plugin(
+            &self,
+            mut receiver: Receiver<PluginEvent>,
+        ) -> Result<(), Error> {
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting request plugin");
+
+            loop {
+                match receiver.recv().await {
+                    None => {
+                        warn!(?self.trigger_definition, "trigger plugin receiver closed");
+                        break;
+                    }
+                    Some(PluginEvent::WriteWalContents(_)) => {
+                        warn!("ignoring wal contents in request plugin.")
+                    }
+                    Some(PluginEvent::Request(request)) => {
+                        let Some(schema) =
+                            self.write_buffer.catalog().db_schema(self.db_name.as_str())
+                        else {
+                            error!(?self.trigger_definition, "missing db schema");
+                            return Err(Error::MissingDb);
+                        };
+                        let result = execute_request_trigger(
+                            &self.plugin_code,
+                            Arc::clone(&schema),
+                            Arc::clone(&self.query_executor),
+                            &self.trigger_definition.trigger_arguments,
+                            request.query_params,
+                            request.headers,
+                            request.body,
+                        );
+
+                        // produce the HTTP response
+                        let response = match result {
+                            Ok((
+                                response_code,
+                                response_headers,
+                                response_body,
+                                plugin_return_state,
+                            )) => {
+                                let errors = self.handle_return_state(plugin_return_state).await;
+                                // TODO: here is one spot we'll pick up errors to put into the plugin system table
+                                for error in errors {
+                                    error!(?self.trigger_definition, "error running request plugin: {}", error);
+                                }
+
+                                let response_status = StatusCode::from_u16(response_code)
+                                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                                let mut response = Response::builder().status(response_status);
+
+                                for (key, value) in response_headers {
+                                    response = response.header(
+                                        key.as_str(),
+                                        HeaderValue::from_str(&value)
+                                            .unwrap_or_else(|_| HeaderValue::from_static("")),
+                                    );
+                                }
+
+                                response
+                                    .body(Body::from(response_body))
+                                    .context("building response")?
+                            }
+                            Err(e) => {
+                                // build json string with the error with serde so that it is {"error": "error message"}
+                                error!(?self.trigger_definition, "error running request plugin: {}", e);
+                                let body = serde_json::json!({"error": e.to_string()}).to_string();
+                                Response::builder()
+                                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                    .body(Body::from(body))
+                                    .context("building response")?
+                            }
+                        };
+
+                        if request.response_tx.send(response).is_err() {
+                            error!(?self.trigger_definition, "error sending response");
+                        }
+                    }
+                    Some(PluginEvent::Shutdown(sender)) => {
+                        sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                        break;
+                    }
+                }
+            }
+
+            Ok(())
+        }
+
+        async fn process_wal_contents(&self, wal_contents: Arc<WalContents>) -> Result<(), Error> {
             let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                 return Err(Error::MissingDb);
             };
 
-            let mut db_writes = DatabaseWriteBuffer::new();
-
-            match event {
-                PluginEvent::WriteWalContents(wal_contents) => {
-                    for wal_op in &wal_contents.ops {
-                        match wal_op {
-                            WalOp::Write(write_batch) => {
-                                // determine if this write batch is for this database
-                                if write_batch.database_name.as_ref()
-                                    != self.trigger_definition.database_name
-                                {
-                                    continue;
-                                }
-                                let table_filter = match &self.trigger_definition.trigger {
+            for wal_op in &wal_contents.ops {
+                match wal_op {
+                    WalOp::Write(write_batch) => {
+                        // determine if this write batch is for this database
+                        if write_batch.database_name.as_ref()
+                            != self.trigger_definition.database_name
+                        {
+                            continue;
+                        }
+                        let table_filter = match &self.trigger_definition.trigger {
                                     TriggerSpecificationDefinition::AllTablesWalWrite => {
                                         // no filter
                                         None
@@ -263,80 +380,81 @@ mod python_plugin {
                                     } => {
                                         return Err(anyhow!("unexpectedly found scheduled trigger specification {} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
                                     }
+                                    TriggerSpecificationDefinition::RequestPath { path } => {
+                                        return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
+                                    }
                                 };
 
-                                let result = execute_python_with_batch(
-                                    &self.plugin_code,
-                                    write_batch,
-                                    Arc::clone(&schema),
-                                    Arc::clone(&self.query_executor),
-                                    table_filter,
-                                    &self.trigger_definition.trigger_arguments,
-                                )?;
+                        let result = execute_python_with_batch(
+                            &self.plugin_code,
+                            write_batch,
+                            Arc::clone(&schema),
+                            Arc::clone(&self.query_executor),
+                            table_filter,
+                            &self.trigger_definition.trigger_arguments,
+                        )?;
 
-                                // write the output lines to the appropriate database
-                                if !result.write_back_lines.is_empty() {
-                                    db_writes
-                                        .add_lines(schema.name.as_ref(), result.write_back_lines);
-                                }
-
-                                for (db_name, add_lines) in result.write_db_lines {
-                                    db_writes.add_lines(&db_name, add_lines);
-                                }
-                            }
-                            WalOp::Catalog(_) => {}
-                            WalOp::Noop(_) => {}
+                        let errors = self.handle_return_state(result).await;
+                        // TODO: here is one spot we'll pick up errors to put into the plugin system table
+                        for error in errors {
+                            error!(?self.trigger_definition, "error running wal plugin: {}", error);
                         }
                     }
-                }
-                PluginEvent::Shutdown(sender) => {
-                    sender.send(()).map_err(|_| Error::FailedToShutdown)?;
-                    return Ok(true);
+                    WalOp::Catalog(_) => {}
+                    WalOp::Noop(_) => {}
                 }
             }
 
-            if !db_writes.is_empty() {
-                db_writes.execute(&self.write_buffer).await?;
-            }
-
-            Ok(false)
-        }
-    }
-
-    struct DatabaseWriteBuffer {
-        writes: HashMap<String, Vec<String>>,
-    }
-    impl DatabaseWriteBuffer {
-        fn new() -> Self {
-            Self {
-                writes: HashMap::new(),
-            }
+            Ok(())
         }
 
-        fn add_lines(&mut self, db_name: &str, lines: Vec<String>) {
-            self.writes.entry_ref(db_name).or_default().extend(lines);
-        }
+        /// Handles the return state from the plugin, writing back lines and handling any errors.
+        /// It returns a vec of error messages that can be used to log or report back to the user.
+        async fn handle_return_state(&self, plugin_return_state: PluginReturnState) -> Vec<String> {
+            let ingest_time = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap();
 
-        fn is_empty(&self) -> bool {
-            self.writes.is_empty()
-        }
+            let mut errors = Vec::new();
 
-        async fn execute(self, write_buffer: &Arc<dyn WriteBuffer>) -> Result<(), Error> {
-            for (db_name, output_lines) in self.writes {
-                let ingest_time = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap();
-                write_buffer
+            if !plugin_return_state.write_back_lines.is_empty() {
+                if let Err(e) = self
+                    .write_buffer
                     .write_lp(
-                        NamespaceName::new(db_name).unwrap(),
-                        output_lines.join("\n").as_str(),
+                        NamespaceName::new(self.db_name.clone()).unwrap(),
+                        plugin_return_state.write_back_lines.join("\n").as_str(),
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
                         Precision::Nanosecond,
                     )
-                    .await?;
+                    .await
+                {
+                    errors.push(format!("error writing back lines: {}", e));
+                }
             }
-            Ok(())
+
+            for (db_name, lines) in plugin_return_state.write_db_lines {
+                let Ok(namespace_name) = NamespaceName::new(db_name.clone()) else {
+                    errors.push(format!("invalid database name: {}", db_name));
+                    continue;
+                };
+
+                if let Err(e) = self
+                    .write_buffer
+                    .write_lp(
+                        namespace_name,
+                        lines.join("\n").as_str(),
+                        Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
+                        false,
+                        Precision::Nanosecond,
+                    )
+                    .await
+                {
+                    errors.push(format!("error writing back lines to {}: {}", db_name, e));
+                }
+            }
+
+            errors
         }
     }
 
@@ -344,6 +462,7 @@ mod python_plugin {
         schedule: OwnedScheduleIterator<Utc>,
         next_trigger_time: Option<DateTime<Utc>>,
     }
+
     impl ScheduleTriggerRunner {
         fn new(cron_schedule: Schedule, time_provider: Arc<dyn TimeProvider>) -> Self {
             let mut schedule = cron_schedule.after_owned(time_provider.now().date_time());
@@ -362,6 +481,7 @@ mod python_plugin {
             let Some(trigger_time) = self.next_trigger_time else {
                 return Err(anyhow!("running a cron trigger that is finished.").into());
             };
+
             let result = execute_schedule_trigger(
                 &plugin.plugin_code,
                 trigger_time,
@@ -370,19 +490,17 @@ mod python_plugin {
                 &plugin.trigger_definition.trigger_arguments,
             )?;
 
-            let mut db_writes = DatabaseWriteBuffer::new();
-            // write the output lines to the appropriate database
-            if !result.write_back_lines.is_empty() {
-                db_writes.add_lines(db_schema.name.as_ref(), result.write_back_lines);
+            let errors = plugin.handle_return_state(result).await;
+            // TODO: here is one spot we'll pick up errors to put into the plugin system table
+            for error in errors {
+                error!(?plugin.trigger_definition, "error running schedule plugin: {}", error);
             }
 
-            for (db_name, add_lines) in result.write_db_lines {
-                db_writes.add_lines(&db_name, add_lines);
-            }
-            db_writes.execute(&plugin.write_buffer).await?;
             self.advance_time();
+
             Ok(())
         }
+
         fn advance_time(&mut self) {
             self.next_trigger_time = self.schedule.next();
         }

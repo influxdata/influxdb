@@ -1238,9 +1238,62 @@ where
             .body(Body::from(body))?)
     }
 
+    #[cfg(feature = "system-py")]
+    async fn processing_engine_request_plugin(
+        &self,
+        trigger_path: &str,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        // pull out the query params into a hashmap
+        let uri = req.uri();
+        let query_str = uri.query().unwrap_or("");
+
+        let parsed_url = url::Url::parse(&format!("http://influxdata.com?{}", query_str)).unwrap();
+        let params: HashMap<String, String> = parsed_url
+            .query_pairs()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        // pull out the request headers into a hashmap
+        let headers = req
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
+            .collect();
+
+        // pull out the request body
+        let body = self.read_body(req).await?;
+
+        match self
+            .processing_engine
+            .request_trigger(trigger_path, params, headers, body)
+            .await
+        {
+            Ok(response) => Ok(response),
+            Err(
+                influxdb3_processing_engine::manager::ProcessingEngineError::RequestTriggerNotFound,
+            ) => {
+                let body = "{error: \"not found\"}";
+                Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(body))?)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
     #[cfg(not(feature = "system-py"))]
     async fn test_processing_engine_schedule_plugin(
         &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn processing_engine_request_plugin(
+        &self,
+        _trigger_path: &str,
         _req: Request<Body>,
     ) -> Result<Response<Body>> {
         Err(Error::PythonPluginsNotEnabled)
@@ -1819,6 +1872,12 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
+        (Method::GET | Method::POST, path) if path.starts_with("/api/v3/engine/") => {
+            let path = path.strip_prefix("/api/v3/engine/").unwrap();
+            http_server
+                .processing_engine_request_plugin(path, req)
+                .await
+        }
         (Method::POST, "/api/v3/configure/distinct_cache") => {
             http_server.configure_distinct_cache_create(req).await
         }
