@@ -45,7 +45,7 @@ use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, error, warn};
 use parquet_file::storage::ParquetExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
@@ -265,6 +265,7 @@ impl WriteBufferImpl {
         ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
+        no_sync: bool,
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
@@ -286,12 +287,16 @@ impl WriteBufferImpl {
         }
         ops.push(WalOp::Write(result.valid_data));
 
-        // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
-        // whatever the configured wal flush interval is set to) the buffer is flushed and all the
-        // data is persisted into a single wal file in the configured object store. Then the
-        // contents are sent to the configured notifier, which in this case is the queryable buffer.
-        // Thus, after this returns, the data is both durable and queryable.
-        self.wal.write_ops(ops).await?;
+        if no_sync {
+            self.wal.write_ops_unconfirmed(ops).await?;
+        } else {
+            // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
+            // whatever the configured wal flush interval is set to) the buffer is flushed and all the
+            // data is persisted into a single wal file in the configured object store. Then the
+            // contents are sent to the configured notifier, which in this case is the queryable buffer.
+            // Thus, after this returns, the data is both durable and queryable.
+            self.wal.write_ops(ops).await?;
+        }
 
         // record metrics for lines written, rejected, and bytes written
         self.metrics
@@ -438,9 +443,17 @@ impl Bufferer for WriteBufferImpl {
         ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
+        no_sync: bool,
     ) -> Result<BufferedWriteRequest> {
-        self.write_lp(database, lp, ingest_time, accept_partial, precision)
-            .await
+        self.write_lp(
+            database,
+            lp,
+            ingest_time,
+            accept_partial,
+            precision,
+            no_sync,
+        )
+        .await
     }
 
     fn catalog(&self) -> Arc<Catalog> {
@@ -994,6 +1007,7 @@ mod tests {
                 Time::from_timestamp_nanos(123),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1018,6 +1032,7 @@ mod tests {
                 Time::from_timestamp_nanos(124),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1029,6 +1044,7 @@ mod tests {
                 Time::from_timestamp_nanos(125),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await;
 
@@ -1108,6 +1124,7 @@ mod tests {
             Time::from_timestamp(20, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -1166,6 +1183,7 @@ mod tests {
             Time::from_timestamp(30, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -1187,6 +1205,7 @@ mod tests {
             Time::from_timestamp(40, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -1241,6 +1260,7 @@ mod tests {
                 Time::from_timestamp(10, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1264,6 +1284,7 @@ mod tests {
                 Time::from_timestamp(65, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1289,6 +1310,7 @@ mod tests {
                 Time::from_timestamp(147, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1331,6 +1353,7 @@ mod tests {
                 Time::from_timestamp(250, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1410,6 +1433,7 @@ mod tests {
                 Time::from_timestamp(300, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1422,6 +1446,7 @@ mod tests {
                 Time::from_timestamp(330, 0).unwrap(),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1593,6 +1618,7 @@ mod tests {
             Time::from_timestamp(10, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -1602,6 +1628,7 @@ mod tests {
             Time::from_timestamp(20, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -1611,6 +1638,7 @@ mod tests {
             Time::from_timestamp(30, 0).unwrap(),
             false,
             Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -2331,6 +2359,7 @@ mod tests {
                 start_time,
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -2359,6 +2388,7 @@ mod tests {
                 start_time,
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -2911,6 +2941,7 @@ mod tests {
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,
                     Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();
@@ -2930,6 +2961,7 @@ mod tests {
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     true,
                     Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();

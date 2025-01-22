@@ -100,6 +100,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
+        no_sync: bool,
     ) -> write_buffer::Result<BufferedWriteRequest>;
 
     /// Returns the database schema provider

@@ -426,6 +426,7 @@ mod python_plugin {
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
                         Precision::Nanosecond,
+                        false,
                     )
                     .await
                 {
@@ -447,6 +448,7 @@ mod python_plugin {
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
                         Precision::Nanosecond,
+                        false,
                     )
                     .await
                 {

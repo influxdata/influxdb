@@ -518,6 +518,7 @@ where
                 default_time,
                 params.accept_partial,
                 params.precision,
+                params.no_sync,
             )
             .await?;
 
@@ -1615,6 +1616,8 @@ pub(crate) struct WriteParams {
     pub(crate) accept_partial: bool,
     #[serde(default)]
     pub(crate) precision: Precision,
+    #[serde(default)]
+    pub(crate) no_sync: bool,
 }
 
 impl From<iox_http::write::WriteParams> for WriteParams {
@@ -1624,6 +1627,7 @@ impl From<iox_http::write::WriteParams> for WriteParams {
             // legacy behaviour was to not accept partial:
             accept_partial: false,
             precision: legacy.precision.into(),
+            no_sync: false,
         }
     }
 }
