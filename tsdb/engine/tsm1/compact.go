@@ -86,6 +86,15 @@ type errBlockRead struct {
 	err  error
 }
 
+func (e errBlockRead) Unwrap() error {
+	return e.err
+}
+
+func (e errBlockRead) Is(target error) bool {
+	_, ok := target.(errBlockRead)
+	return ok
+}
+
 func (e errBlockRead) Error() string {
 	if e.err != nil {
 		return fmt.Sprintf("block read error on %s: %s", e.file, e.err)
@@ -1348,6 +1357,9 @@ type tsmBatchKeyIterator struct {
 	// errs is any error we received while iterating values.
 	errs TSMErrors
 
+	// errSet is the error strings we have seen before
+	errSet map[string]struct{}
+
 	// indicates whether the iterator should choose a faster merging strategy over a more
 	// optimally compressed one.  If fast is true, multiple blocks will just be added as is
 	// and not combined.  In some cases, a slower path will need to be utilized even when
@@ -1393,13 +1405,18 @@ type tsmBatchKeyIterator struct {
 	overflowErrors int
 }
 
+// AppendError - store unique errors in the order of first appearance,
+// up to a limit of maxErrors.  If the error is unique and stored, return true.
 func (t *tsmBatchKeyIterator) AppendError(err error) bool {
-	if t.maxErrors > len(t.errs) {
+	s := err.Error()
+	if _, ok := t.errSet[s]; ok {
+		return true
+	} else if t.maxErrors > len(t.errs) {
 		t.errs = append(t.errs, err)
-		// Was the error stored?
+		t.errSet[s] = struct{}{}
 		return true
 	} else {
-		// Was the error dropped
+		// Was the error dropped?
 		t.overflowErrors++
 		return false
 	}
@@ -1417,6 +1434,7 @@ func NewTSMBatchKeyIterator(size int, fast bool, maxErrors int, interrupt chan s
 		readers:              readers,
 		values:               map[string][]Value{},
 		pos:                  make([]int, len(readers)),
+		errSet:               map[string]struct{}{},
 		size:                 size,
 		iterators:            iter,
 		fast:                 fast,
@@ -1616,11 +1634,11 @@ func (k *tsmBatchKeyIterator) merge() {
 }
 
 func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("encode error: unable to compress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
-	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)})
+	k.AppendError(errBlockRead{k.currentTsm, fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %w", typ, k.key, err)})
 }
 
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
@@ -1647,6 +1665,8 @@ func (k *tsmBatchKeyIterator) Close() error {
 	for _, r := range k.readers {
 		errSlice = append(errSlice, r.Close())
 	}
+	clear(k.errSet)
+	k.errs = nil
 	return errors.Join(errSlice...)
 }
 
@@ -1656,11 +1676,10 @@ func (k *tsmBatchKeyIterator) Err() error {
 		return nil
 	}
 	// Copy the errors before appending the dropped error count
-	var errs TSMErrors
-	errs = make([]error, 0, len(k.errs)+1)
+	errs := make([]error, 0, len(k.errs)+1)
 	errs = append(errs, k.errs...)
 	errs = append(errs, fmt.Errorf("additional errors dropped: %d", k.overflowErrors))
-	return errs
+	return errors.Join(errs...)
 }
 
 type cacheKeyIterator struct {

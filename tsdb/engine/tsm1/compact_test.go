@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -294,19 +294,19 @@ func TestCompactor_DecodeError(t *testing.T) {
 	compactor.FileStore = ffs
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
-	if err == nil {
-		t.Fatalf("expected error writing snapshot: %v", err)
-	}
-	if len(files) > 0 {
-		t.Fatalf("no files should be compacted: got %v", len(files))
-
-	}
+	require.Error(t, err, "expected error writing snapshot")
+	require.Zero(t, len(files), "no files should be compacted")
 
 	compactor.Open()
 
-	if _, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop()); err == nil || !strings.Contains(err.Error(), "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp") {
-		t.Fatalf("expected error writing snapshot: %v", err)
-	}
+	_, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
+
+	require.ErrorContains(t, err, "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp")
+	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(strings []string, strings2 []string, f func([]tsm1.TSMFile)) error {
+		require.Equal(t, 1, len(strings))
+		require.Equal(t, strings[0], f3)
+		return nil
+	})
 }
 
 // Ensures that a compaction will properly merge multiple TSM files
