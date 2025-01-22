@@ -3,7 +3,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{BufferFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
+use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -18,7 +18,7 @@ use hashbrown::HashMap;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
@@ -98,15 +98,11 @@ impl QueryableBuffer {
     pub fn get_table_chunks(
         &self,
         db_schema: Arc<DatabaseSchema>,
-        table_name: &str,
-        buffer_filter: &BufferFilter,
+        table_def: Arc<TableDefinition>,
+        buffer_filter: &ChunkFilter,
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let (table_id, table_def) = db_schema
-            .table_id_and_definition(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("table {} not found", table_name)))?;
-
         let influx_schema = table_def.influx_schema();
 
         let buffer = self.buffer.read();
@@ -114,7 +110,7 @@ impl QueryableBuffer {
         let Some(db_buffer) = buffer.db_to_table.get(&db_schema.id) else {
             return Ok(vec![]);
         };
-        let Some(table_buffer) = db_buffer.get(&table_id) else {
+        let Some(table_buffer) = db_buffer.get(&table_def.table_id) else {
             return Ok(vec![]);
         };
 
@@ -416,7 +412,7 @@ impl QueryableBuffer {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Vec<ParquetFile> {
         self.persisted_files
             .get_files_filtered(db_id, table_id, filter)
