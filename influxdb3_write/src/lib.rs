@@ -615,7 +615,7 @@ impl<'a> ChunkFilter<'a> {
     }
 
     pub fn original_filters(&self) -> &[Expr] {
-        &self.filters
+        self.filters
     }
 }
 
