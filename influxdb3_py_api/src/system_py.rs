@@ -644,7 +644,7 @@ pub fn execute_request_trigger(
         let py_headers_dict = headers_binding
             .downcast::<PyDict>()
             .map_err(|e| anyhow::anyhow!("Failed to downcast to PyDict: {}", e))?;
-        let body_binding = result.get_item(2).context("Python reqeust function didn't return a tuple of (status_code, response_headers, body)")?;
+        let body_binding = result.get_item(2).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?;
         let response_body: &str = body_binding.extract().context(
             "unable to convert the third tuple element from Python request function to a string",
         )?;
