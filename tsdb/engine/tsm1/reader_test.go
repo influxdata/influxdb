@@ -3,12 +3,12 @@ package tsm1
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -1867,8 +1867,22 @@ func TestTSMReader_References(t *testing.T) {
 }
 
 func TestBatchKeyIterator_Errors(t *testing.T) {
-	const MaxErrors = 10
+	const testFile = "testFile.tsm"
+	errorCases := []error{
+		fmt.Errorf("test error 0"),
+		errBlockRead{
+			file: testFile,
+			err: fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v",
+				"string", "summary#!~#mfu_estimated_percent", fmt.Errorf("test invalid error 1"))},
+		fmt.Errorf("test error 2"),
+		// Duplicate error - should be stored once, but not counted as dropped.
+		fmt.Errorf("test error 2"),
+		fmt.Errorf("test error 3"),
+		fmt.Errorf("test error 4"),
+	}
 
+	// Store all but the last error
+	MaxErrors := len(errorCases) - 2
 	dir, name := createTestTSM(t)
 	defer os.RemoveAll(dir)
 	fr, err := os.Open(name)
@@ -1879,41 +1893,33 @@ func TestBatchKeyIterator_Errors(t *testing.T) {
 	if err != nil {
 		// Only have a deferred close if we could not create the TSMReader
 		defer func() {
-			if e := fr.Close(); e != nil {
-				t.Fatalf("unexpected error closing %s: %v", name, e)
-			}
+			require.NoError(t, fr.Close(), "unexpected error closing %s", name)
 		}()
-
-		t.Fatalf("unexpected error creating TSMReader for %s: %v", name, err)
+	} else {
+		defer func() {
+			require.NoError(t, r.Close(), "unexpected error closing TSMReader for %s", name)
+		}()
 	}
-	defer func() {
-		if e := r.Close(); e != nil {
-			t.Fatalf("error closing TSMReader for %s: %v", name, e)
-		}
-	}()
+	require.NoError(t, err, "unexpected error creating TSMReader for %s", name)
 	interrupts := make(chan struct{})
 	var iter KeyIterator
-	if iter, err = NewTSMBatchKeyIterator(3, false, MaxErrors, interrupts, []string{name}, r); err != nil {
-		t.Fatalf("unexpected error creating tsmBatchKeyIterator: %v", err)
-	}
-	var i int
-	for i = 0; i < MaxErrors*2; i++ {
-		saved := iter.(*tsmBatchKeyIterator).AppendError(fmt.Errorf("fake error: %d", i))
-		if i < MaxErrors && !saved {
-			t.Fatalf("error unexpectedly not saved: %d", i)
-		}
-		if i >= MaxErrors && saved {
-			t.Fatalf("error unexpectedly saved: %d", i)
+	iter, err = NewTSMBatchKeyIterator(3, false, MaxErrors, interrupts, []string{name}, r)
+	require.NoError(t, err, "unexpected error creating tsmBatchKeyIterator")
+
+	for i := 0; i < 2; i++ {
+		for _, e := range errorCases {
+			saved := iter.(*tsmBatchKeyIterator).AppendError(e)
+			savedErrs := iter.(*tsmBatchKeyIterator).Err().(interface{ Unwrap() []error }).Unwrap()
+			require.False(t, len(savedErrs) < MaxErrors && !saved, "error not saved when it should have been: %v", e)
 		}
 	}
-	errs := iter.Err()
-	if errCnt := len(errs.(TSMErrors)); errCnt != (MaxErrors + 1) {
-		t.Fatalf("saved wrong number of errors: expected %d, got %d", MaxErrors, errCnt)
-	}
-	expected := fmt.Sprintf("additional errors dropped: %d", i-MaxErrors)
-	if strings.Compare(errs.(TSMErrors)[MaxErrors].Error(), expected) != 0 {
-		t.Fatalf("expected: '%s', got: '%s", expected, errs.(TSMErrors)[MaxErrors].Error())
-	}
+	var blockReadError errBlockRead
+	iterErr := iter.Err()
+	joinErr, ok := iterErr.(interface{ Unwrap() []error })
+	require.True(t, ok, "errs does not implement Unwrap() as a joinError should: %T", iterErr)
+	require.Equal(t, 1+MaxErrors, len(joinErr.Unwrap()), "saved wrong number of errors")
+	require.True(t, errors.As(iterErr, &blockReadError), "expected errBlockRead error, got %T", err)
+	require.Equal(t, testFile, blockReadError.file, "unexpected file name in error")
 }
 
 func createTestTSM(t *testing.T) (dir string, name string) {
