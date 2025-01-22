@@ -20,11 +20,11 @@ use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb3_write::WriteBuffer;
+use influxdb3_write::{ChunkFilter, WriteBuffer};
 use influxdb_influxql_parser::statement::Statement;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::provider::ProviderBuilder;
@@ -37,7 +37,6 @@ use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
-use schema::Schema;
 use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -542,12 +541,11 @@ impl Database {
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
         let table_name: Arc<str> = table_name.into();
         self.db_schema
-            .table_schema(Arc::clone(&table_name))
-            .map(|schema| {
+            .table_definition(Arc::clone(&table_name))
+            .map(|table_def| {
                 Arc::new(QueryTable {
                     db_schema: Arc::clone(&self.db_schema),
-                    table_name,
-                    schema: schema.clone(),
+                    table_def,
                     write_buffer: Arc::clone(&self.write_buffer),
                 })
             })
@@ -671,8 +669,7 @@ impl SchemaProvider for Database {
 #[derive(Debug)]
 pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
-    table_name: Arc<str>,
-    schema: Schema,
+    table_def: Arc<TableDefinition>,
     write_buffer: Arc<dyn WriteBuffer>,
 }
 
@@ -684,10 +681,13 @@ impl QueryTable {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let buffer_filter = ChunkFilter::new(&self.table_def, filters)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?;
+
         self.write_buffer.get_table_chunks(
-            &self.db_schema.name,
-            &self.table_name,
-            filters,
+            Arc::clone(&self.db_schema),
+            Arc::clone(&self.table_def),
+            &buffer_filter,
             projection,
             ctx,
         )
@@ -701,7 +701,7 @@ impl TableProvider for QueryTable {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.as_arrow()
+        self.table_def.schema.as_arrow()
     }
 
     fn table_type(&self) -> TableType {
@@ -729,17 +729,20 @@ impl TableProvider for QueryTable {
             ?limit,
             "QueryTable as TableProvider::scan"
         );
-        let mut builder = ProviderBuilder::new(Arc::clone(&self.table_name), self.schema.clone());
+        let mut builder = ProviderBuilder::new(
+            Arc::clone(&self.table_def.table_name),
+            self.table_def.schema.clone(),
+        );
 
         let chunks = self.chunks(ctx, projection, &filters, limit)?;
         for chunk in chunks {
             builder = builder.add_chunk(chunk);
         }
 
-        let provider = match builder.build() {
-            Ok(provider) => provider,
-            Err(e) => panic!("unexpected error: {e:?}"),
-        };
+        // NOTE: this build method is, at time of writing, infallible, but handle the error anyway.
+        let provider = builder
+            .build()
+            .map_err(|e| DataFusionError::Internal(format!("unexpected error: {e:?}")))?;
 
         provider.scan(ctx, projection, &filters, limit).await
     }

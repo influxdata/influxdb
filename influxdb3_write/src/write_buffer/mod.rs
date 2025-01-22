@@ -13,7 +13,7 @@ use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
 use crate::{chunk::ParquetChunk, DatabaseManager};
 use crate::{
-    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DistinctCacheManager,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
     LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
 use async_trait::async_trait;
@@ -24,14 +24,13 @@ use data_types::{
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
-use datafusion::logical_expr::Expr;
 use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, DistinctCacheProvider};
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::FieldDataType;
-use influxdb3_wal::TableDefinition;
+use influxdb3_wal::WalTableDefinition;
 use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DistinctCacheDefinition, DistinctCacheDelete, LastCacheDefinition,
@@ -310,39 +309,23 @@ impl WriteBufferImpl {
 
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self.catalog.db_schema(database_name).ok_or_else(|| {
-            DataFusionError::Execution(format!("database {} not found", database_name))
-        })?;
-
-        let table_def = db_schema.table_definition(table_name).ok_or_else(|| {
-            DataFusionError::Execution(format!(
-                "table {} not found in db {}",
-                table_name, database_name
-            ))
-        })?;
-
-        let buffer_filter = BufferFilter::new(&table_def, filters)
-            .map_err(|error| DataFusionError::External(Box::new(error)))?;
-
         let mut chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
-            table_name,
-            &buffer_filter,
+            Arc::clone(&table_def),
+            filter,
             projection,
             ctx,
         )?;
 
-        let parquet_files = self.persisted_files.get_files_filtered(
-            db_schema.id,
-            table_def.table_id,
-            &buffer_filter,
-        );
+        let parquet_files =
+            self.persisted_files
+                .get_files_filtered(db_schema.id, table_def.table_id, filter);
 
         let mut chunk_order = chunks.len() as i64;
 
@@ -368,33 +351,15 @@ impl WriteBufferImpl {
         &self,
         database_name: &str,
         table_name: &str,
-        filters: &[Expr],
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
-    ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self.catalog.db_schema(database_name).ok_or_else(|| {
-            DataFusionError::Execution(format!("database {} not found", database_name))
-        })?;
-
-        let table_def = db_schema.table_definition(table_name).ok_or_else(|| {
-            DataFusionError::Execution(format!(
-                "table {} not found in db {}",
-                table_name, database_name
-            ))
-        })?;
-
-        let filter = BufferFilter::new(&table_def, filters)
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-
-        let chunks = self.buffer.get_table_chunks(
-            Arc::clone(&db_schema),
-            table_name,
-            &filter,
-            projection,
-            ctx,
-        )?;
-
-        Ok(chunks)
+    ) -> Vec<Arc<dyn QueryChunk>> {
+        let db_schema = self.catalog.db_schema(database_name).unwrap();
+        let table_def = db_schema.table_definition(table_name).unwrap();
+        self.buffer
+            .get_table_chunks(db_schema, table_def, filter, projection, ctx)
+            .unwrap()
     }
 }
 
@@ -472,7 +437,7 @@ impl Bufferer for WriteBufferImpl {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Vec<ParquetFile> {
         self.buffer.persisted_parquet_files(db_id, table_id, filter)
     }
@@ -485,13 +450,13 @@ impl Bufferer for WriteBufferImpl {
 impl ChunkContainer for WriteBufferImpl {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        self.get_table_chunks(database_name, table_name, filters, projection, ctx)
+        self.get_table_chunks(db_schema, table_def, filter, projection, ctx)
     }
 }
 
@@ -772,7 +737,7 @@ impl DatabaseManager for WriteBufferImpl {
             field_definitions
         };
 
-        let catalog_table_def = TableDefinition {
+        let catalog_table_def = WalTableDefinition {
             database_id: db_schema.id,
             database_name: Arc::clone(&db_schema.name),
             table_name: Arc::clone(&table_name),
@@ -908,6 +873,7 @@ mod tests {
     use super::*;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
+    use crate::test_helpers::WriteBufferTester;
     use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
@@ -1012,7 +978,9 @@ mod tests {
             "| 1.0 | 1970-01-01T00:00:00.000000010Z |",
             "+-----+--------------------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_eq!(&expected, &actual);
 
         // do two more writes to trigger a snapshot
@@ -1047,7 +1015,9 @@ mod tests {
             "| 3.0 | 1970-01-01T00:00:00.000000030Z |",
             "+-----+--------------------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_eq!(&expected, &actual);
 
         // now load a new buffer from object storage
@@ -1078,7 +1048,9 @@ mod tests {
         .await
         .unwrap();
 
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_eq!(&expected, &actual);
     }
 
@@ -1251,7 +1223,9 @@ mod tests {
             "| 1.0 | 1970-01-01T00:00:10Z |",
             "+-----+----------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
 
         let _ = write_buffer
@@ -1273,7 +1247,9 @@ mod tests {
             "| 2.0 | 1970-01-01T00:01:05Z |",
             "+-----+----------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
 
         // trigger snapshot with a third write, creating parquet files
@@ -1313,7 +1289,9 @@ mod tests {
             "| 1.0 | 1970-01-01T00:00:10Z |",
             "+-----+----------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
 
         // now validate that buffered data and parquet data are all returned
@@ -1338,10 +1316,14 @@ mod tests {
             "| 1.0 | 1970-01-01T00:00:10Z |",
             "+-----+----------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
 
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &session_context)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
         // and now replay in a new write buffer and attempt to write
         let catalog = Arc::new(
@@ -1385,7 +1367,9 @@ mod tests {
         );
 
         // verify the data is still there
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
 
         // now write some new data
@@ -1424,7 +1408,9 @@ mod tests {
             "| 6.0 | 1970-01-01T00:05:30Z |",
             "+-----+----------------------+",
         ];
-        let actual = get_table_batches(&write_buffer, "foo", "cpu", &ctx).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("foo", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(&expected, &actual);
     }
 
@@ -1753,7 +1739,9 @@ mod tests {
         // wait for snapshot to be created:
         verify_snapshot_count(1, &wbuf.persister).await;
         // Get the record batches from before shutting down buffer:
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----------+-------+----------------------+",
@@ -1777,7 +1765,9 @@ mod tests {
         }
 
         // Get the record batches from replayed buffer:
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----------+-------+----------------------+",
@@ -1860,7 +1850,9 @@ mod tests {
         .await;
 
         // Get the record batches from replyed buffer:
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----------+-------+----------------------+-------+",
@@ -1938,7 +1930,9 @@ mod tests {
         .await;
 
         // Get the record batches from replayed buffer:
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----------+-------+----------------------+",
@@ -2150,7 +2144,9 @@ mod tests {
         assert_eq!(0, test_store.get_range_request_count(&path));
         assert_eq!(0, test_store.head_request_count(&path));
 
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+--------+---------+------+----------------------+-----------+",
@@ -2256,7 +2252,9 @@ mod tests {
         assert_eq!(0, test_store.get_range_request_count(&path));
         assert_eq!(0, test_store.head_request_count(&path));
 
-        let batches = get_table_batches(&wbuf, db_name, tbl_name, &ctx).await;
+        let batches = wbuf
+            .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+--------+---------+------+----------------------+-----------+",
@@ -2674,7 +2672,9 @@ mod tests {
         // at this point all of the data in query buffer will be
         // for timestamps 20 - 50 and none of recent data will be
         // in buffer.
-        let actual = get_table_batches(&write_buffer, "sample", "cpu", &session_context).await;
+        let actual = write_buffer
+            .get_record_batches_unchecked("sample", "cpu", &session_context)
+            .await;
         // not sorting, intentionally
         assert_batches_eq!(
             [
@@ -3048,41 +3048,22 @@ mod tests {
         (wbuf, ctx, time_provider, metric_registry)
     }
 
-    async fn get_table_batches(
-        write_buffer: &WriteBufferImpl,
-        database_name: &str,
-        table_name: &str,
-        ctx: &IOxSessionContext,
-    ) -> Vec<RecordBatch> {
-        let chunks = write_buffer
-            .get_table_chunks(database_name, table_name, &[], None, &ctx.inner().state())
-            .unwrap();
-        let mut batches = vec![];
-        for chunk in chunks {
-            let chunk = chunk
-                .data()
-                .read_to_batches(chunk.schema(), ctx.inner())
-                .await;
-            batches.extend(chunk);
-        }
-        batches
-    }
-
+    /// Get table batches from the buffer only
+    ///
+    /// This is meant to be used in tests.
     async fn get_table_batches_from_query_buffer(
         write_buffer: &WriteBufferImpl,
         database_name: &str,
         table_name: &str,
         ctx: &IOxSessionContext,
     ) -> Vec<RecordBatch> {
-        let chunks = write_buffer
-            .get_table_chunks_from_buffer_only(
-                database_name,
-                table_name,
-                &[],
-                None,
-                &ctx.inner().state(),
-            )
-            .unwrap();
+        let chunks = write_buffer.get_table_chunks_from_buffer_only(
+            database_name,
+            table_name,
+            &ChunkFilter::default(),
+            None,
+            &ctx.inner().state(),
+        );
         let mut batches = vec![];
         for chunk in chunks {
             let chunk = chunk

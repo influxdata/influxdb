@@ -351,7 +351,7 @@ fn validate_and_qualify_v1_line(
         for (id, name, influx_type) in &columns {
             field_definitions.push(FieldDefinition::new(*id, Arc::clone(name), influx_type));
         }
-        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::WalTableDefinition {
             table_id,
             database_id: db_schema.id,
             database_name: Arc::clone(&db_schema.name),

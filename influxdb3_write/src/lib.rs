@@ -113,7 +113,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.parquet_files_filtered(db_id, table_id, &BufferFilter::default())
+        self.parquet_files_filtered(db_id, table_id, &ChunkFilter::default())
     }
 
     /// Returns the parquet files for a given database and table that satisfy the given filter
@@ -121,7 +121,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
@@ -133,9 +133,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 pub trait ChunkContainer: Debug + Send + Sync + 'static {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
@@ -428,13 +428,84 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 
 #[cfg(test)]
 mod test_helpers {
-    use crate::write_buffer::validator::WriteValidator;
-    use crate::Precision;
+    use crate::{write_buffer::validator::WriteValidator, WriteBuffer};
+    use crate::{ChunkFilter, Precision};
+    use arrow::array::RecordBatch;
     use data_types::NamespaceName;
+    use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::{Gen1Duration, WriteBatch};
+    use iox_query::exec::IOxSessionContext;
     use iox_time::Time;
     use std::sync::Arc;
+
+    /// Helper trait for getting [`RecordBatch`]es from a [`WriteBuffer`] implementation in tests
+    #[async_trait::async_trait]
+    pub trait WriteBufferTester {
+        /// Get record batches for the given database and table, using the provided filter `Expr`s
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
+
+        /// Get record batches for the given database and table
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
+    }
+
+    #[async_trait::async_trait]
+    impl<T> WriteBufferTester for T
+    where
+        T: WriteBuffer,
+    {
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            let db_schema = self
+                .catalog()
+                .db_schema(database_name)
+                .expect("database should exist");
+            let table_def = db_schema
+                .table_definition(table_name)
+                .expect("table should exist");
+            let filter =
+                ChunkFilter::new(&table_def, filters).expect("filter expressions should be valid");
+            let chunks = self
+                .get_table_chunks(db_schema, table_def, &filter, None, &ctx.inner().state())
+                .expect("should get query chunks");
+            let mut batches = vec![];
+            for chunk in chunks {
+                batches.extend(
+                    chunk
+                        .data()
+                        .read_to_batches(chunk.schema(), ctx.inner())
+                        .await,
+                );
+            }
+            batches
+        }
+
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            self.get_record_batches_filtered_unchecked(database_name, table_name, &[], ctx)
+                .await
+        }
+    }
 
     #[allow(dead_code)]
     pub(crate) fn lp_to_write_batch(
@@ -496,19 +567,19 @@ pub(crate) mod test_help {
 
 /// A derived set of filters that are used to prune data in the buffer when serving queries
 #[derive(Debug, Default)]
-pub struct BufferFilter {
+pub struct ChunkFilter {
     time_lower_bound_ns: Option<i64>,
     time_upper_bound_ns: Option<i64>,
-    guarantees: HashMap<ColumnId, BufferGuarantee>,
+    guarantees: HashMap<ColumnId, HashedLiteralGuarantee>,
 }
 
 #[derive(Debug)]
-pub struct BufferGuarantee {
+pub struct HashedLiteralGuarantee {
     pub guarantee: Guarantee,
     pub literal_hashes: HashSet<u64>,
 }
 
-impl BufferFilter {
+impl ChunkFilter {
     /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
     /// a logical query plan.
     ///
@@ -615,7 +686,7 @@ impl BufferFilter {
                 // if there are multiple Expr's that lead to multiple guarantees on a given column.
                 guarantees
                     .entry(column_id)
-                    .and_modify(|e: &mut BufferGuarantee| {
+                    .and_modify(|e: &mut HashedLiteralGuarantee| {
                         debug!(current = ?e.guarantee, incoming = ?guarantee, ">>> updating existing guarantee");
                         use Guarantee::*;
                         match (e.guarantee, guarantee) {
@@ -630,7 +701,7 @@ impl BufferFilter {
                             }
                         }
                     })
-                    .or_insert(BufferGuarantee {
+                    .or_insert(HashedLiteralGuarantee {
                         guarantee,
                         literal_hashes: literals,
                     });
@@ -676,7 +747,7 @@ impl BufferFilter {
         }
     }
 
-    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &BufferGuarantee)> {
+    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &HashedLiteralGuarantee)> {
         self.guarantees.iter()
     }
 }
