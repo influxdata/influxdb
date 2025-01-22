@@ -31,6 +31,7 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 
 pub mod manager;
 pub mod plugins;
+pub(crate) mod virtualenv;
 
 #[derive(Debug)]
 pub struct ProcessingEngineManagerImpl {
@@ -208,6 +209,11 @@ impl ProcessingEngineManagerImpl {
         time_provider: Arc<dyn TimeProvider>,
         wal: Arc<dyn Wal>,
     ) -> Self {
+        // if given a plugin dir, try to initialize the virtualenv.
+        if let Some(ref plugin_dir) = plugin_dir {
+            let venv_path = plugin_dir.join(".venv");
+            virtualenv::try_init_venv(&venv_path)
+        }
         Self {
             plugin_dir,
             catalog,
