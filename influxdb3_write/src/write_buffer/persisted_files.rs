@@ -2,7 +2,7 @@
 //! When queries come in they will combine whatever chunks exist from `QueryableBuffer` with
 //! the persisted files to get the full set of data to query.
 
-use crate::BufferFilter;
+use crate::ChunkFilter;
 use crate::{ParquetFile, PersistedSnapshot};
 use hashbrown::HashMap;
 use influxdb3_id::DbId;
@@ -49,7 +49,7 @@ impl PersistedFiles {
 
     /// Get the list of files for a given database and table, always return in descending order of min_time
     pub fn get_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.get_files_filtered(db_id, table_id, &BufferFilter::default())
+        self.get_files_filtered(db_id, table_id, &ChunkFilter::default())
     }
 
     /// Get the list of files for a given database and table, using the provided filter to filter results.
@@ -59,7 +59,7 @@ impl PersistedFiles {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Vec<ParquetFile> {
         let three_days_ago = (self.time_provider.now() - crate::THREE_DAYS).timestamp_nanos();
         let mut files = {
@@ -388,7 +388,7 @@ mod tests {
         );
 
         for t in test_cases {
-            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
             let filtered_files =
                 persisted_files.get_files_filtered(DbId::from(0), TableId::from(0), &filter);
             assert_eq!(

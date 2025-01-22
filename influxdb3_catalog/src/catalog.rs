@@ -744,7 +744,7 @@ impl UpdateDatabaseSchema for CatalogOp {
     }
 }
 
-impl UpdateDatabaseSchema for influxdb3_wal::TableDefinition {
+impl UpdateDatabaseSchema for influxdb3_wal::WalTableDefinition {
     fn update_schema<'a>(
         &self,
         mut database_schema: Cow<'a, DatabaseSchema>,
@@ -1039,7 +1039,7 @@ impl TableDefinition {
     }
 
     /// Create a new table definition from a catalog op
-    pub fn new_from_op(table_definition: &influxdb3_wal::TableDefinition) -> Self {
+    pub fn new_from_op(table_definition: &influxdb3_wal::WalTableDefinition) -> Self {
         let mut columns = Vec::with_capacity(table_definition.field_definitions.len());
         for field_def in &table_definition.field_definitions {
             columns.push((
@@ -1059,7 +1059,7 @@ impl TableDefinition {
 
     pub(crate) fn check_and_add_new_fields(
         &self,
-        table_definition: &influxdb3_wal::TableDefinition,
+        table_definition: &influxdb3_wal::WalTableDefinition,
     ) -> Result<Cow<'_, Self>> {
         // validate the series key is the same
         if table_definition.key != self.series_key {
@@ -1942,7 +1942,7 @@ mod tests {
         let db_name = Arc::from("foo");
         let table_id = TableId::new();
         let table_name = Arc::from("bar");
-        let table_definition = influxdb3_wal::TableDefinition {
+        let table_definition = influxdb3_wal::WalTableDefinition {
             database_id: db_id,
             database_name: Arc::clone(&db_name),
             table_name: Arc::clone(&table_name),

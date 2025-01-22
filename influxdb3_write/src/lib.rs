@@ -113,7 +113,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 
     /// Returns the parquet files for a given database and table
     fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.parquet_files_filtered(db_id, table_id, &BufferFilter::default())
+        self.parquet_files_filtered(db_id, table_id, &ChunkFilter::default())
     }
 
     /// Returns the parquet files for a given database and table that satisfy the given filter
@@ -121,7 +121,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
@@ -133,9 +133,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 pub trait ChunkContainer: Debug + Send + Sync + 'static {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
@@ -426,89 +426,22 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
     }
 }
 
-#[cfg(test)]
-mod test_helpers {
-    use crate::write_buffer::validator::WriteValidator;
-    use crate::Precision;
-    use data_types::NamespaceName;
-    use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_wal::{Gen1Duration, WriteBatch};
-    use iox_time::Time;
-    use std::sync::Arc;
-
-    #[allow(dead_code)]
-    pub(crate) fn lp_to_write_batch(
-        catalog: Arc<Catalog>,
-        db_name: &'static str,
-        lp: &str,
-    ) -> WriteBatch {
-        let db_name = NamespaceName::new(db_name).unwrap();
-        let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
-            .unwrap()
-            .v1_parse_lines_and_update_schema(
-                lp,
-                false,
-                Time::from_timestamp_nanos(0),
-                Precision::Nanosecond,
-            )
-            .unwrap()
-            .convert_lines_to_buffer(Gen1Duration::new_5m());
-
-        result.valid_data
-    }
-}
-
-#[cfg(test)]
-pub(crate) mod test_help {
-    use iox_query::exec::DedicatedExecutor;
-    use iox_query::exec::Executor;
-    use iox_query::exec::ExecutorConfig;
-    use object_store::memory::InMemory;
-    use object_store::ObjectStore;
-    use parquet_file::storage::ParquetStorage;
-    use parquet_file::storage::StorageId;
-    use std::num::NonZeroUsize;
-    use std::sync::Arc;
-
-    pub(crate) fn make_exec() -> Arc<Executor> {
-        let metrics = Arc::new(metric::Registry::default());
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-
-        let parquet_store = ParquetStorage::new(
-            Arc::clone(&object_store),
-            StorageId::from("test_exec_storage"),
-        );
-        Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                // Default to 1gb
-                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
-            },
-            DedicatedExecutor::new_testing(),
-        ))
-    }
-}
-
 /// A derived set of filters that are used to prune data in the buffer when serving queries
 #[derive(Debug, Default)]
-pub struct BufferFilter {
+pub struct ChunkFilter<'a> {
     time_lower_bound_ns: Option<i64>,
     time_upper_bound_ns: Option<i64>,
-    guarantees: HashMap<ColumnId, BufferGuarantee>,
+    guarantees: HashMap<ColumnId, HashedLiteralGuarantee>,
+    filters: &'a [Expr],
 }
 
 #[derive(Debug)]
-pub struct BufferGuarantee {
+pub struct HashedLiteralGuarantee {
     pub guarantee: Guarantee,
     pub literal_hashes: HashSet<u64>,
 }
 
-impl BufferFilter {
+impl<'a> ChunkFilter<'a> {
     /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
     /// a logical query plan.
     ///
@@ -518,7 +451,7 @@ impl BufferFilter {
     ///   an interval that defines the boundaries on `time` from the query.
     /// - determine if there are any [`LiteralGuarantee`]s on tag columns contained in the filter
     ///   predicates of the query.
-    pub fn new(table_def: &Arc<TableDefinition>, exprs: &[Expr]) -> Result<Self> {
+    pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
         debug!(input = ?exprs, ">>> creating buffer filter");
         let mut time_interval: Option<Interval> = None;
         let arrow_schema = table_def.schema.as_arrow();
@@ -615,7 +548,7 @@ impl BufferFilter {
                 // if there are multiple Expr's that lead to multiple guarantees on a given column.
                 guarantees
                     .entry(column_id)
-                    .and_modify(|e: &mut BufferGuarantee| {
+                    .and_modify(|e: &mut HashedLiteralGuarantee| {
                         debug!(current = ?e.guarantee, incoming = ?guarantee, ">>> updating existing guarantee");
                         use Guarantee::*;
                         match (e.guarantee, guarantee) {
@@ -630,7 +563,7 @@ impl BufferFilter {
                             }
                         }
                     })
-                    .or_insert(BufferGuarantee {
+                    .or_insert(HashedLiteralGuarantee {
                         guarantee,
                         literal_hashes: literals,
                     });
@@ -662,6 +595,7 @@ impl BufferFilter {
             time_lower_bound_ns,
             time_upper_bound_ns,
             guarantees,
+            filters: exprs,
         })
     }
 
@@ -676,8 +610,88 @@ impl BufferFilter {
         }
     }
 
-    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &BufferGuarantee)> {
+    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &HashedLiteralGuarantee)> {
         self.guarantees.iter()
+    }
+
+    pub fn original_filters(&self) -> &[Expr] {
+        self.filters
+    }
+}
+
+pub mod test_helpers {
+    use crate::ChunkFilter;
+    use crate::WriteBuffer;
+    use arrow::array::RecordBatch;
+    use datafusion::prelude::Expr;
+    use iox_query::exec::IOxSessionContext;
+
+    /// Helper trait for getting [`RecordBatch`]es from a [`WriteBuffer`] implementation in tests
+    #[async_trait::async_trait]
+    pub trait WriteBufferTester {
+        /// Get record batches for the given database and table, using the provided filter `Expr`s
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
+
+        /// Get record batches for the given database and table
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
+    }
+
+    #[async_trait::async_trait]
+    impl<T> WriteBufferTester for T
+    where
+        T: WriteBuffer,
+    {
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            let db_schema = self
+                .catalog()
+                .db_schema(database_name)
+                .expect("database should exist");
+            let table_def = db_schema
+                .table_definition(table_name)
+                .expect("table should exist");
+            let filter =
+                ChunkFilter::new(&table_def, filters).expect("filter expressions should be valid");
+            let chunks = self
+                .get_table_chunks(db_schema, table_def, &filter, None, &ctx.inner().state())
+                .expect("should get query chunks");
+            let mut batches = vec![];
+            for chunk in chunks {
+                batches.extend(
+                    chunk
+                        .data()
+                        .read_to_batches(chunk.schema(), ctx.inner())
+                        .await,
+                );
+            }
+            batches
+        }
+
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            self.get_record_batches_filtered_unchecked(database_name, table_name, &[], ctx)
+                .await
+        }
     }
 }
 
