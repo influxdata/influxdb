@@ -12,6 +12,7 @@ system-py = ["pyo3"]
 anyhow.workspace = true
 arrow-array.workspace = true
 arrow-schema.workspace = true
+bytes.workspace = true
 chrono.workspace = true
 hashbrown.workspace = true
 influxdb3_id = { path = "../influxdb3_id" }

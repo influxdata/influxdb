@@ -208,8 +208,8 @@ pub struct PluginConfig {
     /// Python file name of the file on the server's plugin-dir containing the plugin code
     #[clap(long = "filename")]
     file_name: String,
-    /// Type of trigger the plugin processes. Options: wal_rows, scheduled
-    #[clap(long = "plugin-type", default_value = "wal_rows")]
+    /// Type of trigger the plugin processes. Options: wal_rows, scheduled, request
+    #[clap(long = "plugin-type")]
     plugin_type: String,
     /// Name of the plugin to create
     plugin_name: String,

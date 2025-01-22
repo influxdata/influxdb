@@ -80,6 +80,7 @@ tokio-util.workspace = true
 tonic.workspace = true
 tower.workspace = true
 unicode-segmentation.workspace = true
+url.workspace = true
 
 [dependencies.pyo3]
 version = "0.23.3"

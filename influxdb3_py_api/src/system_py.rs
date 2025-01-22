@@ -6,6 +6,7 @@ use arrow_array::{
     TimestampNanosecondArray, UInt64Array,
 };
 use arrow_schema::DataType;
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use hashbrown::HashMap;
@@ -18,7 +19,7 @@ use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::{PyAnyMethods, PyModule};
-use pyo3::types::{PyDateTime, PyDict, PyList, PyTuple};
+use pyo3::types::{PyBytes, PyDateTime, PyDict, PyList, PyTuple};
 use pyo3::{
     create_exception, pyclass, pymethods, pymodule, Bound, IntoPyObject, Py, PyAny, PyObject,
     PyResult, Python,
@@ -260,6 +261,8 @@ const PROCESS_WRITES_CALL_SITE: &str = "process_writes";
 
 const PROCESS_SCHEDULED_CALL_SITE: &str = "process_scheduled_call";
 
+const PROCESS_REQUEST_CALL_SITE: &str = "process_request";
+
 const LINE_BUILDER_CODE: &str = r#"
 from typing import Optional
 from collections import OrderedDict
@@ -377,14 +380,17 @@ fn args_to_py_object<'py>(
     py: Python<'py>,
     args: &Option<HashMap<String, String>>,
 ) -> Option<Bound<'py, PyDict>> {
-    args.as_ref().map(|args| {
-        let dict = PyDict::new(py);
-        for (key, value) in args {
-            dict.set_item(key, value).unwrap();
-        }
-        dict
-    })
+    args.as_ref().map(|args| map_to_py_object(py, args))
 }
+
+fn map_to_py_object<'py>(py: Python<'py>, map: &HashMap<String, String>) -> Bound<'py, PyDict> {
+    let dict = PyDict::new(py);
+    for (key, value) in map {
+        dict.set_item(key, value).unwrap();
+    }
+    dict
+}
+
 pub fn execute_python_with_batch(
     code: &str,
     write_batch: &WriteBatch,
@@ -526,18 +532,22 @@ pub fn execute_schedule_trigger(
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
     args: &Option<HashMap<String, String>>,
-) -> PyResult<PluginReturnState> {
+) -> Result<PluginReturnState, ExecutePluginError> {
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);
 
-        let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)?;
+        let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)
+            .map_err(|e| {
+                anyhow::Error::new(e).context("error converting the schedule time to Python time")
+            })?;
 
         py.run(
             &CString::new(LINE_BUILDER_CODE).unwrap(),
             Some(&globals),
             None,
-        )?;
+        )
+        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
 
         let api = PyPluginCallApi {
             db_schema: schema,
@@ -545,26 +555,127 @@ pub fn execute_schedule_trigger(
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
-        let local_api = api.into_pyobject(py)?;
+        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
 
         // turn args into an optional dict to pass into python
         let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)?;
-        let py_func = py.eval(
-            &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
-            Some(&globals),
-            None,
-        )?;
+        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+            .map_err(anyhow::Error::from)?;
 
-        py_func.call1((local_api, py_datetime, args))?;
+        let py_func = py
+            .eval(
+                &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
+                Some(&globals),
+                None,
+            )
+            .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?;
+
+        py_func
+            .call1((local_api, py_datetime, args))
+            .map_err(anyhow::Error::from)?;
 
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();
         let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
 
         Ok(ret)
+    })
+}
+
+pub fn execute_request_trigger(
+    code: &str,
+    db_schema: Arc<DatabaseSchema>,
+    query_executor: Arc<dyn QueryExecutor>,
+    args: &Option<HashMap<String, String>>,
+    query_params: HashMap<String, String>,
+    request_headers: HashMap<String, String>,
+    request_body: Bytes,
+) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
+    Python::with_gil(|py| {
+        // import the LineBuilder for use in the python code
+        let globals = PyDict::new(py);
+
+        py.run(
+            &CString::new(LINE_BUILDER_CODE).unwrap(),
+            Some(&globals),
+            None,
+        )
+        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
+
+        let api = PyPluginCallApi {
+            db_schema,
+            query_executor,
+            return_state: Default::default(),
+        };
+        let return_state = Arc::clone(&api.return_state);
+        let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
+
+        // turn args into an optional dict to pass into python
+        let args = args_to_py_object(py, args);
+
+        let query_params = map_to_py_object(py, &query_params);
+        let request_params = map_to_py_object(py, &request_headers);
+
+        // run the code and get the python function to call
+        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+            .map_err(anyhow::Error::from)?;
+
+        let py_func = py
+            .eval(
+                &CString::new(PROCESS_REQUEST_CALL_SITE).unwrap(),
+                Some(&globals),
+                None,
+            )
+            .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?;
+
+        // convert the body bytes into python bytes blob
+        let request_body = PyBytes::new(py, &request_body[..]);
+
+        // get the result from calling the python function
+        let result = py_func
+            .call1((local_api, query_params, request_params, request_body, args))
+            .map_err(|e| anyhow::anyhow!("Python function call failed: {}", e))?;
+
+        // the return from the process_request function should be a tuple of (status_code, response_headers, body)
+        let response_code: i64 = result.get_item(0).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?.extract().context("unable to convert first tuple element from Python request function return to integer")?;
+        let headers_binding = result.get_item(1).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?;
+        let py_headers_dict = headers_binding
+            .downcast::<PyDict>()
+            .map_err(|e| anyhow::anyhow!("Failed to downcast to PyDict: {}", e))?;
+        let body_binding = result.get_item(2).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?;
+        let response_body: &str = body_binding.extract().context(
+            "unable to convert the third tuple element from Python request function to a string",
+        )?;
+
+        // Then convert the dict to HashMap
+        let response_headers: std::collections::HashMap<String, String> = py_headers_dict
+            .extract()
+            .map_err(|e| anyhow::anyhow!("error converting response headers into hashmap {}", e))?;
+
+        // convert the returned i64 to a u16 or it's a 500
+        let response_code: u16 = response_code.try_into().unwrap_or_else(|_| {
+            warn!(
+                "Invalid response code from Python request trigger: {}",
+                response_code
+            );
+
+            500
+        });
+
+        let response_headers: HashMap<String, String> = response_headers.into_iter().collect();
+
+        // swap with an empty return state to avoid cloning
+        let empty_return_state = PluginReturnState::default();
+        let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
+
+        Ok((
+            response_code,
+            response_headers,
+            response_body.to_string(),
+            ret,
+        ))
     })
 }
 

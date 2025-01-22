@@ -2996,11 +2996,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "chrono",
  "cron 0.15.0",
  "data_types",
  "datafusion_util",
  "hashbrown 0.15.2",
+ "hyper 0.14.32",
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
@@ -3016,6 +3018,7 @@ dependencies = [
  "parquet_file",
  "pyo3",
  "reqwest 0.11.27",
+ "serde_json",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -3028,6 +3031,7 @@ dependencies = [
  "anyhow",
  "arrow-array",
  "arrow-schema",
+ "bytes",
  "chrono",
  "futures",
  "hashbrown 0.15.2",
@@ -3123,6 +3127,7 @@ dependencies = [
  "trace_http",
  "tracker",
  "unicode-segmentation",
+ "url",
  "urlencoding",
 ]
 
