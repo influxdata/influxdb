@@ -443,7 +443,7 @@ mod tests {
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{
         CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, SnapshotSequenceNumber,
-        TableDefinition, WalFileSequenceNumber,
+        WalFileSequenceNumber, WalTableDefinition,
     };
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
@@ -495,7 +495,7 @@ mod tests {
                 database_id: db_schema.id,
                 database_name: Arc::clone(&db_schema.name),
                 time_ns: 5000,
-                ops: vec![CatalogOp::CreateTable(TableDefinition {
+                ops: vec![CatalogOp::CreateTable(WalTableDefinition {
                     database_id: db_schema.id,
                     database_name: Arc::clone(&db_schema.name),
                     table_name: name.into(),

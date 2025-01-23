@@ -382,7 +382,7 @@ impl OrderedCatalogBatch {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
-    CreateTable(TableDefinition),
+    CreateTable(WalTableDefinition),
     AddFields(FieldAdditions),
     CreateDistinctCache(DistinctCacheDefinition),
     DeleteDistinctCache(DistinctCacheDelete),
@@ -421,7 +421,7 @@ pub struct DeleteTableDefinition {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct TableDefinition {
+pub struct WalTableDefinition {
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub table_name: Arc<str>,

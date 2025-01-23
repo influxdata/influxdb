@@ -1,17 +1,26 @@
 #[cfg(feature = "system-py")]
+use crate::PluginCode;
+#[cfg(feature = "system-py")]
 use crate::PluginEvent;
+use data_types::NamespaceName;
+use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_wal::Gen1Duration;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerDefinition;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::write_buffer;
+use influxdb3_write::write_buffer::validator::WriteValidator;
+use influxdb3_write::Precision;
 #[cfg(feature = "system-py")]
 use influxdb3_write::WriteBuffer;
+#[cfg(feature = "system-py")]
+use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
 #[cfg(feature = "system-py")]
@@ -20,14 +29,6 @@ use std::sync::Arc;
 use thiserror::Error;
 #[cfg(feature = "system-py")]
 use tokio::sync::mpsc;
-
-use data_types::NamespaceName;
-use hashbrown::HashMap;
-use influxdb3_wal::Gen1Duration;
-use influxdb3_write::write_buffer::validator::WriteValidator;
-use influxdb3_write::Precision;
-#[cfg(feature = "system-py")]
-use iox_time::TimeProvider;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -69,7 +70,7 @@ pub enum Error {
 #[cfg(feature = "system-py")]
 pub(crate) fn run_wal_contents_plugin(
     db_name: String,
-    plugin_code: String,
+    plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
 ) {
@@ -91,7 +92,7 @@ pub(crate) fn run_wal_contents_plugin(
 #[cfg(feature = "system-py")]
 pub(crate) fn run_schedule_plugin(
     db_name: String,
-    plugin_code: String,
+    plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
@@ -119,7 +120,7 @@ pub(crate) fn run_schedule_plugin(
 #[cfg(feature = "system-py")]
 pub(crate) fn run_request_plugin(
     db_name: String,
-    plugin_code: String,
+    plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
 ) {
@@ -152,7 +153,7 @@ pub(crate) struct PluginContext {
 #[derive(Debug)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
-    plugin_code: String,
+    plugin_code: PluginCode,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
@@ -283,7 +284,7 @@ mod python_plugin {
                             return Err(Error::MissingDb);
                         };
                         let result = execute_request_trigger(
-                            &self.plugin_code,
+                            self.plugin_code.code().as_ref(),
                             Arc::clone(&schema),
                             Arc::clone(&self.query_executor),
                             &self.trigger_definition.trigger_arguments,
@@ -386,7 +387,7 @@ mod python_plugin {
                                 };
 
                         let result = execute_python_with_batch(
-                            &self.plugin_code,
+                            self.plugin_code.code().as_ref(),
                             write_batch,
                             Arc::clone(&schema),
                             Arc::clone(&self.query_executor),
@@ -483,7 +484,7 @@ mod python_plugin {
             };
 
             let result = execute_schedule_trigger(
-                &plugin.plugin_code,
+                plugin.plugin_code.code().as_ref(),
                 trigger_time,
                 Arc::clone(&db_schema),
                 Arc::clone(&plugin.query_executor),

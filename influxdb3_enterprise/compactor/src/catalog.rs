@@ -444,7 +444,7 @@ pub(crate) mod test_helpers {
     use influxdb3_id::{ColumnId, DbId, TableId};
     use influxdb3_wal::{
         CatalogBatch, CatalogOp, DatabaseDefinition, FieldDataType, FieldDefinition,
-        TableDefinition,
+        WalTableDefinition,
     };
     use influxdb3_write::persister::Persister;
     use object_store::ObjectStore;
@@ -471,7 +471,7 @@ pub(crate) mod test_helpers {
                     database_id,
                     database_name: db_name.into(),
                 }),
-                CatalogOp::CreateTable(TableDefinition {
+                CatalogOp::CreateTable(WalTableDefinition {
                     database_id,
                     database_name: db_name.into(),
                     table_name: table_name.into(),

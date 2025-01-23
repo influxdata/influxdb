@@ -23,7 +23,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use twox_hash::XxHash64;
 
-use crate::{BufferFilter, BufferGuarantee};
+use crate::{ChunkFilter, HashedLiteralGuarantee};
 
 pub const INDEX_HASH_SEED: u64 = 0;
 
@@ -81,7 +81,7 @@ impl TableBuffer {
     pub fn partitioned_record_batches(
         &self,
         table_def: Arc<TableDefinition>,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
@@ -394,7 +394,7 @@ impl MutableTableChunk {
     fn record_batch(
         &self,
         table_def: Arc<TableDefinition>,
-        filter: &BufferFilter,
+        filter: &ChunkFilter,
     ) -> Result<RecordBatch> {
         let row_ids = self.index.get_rows_from_index_for_filter(filter);
         let schema = table_def.schema.as_arrow();
@@ -402,39 +402,22 @@ impl MutableTableChunk {
         let mut cols = Vec::with_capacity(schema.fields().len());
 
         for f in schema.fields() {
+            let column_def = table_def
+                .column_definition(f.name().as_ref())
+                .expect("a valid column name");
             match row_ids {
                 Some(ref row_ids) => {
-                    let b = table_def
-                        .column_name_to_id(f.name().as_str())
-                        .and_then(|id| self.data.get(&id));
-
-                    let col = match b {
+                    let col = match self.data.get(&column_def.id) {
                         Some(b) => b.get_rows(row_ids),
-                        None => {
-                            let name: &str = f.name().as_ref();
-                            let col_def = table_def
-                                .column_definition(name)
-                                .expect("valid column name");
-                            array_ref_nulls_for_type(col_def.data_type, row_ids.len())
-                        }
+                        None => array_ref_nulls_for_type(column_def.data_type, row_ids.len()),
                     };
 
                     cols.push(col);
                 }
                 None => {
-                    let builder = table_def
-                        .column_name_to_id(f.name().as_str())
-                        .and_then(|id| self.data.get(&id));
-
-                    let b = match builder {
+                    let b = match self.data.get(&column_def.id) {
                         Some(b) => b.as_arrow(),
-                        None => {
-                            let name: &str = f.name().as_ref();
-                            let col_def = table_def
-                                .column_definition(name)
-                                .expect("valid column name");
-                            array_ref_nulls_for_type(col_def.data_type, self.row_count)
-                        }
+                        None => array_ref_nulls_for_type(column_def.data_type, self.row_count),
                     };
 
                     cols.push(b);
@@ -615,12 +598,12 @@ impl BufferIndex {
         }
     }
 
-    fn get_rows_from_index_for_filter(&self, filter: &BufferFilter) -> Option<HashSet<usize>> {
+    fn get_rows_from_index_for_filter(&self, filter: &ChunkFilter) -> Option<HashSet<usize>> {
         debug!(?filter, ">>> processing filter");
         let mut row_ids = RowIndexSet::new();
         for (
             col_id,
-            BufferGuarantee {
+            HashedLiteralGuarantee {
                 guarantee,
                 literal_hashes,
             },
@@ -975,7 +958,7 @@ mod tests {
         }
 
         let partitioned_batches = table_buffer
-            .partitioned_record_batches(Arc::clone(&table_def), &BufferFilter::default())
+            .partitioned_record_batches(Arc::clone(&table_def), &ChunkFilter::default())
             .unwrap();
 
         assert_eq!(10, partitioned_batches.len());
@@ -1124,7 +1107,7 @@ mod tests {
         ];
 
         for t in test_cases {
-            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
             let rows = table_buffer
                 .chunk_time_to_chunks
                 .get(&0)
@@ -1259,7 +1242,7 @@ mod tests {
         ];
 
         for t in test_cases {
-            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
             let batches = table_buffer
                 .partitioned_record_batches(Arc::clone(&table_def), &filter)
                 .unwrap()
@@ -1458,7 +1441,7 @@ mod tests {
         ];
 
         for t in test_cases {
-            let filter = BufferFilter::new(&table_def, t.filter).unwrap();
+            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
             let batches = table_buffer
                 .partitioned_record_batches(Arc::clone(&table_def), &filter)
                 .unwrap()

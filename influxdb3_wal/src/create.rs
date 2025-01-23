@@ -94,7 +94,7 @@ pub fn create_table_op(
     fields: impl IntoIterator<Item = FieldDefinition>,
     key: impl IntoIterator<Item = ColumnId>,
 ) -> CatalogOp {
-    CatalogOp::CreateTable(TableDefinition {
+    CatalogOp::CreateTable(WalTableDefinition {
         database_id: db_id,
         database_name: db_name.into(),
         table_name: table_name.into(),

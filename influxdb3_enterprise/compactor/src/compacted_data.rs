@@ -133,26 +133,29 @@ impl CompactedData {
         Arc::clone(&self.inner_compacted_data.read().compaction_summary)
     }
 
+    /// Use the provided filters to get parquet files from the compactor as well as the writer
+    /// snapshot markers that mark the most recent parquet file ID that has been compacted.
+    ///
+    /// It is important to use the database and table names in order to access the mapped entities
+    /// in the compacted catalog, vs. passing in the IDs from the writer; which is why this method
+    /// accepts the names and not IDs.
     pub fn get_parquet_files_and_writer_markers(
         &self,
-        db_name: &str,
+        database_name: &str,
         table_name: &str,
         filters: &[Expr],
     ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<WriterSnapshotMarker>>) {
-        let Some(db) = self.compacted_catalog.db_schema(db_name) else {
-            return (vec![], vec![]);
+        let Some(db) = self.compacted_catalog.db_schema(database_name) else {
+            return Default::default();
         };
-        let Some(table_id) = db.table_name_to_id(table_name) else {
-            return (vec![], vec![]);
+
+        let Some(tbl_id) = db.table_name_to_id(table_name) else {
+            return Default::default();
         };
 
         let d = self.inner_compacted_data.read();
-        let Some(table) = d
-            .databases
-            .get(&db.id)
-            .and_then(|t| t.tables.get(&table_id))
-        else {
-            return (vec![], vec![]);
+        let Some(table) = d.databases.get(&db.id).and_then(|t| t.tables.get(&tbl_id)) else {
+            return Default::default();
         };
 
         table.get_parquet_files_and_host_markers(filters)

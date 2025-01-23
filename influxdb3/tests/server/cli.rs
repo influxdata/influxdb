@@ -1661,4 +1661,33 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .unwrap();
 
     assert_eq!(val, json!([{"tag1": "tag1_value", "field1": 1}]));
+
+    // now update it to make sure that it reloads
+    let plugin_code = r#"
+import json
+
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    return 200, {"Content-Type": "application/json"}, json.dumps({"status": "updated"})
+"#;
+    // clear all bytes from the plugin file
+    plugin_file.reopen().unwrap().set_len(0).unwrap();
+    plugin_file
+        .reopen()
+        .unwrap()
+        .write_all(plugin_code.as_bytes())
+        .unwrap();
+
+    // send an HTTP request to the server
+    let response = client
+        .post(format!("{}/api/v3/engine/foo", server_addr))
+        .header("Content-Type", "application/json")
+        .query(&[("q1", "whatevs")])
+        .body(r#"{"hello": "world"}"#)
+        .send()
+        .await
+        .unwrap();
+
+    let body = response.text().await.unwrap();
+    let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
+    assert_eq!(body, json!({"status": "updated"}));
 }
