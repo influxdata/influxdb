@@ -1,7 +1,7 @@
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
 #[cfg(feature = "system-py")]
-use crate::PluginEvent;
+use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
@@ -73,6 +73,7 @@ pub(crate) fn run_wal_contents_plugin(
     plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
+    plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -83,7 +84,7 @@ pub(crate) fn run_wal_contents_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_wal_contents_plugin(context.trigger_rx)
+            .run_wal_contents_plugin(plugin_receiver)
             .await
             .expect("trigger plugin failed");
     });
@@ -96,12 +97,13 @@ pub(crate) fn run_schedule_plugin(
     trigger_definition: TriggerDefinition,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
-) {
-    let TriggerSpecificationDefinition::Schedule { schedule } = &trigger_definition.trigger else {
+    plugin_receiver: mpsc::Receiver<ScheduleEvent>,
+) -> Result<(), Error> {
+    let TriggerSpecificationDefinition::Schedule { .. } = &trigger_definition.trigger else {
         // TODO: these linkages should be guaranteed by code.
         unreachable!("this should've been checked");
     };
-    let schedule = schedule.to_string();
+
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
         db_name,
@@ -109,12 +111,19 @@ pub(crate) fn run_schedule_plugin(
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
     };
+
+    let runner = python_plugin::ScheduleTriggerRunner::try_new(
+        &trigger_plugin.trigger_definition.trigger,
+        Arc::clone(&time_provider),
+    )?;
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_schedule_plugin(context.trigger_rx, schedule, time_provider)
+            .run_schedule_plugin(plugin_receiver, runner, time_provider)
             .await
             .expect("cron trigger plugin failed");
     });
+
+    Ok(())
 }
 
 #[cfg(feature = "system-py")]
@@ -123,6 +132,7 @@ pub(crate) fn run_request_plugin(
     plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
+    plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -133,7 +143,7 @@ pub(crate) fn run_request_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_request_plugin(context.trigger_rx)
+            .run_request_plugin(plugin_receiver)
             .await
             .expect("trigger plugin failed");
     });
@@ -141,8 +151,6 @@ pub(crate) fn run_request_plugin(
 
 #[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
-    // tokio channel for inputs
-    pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
     // handler to write data back to the DB.
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
     // query executor to hand off to the plugin
@@ -163,9 +171,10 @@ struct TriggerPlugin {
 mod python_plugin {
     use super::*;
     use anyhow::{anyhow, Context};
-    use chrono::{DateTime, Utc};
-    use cron::{OwnedScheduleIterator, Schedule};
+    use chrono::{DateTime, Duration, Utc};
+    use cron::{OwnedScheduleIterator, Schedule as CronSchedule};
     use data_types::NamespaceName;
+    use humantime::{format_duration, parse_duration};
     use hyper::http::HeaderValue;
     use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
@@ -184,7 +193,7 @@ mod python_plugin {
     impl TriggerPlugin {
         pub(crate) async fn run_wal_contents_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
+            mut receiver: Receiver<WalEvent>,
         ) -> Result<(), Error> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting wal contents plugin");
 
@@ -198,15 +207,12 @@ mod python_plugin {
                 };
 
                 match event {
-                    PluginEvent::WriteWalContents(wal_contents) => {
+                    WalEvent::WriteWalContents(wal_contents) => {
                         if let Err(e) = self.process_wal_contents(wal_contents).await {
                             error!(?self.trigger_definition, "error processing wal contents: {}", e);
                         }
                     }
-                    PluginEvent::Request(_) => {
-                        warn!("ignoring request in wal contents plugin.")
-                    }
-                    PluginEvent::Shutdown(sender) => {
+                    WalEvent::Shutdown(sender) => {
                         sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                         break;
                     }
@@ -218,13 +224,10 @@ mod python_plugin {
 
         pub(crate) async fn run_schedule_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
-            schedule: String,
+            mut receiver: Receiver<ScheduleEvent>,
+            mut runner: ScheduleTriggerRunner,
             time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), Error> {
-            let schedule = Schedule::from_str(schedule.as_str())?;
-            let mut runner = ScheduleTriggerRunner::new(schedule, Arc::clone(&time_provider));
-
             loop {
                 let Some(next_run_instant) = runner.next_run_time() else {
                     break;
@@ -243,13 +246,7 @@ mod python_plugin {
                                 warn!(?self.trigger_definition, "trigger plugin receiver closed");
                                 break;
                             }
-                            Some(PluginEvent::WriteWalContents(_)) => {
-                                warn!("ignoring wal contents in cron plugin.")
-                            }
-                            Some(PluginEvent::Request(_)) => {
-                                warn!("ignoring request in cron plugin.")
-                            }
-                            Some(PluginEvent::Shutdown(sender)) => {
+                            Some(ScheduleEvent::Shutdown(sender)) => {
                                 sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                                 break;
                             }
@@ -263,7 +260,7 @@ mod python_plugin {
 
         pub(crate) async fn run_request_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
+            mut receiver: Receiver<RequestEvent>,
         ) -> Result<(), Error> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting request plugin");
 
@@ -273,10 +270,7 @@ mod python_plugin {
                         warn!(?self.trigger_definition, "trigger plugin receiver closed");
                         break;
                     }
-                    Some(PluginEvent::WriteWalContents(_)) => {
-                        warn!("ignoring wal contents in request plugin.")
-                    }
-                    Some(PluginEvent::Request(request)) => {
+                    Some(RequestEvent::Request(request)) => {
                         let Some(schema) =
                             self.write_buffer.catalog().db_schema(self.db_name.as_str())
                         else {
@@ -338,7 +332,7 @@ mod python_plugin {
                             error!(?self.trigger_definition, "error sending response");
                         }
                     }
-                    Some(PluginEvent::Shutdown(sender)) => {
+                    Some(RequestEvent::Shutdown(sender)) => {
                         sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                         break;
                     }
@@ -379,7 +373,12 @@ mod python_plugin {
                                     TriggerSpecificationDefinition::Schedule {
                                         schedule
                                     } => {
-                                        return Err(anyhow!("unexpectedly found scheduled trigger specification {} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                                        return Err(anyhow!("unexpectedly found scheduled trigger specification cron:{} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                                    }
+                                    TriggerSpecificationDefinition::Every {
+                                        duration,
+                                    } => {
+                                        return Err(anyhow!("unexpectedly found every trigger specification every:{} WAL plugin {}", format_duration(*duration), self.trigger_definition.trigger_name).into())
                                     }
                                     TriggerSpecificationDefinition::RequestPath { path } => {
                                         return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
@@ -459,17 +458,69 @@ mod python_plugin {
         }
     }
 
-    struct ScheduleTriggerRunner {
-        schedule: OwnedScheduleIterator<Utc>,
+    enum Schedule {
+        Cron(OwnedScheduleIterator<Utc>),
+        Every(Duration),
+    }
+
+    pub(crate) struct ScheduleTriggerRunner {
+        schedule: Schedule,
         next_trigger_time: Option<DateTime<Utc>>,
     }
 
     impl ScheduleTriggerRunner {
-        fn new(cron_schedule: Schedule, time_provider: Arc<dyn TimeProvider>) -> Self {
+        pub(crate) fn try_new(
+            trigger_spec: &TriggerSpecificationDefinition,
+            time_provider: Arc<dyn TimeProvider>,
+        ) -> Result<Self, Error> {
+            match trigger_spec {
+                TriggerSpecificationDefinition::AllTablesWalWrite
+                | TriggerSpecificationDefinition::SingleTableWalWrite { .. } => {
+                    Err(anyhow!("shouldn't have table trigger for scheduled plugin").into())
+                }
+                TriggerSpecificationDefinition::RequestPath { .. } => {
+                    Err(anyhow!("shouldn't have request path trigger for scheduled plugin").into())
+                }
+                TriggerSpecificationDefinition::Schedule { schedule } => {
+                    let schedule = CronSchedule::from_str(schedule.as_str())
+                        .context("cron schedule should be parsable")?;
+                    Ok(Self::new_cron(schedule, time_provider))
+                }
+                TriggerSpecificationDefinition::Every { duration } => {
+                    // check that duration isn't longer than a year, so we avoid overflows.
+                    if *duration > parse_duration("1 year").unwrap() {
+                        return Err(
+                            anyhow!("schedule duration cannot be greater than 1 year").into()
+                        );
+                    }
+                    Ok(Self::new_every(
+                        Duration::from_std(*duration)
+                            .context("should be able to convert durations. ")?,
+                        time_provider,
+                    ))
+                }
+            }
+        }
+        fn new_cron(cron_schedule: CronSchedule, time_provider: Arc<dyn TimeProvider>) -> Self {
             let mut schedule = cron_schedule.after_owned(time_provider.now().date_time());
             let next_trigger_time = schedule.next();
             Self {
-                schedule,
+                schedule: Schedule::Cron(schedule),
+                next_trigger_time,
+            }
+        }
+
+        fn new_every(duration: Duration, time_provider: Arc<dyn TimeProvider>) -> Self {
+            let now = time_provider.now().date_time();
+            let duration_millis = duration.num_milliseconds();
+            let now_millis = now.timestamp_millis();
+            let next_trigger_millis = ((now_millis / duration_millis) + 1) * duration_millis;
+            let next_trigger_time = Some(
+                DateTime::from_timestamp_millis(next_trigger_millis)
+                    .expect("can't be out of range"),
+            );
+            Self {
+                schedule: Schedule::Every(duration),
                 next_trigger_time,
             }
         }
@@ -503,7 +554,10 @@ mod python_plugin {
         }
 
         fn advance_time(&mut self) {
-            self.next_trigger_time = self.schedule.next();
+            self.next_trigger_time = match &mut self.schedule {
+                Schedule::Cron(schedule) => schedule.next(),
+                Schedule::Every(duration) => self.next_trigger_time.map(|time| time + *duration),
+            };
         }
 
         /// A funky little method to get a tokio Instant that we can call `tokio::time::sleep_until()` on.
@@ -703,7 +757,6 @@ pub(crate) fn run_test_schedule_plugin(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::NamespaceName;
     use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
