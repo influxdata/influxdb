@@ -104,7 +104,7 @@ expression: catalog
     ]
   ],
   "sequence": 0,
-  "writer_id": "sample-host-id",
+  "node_id": "sample-host-id",
   "instance_id": "instance-id",
   "db_map": []
 }
