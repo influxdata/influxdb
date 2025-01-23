@@ -413,7 +413,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 "\
                 Token: {token}\n\
                 Hashed Token: {hashed}\n\n\
-                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --writer-id YOUR_HOST_NAME`\n\n\
+                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --node-id YOUR_HOST_NAME`\n\n\
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",

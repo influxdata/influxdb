@@ -787,7 +787,9 @@ mod tests {
         ))
     }
 
-    pub(crate) async fn setup() -> (
+    pub(crate) async fn setup(
+        query_file_limit: Option<usize>,
+    ) -> (
         Arc<dyn WriteBuffer>,
         QueryExecutorImpl,
         Arc<MockProvider>,
@@ -804,9 +806,9 @@ mod tests {
         );
         let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
         let exec = make_exec(Arc::clone(&object_store));
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
@@ -827,6 +829,7 @@ mod tests {
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
+            query_file_limit,
         })
         .await
         .unwrap();
@@ -860,7 +863,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn system_parquet_files_success() {
-        let (write_buffer, query_executor, time_provider, _) = setup().await;
+        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -967,5 +970,233 @@ mod tests {
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn query_file_limits_default() {
+        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..1298 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+
+            time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+        }
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        struct TestCase<'a> {
+            query: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "\
+                    SELECT COUNT(*) \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'cpu'",
+                expected: &[
+                    "+----------+",
+                    "| count(*) |",
+                    "+----------+",
+                    "| 432      |",
+                    "+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT Count(host) \
+                    FROM cpu",
+                expected: &[
+                    "+-----------------+",
+                    "| count(cpu.host) |",
+                    "+-----------------+",
+                    "| 1298            |",
+                    "+-----------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batch_stream = query_executor
+                .query_sql(db_name, t.query, None, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+
+        // put us over the parquet limit
+        let time = 12990;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                Time::from_timestamp_nanos(time),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match query_executor
+            .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
+            .await {
+            Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 432 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+        }
+
+        // Make sure if we specify a smaller time range that queries will still work
+        query_executor
+            .query_sql(
+                db_name,
+                "SELECT COUNT(host) FROM CPU WHERE time < '1970-01-01T00:00:00.000000010Z'",
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn query_file_limits_configured() {
+        let (write_buffer, query_executor, time_provider, _) = setup(Some(3)).await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..11 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+
+            time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+        }
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        struct TestCase<'a> {
+            query: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "\
+                    SELECT COUNT(*) \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'cpu'",
+                expected: &[
+                    "+----------+",
+                    "| count(*) |",
+                    "+----------+",
+                    "| 3        |",
+                    "+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT Count(host) \
+                    FROM cpu",
+                expected: &[
+                    "+-----------------+",
+                    "| count(cpu.host) |",
+                    "+-----------------+",
+                    "| 11              |",
+                    "+-----------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batch_stream = query_executor
+                .query_sql(db_name, t.query, None, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+
+        // put us over the parquet limit
+        let time = 120;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                Time::from_timestamp_nanos(time),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match query_executor
+            .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
+            .await {
+            Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 3 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+        }
+
+        // Make sure if we specify a smaller time range that queries will still work
+        query_executor
+            .query_sql(
+                db_name,
+                "SELECT COUNT(host) FROM CPU WHERE time < '1970-01-01T00:00:00.000000010Z'",
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
     }
 }

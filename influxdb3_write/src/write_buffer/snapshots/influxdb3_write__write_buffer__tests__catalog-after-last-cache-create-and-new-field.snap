@@ -100,6 +100,6 @@ expression: catalog_json
     }
   ],
   "instance_id": "[uuid]",
-  "sequence": 3,
-  "writer_id": "test_host"
+  "node_id": "test_host",
+  "sequence": 3
 }

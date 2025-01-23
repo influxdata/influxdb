@@ -325,17 +325,17 @@ pub struct Config {
     )]
     pub buffer_mem_limit_mb: usize,
 
-    /// The writer idendifier used as a prefix in all object store file paths. This should be unique
+    /// The node idendifier used as a prefix in all object store file paths. This should be unique
     /// for any InfluxDB 3 Core servers that share the same object store configuration, i.e., the
     /// same bucket.
     #[clap(
-        long = "writer-id",
+        long = "node-id",
         // TODO: deprecate this alias in future version
         alias = "host-id",
-        env = "INFLUXDB3_WRITER_IDENTIFIER_PREFIX",
+        env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
         action
     )]
-    pub writer_identifier_prefix: String,
+    pub node_identifier_prefix: String,
 
     #[clap(flatten)]
     pub enterprise_config: influxdb3_enterprise_clap_blocks::serve::EnterpriseServeConfig,
@@ -433,6 +433,15 @@ pub struct Config {
         action
     )]
     pub telemetry_endpoint: String,
+
+    /// Set the limit for number of parquet files allowed in a query. Defaults
+    /// to 432 which is about 3 days worth of files using default settings.
+    /// This number can be increased to allow more files to be queried, but
+    /// query performance will likely suffer, RAM usage will spike, and the
+    /// process might be OOM killed as a result. It would be better to specify
+    /// smaller time ranges if possible in a query.
+    #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
+    pub query_file_limit: Option<usize>,
 }
 
 /// The interval to check for new snapshots from writers to compact data from. This will do an S3
@@ -502,7 +511,7 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        writer_id = %config.writer_identifier_prefix,
+        node_id = %config.node_identifier_prefix,
         mode = %config.enterprise_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
@@ -597,7 +606,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.writer_identifier_prefix.clone(),
+        config.node_identifier_prefix,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -744,10 +753,10 @@ pub async fn command(config: Config) -> Result<()> {
     let replica_config = config
         .enterprise_config
         .read_from_writer_ids
-        .map(|writer_ids| {
+        .map(|node_ids| {
             ReplicationConfig::new(
                 config.enterprise_config.replication_interval.into(),
-                writer_ids.into(),
+                node_ids.into(),
             )
         });
 
