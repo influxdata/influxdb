@@ -112,6 +112,12 @@ impl PluginChannels {
                     .or_default()
                     .insert(trigger, tx);
             }
+            TriggerSpecificationDefinition::Every { .. } => {
+                self.active_triggers
+                    .entry(db)
+                    .or_default()
+                    .insert(trigger, tx);
+            }
             TriggerSpecificationDefinition::RequestPath { path } => {
                 self.request_triggers.insert(path.to_string(), tx);
             }
@@ -479,7 +485,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     trigger,
                     Arc::clone(&self.time_provider),
                     plugin_context,
-                ),
+                )?,
                 PluginType::Request => plugins::run_request_plugin(
                     db_name.to_string(),
                     plugin_code,
