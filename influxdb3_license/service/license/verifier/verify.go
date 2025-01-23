@@ -71,8 +71,8 @@ func (v *Verifier) Verify(tokenString string) (*jwt.Token, error) {
 	if claims.Email == "" {
 		return nil, errors.New("missing email claim")
 	}
-	if claims.WriterID == "" {
-		return nil, errors.New("missing writer_id claim")
+	if claims.NodeID == "" {
+		return nil, errors.New("missing node_id claim")
 	}
 	if claims.InstanceID == "" {
 		return nil, errors.New("missing instance_id claim")

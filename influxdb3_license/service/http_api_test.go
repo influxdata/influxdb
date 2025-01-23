@@ -79,7 +79,7 @@ func TestLicenseCreate(t *testing.T) {
 	tests := []struct {
 		name              string
 		email             string
-		hostID            string
+		nodeID            string
 		doActivateLicense bool
 
 		expectedPostResponseStatus  int
@@ -90,7 +90,7 @@ func TestLicenseCreate(t *testing.T) {
 		{
 			name:                        "email username must be url-encoded",
 			email:                       "invalid+email@influxdata.com",
-			hostID:                      "meow",
+			nodeID:                      "meow",
 			doActivateLicense:           true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
@@ -100,7 +100,7 @@ func TestLicenseCreate(t *testing.T) {
 		{
 			name:                        "404 response for unverified email address",
 			email:                       "fake1@influxdata.com",
-			hostID:                      "meow",
+			nodeID:                      "meow",
 			doActivateLicense:           false,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
@@ -110,7 +110,7 @@ func TestLicenseCreate(t *testing.T) {
 		{
 			name:                        "only user name needs to be url-encoded",
 			email:                       "valid_1%2Bemail@influxdata.com",
-			hostID:                      "meow",
+			nodeID:                      "meow",
 			doActivateLicense:           true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
@@ -120,7 +120,7 @@ func TestLicenseCreate(t *testing.T) {
 		{
 			name:                        "at-sign can also be url-encoded",
 			email:                       "valid_2%2Bemail%40influxdata.com",
-			hostID:                      "meow",
+			nodeID:                      "meow",
 			doActivateLicense:           true,
 			expectedPostResponseStatus:  201,
 			expectedPostResponseHeaders: map[string]string{},
@@ -138,7 +138,7 @@ func TestLicenseCreate(t *testing.T) {
 			testFixtures := getTestFixtures(t)
 
 			instanceID, _ := uuid.NewV4()
-			url := fmt.Sprintf("%s/licenses?email=%s&writer-id=%s&instance-id=%s", testFixtures.srv.URL, tt.email, tt.hostID, instanceID)
+			url := fmt.Sprintf("%s/licenses?email=%s&node-id=%s&instance-id=%s", testFixtures.srv.URL, tt.email, tt.nodeID, instanceID)
 			res, err := http.Post(url, "", nil)
 			if err != nil {
 				t.Fatalf("must be able to issue http POST request to test server: %s", err.Error())
@@ -191,9 +191,9 @@ func TestLicenseCreateContinuation(t *testing.T) {
 
 	instanceID, _ := uuid.NewV4()
 	email := "fake2@influxdata.com"
-	hostID := "meow"
+	nodeID := "meow"
 
-	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&node-id=%s&instance-id=%s", email, nodeID, instanceID)
 	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
 	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
 
@@ -234,10 +234,10 @@ func TestLicenseCreateSameEmailDifferentInstances(t *testing.T) {
 	testFixtures := getTestFixtures(t)
 
 	email := "fake2@influxdata.com"
-	hostID := "meow"
+	nodeID := "meow"
 
 	instanceID, _ := uuid.NewV4()
-	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&node-id=%s&instance-id=%s", email, nodeID, instanceID)
 	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
 	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
 
@@ -250,7 +250,7 @@ func TestLicenseCreateSameEmailDifferentInstances(t *testing.T) {
 	require.Equal(t, expectedLocationHeader, header)
 
 	instanceID, _ = uuid.NewV4()
-	pathAndQuery = fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	pathAndQuery = fmt.Sprintf("/licenses?email=%s&node-id=%s&instance-id=%s", email, nodeID, instanceID)
 	targetUrl = fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
 	expectedLocationHeader = []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
 
@@ -270,10 +270,10 @@ func TestLicenseCreateSameEmailDifferentInstancesWithVerification(t *testing.T) 
 	testFixtures := getTestFixtures(t)
 
 	email := "fake2@influxdata.com"
-	hostID := "meow"
+	nodeID := "meow"
 
 	instanceID, _ := uuid.NewV4()
-	pathAndQuery := fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	pathAndQuery := fmt.Sprintf("/licenses?email=%s&node-id=%s&instance-id=%s", email, nodeID, instanceID)
 	targetUrl := fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
 	expectedLocationHeader := []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
 
@@ -303,7 +303,7 @@ func TestLicenseCreateSameEmailDifferentInstancesWithVerification(t *testing.T) 
 	require.NoError(t, err)
 
 	instanceID, _ = uuid.NewV4()
-	pathAndQuery = fmt.Sprintf("/licenses?email=%s&writer-id=%s&instance-id=%s", email, hostID, instanceID)
+	pathAndQuery = fmt.Sprintf("/licenses?email=%s&node-id=%s&instance-id=%s", email, nodeID, instanceID)
 	targetUrl = fmt.Sprintf("%s%s", testFixtures.srv.URL, pathAndQuery)
 	expectedLocationHeader = []string{fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(email), instanceID)}
 

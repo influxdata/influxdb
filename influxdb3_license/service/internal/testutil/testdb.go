@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/projectpath"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb_pro/influxdb3_license/service/internal/projectpath"
 
 	_ "github.com/lib/pq"
 )
@@ -24,9 +26,11 @@ const (
 
 // TestDB wraps the database connection and testing utilities
 type TestDB struct {
-	DB          *sql.DB
-	t           *testing.T
-	migrationUp string
+	DB             *sql.DB
+	t              *testing.T
+	dbName         string
+	migrationUps   []string
+	migrationDowns []string
 }
 
 // NewTestDB creates a new test database instance
@@ -62,43 +66,59 @@ func NewTestDB(t *testing.T) *TestDB {
 		t.Fatalf("Failed to connect to test database: %v", err)
 	}
 
-	// Read migration file
+	// Read migration files
 	rootPath := projectpath.Root()
-	migrationPath := filepath.Join(rootPath, "store", "migrations", "000001_initial_setup.up.postgres.sql")
-	migration, err := os.ReadFile(migrationPath)
+	migrationsDir := filepath.Join(rootPath, "store", "postgres", "migrations")
+
+	// Get the names of all migration files
+	migrationFiles, err := os.ReadDir(migrationsDir)
 	if err != nil {
-		t.Fatalf("Failed to read migration file: %v", err)
+		t.Fatalf("Failed to read migration files: %v", err)
 	}
 
-	return &TestDB{
-		DB:          db,
-		t:           t,
-		migrationUp: string(migration),
+	tdb := &TestDB{
+		DB:             db,
+		t:              t,
+		dbName:         dbName,
+		migrationUps:   []string{},
+		migrationDowns: []string{},
 	}
+
+	// Sort migration files into up and down slices
+	for _, file := range migrationFiles {
+		migrationPath := filepath.Join(migrationsDir, file.Name())
+
+		if strings.Contains(file.Name(), ".up.") {
+			tdb.migrationUps = append(tdb.migrationUps, migrationPath)
+		} else if strings.Contains(file.Name(), ".down.") {
+			tdb.migrationDowns = append(tdb.migrationDowns, migrationPath)
+		}
+	}
+
+	return tdb
 }
 
 // Setup runs migrations and prepares the database for testing
 func (tdb *TestDB) Setup(ctx context.Context) {
 	tdb.t.Helper()
 
-	// Run migrations
-	_, err := tdb.DB.ExecContext(ctx, tdb.migrationUp)
-	if err != nil {
-		tdb.t.Fatalf("Failed to run migrations: %v", err)
+	// Run up migrations
+	for _, file := range tdb.migrationUps {
+		migration, err := os.ReadFile(file)
+		if err != nil {
+			tdb.t.Fatalf("Failed to read migration file: %v", err)
+		}
+
+		_, err = tdb.DB.ExecContext(ctx, string(migration))
+		if err != nil {
+			tdb.t.Fatalf("Failed to run migration: %v", err)
+		}
 	}
 }
 
 // Cleanup closes the database connection and drops the test database
 func (tdb *TestDB) Cleanup() {
 	tdb.t.Helper()
-
-	// Get database name before closing connection
-	var dbName string
-	err := tdb.DB.QueryRow("SELECT current_database()").Scan(&dbName)
-	if err != nil {
-		tdb.t.Errorf("Failed to get current database name: %v", err)
-		return
-	}
 
 	// Close connection to test database
 	if err := tdb.DB.Close(); err != nil {
@@ -120,7 +140,7 @@ func (tdb *TestDB) Cleanup() {
 	defer db.Close()
 
 	// Drop test database
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE %s WITH (FORCE)", dbName))
+	_, err = db.Exec(fmt.Sprintf("DROP DATABASE %s WITH (FORCE)", tdb.dbName))
 	if err != nil {
 		tdb.t.Errorf("Failed to drop test database: %v", err)
 	}

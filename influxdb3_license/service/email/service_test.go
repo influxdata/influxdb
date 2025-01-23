@@ -103,7 +103,7 @@ func TestService_SendEmail(t *testing.T) {
 
 	license := &store.License{
 		Email:      user.Email,
-		WriterID:   "writer_id",
+		NodeID:     "node_id",
 		InstanceID: uuid.NewString(),
 		LicenseKey: "license_key",
 		ValidFrom:  now,
@@ -246,7 +246,7 @@ func TestService_EmailRateLimits(t *testing.T) {
 		now := time.Now()
 		license := &store.License{
 			Email:      user.Email,
-			WriterID:   "writer_id_" + email,
+			NodeID:     "node_id_" + email,
 			InstanceID: uuid.NewString(),
 			LicenseKey: "license_key_" + email,
 			ValidFrom:  now,

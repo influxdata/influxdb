@@ -805,7 +805,7 @@ func (s *Store) MarkEmailAsFailed(ctx context.Context, tx store.Tx, id int64, er
 func (s *Store) CreateLicense(ctx context.Context, tx store.Tx, license *store.License) error {
 	query := `
         INSERT INTO licenses (
-            user_id, email, writer_id, instance_id, license_key, valid_from, valid_until
+            user_id, email, node_id, instance_id, license_key, valid_from, valid_until
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7
         )
@@ -816,7 +816,7 @@ func (s *Store) CreateLicense(ctx context.Context, tx store.Tx, license *store.L
 		ctx, query,
 		license.UserID,
 		license.Email,
-		license.WriterID,
+		license.NodeID,
 		license.InstanceID,
 		license.LicenseKey,
 		license.ValidFrom,
@@ -837,7 +837,7 @@ func (s *Store) CreateLicense(ctx context.Context, tx store.Tx, license *store.L
 func (s *Store) UpdateLicense(ctx context.Context, tx store.Tx, license *store.License) error {
 	query := `
         UPDATE licenses
-        SET user_id = $1, email = $2, writer_id = $3, instance_id = $4, license_key = $5,
+        SET user_id = $1, email = $2, node_id = $3, instance_id = $4, license_key = $5,
             valid_from = $6, valid_until = $7, state = $8, updated_at = statement_timestamp()
         WHERE id = $9
         RETURNING updated_at`
@@ -847,7 +847,7 @@ func (s *Store) UpdateLicense(ctx context.Context, tx store.Tx, license *store.L
 		ctx, query,
 		license.UserID,
 		license.Email,
-		license.WriterID,
+		license.NodeID,
 		license.InstanceID,
 		license.LicenseKey,
 		license.ValidFrom,
@@ -883,7 +883,7 @@ func (s *Store) DeleteLicense(ctx context.Context, tx store.Tx, id int64) error 
 
 func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email string) ([]*store.License, error) {
 	query := `
-        SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+        SELECT id, user_id, email, node_id, instance_id, license_key, valid_from,
                valid_until, state, created_at, updated_at
         FROM licenses
         WHERE email = $1`
@@ -904,7 +904,7 @@ func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email strin
 			&license.ID,
 			&license.UserID,
 			&license.Email,
-			&license.WriterID,
+			&license.NodeID,
 			&license.InstanceID,
 			&license.LicenseKey,
 			&license.ValidFrom,
@@ -925,7 +925,7 @@ func (s *Store) GetLicensesByEmail(ctx context.Context, tx store.Tx, email strin
 	return licenses, nil
 }
 
-func (s *Store) GetLicenseByEmailAndWriterID(ctx context.Context, tx store.Tx, email, writerID string) (*store.License, error) {
+func (s *Store) GetLicenseByEmailAndNodeID(ctx context.Context, tx store.Tx, email, nodeID string) (*store.License, error) {
 	doCommit := false
 	var err error
 	if tx == nil {
@@ -942,17 +942,17 @@ func (s *Store) GetLicenseByEmailAndWriterID(ctx context.Context, tx store.Tx, e
 	var license store.License
 
 	query := `
-		SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+		SELECT id, user_id, email, node_id, instance_id, license_key, valid_from,
 			   valid_until, state, created_at, updated_at
 		FROM licenses
-		WHERE email = $1 AND writer_id = $2`
+		WHERE email = $1 AND node_id = $2`
 
 	sqlTx := tx.(*sql.Tx)
-	err = sqlTx.QueryRowContext(ctx, query, email, writerID).Scan(
+	err = sqlTx.QueryRowContext(ctx, query, email, nodeID).Scan(
 		&license.ID,
 		&license.UserID,
 		&license.Email,
-		&license.WriterID,
+		&license.NodeID,
 		&license.InstanceID,
 		&license.LicenseKey,
 		&license.ValidFrom,
@@ -966,7 +966,7 @@ func (s *Store) GetLicenseByEmailAndWriterID(ctx context.Context, tx store.Tx, e
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("getting license by writer ID: %w", err)
+		return nil, fmt.Errorf("getting license by node ID: %w", err)
 	}
 
 	if doCommit {
@@ -978,15 +978,15 @@ func (s *Store) GetLicenseByEmailAndWriterID(ctx context.Context, tx store.Tx, e
 	return &license, nil
 }
 
-func (s *Store) GetLicensesByEmailAndWriterID(ctx context.Context, tx store.Tx, email, writerID string) ([]*store.License, error) {
+func (s *Store) GetLicensesByEmailAndNodeID(ctx context.Context, tx store.Tx, email, nodeID string) ([]*store.License, error) {
 	query := `
-		SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+		SELECT id, user_id, email, node_id, instance_id, license_key, valid_from,
 			   valid_until, state, created_at, updated_at
 		FROM licenses
-		WHERE email = $1 AND writer_id = $2`
+		WHERE email = $1 AND node_id = $2`
 
 	sqlTx := tx.(*sql.Tx)
-	rows, err := sqlTx.QueryContext(ctx, query, email, writerID)
+	rows, err := sqlTx.QueryContext(ctx, query, email, nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("querying licenses: %w", err)
 	}
@@ -1001,7 +1001,7 @@ func (s *Store) GetLicensesByEmailAndWriterID(ctx context.Context, tx store.Tx, 
 			&license.ID,
 			&license.UserID,
 			&license.Email,
-			&license.WriterID,
+			&license.NodeID,
 			&license.InstanceID,
 			&license.LicenseKey,
 			&license.ValidFrom,
@@ -1039,7 +1039,7 @@ func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanc
 	var license store.License
 
 	query := `
-        SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+        SELECT id, user_id, email, node_id, instance_id, license_key, valid_from,
                valid_until, state, created_at, updated_at
         FROM licenses
         WHERE instance_id = $1`
@@ -1049,7 +1049,7 @@ func (s *Store) GetLicenseByInstanceID(ctx context.Context, tx store.Tx, instanc
 		&license.ID,
 		&license.UserID,
 		&license.Email,
-		&license.WriterID,
+		&license.NodeID,
 		&license.InstanceID,
 		&license.LicenseKey,
 		&license.ValidFrom,
@@ -1095,7 +1095,7 @@ func (s *Store) GetLicenseByID(ctx context.Context, tx store.Tx, id int64) (*sto
 	var license store.License
 
 	query := `
-		SELECT id, user_id, email, writer_id, instance_id, license_key, valid_from,
+		SELECT id, user_id, email, node_id, instance_id, license_key, valid_from,
 			   valid_until, state, created_at, updated_at
 		FROM licenses
 		WHERE id = $1`
@@ -1105,7 +1105,7 @@ func (s *Store) GetLicenseByID(ctx context.Context, tx store.Tx, id int64) (*sto
 		&license.ID,
 		&license.UserID,
 		&license.Email,
-		&license.WriterID,
+		&license.NodeID,
 		&license.InstanceID,
 		&license.LicenseKey,
 		&license.ValidFrom,

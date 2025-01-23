@@ -1,4 +1,3 @@
--- filename: 000001_initial_setup.up.postgres.sql
 -- description: Initial setup for the InfluxDB 3 Pro license service
 
 -- Table to store users
