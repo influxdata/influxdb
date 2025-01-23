@@ -8,7 +8,6 @@ use crate::PersistedSnapshot;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
-use chrono::Utc;
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
@@ -22,6 +21,7 @@ use futures_util::stream::{FuturesOrdered, StreamExt};
 use influxdb3_cache::{last_cache, parquet_cache::ParquetFileDataToCache};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
+use iox_time::TimeProvider;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::info;
@@ -86,6 +86,8 @@ pub struct Persister {
     object_store: Arc<dyn ObjectStore>,
     /// Prefix used for all paths in the object store for this persister
     node_identifier_prefix: String,
+    /// time provider
+    time_provider: Arc<dyn TimeProvider>,
     pub(crate) mem_pool: Arc<dyn MemoryPool>,
 }
 
@@ -93,11 +95,13 @@ impl Persister {
     pub fn new(
         object_store: Arc<dyn ObjectStore>,
         node_identifier_prefix: impl Into<String>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         Self {
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
             node_identifier_prefix: node_identifier_prefix.into(),
+            time_provider,
             mem_pool: Arc::new(UnboundedMemoryPool::default()),
         }
     }
@@ -322,22 +326,6 @@ impl Persister {
 
     /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store
     /// at the given path. Returns the number of bytes written and the file metadata.
-    pub async fn persist_parquet_file_old(
-        &self,
-        path: ParquetFilePath,
-        record_batch: SendableRecordBatchStream,
-    ) -> Result<(u64, FileMetaData)> {
-        let parquet = self.serialize_to_parquet(record_batch).await?;
-        let bytes_written = parquet.bytes.len() as u64;
-        self.object_store
-            .put(path.as_ref(), parquet.bytes.into())
-            .await?;
-
-        Ok((bytes_written, parquet.meta_data))
-    }
-
-    /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store
-    /// at the given path. Returns the number of bytes written and the file metadata.
     pub async fn persist_parquet_file(
         &self,
         path: ParquetFilePath,
@@ -352,8 +340,12 @@ impl Persister {
             .put(path.as_ref(), parquet.bytes.clone().into())
             .await?;
 
-        let to_cache =
-            ParquetFileDataToCache::new(path.as_ref(), Utc::now(), parquet.bytes, put_result);
+        let to_cache = ParquetFileDataToCache::new(
+            path.as_ref(),
+            self.time_provider.now().date_time(),
+            parquet.bytes,
+            put_result,
+        );
 
         Ok((bytes_written, parquet.meta_data, to_cache))
     }
@@ -466,6 +458,7 @@ mod tests {
         CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, SnapshotSequenceNumber,
         WalFileSequenceNumber, WalTableDefinition,
     };
+    use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
@@ -483,7 +476,12 @@ mod tests {
         let instance_id = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(
+            Arc::new(local_disk),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        );
         let catalog = Catalog::new(node_id, instance_id);
         let _ = catalog.db_or_create("my_db");
 
@@ -497,7 +495,8 @@ mod tests {
         let prefix = test_helpers::tmp_dir().unwrap();
         let local_disk = LocalFileSystem::new_with_prefix(prefix).unwrap();
         let obj_store: Arc<dyn ObjectStore> = Arc::new(local_disk);
-        let persister = Persister::new(Arc::clone(&obj_store), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::clone(&obj_store), "test_host", time_provider);
         let catalog = Catalog::new(Arc::clone(&node_id), instance_id);
         persister.persist_catalog(&catalog).await.unwrap();
         let db_schema = catalog.db_or_create("my_db_1").unwrap();
@@ -614,7 +613,8 @@ mod tests {
         let instance_id: Arc<str> = Arc::from("sample-instance-id");
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let catalog = Catalog::new(node_id.clone(), instance_id.clone());
         let _ = catalog.db_or_create("my_db");
 
@@ -639,9 +639,10 @@ mod tests {
 
     #[tokio::test]
     async fn persist_snapshot_info_file() {
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -665,7 +666,8 @@ mod tests {
     async fn persist_and_load_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -731,7 +733,8 @@ mod tests {
     async fn persist_and_load_snapshot_info_files_with_fewer_than_requested() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
@@ -759,7 +762,8 @@ mod tests {
     async fn persist_and_load_over_1000_snapshot_info_files() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         for id in 0..1001 {
             let info_file = PersistedSnapshot {
                 node_id: "test_host".to_string(),
@@ -793,7 +797,8 @@ mod tests {
     async fn persist_add_parquet_file_and_load_snapshot() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let mut info_file = PersistedSnapshot::new(
             "test_host".to_string(),
             SnapshotSequenceNumber::new(0),
@@ -833,7 +838,8 @@ mod tests {
     #[tokio::test]
     async fn load_snapshot_works_with_no_exising_snapshots() {
         let store = InMemory::new();
-        let persister = Persister::new(Arc::new(store), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(store), "test_host", time_provider);
 
         let snapshots = persister.load_snapshots(100).await.unwrap();
         assert!(snapshots.is_empty());
@@ -910,7 +916,8 @@ mod tests {
     async fn get_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -937,7 +944,8 @@ mod tests {
     async fn persist_and_load_parquet_bytes() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
         let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
@@ -980,7 +988,8 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         info!(local_disk = ?local_disk, "Using local disk");
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let _ = persister.load_or_create_catalog().await.unwrap();
         let persisted_catalog = persister.load_catalog().await.unwrap();
 
@@ -1011,7 +1020,8 @@ mod tests {
             .unwrap();
 
         // read json as catalog
-        let persister = Persister::new(Arc::new(local_disk), "test_host");
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let catalog = persister.load_or_create_catalog().await.unwrap();
         assert_eq!(
             &*catalog.instance_id(),

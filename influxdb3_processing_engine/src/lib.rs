@@ -1271,7 +1271,11 @@ mod tests {
     ) -> (ProcessingEngineManagerImpl, NamedTempFile) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let metric_registry = Arc::new(Registry::new());
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(

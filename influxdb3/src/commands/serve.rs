@@ -510,6 +510,7 @@ pub async fn command(config: Config) -> Result<()> {
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.node_identifier_prefix,
+        Arc::clone(&time_provider) as _,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
