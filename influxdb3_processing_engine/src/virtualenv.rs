@@ -1,5 +1,5 @@
-use observability_deps::tracing::{info, warn};
-use std::path::Path;
+use observability_deps::tracing::{debug, warn};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Once;
 use thiserror::Error;
@@ -16,7 +16,10 @@ pub(crate) enum VenvError {
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
     let output = Command::new("python3")
-        .args(["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"])
+        .args([
+            "-c",
+            "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+        ])
         .output()?;
 
     let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -27,7 +30,6 @@ fn get_python_version() -> Result<(u8, u8), std::io::Error> {
     Ok((major, minor))
 }
 
-#[cfg(unix)]
 fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
     let (major, minor) = get_python_version()?;
     let site_packages = venv_dir
@@ -35,28 +37,26 @@ fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
         .join(format!("python{}.{}", major, minor))
         .join("site-packages");
 
-    info!("site packages is {}", site_packages.to_string_lossy());
-
-    if site_packages.exists() {
-        std::env::set_var("PYTHONPATH", site_packages);
-    }
+    debug!("Setting PYTHONPATH to: {}", site_packages.to_string_lossy());
+    std::env::set_var("PYTHONPATH", &site_packages);
 
     Ok(())
 }
 
-pub(crate) fn try_init_venv(venv_path: &Path) {
+pub(crate) fn init_pyo3(venv_path: &Option<PathBuf>) {
     PYTHON_INIT.call_once(|| {
-        if let Err(err) = initialize_venv(venv_path) {
-            warn!(
-                "Failed to initialize virtualenv at {}: {}",
-                venv_path.to_string_lossy(),
-                err
-            );
+        if let Some(venv_path) = venv_path {
+            if let Err(err) = initialize_venv(venv_path) {
+                warn!(
+                    "Failed to initialize virtualenv at {}: {}",
+                    venv_path.to_string_lossy(),
+                    err
+                );
+            }
         }
         pyo3::prepare_freethreaded_python();
     })
 }
-
 #[cfg(unix)]
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
@@ -68,6 +68,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
             activate_script
         )));
     }
+    set_pythonpath(venv_path)?;
 
     let output = Command::new("bash")
         .arg("-c")
@@ -82,7 +83,6 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
             String::from_utf8_lossy(&output.stderr).to_string(),
         ));
     }
-    set_pythonpath(venv_path)?;
 
     // Apply environment changes
     String::from_utf8_lossy(&output.stdout)
@@ -90,8 +90,8 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
         .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| {
             println!("{}={}", key, value);
-            std::env::set_var(key, value)});
-
+            std::env::set_var(key, value)
+        });
 
     Ok(())
 }

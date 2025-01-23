@@ -1,3 +1,4 @@
+use crate::environment::PythonEnvironmentManager;
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
 #[cfg(feature = "system-py")]
@@ -23,6 +24,7 @@ use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
+use std::path::PathBuf;
 #[cfg(feature = "system-py")]
 use std::str::FromStr;
 use std::sync::Arc;
@@ -94,6 +96,13 @@ pub(crate) fn run_wal_contents_plugin(
             .await
             .expect("trigger plugin failed");
     });
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessingEngineEnvironmentManager {
+    pub plugin_dir: Option<PathBuf>,
+    pub virtual_env_location: Option<PathBuf>,
+    pub package_manager: Arc<dyn PythonEnvironmentManager>,
 }
 
 #[cfg(feature = "system-py")]

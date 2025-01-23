@@ -2775,6 +2775,7 @@ dependencies = [
  "influxdb3_clap_blocks",
  "influxdb3_client",
  "influxdb3_process",
+ "influxdb3_processing_engine",
  "influxdb3_server",
  "influxdb3_sys_events",
  "influxdb3_telemetry",

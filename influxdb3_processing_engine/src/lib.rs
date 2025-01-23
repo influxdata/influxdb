@@ -1,7 +1,7 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
-use crate::plugins::PluginError;
+use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
 use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
@@ -29,8 +29,11 @@ use std::time::SystemTime;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
+pub mod environment;
 pub mod manager;
 pub mod plugins;
+
+#[cfg(feature = "system-py")]
 pub(crate) mod virtualenv;
 
 #[derive(Debug)]
@@ -202,7 +205,7 @@ impl PluginChannels {
 
 impl ProcessingEngineManagerImpl {
     pub fn new(
-        plugin_dir: Option<std::path::PathBuf>,
+        environment: ProcessingEngineEnvironmentManager,
         catalog: Arc<Catalog>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
@@ -210,12 +213,12 @@ impl ProcessingEngineManagerImpl {
         wal: Arc<dyn Wal>,
     ) -> Self {
         // if given a plugin dir, try to initialize the virtualenv.
-        if let Some(ref plugin_dir) = plugin_dir {
-            let venv_path = plugin_dir.join(".venv");
-            virtualenv::try_init_venv(&venv_path)
+        if environment.plugin_dir.is_some() {
+            #[cfg(feature = "system-py")]
+            virtualenv::init_pyo3(&environment.virtual_env_location);
         }
         Self {
-            plugin_dir,
+            plugin_dir: environment.plugin_dir,
             catalog,
             write_buffer,
             query_executor,
@@ -756,7 +759,9 @@ pub(crate) struct Request {
 
 #[cfg(test)]
 mod tests {
+    use crate::environment::DisabledManager;
     use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+    use crate::plugins::ProcessingEngineEnvironmentManager;
     use crate::ProcessingEngineManagerImpl;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
@@ -1016,10 +1021,21 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#;
         writeln!(file, "{}", code).unwrap();
-        let plugin_dir = Some(file.path().parent().unwrap().to_path_buf());
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(file.path().parent().unwrap().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+        };
 
         (
-            ProcessingEngineManagerImpl::new(plugin_dir, catalog, wbuf, qe, time_provider, wal),
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                catalog,
+                wbuf,
+                qe,
+                time_provider,
+                wal,
+            ),
             file,
         )
     }

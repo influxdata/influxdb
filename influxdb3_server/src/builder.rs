@@ -154,7 +154,7 @@ impl<T: TimeProvider>
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::new(ProcessingEngineManagerImpl::new(
-            self.common_state.plugin_dir.clone(),
+            self.common_state.processing_engine_environment.clone(),
             self.write_buffer.0.catalog(),
             Arc::clone(&self.write_buffer.0),
             Arc::clone(&self.query_executor.0),
