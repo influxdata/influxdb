@@ -47,9 +47,6 @@ use thiserror::Error;
 use twox_hash::XxHash64;
 use write_buffer::INDEX_HASH_SEED;
 
-/// Used to determine if writes are older than what we can accept or query
-pub const THREE_DAYS: Duration = Duration::from_secs(60 * 60 * 24 * 3);
-
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("object store path error: {0}")]

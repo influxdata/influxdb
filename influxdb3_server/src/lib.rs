@@ -779,6 +779,7 @@ mod tests {
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
                 snapshotted_wal_files_to_keep: 100,
+                query_file_limit: None,
             },
         )
         .await

@@ -146,6 +146,8 @@ pub struct WriteBufferImpl {
     metrics: WriteMetrics,
     distinct_cache: Arc<DistinctCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
+    /// The number of files we will accept for a query
+    query_file_limit: usize,
 }
 
 /// The maximum number of snapshots to load on start
@@ -163,6 +165,7 @@ pub struct WriteBufferImplArgs {
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub metric_registry: Arc<Registry>,
     pub snapshotted_wal_files_to_keep: u64,
+    pub query_file_limit: Option<usize>,
 }
 
 impl WriteBufferImpl {
@@ -178,6 +181,7 @@ impl WriteBufferImpl {
             parquet_cache,
             metric_registry,
             snapshotted_wal_files_to_keep,
+            query_file_limit,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -199,7 +203,6 @@ impl WriteBufferImpl {
         }
 
         let persisted_files = Arc::new(PersistedFiles::new_from_persisted_snapshots(
-            Arc::clone(&time_provider),
             persisted_snapshots,
         ));
         let queryable_buffer = Arc::new(QueryableBuffer::new(QueryableBufferArgs {
@@ -209,7 +212,6 @@ impl WriteBufferImpl {
             last_cache_provider: Arc::clone(&last_cache),
             distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
-            time_provider: Arc::clone(&time_provider),
             parquet_cache: parquet_cache.clone(),
         }));
 
@@ -239,6 +241,7 @@ impl WriteBufferImpl {
             persisted_files,
             buffer: queryable_buffer,
             metrics: WriteMetrics::new(&metric_registry),
+            query_file_limit: query_file_limit.unwrap_or(432),
         });
         Ok(result)
     }
@@ -326,6 +329,21 @@ impl WriteBufferImpl {
         let parquet_files =
             self.persisted_files
                 .get_files_filtered(db_schema.id, table_def.table_id, filter);
+
+        if parquet_files.len() > self.query_file_limit {
+            return Err(DataFusionError::External(
+                format!(
+                    "Query would exceed file limit of {} parquet files. \
+                     Please specify a smaller time range for your \
+                     query. You can increase the file limit with the \
+                     `--query-file-limit` option in the serve command, however, \
+                     query performance will be slower and the server may get \
+                     OOM killed or become unstable as a result",
+                    self.query_file_limit
+                )
+                .into(),
+            ));
+        }
 
         let mut chunk_order = chunks.len() as i64;
 
@@ -723,7 +741,7 @@ impl DatabaseManager for WriteBufferImpl {
                         "int64" => FieldDataType::Integer,
                         "bool" => FieldDataType::Boolean,
                         "utf8" => FieldDataType::String,
-                        _ => todo!(),
+                        _ => unreachable!(),
                     },
                 });
             }
@@ -957,6 +975,7 @@ mod tests {
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();
@@ -1048,6 +1067,7 @@ mod tests {
             parquet_cache: Some(Arc::clone(&parquet_cache)),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();
@@ -1119,6 +1139,7 @@ mod tests {
                 parquet_cache: wbuf.parquet_cache.clone(),
                 metric_registry: Default::default(),
                 snapshotted_wal_files_to_keep: 10,
+                query_file_limit: None,
             })
             .await
             .unwrap()
@@ -1359,6 +1380,7 @@ mod tests {
             parquet_cache: write_buffer.parquet_cache.clone(),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();
@@ -3043,6 +3065,7 @@ mod tests {
             parquet_cache,
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();

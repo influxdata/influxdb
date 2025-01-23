@@ -242,14 +242,6 @@ fn validate_and_qualify_v1_line(
             .map(|ts| apply_precision_to_timestamp(precision, ts))
             .unwrap_or(ingest_time.timestamp_nanos());
 
-        if timestamp_ns < (ingest_time - crate::THREE_DAYS).timestamp_nanos() {
-            return Err(WriteLineError {
-                original_line: line.to_string(),
-                line_number: line_number + 1,
-                error_message: "line contained a date that was more than 3 days ago".into(),
-            });
-        }
-
         fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
 
         // if we have new columns defined, add them to the db_schema table so that subsequent lines
