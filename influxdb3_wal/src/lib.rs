@@ -707,7 +707,7 @@ impl TriggerSpecificationDefinition {
                     schedule: cron_schedule.to_string(),
                 })
             }
-            s if s.starts_with("every") => {
+            s if s.starts_with("every:") => {
                 let duration_str = s.trim_start_matches("every:").trim();
                 let Ok(duration) = parse_duration(duration_str) else {
                     return Err(Error::TriggerSpecificationParseError {
