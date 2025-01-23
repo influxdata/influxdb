@@ -36,7 +36,7 @@ type contextKey int
 
 const (
 	realIPKey contextKey = iota
-	writerIDKey
+	nodeIDKey
 	instanceIDKey
 )
 
@@ -123,19 +123,24 @@ func (h *HTTPHandler) handleLicenses(w http.ResponseWriter, r *http.Request, log
 // This handler requires the following parameters:
 // - email: the email address of the user
 // - instance-id: the instance ID of the InfluxDB instance
-// - writer-id: the writer ID of the InfluxDB instance
+// - node-id: the node ID of the InfluxDB instance
 func (h *HTTPHandler) handlePostLicenses(w http.ResponseWriter, r *http.Request, log *zap.Logger) {
 	to := r.FormValue("email")
 	instanceID := r.FormValue("instance-id")
-	writerID := r.FormValue("writer-id")
+	nodeID := r.FormValue("node-id")
 
-	if to == "" || instanceID == "" || writerID == "" {
+	if nodeID == "" {
+		// Try writer-id for backwards compatibility
+		nodeID = r.FormValue("writer-id")
+	}
+
+	if to == "" || instanceID == "" || nodeID == "" {
 		h.logHTTPRequest("missing required parameters", r, zapcore.InfoLevel, log)
 		http.Error(w, "missing required parameters", http.StatusBadRequest)
 		return
 	}
 
-	r = r.WithContext(context.WithValue(r.Context(), writerIDKey, writerID))
+	r = r.WithContext(context.WithValue(r.Context(), nodeIDKey, nodeID))
 	r = r.WithContext(context.WithValue(r.Context(), instanceIDKey, instanceID))
 
 	// Get user from database
@@ -549,7 +554,7 @@ func (h *HTTPHandler) handleVerify(w http.ResponseWriter, r *http.Request, log *
 }
 
 func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *store.User) (*store.License, error) {
-	writerID := ctx.Value(writerIDKey).(string)
+	nodeID := ctx.Value(nodeIDKey).(string)
 	instanceID := ctx.Value(instanceIDKey).(string)
 
 	// Check if the user already has a license for this instance ID
@@ -565,7 +570,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	// create a signed license token
 	now, dur := h.trialLicenseDuration()
 
-	token, err := h.lic.Create(user.Email, writerID, instanceID, dur)
+	token, err := h.lic.Create(user.Email, nodeID, instanceID, dur)
 	if err != nil {
 		return nil, fmt.Errorf("createLicense: error creating signed license token: %w", err)
 	}
@@ -574,7 +579,7 @@ func (h *HTTPHandler) createLicense(ctx context.Context, tx store.Tx, user *stor
 	lic := &store.License{
 		UserID:     user.ID,
 		Email:      user.Email,
-		WriterID:   writerID,
+		NodeID:     nodeID,
 		InstanceID: instanceID,
 		LicenseKey: token,
 		ValidFrom:  now,

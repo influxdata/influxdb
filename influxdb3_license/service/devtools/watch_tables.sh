@@ -42,7 +42,7 @@ if ! [[ "$REFRESH_INTERVAL" =~ ^[0-9]+$ ]] || [ "$REFRESH_INTERVAL" -lt 1 ]; the
 fi
 
 # SQL queries - focusing on human-readable fields
-LICENSE_QUERY="select id, user_id, email, writer_id, state, created_at, valid_from, valid_until from licenses order by id desc limit 10;"
+LICENSE_QUERY="select id, user_id, email, node_id, state, created_at, valid_from, valid_until from licenses order by id desc limit 10;"
 USER_QUERY="select id, email, emails_sent_cnt, created_at, verified_at, updated_at from users order by id desc limit 10;"
 EMAIL_QUERY="select id, user_id, verification_url, verified_at, license_id, to_email, state, scheduled_at, sent_at, send_cnt, send_fail_cnt, last_err_msg from emails order by id desc limit 10;"
 USER_IP_QUERY="select user_id, ipaddr, blocked from user_ips order by user_id desc limit 10;"
