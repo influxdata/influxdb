@@ -1,9 +1,11 @@
+use std::{
+    fs,
+    io::{stdin, BufReader, IsTerminal, Read},
+};
+
 use clap::Parser;
 use secrecy::ExposeSecret;
-use tokio::{
-    fs::File,
-    io::{self, AsyncReadExt},
-};
+use tokio::io;
 
 use super::common::InfluxDb3Config;
 
@@ -14,6 +16,18 @@ pub(crate) enum Error {
 
     #[error("error reading file: {0}")]
     Io(#[from] io::Error),
+
+    #[error("No input from stdin detected, no string was passed in, and no file path was given")]
+    NoInput,
+
+    #[error("no line protocol string provided")]
+    NoLine,
+
+    #[error(
+        "ensure that a single protocol line string is provided as the final \
+        argument, enclosed in quotes"
+    )]
+    MoreThanOne,
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
@@ -29,13 +43,16 @@ pub struct Config {
     ///
     /// Currently, only files containing line protocol are supported.
     #[clap(short = 'f', long = "file")]
-    file_path: String,
+    file_path: Option<String>,
 
     /// Flag to request the server accept partial writes
     ///
     /// Invalid lines in the input data will be ignored by the server.
     #[clap(long = "accept-partial")]
     accept_partial_writes: bool,
+
+    /// Give a quoted line protocol line via the command line
+    line_protocol: Option<Vec<String>>,
 }
 
 pub(crate) async fn command(config: Config) -> Result<()> {
@@ -49,9 +66,21 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         client = client.with_auth_token(t.expose_secret());
     }
 
-    let mut f = File::open(config.file_path).await?;
-    let mut writes = Vec::new();
-    f.read_to_end(&mut writes).await?;
+    let writes = if let Some(line) = config.line_protocol {
+        parse_line(line)?
+    } else if let Some(file_path) = config.file_path {
+        fs::read_to_string(file_path)?
+    } else {
+        let stdin = stdin();
+        // Checks if stdin has had data passed to it via a pipe
+        if stdin.is_terminal() {
+            return Err(Error::NoInput);
+        }
+        let mut reader = BufReader::new(stdin);
+        let mut buffer = String::new();
+        reader.read_to_string(&mut buffer)?;
+        buffer
+    };
 
     let mut req = client.api_v3_write_lp(database_name);
     if config.accept_partial_writes {
@@ -62,4 +91,17 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     println!("success");
 
     Ok(())
+}
+
+/// Parse the user-inputted line protocol string
+/// NOTE: This is only necessary because clap will not accept a single string for a trailing arg
+fn parse_line(mut input: Vec<String>) -> Result<String> {
+    if input.is_empty() {
+        Err(Error::NoLine)?
+    }
+    if input.len() > 1 {
+        Err(Error::MoreThanOne)?
+    } else {
+        Ok(input.remove(0))
+    }
 }
