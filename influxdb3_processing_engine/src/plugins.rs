@@ -1,7 +1,7 @@
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
+use crate::{RequestEvent, ScheduleEvent, WalEvent};
 #[cfg(feature = "system-py")]
-use crate::PluginEvent;
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
@@ -73,6 +73,7 @@ pub(crate) fn run_wal_contents_plugin(
     plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
+    plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -83,7 +84,7 @@ pub(crate) fn run_wal_contents_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_wal_contents_plugin(context.trigger_rx)
+            .run_wal_contents_plugin(plugin_receiver)
             .await
             .expect("trigger plugin failed");
     });
@@ -96,7 +97,13 @@ pub(crate) fn run_schedule_plugin(
     trigger_definition: TriggerDefinition,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
+    plugin_receiver: mpsc::Receiver<ScheduleEvent>,
 ) -> Result<(), Error> {
+    let TriggerSpecificationDefinition::Schedule { .. } = &trigger_definition.trigger else {
+        // TODO: these linkages should be guaranteed by code.
+        unreachable!("this should've been checked");
+    };
+
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
         db_name,
@@ -104,16 +111,18 @@ pub(crate) fn run_schedule_plugin(
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
     };
+
     let runner = python_plugin::ScheduleTriggerRunner::try_new(
         &trigger_plugin.trigger_definition.trigger,
         Arc::clone(&time_provider),
     )?;
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_schedule_plugin(context.trigger_rx, runner, time_provider)
+            .run_schedule_plugin(plugin_receiver, runner, time_provider)
             .await
             .expect("cron trigger plugin failed");
     });
+
     Ok(())
 }
 
@@ -123,6 +132,7 @@ pub(crate) fn run_request_plugin(
     plugin_code: PluginCode,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
+    plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -133,7 +143,7 @@ pub(crate) fn run_request_plugin(
     };
     tokio::task::spawn(async move {
         trigger_plugin
-            .run_request_plugin(context.trigger_rx)
+            .run_request_plugin(plugin_receiver)
             .await
             .expect("trigger plugin failed");
     });
@@ -141,8 +151,6 @@ pub(crate) fn run_request_plugin(
 
 #[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
-    // tokio channel for inputs
-    pub(crate) trigger_rx: mpsc::Receiver<PluginEvent>,
     // handler to write data back to the DB.
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
     // query executor to hand off to the plugin
@@ -185,7 +193,7 @@ mod python_plugin {
     impl TriggerPlugin {
         pub(crate) async fn run_wal_contents_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
+            mut receiver: Receiver<WalEvent>,
         ) -> Result<(), Error> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting wal contents plugin");
 
@@ -199,15 +207,12 @@ mod python_plugin {
                 };
 
                 match event {
-                    PluginEvent::WriteWalContents(wal_contents) => {
+                    WalEvent::WriteWalContents(wal_contents) => {
                         if let Err(e) = self.process_wal_contents(wal_contents).await {
                             error!(?self.trigger_definition, "error processing wal contents: {}", e);
                         }
                     }
-                    PluginEvent::Request(_) => {
-                        warn!("ignoring request in wal contents plugin.")
-                    }
-                    PluginEvent::Shutdown(sender) => {
+                    WalEvent::Shutdown(sender) => {
                         sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                         break;
                     }
@@ -219,7 +224,7 @@ mod python_plugin {
 
         pub(crate) async fn run_schedule_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
+            mut receiver: Receiver<ScheduleEvent>,
             mut runner: ScheduleTriggerRunner,
             time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), Error> {
@@ -241,13 +246,7 @@ mod python_plugin {
                                 warn!(?self.trigger_definition, "trigger plugin receiver closed");
                                 break;
                             }
-                            Some(PluginEvent::WriteWalContents(_)) => {
-                                warn!("ignoring wal contents in cron plugin.")
-                            }
-                            Some(PluginEvent::Request(_)) => {
-                                warn!("ignoring request in cron plugin.")
-                            }
-                            Some(PluginEvent::Shutdown(sender)) => {
+                            Some(ScheduleEvent::Shutdown(sender)) => {
                                 sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                                 break;
                             }
@@ -261,7 +260,7 @@ mod python_plugin {
 
         pub(crate) async fn run_request_plugin(
             &self,
-            mut receiver: Receiver<PluginEvent>,
+            mut receiver: Receiver<RequestEvent>,
         ) -> Result<(), Error> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting request plugin");
 
@@ -271,10 +270,7 @@ mod python_plugin {
                         warn!(?self.trigger_definition, "trigger plugin receiver closed");
                         break;
                     }
-                    Some(PluginEvent::WriteWalContents(_)) => {
-                        warn!("ignoring wal contents in request plugin.")
-                    }
-                    Some(PluginEvent::Request(request)) => {
+                    Some(RequestEvent::Request(request)) => {
                         let Some(schema) =
                             self.write_buffer.catalog().db_schema(self.db_name.as_str())
                         else {
@@ -336,7 +332,7 @@ mod python_plugin {
                             error!(?self.trigger_definition, "error sending response");
                         }
                     }
-                    Some(PluginEvent::Shutdown(sender)) => {
+                    Some(RequestEvent::Shutdown(sender)) => {
                         sender.send(()).map_err(|_| Error::FailedToShutdown)?;
                         break;
                     }
