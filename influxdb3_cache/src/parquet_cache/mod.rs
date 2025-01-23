@@ -13,6 +13,7 @@ use std::{
 use anyhow::bail;
 use async_trait::async_trait;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use dashmap::{DashMap, Entry};
 use futures::{
     future::{BoxFuture, Shared},
@@ -40,6 +41,31 @@ type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, 
 /// Dynamic error type that can be cloned
 type DynError = Arc<dyn std::error::Error + Send + Sync>;
 
+#[derive(Debug)]
+pub struct ParquetFileDataToCache {
+    bytes: Bytes,
+    object_meta: ObjectMeta,
+}
+
+impl ParquetFileDataToCache {
+    pub fn new(
+        path: &Path,
+        last_modified: DateTime<Utc>,
+        bytes: Bytes,
+        put_result: PutResult,
+    ) -> Self {
+        let object_meta = ObjectMeta {
+            // one time cost
+            location: path.clone(),
+            last_modified,
+            size: bytes.len(),
+            e_tag: put_result.e_tag,
+            version: put_result.version,
+        };
+        Self { bytes, object_meta }
+    }
+}
+
 /// A request to fetch an item at the given `path` from an object store
 ///
 /// Contains a notifier to notify the caller that registers the cache request when the item
@@ -48,14 +74,25 @@ type DynError = Arc<dyn std::error::Error + Send + Sync>;
 pub struct CacheRequest {
     path: Path,
     notifier: oneshot::Sender<()>,
+    parquet_bytes: Option<ParquetFileDataToCache>,
 }
 
 impl CacheRequest {
-    /// Create a new [`CacheRequest`] along with a receiver to catch the notify message when
-    /// the cache request has been fulfilled.
-    pub fn create(path: Path) -> (Self, oneshot::Receiver<()>) {
+    // Create a new [`CacheRequest`] along with a receiver to catch the notify message when
+    // the cache request has been fulfilled.
+    pub fn create(
+        path: Path,
+        bytes: Option<ParquetFileDataToCache>,
+    ) -> (Self, oneshot::Receiver<()>) {
         let (notifier, receiver) = oneshot::channel();
-        (Self { path, notifier }, receiver)
+        (
+            Self {
+                path,
+                notifier,
+                parquet_bytes: bytes,
+            },
+            receiver,
+        )
     }
 
     /// Helper to get path used to create this request
@@ -325,6 +362,20 @@ impl Cache {
     fn set_fetching(&self, path: &Path, fut: SharedCacheValueFuture) {
         let entry = CacheEntry {
             state: CacheEntryState::Fetching(fut),
+            hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
+        };
+        let additional = entry.size();
+        self.size_metrics
+            .record_file_additions(additional as u64, 1);
+        self.map.insert(path.clone(), entry);
+        self.used.fetch_add(additional, Ordering::SeqCst);
+    }
+
+    /// When parquet bytes are in hand this method can be used to update the cache value
+    /// directly without going through Fetching -> Success lifecycle
+    fn set_cache_value_directly(&self, path: &Path, cache_value: Arc<CacheValue>) {
+        let entry = CacheEntry {
+            state: CacheEntryState::Success(cache_value),
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
@@ -689,12 +740,30 @@ fn background_cache_request_handler(
     mut rx: Receiver<CacheRequest>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Some(CacheRequest { path, notifier }) = rx.recv().await {
+        while let Some(CacheRequest {
+            path,
+            notifier,
+            parquet_bytes,
+        }) = rx.recv().await
+        {
             // We assume that objects on object store are immutable, so we can skip objects that
             // we have already fetched:
             if mem_store.cache.path_already_fetched(&path) {
                 continue;
             }
+
+            // if we have parquet bytes already we can just use it to populate the cache
+            if let Some(parquet_bytes) = parquet_bytes {
+                let cache_value = CacheValue {
+                    data: parquet_bytes.bytes,
+                    meta: parquet_bytes.object_meta,
+                };
+                mem_store
+                    .cache
+                    .set_cache_value_directly(&path, Arc::new(cache_value));
+                continue;
+            }
+
             // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);
@@ -811,8 +880,9 @@ pub(crate) mod tests {
         assert_payload_at_equals!(cached_store, payload, path);
         assert_eq!(1, inner_store.total_read_request_count(&path));
 
+        // TODO:
         // cache the entry:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone(), None);
         oracle.register(cache_request);
 
         // wait for cache notify:
@@ -855,7 +925,7 @@ pub(crate) mod tests {
             .unwrap();
 
         // cache the entry and wait for it to complete:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_1.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path_1.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // there will have been one get request made by the cache oracle:
@@ -882,7 +952,7 @@ pub(crate) mod tests {
 
         // cache the second entry and wait for it to complete, this will not evict the first entry
         // as both can fit in the cache:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will have another request for the second path to the inner store, by the oracle:
@@ -921,7 +991,7 @@ pub(crate) mod tests {
 
         // cache the third entry and wait for it to complete, this will push the cache past its
         // capacity:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will now have another request for the third path to the inner store, by the oracle:
@@ -976,7 +1046,7 @@ pub(crate) mod tests {
             .unwrap();
 
         // cache the entry, but don't wait on it until below in spawned task:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone(), None);
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching"
@@ -1137,7 +1207,7 @@ pub(crate) mod tests {
         assert_eq!(1, counted_store.total_read_request_count(&path));
 
         // have the cache oracle cache the object:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create(path.clone(), None);
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching" once this

@@ -8,6 +8,7 @@ use crate::PersistedSnapshot;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
+use chrono::Utc;
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::MemoryConsumer;
 use datafusion::execution::memory_pool::MemoryPool;
@@ -18,7 +19,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
 use futures_util::stream::TryStreamExt;
 use futures_util::stream::{FuturesOrdered, StreamExt};
-use influxdb3_cache::last_cache;
+use influxdb3_cache::{last_cache, parquet_cache::ParquetFileDataToCache};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
 use object_store::path::Path as ObjPath;
@@ -321,7 +322,7 @@ impl Persister {
 
     /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store
     /// at the given path. Returns the number of bytes written and the file metadata.
-    pub async fn persist_parquet_file(
+    pub async fn persist_parquet_file_old(
         &self,
         path: ParquetFilePath,
         record_batch: SendableRecordBatchStream,
@@ -333,6 +334,28 @@ impl Persister {
             .await?;
 
         Ok((bytes_written, parquet.meta_data))
+    }
+
+    /// Writes a [`SendableRecordBatchStream`] to the Parquet format and persists it to Object Store
+    /// at the given path. Returns the number of bytes written and the file metadata.
+    pub async fn persist_parquet_file(
+        &self,
+        path: ParquetFilePath,
+        record_batch: SendableRecordBatchStream,
+    ) -> Result<(u64, FileMetaData, ParquetFileDataToCache)> {
+        // so we have serialized parquet file bytes
+        let parquet = self.serialize_to_parquet(record_batch).await?;
+        let bytes_written = parquet.bytes.len() as u64;
+        let put_result = self
+            .object_store
+            // this bytes.clone() is cheap - uses underlying Bytes::clone
+            .put(path.as_ref(), parquet.bytes.clone().into())
+            .await?;
+
+        let to_cache =
+            ParquetFileDataToCache::new(path.as_ref(), Utc::now(), parquet.bytes, put_result);
+
+        Ok((bytes_written, parquet.meta_data, to_cache))
     }
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
@@ -937,7 +960,7 @@ mod tests {
             Utc::now().timestamp_nanos_opt().unwrap(),
             WalFileSequenceNumber::new(1),
         );
-        let (bytes_written, meta) = persister
+        let (bytes_written, meta, _) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
             .await
             .unwrap();

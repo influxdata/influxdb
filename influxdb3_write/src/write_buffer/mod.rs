@@ -2091,7 +2091,7 @@ mod tests {
         assert_eq!(DbId::next_id().as_u32(), 1);
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_parquet_cache() {
         // set up a write buffer using a TestObjectStore so we can spy on requests that get
         // through to the object store for parquet files:
@@ -2163,8 +2163,8 @@ mod tests {
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
         // check the number of requests to that path before making a query:
-        // there should be one get request, made by the cache oracle:
-        assert_eq!(1, test_store.get_request_count(&path));
+        // there should be no get request, made by the cache oracle:
+        assert_eq!(0, test_store.get_request_count(&path));
         assert_eq!(0, test_store.get_opts_request_count(&path));
         assert_eq!(0, test_store.get_ranges_request_count(&path));
         assert_eq!(0, test_store.get_range_request_count(&path));
@@ -2193,7 +2193,7 @@ mod tests {
         );
 
         // counts should not change, since requests for this parquet file hit the cache:
-        assert_eq!(1, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_request_count(&path));
         assert_eq!(0, test_store.get_opts_request_count(&path));
         assert_eq!(0, test_store.get_ranges_request_count(&path));
         assert_eq!(0, test_store.get_range_request_count(&path));

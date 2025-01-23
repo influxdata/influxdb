@@ -15,8 +15,7 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
-use influxdb3_cache::distinct_cache::DistinctCacheProvider;
-use influxdb3_cache::last_cache::LastCacheProvider;
+use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
@@ -714,17 +713,20 @@ async fn sort_dedupe_persist(
             .persist_parquet_file(persist_job.path.clone(), batch_stream)
             .await
         {
-            Ok((size_bytes, meta)) => {
+            Ok((size_bytes, parquet_meta, to_cache)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
                 let parquet_cache_rx = parquet_cache.map(|parquet_cache_oracle| {
-                    let (cache_request, cache_notify_rx) =
-                        CacheRequest::create(Path::from(persist_job.path.to_string()));
+                    let (cache_request, cache_notify_rx) = CacheRequest::create(
+                        Path::from(persist_job.path.to_string()),
+                        // TODO follow this meta_data and see how to avoid cloning here
+                        Some(to_cache),
+                    );
                     parquet_cache_oracle.register(cache_request);
                     cache_notify_rx
                 });
                 return Ok(SortDedupePersistSummary::new(
                     size_bytes,
-                    meta,
+                    parquet_meta,
                     parquet_cache_rx,
                 ));
             }
