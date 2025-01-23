@@ -147,6 +147,7 @@ impl PluginChannels {
         rx
     }
 
+    #[cfg(feature = "system-py")]
     fn add_schedule_trigger(
         &mut self,
         db: String,
@@ -160,6 +161,7 @@ impl PluginChannels {
         rx
     }
 
+    #[cfg(feature = "system-py")]
     fn add_request_trigger(&mut self, path: String) -> mpsc::Receiver<RequestEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.request_triggers.insert(path, tx);
@@ -803,15 +805,18 @@ impl WalFileNotifier for ProcessingEngineManagerImpl {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) enum WalEvent {
     WriteWalContents(Arc<WalContents>),
     Shutdown(oneshot::Sender<()>),
 }
 
+#[allow(dead_code)]
 pub(crate) enum ScheduleEvent {
     Shutdown(oneshot::Sender<()>),
 }
 
+#[allow(dead_code)]
 pub(crate) enum RequestEvent {
     Request(Request),
     Shutdown(oneshot::Sender<()>),
