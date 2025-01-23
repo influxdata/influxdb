@@ -1,7 +1,7 @@
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
-use crate::{RequestEvent, ScheduleEvent, WalEvent};
 #[cfg(feature = "system-py")]
+use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
@@ -757,7 +757,6 @@ pub(crate) fn run_test_schedule_plugin(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::NamespaceName;
     use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
