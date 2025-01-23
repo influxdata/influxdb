@@ -201,7 +201,7 @@ impl QueryableBuffer {
                             table_name: Arc::clone(&table_name),
                             chunk_time: chunk.chunk_time,
                             path: ParquetFilePath::new(
-                                self.persister.writer_identifier_prefix(),
+                                self.persister.node_identifier_prefix(),
                                 db_schema.name.as_ref(),
                                 database_id.as_u32(),
                                 table_name.as_ref(),
@@ -269,7 +269,7 @@ impl QueryableBuffer {
             );
             // persist the individual files, building the snapshot as we go
             let mut persisted_snapshot = PersistedSnapshot::new(
-                persister.writer_identifier_prefix().to_string(),
+                persister.node_identifier_prefix().to_string(),
                 snapshot_details.snapshot_sequence_number,
                 snapshot_details.last_wal_sequence_number,
                 catalog.sequence_number(),

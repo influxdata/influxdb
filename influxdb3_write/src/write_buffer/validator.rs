@@ -509,10 +509,10 @@ mod tests {
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
-        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
         let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
             .unwrap()
             .v1_parse_lines_and_update_schema(

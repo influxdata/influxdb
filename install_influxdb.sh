@@ -111,7 +111,7 @@ case "$INSTALL_TYPE" in
         printf "${BOLD}NEXT STEPS${NC}\n"
         printf "1) Run the Docker image:\n"
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
-        printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --writer-id writer0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+        printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id nodeNodeNodeNodeNodenodeNODENODENODEnodeNodeNODEnodeNODEnodeNODE/plugins${NC} ${DIM}(To start)${NC}\n"
         printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
 
         END_TIME=$(date +%s)
@@ -193,13 +193,13 @@ if [ "${EDITION}" = "Core" ]; then
     printf "└─ Start InfluxDB Now? (y/n): "
     read -r START_SERVICE
     if echo "$START_SERVICE" | grep -q "^[Yy]$" ; then
-        # Prompt for Writer ID
+        # Prompt for Node ID
         echo
-        printf "${BOLD}Enter Your Writer ID${NC}\n"
-        printf "├─ A Writer ID is a unique, uneditable identifier for a service.\n"
-        printf "└─ Enter a Writer ID (default: writer0): "
-        read -r WRITER_ID
-        WRITER_ID=${WRITER_ID:-writer0}
+        printf "${BOLD}Enter Your Node ID${NC}\n"
+        printf "├─ A Node ID is a unique, uneditable identifier for a service.\n"
+        printf "└─ Enter a Node ID (default: node0): "
+        read -r NODE_ID
+        NODE_ID=${NODE_ID:-node0}
 
         # Prompt for storage solution
         echo
@@ -328,10 +328,10 @@ if [ "${EDITION}" = "Core" ]; then
         # Start and give up to 30 seconds to respond
         echo
         printf "${BOLD}Starting InfluxDB${NC}\n"
-        printf "├─${DIM} Writer ID: %s${NC}\n" "$WRITER_ID"
+        printf "├─${DIM} Node ID: %s${NC}\n" "$NODE_ID"
         printf "├─${DIM} Storage: %s${NC}\n" "$STORAGE_TYPE"
-        printf "├─${DIM} '%s' serve --writer-id='%s' --http-bind='0.0.0.0:%s' %s${NC}\n" "$INSTALL_LOC/$BINARY_NAME" "$WRITER_ID" "$PORT" "$STORAGE_FLAGS_ECHO"
-        "$INSTALL_LOC/$BINARY_NAME" serve --writer-id="$WRITER_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
+        printf "├─${DIM} '%s' serve --node-id='%s' --http-bind='0.0.0.0:%s' %s${NC}\n" "$INSTALL_LOC/$BINARY_NAME" "$NODE_ID" "$PORT" "$STORAGE_FLAGS_ECHO"
+        "$INSTALL_LOC/$BINARY_NAME" serve --node-id="$NODE_ID" --http-bind="0.0.0.0:$PORT" $STORAGE_FLAGS > /dev/null &
         PID="$!"
 
         SUCCESS=0

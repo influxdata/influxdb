@@ -113,8 +113,8 @@ fn create_plugin_file(code: &str) -> NamedTempFile {
 async fn test_telemetry_disabled_with_debug_msg() {
     let serve_args = &[
         "serve",
-        "--writer-id",
-        "the-best-writer",
+        "--node-id",
+        "the-best-node",
         "--object-store",
         "memory",
     ];
@@ -141,8 +141,8 @@ async fn test_telemetry_disabled_with_debug_msg() {
 async fn test_telemetry_disabled() {
     let serve_args = &[
         "serve",
-        "--writer-id",
-        "the-best-writer",
+        "--node-id",
+        "the-best-node",
         "--object-store",
         "memory",
     ];
@@ -168,8 +168,8 @@ async fn test_telemetry_disabled() {
 async fn test_telemetry_enabled_with_debug_msg() {
     let serve_args = &[
         "serve",
-        "--writer-id",
-        "the-best-writer",
+        "--node-id",
+        "the-best-node",
         "--object-store",
         "memory",
     ];
@@ -198,8 +198,8 @@ async fn test_telemetry_enabled_with_debug_msg() {
 async fn test_telementry_enabled() {
     let serve_args = &[
         "serve",
-        "--writer-id",
-        "the-best-writer",
+        "--node-id",
+        "the-best-node",
         "--object-store",
         "memory",
     ];
