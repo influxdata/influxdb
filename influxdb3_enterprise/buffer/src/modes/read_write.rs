@@ -33,7 +33,7 @@ use tokio::sync::watch::Receiver;
 #[derive(Debug)]
 pub struct ReadWriteMode {
     primary: Arc<WriteBufferImpl>,
-    writer_id: Arc<str>,
+    node_id: Arc<str>,
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
     replicas: Option<Replicas>,
@@ -42,7 +42,7 @@ pub struct ReadWriteMode {
 
 #[derive(Debug)]
 pub struct CreateReadWriteModeArgs {
-    pub writer_id: Arc<str>,
+    pub node_id: Arc<str>,
     pub persister: Arc<Persister>,
     pub catalog: Arc<Catalog>,
     pub last_cache: Arc<LastCacheProvider>,
@@ -60,7 +60,7 @@ pub struct CreateReadWriteModeArgs {
 impl ReadWriteMode {
     pub(crate) async fn new(
         CreateReadWriteModeArgs {
-            writer_id,
+            node_id,
             persister,
             catalog,
             last_cache,
@@ -87,17 +87,19 @@ impl ReadWriteMode {
             parquet_cache: parquet_cache.clone(),
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep,
+            // NOTE: this is a core only limit
+            query_file_limit: None,
         })
         .await?;
 
         let replicas = if let Some(ReplicationConfig {
             interval: replication_interval,
-            writer_ids,
+            node_ids,
         }) = replication_config.and_then(|mut config| {
             // remove this writer from the list of replicas if it was provided to prevent from
             // replicating the local primary buffer.
-            config.writer_ids.retain(|h| h != writer_id.as_ref());
-            (!config.writer_ids.is_empty()).then_some(config)
+            config.node_ids.retain(|h| h != node_id.as_ref());
+            (!config.node_ids.is_empty()).then_some(config)
         }) {
             Some(
                 Replicas::new(CreateReplicasArgs {
@@ -106,7 +108,7 @@ impl ReadWriteMode {
                     object_store: Arc::clone(&object_store),
                     metric_registry,
                     replication_interval,
-                    writer_ids,
+                    node_ids,
                     parquet_cache,
                     catalog,
                     time_provider,
@@ -118,7 +120,7 @@ impl ReadWriteMode {
             None
         };
         Ok(Self {
-            writer_id,
+            node_id,
             primary,
             replicas,
             compacted_data,
@@ -265,7 +267,7 @@ impl ChunkContainer for ReadWriteMode {
         // now add in the gen1 chunks from primary
         let next_non_compacted_parquet_file_id = writer_markers.as_ref().and_then(|markers| {
             markers.iter().find_map(|marker| {
-                if marker.writer_id == self.writer_id.as_ref() {
+                if marker.node_id == self.node_id.as_ref() {
                     Some(marker.next_file_id)
                 } else {
                     None

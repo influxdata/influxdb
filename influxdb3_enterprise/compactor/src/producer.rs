@@ -28,7 +28,7 @@ use influxdb3_enterprise_data_layout::{
 };
 use influxdb3_enterprise_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
-    GenerationDetail, GenerationId, GenerationLevel, WriterSnapshotMarker,
+    GenerationDetail, GenerationId, GenerationLevel, NodeSnapshotMarker,
 };
 use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
@@ -102,7 +102,7 @@ impl Debug for CompactedDataProducer {
 #[derive(Debug)]
 pub struct CompactedDataProducerArgs {
     pub compactor_id: Arc<str>,
-    pub writer_ids: Vec<String>,
+    pub node_ids: Vec<String>,
     pub compaction_config: CompactionConfig,
     pub enterprise_config: Arc<tokio::sync::RwLock<EnterpriseConfig>>,
     pub datafusion_config: Arc<StdHashMap<String, String>>,
@@ -117,7 +117,7 @@ impl CompactedDataProducer {
     pub async fn new(
         CompactedDataProducerArgs {
             compactor_id,
-            writer_ids,
+            node_ids,
             compaction_config,
             enterprise_config,
             datafusion_config,
@@ -130,7 +130,7 @@ impl CompactedDataProducer {
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
             Arc::clone(&compactor_id),
-            writer_ids,
+            node_ids,
             Arc::clone(&object_store),
         )
         .await?;
@@ -455,7 +455,7 @@ impl CompactedDataProducer {
         &self,
         plan: NextCompactionPlan,
         sequence_number: CompactionSequenceNumber,
-        snapshot_markers: Vec<Arc<WriterSnapshotMarker>>,
+        snapshot_markers: Vec<Arc<NodeSnapshotMarker>>,
     ) -> Result<()> {
         let index_columns = self
             .enterprise_config
@@ -653,9 +653,9 @@ fn record_compaction_plan(
 /// compacted or tracked in the comapcted data structure.
 pub(crate) struct CompactionState {
     // The most recent snapshot marker for each writer
-    writer_id_to_last_marker: HashMap<String, Arc<WriterSnapshotMarker>>,
+    node_id_to_last_marker: HashMap<String, Arc<NodeSnapshotMarker>>,
     // Snapshots that have yet to be compacted (could be multiple per writer)
-    writer_markers: Vec<Arc<WriterSnapshotMarker>>,
+    writer_markers: Vec<Arc<NodeSnapshotMarker>>,
     // Map of files in all snapshots waiting to be compacted
     files_to_compact: Gen1FileMap,
 }
@@ -667,21 +667,21 @@ impl CompactionState {
     /// from the target writers.
     pub(crate) async fn load_or_initialize(
         compactor_id: Arc<str>,
-        writer_ids: Vec<String>,
+        node_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<(Self, CompactedData)> {
         // load or initialize and persist a compacted catalog
         async fn compacted_catalog(
             compactor_id: Arc<str>,
-            writer_ids: Vec<String>,
+            node_ids: Vec<String>,
             obj_store: Arc<dyn ObjectStore>,
         ) -> Result<CompactedCatalog> {
             match CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&obj_store)).await? {
                 Some(catalog) => Ok(catalog),
                 None => {
-                    let catalog = CompactedCatalog::load_merged_from_writer_ids(
+                    let catalog = CompactedCatalog::load_merged_from_node_ids(
                         compactor_id,
-                        writer_ids.clone(),
+                        node_ids.clone(),
                         Arc::clone(&obj_store),
                     )
                     .await?;
@@ -696,12 +696,9 @@ impl CompactionState {
         // load or initialize and persist the first compaction summary
         async fn summary(
             compactor_id: Arc<str>,
-            writer_ids: Vec<String>,
+            node_ids: Vec<String>,
             obj_store: Arc<dyn ObjectStore>,
-        ) -> Result<(
-            CompactionSummary,
-            HashMap<String, Arc<WriterSnapshotMarker>>,
-        )> {
+        ) -> Result<(CompactionSummary, HashMap<String, Arc<NodeSnapshotMarker>>)> {
             let compaction_summary =
                 match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&obj_store))
                     .await?
@@ -711,11 +708,11 @@ impl CompactionState {
                         // if there's no compaction summary, we initialize a new one with writers that have
                         // snapshot sequence numbers of zero, so that compaction can pick up all snapshots
                         // from there
-                        let snapshot_markers = writer_ids
+                        let snapshot_markers = node_ids
                             .iter()
-                            .map(|writer_id| {
-                                Arc::new(WriterSnapshotMarker {
-                                    writer_id: writer_id.clone(),
+                            .map(|node_id| {
+                                Arc::new(NodeSnapshotMarker {
+                                    node_id: node_id.clone(),
                                     snapshot_sequence_number: SnapshotSequenceNumber::new(0),
                                     next_file_id: ParquetFileId::from(0),
                                 })
@@ -739,42 +736,42 @@ impl CompactionState {
                 };
 
             // ensure that every writer is in the last marker map
-            let mut writer_id_to_last_marker = compaction_summary
+            let mut node_id_to_last_marker = compaction_summary
                 .snapshot_markers
                 .iter()
-                .map(|marker| (marker.writer_id.clone(), Arc::clone(marker)))
+                .map(|marker| (marker.node_id.clone(), Arc::clone(marker)))
                 .collect::<HashMap<_, _>>();
-            for writer_id in writer_ids {
-                if !writer_id_to_last_marker.contains_key(&writer_id) {
-                    writer_id_to_last_marker.insert(
-                        writer_id.clone(),
-                        Arc::new(WriterSnapshotMarker {
-                            writer_id,
+            for node_id in node_ids {
+                if !node_id_to_last_marker.contains_key(&node_id) {
+                    node_id_to_last_marker.insert(
+                        node_id.clone(),
+                        Arc::new(NodeSnapshotMarker {
+                            node_id,
                             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
                             next_file_id: ParquetFileId::from(0),
                         }),
                     );
                 }
             }
-            Ok((compaction_summary, writer_id_to_last_marker))
+            Ok((compaction_summary, node_id_to_last_marker))
         }
 
         // Spawn tasks so they can run in parallel
         let task_1 = tokio::spawn(compacted_catalog(
             Arc::clone(&compactor_id),
-            writer_ids.clone(),
+            node_ids.clone(),
             Arc::clone(&object_store),
         ));
         let task_2 = tokio::spawn(summary(
             Arc::clone(&compactor_id),
-            writer_ids,
+            node_ids,
             Arc::clone(&object_store),
         ));
 
         // Await both futures concurrently
         let (compacted_catalog, summary_tuple) = tokio::try_join!(task_1, task_2)?;
         let compacted_catalog = compacted_catalog?;
-        let (compaction_summary, writer_id_to_last_marker) = summary_tuple?;
+        let (compaction_summary, node_id_to_last_marker) = summary_tuple?;
 
         // now load the compacted data
         let compacted_data = CompactedData::load_compacted_data(
@@ -787,7 +784,7 @@ impl CompactionState {
 
         Ok((
             Self {
-                writer_id_to_last_marker,
+                node_id_to_last_marker,
                 writer_markers: vec![],
                 files_to_compact: HashMap::new(),
             },
@@ -805,18 +802,18 @@ impl CompactionState {
         sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> Result<()> {
         let mut snapshots = vec![];
-        for (writer_id, marker) in &self.writer_id_to_last_marker {
+        for (node_id, marker) in &self.node_id_to_last_marker {
             let start = Instant::now();
             if marker.snapshot_sequence_number == SnapshotSequenceNumber::new(0) {
                 // if the snapshot sequence number is zero, we need to load all snapshots for this
                 // writer up to the most recent 1,000
-                let persister = Persister::new(Arc::clone(&object_store), writer_id);
+                let persister = Persister::new(Arc::clone(&object_store), node_id);
                 let writer_snapshots =
-                    load_all_snapshots(persister, writer_id, marker, &sys_events_store)
+                    load_all_snapshots(persister, node_id, marker, &sys_events_store)
                         .await
                         .inspect_err(|err| {
                             let failed_event = FailedInfo {
-                                writer_id: Arc::from(writer_id.as_str()),
+                                node_id: Arc::from(node_id.as_str()),
                                 duration: start.elapsed(),
                                 sequence_number: marker.snapshot_sequence_number.as_u64(),
                                 error: err.to_string(),
@@ -827,7 +824,7 @@ impl CompactionState {
             } else {
                 load_next_snapshot(
                     marker,
-                    writer_id,
+                    node_id,
                     &object_store,
                     &sys_events_store,
                     &mut snapshots,
@@ -835,7 +832,7 @@ impl CompactionState {
                 .await
                 .inspect_err(|err| {
                     let failed_event = FailedInfo {
-                        writer_id: Arc::from(writer_id.as_str()),
+                        node_id: Arc::from(node_id.as_str()),
                         duration: start.elapsed(),
                         sequence_number: marker.snapshot_sequence_number.as_u64(),
                         error: err.to_string(),
@@ -849,11 +846,11 @@ impl CompactionState {
         let mut writer_catalog_markers: HashMap<&String, CatalogSnapshotMarker> = HashMap::new();
         for snapshot in &snapshots {
             let marker = writer_catalog_markers
-                .entry(&snapshot.writer_id)
+                .entry(&snapshot.node_id)
                 .or_insert_with(|| CatalogSnapshotMarker {
                     snapshot_sequence_number: snapshot.snapshot_sequence_number,
                     catalog_sequence_number: snapshot.catalog_sequence_number,
-                    writer_id: snapshot.writer_id.clone(),
+                    node_id: snapshot.node_id.clone(),
                 });
 
             if snapshot.catalog_sequence_number > marker.catalog_sequence_number {
@@ -881,14 +878,14 @@ impl CompactionState {
         let mut mapped_snapshots = Vec::with_capacity(snapshots.len());
         let start = Instant::now();
         for snapshot in snapshots {
-            let writer_id = snapshot.writer_id.to_owned();
+            let node_id = snapshot.node_id.to_owned();
             let sequence_num = snapshot.snapshot_sequence_number;
             let s = compacted_data
                 .compacted_catalog
                 .map_persisted_snapshot_contents(snapshot)
                 .inspect_err(|err| {
                     let event = FailedInfo {
-                        writer_id: Arc::from(writer_id.as_str()),
+                        node_id: Arc::from(node_id.as_str()),
                         duration: start.elapsed(),
                         sequence_number: sequence_num.as_u64(),
                         error: err.to_string(),
@@ -910,20 +907,20 @@ impl CompactionState {
         }
 
         for snapshot in snapshots {
-            let Some(marker) = self.writer_id_to_last_marker.get_mut(&snapshot.writer_id) else {
-                warn!(writer_id = %snapshot.writer_id, "snapshot writer not in marker map");
+            let Some(marker) = self.node_id_to_last_marker.get_mut(&snapshot.node_id) else {
+                warn!(node_id = %snapshot.node_id, "snapshot writer not in marker map");
                 continue;
             };
 
-            let new_marker = Arc::new(WriterSnapshotMarker {
-                writer_id: snapshot.writer_id.clone(),
+            let new_marker = Arc::new(NodeSnapshotMarker {
+                node_id: snapshot.node_id.clone(),
                 snapshot_sequence_number: snapshot.snapshot_sequence_number,
                 next_file_id: snapshot.next_file_id,
             });
 
             if snapshot.snapshot_sequence_number > marker.snapshot_sequence_number {
-                self.writer_id_to_last_marker
-                    .insert(snapshot.writer_id.clone(), Arc::clone(&new_marker));
+                self.node_id_to_last_marker
+                    .insert(snapshot.node_id.clone(), Arc::clone(&new_marker));
             }
 
             self.writer_markers.push(new_marker);
@@ -942,8 +939,8 @@ impl CompactionState {
     }
 
     /// Returns the last snapshot marker for each writer that we're compacting data for
-    fn last_markers(&self) -> Vec<Arc<WriterSnapshotMarker>> {
-        self.writer_id_to_last_marker.values().cloned().collect()
+    fn last_markers(&self) -> Vec<Arc<NodeSnapshotMarker>> {
+        self.node_id_to_last_marker.values().cloned().collect()
     }
 
     /// Clears the state of all snapshots and files to compact
@@ -954,24 +951,24 @@ impl CompactionState {
 }
 
 async fn load_next_snapshot(
-    marker: &Arc<WriterSnapshotMarker>,
-    writer_id: &str,
+    marker: &Arc<NodeSnapshotMarker>,
+    node_id: &str,
     object_store: &Arc<dyn ObjectStore>,
     sys_events_store: &Arc<dyn CompactionEventStore>,
     snapshots: &mut Vec<PersistedSnapshot>,
 ) -> Result<(), CompactedDataProducerError> {
     let next_snapshot_sequence_number = marker.snapshot_sequence_number.next();
-    let next_snapshot_path = SnapshotInfoFilePath::new(writer_id, next_snapshot_sequence_number);
+    let next_snapshot_path = SnapshotInfoFilePath::new(node_id, next_snapshot_sequence_number);
     let start = Instant::now();
     if let Some(data) =
         get_bytes_at_path(next_snapshot_path.as_ref(), Arc::clone(object_store)).await
     {
         let snapshot: PersistedSnapshot = serde_json::from_slice(&data)?;
         let time_taken = start.elapsed();
-        info!(writer_id, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
+        info!(node_id, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
         let overall_counts = snapshot.db_table_and_file_count();
         let success_event = SuccessInfo::new(
-            writer_id,
+            node_id,
             next_snapshot_sequence_number.as_u64(),
             time_taken,
             overall_counts,
@@ -984,21 +981,21 @@ async fn load_next_snapshot(
 
 async fn load_all_snapshots(
     persister: Persister,
-    writer_id: &str,
-    marker: &Arc<WriterSnapshotMarker>,
+    node_id: &str,
+    marker: &Arc<NodeSnapshotMarker>,
     sys_events_store: &Arc<dyn CompactionEventStore>,
 ) -> Result<Vec<PersistedSnapshot>> {
     let start = Instant::now();
     let writer_snapshots = persister.load_snapshots(1_000).await?;
     let time_taken = start.elapsed();
     info!(
-        writer_id,
+        node_id,
         snapshot_count = writer_snapshots.len(),
         "loaded snapshots"
     );
     let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&writer_snapshots);
     let success_event = SuccessInfo::new(
-        writer_id,
+        node_id,
         marker.snapshot_sequence_number.as_u64(),
         time_taken,
         overall_counts,
@@ -1062,7 +1059,7 @@ mod tests {
     use std::sync::Arc;
 
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_enterprise_data_layout::WriterSnapshotMarker;
+    use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -1089,9 +1086,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_compaction() {
-        let writer_id = "test_host";
+        let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(writer_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
 
         let lp = r#"
             cpu,host=foo usage=1 1
@@ -1129,7 +1126,7 @@ mod tests {
 
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
             compactor_id: "compactor-1".into(),
-            writer_ids: vec![writer_id.into()],
+            node_ids: vec![node_id.into()],
             compaction_config: CompactionConfig::default(),
             enterprise_config: Default::default(),
             datafusion_config: Default::default(),
@@ -1233,9 +1230,9 @@ mod tests {
 
     #[tokio::test]
     async fn load_snapshots_persists_compacted_catalog() {
-        let writer_id = "test_host";
+        let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(writer_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
 
         let lp = r#"
             cpu,host=asdf usage=1 1
@@ -1244,7 +1241,7 @@ mod tests {
 
         let (mut state, compacted_data) = CompactionState::load_or_initialize(
             "compactor-1".into(),
-            vec![writer_id.into()],
+            vec![node_id.into()],
             Arc::clone(&object_store),
         )
         .await
@@ -1324,9 +1321,9 @@ mod tests {
 
     #[tokio::test]
     async fn producer_updates_compacted_catalog_and_consumer_picks_up() {
-        let writer_id = "test_host";
+        let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(writer_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
 
         // create 3 snapshots so we have enough to compact
         let _snapshot = writer.persist_lp_and_snapshot("cpu,t=a usage=1 1", 0).await;
@@ -1348,7 +1345,7 @@ mod tests {
 
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
             compactor_id: "compactor-1".into(),
-            writer_ids: vec![writer_id.into()],
+            node_ids: vec![node_id.into()],
             compaction_config,
             enterprise_config: Default::default(),
             datafusion_config: Default::default(),
@@ -1446,12 +1443,12 @@ mod tests {
             Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
                 &time_provider,
             )));
-        let writer_id = "host_id";
+        let node_id = "host_id";
         let obj_store = Arc::new(InMemory::new());
-        let persister = Persister::new(obj_store, writer_id);
+        let persister = Persister::new(obj_store, node_id);
 
         let persisted_snapshot = PersistedSnapshot {
-            writer_id: writer_id.to_string(),
+            node_id: node_id.to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -1470,12 +1467,12 @@ mod tests {
             .await
             .expect("snaphost to be persisted");
 
-        let marker = Arc::new(WriterSnapshotMarker {
-            writer_id: writer_id.to_string(),
+        let marker = Arc::new(NodeSnapshotMarker {
+            node_id: node_id.to_string(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             next_file_id: ParquetFileId::new(),
         });
-        let res = load_all_snapshots(persister, writer_id, &marker, &sys_events_store).await;
+        let res = load_all_snapshots(persister, node_id, &marker, &sys_events_store).await;
         debug!(result = ?res, "load all snapshots for compactor");
         let success_events = sys_events_store.compaction_events_as_vec();
         debug!(events = ?success_events, "events stored after bulk loading all snapshots");
@@ -1483,7 +1480,7 @@ mod tests {
         match &first_success_event.data {
             CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
                 SnapshotFetched::Success(success_info) => {
-                    assert_eq!(Arc::from(writer_id), success_info.writer_id);
+                    assert_eq!(Arc::from(node_id), success_info.node_id);
                     assert_eq!(123, success_info.sequence_number);
                     assert_eq!(0, success_info.db_count);
                     assert_eq!(0, success_info.table_count);
@@ -1502,12 +1499,12 @@ mod tests {
             Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
                 &time_provider,
             )));
-        let writer_id = "host_id";
+        let node_id = "host_id";
         let obj_store = Arc::new(InMemory::new()) as _;
-        let persister = Persister::new(Arc::clone(&obj_store), writer_id);
+        let persister = Persister::new(Arc::clone(&obj_store), node_id);
 
         let persisted_snapshot = PersistedSnapshot {
-            writer_id: writer_id.to_string(),
+            node_id: node_id.to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -1526,15 +1523,15 @@ mod tests {
             .await
             .expect("snaphost to be persisted");
 
-        let marker = Arc::new(WriterSnapshotMarker {
-            writer_id: writer_id.to_string(),
+        let marker = Arc::new(NodeSnapshotMarker {
+            node_id: node_id.to_string(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             next_file_id: ParquetFileId::new(),
         });
         let mut snapshots_loaded = Vec::new();
         let res = load_next_snapshot(
             &marker,
-            writer_id,
+            node_id,
             &obj_store,
             &sys_events_store,
             &mut snapshots_loaded,
@@ -1548,7 +1545,7 @@ mod tests {
         match &first_success_event.data {
             CompactionEvent::SnapshotFetched(snapshot_info) => match snapshot_info {
                 SnapshotFetched::Success(success_info) => {
-                    assert_eq!(Arc::from(writer_id), success_info.writer_id);
+                    assert_eq!(Arc::from(node_id), success_info.node_id);
                     assert_eq!(124, success_info.sequence_number);
                     assert_eq!(0, success_info.db_count);
                     assert_eq!(0, success_info.table_count);

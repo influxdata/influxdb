@@ -79,7 +79,7 @@ where
                     .read()
                     .await
                     .persist(
-                        self.write_buffer.catalog().writer_id(),
+                        self.write_buffer.catalog().node_id(),
                         &self.common_state.object_store,
                     )
                     .await?;
@@ -107,7 +107,7 @@ where
                     .read()
                     .await
                     .persist(
-                        self.write_buffer.catalog().writer_id(),
+                        self.write_buffer.catalog().node_id(),
                         &self.common_state.object_store,
                     )
                     .await?;
@@ -171,7 +171,7 @@ where
             .read()
             .await
             .persist(
-                self.write_buffer.catalog().writer_id(),
+                self.write_buffer.catalog().node_id(),
                 &self.common_state.object_store,
             )
             .await?;

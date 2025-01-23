@@ -669,11 +669,12 @@ mod tests {
             Arc::clone(&time_provider) as _,
             Default::default(),
         );
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let node_id = "test_host";
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
         let exec = make_exec(Arc::clone(&object_store));
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from(node_id);
         let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
@@ -694,6 +695,7 @@ mod tests {
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
+            query_file_limit: None,
         })
         .await
         .unwrap();
@@ -752,7 +754,7 @@ mod tests {
             .unwrap();
 
         let event = SuccessInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(1234),
             db_count: 2,
@@ -770,11 +772,11 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_sorted_eq!(
             [
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                                                            |",
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched | 1234           | success      | {\"writer_id\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
-                "+------------+------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+",
+                "+------------+------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                                                          |",
+                "+------------+------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------+",
+                "| 1970-01-01 | snapshot_fetched | 1234           | success      | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
+                "+------------+------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }
@@ -786,7 +788,7 @@ mod tests {
         let host = "sample-host";
         let db_name = "foo";
         let event = FailedInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "Foo failed".to_string(),
@@ -816,11 +818,11 @@ mod tests {
         debug!(batches = ?batches, "result from collecting batch stream");
         assert_batches_sorted_eq!(
             [
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------+",
-                "| event_time | event_type       | event_duration | event_status | event_data                                                             |",
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched | 10             | failed       | {\"writer_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
-                "+------------+------------------+----------------+--------------+------------------------------------------------------------------------+",
+                "+------------+------------------+----------------+--------------+----------------------------------------------------------------------+",
+                "| event_time | event_type       | event_duration | event_status | event_data                                                           |",
+                "+------------+------------------+----------------+--------------+----------------------------------------------------------------------+",
+                "| 1970-01-01 | snapshot_fetched | 10             | failed       | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
+                "+------------+------------------+----------------+--------------+----------------------------------------------------------------------+",
             ],
             &batches.unwrap());
     }
@@ -847,7 +849,7 @@ mod tests {
 
         // success event - snapshot
         let snapshot_success_event = SuccessInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(1234),
             db_count: 2,
@@ -858,7 +860,7 @@ mod tests {
 
         // failed event - snapshot
         let snapshot_failed_event = FailedInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "Foo failed".to_string(),
@@ -867,7 +869,7 @@ mod tests {
 
         // success event - catalog
         let catalog_success_event = catalog_fetched::SuccessInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             catalog_sequence_number: 123,
             duration: Duration::from_millis(10),
         };
@@ -875,7 +877,7 @@ mod tests {
 
         // failed events (x 2) - catalog
         let catalog_failed_event = catalog_fetched::FailedInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 123,
             duration: Duration::from_millis(10),
             error: "catalog failed".to_string(),
@@ -883,7 +885,7 @@ mod tests {
         sys_events_store.record_catalog_failed(catalog_failed_event);
 
         let catalog_failed_event = catalog_fetched::FailedInfo {
-            writer_id: Arc::from(host),
+            node_id: Arc::from(host),
             sequence_number: 124,
             duration: Duration::from_millis(100),
             error: "catalog failed 2".to_string(),
@@ -980,11 +982,11 @@ mod tests {
                 "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
                 "| event_time | event_type               | event_duration | event_status | event_data                                                                                                                        |",
                 "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
-                "| 1970-01-01 | snapshot_fetched         | 1234           | success      | {\"writer_id\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                             |",
-                "| 1970-01-01 | snapshot_fetched         | 10             | failed       | {\"writer_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                            |",
-                "| 1970-01-01 | catalog_fetched          | 10             | success      | {\"writer_id\":\"sample-host\",\"catalog_sequence_number\":123}                                                                         |",
-                "| 1970-01-01 | catalog_fetched          | 10             | failed       | {\"writer_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                        |",
-                "| 1970-01-01 | catalog_fetched          | 100            | failed       | {\"writer_id\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                      |",
+                "| 1970-01-01 | snapshot_fetched         | 1234           | success      | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000}                               |",
+                "| 1970-01-01 | snapshot_fetched         | 10             | failed       | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"}                                                              |",
+                "| 1970-01-01 | catalog_fetched          | 10             | success      | {\"node_id\":\"sample-host\",\"catalog_sequence_number\":123}                                                                           |",
+                "| 1970-01-01 | catalog_fetched          | 10             | failed       | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"catalog failed\"}                                                          |",
+                "| 1970-01-01 | catalog_fetched          | 100            | failed       | {\"node_id\":\"sample-host\",\"sequence_number\":124,\"error\":\"catalog failed 2\"}                                                        |",
                 "| 1970-01-01 | compaction_planned       | 10             | success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",
                 "| 1970-01-01 | compaction_planned       | 10             | failed       | {\"duration\":{\"secs\":0,\"nanos\":10000000},\"error\":\"db schema is missing\"}                                                           |",
                 "| 1970-01-01 | plan_run_completed       | 10             | success      | {\"input_generations\":[2],\"input_paths\":[\"/path1\"],\"output_level\":1,\"db_name\":\"db\",\"table_name\":\"table\",\"left_over_gen1_files\":10} |",

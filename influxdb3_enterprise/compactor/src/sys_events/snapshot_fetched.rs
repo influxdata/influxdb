@@ -6,7 +6,7 @@ use crate::sys_events::{EventData, EventOutcome};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
-    pub writer_id: Arc<str>,
+    pub node_id: Arc<str>,
     pub sequence_number: u64,
     #[serde(skip_serializing)]
     pub duration: Duration,
@@ -17,13 +17,13 @@ pub struct SuccessInfo {
 
 impl SuccessInfo {
     pub fn new(
-        writer_id: &str,
+        node_id: &str,
         sequence_number: u64,
         duration: Duration,
         db_table_file_counts: (u64, u64, u64),
     ) -> Self {
         Self {
-            writer_id: Arc::from(writer_id),
+            node_id: Arc::from(node_id),
             sequence_number,
             duration,
             db_count: db_table_file_counts.0,
@@ -35,7 +35,7 @@ impl SuccessInfo {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FailedInfo {
-    pub writer_id: Arc<str>,
+    pub node_id: Arc<str>,
     pub sequence_number: u64,
     #[serde(skip_serializing)]
     pub duration: Duration,

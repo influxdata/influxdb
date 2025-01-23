@@ -149,8 +149,8 @@ pub enum Error {
     #[error("Error initializing compaction consumer: {0:?}")]
     CompactionConsumer(#[from] anyhow::Error),
 
-    #[error("Must have `compact-from-writer-ids` specfied if running in compactor mode")]
-    CompactorModeWithoutWriterIds,
+    #[error("Must have `compact-from-node-ids` specfied if running in compactor mode")]
+    CompactorModeWithoutNodeIds,
 
     #[error("IO Error occurred: {0}")]
     Io(#[from] std::io::Error),
@@ -606,7 +606,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.node_identifier_prefix,
+        config.node_identifier_prefix.clone(),
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -627,7 +627,7 @@ pub async fn command(config: Config) -> Result<()> {
     {
         load_and_validate_license(
             Arc::clone(&object_store),
-            config.writer_identifier_prefix.clone(),
+            config.node_identifier_prefix.clone(),
             catalog.instance_id(),
             config.enterprise_config.license_email,
         )
@@ -640,7 +640,7 @@ pub async fn command(config: Config) -> Result<()> {
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
             let config = EnterpriseConfig::default();
-            config.persist(catalog.writer_id(), &object_store).await?;
+            config.persist(catalog.node_id(), &object_store).await?;
             Arc::new(RwLock::new(EnterpriseConfig::default()))
         }
         Err(err) => return Err(err.into()),
@@ -678,25 +678,24 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let writer_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
-                if let Some(compact_from_writer_ids) =
-                    &config.enterprise_config.compact_from_writer_ids
+            let node_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
+                if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
-                    compact_from_writer_ids.to_vec()
+                    compact_from_node_ids.to_vec()
                 } else {
-                    return Err(Error::CompactorModeWithoutWriterIds);
+                    return Err(Error::CompactorModeWithoutNodeIds);
                 }
             } else {
-                let mut writer_ids = vec![config.writer_identifier_prefix.clone()];
-                if let Some(read_from_writer_ids) = &config.enterprise_config.read_from_writer_ids {
-                    writer_ids.extend(read_from_writer_ids.iter().cloned());
+                let mut node_ids = vec![config.node_identifier_prefix.clone()];
+                if let Some(read_from_node_ids) = &config.enterprise_config.read_from_node_ids {
+                    node_ids.extend(read_from_node_ids.iter().cloned());
                 }
-                writer_ids
+                node_ids
             };
 
             let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
                 compactor_id,
-                writer_ids,
+                node_ids,
                 compaction_config,
                 enterprise_config: Arc::clone(&enterprise_config),
                 datafusion_config: compactor_datafusion_config,
@@ -750,15 +749,12 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeDistinctCache)?;
 
-    let replica_config = config
-        .enterprise_config
-        .read_from_writer_ids
-        .map(|node_ids| {
-            ReplicationConfig::new(
-                config.enterprise_config.replication_interval.into(),
-                node_ids.into(),
-            )
-        });
+    let replica_config = config.enterprise_config.read_from_node_ids.map(|node_ids| {
+        ReplicationConfig::new(
+            config.enterprise_config.replication_interval.into(),
+            node_ids.into(),
+        )
+    });
 
     type CreateBufferModeResult = (
         Arc<dyn WriteBuffer>,
@@ -771,11 +767,8 @@ pub async fn command(config: Config) -> Result<()> {
         .mode
     {
         BufferMode::Read => {
-            let ReplicationConfig {
-                interval,
-                writer_ids,
-            } = replica_config
-                .context("must supply a read-from-writer-ids list when starting in read-only mode")
+            let ReplicationConfig { interval, node_ids } = replica_config
+                .context("must supply a read-from-node-ids list when starting in read-only mode")
                 .map_err(Error::WriteBufferInit)?;
             (
                 Arc::new(
@@ -786,7 +779,7 @@ pub async fn command(config: Config) -> Result<()> {
                         catalog: Arc::clone(&catalog),
                         metric_registry: Arc::clone(&metrics),
                         replication_interval: interval,
-                        writer_ids,
+                        node_ids,
                         parquet_cache: parquet_cache.clone(),
                         compacted_data: compacted_data.clone(),
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
@@ -801,7 +794,7 @@ pub async fn command(config: Config) -> Result<()> {
         BufferMode::ReadWrite => {
             let buf = Arc::new(
                 WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-                    writer_id: persister.writer_identifier_prefix().into(),
+                    node_id: persister.node_identifier_prefix().into(),
                     persister: Arc::clone(&persister),
                     catalog: Arc::clone(&catalog),
                     last_cache,
@@ -1005,11 +998,11 @@ async fn background_buffer_checker(
 #[cfg(not(feature = "no_license"))]
 async fn load_and_validate_license(
     object_store: Arc<dyn ObjectStore>,
-    writer_id: String,
+    node_id: String,
     instance_id: Arc<str>,
     license_email: Option<String>,
 ) -> Result<()> {
-    let license_path: ObjPath = format!("{writer_id}/license").into();
+    let license_path: ObjPath = format!("{node_id}/license").into();
     let license = match object_store.get(&license_path).await {
         Ok(get_result) => get_result.bytes().await?,
         // The license does not exist so we need to create one
@@ -1052,7 +1045,7 @@ async fn load_and_validate_license(
                     debug!("license not found on server, initiating onboarding process");
                     license_onboarding(
                         &object_store,
-                        &writer_id,
+                        &node_id,
                         instance_id,
                         &display_email,
                         &encoded_email,
@@ -1090,14 +1083,14 @@ async fn load_and_validate_license(
     {
         error!("License is expired please acquire a new one. Queries will be disabled");
         influxdb3_server::EXPIRED_LICENSE.store(true, std::sync::atomic::Ordering::Relaxed);
-    } else if writer_id != claims.writer_id {
-        eprintln!("Invalid writer_id for license");
+    } else if node_id != claims.node_id {
+        eprintln!("Invalid node_id for license");
         std::process::exit(1);
     }
 
     async fn recurring_license_validation_check(
         mut claims: Claims,
-        writer_id: String,
+        node_id: String,
         license_path: ObjPath,
         object_store: Arc<dyn ObjectStore>,
     ) {
@@ -1137,8 +1130,8 @@ async fn load_and_validate_license(
                 > claims.license_exp
             {
                 EXPIRED_LICENSE.store(true, Ordering::Relaxed);
-            } else if writer_id != claims.writer_id {
-                error!("Invalid writer_id for license. Aborting process.");
+            } else if node_id != claims.node_id {
+                error!("Invalid node_id for license. Aborting process.");
                 std::process::exit(1);
             } else {
                 EXPIRED_LICENSE.store(false, Ordering::Relaxed);
@@ -1147,7 +1140,7 @@ async fn load_and_validate_license(
     }
     tokio::task::spawn(recurring_license_validation_check(
         claims,
-        writer_id,
+        node_id,
         license_path,
         object_store,
     ));
@@ -1160,7 +1153,8 @@ async fn load_and_validate_license(
 struct Claims {
     email: String,
     exp: u64,
-    writer_id: String,
+    #[serde(alias = "writer_id")]
+    node_id: String,
     iat: u64,
     instance_id: String,
     iss: String,
@@ -1227,7 +1221,7 @@ const LICENSE_SERVER_URL: &str = if cfg!(feature = "local_dev") {
 #[cfg(not(feature = "no_license"))]
 async fn license_onboarding(
     object_store: &Arc<dyn ObjectStore>,
-    writer_id: &str,
+    node_id: &str,
     instance_id: Arc<str>,
     display_email: &str,
     encoded_email: &str,
@@ -1235,7 +1229,7 @@ async fn license_onboarding(
 ) -> Result<bytes::Bytes> {
     let client = reqwest::Client::new();
     let resp = client
-                .post(format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}&writer-id={writer_id}"))
+                .post(format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}&node-id={node_id}"))
             .send()
             .await?;
 

@@ -50,8 +50,8 @@ async fn two_writers_gen1_compaction() {
 
     let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
 
-    let writer1_id = "writer1";
-    let writer2_id = "writer2";
+    let node1_id = "node1";
+    let node2_id = "node2";
 
     let wal_config = WalConfig {
         gen1_duration: Gen1Duration::new_1m(),
@@ -61,22 +61,22 @@ async fn two_writers_gen1_compaction() {
         snapshot_size: 1,
     };
 
-    let writer1_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer1_id));
-    let writer1_catalog = Arc::new(writer1_persister.load_or_create_catalog().await.unwrap());
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&writer1_catalog)).unwrap();
+    let node1_persister = Arc::new(Persister::new(Arc::clone(&object_store), node1_id));
+    let node1_catalog = Arc::new(node1_persister.load_or_create_catalog().await.unwrap());
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&node1_catalog)).unwrap();
     let distinct_cache = DistinctCacheProvider::new_from_catalog(
         Arc::clone(&time_provider),
-        Arc::clone(&writer1_catalog),
+        Arc::clone(&node1_catalog),
     )
     .unwrap();
 
-    let writer2_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer2_id));
-    let writer2_catalog = writer2_persister.load_or_create_catalog().await.unwrap();
+    let node2_persister = Arc::new(Persister::new(Arc::clone(&object_store), node2_id));
+    let node2_catalog = node2_persister.load_or_create_catalog().await.unwrap();
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
-    let writer2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
-        persister: Arc::clone(&writer2_persister),
-        catalog: Arc::new(writer2_catalog),
+    let node2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
+        persister: Arc::clone(&node2_persister),
+        catalog: Arc::new(node2_catalog),
         last_cache: Arc::clone(&last_cache),
         distinct_cache: Arc::clone(&distinct_cache),
         time_provider: Arc::clone(&time_provider),
@@ -85,6 +85,7 @@ async fn two_writers_gen1_compaction() {
         parquet_cache: None,
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: 10,
+        query_file_limit: None,
     })
     .await
     .unwrap();
@@ -97,12 +98,12 @@ async fn two_writers_gen1_compaction() {
 
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id,
-        writer_ids: vec!["writer1".to_string(), "writer2".to_string()],
+        node_ids: vec!["node1".to_string(), "node2".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
         object_store,
-        object_store_url: writer1_persister.object_store_url().clone(),
+        object_store_url: node1_persister.object_store_url().clone(),
         executor: Arc::clone(&exec),
         parquet_cache_prefetcher,
         sys_events_store: Arc::clone(&sys_events_store),
@@ -112,9 +113,9 @@ async fn two_writers_gen1_compaction() {
 
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: writer1_id.into(),
-            persister: Arc::clone(&writer1_persister),
-            catalog: Arc::clone(&writer1_catalog),
+            node_id: node1_id.into(),
+            persister: Arc::clone(&node1_persister),
+            catalog: Arc::clone(&node1_catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
@@ -123,7 +124,7 @@ async fn two_writers_gen1_compaction() {
             metric_registry: Arc::clone(&metrics),
             replication_config: Some(ReplicationConfig::new(
                 Duration::from_millis(10),
-                vec![writer2_id.to_string()],
+                vec![node2_id.to_string()],
             )),
             parquet_cache: None,
             compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
@@ -145,15 +146,15 @@ async fn two_writers_gen1_compaction() {
         })
         .boxed();
 
-    // each call to do_writes will force a snapshot. We want to do two for each writer,
+    // each call to do_writes will force a snapshot. We want to do two for each node,
     // which will then trigger a compaction. We also want to do one more snapshot each
     // so that we'll have non-compacted files show up in this query too.
-    do_writes(read_write_mode.as_ref(), writer1_id, 0, 1).await;
-    do_writes(writer2_buffer.as_ref(), writer2_id, 0, 2).await;
-    do_writes(read_write_mode.as_ref(), writer1_id, 1, 1).await;
-    do_writes(writer2_buffer.as_ref(), writer2_id, 1, 2).await;
-    do_writes(read_write_mode.as_ref(), writer1_id, 2, 1).await;
-    do_writes(writer2_buffer.as_ref(), writer2_id, 2, 2).await;
+    do_writes(read_write_mode.as_ref(), node1_id, 0, 1).await;
+    do_writes(node2_buffer.as_ref(), node2_id, 0, 2).await;
+    do_writes(read_write_mode.as_ref(), node1_id, 1, 1).await;
+    do_writes(node2_buffer.as_ref(), node2_id, 1, 2).await;
+    do_writes(read_write_mode.as_ref(), node1_id, 2, 1).await;
+    do_writes(node2_buffer.as_ref(), node2_id, 2, 2).await;
 
     // wait for two compactions to happen
     let mut count = 0;
@@ -172,7 +173,7 @@ async fn two_writers_gen1_compaction() {
                     "should have a single generation. compaction details: {:?}",
                     detail
                 );
-                // we should have 1 leftover gen1 file from writer1, which is the trailing chunk
+                // we should have 1 leftover gen1 file from node1, which is the trailing chunk
                 // from the 120 time block.
                 assert_eq!(
                     detail.leftover_gen1_files.len(),
@@ -197,8 +198,8 @@ async fn two_writers_gen1_compaction() {
         .await;
 
     // I don't know why this test is flakey at this point. It has something to do with the last
-    // row that gets written from writer 2, which is this:
-    //             "| 208.0 | 1970-01-01T00:02:00.000000208Z | writer2 |",
+    // row that gets written from node 2, which is this:
+    //             "| 208.0 | 1970-01-01T00:02:00.000000208Z | node2 |",
     // That row should be in the write buffer in the same buffer chunk as 206 and 207, but it's not.
     // I think this may be something unrelated to compaction and more related to how the write
     // buffer works. But this definitely deserves deeper investigation.
@@ -208,24 +209,24 @@ async fn two_writers_gen1_compaction() {
             "+-------+--------------------------------+---------+",
             "| f1    | time                           | w       |",
             "+-------+--------------------------------+---------+",
-            "| 103.0 | 1970-01-01T00:01:00.000000103Z | writer1 |",
-            "| 104.0 | 1970-01-01T00:01:00.000000104Z | writer1 |",
-            "| 105.0 | 1970-01-01T00:01:00.000000105Z | writer1 |",
-            "| 106.0 | 1970-01-01T00:01:00.000000106Z | writer2 |",
-            "| 107.0 | 1970-01-01T00:01:00.000000107Z | writer2 |",
-            "| 108.0 | 1970-01-01T00:01:00.000000108Z | writer2 |",
-            "| 203.0 | 1970-01-01T00:02:00.000000203Z | writer1 |",
-            "| 204.0 | 1970-01-01T00:02:00.000000204Z | writer1 |",
-            "| 205.0 | 1970-01-01T00:02:00.000000205Z | writer1 |",
-            "| 206.0 | 1970-01-01T00:02:00.000000206Z | writer2 |",
-            "| 207.0 | 1970-01-01T00:02:00.000000207Z | writer2 |",
-            "| 208.0 | 1970-01-01T00:02:00.000000208Z | writer2 |",
-            "| 3.0   | 1970-01-01T00:00:00.000000003Z | writer1 |",
-            "| 4.0   | 1970-01-01T00:00:00.000000004Z | writer1 |",
-            "| 5.0   | 1970-01-01T00:00:00.000000005Z | writer1 |",
-            "| 6.0   | 1970-01-01T00:00:00.000000006Z | writer2 |",
-            "| 7.0   | 1970-01-01T00:00:00.000000007Z | writer2 |",
-            "| 8.0   | 1970-01-01T00:00:00.000000008Z | writer2 |",
+            "| 103.0 | 1970-01-01T00:01:00.000000103Z | node1 |",
+            "| 104.0 | 1970-01-01T00:01:00.000000104Z | node1 |",
+            "| 105.0 | 1970-01-01T00:01:00.000000105Z | node1 |",
+            "| 106.0 | 1970-01-01T00:01:00.000000106Z | node2 |",
+            "| 107.0 | 1970-01-01T00:01:00.000000107Z | node2 |",
+            "| 108.0 | 1970-01-01T00:01:00.000000108Z | node2 |",
+            "| 203.0 | 1970-01-01T00:02:00.000000203Z | node1 |",
+            "| 204.0 | 1970-01-01T00:02:00.000000204Z | node1 |",
+            "| 205.0 | 1970-01-01T00:02:00.000000205Z | node1 |",
+            "| 206.0 | 1970-01-01T00:02:00.000000206Z | node2 |",
+            "| 207.0 | 1970-01-01T00:02:00.000000207Z | node2 |",
+            "| 208.0 | 1970-01-01T00:02:00.000000208Z | node2 |",
+            "| 3.0   | 1970-01-01T00:00:00.000000003Z | node1 |",
+            "| 4.0   | 1970-01-01T00:00:00.000000004Z | node1 |",
+            "| 5.0   | 1970-01-01T00:00:00.000000005Z | node1 |",
+            "| 6.0   | 1970-01-01T00:00:00.000000006Z | node2 |",
+            "| 7.0   | 1970-01-01T00:00:00.000000007Z | node2 |",
+            "| 8.0   | 1970-01-01T00:00:00.000000008Z | node2 |",
             "+-------+--------------------------------+---------+",
         ],
         &batches
@@ -243,16 +244,16 @@ async fn compact_consumer_picks_up_latest_summary() {
 
     // create two write buffers to write data that will be compacted:
     let mut write_buffers = HashMap::new();
-    for writer_id in ["spock", "tuvok"] {
+    for node_id in ["spock", "tuvok"] {
         let b = setup_write_buffer(
-            writer_id,
+            node_id,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
             Arc::clone(&exec),
             Arc::clone(&metrics),
         )
         .await;
-        write_buffers.insert(writer_id, b);
+        write_buffers.insert(node_id, b);
     }
 
     // make a bnch of writes to them:
@@ -270,7 +271,7 @@ async fn compact_consumer_picks_up_latest_summary() {
     let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id: Arc::clone(&compactor_id),
-        writer_ids: vec!["spock".to_string(), "tuvok".to_string()],
+        node_ids: vec!["spock".to_string(), "tuvok".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
@@ -402,7 +403,7 @@ async fn compaction_cleanup() {
     )
     .unwrap();
 
-    let writer_id = "host";
+    let node_id = "host";
 
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120));
     let generation_levels = compaction_config.compaction_levels();
@@ -413,7 +414,7 @@ async fn compaction_cleanup() {
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id: compactor_id.into(),
-        writer_ids: vec![writer_id.to_string()],
+        node_ids: vec![node_id.to_string()],
         compaction_config,
         enterprise_config: Arc::new(RwLock::new(EnterpriseConfig::default())),
         datafusion_config: Arc::new(std::collections::HashMap::new()),
@@ -426,12 +427,12 @@ async fn compaction_cleanup() {
     .await
     .unwrap();
 
-    let writer_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+    let writer_persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
     let writer_catalog = Arc::new(writer_persister.load_or_create_catalog().await.unwrap());
 
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: writer_id.into(),
+            node_id: node_id.into(),
             persister: Arc::clone(&writer_persister),
             catalog: Arc::clone(&writer_catalog),
             last_cache,
@@ -453,7 +454,7 @@ async fn compaction_cleanup() {
     let ex = exec.executor();
 
     for i in 0..20 {
-        do_writes(read_write_mode.as_ref(), writer_id, i, 1).await;
+        do_writes(read_write_mode.as_ref(), node_id, i, 1).await;
     }
 
     // Make sure all of the parquet files are persisted by the write buffer
@@ -630,13 +631,13 @@ fn make_exec_and_register_runtime(
 }
 
 async fn setup_write_buffer(
-    writer_id: &str,
+    node_id: &str,
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
 ) -> WriteBufferEnterprise<ReadWriteMode> {
-    let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+    let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
     let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
     let distinct_cache =
@@ -650,7 +651,7 @@ async fn setup_write_buffer(
         snapshot_size: 1,
     };
     WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-        writer_id: writer_id.into(),
+        node_id: node_id.into(),
         persister,
         catalog,
         last_cache,
