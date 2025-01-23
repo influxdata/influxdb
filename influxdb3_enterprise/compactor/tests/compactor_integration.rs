@@ -1,9 +1,7 @@
 mod common;
 
 use crate::common::build_parquet_cache_prefetcher;
-use arrow_array::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
-use datafusion::execution::context::SessionContext;
 use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use futures::FutureExt;
@@ -24,10 +22,10 @@ use influxdb3_enterprise_data_layout::CompactionConfig;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::persister::Persister;
+use influxdb3_write::test_helpers::WriteBufferTester;
 use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
-use influxdb3_write::{ChunkContainer, Precision, WriteBuffer};
+use influxdb3_write::{Precision, WriteBuffer};
 use iox_query::exec::{Executor, ExecutorConfig};
-use iox_query::QueryChunk;
 use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
 use metric::Registry;
 use object_store::memory::InMemory;
@@ -194,9 +192,9 @@ async fn two_writers_gen1_compaction() {
 
     // query and make sure all the data is there
     let ctx = exec.new_context();
-    let chunks = read_write_mode
-        .get_table_chunks("test_db", "m1", &[], None, &ctx.inner().state())
-        .unwrap();
+    let batches = read_write_mode
+        .get_record_batches_unchecked("test_db", "m1", &ctx)
+        .await;
 
     // I don't know why this test is flakey at this point. It has something to do with the last
     // row that gets written from writer 2, which is this:
@@ -205,7 +203,6 @@ async fn two_writers_gen1_compaction() {
     // I think this may be something unrelated to compaction and more related to how the write
     // buffer works. But this definitely deserves deeper investigation.
 
-    let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
     assert_batches_sorted_eq!(
         [
             "+-------+--------------------------------+---------+",
@@ -361,7 +358,7 @@ async fn compact_consumer_picks_up_latest_summary() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 /// Test that old files are deleted as compaction happens
 async fn compaction_cleanup() {
     let metrics = Arc::new(metric::Registry::default());
@@ -405,7 +402,8 @@ async fn compaction_cleanup() {
     )
     .unwrap();
 
-    let compactor_id = "host".into();
+    let writer_id = "host";
+
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120));
     let generation_levels = compaction_config.compaction_levels();
     let obj_store = Arc::new(InMemory::new());
@@ -414,8 +412,8 @@ async fn compaction_cleanup() {
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
-        compactor_id: Arc::clone(&compactor_id),
-        writer_ids: vec!["compactor".to_string()],
+        compactor_id: compactor_id.into(),
+        writer_ids: vec![writer_id.to_string()],
         compaction_config,
         enterprise_config: Arc::new(RwLock::new(EnterpriseConfig::default())),
         datafusion_config: Arc::new(std::collections::HashMap::new()),
@@ -428,11 +426,14 @@ async fn compaction_cleanup() {
     .await
     .unwrap();
 
+    let writer_persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+    let writer_catalog = Arc::new(writer_persister.load_or_create_catalog().await.unwrap());
+
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: Arc::clone(&compactor_id),
-            persister: Arc::clone(&compactor_persister),
-            catalog: Arc::clone(&compactor_catalog),
+            writer_id: writer_id.into(),
+            persister: Arc::clone(&writer_persister),
+            catalog: Arc::clone(&writer_catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
@@ -452,7 +453,7 @@ async fn compaction_cleanup() {
     let ex = exec.executor();
 
     for i in 0..20 {
-        do_writes(read_write_mode.as_ref(), &compactor_id, i, 1).await;
+        do_writes(read_write_mode.as_ref(), writer_id, i, 1).await;
     }
 
     // Make sure all of the parquet files are persisted by the write buffer
@@ -500,164 +501,103 @@ async fn compaction_cleanup() {
     .await
     .unwrap();
 
-    let host_c = list_files(Some("host/c"), Arc::clone(&object_store)).await;
-    let host_cd = list_files(Some("host/cd"), Arc::clone(&object_store)).await;
-    let host_cs = list_files(Some("host/cs"), Arc::clone(&object_store)).await;
+    let compactor_c = list_files(Some("compactor/c"), Arc::clone(&object_store)).await;
+    let compactor_cd = list_files(Some("compactor/cd"), Arc::clone(&object_store)).await;
+    let compactor_cs = list_files(Some("compactor/cs"), Arc::clone(&object_store)).await;
 
     assert_eq!(
-        host_c,
+        compactor_c,
         BTreeSet::from([
-            "host/c/4d/7fa/0e/27.json".into(),
-            "host/c/4d/7fa/0e/35.parquet".into(),
-            "host/c/81/7d4/7a/23.json".into(),
-            "host/c/81/7d4/7a/27.parquet".into(),
-            "host/c/8a/b13/30/25.json".into(),
-            "host/c/8a/b13/30/31.parquet".into(),
-            "host/c/a3/f42/4a0/21.json".into(),
-            "host/c/a3/f42/4a0/23.parquet".into(),
-            "host/c/ea/abb/43d/20.json".into(),
-            "host/c/ea/abb/43d/21.parquet".into(),
+            "compactor/c/4d/7fa/0e/27.json".into(),
+            "compactor/c/4d/7fa/0e/35.parquet".into(),
+            "compactor/c/81/7d4/7a/23.json".into(),
+            "compactor/c/81/7d4/7a/27.parquet".into(),
+            "compactor/c/8a/b13/30/25.json".into(),
+            "compactor/c/8a/b13/30/31.parquet".into(),
+            "compactor/c/a3/f42/4a0/21.json".into(),
+            "compactor/c/a3/f42/4a0/23.parquet".into(),
+            "compactor/c/ea/abb/43d/20.json".into(),
+            "compactor/c/ea/abb/43d/21.parquet".into(),
         ]),
     );
     assert_eq!(
-        host_cd,
-        BTreeSet::from(["host/cd/1/1/18446744073709551607.json".into(),]),
+        compactor_cd,
+        BTreeSet::from(["compactor/cd/1/1/18446744073709551607.json".into(),]),
     );
     assert_eq!(
-        host_cs,
-        BTreeSet::from(["host/cs/18446744073709551607.json".into()]),
+        compactor_cs,
+        BTreeSet::from(["compactor/cs/18446744073709551607.json".into()]),
     );
 
     // query and make sure all the data is there
     let ctx = exec.new_context();
-    let chunks = read_write_mode
-        .get_table_chunks("test_db", "m1", &[], None, &ctx.inner().state())
-        .unwrap();
-    let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+    let batches = read_write_mode
+        .get_record_batches_unchecked("test_db", "m1", &ctx)
+        .await;
     assert_batches_sorted_eq!(
         [
             "+--------+--------------------------------+------+",
             "| f1     | time                           | w    |",
             "+--------+--------------------------------+------+",
             "| 1003.0 | 1970-01-01T00:10:00.000001003Z | host |",
-            "| 1003.0 | 1970-01-01T00:10:00.000001003Z | host |",
-            "| 1004.0 | 1970-01-01T00:10:00.000001004Z | host |",
             "| 1004.0 | 1970-01-01T00:10:00.000001004Z | host |",
             "| 1005.0 | 1970-01-01T00:10:00.000001005Z | host |",
-            "| 1005.0 | 1970-01-01T00:10:00.000001005Z | host |",
-            "| 103.0  | 1970-01-01T00:01:00.000000103Z | host |",
             "| 103.0  | 1970-01-01T00:01:00.000000103Z | host |",
             "| 104.0  | 1970-01-01T00:01:00.000000104Z | host |",
-            "| 104.0  | 1970-01-01T00:01:00.000000104Z | host |",
-            "| 105.0  | 1970-01-01T00:01:00.000000105Z | host |",
             "| 105.0  | 1970-01-01T00:01:00.000000105Z | host |",
             "| 1103.0 | 1970-01-01T00:11:00.000001103Z | host |",
-            "| 1103.0 | 1970-01-01T00:11:00.000001103Z | host |",
-            "| 1104.0 | 1970-01-01T00:11:00.000001104Z | host |",
             "| 1104.0 | 1970-01-01T00:11:00.000001104Z | host |",
             "| 1105.0 | 1970-01-01T00:11:00.000001105Z | host |",
-            "| 1105.0 | 1970-01-01T00:11:00.000001105Z | host |",
-            "| 1203.0 | 1970-01-01T00:12:00.000001203Z | host |",
             "| 1203.0 | 1970-01-01T00:12:00.000001203Z | host |",
             "| 1204.0 | 1970-01-01T00:12:00.000001204Z | host |",
-            "| 1204.0 | 1970-01-01T00:12:00.000001204Z | host |",
-            "| 1205.0 | 1970-01-01T00:12:00.000001205Z | host |",
             "| 1205.0 | 1970-01-01T00:12:00.000001205Z | host |",
             "| 1303.0 | 1970-01-01T00:13:00.000001303Z | host |",
-            "| 1303.0 | 1970-01-01T00:13:00.000001303Z | host |",
-            "| 1304.0 | 1970-01-01T00:13:00.000001304Z | host |",
             "| 1304.0 | 1970-01-01T00:13:00.000001304Z | host |",
             "| 1305.0 | 1970-01-01T00:13:00.000001305Z | host |",
-            "| 1305.0 | 1970-01-01T00:13:00.000001305Z | host |",
-            "| 1403.0 | 1970-01-01T00:14:00.000001403Z | host |",
             "| 1403.0 | 1970-01-01T00:14:00.000001403Z | host |",
             "| 1404.0 | 1970-01-01T00:14:00.000001404Z | host |",
-            "| 1404.0 | 1970-01-01T00:14:00.000001404Z | host |",
-            "| 1405.0 | 1970-01-01T00:14:00.000001405Z | host |",
             "| 1405.0 | 1970-01-01T00:14:00.000001405Z | host |",
             "| 1503.0 | 1970-01-01T00:15:00.000001503Z | host |",
-            "| 1503.0 | 1970-01-01T00:15:00.000001503Z | host |",
-            "| 1504.0 | 1970-01-01T00:15:00.000001504Z | host |",
             "| 1504.0 | 1970-01-01T00:15:00.000001504Z | host |",
             "| 1505.0 | 1970-01-01T00:15:00.000001505Z | host |",
-            "| 1505.0 | 1970-01-01T00:15:00.000001505Z | host |",
-            "| 1603.0 | 1970-01-01T00:16:00.000001603Z | host |",
             "| 1603.0 | 1970-01-01T00:16:00.000001603Z | host |",
             "| 1604.0 | 1970-01-01T00:16:00.000001604Z | host |",
-            "| 1604.0 | 1970-01-01T00:16:00.000001604Z | host |",
-            "| 1605.0 | 1970-01-01T00:16:00.000001605Z | host |",
             "| 1605.0 | 1970-01-01T00:16:00.000001605Z | host |",
             "| 1703.0 | 1970-01-01T00:17:00.000001703Z | host |",
-            "| 1703.0 | 1970-01-01T00:17:00.000001703Z | host |",
-            "| 1704.0 | 1970-01-01T00:17:00.000001704Z | host |",
             "| 1704.0 | 1970-01-01T00:17:00.000001704Z | host |",
             "| 1705.0 | 1970-01-01T00:17:00.000001705Z | host |",
-            "| 1705.0 | 1970-01-01T00:17:00.000001705Z | host |",
-            "| 1803.0 | 1970-01-01T00:18:00.000001803Z | host |",
             "| 1803.0 | 1970-01-01T00:18:00.000001803Z | host |",
             "| 1804.0 | 1970-01-01T00:18:00.000001804Z | host |",
-            "| 1804.0 | 1970-01-01T00:18:00.000001804Z | host |",
-            "| 1805.0 | 1970-01-01T00:18:00.000001805Z | host |",
             "| 1805.0 | 1970-01-01T00:18:00.000001805Z | host |",
             "| 1903.0 | 1970-01-01T00:19:00.000001903Z | host |",
-            "| 1903.0 | 1970-01-01T00:19:00.000001903Z | host |",
-            "| 1904.0 | 1970-01-01T00:19:00.000001904Z | host |",
             "| 1904.0 | 1970-01-01T00:19:00.000001904Z | host |",
             "| 1905.0 | 1970-01-01T00:19:00.000001905Z | host |",
-            "| 1905.0 | 1970-01-01T00:19:00.000001905Z | host |",
-            "| 203.0  | 1970-01-01T00:02:00.000000203Z | host |",
             "| 203.0  | 1970-01-01T00:02:00.000000203Z | host |",
             "| 204.0  | 1970-01-01T00:02:00.000000204Z | host |",
-            "| 204.0  | 1970-01-01T00:02:00.000000204Z | host |",
-            "| 205.0  | 1970-01-01T00:02:00.000000205Z | host |",
             "| 205.0  | 1970-01-01T00:02:00.000000205Z | host |",
             "| 3.0    | 1970-01-01T00:00:00.000000003Z | host |",
-            "| 3.0    | 1970-01-01T00:00:00.000000003Z | host |",
-            "| 303.0  | 1970-01-01T00:03:00.000000303Z | host |",
             "| 303.0  | 1970-01-01T00:03:00.000000303Z | host |",
             "| 304.0  | 1970-01-01T00:03:00.000000304Z | host |",
-            "| 304.0  | 1970-01-01T00:03:00.000000304Z | host |",
-            "| 305.0  | 1970-01-01T00:03:00.000000305Z | host |",
             "| 305.0  | 1970-01-01T00:03:00.000000305Z | host |",
             "| 4.0    | 1970-01-01T00:00:00.000000004Z | host |",
-            "| 4.0    | 1970-01-01T00:00:00.000000004Z | host |",
-            "| 403.0  | 1970-01-01T00:04:00.000000403Z | host |",
             "| 403.0  | 1970-01-01T00:04:00.000000403Z | host |",
             "| 404.0  | 1970-01-01T00:04:00.000000404Z | host |",
-            "| 404.0  | 1970-01-01T00:04:00.000000404Z | host |",
-            "| 405.0  | 1970-01-01T00:04:00.000000405Z | host |",
             "| 405.0  | 1970-01-01T00:04:00.000000405Z | host |",
             "| 5.0    | 1970-01-01T00:00:00.000000005Z | host |",
-            "| 5.0    | 1970-01-01T00:00:00.000000005Z | host |",
-            "| 503.0  | 1970-01-01T00:05:00.000000503Z | host |",
             "| 503.0  | 1970-01-01T00:05:00.000000503Z | host |",
             "| 504.0  | 1970-01-01T00:05:00.000000504Z | host |",
-            "| 504.0  | 1970-01-01T00:05:00.000000504Z | host |",
-            "| 505.0  | 1970-01-01T00:05:00.000000505Z | host |",
             "| 505.0  | 1970-01-01T00:05:00.000000505Z | host |",
             "| 603.0  | 1970-01-01T00:06:00.000000603Z | host |",
-            "| 603.0  | 1970-01-01T00:06:00.000000603Z | host |",
-            "| 604.0  | 1970-01-01T00:06:00.000000604Z | host |",
             "| 604.0  | 1970-01-01T00:06:00.000000604Z | host |",
             "| 605.0  | 1970-01-01T00:06:00.000000605Z | host |",
-            "| 605.0  | 1970-01-01T00:06:00.000000605Z | host |",
-            "| 703.0  | 1970-01-01T00:07:00.000000703Z | host |",
             "| 703.0  | 1970-01-01T00:07:00.000000703Z | host |",
             "| 704.0  | 1970-01-01T00:07:00.000000704Z | host |",
-            "| 704.0  | 1970-01-01T00:07:00.000000704Z | host |",
-            "| 705.0  | 1970-01-01T00:07:00.000000705Z | host |",
             "| 705.0  | 1970-01-01T00:07:00.000000705Z | host |",
             "| 803.0  | 1970-01-01T00:08:00.000000803Z | host |",
-            "| 803.0  | 1970-01-01T00:08:00.000000803Z | host |",
-            "| 804.0  | 1970-01-01T00:08:00.000000804Z | host |",
             "| 804.0  | 1970-01-01T00:08:00.000000804Z | host |",
             "| 805.0  | 1970-01-01T00:08:00.000000805Z | host |",
-            "| 805.0  | 1970-01-01T00:08:00.000000805Z | host |",
-            "| 903.0  | 1970-01-01T00:09:00.000000903Z | host |",
             "| 903.0  | 1970-01-01T00:09:00.000000903Z | host |",
             "| 904.0  | 1970-01-01T00:09:00.000000904Z | host |",
-            "| 904.0  | 1970-01-01T00:09:00.000000904Z | host |",
-            "| 905.0  | 1970-01-01T00:09:00.000000905Z | host |",
             "| 905.0  | 1970-01-01T00:09:00.000000905Z | host |",
             "+--------+--------------------------------+------+",
         ],
@@ -754,15 +694,4 @@ async fn do_writes(
             .await
             .unwrap();
     }
-}
-
-async fn chunks_to_record_batches(
-    chunks: Vec<Arc<dyn QueryChunk>>,
-    ctx: &SessionContext,
-) -> Vec<RecordBatch> {
-    let mut batches = vec![];
-    for chunk in chunks {
-        batches.append(&mut chunk.data().read_to_batches(chunk.schema(), ctx).await);
-    }
-    batches
 }

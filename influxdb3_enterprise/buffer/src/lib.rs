@@ -2,19 +2,19 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use data_types::NamespaceName;
-use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use datafusion::{catalog::Session, error::DataFusionError};
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
 };
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal};
 use influxdb3_write::{
     write_buffer::{
         self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
     },
-    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
     DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
@@ -92,7 +92,7 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
         self.mode.parquet_files_filtered(db_id, table_id, filter)
     }
@@ -109,14 +109,14 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
 impl<Mode: ChunkContainer> ChunkContainer for WriteBufferEnterprise<Mode> {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filters: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.mode
-            .get_table_chunks(database_name, table_name, filters, projection, ctx)
+            .get_table_chunks(db_schema, table_def, filters, projection, ctx)
     }
 }
 
@@ -231,7 +231,9 @@ mod tests {
     };
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::{persister::Persister, Bufferer, ChunkContainer, DatabaseManager};
+    use influxdb3_write::{
+        persister::Persister, test_helpers::WriteBufferTester, Bufferer, DatabaseManager,
+    };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
@@ -239,10 +241,7 @@ mod tests {
 
     use crate::{
         modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
-        test_helpers::{
-            chunks_to_record_batches, do_writes, make_exec, setup_read_write,
-            verify_snapshot_count, TestWrite,
-        },
+        test_helpers::{do_writes, make_exec, setup_read_write, verify_snapshot_count, TestWrite},
         WriteBufferEnterprise,
     };
 
@@ -332,10 +331,9 @@ mod tests {
         assert_eq!(0, request_count);
 
         // do a query which will pull the files from object store:
-        let chunks = buffer
-            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = buffer
+            .get_record_batches_unchecked("foo", "bar", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----+-----+---------------------+",
@@ -445,10 +443,9 @@ mod tests {
         assert_eq!(1, request_count);
 
         // do a query which will pull the files from object store:
-        let chunks = buffer
-            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = buffer
+            .get_record_batches_unchecked("foo", "bar", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----+-----+---------------------+",
@@ -568,10 +565,9 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
 
         // worker 1 has writes from both hosts:
-        let chunks = workers[1]
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = workers[1]
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+---------------------+-------+--------+",
@@ -593,10 +589,9 @@ mod tests {
 
         // worker 0 also has writes from both hosts (this is done second because this fails in
         // the reproducer scenario):
-        let chunks = workers[0]
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = workers[0]
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+---------------------+-------+--------+",
@@ -649,10 +644,9 @@ mod tests {
 
         // query the writer:
         let ctx = IOxSessionContext::with_testing();
-        let chunks = write_buffer
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = write_buffer
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         // there should only be a single line, because the writer didn't replicate itself:
         assert_batches_sorted_eq!(
             [
@@ -760,10 +754,9 @@ mod tests {
         // do a query to check that results are there from each write buffer (on each):
         let ctx = IOxSessionContext::with_testing();
         for write_buffer in writer_buffers {
-            let chunks = write_buffer
-                .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-                .unwrap();
-            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+            let batches = write_buffer
+                .get_record_batches_unchecked("foo", "bar", &ctx)
+                .await;
             assert_batches_sorted_eq!(
                 [
                     "+--------+------+---------------------+",

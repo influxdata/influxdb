@@ -5,14 +5,13 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{
     catalog::Session, error::DataFusionError, execution::object_store::ObjectStoreUrl,
-    logical_expr::Expr,
 };
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
 };
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal, WalConfig};
@@ -22,7 +21,7 @@ use influxdb3_write::{
         self, parquet_chunk_from_file, persisted_files::PersistedFiles, WriteBufferImpl,
         WriteBufferImplArgs,
     },
-    BufferFilter, BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
     DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
@@ -161,7 +160,7 @@ impl Bufferer for ReadWriteMode {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &BufferFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
         // Parquet files need to be retrieved across primary and replicas
         // TODO: could this fall into another trait?
@@ -187,30 +186,18 @@ impl Bufferer for ReadWriteMode {
 impl ChunkContainer for ReadWriteMode {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        // Chunks are fetched from both primary and replicas
-        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
-            DataFusionError::Execution(format!("Database {} not found", database_name))
-        })?;
-
-        let table_def = db_schema
-            .table_definition(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
-
-        let filter = BufferFilter::new(&table_def, filters)
-            .map_err(|e| DataFusionError::Execution(format!("{e:?}")))?;
-
         // first add in all the buffer chunks from primary and replicas. These chunks have the
         // highest precedence set in chunk order
         let mut chunks = self.primary.get_buffer_chunks(
             Arc::clone(&db_schema),
-            table_name,
-            &filter,
+            Arc::clone(&table_def),
+            filter,
             projection,
             ctx,
         )?;
@@ -218,7 +205,7 @@ impl ChunkContainer for ReadWriteMode {
         if let Some(replicas) = &self.replicas {
             chunks.extend(
                 replicas
-                    .get_buffer_chunks(database_name, table_name, &filter)
+                    .get_buffer_chunks(Arc::clone(&db_schema), Arc::clone(&table_def), filter)
                     .map_err(|e| DataFusionError::Execution(e.to_string()))?,
             );
         }
@@ -227,7 +214,11 @@ impl ChunkContainer for ReadWriteMode {
         // pull out the writer markers to get gen1 chunks from primary and replicas
         let writer_markers = if let Some(compacted_data) = &self.compacted_data {
             let (parquet_files, writer_markers) = compacted_data
-                .get_parquet_files_and_writer_markers(database_name, table_name, filters);
+                .get_parquet_files_and_writer_markers(
+                    &db_schema.name,
+                    &table_def.table_name,
+                    filter.original_filters(),
+                );
 
             chunks.extend(
                 parquet_files
@@ -253,19 +244,17 @@ impl ChunkContainer for ReadWriteMode {
         if let Some(replicas) = &self.replicas {
             let gen1_persisted_chunks = if let Some(writer_markers) = &writer_markers {
                 replicas.get_persisted_chunks(
-                    database_name,
-                    table_name,
-                    table_def.schema.clone(),
-                    &filter,
+                    Arc::clone(&db_schema),
+                    Arc::clone(&table_def),
+                    filter,
                     writer_markers,
                     chunks.len() as i64,
                 )
             } else {
                 replicas.get_persisted_chunks(
-                    database_name,
-                    table_name,
-                    table_def.schema.clone(),
-                    &filter,
+                    Arc::clone(&db_schema),
+                    Arc::clone(&table_def),
+                    filter,
                     &[],
                     chunks.len() as i64,
                 )
@@ -285,10 +274,9 @@ impl ChunkContainer for ReadWriteMode {
         });
 
         let gen1_persisted_chunks = self.primary.get_persisted_chunks(
-            database_name,
-            table_name,
-            table_def.schema.clone(),
-            &filter,
+            Arc::clone(&db_schema),
+            Arc::clone(&table_def),
+            filter,
             next_non_compacted_parquet_file_id,
             chunks.len() as i64,
         );
