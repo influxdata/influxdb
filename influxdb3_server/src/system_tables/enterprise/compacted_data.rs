@@ -124,13 +124,20 @@ fn to_record_batch(
     let mut parquet_min_time_arr = TimestampNanosecondBuilder::with_capacity(results.len());
     let mut parquet_max_time_arr = TimestampNanosecondBuilder::with_capacity(results.len());
 
-    for result in &results {
-        table_name_array.append_value(table_name);
-        gen_id_arr.append_value(result.generation_id);
-        gen_level_arr.append_value(result.generation_level);
-        gen_time_arr.append_value(&result.generation_time);
+    let table_name_bytes = table_name.as_bytes();
+    let table_name_block = table_name_array.append_block(table_name_bytes.into());
+    let table_name_len = table_name_bytes.len() as u32;
 
+    for result in &results {
         for parquet_file in &result.parquet_files {
+            // append per-generation col values:
+            table_name_array
+                .try_append_view(table_name_block, 0, table_name_len)
+                .map_err(|e| DataFusionError::External(Box::new(e)))?;
+            gen_id_arr.append_value(result.generation_id);
+            gen_level_arr.append_value(result.generation_level);
+            gen_time_arr.append_value(&result.generation_time);
+
             parquet_id_arr.append_value(parquet_file.id.as_u64());
             parquet_path_arr.append_value(&parquet_file.path);
             parquet_size_bytes_arr.append_value(parquet_file.size_bytes);
