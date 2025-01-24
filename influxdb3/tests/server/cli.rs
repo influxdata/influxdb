@@ -102,6 +102,29 @@ pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
         .into()
 }
 
+pub fn run_with_stdin_input(input: impl Into<String>, args: &[&str]) -> String {
+    let input = input.into();
+    let mut child_process = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let mut stdin = child_process.stdin.take().expect("failed to open stdin");
+    thread::spawn(move || {
+        stdin
+            .write_all(input.as_bytes())
+            .expect("cannot write to stdin");
+    });
+
+    String::from_utf8(child_process.wait_with_output().unwrap().stdout)
+        .unwrap()
+        .trim()
+        .into()
+}
+
 // Helper function to create a temporary Python plugin file
 fn create_plugin_file(code: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
@@ -1689,4 +1712,108 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = response.text().await.unwrap();
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
+}
+
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_stdin() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run_with_stdin_input(
+        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
+        &["write", "--database", db_name, "--host", &server_addr],
+    );
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run_with_stdin_input(
+        "SELECT * FROM bar",
+        &["query", "--database", db_name, "--host", &server_addr],
+    );
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_file() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run(&[
+        "write",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--file",
+        "tests/server/fixtures/file.lp",
+    ]);
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--file",
+        "tests/server/fixtures/file.sql",
+    ]);
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
+}
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_string() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run(&[
+        "write",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
+    ]);
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "SELECT * FROM bar",
+    ]);
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
 }
