@@ -374,6 +374,8 @@ pub struct InnerCatalog {
     sequence: CatalogSequenceNumber,
     /// The `node_id` is the prefix that is passed in when starting up
     /// (`node_identifier_prefix`)
+    // TODO: deprecate this alias
+    #[serde(alias = "writer_id")]
     node_id: Arc<str>,
     /// The instance_id uniquely identifies the instance that generated the catalog
     instance_id: Arc<str>,
