@@ -55,7 +55,7 @@ long_about = r#"InfluxDB 3 Enterprise server and command line tools
 
 Examples:
     # Run the InfluxDB 3 Enterprise server
-    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --writer_id my_writer_name
+    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
 
     # Display all commands short form
     influxdb3 -h
@@ -64,10 +64,10 @@ Examples:
     influxdb3 --help
 
     # Run the InfluxDB 3 Enterprise server with extra verbose logging
-    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --writer_id my_writer_name
+    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
 
     # Run InfluxDB 3 Enterprise with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --writer_id my_writer_name
+    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
 "#
 )]
 struct Config {

@@ -12,9 +12,9 @@ mod replicas;
 #[derive(Debug, Default)]
 pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
-    writer_id: Option<String>,
-    read_from_writer_ids: Vec<String>,
-    compact_from_writer_ids: Vec<String>,
+    node_id: Option<String>,
+    read_from_node_ids: Vec<String>,
+    compact_from_node_ids: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<BufferMode>,
     object_store_path: Option<String>,
@@ -27,25 +27,25 @@ impl ConfigProvider for TestConfigEnterprise {
         if let Some((token, _)) = &self.auth_token {
             args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
         }
-        args.push("--writer-id".to_string());
-        if let Some(writer_id) = &self.writer_id {
-            args.push(writer_id.to_owned());
+        args.push("--node-id".to_string());
+        if let Some(node_id) = &self.node_id {
+            args.push(node_id.to_owned());
         } else {
             args.push("test-server".to_string());
         }
         if let Some(mode) = self.mode {
             args.append(&mut vec!["--mode".to_string(), mode.to_string()]);
         }
-        if !self.read_from_writer_ids.is_empty() {
+        if !self.read_from_node_ids.is_empty() {
             args.append(&mut vec![
-                "--read-from-writer-ids".to_string(),
-                self.read_from_writer_ids.join(","),
+                "--read-from-node-ids".to_string(),
+                self.read_from_node_ids.join(","),
             ])
         }
-        if !self.compact_from_writer_ids.is_empty() {
+        if !self.compact_from_node_ids.is_empty() {
             args.append(&mut vec![
-                "--compact-from-writer-ids".to_string(),
-                self.compact_from_writer_ids.join(","),
+                "--compact-from-node-ids".to_string(),
+                self.compact_from_node_ids.join(","),
             ])
         }
         if let Some(compactor_id) = &self.compactor_id {
@@ -88,9 +88,9 @@ impl TestConfigEnterprise {
         self
     }
 
-    /// Set a writer identifier prefix on the spawned [`TestServer`]
-    pub fn with_writer_id<S: Into<String>>(mut self, writer_id: S) -> Self {
-        self.writer_id = Some(writer_id.into());
+    /// Set a node identifier prefix on the spawned [`TestServer`]
+    pub fn with_node_id<S: Into<String>>(mut self, node_id: S) -> Self {
+        self.node_id = Some(node_id.into());
         self
     }
 
@@ -112,12 +112,12 @@ impl TestConfigEnterprise {
     }
 
     /// Give a set of host identifier prefixes to be replicated by this server
-    pub fn with_read_from_writer_ids(
+    pub fn with_read_from_node_ids(
         mut self,
-        read_from_writer_ids: impl IntoIterator<Item: Into<String>>,
+        read_from_node_ids: impl IntoIterator<Item: Into<String>>,
     ) -> Self {
-        self.read_from_writer_ids
-            .extend(read_from_writer_ids.into_iter().map(Into::into));
+        self.read_from_node_ids
+            .extend(read_from_node_ids.into_iter().map(Into::into));
         self
     }
 
@@ -127,12 +127,12 @@ impl TestConfigEnterprise {
         self
     }
 
-    pub fn with_compact_from_writer_ids(
+    pub fn with_compact_from_node_ids(
         mut self,
-        compact_from_writer_ids: impl IntoIterator<Item: Into<String>>,
+        compact_from_node_ids: impl IntoIterator<Item: Into<String>>,
     ) -> Self {
-        self.compact_from_writer_ids
-            .extend(compact_from_writer_ids.into_iter().map(Into::into));
+        self.compact_from_node_ids
+            .extend(compact_from_node_ids.into_iter().map(Into::into));
         self
     }
 }

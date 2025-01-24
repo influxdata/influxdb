@@ -251,10 +251,10 @@ mod tests {
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let non_cached_obj_store =
             Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
-        let writer_id = "picard";
+        let node_id = "picard";
         let persister = Arc::new(Persister::new(
             Arc::clone(&non_cached_obj_store) as _,
-            writer_id,
+            node_id,
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -270,7 +270,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: "picard".into(),
+            node_id: "picard".into(),
             persister,
             catalog,
             last_cache,
@@ -316,7 +316,7 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, writer_id).await;
+        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, node_id).await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -365,11 +365,8 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let writer_id = "picard";
-        let persister = Arc::new(Persister::new(
-            Arc::clone(&cached_obj_store) as _,
-            writer_id,
-        ));
+        let node_id = "picard";
+        let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, node_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -384,7 +381,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: "picard".into(),
+            node_id: "picard".into(),
             persister,
             catalog,
             last_cache,
@@ -430,7 +427,7 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, writer_id).await;
+        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, node_id).await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -473,31 +470,26 @@ mod tests {
 
         // create two read_write nodes simultaneously:
         struct WorkerConfig {
-            writer_id: &'static str,
-            read_from_writer_ids: &'static [&'static str],
+            node_id: &'static str,
+            read_from_node_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for WorkerConfig {
-            writer_id,
-            read_from_writer_ids,
+            node_id,
+            read_from_node_ids,
         } in [
             WorkerConfig {
-                writer_id: "worker-0",
-                read_from_writer_ids: &["worker-1"],
+                node_id: "worker-0",
+                read_from_node_ids: &["worker-1"],
             },
             WorkerConfig {
-                writer_id: "worker-1",
-                read_from_writer_ids: &["worker-0"],
+                node_id: "worker-1",
+                read_from_node_ids: &["worker-0"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(
-                tp,
-                os,
-                writer_id,
-                read_from_writer_ids.into(),
-            ));
+            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
             handles.push(h);
         }
         let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -618,13 +610,13 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
-        let writer_id = "skwisgaar";
+        let node_id = "skwisgaar";
         let write_buffer = setup_read_write(
             Arc::<MockProvider>::clone(&time_provider),
             object_store,
-            writer_id,
+            node_id,
             // pass in the writer itself to be replicated (which we don't want it to do):
-            vec![writer_id],
+            vec![node_id],
         )
         .await;
 
@@ -633,7 +625,7 @@ mod tests {
             "test_db",
             &write_buffer,
             &[TestWrite {
-                lp: format!("cpu,host={writer_id} usage=99"),
+                lp: format!("cpu,host={node_id} usage=99"),
                 time_seconds: 1,
             }],
         )
@@ -668,31 +660,26 @@ mod tests {
 
         // create two read_write nodes simultaneously that replicate each other:
         struct Config {
-            writer_id: &'static str,
-            read_from_writer_ids: &'static [&'static str],
+            node_id: &'static str,
+            read_from_node_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for Config {
-            writer_id,
-            read_from_writer_ids,
+            node_id,
+            read_from_node_ids,
         } in [
             Config {
-                writer_id: "holt",
-                read_from_writer_ids: &["cheddar"],
+                node_id: "holt",
+                read_from_node_ids: &["cheddar"],
             },
             Config {
-                writer_id: "cheddar",
-                read_from_writer_ids: &["holt"],
+                node_id: "cheddar",
+                read_from_node_ids: &["holt"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(
-                tp,
-                os,
-                writer_id,
-                read_from_writer_ids.into(),
-            ));
+            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
             handles.push(h);
         }
         let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -850,10 +837,10 @@ mod test_helpers {
     pub(crate) async fn verify_snapshot_count(
         n: usize,
         object_store: Arc<dyn ObjectStore>,
-        writer_id: &str,
+        node_id: &str,
     ) {
         let mut checks = 0;
-        let persister = Persister::new(object_store, writer_id);
+        let persister = Persister::new(object_store, node_id);
         loop {
             let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
             if persisted_snapshots.len() > n {
@@ -889,10 +876,10 @@ mod test_helpers {
     pub(crate) async fn setup_read_write(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
-        writer_id: &str,
-        read_from_writer_ids: Vec<&str>,
+        node_id: &str,
+        read_from_node_ids: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+        let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -904,10 +891,10 @@ mod test_helpers {
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = Some(ReplicationConfig {
             interval: Duration::from_millis(250),
-            writer_ids: read_from_writer_ids.iter().map(|s| s.to_string()).collect(),
+            node_ids: read_from_node_ids.iter().map(|s| s.to_string()).collect(),
         });
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: writer_id.into(),
+            node_id: node_id.into(),
             persister,
             catalog,
             last_cache,

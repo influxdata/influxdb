@@ -43,7 +43,7 @@ databases:
       processing_engine_triggers: []
       deleted: false
 sequence: 1
-writer_id: host-a
+node_id: host-a
 instance_id: instance-a
 db_map:
   - db_id: 0

@@ -20,7 +20,7 @@ use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
 #[derive(Debug)]
 pub struct WalObjectStore {
     object_store: Arc<dyn ObjectStore>,
-    writer_identifier_prefix: String,
+    node_identifier_prefix: String,
     file_notifier: Arc<dyn WalFileNotifier>,
     added_file_notifiers: parking_lot::Mutex<Vec<Arc<dyn WalFileNotifier>>>,
     /// Buffered wal ops go in here along with the state to track when to snapshot
@@ -37,21 +37,21 @@ impl WalObjectStore {
     pub async fn new(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
-        writer_identifier_prefix: impl Into<String> + Send,
+        node_identifier_prefix: impl Into<String> + Send,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
         snapshotted_wal_files_to_keep: u64,
     ) -> Result<Arc<Self>, crate::Error> {
-        let writer_identifier = writer_identifier_prefix.into();
+        let node_identifier = node_identifier_prefix.into();
         let all_wal_file_paths =
-            load_all_wal_file_paths(Arc::clone(&object_store), writer_identifier.clone()).await?;
+            load_all_wal_file_paths(Arc::clone(&object_store), node_identifier.clone()).await?;
         let flush_interval = config.flush_interval;
         let wal = Self::new_without_replay(
             time_provider,
             object_store,
-            writer_identifier,
+            node_identifier,
             file_notifier,
             config,
             last_wal_sequence_number,
@@ -72,7 +72,7 @@ impl WalObjectStore {
     fn new_without_replay(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
-        writer_identifier_prefix: impl Into<String>,
+        node_identifier_prefix: impl Into<String>,
         file_notifier: Arc<dyn WalFileNotifier>,
         config: WalConfig,
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
@@ -85,7 +85,7 @@ impl WalObjectStore {
 
         Self {
             object_store,
-            writer_identifier_prefix: writer_identifier_prefix.into(),
+            node_identifier_prefix: node_identifier_prefix.into(),
             file_notifier,
             added_file_notifiers: Default::default(),
             flush_buffer: Mutex::new(FlushBuffer::new(
@@ -274,7 +274,7 @@ impl WalObjectStore {
                 .await
         };
         info!(
-            host = self.writer_identifier_prefix,
+            host = self.node_identifier_prefix,
             n_ops = %wal_contents.ops.len(),
             min_timestamp_ns = %wal_contents.min_timestamp_ns,
             max_timestamp_ns = %wal_contents.max_timestamp_ns,
@@ -282,7 +282,7 @@ impl WalObjectStore {
             "flushing WAL buffer to object store"
         );
 
-        let wal_path = wal_path(&self.writer_identifier_prefix, wal_contents.wal_file_number);
+        let wal_path = wal_path(&self.node_identifier_prefix, wal_contents.wal_file_number);
         let data = crate::serialize::serialize_to_file_bytes(&wal_contents)
             .expect("unable to serialize wal contents into bytes for file");
         let data = Bytes::from(data);
@@ -375,7 +375,7 @@ impl WalObjectStore {
                 // that came before it:
                 if let Some(last_wal_sequence_number) = last_wal_sequence_number {
                     let last_wal_path =
-                        wal_path(&self.writer_identifier_prefix, last_wal_sequence_number);
+                        wal_path(&self.node_identifier_prefix, last_wal_sequence_number);
                     debug!(
                         ?path,
                         ?last_wal_path,
@@ -427,7 +427,7 @@ impl WalObjectStore {
 
             for idx in oldest..last_to_delete {
                 let path = wal_path(
-                    &self.writer_identifier_prefix,
+                    &self.node_identifier_prefix,
                     WalFileSequenceNumber::new(idx),
                 );
                 debug!(?path, ">>> deleting wal file");
@@ -483,11 +483,11 @@ fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNum
 
 async fn load_all_wal_file_paths(
     object_store: Arc<dyn ObjectStore>,
-    writer_identifier_prefix: String,
+    node_identifier_prefix: String,
 ) -> Result<Vec<Path>, crate::Error> {
     let mut paths = Vec::new();
     let mut offset: Option<Path> = None;
-    let path = Path::from(format!("{writer}/wal", writer = writer_identifier_prefix));
+    let path = Path::from(format!("{writer}/wal", writer = node_identifier_prefix));
     loop {
         let mut listing = if let Some(offset) = offset {
             object_store.list_with_offset(Some(&path), &offset)
@@ -819,9 +819,9 @@ impl WalBuffer {
     }
 }
 
-pub fn wal_path(writer_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
+pub fn wal_path(node_identifier_prefix: &str, wal_file_number: WalFileSequenceNumber) -> Path {
     Path::from(format!(
-        "{writer_identifier_prefix}/wal/{:011}.wal",
+        "{node_identifier_prefix}/wal/{:011}.wal",
         wal_file_number.0
     ))
 }

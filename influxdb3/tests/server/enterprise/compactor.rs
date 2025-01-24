@@ -13,18 +13,18 @@ async fn compactor_only_node_should_respond_to_compaction_events_query() {
     debug!(?obj_store_path, ">>> Path");
     let db_name = "foo";
     let write_node = TestServer::configure_pro()
-        .with_writer_id("writer")
+        .with_node_id("writer")
         .with_mode(BufferMode::ReadWrite)
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
 
     let compactor_node = TestServer::configure_pro()
-        .with_writer_id("compactor")
+        .with_node_id("compactor")
         .with_mode(BufferMode::Compactor)
         .with_object_store(&obj_store_path)
         .with_compactor_id("1")
-        .with_compact_from_writer_ids(vec!["writer"])
+        .with_compact_from_node_ids(vec!["writer"])
         .spawn()
         .await;
 

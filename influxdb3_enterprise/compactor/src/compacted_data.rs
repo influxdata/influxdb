@@ -7,7 +7,7 @@ use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_gener
 use influxdb3_enterprise_data_layout::{
     gen_time_string, CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
     CompactionSequenceNumber, CompactionSummary, Generation, GenerationDetail,
-    GenerationDetailPath, GenerationId, WriterSnapshotMarker,
+    GenerationDetailPath, GenerationId, NodeSnapshotMarker,
 };
 use influxdb3_enterprise_index::memory::FileIndex;
 use influxdb3_id::{DbId, TableId};
@@ -144,7 +144,7 @@ impl CompactedData {
         database_name: &str,
         table_name: &str,
         filters: &[Expr],
-    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<WriterSnapshotMarker>>) {
+    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<NodeSnapshotMarker>>) {
         let Some(db) = self.compacted_catalog.db_schema(database_name) else {
             return Default::default();
         };
@@ -374,7 +374,7 @@ impl CompactedTable {
     fn get_parquet_files_and_host_markers(
         &self,
         filters: &[Expr],
-    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<WriterSnapshotMarker>>) {
+    ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<NodeSnapshotMarker>>) {
         let mut parquet_files = self.file_index.parquet_files_for_filter(filters);
 
         // add the gen1 files
