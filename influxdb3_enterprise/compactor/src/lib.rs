@@ -834,9 +834,13 @@ mod test_helpers {
             register_current_runtime_for_io();
 
             let catalog = Arc::new(Catalog::new(node_id.into(), "foo".into()));
-            let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
             let time_provider: Arc<dyn TimeProvider> =
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let persister = Arc::new(Persister::new(
+                Arc::clone(&object_store),
+                node_id,
+                Arc::clone(&time_provider),
+            ));
 
             Self {
                 exec,

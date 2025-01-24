@@ -255,6 +255,7 @@ mod tests {
         let persister = Arc::new(Persister::new(
             Arc::clone(&non_cached_obj_store) as _,
             node_id,
+            Arc::clone(&time_provider),
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -275,7 +276,7 @@ mod tests {
             catalog,
             last_cache,
             distinct_cache,
-            time_provider,
+            time_provider: Arc::clone(&time_provider) as _,
             executor: make_exec(
                 Arc::clone(&non_cached_obj_store) as _,
                 Arc::clone(&metric_registry),
@@ -316,7 +317,13 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, node_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&non_cached_obj_store) as _,
+            node_id,
+            Arc::clone(&time_provider) as _,
+        )
+        .await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -366,7 +373,11 @@ mod tests {
             Default::default(),
         );
         let node_id = "picard";
-        let persister = Arc::new(Persister::new(Arc::clone(&cached_obj_store) as _, node_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&cached_obj_store) as _,
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -378,7 +389,6 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
         register_iox_object_store(rt, "influxdb3", Arc::clone(&cached_obj_store) as _);
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
             node_id: "picard".into(),
@@ -386,7 +396,7 @@ mod tests {
             catalog,
             last_cache,
             distinct_cache,
-            time_provider,
+            time_provider: Arc::clone(&time_provider) as _,
             executor: make_exec(
                 Arc::clone(&cached_obj_store) as _,
                 Arc::clone(&metric_registry),
@@ -427,7 +437,13 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, node_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&cached_obj_store) as _,
+            node_id,
+            Arc::clone(&time_provider) as _,
+        )
+        .await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -437,7 +453,8 @@ mod tests {
         let path = &parquet_files[0].path;
         let request_count =
             non_cached_obj_store.total_read_request_count(&Path::from(path.as_str()));
-        assert_eq!(1, request_count);
+        // they're cached immediately so no requests to non_cached_obj_store
+        assert_eq!(0, request_count);
 
         // do a query which will pull the files from object store:
         let batches = buffer
@@ -458,7 +475,8 @@ mod tests {
 
         let request_count =
             non_cached_obj_store.total_read_request_count(&Path::from(path.as_str()));
-        assert_eq!(1, request_count);
+        // they're cached immediately so no requests to non_cached_obj_store
+        assert_eq!(0, request_count);
     }
 
     /// Reproducer for <https://github.com/influxdata/influxdb_pro/issues/269>
@@ -838,9 +856,10 @@ mod test_helpers {
         n: usize,
         object_store: Arc<dyn ObjectStore>,
         node_id: &str,
+        time_provider: Arc<dyn TimeProvider>,
     ) {
         let mut checks = 0;
-        let persister = Persister::new(object_store, node_id);
+        let persister = Persister::new(object_store, node_id, time_provider);
         loop {
             let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
             if persisted_snapshots.len() > n {
@@ -879,7 +898,11 @@ mod test_helpers {
         node_id: &str,
         read_from_node_ids: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(

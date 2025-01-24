@@ -13,6 +13,7 @@ use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::{DatabaseTables, PersistedSnapshot};
+use iox_time::TimeProvider;
 use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
 use observability_deps::tracing::log::error;
@@ -316,6 +317,7 @@ impl CompactedCatalog {
         compactor_id: Arc<str>,
         node_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<CompactedCatalog> {
         let uuid = Uuid::new_v4().to_string();
         let instance_id = Arc::from(uuid.as_str());
@@ -324,7 +326,11 @@ impl CompactedCatalog {
         let mut node_maps = HashMap::new();
 
         for node_id in node_ids {
-            let persister = Persister::new(Arc::clone(&object_store), &node_id);
+            let persister = Persister::new(
+                Arc::clone(&object_store),
+                &node_id,
+                Arc::clone(&time_provider),
+            );
             if let Some(catalog) = persister.load_catalog().await? {
                 let last_catalog_sequence_number = catalog.sequence_number();
                 let catalog = Arc::new(Catalog::from_inner(catalog));
@@ -447,6 +453,7 @@ pub(crate) mod test_helpers {
         WalTableDefinition,
     };
     use influxdb3_write::persister::Persister;
+    use iox_time::TimeProvider;
     use object_store::ObjectStore;
     use std::sync::Arc;
 
@@ -456,6 +463,7 @@ pub(crate) mod test_helpers {
         table_name: &str,
         tag_column_type: FieldDataType,
         object_store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Arc<Catalog> {
         let catalog = Catalog::new(node_id.into(), node_id.into());
         let database_id = DbId::new();
@@ -501,7 +509,7 @@ pub(crate) mod test_helpers {
         };
         catalog.apply_catalog_batch(&batch).unwrap();
 
-        let persister = Persister::new(object_store, node_id);
+        let persister = Persister::new(object_store, node_id, time_provider);
         persister.persist_catalog(&catalog).await.unwrap();
 
         Arc::new(catalog)
@@ -526,6 +534,8 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let writer1 = "host1";
         let writer2 = "host2";
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let catalog1 = test_helpers::create_node_catalog_with_table(
             writer1,
@@ -533,6 +543,7 @@ mod tests {
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider) as _,
         )
         .await;
         let catalog2 = test_helpers::create_node_catalog_with_table(
@@ -541,6 +552,7 @@ mod tests {
             "table2",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
 
@@ -548,6 +560,7 @@ mod tests {
             Arc::clone(&compactor_id),
             vec![writer1.into(), writer2.into()],
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await
         .expect("failed to load merged catalog");
@@ -621,6 +634,8 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let _ = test_helpers::create_node_catalog_with_table(
             host1,
@@ -628,6 +643,7 @@ mod tests {
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
         let catalog2 = test_helpers::create_node_catalog_with_table(
@@ -636,6 +652,7 @@ mod tests {
             "table2",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
 
@@ -643,6 +660,7 @@ mod tests {
             compactor_id,
             vec![host1.into()],
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await
         .expect("failed to load merged catalog");
@@ -672,6 +690,8 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let _ = test_helpers::create_node_catalog_with_table(
             host1,
@@ -679,6 +699,7 @@ mod tests {
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
         let catalog2 = test_helpers::create_node_catalog_with_table(
@@ -687,6 +708,7 @@ mod tests {
             "table1",
             FieldDataType::Integer,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
 
@@ -694,6 +716,7 @@ mod tests {
             compactor_id,
             vec![host1.into()],
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await
         .expect("failed to load merged catalog");

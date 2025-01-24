@@ -2838,6 +2838,7 @@ dependencies = [
  "async-trait",
  "bimap",
  "bytes",
+ "chrono",
  "dashmap",
  "data_types",
  "datafusion",

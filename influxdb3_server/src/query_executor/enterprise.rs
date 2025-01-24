@@ -580,7 +580,7 @@ mod tests {
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         ParquetFile, WriteBuffer,
     };
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
     use object_store::{local::LocalFileSystem, memory::InMemory, ObjectStore};
     use observability_deps::tracing::debug;
@@ -668,20 +668,25 @@ mod tests {
     async fn setup() -> (
         Arc<dyn WriteBuffer>,
         QueryExecutorEnterprise,
-        Arc<MockProvider>,
+        Arc<dyn TimeProvider>,
         Arc<SysEventStore>,
     ) {
         // Set up QueryExecutor
         let object_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
             object_store,
             Arc::clone(&time_provider) as _,
             Default::default(),
         );
         let node_id = "test_host";
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from(node_id);
         let instance_id = Arc::from("instance-id");
@@ -691,11 +696,11 @@ mod tests {
             catalog: Arc::clone(&catalog),
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
-                Arc::<MockProvider>::clone(&time_provider),
+                Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
             .unwrap(),
-            time_provider: Arc::<MockProvider>::clone(&time_provider),
+            time_provider: Arc::clone(&time_provider),
             executor: Arc::clone(&exec),
             wal_config: WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
@@ -713,9 +718,7 @@ mod tests {
 
         let persisted_files: Arc<PersistedFiles> = Arc::clone(&write_buffer_impl.persisted_files());
         let telemetry_store = TelemetryStore::new_without_background_runners(Some(persisted_files));
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
@@ -739,7 +742,7 @@ mod tests {
         (
             write_buffer,
             query_executor,
-            time_provider,
+            Arc::clone(&time_provider),
             sys_events_store,
         )
     }

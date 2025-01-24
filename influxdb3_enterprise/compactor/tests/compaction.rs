@@ -46,13 +46,14 @@ async fn five_files_multiple_series_same_schema() {
     let obj_store = Arc::new(InMemory::new());
 
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -275,13 +276,14 @@ async fn two_files_two_series_and_same_schema() {
     let obj_store = Arc::new(InMemory::new());
 
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -436,13 +438,14 @@ async fn two_files_same_series_and_schema() {
     let obj_store = Arc::new(InMemory::new());
 
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -583,13 +586,14 @@ async fn two_files_similar_series_and_compatible_schema() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -767,13 +771,14 @@ async fn deduplication_of_data() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -903,13 +908,14 @@ async fn compactor_casting() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
     let node_id = "test-host";
+    let time_provider: Arc<dyn TimeProvider> =
+        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let persister = Arc::new(Persister::new(
         Arc::clone(&obj_store) as Arc<dyn ObjectStore>,
         node_id,
+        Arc::clone(&time_provider),
     ));
     let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
-    let time_provider: Arc<dyn TimeProvider> =
-        Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),

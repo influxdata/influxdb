@@ -804,7 +804,11 @@ mod tests {
             Arc::clone(&time_provider) as _,
             Default::default(),
         );
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");

@@ -774,7 +774,11 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let sample_node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let catalog = Arc::new(Catalog::new(sample_node_id, instance_id));

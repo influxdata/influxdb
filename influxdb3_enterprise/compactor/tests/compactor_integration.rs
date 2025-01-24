@@ -61,7 +61,11 @@ async fn two_writers_gen1_compaction() {
         snapshot_size: 1,
     };
 
-    let node1_persister = Arc::new(Persister::new(Arc::clone(&object_store), node1_id));
+    let node1_persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        node1_id,
+        Arc::clone(&time_provider),
+    ));
     let node1_catalog = Arc::new(node1_persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&node1_catalog)).unwrap();
     let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -70,7 +74,11 @@ async fn two_writers_gen1_compaction() {
     )
     .unwrap();
 
-    let node2_persister = Arc::new(Persister::new(Arc::clone(&object_store), node2_id));
+    let node2_persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        node2_id,
+        Arc::clone(&time_provider),
+    ));
     let node2_catalog = node2_persister.load_or_create_catalog().await.unwrap();
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
@@ -107,6 +115,7 @@ async fn two_writers_gen1_compaction() {
         executor: Arc::clone(&exec),
         parquet_cache_prefetcher,
         sys_events_store: Arc::clone(&sys_events_store),
+        time_provider: Arc::clone(&time_provider),
     })
     .await
     .unwrap();
@@ -268,7 +277,11 @@ async fn compact_consumer_picks_up_latest_summary() {
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_config =
         CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
-    let persister = Persister::new(Arc::clone(&object_store), compactor_id.as_ref());
+    let persister = Persister::new(
+        Arc::clone(&object_store),
+        compactor_id.as_ref(),
+        Arc::clone(&time_provider),
+    );
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         compactor_id: Arc::clone(&compactor_id),
         node_ids: vec!["spock".to_string(), "tuvok".to_string()],
@@ -280,6 +293,7 @@ async fn compact_consumer_picks_up_latest_summary() {
         executor: Arc::clone(&exec),
         parquet_cache_prefetcher: None,
         sys_events_store: Arc::clone(&sys_events_store),
+        time_provider: Arc::clone(&time_provider),
     })
     .await
     .unwrap();
@@ -394,7 +408,11 @@ async fn compaction_cleanup() {
 
     let compactor_id = "compactor";
 
-    let compactor_persister = Arc::new(Persister::new(Arc::clone(&object_store), compactor_id));
+    let compactor_persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        compactor_id,
+        Arc::clone(&time_provider),
+    ));
     let compactor_catalog = Arc::new(compactor_persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&compactor_catalog)).unwrap();
     let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -423,11 +441,16 @@ async fn compaction_cleanup() {
         executor: Arc::clone(&exec),
         parquet_cache_prefetcher,
         sys_events_store: Arc::clone(&sys_events_store),
+        time_provider: Arc::clone(&time_provider),
     })
     .await
     .unwrap();
 
-    let writer_persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
+    let writer_persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        node_id,
+        Arc::clone(&time_provider),
+    ));
     let writer_catalog = Arc::new(writer_persister.load_or_create_catalog().await.unwrap());
 
     let read_write_mode = Arc::new(
@@ -637,7 +660,11 @@ async fn setup_write_buffer(
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
 ) -> WriteBufferEnterprise<ReadWriteMode> {
-    let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
+    let persister = Arc::new(Persister::new(
+        Arc::clone(&object_store),
+        node_id,
+        Arc::clone(&time_provider),
+    ));
     let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
     let distinct_cache =

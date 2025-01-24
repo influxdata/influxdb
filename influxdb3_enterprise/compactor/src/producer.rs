@@ -37,6 +37,7 @@ use influxdb3_write::paths::SnapshotInfoFilePath;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::PersistedSnapshot;
 use iox_query::exec::Executor;
+use iox_time::TimeProvider;
 use object_store::path::Path;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
@@ -81,6 +82,7 @@ pub struct CompactedDataProducer {
     /// tokio Mutex so we can hold it across await points to object storage.
     compaction_state: tokio::sync::Mutex<CompactionState>,
     sys_events_store: Arc<dyn CompactionEventStore>,
+    _time_provider: Arc<dyn TimeProvider>,
     // Public only for tests
     #[doc(hidden)]
     pub to_delete: Mutex<Vec<Path>>,
@@ -111,6 +113,7 @@ pub struct CompactedDataProducerArgs {
     pub executor: Arc<Executor>,
     pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
     pub sys_events_store: Arc<dyn CompactionEventStore>,
+    pub time_provider: Arc<dyn TimeProvider>,
 }
 
 impl CompactedDataProducer {
@@ -126,12 +129,14 @@ impl CompactedDataProducer {
             executor,
             parquet_cache_prefetcher,
             sys_events_store,
+            time_provider,
         }: CompactedDataProducerArgs,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
             Arc::clone(&compactor_id),
             node_ids,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await?;
         compaction_state
@@ -155,6 +160,7 @@ impl CompactedDataProducer {
             sys_events_store,
             datafusion_config,
             to_delete: Mutex::new(Vec::new()),
+            _time_provider: time_provider,
         })
     }
 
@@ -658,6 +664,8 @@ pub(crate) struct CompactionState {
     writer_markers: Vec<Arc<NodeSnapshotMarker>>,
     // Map of files in all snapshots waiting to be compacted
     files_to_compact: Gen1FileMap,
+    /// time provider
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 pub(crate) type Gen1FileMap = HashMap<DbId, HashMap<TableId, Vec<Gen1File>>>;
@@ -669,12 +677,14 @@ impl CompactionState {
         compactor_id: Arc<str>,
         node_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> Result<(Self, CompactedData)> {
         // load or initialize and persist a compacted catalog
         async fn compacted_catalog(
             compactor_id: Arc<str>,
             node_ids: Vec<String>,
             obj_store: Arc<dyn ObjectStore>,
+            time_provider: Arc<dyn TimeProvider>,
         ) -> Result<CompactedCatalog> {
             match CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&obj_store)).await? {
                 Some(catalog) => Ok(catalog),
@@ -683,6 +693,7 @@ impl CompactionState {
                         compactor_id,
                         node_ids.clone(),
                         Arc::clone(&obj_store),
+                        time_provider,
                     )
                     .await?;
 
@@ -761,6 +772,7 @@ impl CompactionState {
             Arc::clone(&compactor_id),
             node_ids.clone(),
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         ));
         let task_2 = tokio::spawn(summary(
             Arc::clone(&compactor_id),
@@ -787,6 +799,7 @@ impl CompactionState {
                 node_id_to_last_marker,
                 writer_markers: vec![],
                 files_to_compact: HashMap::new(),
+                time_provider,
             },
             compacted_data,
         ))
@@ -807,7 +820,11 @@ impl CompactionState {
             if marker.snapshot_sequence_number == SnapshotSequenceNumber::new(0) {
                 // if the snapshot sequence number is zero, we need to load all snapshots for this
                 // writer up to the most recent 1,000
-                let persister = Persister::new(Arc::clone(&object_store), node_id);
+                let persister = Persister::new(
+                    Arc::clone(&object_store),
+                    node_id,
+                    Arc::clone(&self.time_provider),
+                );
                 let writer_snapshots =
                     load_all_snapshots(persister, node_id, marker, &sys_events_store)
                         .await
@@ -1135,6 +1152,7 @@ mod tests {
             executor: Arc::clone(&writer.exec),
             parquet_cache_prefetcher: None,
             sys_events_store,
+            time_provider,
         })
         .await
         .unwrap();
@@ -1238,11 +1256,13 @@ mod tests {
             cpu,host=asdf usage=1 1
         "#;
         let _snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let (mut state, compacted_data) = CompactionState::load_or_initialize(
             "compactor-1".into(),
             vec![node_id.into()],
             Arc::clone(&object_store),
+            time_provider,
         )
         .await
         .unwrap();
@@ -1354,6 +1374,7 @@ mod tests {
             executor: Arc::clone(&writer.exec),
             parquet_cache_prefetcher: None,
             sys_events_store: Arc::clone(&sys_events_store),
+            time_provider,
         })
         .await
         .unwrap();
@@ -1445,7 +1466,7 @@ mod tests {
             )));
         let node_id = "host_id";
         let obj_store = Arc::new(InMemory::new());
-        let persister = Persister::new(obj_store, node_id);
+        let persister = Persister::new(obj_store, node_id, time_provider);
 
         let persisted_snapshot = PersistedSnapshot {
             node_id: node_id.to_string(),
@@ -1501,7 +1522,7 @@ mod tests {
             )));
         let node_id = "host_id";
         let obj_store = Arc::new(InMemory::new()) as _;
-        let persister = Persister::new(Arc::clone(&obj_store), node_id);
+        let persister = Persister::new(Arc::clone(&obj_store), node_id, time_provider);
 
         let persisted_snapshot = PersistedSnapshot {
             node_id: node_id.to_string(),

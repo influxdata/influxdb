@@ -258,7 +258,7 @@ mod tests {
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
     use influxdb3_write::ParquetFile;
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::memory::InMemory;
 
     async fn setup_compacted_data() -> (
@@ -272,6 +272,8 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let _catalog1 = create_node_catalog_with_table(
             host1,
@@ -279,6 +281,7 @@ mod tests {
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
         let _catalog2 = create_node_catalog_with_table(
@@ -287,6 +290,7 @@ mod tests {
             "table2",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
 
@@ -294,6 +298,7 @@ mod tests {
             Arc::clone(&compactor_id),
             vec![host1.into(), host2.into()],
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await
         .expect("failed to load merged catalog");

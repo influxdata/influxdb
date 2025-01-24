@@ -60,7 +60,7 @@ use influxdb3_write::{
     WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
-use iox_time::SystemProvider;
+use iox_time::{SystemProvider, TimeProvider};
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
@@ -535,7 +535,7 @@ pub async fn command(config: Config) -> Result<()> {
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
 
-    let time_provider = Arc::new(SystemProvider::new());
+    let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
     let object_store: Arc<dyn ObjectStore> = config
         .object_store_config
@@ -607,6 +607,7 @@ pub async fn command(config: Config) -> Result<()> {
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         config.node_identifier_prefix.clone(),
+        Arc::clone(&time_provider) as _,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -650,7 +651,7 @@ pub async fn command(config: Config) -> Result<()> {
         Some(ParquetCachePreFetcher::new(
             Arc::clone(&parquet_cache),
             config.enterprise_config.preemptive_cache_age,
-            Arc::<SystemProvider>::clone(&time_provider),
+            Arc::clone(&time_provider),
         ))
     } else {
         None
@@ -708,6 +709,7 @@ pub async fn command(config: Config) -> Result<()> {
                     parquet_cache_prefetcher
                 },
                 sys_events_store: Arc::clone(&compaction_event_store),
+                time_provider: Arc::clone(&time_provider),
             })
             .await?;
 

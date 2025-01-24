@@ -376,6 +376,7 @@ impl ReplicatedBuffer {
             get_persisted_catalog_and_snapshots_for_writer(
                 Arc::clone(&object_store),
                 &node_identifier_prefix,
+                Arc::clone(&time_provider),
             )
             .await?;
         let node_id: Cow<'static, str> = Cow::from(node_identifier_prefix.clone());
@@ -556,6 +557,7 @@ impl ReplicatedBuffer {
             get_persisted_catalog_and_snapshots_for_writer(
                 Arc::clone(&self.object_store),
                 &self.node_identifier_prefix,
+                Arc::clone(&self.time_provider),
             )
             .await?;
 
@@ -880,9 +882,14 @@ impl ReplicatedBuffer {
 async fn get_persisted_catalog_and_snapshots_for_writer(
     object_store: Arc<dyn ObjectStore>,
     node_identifier_prefix: &str,
+    time_provider: Arc<dyn TimeProvider>,
 ) -> Result<(Arc<Catalog>, Vec<PersistedSnapshot>)> {
     // Create a temporary persister to load snapshot files and catalog
-    let persister = Persister::new(Arc::clone(&object_store), node_identifier_prefix);
+    let persister = Persister::new(
+        Arc::clone(&object_store),
+        node_identifier_prefix,
+        time_provider,
+    );
     let persisted_snapshots = persister
         .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
         .await
@@ -948,7 +955,7 @@ async fn cache_parquet_from_snapshot(
         .iter()
         .flat_map(|(_, db)| db.tables.iter().flat_map(|(_, tbl)| tbl.iter()))
     {
-        let (req, not) = CacheRequest::create(path.as_str().into());
+        let (req, not) = CacheRequest::create_eventual_mode_cache_request(path.as_str().into());
         parquet_cache.register(req);
         cache_notifiers.push(not);
     }
@@ -1153,7 +1160,13 @@ mod tests {
         .await;
 
         // Check that snapshots (and parquet) have been persisted:
-        verify_snapshot_count(1, Arc::clone(&obj_store), primary_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            primary_id,
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Spin up a replicated buffer:
         let replica = ReplicatedBuffer::new(CreateReplicatedBufferArgs {
@@ -1169,7 +1182,7 @@ mod tests {
                 "replica-host".into(),
                 "replica-instance".into(),
             )),
-            time_provider,
+            time_provider: Arc::clone(&time_provider),
             wal: None,
         })
         .await
@@ -1232,7 +1245,13 @@ mod tests {
         .await;
 
         // Allow for another snapshot on primary:
-        verify_snapshot_count(2, Arc::clone(&obj_store), primary_id).await;
+        verify_snapshot_count(
+            2,
+            Arc::clone(&obj_store),
+            primary_id,
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Check the primary chunks:
         {
@@ -1593,8 +1612,20 @@ mod tests {
         .await;
 
         // ensure snapshots have been taken so there are parquet files for each writer:
-        verify_snapshot_count(1, Arc::clone(&obj_store), "skinner").await;
-        verify_snapshot_count(1, Arc::clone(&obj_store), "chalmers").await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            "skinner",
+            Arc::clone(&time_provider),
+        )
+        .await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            "chalmers",
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Spin up a set of replicated buffers with a cached object store. This is scoped so that
         // everything set up in the block is dropped before the block below that tests without a
@@ -2713,7 +2744,11 @@ mod tests {
         wal_config: WalConfig,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Arc<WriteBufferImpl> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), node_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
