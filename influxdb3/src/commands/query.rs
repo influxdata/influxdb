@@ -7,6 +7,8 @@ use tokio::{
     io::{self, AsyncWriteExt},
 };
 
+use crate::commands::common::Format;
+
 use super::common::InfluxDb3Config;
 
 #[derive(Debug, thiserror::Error)]
@@ -61,34 +63,6 @@ pub struct Config {
 
     /// The query string to execute
     query: Vec<String>,
-}
-
-#[derive(Debug, ValueEnum, Clone)]
-#[clap(rename_all = "snake_case")]
-enum Format {
-    Pretty,
-    Json,
-    JsonLines,
-    Csv,
-    Parquet,
-}
-
-impl Format {
-    fn is_parquet(&self) -> bool {
-        matches!(self, Self::Parquet)
-    }
-}
-
-impl From<Format> for influxdb3_client::Format {
-    fn from(this: Format) -> Self {
-        match this {
-            Format::Pretty => Self::Pretty,
-            Format::Json => Self::Json,
-            Format::JsonLines => Self::JsonLines,
-            Format::Csv => Self::Csv,
-            Format::Parquet => Self::Parquet,
-        }
-    }
 }
 
 #[derive(Debug, ValueEnum, Clone)]

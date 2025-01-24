@@ -49,8 +49,9 @@ impl ParquetCachePreFetcher {
     ) -> Vec<impl Future<Output = Result<(), RecvError>>> {
         let mut futures = Vec::with_capacity(parquet_infos.len());
         for parquet_meta in parquet_infos {
-            let (cache_request, receiver) =
-                CacheRequest::create(ObjPath::from(parquet_meta.path.as_str()));
+            let (cache_request, receiver) = CacheRequest::create_eventual_mode_cache_request(
+                ObjPath::from(parquet_meta.path.as_str()),
+            );
             let logging_receiver = receiver.inspect_err(|err| {
                 // NOTE: This warning message never comes out when file is missing in object store,
                 //       instead see "failed to fulfill cache request with object store". Looks like
@@ -180,7 +181,8 @@ mod tests {
     fn test_cache_prefetcher_register() {
         let (now, parquet_max_time) = parquet_max_time_nanos(3);
         let pre_fetcher = setup_mock_prefetcher_3days();
-        let (cache_request, _) = CacheRequest::create(ObjPath::from(PATH));
+        let (cache_request, _) =
+            CacheRequest::create_eventual_mode_cache_request(ObjPath::from(PATH));
 
         pre_fetcher.check_and_register(now, cache_request, parquet_max_time);
     }

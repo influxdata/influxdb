@@ -1,4 +1,3 @@
--- filename: 000001_initial_setup.up.postgres.sql
 -- description: Initial setup for the InfluxDB 3 Pro license service
 
 -- Table to store users
@@ -91,7 +90,6 @@ CREATE TABLE licenses (
     state license_state_enum NOT NULL DEFAULT 'requested',
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT unique_email_writer_id UNIQUE(email, writer_id),      -- writer must be unique per email
     CONSTRAINT unique_email_instance_id UNIQUE(email, instance_id)   -- instance must be unique per email
 );
 

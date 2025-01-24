@@ -774,10 +774,14 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
-        let sample_writer_id = Arc::from("sample-host-id");
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
+        let sample_node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(sample_writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(sample_node_id, instance_id));
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
@@ -794,14 +798,13 @@ mod tests {
                 parquet_cache: Some(parquet_cache),
                 metric_registry: Arc::clone(&metrics),
                 snapshotted_wal_files_to_keep: 100,
+                query_file_limit: None,
             },
         )
         .await
         .unwrap();
 
-        let sys_events_store = Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
-            &time_provider,
-        )));
+        let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
         let parquet_metrics_provider: Arc<PersistedFiles> =
             Arc::clone(&write_buffer_impl.persisted_files());
         let sample_telem_store =
@@ -826,9 +829,7 @@ mod tests {
             datafusion_config: Default::default(),
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
-            compacted_data: None,
-            enterprise_config: Arc::clone(&enterprise_config),
-            sys_events_store: Arc::clone(&sys_events_store),
+            sys_events_store,
         });
 
         // bind to port 0 will assign a random available port:
@@ -845,7 +846,8 @@ mod tests {
             .authorizer(Arc::new(DefaultAuthorizer))
             .time_provider(Arc::clone(&time_provider))
             .tcp_listener(listener)
-            .build();
+            .build()
+            .await;
         let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 

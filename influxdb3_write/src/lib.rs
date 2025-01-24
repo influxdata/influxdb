@@ -9,14 +9,29 @@ pub mod paths;
 pub mod persister;
 pub mod write_buffer;
 
+use anyhow::Context;
 use async_trait::async_trait;
 use data_types::{NamespaceName, TimestampMinMax};
-use datafusion::{catalog::Session, error::DataFusionError, prelude::Expr};
+use datafusion::{
+    catalog::Session,
+    common::{Column, DFSchema},
+    error::DataFusionError,
+    execution::context::ExecutionProps,
+    logical_expr::interval_arithmetic::Interval,
+    physical_expr::{
+        analyze, create_physical_expr,
+        utils::{Guarantee, LiteralGuarantee},
+        AnalysisContext, ExprBoundaries,
+    },
+    prelude::Expr,
+    scalar::ScalarValue,
+};
+use hashbrown::{HashMap, HashSet};
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
 };
-use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
@@ -24,9 +39,13 @@ use influxdb3_wal::{
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
+use observability_deps::tracing::debug;
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
+use twox_hash::XxHash64;
+use write_buffer::INDEX_HASH_SEED;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -41,6 +60,9 @@ pub enum Error {
 
     #[error("queries not supported in compactor only mode")]
     CompactorOnly,
+
+    #[error(transparent)]
+    Anyhow(#[from] anyhow::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -90,7 +112,17 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     fn wal(&self) -> Arc<dyn Wal>;
 
     /// Returns the parquet files for a given database and table
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile>;
+    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
+        self.parquet_files_filtered(db_id, table_id, &ChunkFilter::default())
+    }
+
+    /// Returns the parquet files for a given database and table that satisfy the given filter
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &ChunkFilter,
+    ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
     fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
@@ -101,9 +133,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
 pub trait ChunkContainer: Debug + Send + Sync + 'static {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
@@ -189,8 +221,10 @@ pub struct BufferedWriteRequest {
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
-    /// The writer identifier that persisted this snapshot
-    pub writer_id: String,
+    /// The node identifier that persisted this snapshot
+    // TODO: deprecate this alias
+    #[serde(alias = "writer_id")]
+    pub node_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
     /// The next db id to be used for databases when the snapshot is loaded
@@ -220,13 +254,13 @@ pub struct PersistedSnapshot {
 
 impl PersistedSnapshot {
     pub fn new(
-        writer_id: String,
+        node_id: String,
         snapshot_sequence_number: SnapshotSequenceNumber,
         wal_file_sequence_number: WalFileSequenceNumber,
         catalog_sequence_number: CatalogSequenceNumber,
     ) -> Self {
         Self {
-            writer_id,
+            node_id,
             next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
             next_table_id: TableId::next_id(),
@@ -394,71 +428,272 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
     }
 }
 
-#[cfg(test)]
-mod test_helpers {
-    use crate::write_buffer::validator::WriteValidator;
-    use crate::Precision;
-    use data_types::NamespaceName;
-    use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_wal::{Gen1Duration, WriteBatch};
-    use iox_time::Time;
-    use std::sync::Arc;
+/// A derived set of filters that are used to prune data in the buffer when serving queries
+#[derive(Debug, Default)]
+pub struct ChunkFilter<'a> {
+    time_lower_bound_ns: Option<i64>,
+    time_upper_bound_ns: Option<i64>,
+    guarantees: HashMap<ColumnId, HashedLiteralGuarantee>,
+    filters: &'a [Expr],
+}
 
-    #[allow(dead_code)]
-    pub(crate) fn lp_to_write_batch(
-        catalog: Arc<Catalog>,
-        db_name: &'static str,
-        lp: &str,
-    ) -> WriteBatch {
-        let db_name = NamespaceName::new(db_name).unwrap();
-        let result = WriteValidator::initialize(db_name.clone(), catalog, 0)
-            .unwrap()
-            .v1_parse_lines_and_update_schema(
-                lp,
-                false,
-                Time::from_timestamp_nanos(0),
-                Precision::Nanosecond,
+#[derive(Debug)]
+pub struct HashedLiteralGuarantee {
+    pub guarantee: Guarantee,
+    pub literal_hashes: HashSet<u64>,
+}
+
+impl<'a> ChunkFilter<'a> {
+    /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
+    /// a logical query plan.
+    ///
+    /// This method analyzes the incoming `exprs` to do two things:
+    ///
+    /// - determine if there are any filters on the `time` column, in which case, attempt to derive
+    ///   an interval that defines the boundaries on `time` from the query.
+    /// - determine if there are any [`LiteralGuarantee`]s on tag columns contained in the filter
+    ///   predicates of the query.
+    pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
+        debug!(input = ?exprs, ">>> creating buffer filter");
+        let mut time_interval: Option<Interval> = None;
+        let arrow_schema = table_def.schema.as_arrow();
+        let time_col_index = arrow_schema
+            .fields()
+            .iter()
+            .position(|f| f.name() == TIME_COLUMN_NAME)
+            .context("table should have a time column")?;
+        let mut guarantees = HashMap::new();
+
+        // DF schema and execution properties used for handling physical expressions:
+        let df_schema = DFSchema::try_from(Arc::clone(&arrow_schema))
+            .context("table schema was not able to convert to datafusion schema")?;
+        let props = ExecutionProps::new();
+
+        for expr in exprs.iter().filter(|e| {
+            // NOTE: filter out most expression types, as they are not relevant to time bound
+            // analysis, or deriving literal guarantees on tag columns
+            matches!(
+                e,
+                Expr::BinaryExpr(_) | Expr::Not(_) | Expr::Between(_) | Expr::InList(_)
             )
-            .unwrap()
-            .convert_lines_to_buffer(Gen1Duration::new_5m());
+        }) {
+            let Ok(physical_expr) = create_physical_expr(expr, &df_schema, &props) else {
+                continue;
+            };
+            // Check if the expression refers to the `time` column:
+            if expr
+                .column_refs()
+                .contains(&Column::new_unqualified(TIME_COLUMN_NAME))
+            {
+                // Determine time bounds, if provided:
+                let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
+                    .context("unable to create unbounded expr boundaries on incoming expression")?;
+                let mut analysis = analyze(
+                    &physical_expr,
+                    AnalysisContext::new(boundaries),
+                    &arrow_schema,
+                )
+                .context("unable to analyze provided filters for a boundary on the time column")?;
 
-        result.valid_data
+                // Set the boundaries on the time column using the evaluated interval, if it exisxts
+                // If an interval was already derived from a previous expression, we take their
+                // intersection, or produce an error if:
+                // - the derived intervals are not compatible (different types)
+                // - the derived intervals do not intersect, this should be a user error, i.e., a
+                //   poorly formed query
+                if let Some(ExprBoundaries { interval, .. }) = (time_col_index
+                    < analysis.boundaries.len())
+                .then_some(analysis.boundaries.remove(time_col_index))
+                {
+                    if let Some(existing) = time_interval.take() {
+                        let intersection = existing.intersect(interval).context(
+                                "failed to derive a time interval from provided filters",
+                            )?.context("provided filters on time column did not produce a valid set of boundaries")?;
+                        time_interval.replace(intersection);
+                    } else {
+                        time_interval.replace(interval);
+                    }
+                }
+            }
+
+            // Determine any literal guarantees made on tag columns:
+            let literal_guarantees = LiteralGuarantee::analyze(&physical_expr);
+            for LiteralGuarantee {
+                column,
+                guarantee,
+                literals,
+            } in literal_guarantees
+            {
+                // We are only interested in literal guarantees on tag columns for the buffer index:
+                let Some((column_id, InfluxColumnType::Tag)) = table_def
+                    .column_definition(column.name())
+                    .map(|def| (def.id, def.data_type))
+                else {
+                    continue;
+                };
+
+                // We are only interested in string literals with respect to tag columns:
+                let literals = literals
+                    .into_iter()
+                    .filter_map(|l| match l {
+                        ScalarValue::Utf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => Some(s),
+                        _ => None,
+                    })
+                    .map(|s| XxHash64::oneshot(INDEX_HASH_SEED, s.as_bytes()))
+                    .collect::<HashSet<u64>>();
+
+                if literals.is_empty() {
+                    continue;
+                }
+
+                // Update the guarantees on this column. We handle multiple guarantees here, i.e.,
+                // if there are multiple Expr's that lead to multiple guarantees on a given column.
+                guarantees
+                    .entry(column_id)
+                    .and_modify(|e: &mut HashedLiteralGuarantee| {
+                        debug!(current = ?e.guarantee, incoming = ?guarantee, ">>> updating existing guarantee");
+                        use Guarantee::*;
+                        match (e.guarantee, guarantee) {
+                            (In, In) | (NotIn, NotIn) => {
+                                e.literal_hashes = e.literal_hashes.union(&literals).cloned().collect()
+                            }
+                            (In, NotIn) => {
+                                e.literal_hashes = e.literal_hashes.difference(&literals).cloned().collect()
+                            }
+                            (NotIn, In) => {
+                                e.literal_hashes = literals.difference(&e.literal_hashes).cloned().collect()
+                            }
+                        }
+                    })
+                    .or_insert(HashedLiteralGuarantee {
+                        guarantee,
+                        literal_hashes: literals,
+                    });
+                debug!(?guarantees, ">>> updated guarantees");
+            }
+        }
+
+        // Determine the lower and upper bound from the derived interval on time:
+        // TODO: we may open this up more to other scalar types, e.g., other timestamp types
+        //       depending on how users define time bounds.
+        let (time_lower_bound_ns, time_upper_bound_ns) = if let Some(i) = time_interval {
+            let low = if let ScalarValue::TimestampNanosecond(Some(l), _) = i.lower() {
+                Some(*l)
+            } else {
+                None
+            };
+            let high = if let ScalarValue::TimestampNanosecond(Some(h), _) = i.upper() {
+                Some(*h)
+            } else {
+                None
+            };
+
+            (low, high)
+        } else {
+            (None, None)
+        };
+
+        Ok(Self {
+            time_lower_bound_ns,
+            time_upper_bound_ns,
+            guarantees,
+            filters: exprs,
+        })
+    }
+
+    /// Test a `min` and `max` time against this filter to check if the range they define overlaps
+    /// with the range defined by the bounds in this filter.
+    pub fn test_time_stamp_min_max(&self, min_time_ns: i64, max_time_ns: i64) -> bool {
+        match (self.time_lower_bound_ns, self.time_upper_bound_ns) {
+            (None, None) => true,
+            (None, Some(u)) => min_time_ns <= u,
+            (Some(l), None) => max_time_ns >= l,
+            (Some(l), Some(u)) => min_time_ns <= u && max_time_ns >= l,
+        }
+    }
+
+    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &HashedLiteralGuarantee)> {
+        self.guarantees.iter()
+    }
+
+    pub fn original_filters(&self) -> &[Expr] {
+        self.filters
     }
 }
 
-#[cfg(test)]
-pub(crate) mod test_help {
-    use iox_query::exec::DedicatedExecutor;
-    use iox_query::exec::Executor;
-    use iox_query::exec::ExecutorConfig;
-    use object_store::memory::InMemory;
-    use object_store::ObjectStore;
-    use parquet_file::storage::ParquetStorage;
-    use parquet_file::storage::StorageId;
-    use std::num::NonZeroUsize;
-    use std::sync::Arc;
+pub mod test_helpers {
+    use crate::ChunkFilter;
+    use crate::WriteBuffer;
+    use arrow::array::RecordBatch;
+    use datafusion::prelude::Expr;
+    use iox_query::exec::IOxSessionContext;
 
-    pub(crate) fn make_exec() -> Arc<Executor> {
-        let metrics = Arc::new(metric::Registry::default());
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    /// Helper trait for getting [`RecordBatch`]es from a [`WriteBuffer`] implementation in tests
+    #[async_trait::async_trait]
+    pub trait WriteBufferTester {
+        /// Get record batches for the given database and table, using the provided filter `Expr`s
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
 
-        let parquet_store = ParquetStorage::new(
-            Arc::clone(&object_store),
-            StorageId::from("test_exec_storage"),
-        );
-        Arc::new(Executor::new_with_config_and_executor(
-            ExecutorConfig {
-                target_query_partitions: NonZeroUsize::new(1).unwrap(),
-                object_stores: [&parquet_store]
-                    .into_iter()
-                    .map(|store| (store.id(), Arc::clone(store.object_store())))
-                    .collect(),
-                metric_registry: Arc::clone(&metrics),
-                // Default to 1gb
-                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
-            },
-            DedicatedExecutor::new_testing(),
-        ))
+        /// Get record batches for the given database and table
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch>;
+    }
+
+    #[async_trait::async_trait]
+    impl<T> WriteBufferTester for T
+    where
+        T: WriteBuffer,
+    {
+        async fn get_record_batches_filtered_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            filters: &[Expr],
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            let db_schema = self
+                .catalog()
+                .db_schema(database_name)
+                .expect("database should exist");
+            let table_def = db_schema
+                .table_definition(table_name)
+                .expect("table should exist");
+            let filter =
+                ChunkFilter::new(&table_def, filters).expect("filter expressions should be valid");
+            let chunks = self
+                .get_table_chunks(db_schema, table_def, &filter, None, &ctx.inner().state())
+                .expect("should get query chunks");
+            let mut batches = vec![];
+            for chunk in chunks {
+                batches.extend(
+                    chunk
+                        .data()
+                        .read_to_batches(chunk.schema(), ctx.inner())
+                        .await,
+                );
+            }
+            batches
+        }
+
+        async fn get_record_batches_unchecked(
+            &self,
+            database_name: &str,
+            table_name: &str,
+            ctx: &IOxSessionContext,
+        ) -> Vec<RecordBatch> {
+            self.get_record_batches_filtered_unchecked(database_name, table_name, &[], ctx)
+                .await
+        }
     }
 }
 
@@ -503,7 +738,7 @@ mod tests {
 
         // add dbs_1 to snapshot
         let persisted_snapshot_1 = PersistedSnapshot {
-            writer_id: host.to_string(),
+            node_id: host.to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
             next_table_id: TableId::from(1),
@@ -548,7 +783,7 @@ mod tests {
 
         // add dbs_2 to snapshot
         let persisted_snapshot_2 = PersistedSnapshot {
-            writer_id: host.to_string(),
+            node_id: host.to_string(),
             next_file_id: ParquetFileId::from(5),
             next_db_id: DbId::from(2),
             next_table_id: TableId::from(22),

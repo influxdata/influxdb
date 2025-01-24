@@ -9,25 +9,25 @@ pub struct EnterpriseServeConfig {
     #[clap(long = "mode", value_enum, default_value_t = BufferMode::ReadWrite, env = "INFLUXDB3_ENTERPRISE_MODE", action)]
     pub mode: BufferMode,
 
-    /// Comma-separated list of writer identifier prefixes, i.e., `writer-id`s to read WAL files from
+    /// Comma-separated list of node identifier prefixes, i.e., `node-id`s to read WAL files from
     ///
-    /// Each writer in the list will have its data queryable by this server by checking for new WAL files produced
-    /// by that writer on object storage on the interval specified by the `replication-interval` option.
+    /// Each node in the list will have its data queryable by this server by checking for new WAL files produced
+    /// by that node on object storage on the interval specified by the `replication-interval` option.
     ///
-    /// If `run-compactions` is set to true, this writer list, if provided, will also serve as
-    /// the list of writers to compact data from.
+    /// If `run-compactions` is set to true, this node list, if provided, will also serve as
+    /// the list of nodes to compact data from.
     ///
-    /// If the reader for any given writer fails to initialize, the server will not start.
+    /// If the reader for any given node fails to initialize, the server will not start.
     #[clap(
-        long = "read-from-writer-ids",
+        long = "read-from-node-ids",
         // TODO: this alias should be deprecated
         alias = "replicas",
-        env = "INFLUXDB3_ENTERPRISE_READ_FROM_WRITER_IDS",
+        env = "INFLUXDB3_ENTERPRISE_READ_FROM_NODE_IDS",
         action
     )]
-    pub read_from_writer_ids: Option<WriterIdList>,
+    pub read_from_node_ids: Option<NodeIdList>,
 
-    /// The interval at which each reader specified in the `read-from-writer-ids` option will be replicated
+    /// The interval at which each reader specified in the `read-from-node-ids` option will be replicated
     #[clap(
         long = "replication-interval",
         env = "INFLUXDB3_ENTERPRISE_REPLICATION_INTERVAL",
@@ -49,19 +49,19 @@ pub struct EnterpriseServeConfig {
     )]
     pub compactor_id: Option<Arc<str>>,
 
-    /// Comma-separated list of writer identifier prefixes to compact data from.
+    /// Comma-separated list of node identifier prefixes to compact data from.
     ///
-    /// The compactor will look for new snapshot files from each writer in the list of
-    /// `compact-from-writer-ids`. It will compact gen1 file from those writers into a single
+    /// The compactor will look for new snapshot files from each node in the list of
+    /// `compact-from-node-ids`. It will compact gen1 file from those nodes into a single
     /// compacted view under the `compactor-id` prefix.
     #[clap(
-        long = "compact-from-writer-ids",
+        long = "compact-from-node-ids",
         // TODO: deprecate this alias
         alias = "compaction-hosts",
-        env = "INFLUXDB3_ENTERPRISE_COMPACT_FROM_WRITER_IDS",
+        env = "INFLUXDB3_ENTERPRISE_COMPACT_FROM_NODE_IDS",
         action
     )]
-    pub compact_from_writer_ids: Option<WriterIdList>,
+    pub compact_from_node_ids: Option<NodeIdList>,
 
     /// This tells the server to run compactions. Only a single server should ever be running
     /// compactions for a given compactor_id. All other servers can read from that compactor id
@@ -132,6 +132,13 @@ pub struct EnterpriseServeConfig {
         action
     )]
     pub preemptive_cache_age: humantime::Duration,
+
+    #[clap(
+        long = "license-email",
+        env = "INFLUXDB3_ENTERPRISE_LICENSE_EMAIL",
+        action
+    )]
+    pub license_email: Option<String>,
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer
@@ -164,15 +171,15 @@ impl std::fmt::Display for BufferMode {
 }
 
 #[derive(Debug, Clone)]
-pub struct WriterIdList(Vec<String>);
+pub struct NodeIdList(Vec<String>);
 
-impl From<WriterIdList> for Vec<String> {
-    fn from(list: WriterIdList) -> Self {
+impl From<NodeIdList> for Vec<String> {
+    fn from(list: NodeIdList) -> Self {
         list.0
     }
 }
 
-impl Deref for WriterIdList {
+impl Deref for NodeIdList {
     type Target = Vec<String>;
 
     fn deref(&self) -> &Self::Target {
@@ -180,7 +187,7 @@ impl Deref for WriterIdList {
     }
 }
 
-impl FromStr for WriterIdList {
+impl FromStr for NodeIdList {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

@@ -5,17 +5,16 @@ use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
-use datafusion::logical_expr::Expr;
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
 };
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::{
     write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
-    BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
 use influxdb3_write::{DatabaseManager, DistinctCacheManager};
@@ -54,7 +53,12 @@ impl Bufferer for CompactorMode {
         Arc::clone(&self.catalog)
     }
 
-    fn parquet_files(&self, _db_id: DbId, _table_id: TableId) -> Vec<ParquetFile> {
+    fn parquet_files_filtered(
+        &self,
+        _db_id: DbId,
+        _table_id: TableId,
+        _filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
         vec![]
     }
 
@@ -70,9 +74,9 @@ impl Bufferer for CompactorMode {
 impl ChunkContainer for CompactorMode {
     fn get_table_chunks(
         &self,
-        _database_name: &str,
-        _table_name: &str,
-        _filters: &[Expr],
+        _db_schema: Arc<DatabaseSchema>,
+        _table_def: Arc<TableDefinition>,
+        _filter: &ChunkFilter<'_>,
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {

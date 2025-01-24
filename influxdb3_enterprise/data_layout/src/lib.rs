@@ -54,7 +54,7 @@ pub struct CompactionSummary {
     /// on startup to ensure that we don't reuse generation ids.
     pub last_generation_id: GenerationId,
     /// The last `SnapshotSequenceNumber` for each writer that is getting compacted.
-    pub snapshot_markers: Vec<Arc<WriterSnapshotMarker>>,
+    pub snapshot_markers: Vec<Arc<NodeSnapshotMarker>>,
     /// The compactions sequence number that each table last had a compaction run. This can be used
     /// to construct a path to read the `CompactionDetail`
     pub compaction_details: SerdeVecMap<(DbId, TableId), CompactionSequenceNumber>,
@@ -62,9 +62,9 @@ pub struct CompactionSummary {
 
 /// The last snapshot sequence number for each writer that is getting compacted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WriterSnapshotMarker {
-    /// The writer identifier prefix this snapshot tracker is for
-    pub writer_id: String,
+pub struct NodeSnapshotMarker {
+    /// The node identifier prefix this snapshot tracker is for
+    pub node_id: String,
     /// The last snapshot sequence number we compacted for this writer. All < than this will have
     /// been compacted.
     pub snapshot_sequence_number: SnapshotSequenceNumber,
@@ -95,7 +95,7 @@ pub struct CompactionDetail {
     /// table gets compacted, they can run ahead of the global compaction summary. This information
     /// will allow downstream writers using the compacted data to know which gen1 files they
     /// have that should be used vs. what is already compacted in.
-    pub snapshot_markers: Vec<Arc<WriterSnapshotMarker>>,
+    pub snapshot_markers: Vec<Arc<NodeSnapshotMarker>>,
     /// This is the list of all generations of compacted data. The ids of the generations are
     /// unique and can be used to lookup the `GenerationDetail` which contains the list of
     /// `ParquetFile`s that are in that generation and the `FileIndex` for the generation.
@@ -439,10 +439,20 @@ impl CompactionSummaryPath {
             object_store_number_order(compaction_sequence_number.0)
         )))
     }
+
+    pub fn into_inner(self) -> ObjPath {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompactionDetailPath(ObjPath);
+
+impl CompactionDetailPath {
+    pub fn into_inner(self) -> ObjPath {
+        self.0
+    }
+}
 
 /// Serde serialization for `CompactionDetailPath` that serializes it to a string.
 impl Serialize for CompactionDetailPath {
@@ -535,6 +545,10 @@ impl GenerationDetailPath {
             &hash[5..],
             generation_id.0,
         )))
+    }
+
+    pub fn into_inner(self) -> ObjPath {
+        self.0
     }
 
     pub fn as_path(&self) -> &ObjPath {

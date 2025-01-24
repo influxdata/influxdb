@@ -1,6 +1,11 @@
+use core::str;
+
 use crate::server::TestServer;
 use futures::StreamExt;
-use hyper::StatusCode;
+use hyper::{
+    header::{HeaderValue, ACCEPT},
+    HeaderMap, StatusCode,
+};
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde::Serialize;
@@ -14,10 +19,10 @@ async fn api_v3_query_sql() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s1,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574936\n\
+            cpu,host=s1,region=us-east usage=0.89 2998574937\n\
+            cpu,host=s1,region=us-east usage=0.85 2998574938",
+            Precision::Second,
         )
         .await
         .unwrap();
@@ -26,13 +31,13 @@ async fn api_v3_query_sql() {
         TestCase {
             database: Some("foo"),
             query: "SELECT host, region, time, usage FROM cpu",
-            expected: "+------+---------+-------------------------------+-------+\n\
-            | host | region  | time                          | usage |\n\
-            +------+---------+-------------------------------+-------+\n\
-            | s1   | us-east | 1970-01-01T00:00:00.000000001 | 0.9   |\n\
-            | s1   | us-east | 1970-01-01T00:00:00.000000002 | 0.89  |\n\
-            | s1   | us-east | 1970-01-01T00:00:00.000000003 | 0.85  |\n\
-            +------+---------+-------------------------------+-------+",
+            expected: "+------+---------+---------------------+-------+\n\
+            | host | region  | time                | usage |\n\
+            +------+---------+---------------------+-------+\n\
+            | s1   | us-east | 2065-01-07T17:28:56 | 0.9   |\n\
+            | s1   | us-east | 2065-01-07T17:28:57 | 0.89  |\n\
+            | s1   | us-east | 2065-01-07T17:28:58 | 0.85  |\n\
+            +------+---------+---------------------+-------+",
         },
         TestCase {
             database: Some("foo"),
@@ -76,14 +81,14 @@ async fn api_v3_query_sql_params() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 1
-            cpu,host=b,region=us-east usage=0.50 1
-            cpu,host=a,region=us-east usage=0.80 2
-            cpu,host=b,region=us-east usage=0.60 2
-            cpu,host=a,region=us-east usage=0.70 3
-            cpu,host=b,region=us-east usage=0.70 3
-            cpu,host=a,region=us-east usage=0.50 4
-            cpu,host=b,region=us-east usage=0.80 4",
+            "cpu,host=a,region=us-east usage=0.9 2998574936
+            cpu,host=b,region=us-east usage=0.50 2998574936
+            cpu,host=a,region=us-east usage=0.80 2998574937
+            cpu,host=b,region=us-east usage=0.60 2998574937
+            cpu,host=a,region=us-east usage=0.70 2998574938
+            cpu,host=b,region=us-east usage=0.70 2998574938
+            cpu,host=a,region=us-east usage=0.50 2998574939
+            cpu,host=b,region=us-east usage=0.80 2998574939",
             Precision::Second,
         )
         .await
@@ -116,8 +121,8 @@ async fn api_v3_query_sql_params() {
             "+------+---------+---------------------+-------+\n\
             | host | region  | time                | usage |\n\
             +------+---------+---------------------+-------+\n\
-            | b    | us-east | 1970-01-01T00:00:03 | 0.7   |\n\
-            | b    | us-east | 1970-01-01T00:00:04 | 0.8   |\n\
+            | b    | us-east | 2065-01-07T17:28:58 | 0.7   |\n\
+            | b    | us-east | 2065-01-07T17:28:59 | 0.8   |\n\
             +------+---------+---------------------+-------+",
             resp
         );
@@ -152,8 +157,8 @@ async fn api_v3_query_sql_params() {
             "+------+---------+---------------------+-------+\n\
             | host | region  | time                | usage |\n\
             +------+---------+---------------------+-------+\n\
-            | b    | us-east | 1970-01-01T00:00:03 | 0.7   |\n\
-            | b    | us-east | 1970-01-01T00:00:04 | 0.8   |\n\
+            | b    | us-east | 2065-01-07T17:28:58 | 0.7   |\n\
+            | b    | us-east | 2065-01-07T17:28:59 | 0.8   |\n\
             +------+---------+---------------------+-------+",
             resp
         );
@@ -195,13 +200,13 @@ async fn api_v3_query_influxql() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s1,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3\n\
-            mem,host=s1,region=us-east usage=0.5 4\n\
-            mem,host=s1,region=us-east usage=0.6 5\n\
-            mem,host=s1,region=us-east usage=0.7 6",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574930\n\
+            cpu,host=s1,region=us-east usage=0.89 2998574931\n\
+            cpu,host=s1,region=us-east usage=0.85 2998574932\n
+            mem,host=s1,region=us-east usage=0.5 2998574933\n\
+            mem,host=s1,region=us-east usage=0.6 2998574934\n\
+            mem,host=s1,region=us-east usage=0.7 2998574935",
+            Precision::Second,
         )
         .await
         .unwrap();
@@ -210,13 +215,13 @@ async fn api_v3_query_influxql() {
     server
         .write_lp_to_db(
             "bar",
-            "cpu,host=s1,region=us-east usage=0.9 1\n\
-            cpu,host=s1,region=us-east usage=0.89 2\n\
-            cpu,host=s1,region=us-east usage=0.85 3\n\
-            mem,host=s1,region=us-east usage=0.5 4\n\
-            mem,host=s1,region=us-east usage=0.6 5\n\
-            mem,host=s1,region=us-east usage=0.7 6",
-            Precision::Nanosecond,
+            "cpu,host=s1,region=us-east usage=0.9 2998574930\n\
+            cpu,host=s1,region=us-east usage=0.89 2998574931\n\
+            cpu,host=s1,region=us-east usage=0.85 2998574932\n\
+            mem,host=s1,region=us-east usage=0.5 2998574933\n\
+            mem,host=s1,region=us-east usage=0.6 2998574934\n\
+            mem,host=s1,region=us-east usage=0.7 2998574935",
+            Precision::Second,
         )
         .await
         .unwrap();
@@ -225,41 +230,38 @@ async fn api_v3_query_influxql() {
         TestCase {
             database: Some("foo"),
             query: "SELECT time, host, region, usage FROM cpu",
-            expected:
-                "+------------------+-------------------------------+------+---------+-------+\n\
-                | iox::measurement | time                          | host | region  | usage |\n\
-                +------------------+-------------------------------+------+---------+-------+\n\
-                | cpu              | 1970-01-01T00:00:00.000000001 | s1   | us-east | 0.9   |\n\
-                | cpu              | 1970-01-01T00:00:00.000000002 | s1   | us-east | 0.89  |\n\
-                | cpu              | 1970-01-01T00:00:00.000000003 | s1   | us-east | 0.85  |\n\
-                +------------------+-------------------------------+------+---------+-------+",
+            expected: "+------------------+---------------------+------+---------+-------+\n\
+                | iox::measurement | time                | host | region  | usage |\n\
+                +------------------+---------------------+------+---------+-------+\n\
+                | cpu              | 2065-01-07T17:28:50 | s1   | us-east | 0.9   |\n\
+                | cpu              | 2065-01-07T17:28:51 | s1   | us-east | 0.89  |\n\
+                | cpu              | 2065-01-07T17:28:52 | s1   | us-east | 0.85  |\n\
+                +------------------+---------------------+------+---------+-------+",
         },
         TestCase {
             database: None,
             query: "SELECT time, host, region, usage FROM foo.autogen.cpu",
-            expected:
-                "+------------------+-------------------------------+------+---------+-------+\n\
-                | iox::measurement | time                          | host | region  | usage |\n\
-                +------------------+-------------------------------+------+---------+-------+\n\
-                | cpu              | 1970-01-01T00:00:00.000000001 | s1   | us-east | 0.9   |\n\
-                | cpu              | 1970-01-01T00:00:00.000000002 | s1   | us-east | 0.89  |\n\
-                | cpu              | 1970-01-01T00:00:00.000000003 | s1   | us-east | 0.85  |\n\
-                +------------------+-------------------------------+------+---------+-------+",
+            expected: "+------------------+---------------------+------+---------+-------+\n\
+                | iox::measurement | time                | host | region  | usage |\n\
+                +------------------+---------------------+------+---------+-------+\n\
+                | cpu              | 2065-01-07T17:28:50 | s1   | us-east | 0.9   |\n\
+                | cpu              | 2065-01-07T17:28:51 | s1   | us-east | 0.89  |\n\
+                | cpu              | 2065-01-07T17:28:52 | s1   | us-east | 0.85  |\n\
+                +------------------+---------------------+------+---------+-------+",
         },
         TestCase {
             database: Some("foo"),
             query: "SELECT host, region, usage FROM cpu, mem",
-            expected:
-                "+------------------+-------------------------------+------+---------+-------+\n\
-                | iox::measurement | time                          | host | region  | usage |\n\
-                +------------------+-------------------------------+------+---------+-------+\n\
-                | cpu              | 1970-01-01T00:00:00.000000001 | s1   | us-east | 0.9   |\n\
-                | cpu              | 1970-01-01T00:00:00.000000002 | s1   | us-east | 0.89  |\n\
-                | cpu              | 1970-01-01T00:00:00.000000003 | s1   | us-east | 0.85  |\n\
-                | mem              | 1970-01-01T00:00:00.000000004 | s1   | us-east | 0.5   |\n\
-                | mem              | 1970-01-01T00:00:00.000000005 | s1   | us-east | 0.6   |\n\
-                | mem              | 1970-01-01T00:00:00.000000006 | s1   | us-east | 0.7   |\n\
-                +------------------+-------------------------------+------+---------+-------+",
+            expected: "+------------------+---------------------+------+---------+-------+\n\
+                | iox::measurement | time                | host | region  | usage |\n\
+                +------------------+---------------------+------+---------+-------+\n\
+                | cpu              | 2065-01-07T17:28:50 | s1   | us-east | 0.9   |\n\
+                | cpu              | 2065-01-07T17:28:51 | s1   | us-east | 0.89  |\n\
+                | cpu              | 2065-01-07T17:28:52 | s1   | us-east | 0.85  |\n\
+                | mem              | 2065-01-07T17:28:53 | s1   | us-east | 0.5   |\n\
+                | mem              | 2065-01-07T17:28:54 | s1   | us-east | 0.6   |\n\
+                | mem              | 2065-01-07T17:28:55 | s1   | us-east | 0.7   |\n\
+                +------------------+---------------------+------+---------+-------+",
         },
         TestCase {
             database: Some("foo"),
@@ -327,7 +329,8 @@ async fn api_v3_query_influxql() {
         },
         TestCase {
             database: Some("foo"),
-            query: "SHOW TAG VALUES WITH KEY = \"host\" WHERE time < 1970-01-02",
+            // TODO: WHERE time < 2065-01-08 does not work for some reason
+            query: "SHOW TAG VALUES WITH KEY = \"host\" WHERE time > 2065-01-07",
             expected: "+------------------+------+-------+\n\
                     | iox::measurement | key  | value |\n\
                     +------------------+------+-------+\n\
@@ -337,7 +340,8 @@ async fn api_v3_query_influxql() {
         },
         TestCase {
             database: None,
-            query: "SHOW TAG VALUES ON foo WITH KEY = \"host\" WHERE time < 1970-01-02",
+            // TODO: WHERE time < 2065-01-08 does not work for some reason
+            query: "SHOW TAG VALUES ON foo WITH KEY = \"host\" WHERE time > 2065-01-07",
             expected: "+------------------+------+-------+\n\
                     | iox::measurement | key  | value |\n\
                     +------------------+------+-------+\n\
@@ -417,14 +421,14 @@ async fn api_v3_query_influxql_params() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 1
-            cpu,host=b,region=us-east usage=0.50 1
-            cpu,host=a,region=us-east usage=0.80 2
-            cpu,host=b,region=us-east usage=0.60 2
-            cpu,host=a,region=us-east usage=0.70 3
-            cpu,host=b,region=us-east usage=0.70 3
-            cpu,host=a,region=us-east usage=0.50 4
-            cpu,host=b,region=us-east usage=0.80 4",
+            "cpu,host=a,region=us-east usage=0.9 2998574931
+            cpu,host=b,region=us-east usage=0.50 2998574931
+            cpu,host=a,region=us-east usage=0.80 2998574932
+            cpu,host=b,region=us-east usage=0.60 2998574932
+            cpu,host=a,region=us-east usage=0.70 2998574933
+            cpu,host=b,region=us-east usage=0.70 2998574933
+            cpu,host=a,region=us-east usage=0.50 2998574934
+            cpu,host=b,region=us-east usage=0.80 2998574934",
             Precision::Second,
         )
         .await
@@ -457,8 +461,8 @@ async fn api_v3_query_influxql_params() {
             "+------------------+---------------------+------+---------+-------+\n\
             | iox::measurement | time                | host | region  | usage |\n\
             +------------------+---------------------+------+---------+-------+\n\
-            | cpu              | 1970-01-01T00:00:03 | b    | us-east | 0.7   |\n\
-            | cpu              | 1970-01-01T00:00:04 | b    | us-east | 0.8   |\n\
+            | cpu              | 2065-01-07T17:28:53 | b    | us-east | 0.7   |\n\
+            | cpu              | 2065-01-07T17:28:54 | b    | us-east | 0.8   |\n\
             +------------------+---------------------+------+---------+-------+",
             resp
         );
@@ -493,8 +497,8 @@ async fn api_v3_query_influxql_params() {
             "+------------------+---------------------+------+---------+-------+\n\
             | iox::measurement | time                | host | region  | usage |\n\
             +------------------+---------------------+------+---------+-------+\n\
-            | cpu              | 1970-01-01T00:00:03 | b    | us-east | 0.7   |\n\
-            | cpu              | 1970-01-01T00:00:04 | b    | us-east | 0.8   |\n\
+            | cpu              | 2065-01-07T17:28:53 | b    | us-east | 0.7   |\n\
+            | cpu              | 2065-01-07T17:28:54 | b    | us-east | 0.8   |\n\
             +------------------+---------------------+------+---------+-------+",
             resp
         );
@@ -540,14 +544,14 @@ async fn api_v3_query_json_format() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 1
-            cpu,host=b,region=us-east usage=0.50 1
-            cpu,host=a,region=us-east usage=0.80 2
-            cpu,host=b,region=us-east usage=0.60 2
-            cpu,host=a,region=us-east usage=0.70 3
-            cpu,host=b,region=us-east usage=0.70 3
-            cpu,host=a,region=us-east usage=0.50 4
-            cpu,host=b,region=us-east usage=0.80 4",
+            "cpu,host=a,region=us-east usage=0.9 2998574931
+            cpu,host=b,region=us-east usage=0.50 2998574931
+            cpu,host=a,region=us-east usage=0.80 2998574932
+            cpu,host=b,region=us-east usage=0.60 2998574932
+            cpu,host=a,region=us-east usage=0.70 2998574933
+            cpu,host=b,region=us-east usage=0.70 2998574933
+            cpu,host=a,region=us-east usage=0.50 2998574934
+            cpu,host=b,region=us-east usage=0.80 2998574934",
             Precision::Second,
         )
         .await
@@ -568,56 +572,56 @@ async fn api_v3_query_json_format() {
                     "host": "a",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:01",
+                    "time": "2065-01-07T17:28:51",
                     "usage": 0.9
                 },
                 {
                     "host": "b",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:01",
+                    "time": "2065-01-07T17:28:51",
                     "usage": 0.5
                 },
                 {
                     "host": "a",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:02",
+                    "time": "2065-01-07T17:28:52",
                     "usage": 0.8
                 },
                 {
                     "host": "b",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:02",
+                    "time": "2065-01-07T17:28:52",
                     "usage": 0.6
                 },
                 {
                     "host": "a",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:03",
+                    "time": "2065-01-07T17:28:53",
                     "usage": 0.7
                 },
                 {
                     "host": "b",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:03",
+                    "time": "2065-01-07T17:28:53",
                     "usage": 0.7
                 },
                 {
                     "host": "a",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:04",
+                    "time": "2065-01-07T17:28:54",
                     "usage": 0.5
                 },
                 {
                     "host": "b",
                     "iox::measurement": "cpu",
                     "region": "us-east",
-                    "time": "1970-01-01T00:00:04",
+                    "time": "2065-01-07T17:28:54",
                     "usage": 0.8
                 }
             ]),
@@ -714,14 +718,14 @@ async fn api_v3_query_jsonl_format() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 1
-            cpu,host=b,region=us-east usage=0.50 1
-            cpu,host=a,region=us-east usage=0.80 2
-            cpu,host=b,region=us-east usage=0.60 2
-            cpu,host=a,region=us-east usage=0.70 3
-            cpu,host=b,region=us-east usage=0.70 3
-            cpu,host=a,region=us-east usage=0.50 4
-            cpu,host=b,region=us-east usage=0.80 4",
+            "cpu,host=a,region=us-east usage=0.9 2998574931
+            cpu,host=b,region=us-east usage=0.50 2998574931
+            cpu,host=a,region=us-east usage=0.80 2998574932
+            cpu,host=b,region=us-east usage=0.60 2998574932
+            cpu,host=a,region=us-east usage=0.70 2998574933
+            cpu,host=b,region=us-east usage=0.70 2998574933
+            cpu,host=a,region=us-east usage=0.50 2998574934
+            cpu,host=b,region=us-east usage=0.80 2998574934",
             Precision::Second,
         )
         .await
@@ -737,14 +741,14 @@ async fn api_v3_query_jsonl_format() {
         TestCase {
             database: Some("foo"),
             query: "SELECT time, host, region, usage FROM cpu",
-            expected: "{\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:01\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.9}\n\
-               {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:01\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.5}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:02\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.8}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:02\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.6}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:03\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.7}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:03\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.7}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:04\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.5}\n\
-                {\"iox::measurement\":\"cpu\",\"time\":\"1970-01-01T00:00:04\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.8}\n"
+            expected: "{\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:51\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.9}\n\
+               {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:51\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.5}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:52\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.8}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:52\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.6}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:53\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.7}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:53\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.7}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:54\",\"host\":\"a\",\"region\":\"us-east\",\"usage\":0.5}\n\
+                {\"iox::measurement\":\"cpu\",\"time\":\"2065-01-07T17:28:54\",\"host\":\"b\",\"region\":\"us-east\",\"usage\":0.8}\n"
             .into(),
         },
         TestCase {
@@ -776,7 +780,7 @@ async fn api_v3_query_jsonl_format() {
         },
     ];
     for t in test_cases {
-        let mut params = vec![("q", t.query), ("format", "json_lines")];
+        let mut params = vec![("q", t.query), ("format", "jsonl")];
         if let Some(db) = t.database {
             params.push(("db", db))
         }
@@ -799,12 +803,12 @@ async fn api_v1_query_json_format() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a usage=0.9 1\n\
-            cpu,host=a usage=0.89 2\n\
-            cpu,host=a usage=0.85 3\n\
-            mem,host=a usage=0.5 4\n\
-            mem,host=a usage=0.6 5\n\
-            mem,host=a usage=0.7 6",
+            "cpu,host=a usage=0.9 2998574931\n\
+            cpu,host=a usage=0.89 2998574932\n\
+            cpu,host=a usage=0.85 2998574933\n\
+            mem,host=a usage=0.5 2998574934\n\
+            mem,host=a usage=0.6 2998574935\n\
+            mem,host=a usage=0.7 2998574936",
             Precision::Second,
         )
         .await
@@ -842,9 +846,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01Z", "a", 0.9],
-                        ["1970-01-01T00:00:02Z", "a", 0.89],
-                        ["1970-01-01T00:00:03Z", "a", 0.85]
+                        ["2065-01-07T17:28:51Z", "a", 0.9],
+                        ["2065-01-07T17:28:52Z", "a", 0.89],
+                        ["2065-01-07T17:28:53Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -870,9 +874,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "mem",
                       "values": [
-                        ["1970-01-01T00:00:04Z", "a", 0.5],
-                        ["1970-01-01T00:00:05Z", "a", 0.6],
-                        ["1970-01-01T00:00:06Z", "a", 0.7]
+                        ["2065-01-07T17:28:54Z", "a", 0.5],
+                        ["2065-01-07T17:28:55Z", "a", 0.6],
+                        ["2065-01-07T17:28:56Z", "a", 0.7]
                       ]
                     },
                     {
@@ -883,9 +887,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01Z", "a", 0.9],
-                        ["1970-01-01T00:00:02Z", "a", 0.89],
-                        ["1970-01-01T00:00:03Z", "a", 0.85]
+                        ["2065-01-07T17:28:51Z", "a", 0.9],
+                        ["2065-01-07T17:28:52Z", "a", 0.89],
+                        ["2065-01-07T17:28:53Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -911,9 +915,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        ["1970-01-01T00:00:01Z", "a", 0.9],
-                        ["1970-01-01T00:00:02Z", "a", 0.89],
-                        ["1970-01-01T00:00:03Z", "a", 0.85]
+                        ["2065-01-07T17:28:51Z", "a", 0.9],
+                        ["2065-01-07T17:28:52Z", "a", 0.89],
+                        ["2065-01-07T17:28:53Z", "a", 0.85]
                       ]
                     }
                   ],
@@ -939,9 +943,9 @@ async fn api_v1_query_json_format() {
                       ],
                       "name": "cpu",
                       "values": [
-                        [1, "a", 0.9],
-                        [2, "a", 0.89],
-                        [3, "a", 0.85]
+                        [2998574931u32, "a", 0.9],
+                        [2998574932u32, "a", 0.89],
+                        [2998574933u32, "a", 0.85]
                       ]
                     }
                   ],
@@ -979,12 +983,12 @@ async fn api_v1_query_csv_format() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a usage=0.9 1\n\
-          cpu,host=a usage=0.89 2\n\
-          cpu,host=a usage=0.85 3\n\
-          mem,host=a usage=0.5 4\n\
-          mem,host=a usage=0.6 5\n\
-          mem,host=a usage=0.7 6",
+            "cpu,host=a usage=0.9 2998574931\n\
+          cpu,host=a usage=0.89 2998574932\n\
+          cpu,host=a usage=0.85 2998574933\n\
+          mem,host=a usage=0.5 2998574934\n\
+          mem,host=a usage=0.6 2998574935\n\
+          mem,host=a usage=0.7 2998574936",
             Precision::Second,
         )
         .await
@@ -1004,9 +1008,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu",
             expected: "name,tags,time,host,usage\n\
-            cpu,,1970-01-01T00:00:01Z,a,0.9\n\
-            cpu,,1970-01-01T00:00:02Z,a,0.89\n\
-            cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
+            cpu,,2065-01-07T17:28:51Z,a,0.9\n\
+            cpu,,2065-01-07T17:28:52Z,a,0.89\n\
+            cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
         },
         // Basic Query with multiple measurements:
         TestCase {
@@ -1014,12 +1018,12 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM cpu, mem",
             expected: "name,tags,time,host,usage\n\
-            mem,,1970-01-01T00:00:04Z,a,0.5\n\
-            mem,,1970-01-01T00:00:05Z,a,0.6\n\
-            mem,,1970-01-01T00:00:06Z,a,0.7\n\
-            cpu,,1970-01-01T00:00:01Z,a,0.9\n\
-            cpu,,1970-01-01T00:00:02Z,a,0.89\n\
-            cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
+            mem,,2065-01-07T17:28:54Z,a,0.5\n\
+            mem,,2065-01-07T17:28:55Z,a,0.6\n\
+            mem,,2065-01-07T17:28:56Z,a,0.7\n\
+            cpu,,2065-01-07T17:28:51Z,a,0.9\n\
+            cpu,,2065-01-07T17:28:52Z,a,0.89\n\
+            cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
         },
         // Basic Query with db in query string:
         TestCase {
@@ -1027,9 +1031,9 @@ async fn api_v1_query_csv_format() {
             epoch: None,
             query: "SELECT time, host, usage FROM foo.autogen.cpu",
             expected: "name,tags,time,host,usage\n\
-          cpu,,1970-01-01T00:00:01Z,a,0.9\n\
-          cpu,,1970-01-01T00:00:02Z,a,0.89\n\
-          cpu,,1970-01-01T00:00:03Z,a,0.85\n\r\n",
+          cpu,,2065-01-07T17:28:51Z,a,0.9\n\
+          cpu,,2065-01-07T17:28:52Z,a,0.89\n\
+          cpu,,2065-01-07T17:28:53Z,a,0.85\n\r\n",
         },
         // Basic Query epoch parameter set:
         TestCase {
@@ -1037,9 +1041,9 @@ async fn api_v1_query_csv_format() {
             epoch: Some("s"),
             query: "SELECT time, host, usage FROM cpu",
             expected: "name,tags,time,host,usage\n\
-        cpu,,1,a,0.9\n\
-        cpu,,2,a,0.89\n\
-        cpu,,3,a,0.85\n\r\n",
+        cpu,,2998574931,a,0.9\n\
+        cpu,,2998574932,a,0.89\n\
+        cpu,,2998574933,a,0.85\n\r\n",
         },
     ];
 
@@ -1072,12 +1076,12 @@ async fn api_v1_query_chunked() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a usage=0.9 1\n\
-            cpu,host=a usage=0.89 2\n\
-            cpu,host=a usage=0.85 3\n\
-            mem,host=a usage=0.5 4\n\
-            mem,host=a usage=0.6 5\n\
-            mem,host=a usage=0.7 6",
+            "cpu,host=a usage=0.9 2998574931\n\
+            cpu,host=a usage=0.89 2998574932\n\
+            cpu,host=a usage=0.85 2998574933\n\
+            mem,host=a usage=0.5 2998574934\n\
+            mem,host=a usage=0.6 2998574935\n\
+            mem,host=a usage=0.7 2998574936",
             Precision::Second,
         )
         .await
@@ -1102,9 +1106,9 @@ async fn api_v1_query_chunked() {
                       "name": "cpu",
                       "columns": ["time","host","usage"],
                       "values": [
-                        [1, "a", 0.9],
-                        [2, "a", 0.89],
-                        [3, "a", 0.85]
+                        [2998574931u32, "a", 0.9],
+                        [2998574932u32, "a", 0.89],
+                        [2998574933u32, "a", 0.85]
                       ]
                     }
                   ],
@@ -1126,8 +1130,8 @@ async fn api_v1_query_chunked() {
                           "name": "cpu",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [1, "a", 0.9],
-                            [2, "a", 0.89],
+                            [2998574931u32, "a", 0.9],
+                            [2998574932u32, "a", 0.89],
                           ]
                         }
                       ],
@@ -1143,7 +1147,7 @@ async fn api_v1_query_chunked() {
                           "name": "cpu",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [3, "a", 0.85]
+                            [2998574933u32, "a", 0.85]
                           ]
                         }
                       ],
@@ -1166,9 +1170,9 @@ async fn api_v1_query_chunked() {
                           "name": "cpu",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [1, "a", 0.9],
-                            [2, "a", 0.89],
-                            [3, "a", 0.85]
+                            [2998574931u32, "a", 0.9],
+                            [2998574932u32, "a", 0.89],
+                            [2998574933u32, "a", 0.85]
                           ]
                         }
                       ],
@@ -1184,9 +1188,9 @@ async fn api_v1_query_chunked() {
                           "name": "mem",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [4, "a", 0.5],
-                            [5, "a", 0.6],
-                            [6, "a", 0.7]
+                            [2998574934u32, "a", 0.5],
+                            [2998574935u32, "a", 0.6],
+                            [2998574936u32, "a", 0.7]
                           ]
                         }
                       ],
@@ -1209,8 +1213,8 @@ async fn api_v1_query_chunked() {
                           "name": "cpu",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [1, "a", 0.9],
-                            [2, "a", 0.89],
+                            [2998574931u32, "a", 0.9],
+                            [2998574932u32, "a", 0.89],
                           ]
                         }
                       ],
@@ -1226,7 +1230,7 @@ async fn api_v1_query_chunked() {
                           "name": "cpu",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [3, "a", 0.85]
+                            [2998574933u32, "a", 0.85]
                           ]
                         }
                       ],
@@ -1242,8 +1246,8 @@ async fn api_v1_query_chunked() {
                           "name": "mem",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [4, "a", 0.5],
-                            [5, "a", 0.6],
+                            [2998574934u32, "a", 0.5],
+                            [2998574935u32, "a", 0.6],
                           ]
                         }
                       ],
@@ -1259,7 +1263,7 @@ async fn api_v1_query_chunked() {
                           "name": "mem",
                           "columns": ["time","host","usage"],
                           "values": [
-                            [6, "a", 0.7]
+                            [2998574936u32, "a", 0.7]
                           ]
                         }
                       ],
@@ -1301,11 +1305,11 @@ async fn api_v1_query_data_conversion() {
     server
         .write_lp_to_db(
             "foo",
-            "weather,location=us-midwest temperature_integer=82i 1465839830100400200\n\
-          weather,location=us-midwest temperature_float=82 1465839830100400200\n\
-          weather,location=us-midwest temperature_str=\"too warm\" 1465839830100400200\n\
-          weather,location=us-midwest too_hot=true 1465839830100400200",
-            Precision::Nanosecond,
+            "weather,location=us-midwest temperature_integer=82i 2998574930\n\
+          weather,location=us-midwest temperature_float=82 2998574930\n\
+          weather,location=us-midwest temperature_str=\"too warm\" 2998574930\n\
+          weather,location=us-midwest too_hot=true 2998574930",
+            Precision::Second,
         )
         .await
         .unwrap();
@@ -1338,7 +1342,7 @@ async fn api_v1_query_data_conversion() {
                       ],
                       "name": "weather",
                       "values": [
-                        ["2016-06-13T17:43:50.100400200Z", "us-midwest", 82, 82.0, "too warm", true],
+                        ["2065-01-07T17:28:50Z", "us-midwest", 82, 82.0, "too warm", true],
                       ]
                     }
                   ],
@@ -1378,12 +1382,12 @@ async fn api_v1_query_uri_and_body() {
         .write_lp_to_db(
             "foo",
             "\
-            cpu,host=a usage=0.9 1\n\
-            cpu,host=b usage=0.89 1\n\
-            cpu,host=c usage=0.85 1\n\
-            mem,host=a usage=0.5 2\n\
-            mem,host=b usage=0.6 2\n\
-            mem,host=c usage=0.7 2\
+            cpu,host=a usage=0.9 2998674931\n\
+            cpu,host=b usage=0.89 2998674931\n\
+            cpu,host=c usage=0.85 2998674931\n\
+            mem,host=a usage=0.5 2998674932\n\
+            mem,host=b usage=0.6 2998674932\n\
+            mem,host=c usage=0.7 2998674932\
             ",
             Precision::Second,
         )
@@ -1427,17 +1431,17 @@ async fn api_v1_query_uri_and_body() {
                       "name": "cpu",
                       "values": [
                         [
-                          "1970-01-01T00:00:01Z",
+                          "2065-01-08T21:15:31Z",
                           "a",
                           0.9
                         ],
                         [
-                          "1970-01-01T00:00:01Z",
+                          "2065-01-08T21:15:31Z",
                           "b",
                           0.89
                         ],
                         [
-                          "1970-01-01T00:00:01Z",
+                          "2065-01-08T21:15:31Z",
                           "c",
                           0.85
                         ]
@@ -1514,17 +1518,17 @@ async fn api_v1_query_uri_and_body() {
                       "name": "mem",
                       "values": [
                         [
-                          "1970-01-01T00:00:02Z",
+                          "2065-01-08T21:15:32Z",
                           "a",
                           0.5
                         ],
                         [
-                          "1970-01-01T00:00:02Z",
+                          "2065-01-08T21:15:32Z",
                           "b",
                           0.6
                         ],
                         [
-                          "1970-01-01T00:00:02Z",
+                          "2065-01-08T21:15:32Z",
                           "c",
                           0.7
                         ]
@@ -1580,6 +1584,104 @@ async fn api_v1_query_uri_and_body() {
                 }
             }
         }
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_group_by() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=a,t2=aa val=1 2998574931\n\
+            bar,t1=b,t2=aa val=2 2998574932\n\
+            bar,t1=a,t2=bb val=3 2998574933\n\
+            bar,t1=b,t2=bb val=4 2998574934",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    for (chunked, query) in [
+        (false, "select * from bar group by t1"),
+        (true, "select * from bar group by t1"),
+        (false, "select * from bar group by t1, t2"),
+        (true, "select * from bar group by t1, t2"),
+        (false, "select * from bar group by /t/"),
+        (true, "select * from bar group by /t/"),
+        (false, "select * from bar group by /t[1]/"),
+        (true, "select * from bar group by /t[1]/"),
+        (false, "select * from bar group by /t[1,2]/"),
+        (true, "select * from bar group by /t[1,2]/"),
+        (false, "select * from bar group by t1, t2, t3"),
+        (true, "select * from bar group by t1, t2, t3"),
+        (false, "select * from bar group by *"),
+        (true, "select * from bar group by *"),
+        (false, "select * from bar group by /not_a_match/"),
+        (true, "select * from bar group by /not_a_match/"),
+    ] {
+        let params = vec![
+            ("db", "foo"),
+            ("q", query),
+            ("chunked", if chunked { "true" } else { "false" }),
+        ];
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
+        let values = stream
+            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .collect::<Vec<Value>>()
+            .await;
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
+        // array for the snapshot.
+        insta::with_settings!({
+            description => format!("query: {query}, chunked: {chunked}"),
+        }, {
+            insta::assert_json_snapshot!(values);
+        });
+    }
+}
+
+#[tokio::test]
+async fn api_v1_query_group_by_with_nulls() {
+    let server = TestServer::spawn().await;
+
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=a val=1 2998574931\n\
+            bar val=2 2998574932\n\
+            bar,t1=a val=3 2998574933\n\
+            ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    for (chunked, query) in [
+        (false, "select * from bar group by t1"),
+        (true, "select * from bar group by t1"),
+    ] {
+        let params = vec![
+            ("db", "foo"),
+            ("q", query),
+            ("chunked", if chunked { "true" } else { "false" }),
+        ];
+        let stream = server.api_v1_query(&params, None).await.bytes_stream();
+        let values = stream
+            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .collect::<Vec<Value>>()
+            .await;
+        // Use a snapshot to assert on the output structure. This deserializes each emitted line as
+        // as JSON first, then combines and collects them into a Vec<Value> to serialize into a JSON
+        // array for the snapshot.
+        insta::with_settings!({
+            description => format!("query: {query}, chunked: {chunked}"),
+        }, {
+            insta::assert_json_snapshot!(values);
+        });
     }
 }
 
@@ -1673,8 +1775,8 @@ async fn api_v3_query_null_tag_values_null_fields() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9,system=0.1 1
-            cpu,host=b usage=0.80,system=0.1 4",
+            "cpu,host=a,region=us-east usage=0.9,system=0.1 2998674931
+            cpu,host=b usage=0.80,system=0.1 2998674934",
             Precision::Second,
         )
         .await
@@ -1704,8 +1806,8 @@ async fn api_v3_query_null_tag_values_null_fields() {
         "+------+---------+---------------------+-------+\n\
             | host | region  | time                | usage |\n\
             +------+---------+---------------------+-------+\n\
-            | a    | us-east | 1970-01-01T00:00:01 | 0.9   |\n\
-            | b    |         | 1970-01-01T00:00:04 | 0.8   |\n\
+            | a    | us-east | 2065-01-08T21:15:31 | 0.9   |\n\
+            | b    |         | 2065-01-08T21:15:34 | 0.8   |\n\
             +------+---------+---------------------+-------+",
         resp
     );
@@ -1713,7 +1815,7 @@ async fn api_v3_query_null_tag_values_null_fields() {
     server
         .write_lp_to_db(
             "foo",
-            "cpu,host=a,region=us-east usage=0.9 10000000",
+            "cpu,host=a,region=us-east usage=0.9 2998674935",
             Precision::Second,
         )
         .await
@@ -1737,10 +1839,51 @@ async fn api_v3_query_null_tag_values_null_fields() {
         "+------+---------+--------+---------------------+-------+\n\
          | host | region  | system | time                | usage |\n\
          +------+---------+--------+---------------------+-------+\n\
-         | a    | us-east | 0.1    | 1970-01-01T00:00:01 | 0.9   |\n\
-         | b    |         | 0.1    | 1970-01-01T00:00:04 | 0.8   |\n\
-         | a    | us-east |        | 1970-04-26T17:46:40 | 0.9   |\n\
+         | a    | us-east | 0.1    | 2065-01-08T21:15:31 | 0.9   |\n\
+         | b    |         | 0.1    | 2065-01-08T21:15:34 | 0.8   |\n\
+         | a    | us-east |        | 2065-01-08T21:15:35 | 0.9   |\n\
          +------+---------+--------+---------------------+-------+",
+        resp
+    );
+}
+
+#[tokio::test]
+async fn api_query_with_default_browser_header() {
+    let server = TestServer::spawn().await;
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,region=us,host=a usage=99 2998674934",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    let mut map = HeaderMap::new();
+    map.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    let resp = server
+        .api_v3_query_sql_with_header(
+            &[
+                ("db", "foo"),
+                ("format", "pretty"),
+                ("q", "SELECT * FROM cpu"),
+            ],
+            map,
+        )
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        "+------+--------+---------------------+-------+\n\
+        | host | region | time                | usage |\n\
+        +------+--------+---------------------+-------+\n\
+        | a    | us     | 2065-01-08T21:15:34 | 99.0  |\n\
+        +------+--------+---------------------+-------+",
         resp
     );
 }

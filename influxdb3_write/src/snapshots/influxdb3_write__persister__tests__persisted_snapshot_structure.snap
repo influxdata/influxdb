@@ -3,7 +3,7 @@ source: influxdb3_write/src/persister.rs
 expression: snapshot
 ---
 {
-  "writer_id": "host",
+  "node_id": "host",
   "next_file_id": 8,
   "next_db_id": 2,
   "next_table_id": 4,

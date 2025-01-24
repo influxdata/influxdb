@@ -39,12 +39,13 @@ use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
+use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
         enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
-        CreateQueryExecutorArgs, QueryExecutorImpl,
+        CreateQueryExecutorArgs,
     },
     serve, CommonServerState,
 };
@@ -59,7 +60,7 @@ use influxdb3_write::{
     WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
-use iox_time::SystemProvider;
+use iox_time::{SystemProvider, TimeProvider};
 use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
@@ -97,7 +98,7 @@ pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb3";
 /// The default bind address for the HTTP API.
 pub const DEFAULT_HTTP_BIND_ADDR: &str = "0.0.0.0:8181";
 
-pub const DEFAULT_TELMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
+pub const DEFAULT_TELEMETRY_ENDPOINT: &str = "https://telemetry.v3.influxdata.com";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -125,7 +126,7 @@ pub enum Error {
     #[error("invalid token: {0}")]
     InvalidToken(#[from] hex::FromHexError),
 
-    #[error("failed to initialized write buffer: {0}")]
+    #[error("failed to initialized write buffer: {0:?}")]
     WriteBufferInit(#[source] anyhow::Error),
 
     #[error("failed to initialize from persisted catalog: {0}")]
@@ -145,11 +146,11 @@ pub enum Error {
         #[from] influxdb3_enterprise_compactor::producer::CompactedDataProducerError,
     ),
 
-    #[error("Error initializing compaction consumer: {0}")]
+    #[error("Error initializing compaction consumer: {0:?}")]
     CompactionConsumer(#[from] anyhow::Error),
 
-    #[error("Must have `compact-from-writer-ids` specfied if running in compactor mode")]
-    CompactorModeWithoutWriterIds,
+    #[error("Must have `compact-from-node-ids` specfied if running in compactor mode")]
+    CompactorModeWithoutNodeIds,
 
     #[error("IO Error occurred: {0}")]
     Io(#[from] std::io::Error),
@@ -164,6 +165,10 @@ pub enum Error {
     #[cfg(not(feature = "no_license"))]
     #[error("Failed to make a well formed request to get the license")]
     BadLicenseRequest,
+
+    #[cfg(not(feature = "no_license"))]
+    #[error("Requested license not available.")]
+    LicenseNotFound,
 
     #[cfg(not(feature = "no_license"))]
     #[error("Failed to poll for license. Response code was {0}")]
@@ -320,17 +325,17 @@ pub struct Config {
     )]
     pub buffer_mem_limit_mb: usize,
 
-    /// The writer idendifier used as a prefix in all object store file paths. This should be unique
+    /// The node idendifier used as a prefix in all object store file paths. This should be unique
     /// for any InfluxDB 3 Core servers that share the same object store configuration, i.e., the
     /// same bucket.
     #[clap(
-        long = "writer-id",
+        long = "node-id",
         // TODO: deprecate this alias in future version
         alias = "host-id",
-        env = "INFLUXDB3_WRITER_IDENTIFIER_PREFIX",
+        env = "INFLUXDB3_NODE_IDENTIFIER_PREFIX",
         action
     )]
-    pub writer_identifier_prefix: String,
+    pub node_identifier_prefix: String,
 
     #[clap(flatten)]
     pub enterprise_config: influxdb3_enterprise_clap_blocks::serve::EnterpriseServeConfig,
@@ -408,6 +413,35 @@ pub struct Config {
         action
     )]
     pub force_snapshot_mem_threshold: MemorySize,
+
+    /// Disable sending telemetry data to telemetry.v3.influxdata.com.
+    #[clap(
+        long = "disable-telemetry-upload",
+        env = "INFLUXDB3_TELEMETRY_DISABLE_UPLOAD",
+        default_value_t = false,
+        hide = true,
+        action
+    )]
+    pub disable_telemetry_upload: bool,
+
+    /// Send telemetry data to the specified endpoint.
+    #[clap(
+        long = "telemetry-endpoint",
+        env = "INFLUXDB3_TELEMETRY_ENDPOINT",
+        default_value = DEFAULT_TELEMETRY_ENDPOINT,
+        hide = true,
+        action
+    )]
+    pub telemetry_endpoint: String,
+
+    /// Set the limit for number of parquet files allowed in a query. Defaults
+    /// to 432 which is about 3 days worth of files using default settings.
+    /// This number can be increased to allow more files to be queried, but
+    /// query performance will likely suffer, RAM usage will spike, and the
+    /// process might be OOM killed as a result. It would be better to specify
+    /// smaller time ranges if possible in a query.
+    #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
+    pub query_file_limit: Option<usize>,
 }
 
 /// The interval to check for new snapshots from writers to compact data from. This will do an S3
@@ -477,7 +511,7 @@ pub async fn command(config: Config) -> Result<()> {
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        writer_id = %config.writer_identifier_prefix,
+        node_id = %config.node_identifier_prefix,
         mode = %config.enterprise_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
@@ -501,7 +535,7 @@ pub async fn command(config: Config) -> Result<()> {
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
 
-    let time_provider = Arc::new(SystemProvider::new());
+    let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
     let object_store: Arc<dyn ObjectStore> = config
         .object_store_config
@@ -572,7 +606,8 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.writer_identifier_prefix.clone(),
+        config.node_identifier_prefix.clone(),
+        Arc::clone(&time_provider) as _,
     ));
     let wal_config = WalConfig {
         gen1_duration: config.gen1_duration,
@@ -593,8 +628,9 @@ pub async fn command(config: Config) -> Result<()> {
     {
         load_and_validate_license(
             Arc::clone(&object_store),
-            config.writer_identifier_prefix.clone(),
+            config.node_identifier_prefix.clone(),
             catalog.instance_id(),
+            config.enterprise_config.license_email,
         )
         .await?;
         info!("valid license found, happy data crunching");
@@ -605,7 +641,7 @@ pub async fn command(config: Config) -> Result<()> {
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
             let config = EnterpriseConfig::default();
-            config.persist(catalog.writer_id(), &object_store).await?;
+            config.persist(catalog.node_id(), &object_store).await?;
             Arc::new(RwLock::new(EnterpriseConfig::default()))
         }
         Err(err) => return Err(err.into()),
@@ -615,14 +651,14 @@ pub async fn command(config: Config) -> Result<()> {
         Some(ParquetCachePreFetcher::new(
             Arc::clone(&parquet_cache),
             config.enterprise_config.preemptive_cache_age,
-            Arc::<SystemProvider>::clone(&time_provider),
+            Arc::clone(&time_provider),
         ))
     } else {
         None
     };
 
     let mut compacted_data: Option<Arc<CompactedData>> = None;
-    let mut compaction_producer: Option<Arc<CompactedDataProducer>> = None;
+    let mut compaction_producer: Option<CompactedDataProducer> = None;
     let compaction_event_store = Arc::clone(&sys_events_store) as Arc<dyn CompactionEventStore>;
 
     // The compactor disables cached parquet loader so it can stream row groups and does not
@@ -643,25 +679,24 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let writer_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
-                if let Some(compact_from_writer_ids) =
-                    &config.enterprise_config.compact_from_writer_ids
+            let node_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
+                if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
-                    compact_from_writer_ids.to_vec()
+                    compact_from_node_ids.to_vec()
                 } else {
-                    return Err(Error::CompactorModeWithoutWriterIds);
+                    return Err(Error::CompactorModeWithoutNodeIds);
                 }
             } else {
-                let mut writer_ids = vec![config.writer_identifier_prefix.clone()];
-                if let Some(read_from_writer_ids) = &config.enterprise_config.read_from_writer_ids {
-                    writer_ids.extend(read_from_writer_ids.iter().cloned());
+                let mut node_ids = vec![config.node_identifier_prefix.clone()];
+                if let Some(read_from_node_ids) = &config.enterprise_config.read_from_node_ids {
+                    node_ids.extend(read_from_node_ids.iter().cloned());
                 }
-                writer_ids
+                node_ids
             };
 
             let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
                 compactor_id,
-                writer_ids,
+                node_ids,
                 compaction_config,
                 enterprise_config: Arc::clone(&enterprise_config),
                 datafusion_config: compactor_datafusion_config,
@@ -674,11 +709,12 @@ pub async fn command(config: Config) -> Result<()> {
                     parquet_cache_prefetcher
                 },
                 sys_events_store: Arc::clone(&compaction_event_store),
+                time_provider: Arc::clone(&time_provider),
             })
             .await?;
 
             compacted_data = Some(Arc::clone(&producer.compacted_data));
-            compaction_producer = Some(Arc::new(producer));
+            compaction_producer = Some(producer);
         } else {
             let consumer = CompactedDataConsumer::new(
                 compactor_id,
@@ -715,15 +751,12 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeDistinctCache)?;
 
-    let replica_config = config
-        .enterprise_config
-        .read_from_writer_ids
-        .map(|writer_ids| {
-            ReplicationConfig::new(
-                config.enterprise_config.replication_interval.into(),
-                writer_ids.into(),
-            )
-        });
+    let replica_config = config.enterprise_config.read_from_node_ids.map(|node_ids| {
+        ReplicationConfig::new(
+            config.enterprise_config.replication_interval.into(),
+            node_ids.into(),
+        )
+    });
 
     type CreateBufferModeResult = (
         Arc<dyn WriteBuffer>,
@@ -736,11 +769,8 @@ pub async fn command(config: Config) -> Result<()> {
         .mode
     {
         BufferMode::Read => {
-            let ReplicationConfig {
-                interval,
-                writer_ids,
-            } = replica_config
-                .context("must supply a read-from-writer-ids list when starting in read-only mode")
+            let ReplicationConfig { interval, node_ids } = replica_config
+                .context("must supply a read-from-node-ids list when starting in read-only mode")
                 .map_err(Error::WriteBufferInit)?;
             (
                 Arc::new(
@@ -751,7 +781,7 @@ pub async fn command(config: Config) -> Result<()> {
                         catalog: Arc::clone(&catalog),
                         metric_registry: Arc::clone(&metrics),
                         replication_interval: interval,
-                        writer_ids,
+                        node_ids,
                         parquet_cache: parquet_cache.clone(),
                         compacted_data: compacted_data.clone(),
                         time_provider: Arc::<SystemProvider>::clone(&time_provider),
@@ -766,7 +796,7 @@ pub async fn command(config: Config) -> Result<()> {
         BufferMode::ReadWrite => {
             let buf = Arc::new(
                 WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-                    writer_id: persister.writer_identifier_prefix().into(),
+                    node_id: persister.node_identifier_prefix().into(),
                     persister: Arc::clone(&persister),
                     catalog: Arc::clone(&catalog),
                     last_cache,
@@ -812,7 +842,8 @@ pub async fn command(config: Config) -> Result<()> {
         catalog.instance_id(),
         num_cpus,
         persisted_files,
-        DEFAULT_TELMETRY_ENDPOINT,
+        config.telemetry_endpoint.as_str(),
+        config.disable_telemetry_upload,
     )
     .await;
 
@@ -845,18 +876,20 @@ pub async fn command(config: Config) -> Result<()> {
                 compacted_data: sys_table_compacted_data,
             },
         )),
-        _ => Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
-            catalog: write_buffer.catalog(),
-            write_buffer: Arc::clone(&write_buffer),
-            exec: Arc::clone(&exec),
-            metrics: Arc::clone(&metrics),
-            datafusion_config,
-            query_log_size: config.query_log_size,
-            telemetry_store: Arc::clone(&telemetry_store),
-            compacted_data: sys_table_compacted_data,
-            enterprise_config: Arc::clone(&enterprise_config),
-            sys_events_store: Arc::clone(&sys_events_store),
-        })),
+        _ => Arc::new(QueryExecutorEnterprise::new(
+            CreateQueryExecutorArgs {
+                catalog: write_buffer.catalog(),
+                write_buffer: Arc::clone(&write_buffer),
+                exec: Arc::clone(&exec),
+                metrics: Arc::clone(&metrics),
+                datafusion_config,
+                query_log_size: config.query_log_size,
+                telemetry_store: Arc::clone(&telemetry_store),
+                sys_events_store: Arc::clone(&sys_events_store),
+            },
+            sys_table_compacted_data,
+            Arc::clone(&enterprise_config),
+        )),
     };
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -875,8 +908,9 @@ pub async fn command(config: Config) -> Result<()> {
         builder
             .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
             .build()
+            .await
     } else {
-        builder.build()
+        builder.build().await
     };
 
     let mut futures = Vec::new();
@@ -890,7 +924,9 @@ pub async fn command(config: Config) -> Result<()> {
         let t = exec
             .executor()
             .spawn(async move {
-                compactor.run_compaction_loop(Duration::from_secs(10)).await;
+                compactor
+                    .run_compaction_loop(Duration::from_secs(10), Duration::from_secs(600))
+                    .await;
             })
             .map_err(Error::Job);
 
@@ -917,7 +953,8 @@ async fn setup_telemetry_store(
     instance_id: Arc<str>,
     num_cpus: usize,
     persisted_files: Option<Arc<PersistedFiles>>,
-    telemetry_endpoint: &'static str,
+    telemetry_endpoint: &str,
+    disable_upload: bool,
 ) -> Arc<TelemetryStore> {
     let os = std::env::consts::OS;
     let influxdb_pkg_version = env!("CARGO_PKG_VERSION");
@@ -929,16 +966,22 @@ async fn setup_telemetry_store(
         .unwrap_or(ObjectStoreType::Memory);
     let storage_type = obj_store_type.as_str();
 
-    TelemetryStore::new(
-        instance_id,
-        Arc::from(os),
-        Arc::from(influx_version),
-        Arc::from(storage_type),
-        num_cpus,
-        persisted_files.map(|p| p as _),
-        telemetry_endpoint,
-    )
-    .await
+    if disable_upload {
+        debug!("Initializing TelemetryStore with upload disabled.");
+        TelemetryStore::new_without_background_runners(persisted_files.map(|p| p as _))
+    } else {
+        debug!("Initializing TelemetryStore with upload enabled for {telemetry_endpoint}.");
+        TelemetryStore::new(
+            instance_id,
+            Arc::from(os),
+            Arc::from(influx_version),
+            Arc::from(storage_type),
+            num_cpus,
+            persisted_files.map(|p| p as _),
+            telemetry_endpoint.to_string(),
+        )
+        .await
+    }
 }
 
 async fn background_buffer_checker(
@@ -957,81 +1000,63 @@ async fn background_buffer_checker(
 #[cfg(not(feature = "no_license"))]
 async fn load_and_validate_license(
     object_store: Arc<dyn ObjectStore>,
-    writer_id: String,
+    node_id: String,
     instance_id: Arc<str>,
+    license_email: Option<String>,
 ) -> Result<()> {
-    let license_path: ObjPath = format!("{writer_id}/license").into();
+    let license_path: ObjPath = format!("{node_id}/license").into();
     let license = match object_store.get(&license_path).await {
         Ok(get_result) => get_result.bytes().await?,
         // The license does not exist so we need to create one
         Err(object_store::Error::NotFound { .. }) => {
             // Check for a TTY / stdin to prompt the user for their email
-            if !std::io::stdin().is_terminal() {
+
+            if !std::io::stdin().is_terminal() && license_email.is_none() {
                 return Err(Error::NoTTY);
             }
 
-            println!(
-                "\nWelcome to InfluxDB 3 Enterprise\n\
-                 No license file was detected. Please enter your email: \
-            "
-            );
-            let mut email = String::new();
-            let stdin = std::io::stdin();
-            stdin.read_line(&mut email)?;
-            let email = url::form_urlencoded::byte_serialize(email.trim().as_bytes())
-                .map(ToString::to_string)
-                .collect::<String>();
+            println!("\nWelcome to InfluxDB 3 Enterprise\n");
 
-            if email.is_empty() {
+            let (encoded_email, display_email) = license_email
+                .clone()
+                .map(Ok)
+                .unwrap_or_else(|| -> Result<String> {
+                    println!("No license file was detected. Please enter your email: ");
+                    let mut email = String::new();
+                    let stdin = std::io::stdin();
+                    stdin.read_line(&mut email)?;
+                    Ok(email)
+                })
+                .map(|s| {
+                    (
+                        url::form_urlencoded::byte_serialize(s.trim().as_bytes())
+                            .collect::<String>(),
+                        s,
+                    )
+                })?;
+
+            if encoded_email.is_empty() {
                 return Err(Error::InvalidEmail);
             }
 
-            let client = reqwest::Client::new();
-            let resp = client
-                .post(format!("https://licenses.enterprise.influxdata.com/licenses?email={email}&instance-id={instance_id}&host-id={writer_id}"))
-            .send()
-            .await?;
-
-            if resp.status() == 400 {
-                return Err(Error::BadLicenseRequest);
-            }
-
-            //TODO: Handle url for local vs actual production code
-            let poll_url = format!(
-                "https://licenses.enterprise.influxdata.com{}",
-                resp.headers()
-                    .get("Location")
-                    .expect("Location header to be present")
-                    .to_str()
-                    .expect("Location header to be a valid utf-8 string")
-            );
-
-            println!("Email sent. Please check your inbox to verify your email address and proceed.\nWaiting for verification...");
-            let start = Instant::now();
-            loop {
-                // If 20 minutes have passed timeout and return an error
-                let duration = start.duration_since(Instant::now()).as_secs();
-                if duration > (20 * 60) {
-                    return Err(Error::LicenseTimeout);
+            // first check if license exists on in the license server
+            match get_license(&encoded_email, &instance_id).await {
+                Ok(l) => l,
+                // if license server reports 404 Not Found, then initiate onboarding process
+                Err(Error::LicenseNotFound) => {
+                    debug!("license not found on server, initiating onboarding process");
+                    license_onboarding(
+                        &object_store,
+                        &node_id,
+                        instance_id,
+                        &display_email,
+                        &encoded_email,
+                        &license_path,
+                    )
+                    .await?
                 }
-
-                let resp = client.get(&poll_url).send().await?;
-                match resp.status().as_u16() {
-                    404 => {
-                        debug!("Polling license service again in 5 seconds");
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                        continue;
-                    }
-                    200 => {
-                        let license = resp.bytes().await?;
-                        object_store
-                            .put(&license_path, PutPayload::from_bytes(license.clone()))
-                            .await?;
-                        break license;
-                    }
-                    400 => return Err(Error::BadLicenseRequest),
-                    code => return Err(Error::UnexpectedLicenseResponse(code)),
-                }
+                // anything else is an error (eg Bad Request, Internal Server Error, etc) that needs to be reported to the user
+                Err(e) => return Err(e),
             }
         }
         Err(e) => return Err(e.into()),
@@ -1060,14 +1085,14 @@ async fn load_and_validate_license(
     {
         error!("License is expired please acquire a new one. Queries will be disabled");
         influxdb3_server::EXPIRED_LICENSE.store(true, std::sync::atomic::Ordering::Relaxed);
-    } else if writer_id != claims.writer_id {
-        eprintln!("Invalid writer_id for license");
+    } else if node_id != claims.node_id {
+        eprintln!("Invalid node_id for license");
         std::process::exit(1);
     }
 
     async fn recurring_license_validation_check(
         mut claims: Claims,
-        writer_id: String,
+        node_id: String,
         license_path: ObjPath,
         object_store: Arc<dyn ObjectStore>,
     ) {
@@ -1107,8 +1132,8 @@ async fn load_and_validate_license(
                 > claims.license_exp
             {
                 EXPIRED_LICENSE.store(true, Ordering::Relaxed);
-            } else if writer_id != claims.writer_id {
-                error!("Invalid writer_id for license. Aborting process.");
+            } else if node_id != claims.node_id {
+                error!("Invalid node_id for license. Aborting process.");
                 std::process::exit(1);
             } else {
                 EXPIRED_LICENSE.store(false, Ordering::Relaxed);
@@ -1117,7 +1142,7 @@ async fn load_and_validate_license(
     }
     tokio::task::spawn(recurring_license_validation_check(
         claims,
-        writer_id,
+        node_id,
         license_path,
         object_store,
     ));
@@ -1130,7 +1155,8 @@ async fn load_and_validate_license(
 struct Claims {
     email: String,
     exp: u64,
-    writer_id: String,
+    #[serde(alias = "writer_id")]
+    node_id: String,
     iat: u64,
     instance_id: String,
     iss: String,
@@ -1182,3 +1208,101 @@ static SIGNING_KEYS: phf::Map<&'static str, &[u8]> = phf::phf_map! {
          "../../../influxdb3_license/service/keyring/keys/self-managed_test_public-key.pem"
      ),
 };
+
+#[cfg(not(feature = "no_license"))]
+const LICENSE_SERVER_URL: &str = if cfg!(feature = "local_dev") {
+    if let Some(url) = option_env!("LICENSE_SERVER_URL") {
+        url
+    } else {
+        "http://localhost:8687"
+    }
+} else {
+    "https://licenses.enterprise.influxdata.com"
+};
+
+#[cfg(not(feature = "no_license"))]
+async fn license_onboarding(
+    object_store: &Arc<dyn ObjectStore>,
+    node_id: &str,
+    instance_id: Arc<str>,
+    display_email: &str,
+    encoded_email: &str,
+    license_path: &ObjPath,
+) -> Result<bytes::Bytes> {
+    let client = reqwest::Client::new();
+    let resp = client
+                .post(format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}&node-id={node_id}"))
+            .send()
+            .await?;
+
+    match resp.status().as_u16() {
+        // * If this is the first time the user is attmpting to create a license without verification
+        // we should see a 201 response.
+        // * If the user has been verified and they haven't created a license for this
+        // email/instance_id combo then they will probably successfully create a license and see a
+        // 201 response.
+        201 => {}
+        // * If this is the second time without verification, they should should see a 202
+        // response.
+        202 => {}
+        400 => return Err(Error::BadLicenseRequest),
+        i => return Err(Error::UnexpectedLicenseResponse(i)),
+    }
+
+    //TODO: Handle url for local vs actual production code
+    let poll_url = format!(
+        "{LICENSE_SERVER_URL}{}",
+        resp.headers()
+            .get("Location")
+            .expect("Location header to be present")
+            .to_str()
+            .expect("Location header to be a valid utf-8 string")
+    );
+
+    println!("Email sent to {display_email}. Please check your inbox to verify your email address and proceed.");
+    println!("Waiting for verification...");
+    let start = Instant::now();
+    loop {
+        // If 20 minutes have passed timeout and return an error
+        let duration = start.duration_since(Instant::now()).as_secs();
+        if duration > (20 * 60) {
+            return Err(Error::LicenseTimeout);
+        }
+
+        let resp = client.get(&poll_url).send().await?;
+        match resp.status().as_u16() {
+            404 => {
+                debug!("Polling license service again in 5 seconds");
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+            200 => {
+                let license = resp.bytes().await?;
+                object_store
+                    .put(license_path, PutPayload::from_bytes(license.clone()))
+                    .await?;
+                break Ok(license);
+            }
+            400 => return Err(Error::BadLicenseRequest),
+            code => return Err(Error::UnexpectedLicenseResponse(code)),
+        }
+    }
+}
+
+#[cfg(not(feature = "no_license"))]
+async fn get_license(encoded_email: &str, instance_id: &str) -> Result<bytes::Bytes> {
+    //TODO: Handle url for local vs actual production code
+    let get_url =
+        format!("{LICENSE_SERVER_URL}/licenses?email={encoded_email}&instance-id={instance_id}");
+
+    let client = reqwest::Client::new();
+    let resp = client.get(get_url).send().await?;
+
+    debug!("getting license from server");
+    match resp.status().as_u16() {
+        200 => Ok(resp.bytes().await?),
+        404 => Err(Error::LicenseNotFound),
+        400 => Err(Error::BadLicenseRequest),
+        i => Err(Error::UnexpectedLicenseResponse(i)),
+    }
+}

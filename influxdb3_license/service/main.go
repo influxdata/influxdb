@@ -98,8 +98,22 @@ func newEmailService(c *config.Config, s store.Store, l *zap.Logger) *email.Serv
 
 // newLicenseCreator creates an instance of a new license creator/signer
 func newLicenseCreator(c *config.Config) (*license.Creator, error) {
-	s := signer.NewKMSSigningMethod()
-	lc, err := license.NewCreator(s, c.PrivateKey, c.PublicKey)
+	var (
+		s   license.Signer
+		err error
+	)
+	if c.LocalSigner {
+		s, err = signer.NewLocalSigningMethod(c.PrivateKey, c.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		s, err = signer.NewKMSSigningMethod(c.PrivateKey, c.PublicKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+	lc, err := license.NewCreator(s)
 	if err != nil {
 		return nil, err
 	}

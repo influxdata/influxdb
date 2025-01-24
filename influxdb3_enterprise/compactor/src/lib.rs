@@ -811,7 +811,7 @@ mod test_helpers {
     }
 
     impl TestWriter {
-        pub(crate) fn new(writer_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
+        pub(crate) fn new(node_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
             let metrics = Arc::new(metric::Registry::default());
 
             let parquet_store =
@@ -833,10 +833,14 @@ mod test_helpers {
             register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
             register_current_runtime_for_io();
 
-            let catalog = Arc::new(Catalog::new(writer_id.into(), "foo".into()));
-            let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+            let catalog = Arc::new(Catalog::new(node_id.into(), "foo".into()));
             let time_provider: Arc<dyn TimeProvider> =
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let persister = Arc::new(Persister::new(
+                Arc::clone(&object_store),
+                node_id,
+                Arc::clone(&time_provider),
+            ));
 
             Self {
                 exec,
@@ -895,7 +899,7 @@ mod test_helpers {
                     Arc::clone(&self.catalog),
                 )
                 .unwrap(),
-                persisted_files: Arc::new(Default::default()),
+                persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(vec![])),
                 parquet_cache: None,
             };
             let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);

@@ -9,8 +9,10 @@ pub mod serialize;
 mod snapshot_tracker;
 
 use async_trait::async_trait;
+use cron::Schedule;
 use data_types::Timestamp;
 use hashbrown::HashMap;
+use humantime::{format_duration, parse_duration};
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb_line_protocol::v3::SeriesValue;
@@ -57,8 +59,11 @@ pub enum Error {
     #[error("invalid WAL file path")]
     InvalidWalFilePath,
 
-    #[error("failed to parse trigger from {}", trigger_spec)]
-    TriggerSpecificationParseError { trigger_spec: String },
+    #[error("failed to parse trigger from {trigger_spec}{}", .context.as_ref().map(|context| format!(": {context}")).unwrap_or_default())]
+    TriggerSpecificationParseError {
+        trigger_spec: String,
+        context: Option<String>,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -381,7 +386,7 @@ impl OrderedCatalogBatch {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum CatalogOp {
     CreateDatabase(DatabaseDefinition),
-    CreateTable(TableDefinition),
+    CreateTable(WalTableDefinition),
     AddFields(FieldAdditions),
     CreateDistinctCache(DistinctCacheDefinition),
     DeleteDistinctCache(DistinctCacheDelete),
@@ -420,7 +425,7 @@ pub struct DeleteTableDefinition {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct TableDefinition {
+pub struct WalTableDefinition {
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub table_name: Arc<str>,
@@ -688,6 +693,8 @@ pub struct DeletePluginDefinition {
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
     WalRows,
+    Scheduled,
+    Request,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
@@ -719,6 +726,9 @@ pub struct TriggerIdentifier {
 pub enum TriggerSpecificationDefinition {
     SingleTableWalWrite { table_name: String },
     AllTablesWalWrite,
+    Schedule { schedule: String },
+    RequestPath { path: String },
+    Every { duration: Duration },
 }
 
 impl TriggerSpecificationDefinition {
@@ -730,6 +740,7 @@ impl TriggerSpecificationDefinition {
                 if table_name.is_empty() {
                     return Err(Error::TriggerSpecificationParseError {
                         trigger_spec: spec_str.to_string(),
+                        context: Some("table name is empty".to_string()),
                     });
                 }
                 Ok(TriggerSpecificationDefinition::SingleTableWalWrite {
@@ -737,8 +748,49 @@ impl TriggerSpecificationDefinition {
                 })
             }
             "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
+            s if s.starts_with("cron:") => {
+                let cron_schedule = s.trim_start_matches("cron:").trim();
+                if cron_schedule.is_empty() || Schedule::from_str(cron_schedule).is_err() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                        context: None,
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::Schedule {
+                    schedule: cron_schedule.to_string(),
+                })
+            }
+            s if s.starts_with("every:") => {
+                let duration_str = s.trim_start_matches("every:").trim();
+                let Ok(duration) = parse_duration(duration_str) else {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                        context: Some("couldn't parse to duration".to_string()),
+                    });
+                };
+                if duration > parse_duration("1 year").unwrap() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                        context: Some("don't support every schedules of over 1 year".to_string()),
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::Every { duration })
+            }
+            s if s.starts_with("request:") => {
+                let path = s.trim_start_matches("request:").trim();
+                if path.is_empty() {
+                    return Err(Error::TriggerSpecificationParseError {
+                        trigger_spec: spec_str.to_string(),
+                        context: None,
+                    });
+                }
+                Ok(TriggerSpecificationDefinition::RequestPath {
+                    path: path.to_string(),
+                })
+            }
             _ => Err(Error::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
+                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', or 'every:'".to_string()),
             }),
         }
     }
@@ -749,6 +801,15 @@ impl TriggerSpecificationDefinition {
                 format!("table:{}", table_name)
             }
             TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
+            TriggerSpecificationDefinition::Schedule { schedule } => {
+                format!("cron:{}", schedule)
+            }
+            TriggerSpecificationDefinition::Every { duration } => {
+                format!("every:{}", format_duration(*duration))
+            }
+            TriggerSpecificationDefinition::RequestPath { path } => {
+                format!("request:{}", path)
+            }
         }
     }
 }

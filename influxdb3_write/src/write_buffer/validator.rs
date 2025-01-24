@@ -241,6 +241,7 @@ fn validate_and_qualify_v1_line(
             .timestamp
             .map(|ts| apply_precision_to_timestamp(precision, ts))
             .unwrap_or(ingest_time.timestamp_nanos());
+
         fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
 
         // if we have new columns defined, add them to the db_schema table so that subsequent lines
@@ -342,7 +343,7 @@ fn validate_and_qualify_v1_line(
         for (id, name, influx_type) in &columns {
             field_definitions.push(FieldDefinition::new(*id, Arc::clone(name), influx_type));
         }
-        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::TableDefinition {
+        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::WalTableDefinition {
             table_id,
             database_id: db_schema.id,
             database_name: Arc::clone(&db_schema.name),
@@ -508,10 +509,10 @@ mod tests {
 
     #[test]
     fn write_validator_v1() -> Result<(), Error> {
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
         let namespace = NamespaceName::new("test").unwrap();
-        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
         let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
             .unwrap()
             .v1_parse_lines_and_update_schema(

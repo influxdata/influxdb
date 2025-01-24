@@ -92,7 +92,8 @@ impl SnapshotTracker {
     }
 
     fn should_run_snapshot(&mut self, force_snapshot: bool) -> bool {
-        // wal buffer can be empty but wal periods shouldn't be
+        // When force_snapshot is set the wal_periods won't be empty, as call site always adds a
+        // no-op when wal buffer is empty and adds the wal period
         if self.wal_periods.is_empty() {
             if force_snapshot {
                 info!("cannot force a snapshot when wal periods are empty");

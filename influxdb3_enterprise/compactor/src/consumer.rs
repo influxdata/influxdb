@@ -244,20 +244,21 @@ impl CompactedDataConsumer {
 
 #[cfg(test)]
 mod tests {
+    use crate::catalog::test_helpers::create_node_catalog_with_table;
+
     use super::*;
-    use crate::catalog::test_helpers::create_writer_catalog_with_table;
     use influxdb3_enterprise_data_layout::persist::{
         persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
     };
     use influxdb3_enterprise_data_layout::{
         CompactionDetail, CompactionSequenceNumber, CompactionSummary, Generation,
-        GenerationDetail, GenerationId, GenerationLevel, WriterSnapshotMarker,
+        GenerationDetail, GenerationId, GenerationLevel, NodeSnapshotMarker,
     };
     use influxdb3_id::ParquetFileId;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
     use influxdb3_write::ParquetFile;
-    use iox_time::{MockProvider, Time};
+    use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::memory::InMemory;
 
     async fn setup_compacted_data() -> (
@@ -271,28 +272,33 @@ mod tests {
         let compactor_id = "compactor_id".into();
         let host1 = "host1";
         let host2 = "host2";
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
-        let _catalog1 = create_writer_catalog_with_table(
+        let _catalog1 = create_node_catalog_with_table(
             host1,
             "db1",
             "table1",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
-        let _catalog2 = create_writer_catalog_with_table(
+        let _catalog2 = create_node_catalog_with_table(
             host2,
             "db1",
             "table2",
             FieldDataType::Tag,
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await;
 
-        let catalog = CompactedCatalog::load_merged_from_writer_ids(
+        let catalog = CompactedCatalog::load_merged_from_node_ids(
             Arc::clone(&compactor_id),
             vec![host1.into(), host2.into()],
             Arc::clone(&object_store),
+            Arc::clone(&time_provider),
         )
         .await
         .expect("failed to load merged catalog");
@@ -303,13 +309,13 @@ mod tests {
 
         let compaction_sequence_number = CompactionSequenceNumber::new(1);
         let snapshot_markers = vec![
-            Arc::new(WriterSnapshotMarker {
-                writer_id: host1.into(),
+            Arc::new(NodeSnapshotMarker {
+                node_id: host1.into(),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(2),
                 next_file_id: ParquetFileId::next_id(),
             }),
-            Arc::new(WriterSnapshotMarker {
-                writer_id: host2.into(),
+            Arc::new(NodeSnapshotMarker {
+                node_id: host2.into(),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(3),
                 next_file_id: ParquetFileId::next_id(),
             }),

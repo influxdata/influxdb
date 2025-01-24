@@ -1,15 +1,15 @@
 # providers.tf
 
 terraform {
+  backend "gcs" {
+    bucket = "v3-pro-licensing-tfstate"
+    prefix = "terraform/state"
+  }
+
   required_providers {
     google = {
       source = "hashicorp/google"
-      # version = "~> 6.15"
     }
-    # random = {
-    #   source  = "hashicorp/random"
-    #   version = "~> 3.0"
-    # }
   }
 }
 
@@ -26,5 +26,4 @@ provider "google-beta" {
   project = var.project_id
   region  = var.region
   zone    = "${var.region}-a"
-  #zone   = "us-central1-a"
 }

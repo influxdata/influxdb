@@ -13,6 +13,7 @@ use std::{
 use anyhow::bail;
 use async_trait::async_trait;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use dashmap::{DashMap, Entry};
 use futures::{
     future::{BoxFuture, Shared},
@@ -26,7 +27,7 @@ use object_store::{
     path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
     ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
 };
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use tokio::sync::{
     mpsc::{channel, Receiver, Sender},
     oneshot, watch,
@@ -40,27 +41,89 @@ type SharedCacheValueFuture = Shared<BoxFuture<'static, Result<Arc<CacheValue>, 
 /// Dynamic error type that can be cloned
 type DynError = Arc<dyn std::error::Error + Send + Sync>;
 
-/// A request to fetch an item at the given `path` from an object store
-///
-/// Contains a notifier to notify the caller that registers the cache request when the item
-/// has been cached successfully (or if the cache request failed in some way)
 #[derive(Debug)]
-pub struct CacheRequest {
+pub struct ParquetFileDataToCache {
+    bytes: Bytes,
+    object_meta: ObjectMeta,
+}
+
+impl ParquetFileDataToCache {
+    pub fn new(
+        path: &Path,
+        last_modified: DateTime<Utc>,
+        bytes: Bytes,
+        put_result: PutResult,
+    ) -> Self {
+        let object_meta = ObjectMeta {
+            // one time cost
+            location: path.clone(),
+            last_modified,
+            size: bytes.len(),
+            e_tag: put_result.e_tag,
+            version: put_result.version,
+        };
+        Self { bytes, object_meta }
+    }
+}
+
+#[derive(Debug)]
+pub struct ImmediateCacheRequest {
+    path: Path,
+    parquet_data: ParquetFileDataToCache,
+}
+
+#[derive(Debug)]
+pub struct EventualCacheRequest {
     path: Path,
     notifier: oneshot::Sender<()>,
 }
 
+impl EventualCacheRequest {
+    fn get_path_and_notifier(self) -> (Path, oneshot::Sender<()>) {
+        (self.path, self.notifier)
+    }
+}
+
+#[derive(Debug)]
+pub enum CacheRequest {
+    // When creating parquet files, the serialized bytes are already
+    // present so it can be directly loaded into the cache. This
+    // Immediate mode request caters for that use case.
+    Immediate(ImmediateCacheRequest),
+    // When there is only a path to a parquet file in object store then a
+    // GET request is needed to pull the actual data and store it in
+    // the cache. This Eventual mode request caters for that use case.
+    Eventual(EventualCacheRequest),
+}
+
 impl CacheRequest {
-    /// Create a new [`CacheRequest`] along with a receiver to catch the notify message when
-    /// the cache request has been fulfilled.
-    pub fn create(path: Path) -> (Self, oneshot::Receiver<()>) {
-        let (notifier, receiver) = oneshot::channel();
-        (Self { path, notifier }, receiver)
+    // Create a new [`CacheRequest::Immediate`] for loading the bytes passed in immediately into the cache.
+    pub fn create_immediate_mode_cache_request(path: Path, bytes: ParquetFileDataToCache) -> Self {
+        Self::Immediate(ImmediateCacheRequest {
+            path,
+            parquet_data: bytes,
+        })
     }
 
-    /// Helper to get path used to create this request
+    // Create a new [`CacheRequest::Eventual`] for eventually loading the path passed in, by doing
+    // a GET request from object store for the path. Since it is async operation, the receiver is
+    // passed back to notify once the data is loaded into the cache
+    pub fn create_eventual_mode_cache_request(path: Path) -> (Self, oneshot::Receiver<()>) {
+        let (notifier, receiver) = oneshot::channel();
+        (
+            Self::Eventual(EventualCacheRequest { path, notifier }),
+            receiver,
+        )
+    }
+
     pub fn get_path(&self) -> &Path {
-        &self.path
+        match self {
+            CacheRequest::Immediate(ImmediateCacheRequest {
+                path,
+                parquet_data: _,
+            }) => path,
+            CacheRequest::Eventual(EventualCacheRequest { path, notifier: _ }) => path,
+        }
     }
 }
 
@@ -75,11 +138,16 @@ pub trait ParquetCacheOracle: Send + Sync + Debug {
 
 /// Concrete implementation of the [`ParquetCacheOracle`]
 ///
-/// This implementation sends all requests registered to be cached.
+/// This implementation keeps a local reference to [`MemCachedObjectStore`] to immediately cache
+/// any requests. This also spins up the background job to cache any requests that require looking
+/// up parquet files from object store. In the latter case when the GET request to object store
+/// completes eventually a notification is sent to the caller to indicate that the request has been
+/// fulfilled.
 #[derive(Debug, Clone)]
 pub struct MemCacheOracle {
-    cache_request_tx: Sender<CacheRequest>,
+    cache_request_tx: Sender<EventualCacheRequest>,
     prune_notifier_tx: watch::Sender<usize>,
+    mem_store: Arc<MemCachedObjectStore>,
 }
 
 // TODO(trevor): make this configurable with reasonable default
@@ -95,22 +163,56 @@ impl MemCacheOracle {
         let (cache_request_tx, cache_request_rx) = channel(CACHE_REQUEST_BUFFER_SIZE);
         background_cache_request_handler(Arc::clone(&mem_cached_store), cache_request_rx);
         let (prune_notifier_tx, _prune_notifier_rx) = watch::channel(0);
-        background_cache_pruner(mem_cached_store, prune_notifier_tx.clone(), prune_interval);
+        background_cache_pruner(
+            Arc::clone(&mem_cached_store),
+            prune_notifier_tx.clone(),
+            prune_interval,
+        );
         Self {
             cache_request_tx,
             prune_notifier_tx,
+            mem_store: Arc::clone(&mem_cached_store),
         }
     }
 }
 
 impl ParquetCacheOracle for MemCacheOracle {
     fn register(&self, request: CacheRequest) {
-        let tx = self.cache_request_tx.clone();
-        tokio::spawn(async move {
-            if let Err(error) = tx.send(request).await {
-                error!(%error, "error registering cache request");
-            };
-        });
+        let path = request.get_path();
+        // We assume that objects on object store are immutable, so we can skip objects that
+        // we have already fetched, in eventual mode we send the notification immediately, so
+        // that it doesn't wait it's turn in the queue.
+        let already_in_cache = self.mem_store.cache.path_already_fetched(path);
+        debug!(
+            ?already_in_cache,
+            ?path,
+            ">>> is path already in parquet cache"
+        );
+        match request {
+            CacheRequest::Immediate(ImmediateCacheRequest { path, parquet_data }) => {
+                if !already_in_cache {
+                    let cache_value = CacheValue {
+                        data: parquet_data.bytes,
+                        meta: parquet_data.object_meta,
+                    };
+                    self.mem_store
+                        .cache
+                        .set_cache_value_directly(&path, Arc::new(cache_value));
+                }
+            }
+            CacheRequest::Eventual(eventual_cache_req) => {
+                if !already_in_cache {
+                    let tx = self.cache_request_tx.clone();
+                    tokio::spawn(async move {
+                        if let Err(error) = tx.send(eventual_cache_req).await {
+                            error!(%error, "error registering cache request");
+                        };
+                    });
+                } else {
+                    let _ = eventual_cache_req.notifier.send(());
+                }
+            }
+        }
     }
 
     fn prune_notifier(&self) -> watch::Receiver<usize> {
@@ -325,6 +427,20 @@ impl Cache {
     fn set_fetching(&self, path: &Path, fut: SharedCacheValueFuture) {
         let entry = CacheEntry {
             state: CacheEntryState::Fetching(fut),
+            hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
+        };
+        let additional = entry.size();
+        self.size_metrics
+            .record_file_additions(additional as u64, 1);
+        self.map.insert(path.clone(), entry);
+        self.used.fetch_add(additional, Ordering::SeqCst);
+    }
+
+    /// When parquet bytes are in hand this method can be used to update the cache value
+    /// directly without going through Fetching -> Success lifecycle
+    fn set_cache_value_directly(&self, path: &Path, cache_value: Arc<CacheValue>) {
+        let entry = CacheEntry {
+            state: CacheEntryState::Success(cache_value),
             hit_time: AtomicI64::new(self.time_provider.now().timestamp_nanos()),
         };
         let additional = entry.size();
@@ -679,22 +795,18 @@ impl ObjectStore for MemCachedObjectStore {
 
 /// Handle [`CacheRequest`]s in a background task
 ///
-/// This waits on the given `Receiver` for new cache requests to be registered, i.e., via the oracle.
+/// This waits on the given `Receiver` for new eventual cache requests to be registered (via oracle).
 /// If a cache request is received for an entry that has not already been fetched successfully, or
 /// one that is in the process of being fetched, then this will spin a separate background task to
 /// fetch the object from object store and update the cache. This is so that cache requests can be
 /// handled in parallel.
 fn background_cache_request_handler(
     mem_store: Arc<MemCachedObjectStore>,
-    mut rx: Receiver<CacheRequest>,
+    mut rx: Receiver<EventualCacheRequest>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Some(CacheRequest { path, notifier }) = rx.recv().await {
-            // We assume that objects on object store are immutable, so we can skip objects that
-            // we have already fetched:
-            if mem_store.cache.path_already_fetched(&path) {
-                continue;
-            }
+        while let Some(cache_request) = rx.recv().await {
+            let (path, notifier) = cache_request.get_path_and_notifier();
             // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);
@@ -756,12 +868,13 @@ pub(crate) mod tests {
     use std::{sync::Arc, time::Duration};
 
     use arrow::datatypes::ToByteSlice;
+    use bytes::Bytes;
     use influxdb3_test_helpers::object_store::{
         RequestCountedObjectStore, SynchronizedObjectStore,
     };
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::{Attributes, Metric, Registry, U64Counter, U64Gauge};
-    use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload};
+    use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload, PutResult};
 
     use pretty_assertions::assert_eq;
     use tokio::sync::Notify;
@@ -769,7 +882,7 @@ pub(crate) mod tests {
     use crate::parquet_cache::{
         create_cached_obj_store_and_oracle,
         metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_BYTES_NAME, CACHE_SIZE_N_FILES_NAME},
-        test_cached_obj_store_and_oracle, CacheRequest,
+        test_cached_obj_store_and_oracle, CacheRequest, ParquetFileDataToCache,
     };
 
     macro_rules! assert_payload_at_equals {
@@ -789,7 +902,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn hit_cache_instead_of_object_store() {
+    async fn hit_cache_instead_of_object_store_eventual() {
         // set up the inner test object store and then wrap it with the mem cached store:
         let inner_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
         let time_provider: Arc<dyn TimeProvider> =
@@ -812,7 +925,8 @@ pub(crate) mod tests {
         assert_eq!(1, inner_store.total_read_request_count(&path));
 
         // cache the entry:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path.clone());
         oracle.register(cache_request);
 
         // wait for cache notify:
@@ -827,6 +941,163 @@ pub(crate) mod tests {
         // should hit the cache this time, so the inner store should not have been hit, and counts
         // should therefore be same as previous:
         assert_eq!(2, inner_store.total_read_request_count(&path));
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn hit_cache_instead_of_object_store_immediate() {
+        // set up the inner test object store and then wrap it with the mem cached store:
+        let inner_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
+        let path = Path::from("0.parquet");
+        let payload = b"hello world";
+
+        let put_result = PutResult {
+            e_tag: Some("some-etag".to_string()),
+            version: Some("version-abc".to_string()),
+        };
+
+        let to_cache = ParquetFileDataToCache::new(
+            &path,
+            time_provider.now().date_time(),
+            Bytes::from_static(payload),
+            put_result,
+        );
+
+        // cache the entry:
+        let cache_request =
+            CacheRequest::create_immediate_mode_cache_request(path.clone(), to_cache);
+        oracle.register(cache_request);
+
+        let _ = cached_store.get(&path).await;
+        // create request to inner store, this data is not in object store
+        assert_eq!(0, inner_store.total_read_request_count(&path));
+
+        // get the payload from the outer store and it should exist
+        assert_payload_at_equals!(cached_store, payload, path);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn hit_cache_instead_of_object_store_immediate_and_eventual() {
+        // set up the inner test object store and then wrap it with the mem cached store:
+        let inner_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let (cached_store, oracle) = test_cached_obj_store_and_oracle(
+            Arc::clone(&inner_store) as _,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
+        let path_1_eventually_cached = Path::from("0.parquet");
+        let payload_1_eventually_cached = b"hello world";
+
+        let path_2_immediately_cached = Path::from("1.parquet");
+        let payload_2_immediately_cached = b"good-bye world";
+
+        // Add file to object store
+        cached_store
+            .put(
+                &path_1_eventually_cached,
+                PutPayload::from_static(payload_1_eventually_cached),
+            )
+            .await
+            .unwrap();
+
+        // GET the payload from the object store before caching:
+        assert_payload_at_equals!(
+            cached_store,
+            payload_1_eventually_cached,
+            path_1_eventually_cached
+        );
+        assert_eq!(
+            1,
+            inner_store.total_read_request_count(&path_1_eventually_cached)
+        );
+
+        // prepare for immediate request
+        let put_result = PutResult {
+            e_tag: Some("some-etag".to_string()),
+            version: Some("version-abc".to_string()),
+        };
+        let to_cache = ParquetFileDataToCache::new(
+            &path_2_immediately_cached,
+            time_provider.now().date_time(),
+            Bytes::from_static(payload_2_immediately_cached),
+            put_result,
+        );
+        // Do an immediate cache request to other file
+        let immediate_cache_request = CacheRequest::create_immediate_mode_cache_request(
+            path_2_immediately_cached.clone(),
+            to_cache,
+        );
+        oracle.register(immediate_cache_request);
+
+        // Now try to cache 1st path eventually
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_1_eventually_cached.clone());
+        oracle.register(cache_request);
+
+        // Oracle should've fulfilled the immediate cache request
+        assert_payload_at_equals!(
+            cached_store,
+            payload_2_immediately_cached,
+            path_2_immediately_cached
+        );
+
+        // Now wait for eventual request to finish
+        let _ = notifier_rx.await;
+
+        // Because eventual mode request went through, there will be another GET request to inner
+        // store
+        assert_eq!(
+            2,
+            inner_store.total_read_request_count(&path_1_eventually_cached)
+        );
+
+        // get the payload from the outer store again:
+        assert_payload_at_equals!(
+            cached_store,
+            payload_1_eventually_cached,
+            path_1_eventually_cached
+        );
+
+        // should hit the cache this time, so the inner store should not have been hit, and counts
+        // should therefore be same as previous:
+        assert_eq!(
+            2,
+            inner_store.total_read_request_count(&path_1_eventually_cached)
+        );
+
+        // Now try to cache 1st path again eventually
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_1_eventually_cached.clone());
+        oracle.register(cache_request);
+        // should resolve immediately as path is already in cache
+        let _ = notifier_rx.await;
+
+        // no changes to inner store
+        assert_eq!(
+            2,
+            inner_store.total_read_request_count(&path_1_eventually_cached)
+        );
+
+        // Try caching 2nd path (previously immediately cached)
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_2_immediately_cached.clone());
+        oracle.register(cache_request);
+        // should resolve immediately as path is already in cache
+        let _ = notifier_rx.await;
+
+        // again - no changes to inner store
+        assert_eq!(
+            2,
+            inner_store.total_read_request_count(&path_1_eventually_cached)
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -855,7 +1126,8 @@ pub(crate) mod tests {
             .unwrap();
 
         // cache the entry and wait for it to complete:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_1.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_1.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // there will have been one get request made by the cache oracle:
@@ -882,7 +1154,8 @@ pub(crate) mod tests {
 
         // cache the second entry and wait for it to complete, this will not evict the first entry
         // as both can fit in the cache:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_2.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_2.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will have another request for the second path to the inner store, by the oracle:
@@ -921,7 +1194,8 @@ pub(crate) mod tests {
 
         // cache the third entry and wait for it to complete, this will push the cache past its
         // capacity:
-        let (cache_request, notifier_rx) = CacheRequest::create(path_3.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path_3.clone());
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will now have another request for the third path to the inner store, by the oracle:
@@ -976,7 +1250,8 @@ pub(crate) mod tests {
             .unwrap();
 
         // cache the entry, but don't wait on it until below in spawned task:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path.clone());
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching"
@@ -1137,7 +1412,8 @@ pub(crate) mod tests {
         assert_eq!(1, counted_store.total_read_request_count(&path));
 
         // have the cache oracle cache the object:
-        let (cache_request, notifier_rx) = CacheRequest::create(path.clone());
+        let (cache_request, notifier_rx) =
+            CacheRequest::create_eventual_mode_cache_request(path.clone());
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching" once this

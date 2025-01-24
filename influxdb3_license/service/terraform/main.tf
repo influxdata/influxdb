@@ -97,10 +97,6 @@ resource "google_project_service" "required_apis" {
   for_each = toset([
     "secretmanager.googleapis.com", # Secret Manager API
     "run.googleapis.com",           # Cloud Run API
-    # "sql-component.googleapis.com",     # Cloud SQL
-    # "sqladmin.googleapis.com",         # Cloud SQL Admin
-    # "vpcaccess.googleapis.com",        # VPC Access API
-    # "servicenetworking.googleapis.com" # Service Networking API
   ])
 
   project = var.project_id
@@ -159,6 +155,14 @@ resource "google_sql_database_instance" "instance" {
       ipv4_enabled                                  = true
       private_network                               = google_compute_network.private_network.self_link
       enable_private_path_for_google_cloud_services = true
+    }
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
+      start_time                     = "02:00" # 2 AM UTC
+      backup_retention_settings {
+        retained_backups = 7
+      }
     }
   }
 }

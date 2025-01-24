@@ -1,5 +1,10 @@
+use bytes::Bytes;
 use hashbrown::HashMap;
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use hyper::{Body, Response};
+use influxdb3_client::plugin_development::{
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
 use influxdb3_write::WriteBuffer;
@@ -35,6 +40,12 @@ pub enum ProcessingEngineError {
         database: String,
         trigger_name: String,
     },
+
+    #[error("request trigger not found")]
+    RequestTriggerNotFound,
+
+    #[error("request handler for trigger down")]
+    RequestHandlerDown,
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -94,9 +105,25 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError>;
+
     async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<WalPluginTestResponse, crate::plugins::Error>;
+
+    async fn test_schedule_plugin(
+        &self,
+        request: SchedulePluginTestRequest,
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<SchedulePluginTestResponse, crate::plugins::Error>;
+
+    async fn request_trigger(
+        &self,
+        trigger_path: &str,
+        query_params: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
+        request_body: Bytes,
+    ) -> Result<Response<Body>, ProcessingEngineError>;
 }

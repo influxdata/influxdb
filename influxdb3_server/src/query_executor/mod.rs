@@ -1,8 +1,10 @@
 //! module for query executor
 pub mod enterprise;
 
-use crate::system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA_NAME};
-use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
+use crate::query_planner::Planner;
+use crate::system_tables::{
+    AllSystemSchemaTablesProvider, SystemSchemaProvider, SYSTEM_SCHEMA_NAME,
+};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -22,13 +24,12 @@ use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
 use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
 use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-use influxdb3_config::EnterpriseConfig;
-use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb3_write::WriteBuffer;
+use influxdb3_write::{ChunkFilter, WriteBuffer};
+use influxdb_influxql_parser::statement::Statement;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryLog;
@@ -40,13 +41,12 @@ use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_params::StatementParams;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
-use schema::Schema;
 use std::any::Any;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
 use trace_http::ctx::RequestLogContext;
@@ -63,8 +63,6 @@ pub struct QueryExecutorImpl {
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
-    compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     sys_events_store: Arc<SysEventStore>,
 }
 
@@ -78,8 +76,6 @@ pub struct CreateQueryExecutorArgs {
     pub datafusion_config: Arc<HashMap<String, String>>,
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
-    pub compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    pub enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     pub sys_events_store: Arc<SysEventStore>,
 }
 
@@ -93,8 +89,6 @@ impl QueryExecutorImpl {
             datafusion_config,
             query_log_size,
             telemetry_store,
-            compacted_data,
-            enterprise_config,
             sys_events_store,
         }: CreateQueryExecutorArgs,
     ) -> Self {
@@ -116,8 +110,6 @@ impl QueryExecutorImpl {
             query_execution_semaphore,
             query_log,
             telemetry_store,
-            compacted_data,
-            enterprise_config,
             sys_events_store,
         }
     }
@@ -125,32 +117,43 @@ impl QueryExecutorImpl {
 
 #[async_trait]
 impl QueryExecutor for QueryExecutorImpl {
-    async fn query(
+    async fn query_sql(
         &self,
         database: &str,
         query: &str,
         params: Option<StatementParams>,
-        kind: QueryKind,
         span_ctx: Option<SpanContext>,
         external_span_ctx: Option<RequestLogContext>,
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
-        info!(%database, %query, ?params, ?kind, "QueryExecutorImpl as QueryExecutor::query");
-        debug!(catalog = ?self.catalog, "query executor catalog");
-        let db = self
-            .namespace(database, span_ctx.child_span("get database"), false)
-            .await
-            .map_err(|_| QueryExecutorError::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?
-            .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
-                db_name: database.to_string(),
-            })?;
-
-        query_database(
+        info!(%database, %query, ?params, "executing sql query");
+        let db = self.get_db_namespace(database, &span_ctx).await?;
+        query_database_sql(
             db,
             query,
             params,
-            kind,
+            span_ctx,
+            external_span_ctx,
+            Arc::clone(&self.telemetry_store),
+        )
+        .await
+    }
+
+    async fn query_influxql(
+        &self,
+        database: &str,
+        query: &str,
+        influxql_statement: Statement,
+        params: Option<StatementParams>,
+        span_ctx: Option<SpanContext>,
+        external_span_ctx: Option<RequestLogContext>,
+    ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+        info!(database, query, ?params, "executing influxql query");
+        let db = self.get_db_namespace(database, &span_ctx).await?;
+        query_database_influxql(
+            db,
+            query,
+            influxql_statement,
+            params,
             span_ctx,
             external_span_ctx,
             Arc::clone(&self.telemetry_store),
@@ -245,11 +248,12 @@ impl QueryExecutor for QueryExecutorImpl {
     }
 }
 
-async fn query_database(
+// NOTE: this method is separated out as it is called from a separate query executor
+// implementation in Enterprise
+async fn query_database_sql(
     db: Arc<dyn QueryNamespace>,
     query: &str,
     params: Option<StatementParams>,
-    kind: QueryKind,
     span_ctx: Option<SpanContext>,
     external_span_ctx: Option<RequestLogContext>,
     telemetry_store: Arc<TelemetryStore>,
@@ -258,7 +262,7 @@ async fn query_database(
 
     let token = db.record_query(
         external_span_ctx.as_ref().map(RequestLogContext::ctx),
-        kind.query_type(),
+        "sql",
         Box::new(query.to_string()),
         params.clone(),
     );
@@ -271,12 +275,7 @@ async fn query_database(
     // Perform query planning on a separate threadpool than the IO runtime that is servicing
     // this request by using `IOxSessionContext::run`.
     let plan = ctx
-        .run(async move {
-            match kind {
-                QueryKind::Sql => planner.sql(query, params).await,
-                QueryKind::InfluxQl => planner.influxql(query, params).await,
-            }
-        })
+        .run(async move { planner.sql(query, params).await })
         .await;
 
     let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
@@ -289,6 +288,55 @@ async fn query_database(
     let token = token.planned(&ctx, Arc::clone(&plan));
 
     // TODO: Enforce concurrency limit here
+    let token = token.permit();
+
+    telemetry_store.update_num_queries();
+
+    match ctx.execute_stream(Arc::clone(&plan)).await {
+        Ok(query_results) => {
+            token.success();
+            Ok(query_results)
+        }
+        Err(err) => {
+            token.fail();
+            Err(QueryExecutorError::ExecuteStream(err))
+        }
+    }
+}
+
+async fn query_database_influxql(
+    db: Arc<dyn QueryNamespace>,
+    query_str: &str,
+    statement: Statement,
+    params: Option<StatementParams>,
+    span_ctx: Option<SpanContext>,
+    external_span_ctx: Option<RequestLogContext>,
+    telemetry_store: Arc<TelemetryStore>,
+) -> Result<SendableRecordBatchStream, QueryExecutorError> {
+    let params = params.unwrap_or_default();
+    let token = db.record_query(
+        external_span_ctx.as_ref().map(RequestLogContext::ctx),
+        "influxql",
+        Box::new(query_str.to_string()),
+        params.clone(),
+    );
+
+    let ctx = db.new_query_context(span_ctx, Default::default());
+    let planner = Planner::new(&ctx);
+    let plan = ctx
+        .run(async move { planner.influxql(statement, params).await })
+        .await;
+
+    let plan = match plan.map_err(QueryExecutorError::QueryPlanning) {
+        Ok(plan) => plan,
+        Err(e) => {
+            token.fail();
+            return Err(e);
+        }
+    };
+
+    let token = token.planned(&ctx, Arc::clone(&plan));
+
     let token = token.permit();
 
     telemetry_store.update_num_queries();
@@ -385,15 +433,21 @@ impl QueryDatabase for QueryExecutorImpl {
                 db_name: name.into(),
             }))
         })?;
+        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
+            AllSystemSchemaTablesProvider::new(
+                Arc::clone(&db_schema),
+                Arc::clone(&self.query_log),
+                Arc::clone(&self.write_buffer),
+                Arc::clone(&self.sys_events_store),
+            ),
+        ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
             db_schema,
             write_buffer: Arc::clone(&self.write_buffer),
             exec: Arc::clone(&self.exec),
             datafusion_config: Arc::clone(&self.datafusion_config),
             query_log: Arc::clone(&self.query_log),
-            compacted_data: self.compacted_data.clone(),
-            enterprise_config: Arc::clone(&self.enterprise_config),
-            sys_events_store: Arc::clone(&self.sys_events_store),
+            system_schema_provider,
         }))))
     }
 
@@ -404,19 +458,6 @@ impl QueryDatabase for QueryExecutorImpl {
     fn query_log(&self) -> QueryLogEntries {
         self.query_log.entries()
     }
-}
-
-/// Arguments for [`Database::new`]
-#[derive(Debug)]
-pub struct CreateDatabaseArgs {
-    db_schema: Arc<DatabaseSchema>,
-    write_buffer: Arc<dyn WriteBuffer>,
-    exec: Arc<Executor>,
-    datafusion_config: Arc<HashMap<String, String>>,
-    query_log: Arc<QueryLog>,
-    compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
-    sys_events_store: Arc<SysEventStore>,
 }
 
 async fn acquire_semaphore(
@@ -439,6 +480,17 @@ pub struct Database {
     system_schema_provider: Arc<SystemSchemaProvider>,
 }
 
+/// Arguments for [`Database::new`]
+#[derive(Debug)]
+pub struct CreateDatabaseArgs {
+    db_schema: Arc<DatabaseSchema>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    exec: Arc<Executor>,
+    datafusion_config: Arc<HashMap<String, String>>,
+    query_log: Arc<QueryLog>,
+    system_schema_provider: Arc<SystemSchemaProvider>,
+}
+
 impl Database {
     pub fn new(
         CreateDatabaseArgs {
@@ -447,21 +499,9 @@ impl Database {
             exec,
             datafusion_config,
             query_log,
-            compacted_data,
-            enterprise_config,
-            sys_events_store,
+            system_schema_provider,
         }: CreateDatabaseArgs,
     ) -> Self {
-        let system_schema_provider = Arc::new(SystemSchemaProvider::AllSystemSchemaTables(
-            AllSystemSchemaTablesProvider::new(
-                Arc::clone(&db_schema),
-                Arc::clone(&query_log),
-                Arc::clone(&write_buffer),
-                compacted_data.clone(),
-                Arc::clone(&enterprise_config),
-                Arc::clone(&sys_events_store),
-            ),
-        ));
         Self {
             db_schema,
             write_buffer,
@@ -486,12 +526,11 @@ impl Database {
     async fn query_table(&self, table_name: &str) -> Option<Arc<QueryTable>> {
         let table_name: Arc<str> = table_name.into();
         self.db_schema
-            .table_schema(Arc::clone(&table_name))
-            .map(|schema| {
+            .table_definition(Arc::clone(&table_name))
+            .map(|table_def| {
                 Arc::new(QueryTable {
                     db_schema: Arc::clone(&self.db_schema),
-                    table_name,
-                    schema: schema.clone(),
+                    table_def,
                     write_buffer: Arc::clone(&self.write_buffer),
                 })
             })
@@ -615,8 +654,7 @@ impl SchemaProvider for Database {
 #[derive(Debug)]
 pub struct QueryTable {
     db_schema: Arc<DatabaseSchema>,
-    table_name: Arc<str>,
-    schema: Schema,
+    table_def: Arc<TableDefinition>,
     write_buffer: Arc<dyn WriteBuffer>,
 }
 
@@ -628,10 +666,13 @@ impl QueryTable {
         filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let buffer_filter = ChunkFilter::new(&self.table_def, filters)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?;
+
         self.write_buffer.get_table_chunks(
-            &self.db_schema.name,
-            &self.table_name,
-            filters,
+            Arc::clone(&self.db_schema),
+            Arc::clone(&self.table_def),
+            &buffer_filter,
             projection,
             ctx,
         )
@@ -645,7 +686,7 @@ impl TableProvider for QueryTable {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.as_arrow()
+        self.table_def.schema.as_arrow()
     }
 
     fn table_type(&self) -> TableType {
@@ -673,17 +714,20 @@ impl TableProvider for QueryTable {
             ?limit,
             "QueryTable as TableProvider::scan"
         );
-        let mut builder = ProviderBuilder::new(Arc::clone(&self.table_name), self.schema.clone());
+        let mut builder = ProviderBuilder::new(
+            Arc::clone(&self.table_def.table_name),
+            self.table_def.schema.clone(),
+        );
 
         let chunks = self.chunks(ctx, projection, &filters, limit)?;
         for chunk in chunks {
             builder = builder.add_chunk(chunk);
         }
 
-        let provider = match builder.build() {
-            Ok(provider) => provider,
-            Err(e) => panic!("unexpected error: {e:?}"),
-        };
+        // NOTE: this build method is, at time of writing, infallible, but handle the error anyway.
+        let provider = builder
+            .build()
+            .map_err(|e| DataFusionError::Internal(format!("unexpected error: {e:?}")))?;
 
         provider.scan(ctx, projection, &filters, limit).await
     }
@@ -703,17 +747,14 @@ mod tests {
         parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
-    use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
-    use influxdb3_id::ParquetFileId;
-    use influxdb3_internal_api::query_executor::{QueryExecutor, QueryKind};
+    use influxdb3_internal_api::query_executor::QueryExecutor;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         persister::Persister,
         write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
-        ParquetFile, WriteBuffer,
+        WriteBuffer,
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
@@ -721,58 +762,10 @@ mod tests {
     use object_store::{local::LocalFileSystem, ObjectStore};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
-    use tokio::sync::RwLock;
 
     use super::CreateQueryExecutorArgs;
 
-    #[derive(Debug)]
-    struct MockCompactedDataSysTable;
-
-    impl CompactedDataSystemTableView for MockCompactedDataSysTable {
-        fn query(
-            &self,
-            _db_name: &str,
-            _table_name: &str,
-        ) -> Option<Vec<influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult>>
-        {
-            Some(vec![
-                CompactedDataSystemTableQueryResult {
-                    generation_id: 1,
-                    generation_level: 2,
-                    generation_time: "2024-01-02/23-00".to_owned(),
-                    parquet_files: vec![Arc::new(ParquetFile {
-                        id: ParquetFileId::new(),
-                        path: "/some/path.parquet".to_owned(),
-                        size_bytes: 450_000,
-                        row_count: 100_000,
-                        chunk_time: 1234567890000000000,
-                        min_time: 1234567890000000000,
-                        max_time: 1234567890000000000,
-                    })],
-                },
-                CompactedDataSystemTableQueryResult {
-                    generation_id: 2,
-                    generation_level: 3,
-                    generation_time: "2024-01-02/23-00".to_owned(),
-                    parquet_files: vec![Arc::new(ParquetFile {
-                        id: ParquetFileId::new(),
-                        path: "/some/path2.parquet".to_owned(),
-                        size_bytes: 450_000,
-                        row_count: 100_000,
-                        chunk_time: 1234567890000000000,
-                        min_time: 1234567890000000000,
-                        max_time: 1234567890000000000,
-                    })],
-                },
-            ])
-        }
-
-        fn catalog(&self) -> &influxdb3_enterprise_compactor::catalog::CompactedCatalog {
-            todo!()
-        }
-    }
-
-    fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
+    pub(crate) fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
 
         let parquet_store = ParquetStorage::new(
@@ -794,7 +787,9 @@ mod tests {
         ))
     }
 
-    pub(crate) async fn setup() -> (
+    pub(crate) async fn setup(
+        query_file_limit: Option<usize>,
+    ) -> (
         Arc<dyn WriteBuffer>,
         QueryExecutorImpl,
         Arc<MockProvider>,
@@ -809,11 +804,15 @@ mod tests {
             Arc::clone(&time_provider) as _,
             Default::default(),
         );
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let exec = make_exec(Arc::clone(&object_store));
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(writer_id, instance_id));
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
@@ -834,6 +833,7 @@ mod tests {
             parquet_cache: Some(parquet_cache),
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
+            query_file_limit,
         })
         .await
         .unwrap();
@@ -846,7 +846,6 @@ mod tests {
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
         let metrics = Arc::new(Registry::new());
         let datafusion_config = Arc::new(Default::default());
-        let enterprise_config = Arc::new(RwLock::new(Default::default()));
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
@@ -855,8 +854,6 @@ mod tests {
             datafusion_config,
             query_log_size: 10,
             telemetry_store,
-            compacted_data: Some(Arc::new(MockCompactedDataSysTable)),
-            enterprise_config,
             sys_events_store: Arc::clone(&sys_events_store),
         });
 
@@ -870,7 +867,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn system_parquet_files_success() {
-        let (write_buffer, query_executor, time_provider, _) = setup().await;
+        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -971,11 +968,239 @@ mod tests {
 
         for t in test_cases {
             let batch_stream = query_executor
-                .query(db_name, t.query, None, QueryKind::Sql, None, None)
+                .query_sql(db_name, t.query, None, None, None)
                 .await
                 .unwrap();
             let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
             assert_batches_sorted_eq!(t.expected, &batches);
         }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn query_file_limits_default() {
+        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..1298 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+
+            time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+        }
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        struct TestCase<'a> {
+            query: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "\
+                    SELECT COUNT(*) \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'cpu'",
+                expected: &[
+                    "+----------+",
+                    "| count(*) |",
+                    "+----------+",
+                    "| 432      |",
+                    "+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT Count(host) \
+                    FROM cpu",
+                expected: &[
+                    "+-----------------+",
+                    "| count(cpu.host) |",
+                    "+-----------------+",
+                    "| 1298            |",
+                    "+-----------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batch_stream = query_executor
+                .query_sql(db_name, t.query, None, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+
+        // put us over the parquet limit
+        let time = 12990;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                Time::from_timestamp_nanos(time),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match query_executor
+            .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
+            .await {
+            Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 432 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+        }
+
+        // Make sure if we specify a smaller time range that queries will still work
+        query_executor
+            .query_sql(
+                db_name,
+                "SELECT COUNT(host) FROM CPU WHERE time < '1970-01-01T00:00:00.000000010Z'",
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn query_file_limits_configured() {
+        let (write_buffer, query_executor, time_provider, _) = setup(Some(3)).await;
+        // Perform some writes to multiple tables
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        // the time provider is bumped to trick the system into persisting files:
+        for i in 0..11 {
+            let time = i * 10;
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                    Time::from_timestamp_nanos(time),
+                    false,
+                    influxdb3_write::Precision::Nanosecond,
+                )
+                .await
+                .unwrap();
+
+            time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+        }
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        struct TestCase<'a> {
+            query: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                query: "\
+                    SELECT COUNT(*) \
+                    FROM system.parquet_files \
+                    WHERE table_name = 'cpu'",
+                expected: &[
+                    "+----------+",
+                    "| count(*) |",
+                    "+----------+",
+                    "| 3        |",
+                    "+----------+",
+                ],
+            },
+            TestCase {
+                query: "\
+                    SELECT Count(host) \
+                    FROM cpu",
+                expected: &[
+                    "+-----------------+",
+                    "| count(cpu.host) |",
+                    "+-----------------+",
+                    "| 11              |",
+                    "+-----------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let batch_stream = query_executor
+                .query_sql(db_name, t.query, None, None, None)
+                .await
+                .unwrap();
+            let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &batches);
+        }
+
+        // put us over the parquet limit
+        let time = 120;
+        let _ = write_buffer
+            .write_lp(
+                NamespaceName::new(db_name).unwrap(),
+                "\
+                cpu,host=a,region=us-east usage=250\n\
+                mem,host=a,region=us-east usage=150000\n\
+                ",
+                Time::from_timestamp_nanos(time),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+            )
+            .await
+            .unwrap();
+
+        time_provider.set(Time::from_timestamp(time + 1, 0).unwrap());
+
+        // bump time again and sleep briefly to ensure time to persist things
+        time_provider.set(Time::from_timestamp(20, 0).unwrap());
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        match query_executor
+            .query_sql(db_name, "SELECT COUNT(host) FROM CPU", None, None, None)
+            .await {
+            Ok(_) => panic!("expected to exceed parquet file limit, yet query succeeded"),
+            Err(err) => assert_eq!(err.to_string(), "error while planning query: External error: Query would exceed file limit of 3 parquet files. Please specify a smaller time range for your query. You can increase the file limit with the `--query-file-limit` option in the serve command, however, query performance will be slower and the server may get OOM killed or become unstable as a result".to_string())
+        }
+
+        // Make sure if we specify a smaller time range that queries will still work
+        query_executor
+            .query_sql(
+                db_name,
+                "SELECT COUNT(host) FROM CPU WHERE time < '1970-01-01T00:00:00.000000010Z'",
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
     }
 }

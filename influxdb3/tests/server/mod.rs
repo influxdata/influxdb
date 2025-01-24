@@ -48,8 +48,10 @@ trait ConfigProvider {
 #[derive(Debug, Default)]
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
-    writer_id: Option<String>,
+    node_id: Option<String>,
     plugin_dir: Option<String>,
+    // If None, use memory object store.
+    object_store_dir: Option<String>,
 }
 
 impl TestConfig {
@@ -64,14 +66,20 @@ impl TestConfig {
     }
 
     /// Set a host identifier prefix on the spawned [`TestServer`]
-    pub fn with_writer_id<S: Into<String>>(mut self, writer_id: S) -> Self {
-        self.writer_id = Some(writer_id.into());
+    pub fn with_node_id<S: Into<String>>(mut self, node_id: S) -> Self {
+        self.node_id = Some(node_id.into());
         self
     }
 
     /// Set the plugin dir for this [`TestServer`]
     pub fn with_plugin_dir<S: Into<String>>(mut self, plugin_dir: S) -> Self {
         self.plugin_dir = Some(plugin_dir.into());
+        self
+    }
+
+    // Set the object store dir for this [`TestServer`]
+    pub fn with_object_store_dir<S: Into<String>>(mut self, object_store_dir: S) -> Self {
+        self.object_store_dir = Some(object_store_dir.into());
         self
     }
 }
@@ -85,16 +93,25 @@ impl ConfigProvider for TestConfig {
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }
-        args.push("--writer-id".to_string());
-        if let Some(host) = &self.writer_id {
+        args.push("--node-id".to_string());
+        if let Some(host) = &self.node_id {
             args.push(host.to_owned());
         } else {
             args.push("test-server".to_string());
         }
-        args.append(&mut vec![
-            "--object-store".to_string(),
-            "memory".to_string(),
-        ]);
+        if let Some(object_store_dir) = &self.object_store_dir {
+            args.append(&mut vec![
+                "--object-store".to_string(),
+                "file".to_string(),
+                "--data-dir".to_string(),
+                object_store_dir.to_owned(),
+            ]);
+        } else {
+            args.append(&mut vec![
+                "--object-store".to_string(),
+                "memory".to_string(),
+            ]);
+        }
         args
     }
 
@@ -139,6 +156,7 @@ impl TestServer {
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
+            .arg("--disable-telemetry-upload")
             // bind to port 0 to get a random port assigned:
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
@@ -272,6 +290,23 @@ impl TestServer {
             .precision(precision)
             .send()
             .await
+    }
+
+    pub async fn api_v3_query_sql_with_header(
+        &self,
+        params: &[(&str, &str)],
+        headers: HeaderMap<HeaderValue>,
+    ) -> Response {
+        self.http_client
+            .get(format!(
+                "{base}/api/v3/query_sql",
+                base = self.client_addr()
+            ))
+            .query(params)
+            .headers(headers)
+            .send()
+            .await
+            .expect("send /api/v3/query_sql request to server")
     }
 
     pub async fn api_v3_query_sql(&self, params: &[(&str, &str)]) -> Response {

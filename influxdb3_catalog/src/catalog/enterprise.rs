@@ -6,7 +6,7 @@ use influxdb3_wal::{
     CatalogBatch, CatalogOp, DatabaseDefinition, DeleteDatabaseDefinition, DeleteTableDefinition,
     DistinctCacheDefinition, DistinctCacheDelete, Field, FieldAdditions, FieldDefinition,
     LastCacheDefinition, LastCacheDelete, LastCacheValueColumnsDef, OrderedCatalogBatch, Row,
-    TableChunk, TableChunks, TableDefinition as WalTableDefinition, WalContents, WalOp, WriteBatch,
+    TableChunk, TableChunks, WalContents, WalOp, WalTableDefinition, WriteBatch,
 };
 use schema::InfluxColumnType;
 use serde::{Deserialize, Serialize};

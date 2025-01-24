@@ -93,8 +93,8 @@ impl Config {
                 Ok(client)
             }
             // We don't need a client for this, so we're just creating a
-            // placeholder client
-            SubCommand::Token => Ok(Client::new("http://localhost")?),
+            // placeholder client with an unusable URL
+            SubCommand::Token => Ok(Client::new("http://recall.invalid")?),
         }
     }
 }
@@ -235,8 +235,8 @@ pub struct PluginConfig {
     /// Python file name of the file on the server's plugin-dir containing the plugin code
     #[clap(long = "filename")]
     file_name: String,
-    /// Type of trigger the plugin processes. Options: wal_rows, scheduled
-    #[clap(long = "plugin-type", default_value = "wal_rows")]
+    /// Type of trigger the plugin processes. Options: wal_rows, scheduled, request
+    #[clap(long = "plugin-type")]
     plugin_type: String,
     /// Name of the plugin to create
     plugin_name: String,
@@ -413,7 +413,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 "\
                 Token: {token}\n\
                 Hashed Token: {hashed}\n\n\
-                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --writer-id YOUR_HOST_NAME`\n\n\
+                Start the server with `influxdb3 serve --bearer-token {hashed} --object-store file --data-dir ~/.influxdb3 --node-id YOUR_HOST_NAME`\n\n\
                 HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
                 This will grant you access to every HTTP endpoint or deny it otherwise
             ",

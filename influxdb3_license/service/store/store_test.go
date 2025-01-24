@@ -464,7 +464,7 @@ func TestLicenseCRUD(t *testing.T) {
 
 	license := &store.License{
 		Email:      "test@example.com",
-		WriterID:   "writer123",
+		NodeID:     "node123",
 		InstanceID: uuid.New().String(),
 		LicenseKey: "license-key-123",
 		ValidFrom:  validFrom,
@@ -480,7 +480,7 @@ func TestLicenseCRUD(t *testing.T) {
 	t.Logf("License created successfully:")
 	t.Logf("  ID: %d", license.ID)
 	t.Logf("  Email: %s", license.Email)
-	t.Logf("  WriterID: %s", license.WriterID)
+	t.Logf("  NodeID: %s", license.NodeID)
 	t.Logf("  InstanceID: %s", license.InstanceID)
 	t.Logf("  State: %s", license.State)
 	t.Logf("  ValidFrom: %v", license.ValidFrom)
@@ -582,15 +582,15 @@ func TestLicenseInvariants(t *testing.T) {
 		defer func(tx store.Tx) { _ = tx.Rollback() }(tx)
 
 		// Test each non-null field with raw SQL
-		fields := []string{"email", "writer_id", "instance_id", "license_key", "valid_until", "status"}
+		fields := []string{"email", "node_id", "instance_id", "license_key", "valid_until", "status"}
 		for _, field := range fields {
 			query := `
                 INSERT INTO licenses (
-                    email, writer_id, instance_id, license_key,
+                    email, node_id, instance_id, license_key,
                     valid_until, state
                 ) VALUES (
                     CASE WHEN $1 = 'email' THEN NULL ELSE 'test@example.com' END,
-                    CASE WHEN $1 = 'writer_id' THEN NULL ELSE 'writer123' END,
+                    CASE WHEN $1 = 'node_id' THEN NULL ELSE 'node123' END,
                     CASE WHEN $1 = 'instance_id' THEN NULL ELSE '123e4567-e89b-12d3-a456-426614174000'::uuid END,
                     CASE WHEN $1 = 'license_key' THEN NULL ELSE 'key123' END,
                     CASE WHEN $1 = 'valid_until' THEN NULL ELSE NOW() + INTERVAL '1 year' END,
@@ -614,7 +614,7 @@ func TestLicenseInvariants(t *testing.T) {
 		// Create initial license
 		license1 := &store.License{
 			Email:      "test@example.com",
-			WriterID:   "writer123",
+			NodeID:     "node123",
 			InstanceID: uuid.New().String(),
 			LicenseKey: "key123",
 			ValidFrom:  time.Now(),
@@ -627,10 +627,10 @@ func TestLicenseInvariants(t *testing.T) {
 			t.Fatalf("create first license: %v", err)
 		}
 
-		// Try duplicate email + writer_id
+		// Try duplicate email + node_id
 		license2 := &store.License{
 			Email:      license1.Email,      // same email
-			WriterID:   license1.WriterID,   // same writer
+			NodeID:     license1.NodeID,     // same node
 			InstanceID: uuid.New().String(), // different instance
 			LicenseKey: "key456",
 			ValidFrom:  time.Now(),
@@ -639,14 +639,14 @@ func TestLicenseInvariants(t *testing.T) {
 		}
 
 		err = s.CreateLicense(ctx, tx, license2)
-		if err == nil {
-			t.Error("expected error creating license with duplicate email + writer_id")
+		if err != nil {
+			t.Errorf("unexpected error creating license with duplicate email + node_id: %v", err)
 		}
 
 		// Try duplicate email + instance_id
 		license3 := &store.License{
 			Email:      license1.Email,      // same email
-			WriterID:   "different_writer",  // different writer
+			NodeID:     "different_node",    // different node
 			InstanceID: license1.InstanceID, // same instance
 			LicenseKey: "key789",
 			ValidFrom:  time.Now(),
@@ -669,7 +669,7 @@ func TestLicenseInvariants(t *testing.T) {
 
 		license := &store.License{
 			Email:      "test@example.com",
-			WriterID:   "writer123",
+			NodeID:     "node123",
 			InstanceID: uuid.New().String(),
 			LicenseKey: "key123",
 			ValidUntil: time.Now().AddDate(1, 0, 0),
@@ -720,7 +720,7 @@ func TestLicenseInvariants(t *testing.T) {
 		pastTime := time.Now().AddDate(0, 0, -1)
 		license := &store.License{
 			Email:      "test@example.com",
-			WriterID:   "writer123",
+			NodeID:     "node123",
 			InstanceID: uuid.New().String(),
 			LicenseKey: "key123",
 			ValidFrom:  time.Now(),

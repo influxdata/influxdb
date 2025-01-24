@@ -1,12 +1,18 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use anyhow::Context;
+use bytes::Bytes;
 use hashbrown::HashMap;
+use hyper::{Body, Response};
 use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
+use influxdb3_client::plugin_development::{
+    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
+    WalPluginTestResponse,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
@@ -15,11 +21,13 @@ use influxdb3_wal::{
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, error, warn};
 use std::any::Any;
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use tokio::sync::oneshot::Receiver;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
 pub mod manager;
 pub mod plugins;
@@ -28,17 +36,21 @@ pub mod plugins;
 pub struct ProcessingEngineManagerImpl {
     plugin_dir: Option<std::path::PathBuf>,
     catalog: Arc<Catalog>,
-    _write_buffer: Arc<dyn WriteBuffer>,
-    _query_executor: Arc<dyn QueryExecutor>,
+    write_buffer: Arc<dyn WriteBuffer>,
+    query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     wal: Arc<dyn Wal>,
-    plugin_event_tx: Mutex<PluginChannels>,
+    plugin_event_tx: RwLock<PluginChannels>,
 }
 
 #[derive(Debug, Default)]
 struct PluginChannels {
-    /// Map of database to trigger name to sender
-    active_triggers: HashMap<String, HashMap<String, mpsc::Sender<PluginEvent>>>,
+    /// Map of database to wal trigger name to handler
+    wal_triggers: HashMap<String, HashMap<String, mpsc::Sender<WalEvent>>>,
+    /// Map of database to schedule trigger name to handler
+    schedule_triggers: HashMap<String, HashMap<String, mpsc::Sender<ScheduleEvent>>>,
+    /// Map of request path to the request trigger handler
+    request_triggers: HashMap<String, mpsc::Sender<RequestEvent>>,
 }
 
 #[cfg(feature = "system-py")]
@@ -50,50 +62,140 @@ impl PluginChannels {
         &self,
         db: String,
         trigger: String,
+        trigger_spec: &TriggerSpecificationDefinition,
     ) -> Result<Option<Receiver<()>>, ProcessingEngineError> {
-        if let Some(trigger_map) = self.active_triggers.get(&db) {
-            if let Some(sender) = trigger_map.get(&trigger) {
-                // create a one shot to wait for the shutdown to complete
-                let (tx, rx) = oneshot::channel();
-                if sender.send(PluginEvent::Shutdown(tx)).await.is_err() {
-                    return Err(ProcessingEngineError::TriggerShutdownError {
-                        database: db,
-                        trigger_name: trigger,
-                    });
+        match trigger_spec {
+            TriggerSpecificationDefinition::SingleTableWalWrite { .. }
+            | TriggerSpecificationDefinition::AllTablesWalWrite => {
+                if let Some(trigger_map) = self.wal_triggers.get(&db) {
+                    if let Some(sender) = trigger_map.get(&trigger) {
+                        // create a one shot to wait for the shutdown to complete
+                        let (tx, rx) = oneshot::channel();
+                        if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
+                            return Err(ProcessingEngineError::TriggerShutdownError {
+                                database: db,
+                                trigger_name: trigger,
+                            });
+                        }
+                        return Ok(Some(rx));
+                    }
                 }
-                return Ok(Some(rx));
+            }
+            TriggerSpecificationDefinition::Schedule { .. }
+            | TriggerSpecificationDefinition::Every { .. } => {
+                if let Some(trigger_map) = self.schedule_triggers.get(&db) {
+                    if let Some(sender) = trigger_map.get(&trigger) {
+                        // create a one shot to wait for the shutdown to complete
+                        let (tx, rx) = oneshot::channel();
+                        if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
+                            return Err(ProcessingEngineError::TriggerShutdownError {
+                                database: db,
+                                trigger_name: trigger,
+                            });
+                        }
+                        return Ok(Some(rx));
+                    }
+                }
+            }
+            TriggerSpecificationDefinition::RequestPath { .. } => {
+                if let Some(sender) = self.request_triggers.get(&trigger) {
+                    // create a one shot to wait for the shutdown to complete
+                    let (tx, rx) = oneshot::channel();
+                    if sender.send(RequestEvent::Shutdown(tx)).await.is_err() {
+                        return Err(ProcessingEngineError::TriggerShutdownError {
+                            database: db,
+                            trigger_name: trigger,
+                        });
+                    }
+                    return Ok(Some(rx));
+                }
             }
         }
+
         Ok(None)
     }
 
-    fn remove_trigger(&mut self, db: String, trigger: String) {
-        if let Some(trigger_map) = self.active_triggers.get_mut(&db) {
-            trigger_map.remove(&trigger);
+    fn remove_trigger(
+        &mut self,
+        db: String,
+        trigger: String,
+        trigger_spec: &TriggerSpecificationDefinition,
+    ) {
+        match trigger_spec {
+            TriggerSpecificationDefinition::SingleTableWalWrite { .. }
+            | TriggerSpecificationDefinition::AllTablesWalWrite => {
+                if let Some(trigger_map) = self.wal_triggers.get_mut(&db) {
+                    trigger_map.remove(&trigger);
+                }
+            }
+            TriggerSpecificationDefinition::Schedule { .. }
+            | TriggerSpecificationDefinition::Every { .. } => {
+                if let Some(trigger_map) = self.schedule_triggers.get_mut(&db) {
+                    trigger_map.remove(&trigger);
+                }
+            }
+            TriggerSpecificationDefinition::RequestPath { .. } => {
+                self.request_triggers.remove(&trigger);
+            }
         }
     }
 
     #[cfg(feature = "system-py")]
-    fn add_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<PluginEvent> {
+    fn add_wal_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<WalEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
-        self.active_triggers
+        self.wal_triggers.entry(db).or_default().insert(trigger, tx);
+        rx
+    }
+
+    #[cfg(feature = "system-py")]
+    fn add_schedule_trigger(
+        &mut self,
+        db: String,
+        trigger: String,
+    ) -> mpsc::Receiver<ScheduleEvent> {
+        let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
+        self.schedule_triggers
             .entry(db)
             .or_default()
             .insert(trigger, tx);
         rx
     }
 
+    #[cfg(feature = "system-py")]
+    fn add_request_trigger(&mut self, path: String) -> mpsc::Receiver<RequestEvent> {
+        let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
+        self.request_triggers.insert(path, tx);
+        rx
+    }
+
     async fn send_wal_contents(&self, wal_contents: Arc<WalContents>) {
-        for (db, trigger_map) in &self.active_triggers {
+        for (db, trigger_map) in &self.wal_triggers {
             for (trigger, sender) in trigger_map {
                 if let Err(e) = sender
-                    .send(PluginEvent::WriteWalContents(Arc::clone(&wal_contents)))
+                    .send(WalEvent::WriteWalContents(Arc::clone(&wal_contents)))
                     .await
                 {
                     warn!(%e, %db, ?trigger, "error sending wal contents to plugin");
                 }
             }
         }
+    }
+
+    async fn send_request(
+        &self,
+        trigger_path: &str,
+        request: Request,
+    ) -> Result<(), ProcessingEngineError> {
+        let event = RequestEvent::Request(request);
+        if let Some(sender) = self.request_triggers.get(trigger_path) {
+            if sender.send(event).await.is_err() {
+                return Err(ProcessingEngineError::RequestTriggerNotFound);
+            }
+        } else {
+            return Err(ProcessingEngineError::RequestTriggerNotFound);
+        }
+
+        Ok(())
     }
 }
 
@@ -109,18 +211,104 @@ impl ProcessingEngineManagerImpl {
         Self {
             plugin_dir,
             catalog,
-            _write_buffer: write_buffer,
-            _query_executor: query_executor,
+            write_buffer,
+            query_executor,
             time_provider,
             wal,
             plugin_event_tx: Default::default(),
         }
     }
 
-    pub fn read_plugin_code(&self, name: &str) -> Result<String, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::Error> {
+        // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
+        if name.starts_with("gh:") {
+            let plugin_path = name.strip_prefix("gh:").unwrap();
+            // the filename should be the last part of the name after the last /
+            let plugin_name = plugin_path
+                .split('/')
+                .last()
+                .context("plugin name for github plugins must be <dir>/<name>")?;
+            let url = format!(
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}/{}.py",
+                plugin_path, plugin_name
+            );
+            let resp = reqwest::get(&url)
+                .await
+                .context("error getting plugin from github repo")?;
+            let resp_body = resp
+                .text()
+                .await
+                .context("error reading plugin from github repo")?;
+            return Ok(PluginCode::Github(Arc::from(resp_body)));
+        }
+
+        // otherwise we assume it is a local file
         let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
-        let path = plugin_dir.join(name);
-        Ok(std::fs::read_to_string(path)?)
+        let plugin_path = plugin_dir.join(name);
+
+        // read it at least once to make sure it's there
+        let code = std::fs::read_to_string(plugin_path.clone())?;
+
+        // now we can return it
+        Ok(PluginCode::Local(LocalPlugin {
+            plugin_path,
+            last_read_and_code: Mutex::new((SystemTime::now(), Arc::from(code))),
+        }))
+    }
+}
+
+#[derive(Debug)]
+pub enum PluginCode {
+    Github(Arc<str>),
+    Local(LocalPlugin),
+}
+
+impl PluginCode {
+    #[cfg(feature = "system-py")]
+    pub(crate) fn code(&self) -> Arc<str> {
+        match self {
+            PluginCode::Github(code) => Arc::clone(code),
+            PluginCode::Local(plugin) => plugin.read_if_modified(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct LocalPlugin {
+    plugin_path: PathBuf,
+    last_read_and_code: Mutex<(SystemTime, Arc<str>)>,
+}
+
+impl LocalPlugin {
+    #[cfg(feature = "system-py")]
+    fn read_if_modified(&self) -> Arc<str> {
+        let metadata = std::fs::metadata(&self.plugin_path);
+
+        let mut last_read_and_code = self.last_read_and_code.lock().unwrap();
+        let (last_read, code) = &mut *last_read_and_code;
+
+        match metadata {
+            Ok(metadata) => {
+                let is_modified = match metadata.modified() {
+                    Ok(modified) => modified > *last_read,
+                    Err(_) => true, // if we can't get the modified time, assume it is modified
+                };
+
+                if is_modified {
+                    // attempt to read the code, if it fails we will return the last known code
+                    if let Ok(new_code) = std::fs::read_to_string(&self.plugin_path) {
+                        *last_read = SystemTime::now();
+                        *code = Arc::from(new_code);
+                    } else {
+                        error!("error reading plugin file {:?}", self.plugin_path);
+                    }
+                }
+
+                Arc::clone(code)
+            }
+            Err(_) => Arc::clone(code),
+        }
     }
 }
 
@@ -288,6 +476,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
+        debug!(db_name, trigger_name, "starting trigger");
         #[cfg(feature = "system-py")]
         {
             let db_schema = self
@@ -303,19 +492,69 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 })?
                 .clone();
 
-            let trigger_rx = self
-                .plugin_event_tx
-                .lock()
-                .await
-                .add_trigger(db_name.to_string(), trigger_name.to_string());
-
             let plugin_context = PluginContext {
-                trigger_rx,
                 write_buffer,
                 query_executor,
             };
-            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name)?;
-            plugins::run_plugin(db_name.to_string(), plugin_code, trigger, plugin_context);
+            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name).await?;
+            let Some(plugin_definition) = db_schema
+                .processing_engine_plugins
+                .get(&trigger.plugin_name)
+            else {
+                return Err(catalog::Error::ProcessingEnginePluginNotFound {
+                    plugin_name: trigger.plugin_name,
+                    database_name: db_name.to_string(),
+                }
+                .into());
+            };
+            match plugin_definition.plugin_type {
+                PluginType::WalRows => {
+                    let rec = self
+                        .plugin_event_tx
+                        .write()
+                        .await
+                        .add_wal_trigger(db_name.to_string(), trigger_name.to_string());
+
+                    plugins::run_wal_contents_plugin(
+                        db_name.to_string(),
+                        plugin_code,
+                        trigger,
+                        plugin_context,
+                        rec,
+                    )
+                }
+                PluginType::Scheduled => {
+                    let rec = self
+                        .plugin_event_tx
+                        .write()
+                        .await
+                        .add_schedule_trigger(db_name.to_string(), trigger_name.to_string());
+
+                    plugins::run_schedule_plugin(
+                        db_name.to_string(),
+                        plugin_code,
+                        trigger,
+                        Arc::clone(&self.time_provider),
+                        plugin_context,
+                        rec,
+                    )?
+                }
+                PluginType::Request => {
+                    let rec = self
+                        .plugin_event_tx
+                        .write()
+                        .await
+                        .add_request_trigger(trigger_name.to_string());
+
+                    plugins::run_request_plugin(
+                        db_name.to_string(),
+                        plugin_code,
+                        trigger,
+                        plugin_context,
+                        rec,
+                    )
+                }
+            }
         }
 
         Ok(())
@@ -358,9 +597,13 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
-            .lock()
+            .write()
             .await
-            .send_shutdown(db_name.to_string(), trigger_name.to_string())
+            .send_shutdown(
+                db_name.to_string(),
+                trigger_name.to_string(),
+                &trigger.trigger,
+            )
             .await?
         else {
             return Ok(());
@@ -371,10 +614,11 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 "shutdown trigger receiver dropped, may have received multiple shutdown requests"
             );
         } else {
-            self.plugin_event_tx
-                .lock()
-                .await
-                .remove_trigger(db_name.to_string(), trigger_name.to_string());
+            self.plugin_event_tx.write().await.remove_trigger(
+                db_name.to_string(),
+                trigger_name.to_string(),
+                &trigger.trigger,
+            );
         }
 
         Ok(())
@@ -422,6 +666,20 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
+    async fn start_triggers(&self) -> Result<(), ProcessingEngineError> {
+        let triggers = self.catalog.active_triggers();
+        for (db_name, trigger_name) in triggers {
+            self.run_trigger(
+                Arc::clone(&self.write_buffer),
+                Arc::clone(&self.query_executor),
+                &db_name,
+                &trigger_name,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn test_wal_plugin(
         &self,
@@ -434,14 +692,16 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
             let now = self.time_provider.now();
 
-            let code = self.read_plugin_code(&request.filename)?;
+            let code = self.read_plugin_code(&request.filename).await?;
+            let code_string = code.code().to_string();
 
-            let res = plugins::run_test_wal_plugin(now, catalog, query_executor, code, request)
-                .unwrap_or_else(|e| WalPluginTestResponse {
-                    log_lines: vec![],
-                    database_writes: Default::default(),
-                    errors: vec![e.to_string()],
-                });
+            let res =
+                plugins::run_test_wal_plugin(now, catalog, query_executor, code_string, request)
+                    .unwrap_or_else(|e| WalPluginTestResponse {
+                        log_lines: vec![],
+                        database_writes: Default::default(),
+                        errors: vec![e.to_string()],
+                    });
 
             return Ok(res);
         }
@@ -451,12 +711,78 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             "system-py feature not enabled"
         )))
     }
+
+    #[cfg_attr(not(feature = "system-py"), allow(unused))]
+    async fn test_schedule_plugin(
+        &self,
+        request: SchedulePluginTestRequest,
+        query_executor: Arc<dyn QueryExecutor>,
+    ) -> Result<SchedulePluginTestResponse, Error> {
+        #[cfg(feature = "system-py")]
+        {
+            // create a copy of the catalog so we don't modify the original
+            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let now = self.time_provider.now();
+
+            let code = self.read_plugin_code(&request.filename).await?;
+            let code_string = code.code().to_string();
+
+            let res = plugins::run_test_schedule_plugin(
+                now,
+                catalog,
+                query_executor,
+                code_string,
+                request,
+            )
+            .unwrap_or_else(|e| SchedulePluginTestResponse {
+                log_lines: vec![],
+                database_writes: Default::default(),
+                errors: vec![e.to_string()],
+                trigger_time: None,
+            });
+
+            return Ok(res);
+        }
+
+        #[cfg(not(feature = "system-py"))]
+        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+            "system-py feature not enabled"
+        )))
+    }
+
+    async fn request_trigger(
+        &self,
+        trigger_path: &str,
+        query_params: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
+        request_body: Bytes,
+    ) -> Result<Response<Body>, ProcessingEngineError> {
+        // oneshot channel for the response
+        let (tx, rx) = oneshot::channel();
+        let request = Request {
+            query_params,
+            headers: request_headers,
+            body: request_body,
+            response_tx: tx,
+        };
+
+        self.plugin_event_tx
+            .write()
+            .await
+            .send_request(trigger_path, request)
+            .await?;
+
+        Ok(rx.await.map_err(|e| {
+            error!(%e, "error receiving response from plugin");
+            ProcessingEngineError::RequestHandlerDown
+        })?)
+    }
 }
 
 #[async_trait::async_trait]
 impl WalFileNotifier for ProcessingEngineManagerImpl {
     async fn notify(&self, write: Arc<WalContents>) {
-        let plugin_channels = self.plugin_event_tx.lock().await;
+        let plugin_channels = self.plugin_event_tx.read().await;
         plugin_channels.send_wal_contents(write).await;
     }
 
@@ -465,7 +791,7 @@ impl WalFileNotifier for ProcessingEngineManagerImpl {
         write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        let plugin_channels = self.plugin_event_tx.lock().await;
+        let plugin_channels = self.plugin_event_tx.read().await;
         plugin_channels.send_wal_contents(write).await;
 
         // configure a reciever that we immediately close
@@ -479,10 +805,30 @@ impl WalFileNotifier for ProcessingEngineManagerImpl {
     }
 }
 
-#[allow(unused)]
-pub(crate) enum PluginEvent {
+#[allow(dead_code)]
+pub(crate) enum WalEvent {
     WriteWalContents(Arc<WalContents>),
     Shutdown(oneshot::Sender<()>),
+}
+
+#[allow(dead_code)]
+pub(crate) enum ScheduleEvent {
+    Shutdown(oneshot::Sender<()>),
+}
+
+#[allow(dead_code)]
+pub(crate) enum RequestEvent {
+    Request(Request),
+    Shutdown(oneshot::Sender<()>),
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub(crate) struct Request {
+    pub query_params: HashMap<String, String>,
+    pub headers: HashMap<String, String>,
+    pub body: Bytes,
+    pub response_tx: oneshot::Sender<Response<Body>>,
 }
 
 #[cfg(test)]
@@ -532,7 +878,7 @@ mod tests {
             .unwrap()
             .to_string();
 
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -607,7 +953,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -667,7 +1013,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -732,7 +1078,7 @@ mod tests {
             .to_string();
 
         // convert to Arc<WriteBuffer>
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -769,7 +1115,7 @@ mod tests {
         // Run the trigger
         pem.run_trigger(
             Arc::clone(&write_buffer),
-            Arc::clone(&pem._query_executor),
+            Arc::clone(&pem.query_executor),
             "foo",
             "test_trigger",
         )
@@ -792,7 +1138,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "test_trigger",
             )
@@ -829,7 +1175,7 @@ mod tests {
             .to_string();
 
         // Create the DB by inserting a line.
-        pem._write_buffer
+        pem.write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
                 "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
@@ -870,7 +1216,7 @@ mod tests {
         assert!(trigger.disabled);
 
         // Verify trigger is not in active triggers list
-        assert!(pem.catalog.triggers().is_empty());
+        assert!(pem.catalog.active_triggers().is_empty());
         Ok(())
     }
 
@@ -886,7 +1232,7 @@ mod tests {
         };
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
-        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem._write_buffer);
+        let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -902,7 +1248,7 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem._query_executor),
+                Arc::clone(&pem.query_executor),
                 "foo",
                 "nonexistent_trigger",
             )
@@ -925,7 +1271,11 @@ mod tests {
     ) -> (ProcessingEngineManagerImpl, NamedTempFile) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let metric_registry = Arc::new(Registry::new());
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -944,6 +1294,7 @@ mod tests {
             parquet_cache: None,
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap();

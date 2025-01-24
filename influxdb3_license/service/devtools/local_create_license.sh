@@ -4,18 +4,18 @@
 # The license service must be running on the default port 8687.
 
 # Parse the command line arguments.
-while getopts "e:w:i:" opt; do
+while getopts "e:n:i:" opt; do
   case $opt in
     e) email=$OPTARG ;;
-    w) writer_id=$OPTARG ;;
+    n) node_id=$OPTARG ;;
     i) instance_id=$OPTARG ;;
     \?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
   esac
 done
 
-# Check that the required email and writer_id arguments are present.
-if [ -z "$email" ] || [ -z "$writer_id" ]; then
-  echo "Usage: $0 -e email -w writer_id [-i instance_id]" >&2
+# Check that the required email and node_id arguments are present.
+if [ -z "$email" ] || [ -z "$node_id" ]; then
+  echo "Usage: $0 -e email -w node_id [-i instance_id]" >&2
   exit 1
 fi
 
@@ -26,8 +26,8 @@ fi
 
 # Send the POST request to the license service.
 resp=$(curl -s -w '@-' -X POST "http://localhost:8687/licenses" \
-     -d "email=${email}" \
-     -d "writer-id=${writer_id}" \
+     --data-urlencode "email=${email}" \
+     -d "node-id=${node_id}" \
      -d "instance-id=${instance_id}" <<EOF
 {
     "http_code": %{http_code},
@@ -44,7 +44,7 @@ fi
 
 # Expect 201 Created HTTP status code.
 http_code=$(echo "$resp" | jq -r '.http_code')
-if [ "$http_code" != "201" ]; then
+if [ "$http_code" != "201" ] && [ "$http_code" != "202" ]; then
   echo "Error: HTTP status code $http_code" >&2
   exit 1
 fi

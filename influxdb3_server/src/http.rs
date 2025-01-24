@@ -23,7 +23,7 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Error as CatalogError;
-use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError, QueryKind};
+use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_processing_engine::manager::ProcessingEngineManager;
 use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
@@ -32,6 +32,8 @@ use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
+use influxdb_influxql_parser::select::GroupByClause;
+use influxdb_influxql_parser::statement::Statement;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
@@ -587,7 +589,7 @@ where
 
         let stream = self
             .query_executor
-            .query(&database, &query_str, params, QueryKind::Sql, None, None)
+            .query_sql(&database, &query_str, params, None, None)
             .await?;
 
         Response::builder()
@@ -610,7 +612,7 @@ where
 
         info!(?database, %query_str, ?format, "handling query_influxql");
 
-        let stream = self
+        let (stream, _) = self
             .query_influxql_inner(database, &query_str, params)
             .await?;
 
@@ -776,7 +778,7 @@ where
         database: Option<String>,
         query_str: &str,
         params: Option<StatementParams>,
-    ) -> Result<SendableRecordBatchStream> {
+    ) -> Result<(SendableRecordBatchStream, Option<GroupByClause>)> {
         let mut statements = rewrite::parse_statements(query_str)?;
 
         if statements.len() != 1 {
@@ -799,31 +801,29 @@ where
             }
         };
 
-        if statement.statement().is_show_databases() {
-            self.query_executor.show_databases(true)
-        } else if statement.statement().is_show_retention_policies() {
+        let statement = statement.to_statement();
+        let group_by = match &statement {
+            Statement::Select(select_statement) => select_statement.group_by.clone(),
+            _ => None,
+        };
+
+        let stream = if statement.is_show_databases() {
+            self.query_executor.show_databases(true)?
+        } else if statement.is_show_retention_policies() {
             self.query_executor
                 .show_retention_policies(database.as_deref(), None)
-                .await
+                .await?
         } else {
             let Some(database) = database else {
                 return Err(Error::InfluxqlNoDatabase);
             };
 
             self.query_executor
-                .query(
-                    &database,
-                    // TODO - implement an interface that takes the statement directly,
-                    // so we don't need to double down on the parsing
-                    &statement.to_statement().to_string(),
-                    params,
-                    QueryKind::InfluxQl,
-                    None,
-                    None,
-                )
-                .await
-        }
-        .map_err(Into::into)
+                .query_influxql(&database, query_str, statement, params, None, None)
+                .await?
+        };
+
+        Ok((stream, group_by))
     }
 
     /// Create a new distinct value cache given the [`DistinctCacheCreateRequest`] arguments in the request
@@ -1218,6 +1218,87 @@ where
         Err(Error::PythonPluginsNotEnabled)
     }
 
+    /// Endpoint for testing a plugin that will be trigger on some cron schedule.
+    #[cfg(feature = "system-py")]
+    async fn test_processing_engine_schedule_plugin(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let request: influxdb3_client::plugin_development::SchedulePluginTestRequest =
+            self.read_body_json(req).await?;
+
+        let output = self
+            .processing_engine
+            .test_schedule_plugin(request, Arc::clone(&self.query_executor))
+            .await?;
+        let body = serde_json::to_string(&output)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::from(body))?)
+    }
+
+    #[cfg(feature = "system-py")]
+    async fn processing_engine_request_plugin(
+        &self,
+        trigger_path: &str,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        // pull out the query params into a hashmap
+        let uri = req.uri();
+        let query_str = uri.query().unwrap_or("");
+
+        let parsed_url = url::Url::parse(&format!("http://influxdata.com?{}", query_str)).unwrap();
+        let params: HashMap<String, String> = parsed_url
+            .query_pairs()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        // pull out the request headers into a hashmap
+        let headers = req
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
+            .collect();
+
+        // pull out the request body
+        let body = self.read_body(req).await?;
+
+        match self
+            .processing_engine
+            .request_trigger(trigger_path, params, headers, body)
+            .await
+        {
+            Ok(response) => Ok(response),
+            Err(
+                influxdb3_processing_engine::manager::ProcessingEngineError::RequestTriggerNotFound,
+            ) => {
+                let body = "{error: \"not found\"}";
+                Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::from(body))?)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn test_processing_engine_schedule_plugin(
+        &self,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
+    }
+
+    #[cfg(not(feature = "system-py"))]
+    async fn processing_engine_request_plugin(
+        &self,
+        _trigger_path: &str,
+        _req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        Err(Error::PythonPluginsNotEnabled)
+    }
+
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
@@ -1474,7 +1555,12 @@ impl QueryFormat {
             Some(b"text/plain") => Ok(Self::Pretty),
             Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
             Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => Err(Error::InvalidMimeType(s)),
+                Ok(s) => {
+                    if s.contains("text/html") || s.contains("*/*") {
+                        return Ok(Self::Json);
+                    }
+                    Err(Error::InvalidMimeType(s))
+                }
                 Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
         }
@@ -1786,6 +1872,12 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::GET, "/health" | "/api/v1/health") => http_server.health(),
         (Method::GET | Method::POST, "/ping") => http_server.ping(),
         (Method::GET, "/metrics") => http_server.handle_metrics(),
+        (Method::GET | Method::POST, path) if path.starts_with("/api/v3/engine/") => {
+            let path = path.strip_prefix("/api/v3/engine/").unwrap();
+            http_server
+                .processing_engine_request_plugin(path, req)
+                .await
+        }
         (Method::POST, "/api/v3/configure/distinct_cache") => {
             http_server.configure_distinct_cache_create(req).await
         }
@@ -1824,6 +1916,11 @@ pub(crate) async fn route_request<T: TimeProvider>(
         (Method::DELETE, "/api/v3/configure/table") => http_server.delete_table(req).await,
         (Method::POST, "/api/v3/plugin_test/wal") => {
             http_server.test_processing_engine_wal_plugin(req).await
+        }
+        (Method::POST, "/api/v3/plugin_test/schedule") => {
+            http_server
+                .test_processing_engine_schedule_plugin(req)
+                .await
         }
         _ => {
             let body = Body::from("not found");
@@ -1864,6 +1961,10 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
+    use http::{header::ACCEPT, HeaderMap, HeaderValue};
+
+    use crate::http::QueryFormat;
+
     use super::validate_db_name;
     use super::ValidateDbNameError;
 
@@ -1872,6 +1973,19 @@ mod tests {
             let actual = validate_db_name($name, $accept_rp);
             assert!(matches!(&actual, $expected), "got: {actual:?}",);
         };
+    }
+
+    #[test]
+    fn test_try_from_headers_default_browser_accept_headers_to_json() {
+        let mut map = HeaderMap::new();
+        map.append(
+            ACCEPT,
+            HeaderValue::from_static(
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            ),
+        );
+        let format = QueryFormat::try_from_headers(&map).unwrap();
+        assert!(matches!(format, QueryFormat::Json));
     }
 
     #[test]

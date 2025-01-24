@@ -4,11 +4,11 @@ use crate::replica::{CreateReplicasArgs, Replicas};
 use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
-use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use datafusion::{catalog::Session, error::DataFusionError};
 use influxdb3_cache::distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider};
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
@@ -18,7 +18,7 @@ use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
 };
-use influxdb3_write::{DatabaseManager, DistinctCacheManager};
+use influxdb3_write::{ChunkFilter, DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -39,7 +39,7 @@ pub struct CreateReadModeArgs {
     pub catalog: Arc<Catalog>,
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
-    pub writer_ids: Vec<String>,
+    pub node_ids: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
     pub time_provider: Arc<dyn TimeProvider>,
@@ -55,7 +55,7 @@ impl ReadMode {
             catalog,
             metric_registry,
             replication_interval,
-            writer_ids,
+            node_ids,
             parquet_cache,
             compacted_data,
             time_provider,
@@ -68,7 +68,7 @@ impl ReadMode {
                 object_store,
                 metric_registry,
                 replication_interval,
-                writer_ids,
+                node_ids,
                 parquet_cache,
                 catalog,
                 time_provider,
@@ -98,8 +98,15 @@ impl Bufferer for ReadMode {
         Arc::clone(&self.replicas.catalog())
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        let mut files = self.replicas.parquet_files(db_id, table_id);
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
+        let mut files = self
+            .replicas
+            .parquet_files_filtered(db_id, table_id, filter);
         files.sort_unstable_by(|a, b| a.chunk_time.cmp(&b.chunk_time));
         files
     }
@@ -116,28 +123,24 @@ impl Bufferer for ReadMode {
 impl ChunkContainer for ReadMode {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
-        let db_schema = self.catalog().db_schema(database_name).ok_or_else(|| {
-            DataFusionError::Execution(format!("Database {} not found", database_name))
-        })?;
-
-        let table_schema = db_schema
-            .table_schema(table_name)
-            .ok_or_else(|| DataFusionError::Execution(format!("Table {} not found", table_name)))?;
-
         let mut buffer_chunks = self
             .replicas
-            .get_buffer_chunks(database_name, table_name, filters)
+            .get_buffer_chunks(Arc::clone(&db_schema), Arc::clone(&table_def), filter)
             .map_err(|e| DataFusionError::Execution(e.to_string()))?;
 
         if let Some(compacted_data) = &self.compacted_data {
             let (parquet_files, writer_markers) = compacted_data
-                .get_parquet_files_and_writer_markers(database_name, table_name, filters);
+                .get_parquet_files_and_writer_markers(
+                    &db_schema.name,
+                    &table_def.table_name,
+                    filter.original_filters(),
+                );
 
             buffer_chunks.extend(
                 parquet_files
@@ -145,7 +148,7 @@ impl ChunkContainer for ReadMode {
                     .map(|file| {
                         Arc::new(parquet_chunk_from_file(
                             &file,
-                            &table_schema,
+                            &table_def.schema,
                             self.replicas.object_store_url(),
                             self.replicas.object_store(),
                             buffer_chunks.len() as i64,
@@ -155,20 +158,18 @@ impl ChunkContainer for ReadMode {
             );
 
             let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
-                database_name,
-                table_name,
-                table_schema.clone(),
-                filters,
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                filter,
                 &writer_markers,
                 buffer_chunks.len() as i64,
             );
             buffer_chunks.extend(gen1_persisted_chunks);
         } else {
             let gen1_persisted_chunks = self.replicas.get_persisted_chunks(
-                database_name,
-                table_name,
-                table_schema.clone(),
-                filters,
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                filter,
                 &[],
                 buffer_chunks.len() as i64,
             );

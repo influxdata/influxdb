@@ -200,9 +200,9 @@ impl Catalog {
     /// Limit for the number of tables across all DBs that InfluxDB 3 Enterprise can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 4000;
 
-    pub fn new(writer_id: Arc<str>, instance_id: Arc<str>) -> Self {
+    pub fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
-            inner: RwLock::new(InnerCatalog::new(writer_id, instance_id)),
+            inner: RwLock::new(InnerCatalog::new(node_id, instance_id)),
         }
     }
 
@@ -309,8 +309,8 @@ impl Catalog {
         Arc::clone(&self.inner.read().instance_id)
     }
 
-    pub fn writer_id(&self) -> Arc<str> {
-        Arc::clone(&self.inner.read().writer_id)
+    pub fn node_id(&self) -> Arc<str> {
+        Arc::clone(&self.inner.read().node_id)
     }
 
     #[cfg(test)]
@@ -337,7 +337,7 @@ impl Catalog {
         }
     }
 
-    pub fn triggers(&self) -> Vec<(String, String)> {
+    pub fn active_triggers(&self) -> Vec<(String, String)> {
         let inner = self.inner.read();
         let result = inner
             .databases
@@ -361,6 +361,14 @@ impl Catalog {
     pub fn inner(&self) -> &RwLock<InnerCatalog> {
         &self.inner
     }
+
+    pub fn table_id(&self, db_id: &DbId, table_name: Arc<str>) -> Option<TableId> {
+        let inner = self.inner.read();
+        inner
+            .databases
+            .get(db_id)
+            .and_then(|db| db.table_name_to_id(table_name))
+    }
 }
 
 #[serde_with::serde_as]
@@ -369,9 +377,11 @@ pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
     databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
     sequence: CatalogSequenceNumber,
-    /// The `writer_id` is the prefix that is passed in when starting up
-    /// (`writer_identifier_prefix`)
-    writer_id: Arc<str>,
+    /// The `node_id` is the prefix that is passed in when starting up
+    /// (`node_identifier_prefix`)
+    // TODO: deprecate this alias
+    #[serde(alias = "writer_id")]
+    node_id: Arc<str>,
     /// The instance_id uniquely identifies the instance that generated the catalog
     instance_id: Arc<str>,
     /// If true, the catalog has been updated since the last time it was serialized
@@ -435,11 +445,11 @@ serde_with::serde_conv!(
 );
 
 impl InnerCatalog {
-    pub(crate) fn new(writer_id: Arc<str>, instance_id: Arc<str>) -> Self {
+    pub(crate) fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
             databases: SerdeVecMap::new(),
             sequence: CatalogSequenceNumber::new(0),
-            writer_id,
+            node_id,
             instance_id,
             updated: false,
             db_map: BiHashMap::new(),
@@ -741,7 +751,7 @@ impl UpdateDatabaseSchema for CatalogOp {
     }
 }
 
-impl UpdateDatabaseSchema for influxdb3_wal::TableDefinition {
+impl UpdateDatabaseSchema for influxdb3_wal::WalTableDefinition {
     fn update_schema<'a>(
         &self,
         mut database_schema: Cow<'a, DatabaseSchema>,
@@ -1036,7 +1046,7 @@ impl TableDefinition {
     }
 
     /// Create a new table definition from a catalog op
-    pub fn new_from_op(table_definition: &influxdb3_wal::TableDefinition) -> Self {
+    pub fn new_from_op(table_definition: &influxdb3_wal::WalTableDefinition) -> Self {
         let mut columns = Vec::with_capacity(table_definition.field_definitions.len());
         for field_def in &table_definition.field_definitions {
             columns.push((
@@ -1056,7 +1066,7 @@ impl TableDefinition {
 
     pub(crate) fn check_and_add_new_fields(
         &self,
-        table_definition: &influxdb3_wal::TableDefinition,
+        table_definition: &influxdb3_wal::WalTableDefinition,
     ) -> Result<Cow<'_, Self>> {
         // validate the series key is the same
         if table_definition.key != self.series_key {
@@ -1425,10 +1435,10 @@ mod tests {
 
     #[test]
     fn catalog_serialization() {
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
         let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(writer_id, cloned_instance_id);
+        let catalog = Catalog::new(node_id, cloned_instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1538,7 +1548,7 @@ mod tests {
                     ]
                 ],
                 "sequence": 0,
-                "writer_id": "test",
+                "node_id": "test",
                 "instance_id": "test",
                 "db_map": []
             }"#;
@@ -1584,7 +1594,7 @@ mod tests {
                     ]
                 ],
                 "sequence": 0,
-                "writer_id": "test",
+                "node_id": "test",
                 "instance_id": "test",
                 "db_map": []
             }"#;
@@ -1697,9 +1707,9 @@ mod tests {
 
     #[test]
     fn serialize_series_keys() {
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(writer_id, instance_id);
+        let catalog = Catalog::new(node_id, instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1754,9 +1764,9 @@ mod tests {
 
     #[test]
     fn serialize_last_cache() {
-        let writer_id = Arc::from("sample-host-id");
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(writer_id, instance_id);
+        let catalog = Catalog::new(node_id, instance_id);
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test_db".into(),
@@ -1820,14 +1830,14 @@ mod tests {
     }
 
     #[test]
-    fn catalog_instance_and_writer_ids() {
-        let writer_id = Arc::from("sample-host-id");
+    fn catalog_instance_and_node_ids() {
+        let node_id = Arc::from("sample-host-id");
         let instance_id = Arc::from("sample-instance-id");
-        let cloned_writer_id = Arc::clone(&writer_id);
+        let cloned_node_id = Arc::clone(&node_id);
         let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(cloned_writer_id, cloned_instance_id);
+        let catalog = Catalog::new(cloned_node_id, cloned_instance_id);
         assert_eq!(instance_id, catalog.instance_id());
-        assert_eq!(writer_id, catalog.writer_id());
+        assert_eq!(node_id, catalog.node_id());
     }
 
     /// See: https://github.com/influxdata/influxdb/issues/25524
@@ -1939,7 +1949,7 @@ mod tests {
         let db_name = Arc::from("foo");
         let table_id = TableId::new();
         let table_name = Arc::from("bar");
-        let table_definition = influxdb3_wal::TableDefinition {
+        let table_definition = influxdb3_wal::WalTableDefinition {
             database_id: db_id,
             database_name: Arc::clone(&db_name),
             table_name: Arc::clone(&table_name),

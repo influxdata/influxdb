@@ -73,6 +73,7 @@ uuid.workspace = true
 
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
+bytes.workspace = true
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]
@@ -81,6 +82,10 @@ azure = ["influxdb3_clap_blocks/azure"] # Optional Azure Object store support
 gcp = ["influxdb3_clap_blocks/gcp"] # Optional GCP object store support
 aws = ["influxdb3_clap_blocks/aws"] # Optional AWS / S3 object store support
 no_license = [] # Compile influxdb3 enterprise to run without a license check, only enable for dev builds. Off by default
+# Enable local dev mode. For example, point to a local dev license server
+# without giving users a way to potentially circumvent licensing with a command
+# line flag.
+local_dev = []
 
 # Enable tokio_console support (https://github.com/tokio-rs/console)
 #

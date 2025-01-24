@@ -2,20 +2,20 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use data_types::NamespaceName;
-use datafusion::{catalog::Session, error::DataFusionError, logical_expr::Expr};
+use datafusion::{catalog::Session, error::DataFusionError};
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
 };
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal};
 use influxdb3_write::{
     write_buffer::{
         self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
     },
-    BufferedWriteRequest, Bufferer, ChunkContainer, DatabaseManager, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
+    DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -88,8 +88,13 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
         self.mode.catalog()
     }
 
-    fn parquet_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
-        self.mode.parquet_files(db_id, table_id)
+    fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        table_id: TableId,
+        filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
+        self.mode.parquet_files_filtered(db_id, table_id, filter)
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
@@ -104,14 +109,14 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
 impl<Mode: ChunkContainer> ChunkContainer for WriteBufferEnterprise<Mode> {
     fn get_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filters: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> influxdb3_write::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         self.mode
-            .get_table_chunks(database_name, table_name, filters, projection, ctx)
+            .get_table_chunks(db_schema, table_def, filters, projection, ctx)
     }
 }
 
@@ -226,7 +231,9 @@ mod tests {
     };
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::{persister::Persister, Bufferer, ChunkContainer, DatabaseManager};
+    use influxdb3_write::{
+        persister::Persister, test_helpers::WriteBufferTester, Bufferer, DatabaseManager,
+    };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
@@ -235,10 +242,7 @@ mod tests {
 
     use crate::{
         modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
-        test_helpers::{
-            chunks_to_record_batches, do_writes, make_exec, setup_read_write,
-            verify_snapshot_count, TestWrite,
-        },
+        test_helpers::{do_writes, make_exec, setup_read_write, verify_snapshot_count, TestWrite},
         WriteBufferEnterprise,
     };
 
@@ -248,10 +252,11 @@ mod tests {
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let non_cached_obj_store =
             Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
-        let writer_id = "picard";
+        let node_id = "picard";
         let persister = Arc::new(Persister::new(
             Arc::clone(&non_cached_obj_store) as _,
-            writer_id,
+            node_id,
+            Arc::clone(&time_provider),
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -267,12 +272,12 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: "picard".into(),
+            node_id: "picard".into(),
             persister,
             catalog,
             last_cache,
             distinct_cache,
-            time_provider,
+            time_provider: Arc::clone(&time_provider) as _,
             executor: make_exec(
                 Arc::clone(&non_cached_obj_store) as _,
                 Arc::clone(&metric_registry),
@@ -313,7 +318,13 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&non_cached_obj_store) as _, writer_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&non_cached_obj_store) as _,
+            node_id,
+            Arc::clone(&time_provider) as _,
+        )
+        .await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -328,10 +339,9 @@ mod tests {
         assert_eq!(0, request_count);
 
         // do a query which will pull the files from object store:
-        let chunks = buffer
-            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = buffer
+            .get_record_batches_unchecked("foo", "bar", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----+-----+---------------------+",
@@ -363,10 +373,11 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let writer_id = "picard";
+        let node_id = "picard";
         let persister = Arc::new(Persister::new(
             Arc::clone(&cached_obj_store) as _,
-            writer_id,
+            node_id,
+            Arc::clone(&time_provider),
         ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -379,15 +390,14 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let rt = ctx.inner().runtime_env();
         register_iox_object_store(rt, "influxdb3", Arc::clone(&cached_obj_store) as _);
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
         let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: "picard".into(),
+            node_id: "picard".into(),
             persister,
             catalog,
             last_cache,
             distinct_cache,
-            time_provider,
+            time_provider: Arc::clone(&time_provider) as _,
             executor: make_exec(
                 Arc::clone(&cached_obj_store) as _,
                 Arc::clone(&metric_registry),
@@ -428,7 +438,13 @@ mod tests {
         )
         .await;
 
-        verify_snapshot_count(1, Arc::clone(&cached_obj_store) as _, writer_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&cached_obj_store) as _,
+            node_id,
+            Arc::clone(&time_provider) as _,
+        )
+        .await;
 
         let persisted_files = buffer.persisted_files();
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
@@ -438,13 +454,13 @@ mod tests {
         let path = &parquet_files[0].path;
         let request_count =
             non_cached_obj_store.total_read_request_count(&Path::from(path.as_str()));
-        assert_eq!(1, request_count);
+        // they're cached immediately so no requests to non_cached_obj_store
+        assert_eq!(0, request_count);
 
         // do a query which will pull the files from object store:
-        let chunks = buffer
-            .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = buffer
+            .get_record_batches_unchecked("foo", "bar", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+-----+-----+---------------------+",
@@ -460,7 +476,8 @@ mod tests {
 
         let request_count =
             non_cached_obj_store.total_read_request_count(&Path::from(path.as_str()));
-        assert_eq!(1, request_count);
+        // they're cached immediately so no requests to non_cached_obj_store
+        assert_eq!(0, request_count);
     }
 
     /// Reproducer for <https://github.com/influxdata/influxdb_pro/issues/269>
@@ -472,31 +489,26 @@ mod tests {
 
         // create two read_write nodes simultaneously:
         struct WorkerConfig {
-            writer_id: &'static str,
-            read_from_writer_ids: &'static [&'static str],
+            node_id: &'static str,
+            read_from_node_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for WorkerConfig {
-            writer_id,
-            read_from_writer_ids,
+            node_id,
+            read_from_node_ids,
         } in [
             WorkerConfig {
-                writer_id: "worker-0",
-                read_from_writer_ids: &["worker-1"],
+                node_id: "worker-0",
+                read_from_node_ids: &["worker-1"],
             },
             WorkerConfig {
-                writer_id: "worker-1",
-                read_from_writer_ids: &["worker-0"],
+                node_id: "worker-1",
+                read_from_node_ids: &["worker-0"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(
-                tp,
-                os,
-                writer_id,
-                read_from_writer_ids.into(),
-            ));
+            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
             handles.push(h);
         }
         let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -564,10 +576,9 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
 
         // worker 1 has writes from both hosts:
-        let chunks = workers[1]
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = workers[1]
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+---------------------+-------+--------+",
@@ -589,10 +600,9 @@ mod tests {
 
         // worker 0 also has writes from both hosts (this is done second because this fails in
         // the reproducer scenario):
-        let chunks = workers[0]
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = workers[0]
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         assert_batches_sorted_eq!(
             [
                 "+---------------------+-------+--------+",
@@ -619,13 +629,13 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
-        let writer_id = "skwisgaar";
+        let node_id = "skwisgaar";
         let write_buffer = setup_read_write(
             Arc::<MockProvider>::clone(&time_provider),
             object_store,
-            writer_id,
+            node_id,
             // pass in the writer itself to be replicated (which we don't want it to do):
-            vec![writer_id],
+            vec![node_id],
         )
         .await;
 
@@ -634,7 +644,7 @@ mod tests {
             "test_db",
             &write_buffer,
             &[TestWrite {
-                lp: format!("cpu,host={writer_id} usage=99"),
+                lp: format!("cpu,host={node_id} usage=99"),
                 time_seconds: 1,
             }],
         )
@@ -645,10 +655,9 @@ mod tests {
 
         // query the writer:
         let ctx = IOxSessionContext::with_testing();
-        let chunks = write_buffer
-            .get_table_chunks("test_db", "cpu", &[], None, &ctx.inner().state())
-            .unwrap();
-        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        let batches = write_buffer
+            .get_record_batches_unchecked("test_db", "cpu", &ctx)
+            .await;
         // there should only be a single line, because the writer didn't replicate itself:
         assert_batches_sorted_eq!(
             [
@@ -670,31 +679,26 @@ mod tests {
 
         // create two read_write nodes simultaneously that replicate each other:
         struct Config {
-            writer_id: &'static str,
-            read_from_writer_ids: &'static [&'static str],
+            node_id: &'static str,
+            read_from_node_ids: &'static [&'static str],
         }
         let mut handles = vec![];
         for Config {
-            writer_id,
-            read_from_writer_ids,
+            node_id,
+            read_from_node_ids,
         } in [
             Config {
-                writer_id: "holt",
-                read_from_writer_ids: &["cheddar"],
+                node_id: "holt",
+                read_from_node_ids: &["cheddar"],
             },
             Config {
-                writer_id: "cheddar",
-                read_from_writer_ids: &["holt"],
+                node_id: "cheddar",
+                read_from_node_ids: &["holt"],
             },
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(
-                tp,
-                os,
-                writer_id,
-                read_from_writer_ids.into(),
-            ));
+            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
             handles.push(h);
         }
         let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -756,10 +760,9 @@ mod tests {
         // do a query to check that results are there from each write buffer (on each):
         let ctx = IOxSessionContext::with_testing();
         for write_buffer in writer_buffers {
-            let chunks = write_buffer
-                .get_table_chunks("foo", "bar", &[], None, &ctx.inner().state())
-                .unwrap();
-            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+            let batches = write_buffer
+                .get_record_batches_unchecked("foo", "bar", &ctx)
+                .await;
             assert_batches_sorted_eq!(
                 [
                     "+--------+------+---------------------+",
@@ -978,10 +981,11 @@ mod test_helpers {
     pub(crate) async fn verify_snapshot_count(
         n: usize,
         object_store: Arc<dyn ObjectStore>,
-        writer_id: &str,
+        node_id: &str,
+        time_provider: Arc<dyn TimeProvider>,
     ) {
         let mut checks = 0;
-        let persister = Persister::new(object_store, writer_id);
+        let persister = Persister::new(object_store, node_id, time_provider);
         loop {
             let persisted_snapshots = persister.load_snapshots(1000).await.unwrap();
             if persisted_snapshots.len() > n {
@@ -1017,10 +1021,14 @@ mod test_helpers {
     pub(crate) async fn setup_read_write(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
-        writer_id: &str,
-        read_from_writer_ids: Vec<&str>,
+        node_id: &str,
+        read_from_node_ids: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1032,10 +1040,10 @@ mod test_helpers {
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = Some(ReplicationConfig {
             interval: Duration::from_millis(250),
-            writer_ids: read_from_writer_ids.iter().map(|s| s.to_string()).collect(),
+            node_ids: read_from_node_ids.iter().map(|s| s.to_string()).collect(),
         });
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            writer_id: writer_id.into(),
+            node_id: node_id.into(),
             persister,
             catalog,
             last_cache,

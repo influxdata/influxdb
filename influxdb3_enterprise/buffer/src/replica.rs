@@ -5,7 +5,7 @@ use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId as IoxTableId,
     TransitionPartitionId,
 };
-use datafusion::{execution::object_store::ObjectStoreUrl, logical_expr::Expr};
+use datafusion::execution::object_store::ObjectStoreUrl;
 use futures::future::try_join_all;
 use futures_util::StreamExt;
 use influxdb3_cache::{
@@ -13,8 +13,10 @@ use influxdb3_cache::{
     last_cache::LastCacheProvider,
     parquet_cache::{CacheRequest, ParquetCacheOracle},
 };
-use influxdb3_catalog::catalog::{enterprise::CatalogIdMap, Catalog};
-use influxdb3_enterprise_data_layout::WriterSnapshotMarker;
+use influxdb3_catalog::catalog::{
+    enterprise::CatalogIdMap, Catalog, DatabaseSchema, TableDefinition,
+};
+use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails, Wal,
@@ -28,7 +30,7 @@ use influxdb3_write::{
         parquet_chunk_from_file, persisted_files::PersistedFiles, queryable_buffer::BufferState,
         N_SNAPSHOTS_TO_LOAD_ON_START,
     },
-    DatabaseTables, ParquetFile, PersistedSnapshot,
+    ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
 };
 use iox_query::{
     chunk_statistics::{create_chunk_statistics, NoColumnRanges},
@@ -39,7 +41,6 @@ use metric::{Attributes, DurationHistogram, Registry};
 use object_store::{path::Path, ObjectStore};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
-use schema::Schema;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
@@ -55,19 +56,16 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct ReplicationConfig {
     pub interval: Duration,
-    pub writer_ids: Vec<String>,
+    pub node_ids: Vec<String>,
 }
 
 impl ReplicationConfig {
-    pub fn new(interval: Duration, writer_ids: Vec<String>) -> Self {
-        Self {
-            interval,
-            writer_ids,
-        }
+    pub fn new(interval: Duration, node_ids: Vec<String>) -> Self {
+        Self { interval, node_ids }
     }
 
-    pub fn writer_ids(&self) -> &[String] {
-        &self.writer_ids
+    pub fn node_ids(&self) -> &[String] {
+        &self.node_ids
     }
 }
 
@@ -86,7 +84,7 @@ pub(crate) struct CreateReplicasArgs {
     pub object_store: Arc<dyn ObjectStore>,
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
-    pub writer_ids: Vec<String>,
+    pub node_ids: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
     pub time_provider: Arc<dyn TimeProvider>,
@@ -101,7 +99,7 @@ impl Replicas {
             object_store,
             metric_registry,
             replication_interval,
-            writer_ids,
+            node_ids,
             parquet_cache,
             catalog,
             time_provider,
@@ -109,7 +107,7 @@ impl Replicas {
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicated_buffers = vec![];
-        for (i, writer_identifier_prefix) in writer_ids.into_iter().enumerate() {
+        for (i, node_identifier_prefix) in node_ids.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
             let distinct_cache = Arc::clone(&distinct_cache);
@@ -118,12 +116,12 @@ impl Replicas {
             let catalog = Arc::clone(&catalog);
             let time_provider = Arc::clone(&time_provider);
             let wal = wal.clone();
-            info!(%writer_identifier_prefix, "creating replicated buffer for writer");
+            info!(%node_identifier_prefix, "creating replicated buffer for writer");
             replicated_buffers.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
                     replica_order: i as i64,
                     object_store,
-                    writer_identifier_prefix,
+                    node_identifier_prefix,
                     last_cache,
                     distinct_cache,
                     replication_interval,
@@ -165,61 +163,65 @@ impl Replicas {
         Arc::clone(&self.distinct_cache)
     }
 
+    #[cfg(test)]
     pub(crate) fn parquet_files(&self, db_id: DbId, tbl_id: TableId) -> Vec<ParquetFile> {
+        self.parquet_files_filtered(db_id, tbl_id, &ChunkFilter::default())
+    }
+
+    pub(crate) fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        tbl_id: TableId,
+        filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
         let mut files = vec![];
         for replica in &self.replicated_buffers {
-            files.append(&mut replica.parquet_files(db_id, tbl_id));
+            files.append(&mut replica.parquet_files_filtered(db_id, tbl_id, filter));
         }
         files
     }
 
     #[cfg(test)]
-    fn get_all_chunks(
-        &self,
-        database_name: &str,
-        table_name: &str,
-        table_schema: Schema,
-    ) -> Vec<Arc<dyn QueryChunk>> {
+    fn get_all_chunks(&self, database_name: &str, table_name: &str) -> Vec<Arc<dyn QueryChunk>> {
+        let db_schema = self.catalog().db_schema(database_name).unwrap();
+        let table_def = db_schema.table_definition(table_name).unwrap();
+        let filter = ChunkFilter::default();
         let mut chunks = self
-            .get_buffer_chunks(database_name, table_name, &[])
+            .get_buffer_chunks(Arc::clone(&db_schema), Arc::clone(&table_def), &filter)
             .unwrap();
-        chunks.extend(self.get_persisted_chunks(
-            database_name,
-            table_name,
-            table_schema,
-            &[],
-            &[],
-            0,
-        ));
+        chunks.extend(self.get_persisted_chunks(db_schema, table_def, &filter, &[], 0));
         chunks
     }
 
     pub(crate) fn get_buffer_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
         let mut chunks = vec![];
         for replica in &self.replicated_buffers {
-            chunks.append(&mut replica.get_buffer_chunks(database_name, table_name, filters)?);
+            chunks.append(&mut replica.get_buffer_chunks(
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                filter,
+            )?);
         }
         Ok(chunks)
     }
 
     pub(crate) fn get_persisted_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        table_schema: Schema,
-        _filters: &[Expr],
-        writer_markers: &[Arc<WriterSnapshotMarker>],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
+        writer_markers: &[Arc<NodeSnapshotMarker>],
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
         let mut chunks = vec![];
         for replica in &self.replicated_buffers {
             let last_parquet_file_id = writer_markers.iter().find_map(|marker| {
-                if marker.writer_id == replica.writer_identifier_prefix {
+                if marker.node_id == replica.node_identifier_prefix {
                     Some(marker.next_file_id)
                 } else {
                     None
@@ -227,10 +229,9 @@ impl Replicas {
             });
 
             chunks.append(&mut replica.get_persisted_chunks(
-                database_name,
-                table_name,
-                table_schema.clone(),
-                _filters,
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                filter,
                 last_parquet_file_id,
                 chunk_order_offset,
             ));
@@ -245,7 +246,7 @@ pub(crate) struct ReplicatedBuffer {
     replica_order: i64,
     object_store_url: ObjectStoreUrl,
     object_store: Arc<dyn ObjectStore>,
-    writer_identifier_prefix: String,
+    node_identifier_prefix: String,
     buffer: Arc<RwLock<BufferState>>,
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
@@ -344,7 +345,7 @@ const REPLICA_CATALOG_RETRY_INTERVAL_SECONDS: u64 = 1;
 pub(crate) struct CreateReplicatedBufferArgs {
     replica_order: i64,
     object_store: Arc<dyn ObjectStore>,
-    writer_identifier_prefix: String,
+    node_identifier_prefix: String,
     last_cache: Arc<LastCacheProvider>,
     distinct_cache: Arc<DistinctCacheProvider>,
     replication_interval: Duration,
@@ -360,7 +361,7 @@ impl ReplicatedBuffer {
         CreateReplicatedBufferArgs {
             replica_order,
             object_store,
-            writer_identifier_prefix,
+            node_identifier_prefix,
             last_cache,
             distinct_cache,
             replication_interval,
@@ -374,11 +375,12 @@ impl ReplicatedBuffer {
         let (persisted_catalog, persisted_snapshots) =
             get_persisted_catalog_and_snapshots_for_writer(
                 Arc::clone(&object_store),
-                &writer_identifier_prefix,
+                &node_identifier_prefix,
+                Arc::clone(&time_provider),
             )
             .await?;
-        let writer_id: Cow<'static, str> = Cow::from(writer_identifier_prefix.clone());
-        let attributes = Attributes::from([("from_writer_id", writer_id)]);
+        let node_id: Cow<'static, str> = Cow::from(node_identifier_prefix.clone());
+        let attributes = Attributes::from([("from_node_id", node_id)]);
         let replica_ttbr = metric_registry
             .register_metric::<DurationHistogram>(
                 REPLICA_TTBR_METRIC,
@@ -403,7 +405,7 @@ impl ReplicatedBuffer {
             replica_order,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             object_store,
-            writer_identifier_prefix,
+            node_identifier_prefix,
             buffer,
             persisted_files,
             last_cache,
@@ -431,37 +433,41 @@ impl ReplicatedBuffer {
         Arc::clone(&self.catalog.catalog)
     }
 
+    #[cfg(test)]
     pub(crate) fn parquet_files(&self, db_id: DbId, tbl_id: TableId) -> Vec<ParquetFile> {
         self.persisted_files.get_files(db_id, tbl_id)
     }
 
+    pub(crate) fn parquet_files_filtered(
+        &self,
+        db_id: DbId,
+        tbl_id: TableId,
+        filter: &ChunkFilter<'_>,
+    ) -> Vec<ParquetFile> {
+        self.persisted_files
+            .get_files_filtered(db_id, tbl_id, filter)
+    }
+
     pub(crate) fn get_buffer_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        self.get_buffer_table_chunks(database_name, table_name, filters)
+        self.get_buffer_table_chunks(db_schema, table_def, filter)
     }
 
     pub(crate) fn get_persisted_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        table_schema: Schema,
-        _filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
         last_compacted_parquet_file_id: Option<ParquetFileId>, // only return chunks with a file id > than this
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
-        debug!(%database_name, %table_name, "getting persisted chunks for replicated buffer");
-        let Some((db_id, db_schema)) = self.catalog().db_id_and_schema(database_name) else {
-            return vec![];
-        };
-        let Some(table_id) = db_schema.table_name_to_id(table_name) else {
-            return vec![];
-        };
-        let mut files = self.persisted_files.get_files(db_id, table_id);
-        debug!(%db_id, %table_id, n_files = files.len(), "got persisted files for database/table");
+        let mut files =
+            self.persisted_files
+                .get_files_filtered(db_schema.id, table_def.table_id, filter);
 
         // filter out any files that have been compacted
         if let Some(last_parquet_file_id) = last_compacted_parquet_file_id {
@@ -475,7 +481,7 @@ impl ReplicatedBuffer {
 
                 let parquet_chunk = parquet_chunk_from_file(
                     &parquet_file,
-                    &table_schema,
+                    &table_def.schema,
                     self.object_store_url.clone(),
                     Arc::clone(&self.object_store),
                     chunk_order_offset,
@@ -493,25 +499,19 @@ impl ReplicatedBuffer {
     /// just has not buffered data for those entities.
     fn get_buffer_table_chunks(
         &self,
-        database_name: &str,
-        table_name: &str,
-        filters: &[Expr],
+        db_schema: Arc<DatabaseSchema>,
+        table_def: Arc<TableDefinition>,
+        filter: &ChunkFilter<'_>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>> {
-        let Some((db_id, db_schema)) = self.catalog().db_id_and_schema(database_name) else {
-            return Ok(vec![]);
-        };
-        let Some((table_id, table_def)) = db_schema.table_id_and_definition(table_name) else {
-            return Ok(vec![]);
-        };
         let buffer = self.buffer.read();
-        let Some(db_buffer) = buffer.db_to_table.get(&db_id) else {
+        let Some(db_buffer) = buffer.db_to_table.get(&db_schema.id) else {
             return Ok(vec![]);
         };
-        let Some(table_buffer) = db_buffer.get(&table_id) else {
+        let Some(table_buffer) = db_buffer.get(&table_def.table_id) else {
             return Ok(vec![]);
         };
         Ok(table_buffer
-            .partitioned_record_batches(Arc::clone(&table_def), filters)
+            .partitioned_record_batches(Arc::clone(&table_def), filter)
             .context("error getting partitioned batches from table buffer")?
             .into_iter()
             .map(|(gen_time, (ts_min_max, batches))| {
@@ -556,7 +556,8 @@ impl ReplicatedBuffer {
         let (persisted_catalog, persisted_snapshots) =
             get_persisted_catalog_and_snapshots_for_writer(
                 Arc::clone(&self.object_store),
-                &self.writer_identifier_prefix,
+                &self.node_identifier_prefix,
+                Arc::clone(&self.time_provider),
             )
             .await?;
 
@@ -582,7 +583,7 @@ impl ReplicatedBuffer {
         let last_path = paths.last().cloned();
         // track some information about the paths loaded for this replicated write buffer
         info!(
-            from_writer_id = self.writer_identifier_prefix,
+            from_node_id = self.node_identifier_prefix,
             number_of_wal_files = paths.len(),
             first_wal_file_path = ?paths.first(),
             last_wal_file_path = ?paths.last(),
@@ -607,7 +608,7 @@ impl ReplicatedBuffer {
                 .context("failed to complete task to fetch wal contents")??;
             self.replay_wal_file(wal_contents).await?;
             info!(
-                from_writer_id = self.writer_identifier_prefix,
+                from_node_id = self.node_identifier_prefix,
                 wal_file_path = %path,
                 "replayed wal file"
             );
@@ -627,7 +628,7 @@ impl ReplicatedBuffer {
     ) -> Result<Vec<Path>> {
         let mut paths = vec![];
         let mut offset: Option<Path> = None;
-        let path = Path::from(format!("{base}/wal", base = self.writer_identifier_prefix));
+        let path = Path::from(format!("{base}/wal", base = self.node_identifier_prefix));
         loop {
             let mut listing = match offset {
                 Some(ref offset) => self.object_store.list_with_offset(Some(&path), offset),
@@ -648,7 +649,7 @@ impl ReplicatedBuffer {
         }
 
         if let Some(last_wal_number) = last_snapshotted_wal_file_sequence_number {
-            let last_wal_path = wal_path(&self.writer_identifier_prefix, last_wal_number);
+            let last_wal_path = wal_path(&self.node_identifier_prefix, last_wal_number);
             paths.retain(|path| path > &last_wal_path);
         }
 
@@ -718,7 +719,7 @@ impl ReplicatedBuffer {
             .collect::<Result<Vec<_>>>()?;
         if !catalog_ops.is_empty() {
             info!(
-                from_writer_id = self.writer_identifier_prefix,
+                from_node_id = self.node_identifier_prefix,
                 "writing catalog ops from replicated write buffer to local WAL"
             );
             debug!(?catalog_ops, ">>> catalog ops being written");
@@ -735,7 +736,7 @@ impl ReplicatedBuffer {
 
         let Some(persist_time) = Time::from_timestamp_millis(persist_time_ms) else {
             warn!(
-                from_writer_id = self.writer_identifier_prefix,
+                from_node_id = self.node_identifier_prefix,
                 %persist_time_ms,
                 "the millisecond persist timestamp in the replayed wal file was out-of-range or invalid"
             );
@@ -747,7 +748,7 @@ impl ReplicatedBuffer {
             Some(ttbr) => self.metrics.replica_ttbr.record(ttbr),
             None => {
                 info!(
-                    from_writer_id = self.writer_identifier_prefix,
+                    from_node_id = self.node_identifier_prefix,
                     %now_time,
                     %persist_time,
                     "unable to get duration since WAL file was created"
@@ -792,9 +793,9 @@ impl ReplicatedBuffer {
             }
         }
 
-        let writer_id = self.writer_identifier_prefix.clone();
+        let node_id = self.node_identifier_prefix.clone();
         let snapshot_path = SnapshotInfoFilePath::new(
-            &self.writer_identifier_prefix,
+            &self.node_identifier_prefix,
             snapshot_details.snapshot_sequence_number,
         );
         let object_store = Arc::clone(&self.object_store);
@@ -824,7 +825,7 @@ impl ReplicatedBuffer {
                             .map_snapshot_contents(snapshot)
                             .inspect_err(|error| {
                                 error!(
-                                    from_writer = writer_id,
+                                    from_writer = node_id,
                                     ?snapshot_path,
                                     %error,
                                     "the replicated write buffer produced an invalid snapshot file"
@@ -881,10 +882,15 @@ impl ReplicatedBuffer {
 
 async fn get_persisted_catalog_and_snapshots_for_writer(
     object_store: Arc<dyn ObjectStore>,
-    writer_identifier_prefix: &str,
+    node_identifier_prefix: &str,
+    time_provider: Arc<dyn TimeProvider>,
 ) -> Result<(Arc<Catalog>, Vec<PersistedSnapshot>)> {
     // Create a temporary persister to load snapshot files and catalog
-    let persister = Persister::new(Arc::clone(&object_store), writer_identifier_prefix);
+    let persister = Persister::new(
+        Arc::clone(&object_store),
+        node_identifier_prefix,
+        time_provider,
+    );
     let persisted_snapshots = persister
         .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
         .await
@@ -898,9 +904,9 @@ async fn get_persisted_catalog_and_snapshots_for_writer(
             Ok(Some(persisted)) => Ok(Arc::new(Catalog::from_inner(persisted))),
             Ok(None) => {
                 warn!(
-                    from_writer_id = writer_identifier_prefix,
+                    from_node_id = node_identifier_prefix,
                     "there was no catalog for replicated write buffer, this may mean that it has \
-                            not been persisted to object store yet, or that the writer-id of the \
+                            not been persisted to object store yet, or that the node-id of the \
                             replica was not specified correctly, will retry in {} second(s)",
                     REPLICA_CATALOG_RETRY_INTERVAL_SECONDS
                 );
@@ -910,7 +916,7 @@ async fn get_persisted_catalog_and_snapshots_for_writer(
             }
             Err(error) => {
                 error!(
-                    from_writer_id = writer_identifier_prefix,
+                    from_node_id = node_identifier_prefix,
                     %error,
                     "error when attempting to load catalog from replicated write buffer from \
                     object store, will retry"
@@ -950,7 +956,7 @@ async fn cache_parquet_from_snapshot(
         .iter()
         .flat_map(|(_, db)| db.tables.iter().flat_map(|(_, tbl)| tbl.iter()))
     {
-        let (req, not) = CacheRequest::create(path.as_str().into());
+        let (req, not) = CacheRequest::create_eventual_mode_cache_request(path.as_str().into());
         parquet_cache.register(req);
         cache_notifiers.push(not);
     }
@@ -976,8 +982,7 @@ fn background_replication_interval(
                 // Fetch WAL files until a NOT FOUND is encountered or other error:
                 'inner: loop {
                     wal_number = wal_number.next();
-                    let wal_path =
-                        wal_path(&replicated_buffer.writer_identifier_prefix, wal_number);
+                    let wal_path = wal_path(&replicated_buffer.node_identifier_prefix, wal_number);
                     let wal_contents = match get_wal_contents_from_object_store(
                         Arc::clone(&replicated_buffer.object_store),
                         wal_path.clone(),
@@ -994,7 +999,7 @@ fn background_replication_interval(
                                 error => {
                                     error!(
                                         %error,
-                                        from_writer_id = replicated_buffer.writer_identifier_prefix,
+                                        from_node_id = replicated_buffer.node_identifier_prefix,
                                         wal_file_path = %wal_path,
                                         "failed to fetch next WAL file"
                                     );
@@ -1007,7 +1012,7 @@ fn background_replication_interval(
                     match replicated_buffer.replay_wal_file(wal_contents).await {
                         Ok(_) => {
                             info!(
-                                from_writer_id = replicated_buffer.writer_identifier_prefix,
+                                from_node_id = replicated_buffer.node_identifier_prefix,
                                 wal_file_path = %wal_path,
                                 "replayed wal file"
                             );
@@ -1018,7 +1023,7 @@ fn background_replication_interval(
                         Err(error) => {
                             error!(
                                 %error,
-                                from_writer_id = replicated_buffer.writer_identifier_prefix,
+                                from_node_id = replicated_buffer.node_identifier_prefix,
                                 wal_file_path = %wal_path,
                                 "failed to replay next WAL file"
                             );
@@ -1042,7 +1047,7 @@ fn background_replication_interval(
                         if let Err(error) = replicated_buffer.reload_snapshots_and_catalog().await {
                             error!(
                                 %error,
-                                from_writer_id = replicated_buffer.writer_identifier_prefix,
+                                from_node_id = replicated_buffer.node_identifier_prefix,
                                 "failed to reload snapshots and catalog for replicated write buffer"
                             );
                         }
@@ -1051,7 +1056,7 @@ fn background_replication_interval(
                     Err(error) => {
                         error!(
                             %error,
-                            from_writer_id = replicated_buffer.writer_identifier_prefix,
+                            from_node_id = replicated_buffer.node_identifier_prefix,
                             "failed to replay replicated buffer on replication interval"
                         );
                     }
@@ -1080,8 +1085,9 @@ mod tests {
     };
     use influxdb3_write::{
         persister::Persister,
+        test_helpers::WriteBufferTester,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
-        ChunkContainer, DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot,
+        ChunkFilter, DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -1155,13 +1161,19 @@ mod tests {
         .await;
 
         // Check that snapshots (and parquet) have been persisted:
-        verify_snapshot_count(1, Arc::clone(&obj_store), primary_id).await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            primary_id,
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Spin up a replicated buffer:
         let replica = ReplicatedBuffer::new(CreateReplicatedBufferArgs {
             replica_order: 0,
             object_store: Arc::clone(&obj_store),
-            writer_identifier_prefix: primary_id.to_string(),
+            node_identifier_prefix: primary_id.to_string(),
             last_cache: primary.last_cache_provider(),
             distinct_cache: primary.distinct_cache_provider(),
             replication_interval: Duration::from_millis(10),
@@ -1171,7 +1183,7 @@ mod tests {
                 "replica-host".into(),
                 "replica-instance".into(),
             )),
-            time_provider,
+            time_provider: Arc::clone(&time_provider),
             wal: None,
         })
         .await
@@ -1182,13 +1194,18 @@ mod tests {
         // Check that the replica replayed the primary and contains its data:
         {
             let db_schema = replica.catalog().db_schema(db_name).unwrap();
-            let tbl_schema = db_schema.table_schema(tbl_name).unwrap();
-            let mut chunks = replica.get_buffer_chunks(db_name, tbl_name, &[]).unwrap();
+            let table_def = db_schema.table_definition(tbl_name).unwrap();
+            let mut chunks = replica
+                .get_buffer_chunks(
+                    Arc::clone(&db_schema),
+                    Arc::clone(&table_def),
+                    &ChunkFilter::default(),
+                )
+                .unwrap();
             chunks.extend(replica.get_persisted_chunks(
-                db_name,
-                tbl_name,
-                tbl_schema,
-                &[],
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                &ChunkFilter::default(),
                 None,
                 0,
             ));
@@ -1229,14 +1246,19 @@ mod tests {
         .await;
 
         // Allow for another snapshot on primary:
-        verify_snapshot_count(2, Arc::clone(&obj_store), primary_id).await;
+        verify_snapshot_count(
+            2,
+            Arc::clone(&obj_store),
+            primary_id,
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Check the primary chunks:
         {
-            let chunks = primary
-                .get_table_chunks(db_name, tbl_name, &[], None, &ctx.inner().state())
-                .unwrap();
-            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+            let batches = primary
+                .get_record_batches_unchecked(db_name, tbl_name, &ctx)
+                .await;
             assert_batches_sorted_eq!(
                 [
                     "+-----------+-------+---------------------+-------+",
@@ -1259,13 +1281,18 @@ mod tests {
         // Check the replica again for the new writes:
         {
             let db_schema = replica.catalog().db_schema(db_name).unwrap();
-            let tbl_schema = db_schema.table_schema(tbl_name).unwrap();
-            let mut chunks = replica.get_buffer_chunks(db_name, tbl_name, &[]).unwrap();
+            let table_def = db_schema.table_definition(tbl_name).unwrap();
+            let mut chunks = replica
+                .get_buffer_chunks(
+                    Arc::clone(&db_schema),
+                    Arc::clone(&table_def),
+                    &ChunkFilter::default(),
+                )
+                .unwrap();
             chunks.extend(replica.get_persisted_chunks(
-                db_name,
-                tbl_name,
-                tbl_schema,
-                &[],
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                &ChunkFilter::default(),
                 None,
                 0,
             ));
@@ -1329,7 +1356,7 @@ mod tests {
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
-            writer_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
+            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: None,
             catalog: primaries["spock"].catalog(),
             time_provider,
@@ -1381,7 +1408,15 @@ mod tests {
         // sleep for replicas to replicate:
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let chunks = replicas.get_buffer_chunks("foo", "bar", &[]).unwrap();
+        let db_schema = replicas.catalog().db_schema("foo").unwrap();
+        let table_def = db_schema.table_definition("bar").unwrap();
+        let chunks = replicas
+            .get_buffer_chunks(
+                Arc::clone(&db_schema),
+                Arc::clone(&table_def),
+                &ChunkFilter::default(),
+            )
+            .unwrap();
         // there are only two chunks because all data falls in a single gen time block for each
         // respective buffer:
         assert_eq!(2, chunks.len());
@@ -1445,7 +1480,7 @@ mod tests {
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
-            writer_ids: vec!["newton".to_string()],
+            node_ids: vec!["newton".to_string()],
             parquet_cache: None,
             catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
             time_provider: Arc::<MockProvider>::clone(&time_provider),
@@ -1491,7 +1526,7 @@ mod tests {
             .get_instrument::<Metric<DurationHistogram>>(REPLICA_TTBR_METRIC)
             .expect("get the metric");
         let ttbr_ms = metric
-            .get_observer(&Attributes::from(&[("from_writer_id", "newton")]))
+            .get_observer(&Attributes::from(&[("from_node_id", "newton")]))
             .expect("failed to get observer")
             .fetch();
         debug!(?ttbr_ms, "ttbr metric for writer");
@@ -1578,16 +1613,20 @@ mod tests {
         .await;
 
         // ensure snapshots have been taken so there are parquet files for each writer:
-        verify_snapshot_count(1, Arc::clone(&obj_store), "skinner").await;
-        verify_snapshot_count(1, Arc::clone(&obj_store), "chalmers").await;
-
-        let table_schema = primaries["skinner"]
-            .catalog()
-            .db_schema("foo")
-            .unwrap()
-            .table_schema("bar")
-            .unwrap()
-            .clone();
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            "skinner",
+            Arc::clone(&time_provider),
+        )
+        .await;
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            "chalmers",
+            Arc::clone(&time_provider),
+        )
+        .await;
 
         // Spin up a set of replicated buffers with a cached object store. This is scoped so that
         // everything set up in the block is dropped before the block below that tests without a
@@ -1617,7 +1656,7 @@ mod tests {
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
-                writer_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
+                node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: Some(parquet_cache),
                 catalog,
                 time_provider,
@@ -1644,7 +1683,7 @@ mod tests {
 
             // fetch chunks/record batches from the `Replicas`, as if performing a query, i.e., so
             // that datafusion will request to the object store for the persisted files:
-            let chunks = replicas.get_all_chunks("foo", "bar", table_schema.clone());
+            let chunks = replicas.get_all_chunks("foo", "bar");
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
@@ -1691,7 +1730,7 @@ mod tests {
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
-                writer_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
+                node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: None,
                 catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
                 time_provider,
@@ -1717,7 +1756,7 @@ mod tests {
             }
 
             // do the "query":
-            let chunks = replicas.get_all_chunks("foo", "bar", table_schema.clone());
+            let chunks = replicas.get_all_chunks("foo", "bar");
             let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
             assert_batches_sorted_eq!(
                 [
@@ -2701,12 +2740,16 @@ mod tests {
     }
 
     async fn setup_primary(
-        writer_id: &str,
+        node_id: &str,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Arc<WriteBufferImpl> {
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), writer_id));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            node_id,
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -2726,6 +2769,7 @@ mod tests {
             parquet_cache: None,
             metric_registry,
             snapshotted_wal_files_to_keep: 10,
+            query_file_limit: None,
         })
         .await
         .unwrap()
@@ -2799,9 +2843,9 @@ mod tests {
         }
 
         pub(super) fn catalog(name: &str) -> Arc<Catalog> {
-            let writer_id = format!("host-{name}").as_str().into();
+            let node_id = format!("host-{name}").as_str().into();
             let instance_name = format!("instance-{name}").as_str().into();
-            let cat = Catalog::new(writer_id, instance_name);
+            let cat = Catalog::new(node_id, instance_name);
             let t1_col_id = ColumnId::new();
             let t2_col_id = ColumnId::new();
             let tbl = table(
@@ -2862,7 +2906,7 @@ mod tests {
         }
 
         pub(super) struct PersistedSnapshotBuilder {
-            writer_id: String,
+            node_id: String,
             next_file_id: ParquetFileId,
             next_db_id: DbId,
             next_table_id: TableId,
@@ -2880,7 +2924,7 @@ mod tests {
         impl PersistedSnapshotBuilder {
             pub(super) fn build(self) -> PersistedSnapshot {
                 PersistedSnapshot {
-                    writer_id: self.writer_id,
+                    node_id: self.node_id,
                     next_file_id: self.next_file_id,
                     next_db_id: self.next_db_id,
                     next_table_id: self.next_table_id,
@@ -2913,9 +2957,9 @@ mod tests {
             }
         }
 
-        pub(super) fn persisted_snapshot(writer_id: &str) -> PersistedSnapshotBuilder {
+        pub(super) fn persisted_snapshot(node_id: &str) -> PersistedSnapshotBuilder {
             PersistedSnapshotBuilder {
-                writer_id: writer_id.into(),
+                node_id: node_id.into(),
                 next_file_id: ParquetFileId::next_id(),
                 next_db_id: DbId::next_id(),
                 next_table_id: TableId::next_id(),

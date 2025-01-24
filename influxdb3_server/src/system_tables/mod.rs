@@ -1,6 +1,5 @@
 use std::{any::Any, collections::HashMap, ops::Deref, sync::Arc};
 
-use config::FileIndexTable;
 use datafusion::{
     catalog::SchemaProvider,
     datasource::TableProvider,
@@ -10,28 +9,21 @@ use datafusion::{
 };
 use distinct_caches::DistinctCachesTable;
 use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_config::EnterpriseConfig;
-use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_write::WriteBuffer;
 use iox_query::query_log::QueryLog;
 use iox_system_tables::SystemTableProvider;
 use parquet_files::ParquetFilesTable;
-use tokio::sync::RwLock;
 use tonic::async_trait;
 
-use crate::{
-    query_executor::enterprise::CompactionSystemTablesProvider,
-    system_tables::{
-        compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
-    },
-};
+use crate::query_executor::enterprise::CompactionSystemTablesProvider;
 
 use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
-mod compacted_data;
-pub(crate) mod compaction_events;
-mod config;
+// ================
+// Enterprise only
+pub mod enterprise;
+// ================
 mod distinct_caches;
 mod last_caches;
 mod parquet_files;
@@ -49,9 +41,6 @@ pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
-pub(crate) const COMPACTED_DATA_TABLE_NAME: &str = "compacted_data";
-pub(crate) const FILE_INDEX_TABLE_NAME: &str = "file_index";
-pub(crate) const COMPACTION_EVENTS_TABLE_NAME: &str = "compaction_events";
 
 const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
 
@@ -98,6 +87,8 @@ impl SchemaProvider for SystemSchemaProvider {
 }
 
 pub(crate) struct AllSystemSchemaTablesProvider {
+    buffer: Arc<dyn WriteBuffer>,
+    db_schema: Arc<DatabaseSchema>,
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
 }
 
@@ -117,9 +108,7 @@ impl AllSystemSchemaTablesProvider {
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
-        compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
-        sys_events_store: Arc<SysEventStore>,
+        _sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -139,7 +128,6 @@ impl AllSystemSchemaTablesProvider {
             db_schema.id,
             Arc::clone(&buffer),
         ))));
-        tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
         tables.insert(
             PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(
@@ -164,25 +152,12 @@ impl AllSystemSchemaTablesProvider {
                 ),
             ))),
         );
-        // pro tables:
-        tables.insert(
-            FILE_INDEX_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(FileIndexTable::new(
-                buffer.catalog(),
-                enterprise_config,
-            )))),
-        );
-        let compacted_data_table = Arc::new(SystemTableProvider::new(Arc::new(
-            CompactedDataTable::new(Arc::clone(&db_schema), compacted_data),
-        )));
-        tables.insert(COMPACTED_DATA_TABLE_NAME, compacted_data_table);
-        tables.insert(
-            COMPACTION_EVENTS_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(
-                CompactionEventsSysTable::new(Arc::clone(&sys_events_store)),
-            ))),
-        );
-        Self { tables }
+        tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
+        Self {
+            buffer,
+            db_schema,
+            tables,
+        }
     }
 }
 
