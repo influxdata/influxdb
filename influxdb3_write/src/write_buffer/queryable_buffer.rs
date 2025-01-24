@@ -15,9 +15,8 @@ use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion_util::stream_from_batches;
 use hashbrown::HashMap;
-use influxdb3_cache::distinct_cache::DistinctCacheProvider;
-use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
+use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
@@ -274,7 +273,6 @@ impl QueryableBuffer {
                 snapshot_details.last_wal_sequence_number,
                 catalog.sequence_number(),
             );
-            let mut cache_notifiers = vec![];
             let persist_jobs_empty = persist_jobs.is_empty();
             for persist_job in persist_jobs {
                 let path = persist_job.path.to_string();
@@ -287,7 +285,6 @@ impl QueryableBuffer {
                 let SortDedupePersistSummary {
                     file_size_bytes,
                     file_meta_data,
-                    parquet_cache_rx,
                 } = sort_dedupe_persist(
                     persist_job,
                     Arc::clone(&persister),
@@ -307,7 +304,6 @@ impl QueryableBuffer {
                 // https://github.com/influxdata/influxdb/issues/25677
                 .expect("sort, deduplicate, and persist buffer data as parquet");
 
-                cache_notifiers.push(parquet_cache_rx);
                 persisted_snapshot.add_parquet_file(
                     database_id,
                     table_id,
@@ -378,11 +374,6 @@ impl QueryableBuffer {
             // on a background task to ensure that the cache has been populated before we clear
             // the buffer
             tokio::spawn(async move {
-                // wait on the cache updates to complete if there is a cache:
-                for notifier in cache_notifiers.into_iter().flatten() {
-                    let _ = notifier.await;
-                }
-
                 // same reason as explained above, if persist jobs are empty, no snapshotting
                 // has happened so no need to clear the snapshots
                 if !persist_jobs_empty {
@@ -623,19 +614,13 @@ struct PersistJob {
 pub(crate) struct SortDedupePersistSummary {
     pub file_size_bytes: u64,
     pub file_meta_data: FileMetaData,
-    pub parquet_cache_rx: Option<oneshot::Receiver<()>>,
 }
 
 impl SortDedupePersistSummary {
-    fn new(
-        file_size_bytes: u64,
-        file_meta_data: FileMetaData,
-        parquet_cache_rx: Option<oneshot::Receiver<()>>,
-    ) -> Self {
+    fn new(file_size_bytes: u64, file_meta_data: FileMetaData) -> Self {
         Self {
             file_size_bytes,
             file_meta_data,
-            parquet_cache_rx,
         }
     }
 }
@@ -714,19 +699,16 @@ async fn sort_dedupe_persist(
             .persist_parquet_file(persist_job.path.clone(), batch_stream)
             .await
         {
-            Ok((size_bytes, meta)) => {
+            Ok((size_bytes, parquet_meta, to_cache)) => {
                 info!("Persisted parquet file: {}", persist_job.path.to_string());
-                let parquet_cache_rx = parquet_cache.map(|parquet_cache_oracle| {
-                    let (cache_request, cache_notify_rx) =
-                        CacheRequest::create(Path::from(persist_job.path.to_string()));
+                if let Some(parquet_cache_oracle) = parquet_cache {
+                    let cache_request = CacheRequest::create_immediate_mode_cache_request(
+                        Path::from(persist_job.path.to_string()),
+                        to_cache,
+                    );
                     parquet_cache_oracle.register(cache_request);
-                    cache_notify_rx
-                });
-                return Ok(SortDedupePersistSummary::new(
-                    size_bytes,
-                    meta,
-                    parquet_cache_rx,
-                ));
+                }
+                return Ok(SortDedupePersistSummary::new(size_bytes, parquet_meta));
             }
             Err(e) => {
                 error!(
@@ -779,7 +761,12 @@ mod tests {
         register_current_runtime_for_io();
 
         let catalog = Arc::new(Catalog::new("hosta".into(), "foo".into()));
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "hosta"));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "hosta",
+            time_provider,
+        ));
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 

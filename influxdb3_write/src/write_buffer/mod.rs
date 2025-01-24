@@ -956,7 +956,11 @@ mod tests {
             Arc::clone(&time_provider),
             Default::default(),
         );
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider),
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -2091,7 +2095,7 @@ mod tests {
         assert_eq!(DbId::next_id().as_u32(), 1);
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_parquet_cache() {
         // set up a write buffer using a TestObjectStore so we can spy on requests that get
         // through to the object store for parquet files:
@@ -2163,8 +2167,8 @@ mod tests {
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
         // check the number of requests to that path before making a query:
-        // there should be one get request, made by the cache oracle:
-        assert_eq!(1, test_store.get_request_count(&path));
+        // there should be no get request, made by the cache oracle:
+        assert_eq!(0, test_store.get_request_count(&path));
         assert_eq!(0, test_store.get_opts_request_count(&path));
         assert_eq!(0, test_store.get_ranges_request_count(&path));
         assert_eq!(0, test_store.get_range_request_count(&path));
@@ -2193,7 +2197,7 @@ mod tests {
         );
 
         // counts should not change, since requests for this parquet file hit the cache:
-        assert_eq!(1, test_store.get_request_count(&path));
+        assert_eq!(0, test_store.get_request_count(&path));
         assert_eq!(0, test_store.get_opts_request_count(&path));
         assert_eq!(0, test_store.get_ranges_request_count(&path));
         assert_eq!(0, test_store.get_range_request_count(&path));
@@ -3046,7 +3050,11 @@ mod tests {
         } else {
             (object_store, None)
         };
-        let persister = Arc::new(Persister::new(Arc::clone(&object_store), "test_host"));
+        let persister = Arc::new(Persister::new(
+            Arc::clone(&object_store),
+            "test_host",
+            Arc::clone(&time_provider) as _,
+        ));
         let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
