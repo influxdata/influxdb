@@ -11,7 +11,6 @@ use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
 use iox_system_tables::IoxSystemTable;
 use observability_deps::tracing::debug;
 
-use super::COMPACTED_DATA_TABLE_NAME;
 use crate::system_tables::find_table_name_in_filter;
 
 #[derive(Debug)]
@@ -63,12 +62,21 @@ fn compacted_data_table_schema() -> SchemaRef {
     Arc::new(Schema::new(columns))
 }
 
+const COMPACTION_NOT_SETUP_ERROR_MESSAGE: &str = "this node is not setup to run compaction or \
+    consume compacted data";
+
+const MISSING_TABLE_NAME_PREDICATE_ERROR_MESSAGE: &str =
+    "please specify a 'table_name' in the WHERE clause, for example, \
+    \"WHERE table_name = '<table name>'\"";
+
 fn compaction_not_setup_error() -> DataFusionError {
-    DataFusionError::Plan("Compaction not setup, cannot fetch compaction details".to_owned())
+    DataFusionError::Plan(COMPACTION_NOT_SETUP_ERROR_MESSAGE.to_owned())
 }
 
-fn table_not_found_error() -> DataFusionError {
-    DataFusionError::Plan("Cannot find table name".to_owned())
+fn table_not_found_error(table_name: &str) -> DataFusionError {
+    DataFusionError::Plan(format!(
+        "cannot find the table with the name '{table_name}'"
+    ))
 }
 
 #[async_trait]
@@ -89,15 +97,13 @@ impl IoxSystemTable for CompactedDataTable {
 
         debug!(filters = ?filters, ">>>> all filters");
         let table_name = find_table_name_in_filter(filters).ok_or_else(|| {
-            DataFusionError::External(
-                format!("{COMPACTED_DATA_TABLE_NAME} table not found in filters").into(),
-            )
+            DataFusionError::Execution(MISSING_TABLE_NAME_PREDICATE_ERROR_MESSAGE.to_string())
         })?;
 
         let _ = self
             .db_schema
             .table_name_to_id(Arc::clone(&table_name))
-            .ok_or_else(table_not_found_error)?;
+            .ok_or_else(|| table_not_found_error(&table_name))?;
 
         let results = data.query(self.db_schema.name.as_ref(), &table_name);
         to_record_batch(&table_name, &self.compacted_table_schema, results)
@@ -278,10 +284,7 @@ mod tests {
         info!(res = ?result, "Result from scanning");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert_eq!(
-            "Compaction not setup, cannot fetch compaction details".to_owned(),
-            err.message()
-        );
+        assert_eq!(COMPACTION_NOT_SETUP_ERROR_MESSAGE, err.message());
     }
 
     #[test_log::test(tokio::test)]
@@ -312,7 +315,10 @@ mod tests {
         info!(res = ?result, "Result from scanning");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert_eq!("Cannot find table name".to_owned(), err.message());
+        assert_eq!(
+            format!("cannot find the table with the name '{table_name}'"),
+            err.message()
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -342,6 +348,6 @@ mod tests {
         info!(res = ?result, "Result from scanning");
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert_eq!("compacted_data table not found in filters", err.message());
+        assert_eq!(MISSING_TABLE_NAME_PREDICATE_ERROR_MESSAGE, err.message());
     }
 }
