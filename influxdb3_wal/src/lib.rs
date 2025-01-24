@@ -70,8 +70,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[async_trait]
 pub trait Wal: Debug + Send + Sync + 'static {
-    /// Buffer into a single larger operation in memory. Returns before the operation is persisted.
-    async fn buffer_op_unconfirmed(&self, op: WalOp) -> Result<(), Error>;
+    /// Buffer writes ops into the buffer, but returns before the operation is persisted to the WAL.
+    async fn write_ops_unconfirmed(&self, op: Vec<WalOp>) -> Result<(), Error>;
 
     /// Writes the ops into the buffer and waits until the WAL file is persisted. When this returns
     /// the operations are durable in the configured object store and the file notifier has been
