@@ -18,6 +18,5 @@ pub struct ProcessingEngineConfig {
 pub enum PackageManager {
     #[default]
     Pip,
-    Pipx,
     UV,
 }

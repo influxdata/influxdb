@@ -43,7 +43,7 @@ fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub(crate) fn init_pyo3(venv_path: &Option<PathBuf>) {
+pub fn init_pyo3(venv_path: &Option<PathBuf>) {
     PYTHON_INIT.call_once(|| {
         if let Some(venv_path) = venv_path {
             if let Err(err) = initialize_venv(venv_path) {
@@ -88,10 +88,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(|line| line.split_once('='))
-        .for_each(|(key, value)| {
-            println!("{}={}", key, value);
-            std::env::set_var(key, value)
-        });
+        .for_each(|(key, value)| std::env::set_var(key, value));
 
     Ok(())
 }

@@ -14,7 +14,7 @@ pub enum PluginEnvironmentError {
 }
 
 pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
-    fn install_package(&self, package_name: String) -> Result<(), PluginEnvironmentError>;
+    fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError>;
 
     fn install_requirements(&self, requirements_path: String)
         -> Result<(), PluginEnvironmentError>;
@@ -24,16 +24,15 @@ pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
 pub struct UVManager;
 #[derive(Debug, Copy, Clone)]
 pub struct PipManager;
-#[derive(Debug, Copy, Clone)]
-pub struct PipxManager;
 
 #[derive(Debug, Copy, Clone)]
 pub struct DisabledManager;
 
 impl PythonEnvironmentManager for UVManager {
-    fn install_package(&self, package: String) -> Result<(), PluginEnvironmentError> {
+    fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
         Command::new("uv")
-            .args(["pip", "install", &package])
+            .args(["pip", "install"])
+            .args(&packages)
             .output()?;
         Ok(())
     }
@@ -50,8 +49,11 @@ impl PythonEnvironmentManager for UVManager {
 }
 
 impl PythonEnvironmentManager for PipManager {
-    fn install_package(&self, package: String) -> Result<(), PluginEnvironmentError> {
-        Command::new("pip").args(["install", &package]).output()?;
+    fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
+        Command::new("pip")
+            .arg("install")
+            .args(&packages)
+            .output()?;
         Ok(())
     }
     fn install_requirements(
@@ -65,24 +67,8 @@ impl PythonEnvironmentManager for PipManager {
     }
 }
 
-impl PythonEnvironmentManager for PipxManager {
-    fn install_package(&self, package: String) -> Result<(), PluginEnvironmentError> {
-        Command::new("pipx").args(["install", &package]).output()?;
-        Ok(())
-    }
-    fn install_requirements(
-        &self,
-        requirements_path: String,
-    ) -> Result<(), PluginEnvironmentError> {
-        Command::new("pipx")
-            .args(["install", "-r", &requirements_path])
-            .output()?;
-        Ok(())
-    }
-}
-
 impl PythonEnvironmentManager for DisabledManager {
-    fn install_package(&self, _package: String) -> Result<(), PluginEnvironmentError> {
+    fn install_packages(&self, _packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
         Err(PluginEnvironmentDisabled)
     }
 

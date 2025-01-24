@@ -18,9 +18,7 @@ use influxdb3_clap_blocks::{
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
-use influxdb3_processing_engine::environment::{
-    PipManager, PipxManager, PythonEnvironmentManager, UVManager,
-};
+use influxdb3_processing_engine::environment::{PipManager, PythonEnvironmentManager, UVManager};
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
@@ -622,12 +620,11 @@ pub async fn command(config: Config) -> Result<()> {
     Ok(())
 }
 
-fn setup_processing_engine_env_manager(
+pub(crate) fn setup_processing_engine_env_manager(
     config: &ProcessingEngineConfig,
 ) -> ProcessingEngineEnvironmentManager {
     let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
         PackageManager::Pip => Arc::new(PipManager),
-        PackageManager::Pipx => Arc::new(PipxManager),
         PackageManager::UV => Arc::new(UVManager),
     };
     ProcessingEngineEnvironmentManager {
