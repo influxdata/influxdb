@@ -222,6 +222,8 @@ pub struct BufferedWriteRequest {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
     /// The node identifier that persisted this snapshot
+    // TODO: deprecate this alias
+    #[serde(alias = "writer_id")]
     pub node_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
