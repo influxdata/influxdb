@@ -148,12 +148,16 @@ impl CompactedData {
             return Default::default();
         };
 
-        let Some(tbl_id) = db.table_name_to_id(table_name) else {
+        let Some(table_def) = db.table_definition(table_name) else {
             return Default::default();
         };
 
         let d = self.inner_compacted_data.read();
-        let Some(table) = d.databases.get(&db.id).and_then(|t| t.tables.get(&tbl_id)) else {
+        let Some(table) = d
+            .databases
+            .get(&db.id)
+            .and_then(|t| t.tables.get(&table_def.table_id))
+        else {
             return Default::default();
         };
 
@@ -374,16 +378,14 @@ impl CompactedTable {
         &self,
         filter: &ChunkFilter<'_>,
     ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<NodeSnapshotMarker>>) {
-        let mut parquet_files = self
-            .file_index
-            .parquet_files_for_filter(filter.original_filters());
+        let mut parquet_files = self.file_index.parquet_files_for_filter(filter);
 
-        // add the gen1 files, filtered by their min/max times
+        // add the gen1 files, filtered based on their timestamps
         for f in self
             .compaction_detail
             .leftover_gen1_files
             .iter()
-            .filter(|file| filter.test_time_stamp_min_max(file.file.min_time, file.file.max_time))
+            .filter(|gen1| filter.test_time_stamp_min_max(gen1.file.min_time, gen1.file.max_time))
         {
             parquet_files.push(Arc::clone(&f.file));
         }
