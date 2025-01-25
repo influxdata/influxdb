@@ -6,7 +6,7 @@ use influxdb3_client::plugin_development::{
     WalPluginTestResponse,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
-use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
+use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::WriteBuffer;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -53,23 +53,11 @@ pub enum ProcessingEngineError {
 ///
 #[async_trait::async_trait]
 pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
-    /// Inserts a plugin
-    async fn insert_plugin(
-        &self,
-        db: &str,
-        plugin_name: String,
-        file_name: String,
-        plugin_type: PluginType,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn delete_plugin(&self, db: &str, plugin_name: &str)
-        -> Result<(), ProcessingEngineError>;
-
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
-        plugin_name: String,
+        plugin_filename: String,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,

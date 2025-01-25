@@ -1,18 +1,18 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use crate::catalog::Error::{
-    CatalogUpdatedElsewhere, ProcessingEngineCallExists, ProcessingEngineTriggerExists,
-    ProcessingEngineTriggerRunning, TableNotFound,
+    CatalogUpdatedElsewhere, ProcessingEngineTriggerExists, ProcessingEngineTriggerRunning,
+    TableNotFound,
 };
 use bimap::{BiHashMap, Overwritten};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeletePluginDefinition,
-    DeleteTableDefinition, DeleteTriggerDefinition, DistinctCacheDefinition, DistinctCacheDelete,
-    FieldAdditions, FieldDefinition, LastCacheDefinition, LastCacheDelete, OrderedCatalogBatch,
-    PluginDefinition, TriggerDefinition, TriggerIdentifier,
+    CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition,
+    DeleteTriggerDefinition, DistinctCacheDefinition, DistinctCacheDelete, FieldAdditions,
+    FieldDefinition, LastCacheDefinition, LastCacheDelete, OrderedCatalogBatch, TriggerDefinition,
+    TriggerIdentifier,
 };
 use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
@@ -81,15 +81,6 @@ pub enum Error {
         existing: String,
     },
 
-    #[error(
-        "Cannot overwrite Processing Engine Call {} in Database {}",
-        call_name,
-        database_name
-    )]
-    ProcessingEngineCallExists {
-        database_name: String,
-        call_name: String,
-    },
     #[error(
         "Cannot overwrite Processing Engine Trigger {} in Database {}",
         trigger_name,
@@ -541,8 +532,6 @@ pub struct DatabaseSchema {
     /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
-    pub processing_engine_plugins: HashMap<String, PluginDefinition>,
-    // TODO: care about performance of triggers
     pub processing_engine_triggers: HashMap<String, TriggerDefinition>,
     pub deleted: bool,
 }
@@ -554,7 +543,6 @@ impl DatabaseSchema {
             name,
             tables: Default::default(),
             table_map: BiHashMap::new(),
-            processing_engine_plugins: HashMap::new(),
             processing_engine_triggers: HashMap::new(),
             deleted: false,
         }
@@ -732,8 +720,6 @@ impl UpdateDatabaseSchema for CatalogOp {
             }
             CatalogOp::DeleteDatabase(delete_database) => delete_database.update_schema(schema),
             CatalogOp::DeleteTable(delete_table) => delete_table.update_schema(schema),
-            CatalogOp::DeletePlugin(delete_plugin) => delete_plugin.update_schema(schema),
-            CatalogOp::CreatePlugin(create_plugin) => create_plugin.update_schema(schema),
             CatalogOp::CreateTrigger(create_trigger) => create_trigger.update_schema(schema),
             CatalogOp::DeleteTrigger(delete_trigger) => delete_trigger.update_schema(schema),
             CatalogOp::EnableTrigger(trigger_identifier) => {
@@ -804,54 +790,6 @@ impl UpdateDatabaseSchema for DeleteTableDefinition {
                 Arc::clone(&new_table_def.table_name),
             );
         }
-        Ok(schema)
-    }
-}
-
-impl UpdateDatabaseSchema for DeletePluginDefinition {
-    fn update_schema<'a>(
-        &self,
-        mut schema: Cow<'a, DatabaseSchema>,
-    ) -> Result<Cow<'a, DatabaseSchema>> {
-        // check that there aren't any triggers with this name.
-        for (trigger_name, trigger) in &schema.processing_engine_triggers {
-            if trigger.plugin_name == self.plugin_name {
-                return Err(Error::ProcessingEnginePluginInUse {
-                    database_name: schema.name.to_string(),
-                    plugin_name: self.plugin_name.to_string(),
-                    trigger_name: trigger_name.to_string(),
-                });
-            }
-        }
-        schema
-            .to_mut()
-            .processing_engine_plugins
-            .remove(&self.plugin_name);
-        Ok(schema)
-    }
-}
-
-impl UpdateDatabaseSchema for PluginDefinition {
-    fn update_schema<'a>(
-        &self,
-        mut schema: Cow<'a, DatabaseSchema>,
-    ) -> Result<Cow<'a, DatabaseSchema>> {
-        match schema.processing_engine_plugins.get(&self.plugin_name) {
-            Some(current) if self.eq(current) => {}
-            Some(_) => {
-                return Err(ProcessingEngineCallExists {
-                    database_name: schema.name.to_string(),
-                    call_name: self.plugin_name.to_string(),
-                })
-            }
-            None => {
-                schema
-                    .to_mut()
-                    .processing_engine_plugins
-                    .insert(self.plugin_name.to_string(), self.clone());
-            }
-        }
-
         Ok(schema)
     }
 }
@@ -1444,7 +1382,6 @@ mod tests {
                 map.insert(TableId::from(2), "test_table_2".into());
                 map
             },
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
@@ -1655,7 +1592,6 @@ mod tests {
             name: "test".into(),
             tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
@@ -1714,7 +1650,6 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_1".into());
                 map
             },
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
@@ -1771,7 +1706,6 @@ mod tests {
                 map.insert(TableId::from(0), "test".into());
                 map
             },
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
@@ -1872,7 +1806,6 @@ mod tests {
             name: "test".into(),
             tables: SerdeVecMap::new(),
             table_map: BiHashMap::new(),
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };

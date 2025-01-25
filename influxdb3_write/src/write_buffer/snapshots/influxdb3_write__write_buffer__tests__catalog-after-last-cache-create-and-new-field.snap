@@ -10,7 +10,6 @@ expression: catalog_json
         "deleted": false,
         "id": 0,
         "name": "db",
-        "processing_engine_plugins": [],
         "processing_engine_triggers": [],
         "tables": [
           [

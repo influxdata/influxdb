@@ -21,9 +21,7 @@ use self::{last_caches::LastCachesTable, queries::QueriesTable};
 mod distinct_caches;
 mod last_caches;
 mod parquet_files;
-use crate::system_tables::python_call::{
-    ProcessingEnginePluginTable, ProcessingEngineTriggerTable,
-};
+use crate::system_tables::python_call::ProcessingEngineTriggerTable;
 
 mod python_call;
 mod queries;
@@ -35,8 +33,6 @@ pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";
 pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
-
-const PROCESSING_ENGINE_PLUGINS_TABLE_NAME: &str = "processing_engine_plugins";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
 
@@ -114,18 +110,6 @@ impl AllSystemSchemaTablesProvider {
             db_schema.id,
             Arc::clone(&buffer),
         ))));
-        tables.insert(
-            PROCESSING_ENGINE_PLUGINS_TABLE_NAME,
-            Arc::new(SystemTableProvider::new(Arc::new(
-                ProcessingEnginePluginTable::new(
-                    db_schema
-                        .processing_engine_plugins
-                        .iter()
-                        .map(|(_name, call)| call.clone())
-                        .collect(),
-                ),
-            ))),
-        );
         tables.insert(
             PROCESSING_ENGINE_TRIGGERS_TABLE_NAME,
             Arc::new(SystemTableProvider::new(Arc::new(

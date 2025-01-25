@@ -65,6 +65,9 @@ pub enum Error {
 
     #[error("tried to run a schedule plugin but the schedule iterator is over.")]
     ScheduledMissingTime,
+
+    #[error("non-schedule plugin with schedule trigger: {0}")]
+    NonSchedulePluginWithScheduleTrigger(String),
 }
 
 #[cfg(feature = "system-py")]
@@ -99,10 +102,14 @@ pub(crate) fn run_schedule_plugin(
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<ScheduleEvent>,
 ) -> Result<(), Error> {
-    let TriggerSpecificationDefinition::Schedule { .. } = &trigger_definition.trigger else {
-        // TODO: these linkages should be guaranteed by code.
-        unreachable!("this should've been checked");
-    };
+    // Ensure that the plugin is a schedule plugin
+    let plugin_type = trigger_definition.trigger.plugin_type();
+    if !matches!(plugin_type, influxdb3_wal::PluginType::Schedule) {
+        return Err(Error::NonSchedulePluginWithScheduleTrigger(format!(
+            "{:?}",
+            trigger_definition
+        )));
+    }
 
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -195,7 +202,7 @@ mod python_plugin {
             &self,
             mut receiver: Receiver<WalEvent>,
         ) -> Result<(), Error> {
-            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting wal contents plugin");
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting wal contents plugin");
 
             loop {
                 let event = match receiver.recv().await {
@@ -262,7 +269,7 @@ mod python_plugin {
             &self,
             mut receiver: Receiver<RequestEvent>,
         ) -> Result<(), Error> {
-            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting request plugin");
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting request plugin");
 
             loop {
                 match receiver.recv().await {

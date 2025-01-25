@@ -546,8 +546,6 @@ impl BufferState {
                                     table_buffer_map.remove(&table_definition.table_id);
                                 }
                             }
-                            CatalogOp::CreatePlugin(_) => {}
-                            CatalogOp::DeletePlugin(_) => {}
                             CatalogOp::CreateTrigger(_) => {}
                             CatalogOp::DeleteTrigger(_) => {}
                             CatalogOp::EnableTrigger(_) => {}
