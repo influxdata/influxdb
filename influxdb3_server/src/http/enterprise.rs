@@ -5,7 +5,6 @@ use hyper::Request;
 use hyper::Response;
 use hyper::StatusCode;
 use influxdb3_config::Config;
-use influxdb3_config::Index;
 use influxdb3_types::http::*;
 use iox_time::TimeProvider;
 
@@ -37,6 +36,7 @@ where
         let db_schema = catalog
             .db_schema_by_id(&db_id)
             .expect("schema exists for a db whose id we could look up");
+        let _permit = self.common_state.enterprise_config.write_permit().await?;
         match table.and_then(|name| db_schema.table_name_to_id(name)) {
             Some(table_id) => {
                 let table_def = db_schema.table_definition_by_id(&table_id).unwrap();
@@ -54,68 +54,21 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 self.common_state
                     .enterprise_config
-                    .write()
-                    .await
-                    .file_index_columns
-                    .entry(db_id)
-                    // If the db entry exists try to add those columns to the
-                    // table or if they don't exist yet create them
-                    .and_modify(|idx| {
-                        idx.table_columns
-                            .entry(table_id)
-                            .and_modify(|set| {
-                                *set = columns.clone();
-                            })
-                            .or_insert_with(|| columns.clone());
-                    })
-                    // If the db entry does not exist create a default Index
-                    // and add those columns for that table
-                    .or_insert_with(|| {
-                        let mut idx = Index::default();
-                        idx.table_columns.insert(table_id, columns);
-
-                        idx
-                    });
-
-                self.common_state
-                    .enterprise_config
-                    .read()
-                    .await
-                    .persist(
-                        self.write_buffer.catalog().node_id(),
-                        &self.common_state.object_store,
-                    )
-                    .await?;
+                    .add_or_update_columns_for_table(db_id, table_id, columns);
             }
             None => {
                 self.common_state
                     .enterprise_config
-                    .write()
-                    .await
-                    .file_index_columns
-                    .entry(db_id)
-                    // if the db entry does exist add these columns for the db
-                    .and_modify(|idx| {
-                        idx.db_columns = columns.clone().into_iter().map(Into::into).collect();
-                    })
-                    // if the db entry does not exist create a default Index
-                    // and add these columns
-                    .or_insert_with(|| {
-                        let mut idx = Index::new();
-                        idx.db_columns = columns.clone().into_iter().map(Into::into).collect();
-                        idx
-                    });
-                self.common_state
-                    .enterprise_config
-                    .read()
-                    .await
-                    .persist(
-                        self.write_buffer.catalog().node_id(),
-                        &self.common_state.object_store,
-                    )
-                    .await?;
+                    .add_or_update_columns_for_db(db_id, columns);
             }
         }
+        self.common_state
+            .enterprise_config
+            .persist(
+                self.write_buffer.catalog().node_id(),
+                &self.common_state.object_store,
+            )
+            .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())
@@ -134,45 +87,23 @@ where
         let db_schema = catalog
             .db_schema_by_id(&db_id)
             .expect("db schema exists for a db whose id we could look up");
+        let _permit = self.common_state.enterprise_config.write_permit().await?;
         match table
             .clone()
             .and_then(|name| db_schema.table_name_to_id(name))
         {
             Some(table_id) => {
-                match self
-                    .common_state
+                self.common_state
                     .enterprise_config
-                    .write()
-                    .await
-                    .file_index_columns
-                    .get_mut(&db_id)
-                {
-                    Some(Index { table_columns, .. }) => {
-                        if table_columns.remove(&table_id).is_none() {
-                            return Err(Error::FileIndexTableDoesNotExist(db, table.unwrap()));
-                        }
-                    }
-                    None => return Err(Error::FileIndexDbDoesNotExist(db)),
-                }
+                    .remove_columns_for_table(&db_id, &table_id)?;
             }
-            None => {
-                if self
-                    .common_state
-                    .enterprise_config
-                    .write()
-                    .await
-                    .file_index_columns
-                    .remove(&db_id)
-                    .is_none()
-                {
-                    return Err(Error::FileIndexDbDoesNotExist(db));
-                }
-            }
+            None => self
+                .common_state
+                .enterprise_config
+                .remove_columns_for_db(&db_id)?,
         }
         self.common_state
             .enterprise_config
-            .read()
-            .await
             .persist(
                 self.write_buffer.catalog().node_id(),
                 &self.common_state.object_store,

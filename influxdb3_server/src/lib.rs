@@ -42,7 +42,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
@@ -85,7 +84,7 @@ pub struct CommonServerState {
     trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
     trace_header_parser: TraceHeaderParser,
     telemetry_store: Arc<TelemetryStore>,
-    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+    enterprise_config: Arc<EnterpriseConfig>,
     object_store: Arc<dyn ObjectStore>,
     processing_engine_environment: ProcessingEngineEnvironmentManager,
 }
@@ -96,7 +95,7 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
-        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+        enterprise_config: Arc<EnterpriseConfig>,
         object_store: Arc<dyn ObjectStore>,
         processing_engine_environment: ProcessingEngineEnvironmentManager,
     ) -> Result<Self> {
@@ -233,7 +232,6 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_config::EnterpriseConfig;
     use influxdb3_id::{DbId, TableId};
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
@@ -252,7 +250,6 @@ mod tests {
     use std::num::NonZeroUsize;
     use std::sync::Arc;
     use tokio::net::TcpListener;
-    use tokio::sync::RwLock;
     use tokio_util::sync::CancellationToken;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -812,7 +809,7 @@ mod tests {
         let sample_telem_store =
             TelemetryStore::new_without_background_runners(Some(parquet_metrics_provider));
         let write_buffer: Arc<dyn WriteBuffer> = write_buffer_impl;
-        let enterprise_config = Arc::new(RwLock::new(EnterpriseConfig::default()));
+        let enterprise_config = Default::default();
         let common_state = crate::CommonServerState::new(
             Arc::clone(&metrics),
             None,

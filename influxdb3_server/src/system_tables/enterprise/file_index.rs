@@ -1,7 +1,6 @@
 use arrow::array::GenericListBuilder;
 use arrow::array::StringViewBuilder;
 use arrow::array::UInt32Builder;
-use influxdb3_id::ColumnId;
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, RecordBatch, StringArray};
@@ -11,17 +10,16 @@ use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_config::EnterpriseConfig;
 use iox_system_tables::IoxSystemTable;
-use tokio::sync::RwLock;
 
 #[derive(Debug)]
 pub(crate) struct FileIndexTable {
     catalog: Arc<Catalog>,
-    config: Arc<RwLock<EnterpriseConfig>>,
+    config: Arc<EnterpriseConfig>,
     schema: SchemaRef,
 }
 
 impl FileIndexTable {
-    pub(crate) fn new(catalog: Arc<Catalog>, config: Arc<RwLock<EnterpriseConfig>>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>, config: Arc<EnterpriseConfig>) -> Self {
         Self {
             catalog,
             config,
@@ -48,53 +46,8 @@ impl FileIndexTable {
     }
 
     async fn file_index_tables(&self) -> Result<RecordBatch, DataFusionError> {
-        let config = self.config.read().await;
+        let lines = self.config.index_summaries(Arc::clone(&self.catalog));
 
-        #[derive(Clone)]
-        struct Line {
-            db: Arc<str>,
-            table: Option<Arc<str>>,
-            columns: Vec<Arc<str>>,
-            column_ids: Vec<ColumnId>,
-        }
-
-        let mut lines = Vec::new();
-        for (db_id, idx) in &config.file_index_columns {
-            let line = Line {
-                db: self.catalog.db_id_to_name(db_id).unwrap(),
-                table: None,
-                columns: idx.db_columns.clone(),
-                // We don't know the column ids for the db level so we leave this empty by default
-                column_ids: Vec::new(),
-            };
-
-            if !line.columns.is_empty() {
-                lines.push(line.clone());
-            }
-
-            for (table_id, columns) in &idx.table_columns {
-                let mut line = line.clone();
-                let table_def = self
-                    .catalog
-                    .db_schema_by_id(db_id)
-                    .unwrap()
-                    .table_definition_by_id(table_id)
-                    .unwrap();
-                let table_name = Arc::clone(&table_def.table_name);
-                line.table = Some(table_name);
-                for name in &line.columns {
-                    line.column_ids
-                        .push(table_def.column_name_to_id_unchecked(Arc::clone(name)));
-                }
-                line.column_ids.extend_from_slice(columns);
-                line.columns.extend(
-                    columns
-                        .iter()
-                        .map(|c| table_def.column_id_to_name_unchecked(c)),
-                );
-                lines.push(line);
-            }
-        }
         let columns: Vec<ArrayRef> = vec![
             Arc::new(
                 lines

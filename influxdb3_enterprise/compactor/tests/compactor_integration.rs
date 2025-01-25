@@ -38,7 +38,6 @@ use std::mem;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::RwLock;
 
 #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 #[ignore = "flakey test as the 208 data point for some reason isn't always there (see comment below)"]
@@ -434,7 +433,7 @@ async fn compaction_cleanup() {
         compactor_id: compactor_id.into(),
         node_ids: vec![node_id.to_string()],
         compaction_config,
-        enterprise_config: Arc::new(RwLock::new(EnterpriseConfig::default())),
+        enterprise_config: Arc::new(EnterpriseConfig::default()),
         datafusion_config: Arc::new(std::collections::HashMap::new()),
         object_store: Arc::clone(&object_store),
         object_store_url: compactor_persister.object_store_url().clone(),
