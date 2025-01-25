@@ -20,7 +20,7 @@ use trogging::{
     TroggingGuard,
 };
 
-mod commands {
+pub mod commands {
     pub(crate) mod common;
     pub mod create;
     pub mod delete;

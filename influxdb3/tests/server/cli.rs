@@ -997,6 +997,100 @@ fn test_create_token() {
     );
 }
 
+#[test_log::test(tokio::test)]
+async fn test_show_system() {
+    let server = TestServer::configure().spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+
+    server
+        .write_lp_to_db(
+            db_name,
+            "cpu,t1=a,t2=b,t3=c f1=true,f2=\"hello\",f3=4i,f4=4u,f5=5 1000",
+            influxdb3_client::Precision::Second,
+        )
+        .await
+        .expect("write to db");
+
+    struct SuccessTestCase<'a> {
+        name: &'static str,
+        args: Vec<&'a str>,
+    }
+
+    let cases = vec![
+        SuccessTestCase {
+            name: "summary should show up to ten entries from each table",
+            args: vec![
+                "show",
+                "system",
+                "--host",
+                server_addr.as_str(),
+                "--database",
+                db_name,
+                "summary",
+            ],
+        },
+        SuccessTestCase {
+            name:
+                "table NAME should show queries table without information or system schema queries",
+            args: vec![
+                "show",
+                "system",
+                "--host",
+                server_addr.as_str(),
+                "--database",
+                db_name,
+                "table",
+                "queries",
+            ],
+        },
+        SuccessTestCase {
+            name: "table-list should list system schema tables only",
+            args: vec![
+                "show",
+                "system",
+                "--host",
+                server_addr.as_str(),
+                "--database",
+                db_name,
+                "table-list",
+            ],
+        },
+    ];
+
+    for case in cases {
+        let output = run(&case.args);
+        let snap_name = case.name.replace(' ', "_");
+        insta::assert_snapshot!(snap_name, output);
+    }
+
+    struct FailTestCase<'a> {
+        name: &'static str,
+        args: Vec<&'a str>,
+    }
+
+    let cases = vec![
+        FailTestCase {
+            name: "fail without database name",
+            args: vec!["show", "system", "table-list"],
+        },
+        FailTestCase {
+            name: "random table name doesn't exist, should error",
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "meow"],
+        },
+        FailTestCase {
+            name: "iox schema table name exists, but should error because we're concerned here with system tables",
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "cpu"],
+        },
+    ];
+
+    for case in cases {
+        let output = run_and_err(&case.args);
+        let snap_name = case.name.replace(' ', "_");
+        insta::assert_snapshot!(snap_name, output);
+    }
+}
+
 #[tokio::test]
 async fn distinct_cache_create_and_delete() {
     let server = TestServer::spawn().await;

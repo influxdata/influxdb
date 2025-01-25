@@ -39,7 +39,7 @@ pub(crate) enum Error {
     NoInput,
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "q", trailing_var_arg = true)]
