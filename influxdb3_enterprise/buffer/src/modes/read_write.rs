@@ -219,7 +219,7 @@ impl ChunkContainer for ReadWriteMode {
                 .get_parquet_files_and_writer_markers(
                     &db_schema.name,
                     &table_def.table_name,
-                    filter.original_filters(),
+                    filter,
                 );
 
             chunks.extend(
