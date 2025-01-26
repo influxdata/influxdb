@@ -33,7 +33,7 @@ pub enum ProcessingEngineError {
     PluginNotFound(String),
 
     #[error("plugin error: {0}")]
-    PluginError(#[from] crate::plugins::Error),
+    PluginError(#[from] crate::plugins::PluginError),
 
     #[error("failed to shutdown trigger {trigger_name} in database {database}")]
     TriggerShutdownError {
@@ -99,13 +99,13 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, crate::plugins::Error>;
+    ) -> Result<WalPluginTestResponse, crate::plugins::PluginError>;
 
     async fn test_schedule_plugin(
         &self,
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<SchedulePluginTestResponse, crate::plugins::Error>;
+    ) -> Result<SchedulePluginTestResponse, crate::plugins::PluginError>;
 
     async fn request_trigger(
         &self,

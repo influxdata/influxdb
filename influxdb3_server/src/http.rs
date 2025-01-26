@@ -220,7 +220,7 @@ pub enum Error {
     PythonPluginsNotEnabled,
 
     #[error("Plugin error: {0}")]
-    Plugin(#[from] influxdb3_processing_engine::plugins::Error),
+    Plugin(#[from] influxdb3_processing_engine::plugins::PluginError),
 
     #[error("Processing engine error: {0}")]
     ProcessingEngine(#[from] influxdb3_processing_engine::manager::ProcessingEngineError),

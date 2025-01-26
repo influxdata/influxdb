@@ -1374,7 +1374,7 @@ async fn test_load_wal_plugin_from_gh() {
     let db_name = "foo";
 
     // this will pull from https://github.com/influxdata/influxdb3_plugins/blob/main/examples/wal_plugin/wal_plugin.py
-    let plugin_name = "gh:examples/wal_plugin";
+    let plugin_name = "gh:examples/wal_plugin/wal_plugin.py";
 
     // Run the test to make sure it'll load from GH
     let result = run_with_confirmation(&[
@@ -1528,6 +1528,42 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = response.text().await.unwrap();
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_trigger_create_validates_file_present() {
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "foo";
+    // creating the trigger should return a 404 error from github
+    let result = run_with_confirmation_and_err(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        "gh:not_a_file.py",
+        "--trigger-spec",
+        "request:foo",
+        "--trigger-arguments",
+        "test_arg=hello",
+        trigger_path,
+    ]);
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "error reading file from Github: 404 Not Found");
 }
 
 #[test_log::test(tokio::test)]
