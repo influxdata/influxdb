@@ -347,14 +347,21 @@ func (h *HTTPHandler) createLicenseForUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	if user.VerifiedAt != nil {
-		log.Info("setting license state", zap.Error(err))
-		err = h.store.SetLicenseState(r.Context(), tx, license.ID, store.LicenseStateRequested)
-		if err != nil {
+		log.Info("user is already verified, setting license state to active", zap.String("email", user.Email))
+		if err = h.store.SetLicenseState(r.Context(), tx, license.ID, store.LicenseStateActive); err != nil {
 			log.Error("setting license state", zap.Error(err))
 			http.Error(w, "error processing request", http.StatusInternalServerError)
 			return
 		}
 
+		// Commit the transaction
+		if err := tx.Commit(); err != nil {
+			log.Error("error committing transaction", zap.Error(err))
+			http.Error(w, "error processing request", http.StatusInternalServerError)
+			return
+		}
+
+		// Send a response to the client with Location header to download
 		w.Header().Set("Location", fmt.Sprintf("/licenses?email=%s&instance-id=%s", url.QueryEscape(user.Email), license.InstanceID))
 		w.WriteHeader(http.StatusCreated)
 		return
