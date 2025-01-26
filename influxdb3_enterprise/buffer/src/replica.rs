@@ -39,7 +39,7 @@ use iox_query::{
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, Registry};
 use object_store::{path::Path, ObjectStore};
-use observability_deps::tracing::{error, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
 
 #[derive(Debug, thiserror::Error)]
@@ -722,6 +722,7 @@ impl ReplicatedBuffer {
                 from_node_id = self.node_identifier_prefix,
                 "writing catalog ops from replicated write buffer to local WAL"
             );
+            debug!(?catalog_ops, ">>> catalog ops being written");
             wal.write_ops(catalog_ops)
                 .await
                 .context("failed to write replicated catalog ops to local WAL")?;

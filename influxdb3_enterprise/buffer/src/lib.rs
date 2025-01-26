@@ -238,6 +238,7 @@ mod tests {
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
     use object_store::{memory::InMemory, path::Path};
+    use observability_deps::tracing::debug;
 
     use crate::{
         modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
@@ -777,6 +778,131 @@ mod tests {
                 ],
                 &batches
             );
+        }
+    }
+
+    /// Attempted reproducer for https://github.com/influxdata/influxdb_pro/issues/390
+    #[test_log::test(tokio::test)]
+    async fn two_writers_deletes_do_not_propagate_endlessly() {
+        // setup globals:
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let object_store = Arc::new(InMemory::new());
+
+        // create two read_write nodes simultaneously that replicate each other:
+        struct Config {
+            writer_id: &'static str,
+            read_from_writer_ids: &'static [&'static str],
+        }
+        let mut handles = vec![];
+        for Config {
+            writer_id,
+            read_from_writer_ids,
+        } in [
+            Config {
+                writer_id: "drebin",
+                read_from_writer_ids: &["rumack"],
+            },
+            Config {
+                writer_id: "rumack",
+                read_from_writer_ids: &["drebin"],
+            },
+        ] {
+            let tp = Arc::clone(&time_provider);
+            let os = Arc::clone(&object_store);
+            let h = tokio::spawn(setup_read_write(
+                tp,
+                os,
+                writer_id,
+                read_from_writer_ids.into(),
+            ));
+            handles.push(h);
+        }
+        let write_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(Arc::new)
+            .collect();
+
+        // set up a loop that writes to both hosts periodically
+        let mut write_loop_handles = vec![];
+        for (i, write_buffer) in write_buffers.iter().enumerate() {
+            let writer_cloned = Arc::clone(write_buffer);
+            let time_provider_cloned = Arc::clone(&time_provider);
+            let handle = tokio::spawn(async move {
+                let mut time_seconds = 0;
+                loop {
+                    do_writes(
+                        "movie_ratings",
+                        writer_cloned.as_ref(),
+                        &[TestWrite {
+                            lp: format!("movies,title=airplane,source={i} rating=5.0"),
+                            time_seconds,
+                        }],
+                    )
+                    .await;
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    time_seconds += 1;
+                    time_provider_cloned
+                        .set(Time::from_timestamp_millis(time_seconds * 1000).unwrap());
+                }
+            });
+            write_loop_handles.push(handle);
+        }
+
+        // wait a bit so some writes have gone through, note the wal config uses 10ms by default so
+        // a few wals should have been flushed by the time this is done:
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // now send a delete to the database:
+        write_buffers[0]
+            .soft_delete_database("movie_ratings".to_string())
+            .await
+            .unwrap();
+
+        // now wait for some more wal flush intervals to go by:
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // now send a delete to the database again but this time through the other writer:
+        write_buffers[1]
+            .soft_delete_database("movie_ratings".to_string())
+            .await
+            .unwrap();
+
+        // now wait for some more wal flush intervals to go by:
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // now delete them in both writers at the same time:
+        let mut handles = vec![];
+        for write_buffer in &write_buffers {
+            let write_buffer_cloned = Arc::clone(write_buffer);
+            let handle = tokio::spawn(async move {
+                write_buffer_cloned
+                    .soft_delete_database("movie_ratings".to_string())
+                    .await
+                    .unwrap()
+            });
+            handles.push(handle);
+        }
+
+        let _ = try_join_all(handles).await.unwrap();
+
+        // now wait for some more wal flush intervals to go by:
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // now check the databases on the writers:
+        for write_buffer in &write_buffers {
+            let dbs = write_buffer.catalog().list_db_schema();
+            let n_dbs = dbs.len();
+            let n_deleted_dbs = dbs.iter().filter(|db| db.deleted).count();
+            debug!(n_dbs, n_deleted_dbs, "dbs in write buffer");
+            assert_eq!(n_dbs, 4);
+            assert_eq!(n_deleted_dbs, 3);
+        }
+
+        // kill our write loops
+        for handle in write_loop_handles {
+            handle.abort();
         }
     }
 }
