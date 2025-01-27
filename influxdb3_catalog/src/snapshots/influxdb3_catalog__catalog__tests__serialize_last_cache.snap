@@ -113,7 +113,6 @@ expression: catalog
             }
           ]
         ],
-        "processing_engine_plugins": [],
         "processing_engine_triggers": [],
         "deleted": false
       }

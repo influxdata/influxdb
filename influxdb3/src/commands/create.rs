@@ -50,15 +50,6 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::Plugin(PluginConfig {
-                influxdb3_config:
-                    InfluxDb3Config {
-                        host_url,
-                        auth_token,
-                        ..
-                    },
-                ..
-            })
             | SubCommand::Table(TableConfig {
                 influxdb3_config:
                     InfluxDb3Config {
@@ -100,13 +91,11 @@ pub enum SubCommand {
     /// Create a new distinct value cache
     #[clap(name = "distinct_cache")]
     DistinctCache(DistinctCacheConfig),
-    /// Create a new processing engine plugin
-    Plugin(PluginConfig),
     /// Create a new table in a database
     Table(TableConfig),
     /// Create a new auth token
     Token,
-    /// Create a new trigger for the processing engine
+    /// Create a new trigger for the processing engine that executes a plugin on either WAL rows, scheduled tasks, or requests to the serve at `/api/v3/engine/<path>`
     Trigger(TriggerConfig),
 }
 
@@ -201,20 +190,6 @@ pub struct DistinctCacheConfig {
     cache_name: Option<String>,
 }
 
-#[derive(Debug, clap::Parser)]
-pub struct PluginConfig {
-    #[clap(flatten)]
-    influxdb3_config: InfluxDb3Config,
-    /// Python file name of the file on the server's plugin-dir containing the plugin code
-    #[clap(long = "filename")]
-    file_name: String,
-    /// Type of trigger the plugin processes. Options: wal_rows, scheduled, request
-    #[clap(long = "plugin-type")]
-    plugin_type: String,
-    /// Name of the plugin to create
-    plugin_name: String,
-}
-
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
     #[clap(long = "tags", required = true, num_args=0..)]
@@ -238,14 +213,15 @@ pub struct TableConfig {
 pub struct TriggerConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
-
-    /// Plugin to execute when trigger fires
-    #[clap(long = "plugin")]
-    plugin_name: String,
+    /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
+    /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
+    /// the prefix.
+    #[clap(long = "plugin-filename")]
+    plugin_filename: String,
     /// When the trigger should fire
     #[clap(long = "trigger-spec",
           value_parser = TriggerSpecificationDefinition::from_string_rep,
-          help = "Trigger specification format: 'table:<TABLE_NAME>' or 'all_tables'")]
+          help = "The plugin file must be for the given trigger type of wal, schedule, or request. Trigger specification format:\nFor wal_rows use: 'table:<TABLE_NAME>' or 'all_tables'\nFor scheduled use: 'cron:<CRON_EXPRESSION>' or 'every:<duration e.g. 10m>'\nFor request use: 'path:<PATH>' e.g. path:foo will be at /api/v3/engine/foo")]
     trigger_specification: TriggerSpecificationDefinition,
     /// Comma separated list of key/value pairs to use as trigger arguments. Example: key1=val1,key2=val2
     #[clap(long = "trigger-arguments")]
@@ -334,22 +310,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 None => println!("a cache already exists for the provided parameters"),
             }
         }
-        SubCommand::Plugin(PluginConfig {
-            influxdb3_config: InfluxDb3Config { database_name, .. },
-            plugin_name,
-            file_name,
-            plugin_type,
-        }) => {
-            client
-                .api_v3_configure_processing_engine_plugin_create(
-                    database_name,
-                    &plugin_name,
-                    file_name,
-                    plugin_type,
-                )
-                .await?;
-            println!("Plugin {} created successfully", plugin_name);
-        }
         SubCommand::Table(TableConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table_name,
@@ -387,7 +347,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
-            plugin_name,
+            plugin_filename,
             trigger_specification,
             trigger_arguments,
             disabled,
@@ -402,7 +362,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .api_v3_configure_processing_engine_trigger_create(
                     database_name,
                     &trigger_name,
-                    plugin_name,
+                    plugin_filename,
                     trigger_specification.string_rep(),
                     trigger_arguments,
                     disabled,

@@ -564,7 +564,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
-        plugin_name: impl Into<String> + Send,
+        plugin_filename: impl Into<String> + Send,
         trigger_spec: impl Into<String> + Send,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -577,7 +577,7 @@ impl Client {
         struct Req {
             db: String,
             trigger_name: String,
-            plugin_name: String,
+            plugin_filename: String,
             trigger_specification: String,
             trigger_arguments: Option<HashMap<String, String>>,
             disabled: bool,
@@ -585,7 +585,7 @@ impl Client {
         let mut req = self.http_client.post(url).json(&Req {
             db: db.into(),
             trigger_name: trigger_name.into(),
-            plugin_name: plugin_name.into(),
+            plugin_filename: plugin_filename.into(),
             trigger_specification: trigger_spec.into(),
             trigger_arguments,
             disabled,

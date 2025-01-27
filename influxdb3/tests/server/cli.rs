@@ -600,97 +600,6 @@ async fn test_create_delete_distinct_cache() {
     assert_contains!(&result, "[404 Not Found]: cache not found");
 }
 
-#[test_log::test(tokio::test)]
-async fn test_create_plugin() {
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    influxdb3_local.info("done")
-"#,
-    );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
-
-    let server = TestServer::configure()
-        .with_plugin_dir(plugin_dir)
-        .spawn()
-        .await;
-    let server_addr = server.client_addr();
-    let db_name = "foo";
-
-    // Create database first
-    let result = run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-    assert_contains!(&result, "Database \"foo\" created successfully");
-
-    // Create plugin
-    let plugin_name = "test_plugin";
-    let result = run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-    debug!(result = ?result, "create plugin");
-    assert_contains!(&result, "Plugin test_plugin created successfully");
-}
-
-#[test_log::test(tokio::test)]
-async fn test_delete_plugin() {
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    influxdb3_local.info("done")
-"#,
-    );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
-
-    let server = TestServer::configure()
-        .with_plugin_dir(plugin_dir)
-        .spawn()
-        .await;
-    let server_addr = server.client_addr();
-    let db_name = "foo";
-
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
-    // Delete plugin
-    let result = run_with_confirmation(&[
-        "delete",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        plugin_name,
-    ]);
-    debug!(result = ?result, "delete plugin");
-    assert_contains!(&result, "Plugin test_plugin deleted successfully");
-}
-
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_create_trigger_and_run() {
@@ -711,22 +620,6 @@ async fn test_create_trigger_and_run() {
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
         "create",
@@ -735,8 +628,8 @@ async fn test_create_trigger_and_run() {
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         "--trigger-arguments",
@@ -826,22 +719,6 @@ async fn test_triggers_are_started() {
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
         "create",
@@ -850,8 +727,8 @@ async fn test_triggers_are_started() {
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         "--trigger-arguments",
@@ -947,21 +824,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     // Setup: create database, plugin, and trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     run_with_confirmation(&[
         "create",
         "trigger",
@@ -969,8 +831,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         trigger_name,
@@ -1025,21 +887,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     // Setup: create database, plugin, and enable trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     run_with_confirmation(&[
         "create",
         "trigger",
@@ -1047,8 +894,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         trigger_name,
@@ -1119,21 +966,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
         table_name,
     ]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // Create table-specific trigger
     let result = run_with_confirmation(&[
         "create",
@@ -1142,8 +974,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         &format!("table:{}", table_name),
         trigger_name,
@@ -1614,22 +1446,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "request",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     let trigger_path = "foo";
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
@@ -1639,8 +1455,8 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "request:foo",
         "--trigger-arguments",

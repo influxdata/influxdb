@@ -8,9 +8,7 @@ use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
-use influxdb3_wal::{
-    LastCacheDefinition, LastCacheValueColumnsDef, PluginDefinition, PluginType, TriggerDefinition,
-};
+use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef, PluginType, TriggerDefinition};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
@@ -42,8 +40,6 @@ struct DatabaseSnapshot {
     name: Arc<str>,
     tables: SerdeVecMap<TableId, TableSnapshot>,
     #[serde(default)]
-    processing_engine_plugins: SerdeVecMap<String, ProcessingEnginePluginSnapshot>,
-    #[serde(default)]
     processing_engine_triggers: SerdeVecMap<String, ProcessingEngineTriggerSnapshot>,
     deleted: bool,
 }
@@ -57,11 +53,6 @@ impl From<&DatabaseSchema> for DatabaseSnapshot {
                 .tables
                 .iter()
                 .map(|(table_id, table_def)| (*table_id, table_def.as_ref().into()))
-                .collect(),
-            processing_engine_plugins: db
-                .processing_engine_plugins
-                .iter()
-                .map(|(name, call)| (name.clone(), call.into()))
                 .collect(),
             processing_engine_triggers: db
                 .processing_engine_triggers
@@ -84,26 +75,15 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                 (id, Arc::new(table.into()))
             })
             .collect();
-        let processing_engine_plugins: HashMap<_, _> = snap
-            .processing_engine_plugins
-            .into_iter()
-            .map(|(name, call)| (name, call.into()))
-            .collect();
         let processing_engine_triggers = snap
             .processing_engine_triggers
             .into_iter()
             .map(|(name, trigger)| {
-                // TODO: Decide whether to handle errors
-                let plugin: PluginDefinition = processing_engine_plugins
-                    .get(&trigger.plugin_name)
-                    .cloned()
-                    .expect("should have plugin");
                 (
                     name,
                     TriggerDefinition {
                         trigger_name: trigger.trigger_name,
-                        plugin_name: plugin.plugin_name.to_string(),
-                        plugin_file_name: plugin.file_name.clone(),
+                        plugin_filename: trigger.plugin_filename,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
                         trigger_arguments: trigger.trigger_arguments,
                         disabled: trigger.disabled,
@@ -118,7 +98,6 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
             name: snap.name,
             tables,
             table_map,
-            processing_engine_plugins,
             processing_engine_triggers,
             deleted: snap.deleted,
         }
@@ -171,7 +150,7 @@ struct ProcessingEnginePluginSnapshot {
 #[derive(Debug, Serialize, Deserialize)]
 struct ProcessingEngineTriggerSnapshot {
     pub trigger_name: String,
-    pub plugin_name: String,
+    pub plugin_filename: String,
     pub database_name: String,
     pub trigger_specification: String,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -410,31 +389,11 @@ impl From<TableSnapshot> for TableDefinition {
     }
 }
 
-impl From<&PluginDefinition> for ProcessingEnginePluginSnapshot {
-    fn from(plugin: &PluginDefinition) -> Self {
-        Self {
-            plugin_name: plugin.plugin_name.to_string(),
-            file_name: plugin.file_name.to_string(),
-            plugin_type: plugin.plugin_type,
-        }
-    }
-}
-
-impl From<ProcessingEnginePluginSnapshot> for PluginDefinition {
-    fn from(plugin: ProcessingEnginePluginSnapshot) -> Self {
-        Self {
-            plugin_name: plugin.plugin_name.to_string(),
-            file_name: plugin.file_name.to_string(),
-            plugin_type: plugin.plugin_type,
-        }
-    }
-}
-
 impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
     fn from(trigger: &TriggerDefinition) -> Self {
         ProcessingEngineTriggerSnapshot {
             trigger_name: trigger.trigger_name.to_string(),
-            plugin_name: trigger.plugin_name.to_string(),
+            plugin_filename: trigger.plugin_filename.to_string(),
             database_name: trigger.database_name.to_string(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),

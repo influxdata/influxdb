@@ -22,7 +22,7 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -341,8 +341,6 @@ pub enum CatalogOp {
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
     DeleteTable(DeleteTableDefinition),
-    CreatePlugin(PluginDefinition),
-    DeletePlugin(DeletePluginDefinition),
     CreateTrigger(TriggerDefinition),
     DeleteTrigger(DeleteTriggerDefinition),
     EnableTrigger(TriggerIdentifier),
@@ -624,31 +622,24 @@ pub struct DistinctCacheDelete {
     pub cache_name: Arc<str>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct PluginDefinition {
-    pub plugin_name: String,
-    pub file_name: String,
-    pub plugin_type: PluginType,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DeletePluginDefinition {
-    pub plugin_name: String,
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
     WalRows,
-    Scheduled,
+    Schedule,
     Request,
+}
+
+impl Display for PluginType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TriggerDefinition {
     pub trigger_name: String,
-    pub plugin_name: String,
-    pub plugin_file_name: String,
+    pub plugin_filename: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -757,6 +748,16 @@ impl TriggerSpecificationDefinition {
             TriggerSpecificationDefinition::RequestPath { path } => {
                 format!("request:{}", path)
             }
+        }
+    }
+
+    pub fn plugin_type(&self) -> PluginType {
+        match self {
+            TriggerSpecificationDefinition::SingleTableWalWrite { .. }
+            | TriggerSpecificationDefinition::AllTablesWalWrite => PluginType::WalRows,
+            TriggerSpecificationDefinition::Schedule { .. }
+            | TriggerSpecificationDefinition::Every { .. } => PluginType::Schedule,
+            TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
     }
 }

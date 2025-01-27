@@ -38,15 +38,6 @@ impl Config {
                     },
                 ..
             })
-            | SubCommand::Plugin(PluginConfig {
-                influxdb3_config:
-                    InfluxDb3Config {
-                        host_url,
-                        auth_token,
-                        ..
-                    },
-                ..
-            })
             | SubCommand::Table(TableConfig {
                 influxdb3_config:
                     InfluxDb3Config {
@@ -85,8 +76,6 @@ pub enum SubCommand {
     /// Delete a distinct value cache
     #[clap(name = "distinct_cache")]
     DistinctCache(DistinctCacheConfig),
-    /// Delete an existing processing engine plugin
-    Plugin(PluginConfig),
     /// Delete a table in a database
     Table(TableConfig),
     /// Delete a trigger
@@ -139,16 +128,6 @@ pub struct DistinctCacheConfig {
     /// The name of the cache being deleted
     #[clap(required = true)]
     cache_name: String,
-}
-
-#[derive(Debug, clap::Parser)]
-pub struct PluginConfig {
-    #[clap(flatten)]
-    influxdb3_config: InfluxDb3Config,
-
-    /// Name of the plugin to delete
-    #[clap(required = true)]
-    plugin_name: String,
 }
 
 #[derive(Debug, clap::Args)]
@@ -213,15 +192,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .await?;
 
             println!("distinct cache deleted successfully");
-        }
-        SubCommand::Plugin(PluginConfig {
-            influxdb3_config: InfluxDb3Config { database_name, .. },
-            plugin_name,
-        }) => {
-            client
-                .api_v3_configure_processing_engine_plugin_delete(database_name, &plugin_name)
-                .await?;
-            println!("Plugin {} deleted successfully", plugin_name);
         }
         SubCommand::Table(TableConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },

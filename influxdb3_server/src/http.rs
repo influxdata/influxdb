@@ -26,7 +26,7 @@ use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_processing_engine::manager::ProcessingEngineManager;
-use influxdb3_wal::{PluginType, TriggerSpecificationDefinition};
+use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
@@ -989,51 +989,13 @@ where
             .body(Body::empty())?)
     }
 
-    async fn configure_processing_engine_plugin(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        let ProcessingEnginePluginCreateRequest {
-            db,
-            plugin_name,
-            file_name,
-            plugin_type,
-        } = if let Some(query) = req.uri().query() {
-            serde_urlencoded::from_str(query)?
-        } else {
-            self.read_body_json(req).await?
-        };
-        self.processing_engine
-            .insert_plugin(&db, plugin_name, file_name, plugin_type)
-            .await?;
-
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-
-    async fn delete_processing_engine_plugin(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let ProcessingEnginePluginDeleteRequest { db, plugin_name } =
-            if let Some(query) = req.uri().query() {
-                serde_urlencoded::from_str(query)?
-            } else {
-                self.read_body_json(req).await?
-            };
-        self.processing_engine
-            .delete_plugin(&db, &plugin_name)
-            .await?;
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-
     async fn configure_processing_engine_trigger(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
         let ProcessEngineTriggerCreateRequest {
             db,
-            plugin_name,
+            plugin_filename,
             trigger_name,
             trigger_specification,
             trigger_arguments,
@@ -1043,7 +1005,7 @@ where
         } else {
             self.read_body_json(req).await?
         };
-        debug!(%db, %plugin_name, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
+        debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
         let Ok(trigger_spec) =
             TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
         else {
@@ -1057,7 +1019,7 @@ where
             .insert_trigger(
                 db.as_str(),
                 trigger_name.clone(),
-                plugin_name,
+                plugin_filename,
                 trigger_spec,
                 trigger_arguments,
                 disabled,
@@ -1681,26 +1643,11 @@ struct LastCacheDeleteRequest {
     name: String,
 }
 
-/// Request definition for `POST /api/v3/configure/processing_engine_plugin` API
-#[derive(Debug, Deserialize)]
-struct ProcessingEnginePluginCreateRequest {
-    db: String,
-    plugin_name: String,
-    file_name: String,
-    plugin_type: PluginType,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProcessingEnginePluginDeleteRequest {
-    db: String,
-    plugin_name: String,
-}
-
 /// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
 #[derive(Debug, Deserialize)]
 struct ProcessEngineTriggerCreateRequest {
     db: String,
-    plugin_name: String,
+    plugin_filename: String,
     trigger_name: String,
     trigger_specification: String,
     trigger_arguments: Option<HashMap<String, String>>,
@@ -1843,12 +1790,6 @@ pub(crate) async fn route_request<T: TimeProvider>(
         }
         (Method::DELETE, "/api/v3/configure/last_cache") => {
             http_server.configure_last_cache_delete(req).await
-        }
-        (Method::POST, "/api/v3/configure/processing_engine_plugin") => {
-            http_server.configure_processing_engine_plugin(req).await
-        }
-        (Method::DELETE, "/api/v3/configure/processing_engine_plugin") => {
-            http_server.delete_processing_engine_plugin(req).await
         }
         (Method::POST, "/api/v3/configure/processing_engine_trigger/disable") => {
             http_server.disable_processing_engine_trigger(req).await
