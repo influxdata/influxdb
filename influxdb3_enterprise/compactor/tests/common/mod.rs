@@ -9,7 +9,7 @@ use object_store::{memory::InMemory, ObjectStore};
 
 pub(crate) fn build_parquet_cache_prefetcher(
     obj_store: &Arc<InMemory>,
-) -> Option<ParquetCachePreFetcher> {
+) -> Option<Arc<ParquetCachePreFetcher>> {
     let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
     let as_obj_store: Arc<dyn ObjectStore> = Arc::<InMemory>::clone(obj_store);
     let test_store = Arc::new(RequestCountedObjectStore::new(Arc::clone(&as_obj_store)));
@@ -21,9 +21,9 @@ pub(crate) fn build_parquet_cache_prefetcher(
     let now = Utc::now().timestamp_nanos_opt().unwrap();
     let mock_time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(now)));
 
-    Some(ParquetCachePreFetcher::new(
+    Some(Arc::new(ParquetCachePreFetcher::new(
         parquet_cache,
         humantime::Duration::from_str("1d").unwrap(),
         mock_time_provider,
-    ))
+    )))
 }

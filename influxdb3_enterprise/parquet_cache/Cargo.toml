@@ -17,6 +17,7 @@ iox_time.workspace = true
 observability_deps.workspace = true
 
 # Crates.io dependencies
+bytes.workspace = true
 futures.workspace = true
 humantime.workspace = true
 object_store.workspace = true

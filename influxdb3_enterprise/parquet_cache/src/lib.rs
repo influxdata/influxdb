@@ -1,14 +1,15 @@
-use std::{future::Future, sync::Arc};
+use std::{future::Future, ops::Deref, sync::Arc};
 
+use bytes::Bytes;
 use futures::{future::join_all, TryFutureExt};
-use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
+use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle, ParquetFileDataToCache};
 use influxdb3_write::ParquetFile;
 use iox_time::{Time, TimeProvider};
-use object_store::path::Path as ObjPath;
+use object_store::{path::Path as ObjPath, PutResult};
 use observability_deps::tracing::warn;
 use tokio::sync::oneshot::error::RecvError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParquetCachePreFetcher {
     /// Cache oracle to prefetch into cache
     parquet_cache: Arc<dyn ParquetCacheOracle>,
@@ -41,6 +42,20 @@ impl ParquetCachePreFetcher {
         // `join_all` uses `FuturesOrdered` internally, might be nicer to have `FuturesUnordered` for this
         // case
         join_all(all_futures).await
+    }
+
+    pub fn add_to_cache(&self, path: Arc<ObjPath>, bytes: Bytes, put_result: PutResult) {
+        let path = path.deref();
+        let cache_req = CacheRequest::create_immediate_mode_cache_request(
+            path.clone(),
+            ParquetFileDataToCache::new(
+                path,
+                self.time_provider.now().date_time(),
+                bytes,
+                put_result,
+            ),
+        );
+        self.parquet_cache.register(cache_req);
     }
 
     fn prepare_prefetch_requests(

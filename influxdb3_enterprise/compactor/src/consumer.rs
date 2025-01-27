@@ -28,7 +28,7 @@ pub struct CompactedDataConsumer {
     pub object_store: Arc<dyn ObjectStore>,
     pub compacted_data: Arc<CompactedData>,
     sys_events_store: Arc<dyn CompactionEventStore>,
-    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
 }
 
 impl Debug for CompactedDataConsumer {
@@ -47,7 +47,7 @@ impl CompactedDataConsumer {
     pub async fn new(
         compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
-        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+        parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
         sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> anyhow::Result<Self> {
         loop {

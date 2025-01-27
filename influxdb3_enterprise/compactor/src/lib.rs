@@ -23,7 +23,7 @@ use arrow::util::display::FormatOptions;
 use arrow_schema::ArrowError;
 use arrow_schema::DataType;
 use arrow_util::util::ensure_schema;
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use data_types::ChunkId;
 use data_types::ChunkOrder;
 use data_types::PartitionHashId;
@@ -55,7 +55,7 @@ use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
-use observability_deps::tracing::error;
+use observability_deps::tracing::{debug, error};
 use parquet::arrow::arrow_writer::ArrowWriterOptions;
 use parquet::arrow::async_writer::AsyncFileWriter;
 use parquet::arrow::AsyncArrowWriter;
@@ -140,7 +140,7 @@ pub struct CompactFilesArgs {
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
     pub exec: Arc<Executor>,
-    pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pub parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     pub datafusion_config: Arc<HashMap<String, String>>,
 }
 
@@ -309,7 +309,7 @@ struct SeriesWriter {
     /// Max time for the current file
     max_time: i64,
     /// Parquet cache oracle to prefetch parquet file into cache
-    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
 }
 
 impl SeriesWriter {
@@ -324,7 +324,7 @@ impl SeriesWriter {
         compactor_id: Arc<str>,
         generation: Generation,
         index_columns: Vec<ColumnId>,
-        parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+        parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     ) -> Self {
         // TODO: this should come directly from a method on the table definition, and it is being
         // somewhat confused with the "series key" from the v3 line protocol.
@@ -525,7 +525,11 @@ impl SeriesWriter {
                         .build(),
                 );
                 let writer = AsyncArrowWriter::try_new_with_options(
-                    AsyncMultiPart::new(obj_store_multipart),
+                    AsyncMultiPart::new(
+                        path.as_object_store_path(),
+                        obj_store_multipart,
+                        self.parquet_cache_prefetcher.clone(),
+                    ),
                     self.record_batches.schema.as_arrow(),
                     options,
                 )
@@ -681,15 +685,28 @@ impl Debug for RecordBatchHolder {
 }
 
 struct AsyncMultiPart {
+    path: Arc<ObjPath>,
     multi_part: Box<dyn MultipartUpload>,
     bytes_buffer: Vec<u8>,
+    // every time bytes_buffer is flushed we add them to
+    // overall_buffer and finally when complete this is
+    // cleared.
+    overall_buffer: Vec<Bytes>,
+    cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
 }
 
 impl AsyncMultiPart {
-    fn new(multi_part: Box<dyn MultipartUpload>) -> Self {
+    fn new(
+        path: &ObjPath,
+        multi_part: Box<dyn MultipartUpload>,
+        parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
+    ) -> Self {
         Self {
+            path: Arc::from(path.clone()),
             multi_part,
             bytes_buffer: Vec::new(),
+            overall_buffer: Vec::new(),
+            cache_prefetcher: parquet_cache_prefetcher,
         }
     }
 }
@@ -713,6 +730,9 @@ impl Future for AsyncMultiPartWrite {
 }
 
 struct AsyncMultiPartComplete<'complete> {
+    path: Arc<ObjPath>,
+    overall_buffer: Vec<Bytes>,
+    cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     complete:
         Pin<Box<dyn Future<Output = Result<PutResult, object_store::Error>> + Send + 'complete>>,
 }
@@ -723,7 +743,21 @@ impl Future for AsyncMultiPartComplete<'_> {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.complete.as_mut().poll(cx) {
             Poll::Pending => Poll::Pending,
-            Poll::Ready(Ok(_)) => Poll::Ready(Ok(())),
+            Poll::Ready(Ok(res)) => {
+                if let Some(prefetcher) = &self.cache_prefetcher {
+                    let overall_bytes = self
+                        .overall_buffer
+                        .iter()
+                        .fold(BytesMut::new(), |mut acc, bytes| {
+                            acc.extend_from_slice(bytes);
+                            acc
+                        })
+                        .freeze();
+                    debug!(path = ?self.path, ">> caching path");
+                    prefetcher.add_to_cache(Arc::clone(&self.path), overall_bytes, res);
+                }
+                Poll::Ready(Ok(()))
+            }
             Poll::Ready(Err(err)) => {
                 Poll::Ready(Err(parquet::errors::ParquetError::General(err.to_string())))
             }
@@ -741,14 +775,17 @@ impl AsyncFileWriter for AsyncMultiPart {
         if self.bytes_buffer.len() < MULTIPART_UPLOAD_MINIMUM {
             Box::pin(async { Ok(()) })
         } else {
+            // this buffer is what we need
             let buffer = self
                 .bytes_buffer
                 .drain(0..MULTIPART_UPLOAD_MINIMUM)
                 .collect::<Vec<u8>>();
+            let bytes = Bytes::from(buffer);
+            if self.cache_prefetcher.is_some() {
+                self.overall_buffer.push(bytes.clone());
+            }
             Box::pin(AsyncMultiPartWrite {
-                payload: self
-                    .multi_part
-                    .put_part(PutPayload::from_bytes(Bytes::from(buffer))),
+                payload: self.multi_part.put_part(PutPayload::from_bytes(bytes)),
             })
         }
     }
@@ -756,21 +793,28 @@ impl AsyncFileWriter for AsyncMultiPart {
     fn complete(&mut self) -> BoxFuture<'_, parquet::errors::Result<()>> {
         Box::pin(async {
             if !self.bytes_buffer.is_empty() {
+                // this buffer is what we need
+                let bytes = Bytes::from(mem::take(&mut self.bytes_buffer));
+                if self.cache_prefetcher.is_some() {
+                    self.overall_buffer.push(bytes.clone());
+                }
+
                 Box::pin(AsyncMultiPartWrite {
                     payload: self
                         .multi_part
                         // Since we're completing the upload grab the rest of the bytes and write them out
                         // to object store before completing the upload
-                        .put_part(PutPayload::from_bytes(Bytes::from(mem::take(
-                            &mut self.bytes_buffer,
-                        )))),
+                        .put_part(PutPayload::from_bytes(bytes)),
                 })
                 .await?;
             }
 
             // Now that we have written out any residual data we can complete the upload
             AsyncMultiPartComplete {
+                path: Arc::clone(&self.path),
+                overall_buffer: self.overall_buffer.drain(..).collect(),
                 complete: self.multi_part.complete(),
+                cache_prefetcher: self.cache_prefetcher.clone(),
             }
             .await
         })
@@ -779,11 +823,16 @@ impl AsyncFileWriter for AsyncMultiPart {
 
 #[cfg(test)]
 mod test_helpers {
+    use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
     use executor::{register_current_runtime_for_io, DedicatedExecutor};
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
-    use influxdb3_cache::last_cache::LastCacheProvider;
+    use influxdb3_cache::{
+        last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
+    };
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
+    use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
         Gen1Duration, SnapshotDetails, SnapshotSequenceNumber, WalContents, WalFileNotifier,
         WalFileSequenceNumber, WalOp, WriteBatch,
@@ -794,11 +843,15 @@ mod test_helpers {
     use influxdb3_write::write_buffer::validator::WriteValidator;
     use influxdb3_write::{ParquetFile, PersistedSnapshot, Precision};
     use iox_query::exec::{Executor, ExecutorConfig};
-    use iox_time::{MockProvider, Time, TimeProvider};
-    use object_store::ObjectStore;
+    use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
+    use object_store::{memory::InMemory, path::Path as ObjPath, ObjectStore};
+    use parquet::arrow::async_writer::AsyncFileWriter;
     use parquet_file::storage::{ParquetStorage, StorageId};
-    use std::num::NonZeroUsize;
+    use pretty_assertions::assert_eq;
     use std::sync::Arc;
+    use std::{num::NonZeroUsize, str::FromStr};
+
+    use crate::AsyncMultiPart;
 
     pub(crate) struct TestWriter {
         pub(crate) exec: Arc<Executor>,
@@ -947,5 +1000,51 @@ mod test_helpers {
 
             persisted_snapshot
         }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_async_multi_part_with_caching() {
+        let obj_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+        let path = ObjPath::from("/foo.txt");
+
+        let multipart_upload = obj_store.put_multipart(&path).await.unwrap();
+        let (prefetcher, cache) = build_parquet_cache_prefetcher(&obj_store);
+        let mut multi_part_writer =
+            AsyncMultiPart::new(&ObjPath::from("/foo.txt"), multipart_upload, prefetcher);
+
+        multi_part_writer
+            .write(Bytes::from_static(b"hello"))
+            .await
+            .unwrap();
+        multi_part_writer
+            .write(Bytes::from_static(b"world"))
+            .await
+            .unwrap();
+        multi_part_writer.complete().await.unwrap();
+
+        let res = cache.get(&path).await.unwrap().bytes().await.unwrap();
+        assert_eq!(Bytes::from_static(b"helloworld"), res);
+        assert_eq!(0, obj_store.total_read_request_count(&path));
+    }
+
+    fn build_parquet_cache_prefetcher(
+        obj_store: &Arc<RequestCountedObjectStore>,
+    ) -> (Option<Arc<ParquetCachePreFetcher>>, Arc<dyn ObjectStore>) {
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
+        let (mem_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            Arc::clone(obj_store) as _,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
+        let mock_time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        (
+            Some(Arc::new(ParquetCachePreFetcher::new(
+                parquet_cache,
+                humantime::Duration::from_str("1d").unwrap(),
+                mock_time_provider,
+            ))),
+            mem_store,
+        )
     }
 }

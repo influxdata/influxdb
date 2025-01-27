@@ -3105,6 +3105,7 @@ dependencies = [
 name = "influxdb3_enterprise_parquet_cache"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
  "futures",
  "humantime",

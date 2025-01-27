@@ -76,7 +76,7 @@ pub struct CompactedDataProducer {
     pub enterprise_config: Arc<tokio::sync::RwLock<EnterpriseConfig>>,
     pub datafusion_config: Arc<StdHashMap<String, String>>,
     pub compacted_data: Arc<CompactedData>,
-    parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
 
     /// The gen1 data to compact should only ever be accessed by the compaction loop, so we use a
     /// tokio Mutex so we can hold it across await points to object storage.
@@ -111,7 +111,7 @@ pub struct CompactedDataProducerArgs {
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
     pub executor: Arc<Executor>,
-    pub parquet_cache_prefetcher: Option<ParquetCachePreFetcher>,
+    pub parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     pub sys_events_store: Arc<dyn CompactionEventStore>,
     pub time_provider: Arc<dyn TimeProvider>,
 }

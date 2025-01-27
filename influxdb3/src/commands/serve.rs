@@ -662,11 +662,11 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let parquet_cache_prefetcher = if let Some(parquet_cache) = parquet_cache.clone() {
-        Some(ParquetCachePreFetcher::new(
+        Some(Arc::new(ParquetCachePreFetcher::new(
             Arc::clone(&parquet_cache),
             config.enterprise_config.preemptive_cache_age,
             Arc::clone(&time_provider),
-        ))
+        )))
     } else {
         None
     };
