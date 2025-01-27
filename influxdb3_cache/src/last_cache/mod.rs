@@ -1684,13 +1684,62 @@ mod tests {
         let last_cache_fn = LastCacheFunction::new(db_schema.id, Arc::clone(&provider));
         ctx.register_udtf(LAST_CACHE_UDTF_NAME, Arc::new(last_cache_fn));
 
-        let results = ctx
-            .sql("select * from last_cache('cpu')")
-            .await
-            .unwrap()
-            .collect()
-            .await
-            .unwrap();
-        assert_batches_sorted_eq!([""], &results);
+        struct TestCase<'a> {
+            sql: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                sql: "select * from last_cache('cpu')",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| ca-cent | f    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-east | e    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-west | g    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-west | h    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | i    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | j    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-east | a    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-east | b    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-west | c    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-west | d    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+            TestCase {
+                sql: "select * from last_cache('cpu') WHERE region = 'eu-west'",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+            TestCase {
+                sql: "select * from last_cache('cpu') WHERE region IN ('eu-west', 'eu-cent')",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| eu-cent | i    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | j    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let results = ctx.sql(t.sql).await.unwrap().collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &results);
+        }
     }
 }
