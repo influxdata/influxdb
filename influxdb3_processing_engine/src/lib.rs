@@ -1,7 +1,7 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
-use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
+use crate::plugins::PluginError;
 use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
@@ -219,22 +219,23 @@ impl ProcessingEngineManagerImpl {
         }
     }
 
-    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::PluginError> {
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
-            // the filename should be the last part of the name after the last /
-            let plugin_name = plugin_path
-                .split('/')
-                .last()
-                .context("plugin name for github plugins must be <dir>/<name>")?;
             let url = format!(
-                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}/{}.py",
-                plugin_path, plugin_name
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}",
+                plugin_path
             );
             let resp = reqwest::get(&url)
                 .await
                 .context("error getting plugin from github repo")?;
+
+            // verify the response is a success
+            if !resp.status().is_success() {
+                return Err(PluginError::FetchingFromGithub(resp.status(), url));
+            }
+
             let resp_body = resp
                 .text()
                 .await
@@ -326,6 +327,10 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
             return Err(ProcessingEngineError::DatabaseNotFound(db_name.to_string()));
         };
+
+        // validate that we can actually read the plugin file
+        self.read_plugin_code(&plugin_filename).await?;
+
         let catalog_op = CatalogOp::CreateTrigger(TriggerDefinition {
             trigger_name,
             plugin_filename,
@@ -597,7 +602,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, plugins::Error> {
+    ) -> Result<WalPluginTestResponse, plugins::PluginError> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
@@ -619,7 +624,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         }
 
         #[cfg(not(feature = "system-py"))]
-        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
     }
@@ -629,7 +634,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<SchedulePluginTestResponse, Error> {
+    ) -> Result<SchedulePluginTestResponse, PluginError> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
@@ -657,7 +662,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         }
 
         #[cfg(not(feature = "system-py"))]
-        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
     }

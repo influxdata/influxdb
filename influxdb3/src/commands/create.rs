@@ -358,7 +358,8 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     .collect::<HashMap<String, String>>()
             });
 
-            client
+            //println!("does this work?");
+            match client
                 .api_v3_configure_processing_engine_trigger_create(
                     database_name,
                     &trigger_name,
@@ -367,8 +368,14 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     trigger_arguments,
                     disabled,
                 )
-                .await?;
-            println!("Trigger {} created successfully", trigger_name);
+                .await
+            {
+                Err(e) => {
+                    eprintln!("Failed to create trigger: {}", e);
+                    return Err(e.into());
+                }
+                Ok(_) => println!("Trigger {} created successfully", trigger_name),
+            }
         }
     }
     Ok(())
