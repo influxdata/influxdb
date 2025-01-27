@@ -1,6 +1,6 @@
 use crate::commands::serve::setup_processing_engine_env_manager;
 use anyhow::bail;
-use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
+use influxdb3_clap_blocks::plugins::ProcessingEngineConfig;
 use influxdb3_client::Client;
 #[cfg(feature = "system-py")]
 use influxdb3_processing_engine::virtualenv;
@@ -15,6 +15,7 @@ pub struct Config {
 
 #[derive(Debug, clap::Subcommand)]
 pub enum SubCommand {
+    /// Install packages within the plugin environment
     Package(PackageConfig),
 }
 
@@ -29,14 +30,11 @@ pub async fn command(config: Config) -> Result<(), anyhow::Error> {
 
 #[derive(Debug, clap::Args)]
 pub struct PackageConfig {
-    /// Which package manager to use. Currently support pip, pipx and uv.
-    #[clap(long = "manager", default_value = "pip")]
-    manager: PackageManager,
-
     /// Install packages from local directory
     #[arg(long, conflicts_with = "remote")]
     local: bool,
 
+    /// Have the remote influxdb install packages
     #[arg(long)]
     remote: bool,
     /// The host URL of the running InfluxDB 3 Core server

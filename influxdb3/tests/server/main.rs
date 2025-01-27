@@ -19,6 +19,7 @@ mod client;
 mod configure;
 mod flight;
 mod limits;
+mod packages;
 mod ping;
 mod query;
 mod system_tables;
@@ -49,6 +50,8 @@ pub struct TestConfig {
     auth_token: Option<(String, String)>,
     node_id: Option<String>,
     plugin_dir: Option<String>,
+    virtual_env_dir: Option<String>,
+    package_manager: Option<String>,
     // If None, use memory object store.
     object_store_dir: Option<String>,
 }
@@ -76,6 +79,17 @@ impl TestConfig {
         self
     }
 
+    /// Set the virtual env dir for this [`TestServer`]
+    pub fn with_virtual_env<S: Into<String>>(mut self, virtual_env_dir: S) -> Self {
+        self.virtual_env_dir = Some(virtual_env_dir.into());
+        self
+    }
+
+    pub fn with_package_manager<S: Into<String>>(mut self, package_manager: S) -> Self {
+        self.package_manager = Some(package_manager.into());
+        self
+    }
+
     // Set the object store dir for this [`TestServer`]
     pub fn with_object_store_dir<S: Into<String>>(mut self, object_store_dir: S) -> Self {
         self.object_store_dir = Some(object_store_dir.into());
@@ -91,6 +105,18 @@ impl ConfigProvider for TestConfig {
         }
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
+        }
+        if let Some(virtual_env_dir) = &self.virtual_env_dir {
+            args.append(&mut vec![
+                "--virtual-env-location".to_string(),
+                virtual_env_dir.to_owned(),
+            ]);
+        }
+        if let Some(package_manager) = &self.package_manager {
+            args.append(&mut vec![
+                "--package-manager".to_string(),
+                package_manager.to_owned(),
+            ]);
         }
         args.push("--node-id".to_string());
         if let Some(host) = &self.node_id {

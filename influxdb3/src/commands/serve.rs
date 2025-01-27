@@ -627,6 +627,10 @@ pub(crate) fn setup_processing_engine_env_manager(
         PackageManager::Pip => Arc::new(PipManager),
         PackageManager::UV => Arc::new(UVManager),
     };
+    println!(
+        "setting up package manager {:?} as {:?}",
+        config.package_manager, config.package_manager
+    );
     ProcessingEngineEnvironmentManager {
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
