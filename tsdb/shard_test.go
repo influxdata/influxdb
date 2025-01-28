@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2654,4 +2655,149 @@ func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
 		f(v)
 	}
 	return nil
+}
+
+var types []influxql.DataType = []influxql.DataType{influxql.Float, influxql.String, influxql.Integer, influxql.Boolean}
+
+func TestMeasurementFieldSetRace(t *testing.T) {
+	const name = "cpu"
+	nameBytes := []byte(name)
+	var wg sync.WaitGroup
+	maxConcurrency := atomic.Int64{}
+	concurrency := atomic.Int64{}
+	maxConcurrencyMF := atomic.Int64{}
+	for i := 0; i < 100; i++ {
+		fields := tsdb.NewMeasurementFields()
+		concurrencyMF := atomic.Int64{}
+		mu := sync.RWMutex{}
+		mu.Lock()
+		for j := 0; j < 100*len(types); j++ {
+			wg.Add(1)
+			concurrencyMF.Add(1)
+			concurrency.Add(1)
+			go func(index int, fields *tsdb.MeasurementFields, mu *sync.RWMutex) {
+				defer wg.Done()
+				defer concurrency.Add(-1)
+				defer concurrencyMF.Add(-1)
+				defer mu.RUnlock()
+				mu.RLock()
+				err := fields.CreateFieldIfNotExists(nameBytes, types[index%len(types)])
+				if fields.Field(name).Type != types[index%len(types)] {
+					require.EqualError(t, err, tsdb.ErrFieldTypeConflict.Error())
+				} else {
+					require.NoError(t, err)
+				}
+				if cMF := concurrencyMF.Load(); maxConcurrencyMF.Load() < cMF {
+					maxConcurrencyMF.Store(cMF)
+				}
+				if c := concurrency.Load(); maxConcurrency.Load() < c {
+					maxConcurrency.Store(c)
+				}
+			}(i+j, fields, &mu)
+		}
+		mu.Unlock()
+	}
+	wg.Wait()
+	t.Logf("max concurrency: %d, max concurrency within a MeasurementFields struct %d", maxConcurrency.Load(), maxConcurrencyMF.Load())
+}
+
+// Tests concurrently writing to the same shard with different field types which
+// can trigger a panic when the shard is snapshotted to TSM files.
+func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
+	const measurement = "cpu"
+	const field = "value"
+	const loops = 100
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on windows")
+	}
+	tmpDir, _ := os.MkdirTemp("", "shard_test")
+	defer func() {
+		require.NoError(t, os.RemoveAll(tmpDir), "removing %s", tmpDir)
+	}()
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile()
+	defer func() {
+		require.NoError(t, sfile.Close(), "closing series file")
+	}()
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = tmpWal
+	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+
+	currentTime := time.Now()
+
+	points := make([]models.Point, 0, loops*len(types))
+
+	for i := 0; i < loops; i++ {
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: 1.0},
+			currentTime,
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: int64(1)},
+			currentTime,
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: "one"},
+			currentTime,
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: true},
+			currentTime,
+		))
+	}
+	var wg sync.WaitGroup
+	mu := sync.RWMutex{}
+	maxConcurrency := atomic.Int64{}
+	concurrency := atomic.Int64{}
+
+	for i := 0; i < 10; i++ {
+		opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
+
+		sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+		require.NoError(t, sh.Open(), "opening shard: %s", sh.Path())
+		mu.Lock()
+
+		wg.Add(len(points))
+		// Write points concurrently
+		for _, p := range points {
+			concurrency.Add(1)
+			go func() {
+				mu.RLock()
+				defer concurrency.Add(-1)
+				defer mu.RUnlock()
+				defer wg.Done()
+				if err := sh.WritePoints([]models.Point{p}, tsdb.NoopStatsTracker()); err == nil {
+					fs, err := p.Fields()
+					require.NoError(t, err, "getting fields")
+					require.Equal(t,
+						influxql.InspectDataType(fs[field]),
+						sh.MeasurementFields([]byte(measurement)).Field(field).Type,
+						"field types mismatch")
+					f, err := sh.CreateSnapshot(false)
+					require.NoError(t, err, "creating snapshot: %s", sh.Path())
+					require.NoError(t, os.RemoveAll(f), "removing snapshot %s", f)
+				} else {
+					require.ErrorContains(t, err, tsdb.ErrFieldTypeConflict.Error(), "unexpected error")
+				}
+				if c := concurrency.Load(); maxConcurrency.Load() < c {
+					maxConcurrency.Store(c)
+				}
+			}()
+		}
+		mu.Unlock()
+		wg.Wait()
+		require.NoError(t, sh.Close(), "closing shard %s", tmpShard)
+	}
+	t.Logf("max concurrency: %d", maxConcurrency.Load())
 }
