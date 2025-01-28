@@ -51,7 +51,7 @@ func TestResourceListHandler(t *testing.T) {
 	resp := w.Result()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		t.Logf(string(body))
+		t.Log(string(body))
 		t.Errorf("unexpected status: %s", resp.Status)
 	}
 

@@ -307,7 +307,7 @@ func Test_handleGetDBRPs(t *testing.T) {
 			}
 
 			if !cmp.Equal(tt.ExpectedDBRPs, dbrps.Content) {
-				t.Fatalf(cmp.Diff(tt.ExpectedDBRPs, dbrps.Content))
+				t.Fatal(cmp.Diff(tt.ExpectedDBRPs, dbrps.Content))
 			}
 
 		})
@@ -432,7 +432,7 @@ func Test_handlePatchDBRP(t *testing.T) {
 			}
 
 			if !cmp.Equal(tt.ExpectedDBRP, dbrpResponse.Content) {
-				t.Fatalf(cmp.Diff(tt.ExpectedDBRP, dbrpResponse.Content))
+				t.Fatal(cmp.Diff(tt.ExpectedDBRP, dbrpResponse.Content))
 			}
 		})
 	}
