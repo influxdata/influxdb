@@ -64,7 +64,7 @@ async fn run_version_check(server_addr: &str, plugin_path: &str) -> Result<Vec<S
         "-d",
         "version_check",
         plugin_path,
-    ])?;
+    ]);
 
     let json: Value = serde_json::from_str(&output)?;
     Ok(json["log_lines"]
@@ -116,7 +116,7 @@ async fn test_python_venv_pip_install() -> Result<()> {
         "--host",
         &server_addr,
         "version_check",
-    ])?;
+    ]);
 
     // Check package is not installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -126,15 +126,12 @@ async fn test_python_venv_pip_install() -> Result<()> {
     run_with_confirmation(&[
         "install",
         "package",
-        "--local",
+        "--host",
+        &server_addr,
         "--package-manager",
         "pip",
         &format!("{}=={}", TEST_PACKAGE, TEST_VERSION),
-        "--virtual-env-location",
-        test.venv_path().to_str().unwrap(),
-        "--plugin-dir",
-        test.plugin_dir().as_str(),
-    ])?;
+    ]);
 
     // Verify correct version installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -163,7 +160,7 @@ async fn test_uv_venv_uv_install() -> Result<()> {
         "--host",
         &server_addr,
         "version_check",
-    ])?;
+    ]);
 
     // Check package is not installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -173,15 +170,12 @@ async fn test_uv_venv_uv_install() -> Result<()> {
     run_with_confirmation(&[
         "install",
         "package",
-        "--local",
+        "--host",
+        &server_addr,
         "--package-manager",
         "uv",
-        "--plugin-dir",
-        test.plugin_dir().as_str(),
-        "--virtual-env-location",
-        test.venv_path().to_str().unwrap(),
         TEST_PACKAGE,
-    ])?;
+    ]);
 
     // Verify package is installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -209,7 +203,7 @@ async fn test_venv_requirements_install() -> Result<()> {
         "--host",
         &server_addr,
         "version_check",
-    ])?;
+    ]);
 
     // Check package is not installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -223,14 +217,11 @@ async fn test_venv_requirements_install() -> Result<()> {
     run_with_confirmation(&[
         "install",
         "package",
-        "--local",
+        "--host",
+        &server_addr,
         "--requirements",
         requirements_file.path().to_str().unwrap(),
-        "--plugin-dir",
-        test.plugin_dir().as_str(),
-        "--virtual-env-location",
-        test.venv_path().to_str().unwrap(),
-    ])?;
+    ]);
 
     // Verify installation
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
@@ -257,23 +248,14 @@ async fn test_venv_remote_install() -> Result<()> {
         "--host",
         &server_addr,
         "version_check",
-    ])?;
+    ]);
 
     // Check package is not installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Test remote installation
-    run_with_confirmation(&[
-        "install",
-        "package",
-        "--remote",
-        "--host",
-        &server_addr,
-        "--virtual-env-location",
-        test.venv_path().to_str().unwrap(),
-        TEST_PACKAGE,
-    ])?;
+    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
 
     // Verify installation
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
