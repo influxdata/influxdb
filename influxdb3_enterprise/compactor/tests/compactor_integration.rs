@@ -718,6 +718,7 @@ async fn do_writes(
                 Time::from_timestamp_nanos(time),
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();

@@ -1,12 +1,11 @@
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
-use crate::plugins::Error;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
+use crate::plugins::PluginError;
 use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
-use influxdb3_catalog::catalog;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_client::plugin_development::{
@@ -14,10 +13,11 @@ use influxdb3_client::plugin_development::{
     WalPluginTestResponse,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
+#[cfg(feature = "system-py")]
+use influxdb3_wal::PluginType;
 use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DeletePluginDefinition, DeleteTriggerDefinition, PluginDefinition,
-    PluginType, SnapshotDetails, TriggerDefinition, TriggerIdentifier,
-    TriggerSpecificationDefinition, Wal, WalContents, WalFileNotifier, WalOp,
+    CatalogBatch, CatalogOp, DeleteTriggerDefinition, SnapshotDetails, TriggerDefinition,
+    TriggerIdentifier, TriggerSpecificationDefinition, Wal, WalContents, WalFileNotifier, WalOp,
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
@@ -219,22 +219,23 @@ impl ProcessingEngineManagerImpl {
         }
     }
 
-    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::Error> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::PluginError> {
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
-            // the filename should be the last part of the name after the last /
-            let plugin_name = plugin_path
-                .split('/')
-                .last()
-                .context("plugin name for github plugins must be <dir>/<name>")?;
             let url = format!(
-                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}/{}.py",
-                plugin_path, plugin_name
+                "https://raw.githubusercontent.com/influxdata/influxdb3_plugins/main/{}",
+                plugin_path
             );
             let resp = reqwest::get(&url)
                 .await
                 .context("error getting plugin from github repo")?;
+
+            // verify the response is a success
+            if !resp.status().is_success() {
+                return Err(PluginError::FetchingFromGithub(resp.status(), url));
+            }
+
             let resp_body = resp
                 .text()
                 .await
@@ -314,81 +315,11 @@ impl LocalPlugin {
 
 #[async_trait::async_trait]
 impl ProcessingEngineManager for ProcessingEngineManagerImpl {
-    async fn insert_plugin(
-        &self,
-        db: &str,
-        plugin_name: String,
-        file_name: String,
-        plugin_type: PluginType,
-    ) -> Result<(), ProcessingEngineError> {
-        // first verify that we can read the file
-        match &self.plugin_dir {
-            Some(plugin_dir) => {
-                let path = plugin_dir.join(&file_name);
-                if !path.exists() {
-                    return Err(ProcessingEngineError::PluginNotFound(file_name));
-                }
-            }
-            None => return Err(ProcessingEngineError::PluginDirNotSet),
-        }
-
-        let (db_id, db_schema) = self
-            .catalog
-            .db_id_and_schema(db)
-            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db.to_string()))?;
-
-        let catalog_op = CatalogOp::CreatePlugin(PluginDefinition {
-            plugin_name,
-            file_name,
-            plugin_type,
-        });
-
-        let creation_time = self.time_provider.now();
-        let catalog_batch = CatalogBatch {
-            time_ns: creation_time.timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![catalog_op],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            let wal_op = WalOp::Catalog(catalog_batch);
-            self.wal.write_ops(vec![wal_op]).await?;
-        }
-        Ok(())
-    }
-
-    async fn delete_plugin(
-        &self,
-        db: &str,
-        plugin_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        let (db_id, db_schema) = self
-            .catalog
-            .db_id_and_schema(db)
-            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db.to_string()))?;
-        let catalog_op = CatalogOp::DeletePlugin(DeletePluginDefinition {
-            plugin_name: plugin_name.to_string(),
-        });
-        let catalog_batch = CatalogBatch {
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![catalog_op],
-        };
-
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-        Ok(())
-    }
-
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
-        plugin_name: String,
+        plugin_filename: String,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -396,17 +327,13 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
             return Err(ProcessingEngineError::DatabaseNotFound(db_name.to_string()));
         };
-        let plugin = db_schema
-            .processing_engine_plugins
-            .get(&plugin_name)
-            .ok_or_else(|| catalog::Error::ProcessingEnginePluginNotFound {
-                plugin_name: plugin_name.to_string(),
-                database_name: db_schema.name.to_string(),
-            })?;
+
+        // validate that we can actually read the plugin file
+        self.read_plugin_code(&plugin_filename).await?;
+
         let catalog_op = CatalogOp::CreateTrigger(TriggerDefinition {
             trigger_name,
-            plugin_name,
-            plugin_file_name: plugin.file_name.clone(),
+            plugin_filename,
             trigger: trigger_specification,
             trigger_arguments,
             disabled,
@@ -496,18 +423,8 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 write_buffer,
                 query_executor,
             };
-            let plugin_code = self.read_plugin_code(&trigger.plugin_file_name).await?;
-            let Some(plugin_definition) = db_schema
-                .processing_engine_plugins
-                .get(&trigger.plugin_name)
-            else {
-                return Err(catalog::Error::ProcessingEnginePluginNotFound {
-                    plugin_name: trigger.plugin_name,
-                    database_name: db_name.to_string(),
-                }
-                .into());
-            };
-            match plugin_definition.plugin_type {
+            let plugin_code = self.read_plugin_code(&trigger.plugin_filename).await?;
+            match trigger.trigger.plugin_type() {
                 PluginType::WalRows => {
                     let rec = self
                         .plugin_event_tx
@@ -523,7 +440,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                         rec,
                     )
                 }
-                PluginType::Scheduled => {
+                PluginType::Schedule => {
                     let rec = self
                         .plugin_event_tx
                         .write()
@@ -685,7 +602,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, plugins::Error> {
+    ) -> Result<WalPluginTestResponse, plugins::PluginError> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
@@ -707,7 +624,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         }
 
         #[cfg(not(feature = "system-py"))]
-        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
     }
@@ -717,7 +634,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<SchedulePluginTestResponse, Error> {
+    ) -> Result<SchedulePluginTestResponse, PluginError> {
         #[cfg(feature = "system-py")]
         {
             // create a copy of the catalog so we don't modify the original
@@ -745,7 +662,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         }
 
         #[cfg(not(feature = "system-py"))]
-        Err(plugins::Error::AnyhowError(anyhow::anyhow!(
+        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
             "system-py feature not enabled"
         )))
     }
@@ -841,9 +758,7 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_catalog::catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
-    use influxdb3_wal::{
-        Gen1Duration, PluginDefinition, PluginType, TriggerSpecificationDefinition, WalConfig,
-    };
+    use influxdb3_wal::{Gen1Duration, TriggerSpecificationDefinition, WalConfig};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};
@@ -858,205 +773,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
     use tempfile::NamedTempFile;
-
-    #[tokio::test]
-    async fn test_create_plugin() -> influxdb3_write::write_buffer::Result<()> {
-        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-        };
-        let (pem, file) = setup(start_time, test_store, wal_config).await;
-        let file_name = file
-            .path()
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        pem.write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
-                start_time,
-                false,
-                Precision::Nanosecond,
-            )
-            .await?;
-
-        pem.insert_plugin(
-            "foo",
-            "my_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-
-        let plugin = pem
-            .catalog
-            .db_schema("foo")
-            .expect("should have db named foo")
-            .processing_engine_plugins
-            .get("my_plugin")
-            .unwrap()
-            .clone();
-        let expected = PluginDefinition {
-            plugin_name: "my_plugin".to_string(),
-            file_name: file_name.to_string(),
-            plugin_type: PluginType::WalRows,
-        };
-        assert_eq!(expected, plugin);
-
-        // confirm that creating it again is a no-op.
-        pem.insert_plugin(
-            "foo",
-            "my_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-
-        // Confirm the same contents can be added to a new name.
-        pem.insert_plugin(
-            "foo",
-            "my_second_plugin".to_string(),
-            file_name,
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-        Ok(())
-    }
-    #[tokio::test]
-    async fn test_delete_plugin() -> influxdb3_write::write_buffer::Result<()> {
-        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-        };
-        let (pem, file) = setup(start_time, test_store, wal_config).await;
-        let file_name = file
-            .path()
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        // Create the DB by inserting a line.
-        pem.write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
-                start_time,
-                false,
-                Precision::Nanosecond,
-            )
-            .await?;
-
-        // First create a plugin
-        pem.insert_plugin(
-            "foo",
-            "test_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-
-        // Then delete it
-        pem.delete_plugin("foo", "test_plugin").await.unwrap();
-
-        // Verify plugin is gone from schema
-        let schema = pem.catalog.db_schema("foo").unwrap();
-        assert!(!schema.processing_engine_plugins.contains_key("test_plugin"));
-
-        // Verify we can add a newly named plugin
-        pem.insert_plugin(
-            "foo",
-            "test_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_delete_plugin_with_active_trigger() -> influxdb3_write::write_buffer::Result<()> {
-        let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
-        let test_store = Arc::new(InMemory::new());
-        let wal_config = WalConfig {
-            gen1_duration: Gen1Duration::new_1m(),
-            max_write_buffer_size: 100,
-            flush_interval: Duration::from_millis(10),
-            snapshot_size: 1,
-        };
-        let (pem, file) = setup(start_time, test_store, wal_config).await;
-        let file_name = file
-            .path()
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        // Create the DB by inserting a line.
-        pem.write_buffer
-            .write_lp(
-                NamespaceName::new("foo").unwrap(),
-                "cpu,warehouse=us-east,room=01a,device=10001 reading=37\n",
-                start_time,
-                false,
-                Precision::Nanosecond,
-            )
-            .await?;
-
-        // Create a plugin
-        pem.insert_plugin(
-            "foo",
-            "test_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
-
-        // Create a trigger using the plugin
-        pem.insert_trigger(
-            "foo",
-            "test_trigger".to_string(),
-            "test_plugin".to_string(),
-            TriggerSpecificationDefinition::AllTablesWalWrite,
-            None,
-            false,
-        )
-        .await
-        .unwrap();
-
-        // Try to delete the plugin - should fail because trigger exists
-        let result = pem.delete_plugin("foo", "test_plugin").await;
-        assert!(matches!(
-            result,
-            Err(ProcessingEngineError::CatalogUpdateError(catalog::Error::ProcessingEnginePluginInUse {
-                database_name,
-                plugin_name,
-                trigger_name,
-            })) if database_name == "foo" && plugin_name == "test_plugin" && trigger_name == "test_trigger"
-        ));
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_trigger_lifecycle() -> influxdb3_write::write_buffer::Result<()> {
@@ -1088,24 +804,15 @@ mod tests {
                 start_time,
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await?;
-
-        // Create a plugin
-        pem.insert_plugin(
-            "foo",
-            "test_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
 
         // Create an enabled trigger
         pem.insert_trigger(
             "foo",
             "test_trigger".to_string(),
-            "test_plugin".to_string(),
+            file_name,
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             false,
@@ -1182,24 +889,15 @@ mod tests {
                 start_time,
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await?;
-
-        // Create a plugin
-        pem.insert_plugin(
-            "foo",
-            "test_plugin".to_string(),
-            file_name.clone(),
-            PluginType::WalRows,
-        )
-        .await
-        .unwrap();
 
         // Create a disabled trigger
         pem.insert_trigger(
             "foo",
             "test_trigger".to_string(),
-            "test_plugin".to_string(),
+            file_name,
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             true,
@@ -1242,6 +940,7 @@ mod tests {
                 start_time,
                 false,
                 Precision::Nanosecond,
+                false,
             )
             .await?;
 

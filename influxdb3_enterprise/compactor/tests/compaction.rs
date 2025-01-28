@@ -85,6 +85,7 @@ async fn five_files_multiple_series_same_schema() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -315,6 +316,7 @@ async fn two_files_two_series_and_same_schema() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -477,6 +479,7 @@ async fn two_files_same_series_and_schema() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -625,6 +628,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -635,6 +639,7 @@ async fn two_files_similar_series_and_compatible_schema() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -810,6 +815,7 @@ async fn deduplication_of_data() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();
@@ -955,6 +961,7 @@ async fn compactor_casting() {
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
+            false,
         )
         .await
         .unwrap();

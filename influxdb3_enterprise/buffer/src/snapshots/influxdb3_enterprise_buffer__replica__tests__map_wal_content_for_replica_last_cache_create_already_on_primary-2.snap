@@ -2,7 +2,6 @@
 source: influxdb3_enterprise/buffer/src/replica.rs
 description: "database schema for 'foo' db after applying the mapped catalog batch from the replica; it should still have a 'bar' table containing just a single last cache definition"
 expression: db_after_applying
-snapshot_kind: text
 ---
 id: 0
 name: foo
@@ -48,6 +47,5 @@ tables:
           n: 1
           ttl: 3600
       deleted: false
-processing_engine_plugins: []
 processing_engine_triggers: []
 deleted: false

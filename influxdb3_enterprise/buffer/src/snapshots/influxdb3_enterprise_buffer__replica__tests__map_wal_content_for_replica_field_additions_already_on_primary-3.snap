@@ -2,7 +2,6 @@
 source: influxdb3_enterprise/buffer/src/replica.rs
 description: "db schema in primary after applying mapped replica batch, there should be a single field 'f4' in the 'bar' table."
 expression: db
-snapshot_kind: text
 ---
 id: 0
 name: foo
@@ -45,6 +44,5 @@ tables:
             influx_type: tag
             nullable: false
       deleted: false
-processing_engine_plugins: []
 processing_engine_triggers: []
 deleted: false

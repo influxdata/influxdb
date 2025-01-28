@@ -31,7 +31,7 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
-pub enum Error {
+pub enum PluginError {
     #[error("invalid database {0}")]
     InvalidDatabase(String),
 
@@ -65,6 +65,12 @@ pub enum Error {
 
     #[error("tried to run a schedule plugin but the schedule iterator is over.")]
     ScheduledMissingTime,
+
+    #[error("non-schedule plugin with schedule trigger: {0}")]
+    NonSchedulePluginWithScheduleTrigger(String),
+
+    #[error("error reading file from Github: {0} {1}")]
+    FetchingFromGithub(reqwest::StatusCode, String),
 }
 
 #[cfg(feature = "system-py")]
@@ -98,11 +104,15 @@ pub(crate) fn run_schedule_plugin(
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<ScheduleEvent>,
-) -> Result<(), Error> {
-    let TriggerSpecificationDefinition::Schedule { .. } = &trigger_definition.trigger else {
-        // TODO: these linkages should be guaranteed by code.
-        unreachable!("this should've been checked");
-    };
+) -> Result<(), PluginError> {
+    // Ensure that the plugin is a schedule plugin
+    let plugin_type = trigger_definition.trigger.plugin_type();
+    if !matches!(plugin_type, influxdb3_wal::PluginType::Schedule) {
+        return Err(PluginError::NonSchedulePluginWithScheduleTrigger(format!(
+            "{:?}",
+            trigger_definition
+        )));
+    }
 
     let trigger_plugin = TriggerPlugin {
         trigger_definition,
@@ -194,8 +204,8 @@ mod python_plugin {
         pub(crate) async fn run_wal_contents_plugin(
             &self,
             mut receiver: Receiver<WalEvent>,
-        ) -> Result<(), Error> {
-            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting wal contents plugin");
+        ) -> Result<(), PluginError> {
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting wal contents plugin");
 
             loop {
                 let event = match receiver.recv().await {
@@ -213,7 +223,7 @@ mod python_plugin {
                         }
                     }
                     WalEvent::Shutdown(sender) => {
-                        sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                        sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
                         break;
                     }
                 }
@@ -227,7 +237,7 @@ mod python_plugin {
             mut receiver: Receiver<ScheduleEvent>,
             mut runner: ScheduleTriggerRunner,
             time_provider: Arc<dyn TimeProvider>,
-        ) -> Result<(), Error> {
+        ) -> Result<(), PluginError> {
             loop {
                 let Some(next_run_instant) = runner.next_run_time() else {
                     break;
@@ -236,7 +246,7 @@ mod python_plugin {
                 tokio::select! {
                     _ = time_provider.sleep_until(next_run_instant) => {
                         let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
-                            return Err(Error::MissingDb);
+                            return Err(PluginError::MissingDb);
                         };
                         runner.run_at_time(self, schema).await?;
                     }
@@ -247,7 +257,7 @@ mod python_plugin {
                                 break;
                             }
                             Some(ScheduleEvent::Shutdown(sender)) => {
-                                sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                                sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
                                 break;
                             }
                         }
@@ -261,8 +271,8 @@ mod python_plugin {
         pub(crate) async fn run_request_plugin(
             &self,
             mut receiver: Receiver<RequestEvent>,
-        ) -> Result<(), Error> {
-            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_name, "starting request plugin");
+        ) -> Result<(), PluginError> {
+            info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting request plugin");
 
             loop {
                 match receiver.recv().await {
@@ -275,7 +285,7 @@ mod python_plugin {
                             self.write_buffer.catalog().db_schema(self.db_name.as_str())
                         else {
                             error!(?self.trigger_definition, "missing db schema");
-                            return Err(Error::MissingDb);
+                            return Err(PluginError::MissingDb);
                         };
                         let result = execute_request_trigger(
                             self.plugin_code.code().as_ref(),
@@ -333,7 +343,7 @@ mod python_plugin {
                         }
                     }
                     Some(RequestEvent::Shutdown(sender)) => {
-                        sender.send(()).map_err(|_| Error::FailedToShutdown)?;
+                        sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
                         break;
                     }
                 }
@@ -342,9 +352,12 @@ mod python_plugin {
             Ok(())
         }
 
-        async fn process_wal_contents(&self, wal_contents: Arc<WalContents>) -> Result<(), Error> {
+        async fn process_wal_contents(
+            &self,
+            wal_contents: Arc<WalContents>,
+        ) -> Result<(), PluginError> {
             let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
-                return Err(Error::MissingDb);
+                return Err(PluginError::MissingDb);
             };
 
             for wal_op in &wal_contents.ops {
@@ -426,6 +439,7 @@ mod python_plugin {
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
                         Precision::Nanosecond,
+                        false,
                     )
                     .await
                 {
@@ -447,6 +461,7 @@ mod python_plugin {
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,
                         Precision::Nanosecond,
+                        false,
                     )
                     .await
                 {
@@ -472,7 +487,7 @@ mod python_plugin {
         pub(crate) fn try_new(
             trigger_spec: &TriggerSpecificationDefinition,
             time_provider: Arc<dyn TimeProvider>,
-        ) -> Result<Self, Error> {
+        ) -> Result<Self, PluginError> {
             match trigger_spec {
                 TriggerSpecificationDefinition::AllTablesWalWrite
                 | TriggerSpecificationDefinition::SingleTableWalWrite { .. } => {
@@ -529,7 +544,7 @@ mod python_plugin {
             &mut self,
             plugin: &TriggerPlugin,
             db_schema: Arc<DatabaseSchema>,
-        ) -> Result<(), Error> {
+        ) -> Result<(), PluginError> {
             let Some(trigger_time) = self.next_trigger_time else {
                 return Err(anyhow!("running a cron trigger that is finished.").into());
             };
@@ -575,7 +590,7 @@ pub(crate) fn run_test_wal_plugin(
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
     request: WalPluginTestRequest,
-) -> Result<WalPluginTestResponse, Error> {
+) -> Result<WalPluginTestResponse, PluginError> {
     use data_types::NamespaceName;
     use influxdb3_wal::Gen1Duration;
     use influxdb3_write::write_buffer::validator::WriteValidator;
@@ -583,7 +598,7 @@ pub(crate) fn run_test_wal_plugin(
 
     let database = request.database;
     let namespace = NamespaceName::new(database.clone())
-        .map_err(|_e| Error::InvalidDatabase(database.clone()))?;
+        .map_err(|_e| PluginError::InvalidDatabase(database.clone()))?;
     // parse the lp into a write batch
     let validator = WriteValidator::initialize(
         namespace.clone(),
@@ -597,7 +612,7 @@ pub(crate) fn run_test_wal_plugin(
         Precision::Nanosecond,
     )?;
     let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
-    let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
+    let db = catalog.db_schema(&database).ok_or(PluginError::MissingDb)?;
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_python_with_batch(
         &code,
@@ -713,15 +728,17 @@ pub(crate) fn run_test_schedule_plugin(
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
     request: influxdb3_client::plugin_development::SchedulePluginTestRequest,
-) -> Result<influxdb3_client::plugin_development::SchedulePluginTestResponse, Error> {
+) -> Result<influxdb3_client::plugin_development::SchedulePluginTestResponse, PluginError> {
     let database = request.database;
-    let db = catalog.db_schema(&database).ok_or(Error::MissingDb)?;
+    let db = catalog.db_schema(&database).ok_or(PluginError::MissingDb)?;
 
     let cron_schedule = request.schedule.as_deref().unwrap_or("* * * * * *");
 
     let schedule = cron::Schedule::from_str(cron_schedule)?;
     let Some(schedule_time) = schedule.after(&now_time.date_time()).next() else {
-        return Err(Error::CronScheduleNeverTriggers(cron_schedule.to_string()));
+        return Err(PluginError::CronScheduleNeverTriggers(
+            cron_schedule.to_string(),
+        ));
     };
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_schedule_trigger(

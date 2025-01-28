@@ -2,7 +2,6 @@
 source: influxdb3_enterprise/buffer/src/replica.rs
 description: "database schema in primary catalog after mapping and applying replica WAL content, table 'bar' should include field 'f4'"
 expression: db
-snapshot_kind: text
 ---
 id: 0
 name: foo
@@ -45,6 +44,5 @@ tables:
             influx_type: tag
             nullable: false
       deleted: false
-processing_engine_plugins: []
 processing_engine_triggers: []
 deleted: false

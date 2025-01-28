@@ -2,70 +2,10 @@ use arrow_array::{ArrayRef, BooleanArray, RecordBatch, StringArray};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::common::Result;
-use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
-use influxdb3_wal::{PluginDefinition, TriggerDefinition};
+use influxdb3_wal::TriggerDefinition;
 use iox_system_tables::IoxSystemTable;
 use std::sync::Arc;
-
-#[derive(Debug)]
-pub(super) struct ProcessingEnginePluginTable {
-    schema: SchemaRef,
-    plugins: Vec<PluginDefinition>,
-}
-
-fn plugin_schema() -> SchemaRef {
-    let columns = vec![
-        Field::new("plugin_name", DataType::Utf8, false),
-        Field::new("file_name", DataType::Utf8, false),
-        Field::new("plugin_type", DataType::Utf8, false),
-    ];
-    Schema::new(columns).into()
-}
-
-impl ProcessingEnginePluginTable {
-    pub fn new(python_calls: Vec<PluginDefinition>) -> Self {
-        Self {
-            schema: plugin_schema(),
-            plugins: python_calls,
-        }
-    }
-}
-
-#[async_trait]
-impl IoxSystemTable for ProcessingEnginePluginTable {
-    fn schema(&self) -> SchemaRef {
-        Arc::clone(&self.schema)
-    }
-    async fn scan(
-        &self,
-        _filters: Option<Vec<Expr>>,
-        _limit: Option<usize>,
-    ) -> Result<RecordBatch, DataFusionError> {
-        let schema = self.schema();
-        let columns: Vec<ArrayRef> = vec![
-            Arc::new(
-                self.plugins
-                    .iter()
-                    .map(|call| Some(call.plugin_name.clone()))
-                    .collect::<StringArray>(),
-            ),
-            Arc::new(
-                self.plugins
-                    .iter()
-                    .map(|p| Some(p.file_name.clone()))
-                    .collect::<StringArray>(),
-            ),
-            Arc::new(
-                self.plugins
-                    .iter()
-                    .map(|p| serde_json::to_string(&p.plugin_type).ok())
-                    .collect::<StringArray>(),
-            ),
-        ];
-        Ok(RecordBatch::try_new(schema, columns)?)
-    }
-}
 
 #[derive(Debug)]
 pub(super) struct ProcessingEngineTriggerTable {
@@ -85,7 +25,7 @@ impl ProcessingEngineTriggerTable {
 fn trigger_schema() -> SchemaRef {
     let columns = vec![
         Field::new("trigger_name", DataType::Utf8, false),
-        Field::new("plugin_name", DataType::Utf8, false),
+        Field::new("plugin_filename", DataType::Utf8, false),
         Field::new("trigger_specification", DataType::Utf8, false),
         Field::new("disabled", DataType::Boolean, false),
     ];
@@ -111,7 +51,7 @@ impl IoxSystemTable for ProcessingEngineTriggerTable {
         let plugin_column = self
             .triggers
             .iter()
-            .map(|trigger| Some(trigger.plugin_name.clone()))
+            .map(|trigger| Some(trigger.plugin_filename.clone()))
             .collect::<StringArray>();
         let specification_column = self
             .triggers

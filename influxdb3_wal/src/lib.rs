@@ -22,7 +22,7 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,8 +70,8 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[async_trait]
 pub trait Wal: Debug + Send + Sync + 'static {
-    /// Buffer into a single larger operation in memory. Returns before the operation is persisted.
-    async fn buffer_op_unconfirmed(&self, op: WalOp) -> Result<(), Error>;
+    /// Buffer writes ops into the buffer, but returns before the operation is persisted to the WAL.
+    async fn write_ops_unconfirmed(&self, op: Vec<WalOp>) -> Result<(), Error>;
 
     /// Writes the ops into the buffer and waits until the WAL file is persisted. When this returns
     /// the operations are durable in the configured object store and the file notifier has been
@@ -130,7 +130,7 @@ pub struct NoopWal;
 
 #[async_trait]
 impl Wal for NoopWal {
-    async fn buffer_op_unconfirmed(&self, _op: WalOp) -> Result<(), Error> {
+    async fn write_ops_unconfirmed(&self, _op: Vec<WalOp>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -394,8 +394,6 @@ pub enum CatalogOp {
     DeleteLastCache(LastCacheDelete),
     DeleteDatabase(DeleteDatabaseDefinition),
     DeleteTable(DeleteTableDefinition),
-    CreatePlugin(PluginDefinition),
-    DeletePlugin(DeletePluginDefinition),
     CreateTrigger(TriggerDefinition),
     DeleteTrigger(DeleteTriggerDefinition),
     EnableTrigger(TriggerIdentifier),
@@ -677,31 +675,24 @@ pub struct DistinctCacheDelete {
     pub cache_name: Arc<str>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct PluginDefinition {
-    pub plugin_name: String,
-    pub file_name: String,
-    pub plugin_type: PluginType,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DeletePluginDefinition {
-    pub plugin_name: String,
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
     WalRows,
-    Scheduled,
+    Schedule,
     Request,
+}
+
+impl Display for PluginType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TriggerDefinition {
     pub trigger_name: String,
-    pub plugin_name: String,
-    pub plugin_file_name: String,
+    pub plugin_filename: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -810,6 +801,16 @@ impl TriggerSpecificationDefinition {
             TriggerSpecificationDefinition::RequestPath { path } => {
                 format!("request:{}", path)
             }
+        }
+    }
+
+    pub fn plugin_type(&self) -> PluginType {
+        match self {
+            TriggerSpecificationDefinition::SingleTableWalWrite { .. }
+            | TriggerSpecificationDefinition::AllTablesWalWrite => PluginType::WalRows,
+            TriggerSpecificationDefinition::Schedule { .. }
+            | TriggerSpecificationDefinition::Every { .. } => PluginType::Schedule,
+            TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
     }
 }

@@ -342,3 +342,54 @@ async fn writes_with_different_schema_should_fail() {
         "the request should hae failed with an API Error"
     );
 }
+#[tokio::test]
+/// Check that the no_sync param can be used on any endpoint. However, this only means that serde
+/// will parse it just fine. It is only able to be used in the v3 endpoint and will
+/// default to requiring the WAL to synce before returning.
+async fn api_no_sync_param() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let v1_write_url = format!("{base}/write", base = server.client_addr());
+    let v2_write_url = format!("{base}/api/v2/write", base = server.client_addr());
+    let v3_write_url = format!("{base}/api/v3/write_lp", base = server.client_addr());
+    let write_body = "cpu,host=a usage=0.5";
+
+    let params = vec![("db", "foo"), ("no_sync", "true")];
+    let resp = client
+        .post(&v1_write_url)
+        .query(&params)
+        .body(write_body)
+        .send()
+        .await
+        .expect("send /write request");
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+    println!("Response [{status}]:\n{body}");
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let params = vec![("bucket", "foo"), ("no_sync", "true")];
+    let resp = client
+        .post(&v2_write_url)
+        .query(&params)
+        .body(write_body)
+        .send()
+        .await
+        .expect("send api/v2/write request");
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+    println!("Response [{status}]:\n{body}");
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let params = vec![("db", "foo"), ("no_sync", "true")];
+    let resp = client
+        .post(&v3_write_url)
+        .query(&params)
+        .body(write_body)
+        .send()
+        .await
+        .expect("send api/v3/write request");
+    let status = resp.status();
+    let body = resp.text().await.expect("response body as text");
+    println!("Response [{status}]:\n{body}");
+    assert_eq!(status, StatusCode::NO_CONTENT);
+}

@@ -147,10 +147,18 @@ impl Bufferer for ReadWriteMode {
         ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
+        no_sync: bool,
     ) -> write_buffer::Result<BufferedWriteRequest> {
         // Writes go to the primary buffer, so this only relies on that
         self.primary
-            .write_lp(database, lp, ingest_time, accept_partial, precision)
+            .write_lp(
+                database,
+                lp,
+                ingest_time,
+                accept_partial,
+                precision,
+                no_sync,
+            )
             .await
     }
 

@@ -229,12 +229,12 @@ impl WalObjectStore {
     }
 
     /// Buffer into a single larger operation in memory. Returns before the operation is persisted.
-    async fn buffer_op_unconfirmed(&self, op: WalOp) -> crate::Result<(), crate::Error> {
+    async fn write_ops_unconfirmed(&self, op: Vec<WalOp>) -> crate::Result<(), crate::Error> {
         self.flush_buffer
             .lock()
             .await
             .wal_buffer
-            .buffer_op_unconfirmed(op)
+            .write_ops_unconfirmed(op)
     }
 
     /// Writes the op into the buffer and waits until the WAL file is persisted. When this returns
@@ -513,8 +513,8 @@ async fn load_all_wal_file_paths(
 
 #[async_trait::async_trait]
 impl Wal for WalObjectStore {
-    async fn buffer_op_unconfirmed(&self, op: WalOp) -> crate::Result<(), crate::Error> {
-        self.buffer_op_unconfirmed(op).await
+    async fn write_ops_unconfirmed(&self, op: Vec<WalOp>) -> crate::Result<(), crate::Error> {
+        self.write_ops_unconfirmed(op).await
     }
 
     async fn write_ops(&self, ops: Vec<WalOp>) -> crate::Result<(), crate::Error> {
@@ -719,36 +719,38 @@ pub enum WriteResult {
 }
 
 impl WalBuffer {
-    fn buffer_op_unconfirmed(&mut self, op: WalOp) -> crate::Result<(), crate::Error> {
+    fn write_ops_unconfirmed(&mut self, ops: Vec<WalOp>) -> crate::Result<(), crate::Error> {
         if self.op_count >= self.op_limit {
             return Err(crate::Error::BufferFull(self.op_count));
         }
 
-        match op {
-            WalOp::Write(new_write_batch) => {
-                let db_name = Arc::clone(&new_write_batch.database_name);
+        for op in ops {
+            match op {
+                WalOp::Write(new_write_batch) => {
+                    let db_name = Arc::clone(&new_write_batch.database_name);
 
-                // insert the database write batch or add to existing
-                let write_batch =
-                    self.database_to_write_batch
-                        .entry(db_name)
-                        .or_insert_with(|| WriteBatch {
-                            database_id: new_write_batch.database_id,
-                            database_name: new_write_batch.database_name,
-                            table_chunks: Default::default(),
-                            min_time_ns: i64::MAX,
-                            max_time_ns: i64::MIN,
-                        });
-                write_batch.add_write_batch(
-                    new_write_batch.table_chunks,
-                    new_write_batch.min_time_ns,
-                    new_write_batch.max_time_ns,
-                );
+                    // insert the database write batch or add to existing
+                    let write_batch =
+                        self.database_to_write_batch
+                            .entry(db_name)
+                            .or_insert_with(|| WriteBatch {
+                                database_id: new_write_batch.database_id,
+                                database_name: new_write_batch.database_name,
+                                table_chunks: Default::default(),
+                                min_time_ns: i64::MAX,
+                                max_time_ns: i64::MIN,
+                            });
+                    write_batch.add_write_batch(
+                        new_write_batch.table_chunks,
+                        new_write_batch.min_time_ns,
+                        new_write_batch.max_time_ns,
+                    );
+                }
+                WalOp::Catalog(catalog_batch) => {
+                    self.catalog_batches.push(catalog_batch);
+                }
+                WalOp::Noop(_) => {}
             }
-            WalOp::Catalog(catalog_batch) => {
-                self.catalog_batches.push(catalog_batch);
-            }
-            WalOp::Noop(_) => {}
         }
 
         Ok(())
@@ -760,9 +762,7 @@ impl WalBuffer {
         response: oneshot::Sender<WriteResult>,
     ) -> crate::Result<(), crate::Error> {
         self.write_op_responses.push(response);
-        for op in ops {
-            self.buffer_op_unconfirmed(op)?;
-        }
+        self.write_ops_unconfirmed(ops)?;
 
         Ok(())
     }
@@ -979,7 +979,7 @@ mod tests {
             min_time_ns: 1,
             max_time_ns: 3,
         });
-        wal.buffer_op_unconfirmed(op1.clone()).await.unwrap();
+        wal.write_ops_unconfirmed(vec![op1.clone()]).await.unwrap();
 
         let op2 = WalOp::Write(WriteBatch {
             database_id: DbId::from(0),
@@ -1013,7 +1013,7 @@ mod tests {
             min_time_ns: 62_000000000,
             max_time_ns: 62_000000000,
         });
-        wal.buffer_op_unconfirmed(op2.clone()).await.unwrap();
+        wal.write_ops_unconfirmed(vec![op2.clone()]).await.unwrap();
 
         // create wal file 1
         let ret = wal.flush_buffer(false).await;
@@ -1083,7 +1083,7 @@ mod tests {
         );
 
         // create wal file 2
-        wal.buffer_op_unconfirmed(op2.clone()).await.unwrap();
+        wal.write_ops_unconfirmed(vec![op2.clone()]).await.unwrap();
         assert!(wal.flush_buffer(false).await.is_none());
 
         let file_2_contents = create::wal_contents(
@@ -1207,7 +1207,7 @@ mod tests {
             min_time_ns: 128_000000000,
             max_time_ns: 128_000000000,
         });
-        wal.buffer_op_unconfirmed(op3.clone()).await.unwrap();
+        wal.write_ops_unconfirmed(vec![op3.clone()]).await.unwrap();
 
         let (snapshot_done, snapshot_info, snapshot_permit) =
             wal.flush_buffer(false).await.unwrap();
@@ -1394,7 +1394,7 @@ mod tests {
 
         flush_buffer
             .wal_buffer
-            .buffer_op_unconfirmed(WalOp::Write(WriteBatch {
+            .write_ops_unconfirmed(vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1425,7 +1425,7 @@ mod tests {
                 .into(),
                 min_time_ns: 128_000000000,
                 max_time_ns: 148_000000000,
-            }))
+            })])
             .unwrap();
 
         // wal buffer not empty, force snapshot set => snapshot (empty wal buffer
@@ -1452,7 +1452,7 @@ mod tests {
         // not snapshot
         flush_buffer
             .wal_buffer
-            .buffer_op_unconfirmed(WalOp::Write(WriteBatch {
+            .write_ops_unconfirmed(vec![WalOp::Write(WriteBatch {
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1483,7 +1483,7 @@ mod tests {
                 .into(),
                 min_time_ns: 128_000000000,
                 max_time_ns: 148_000000000,
-            }))
+            })])
             .unwrap();
 
         let (wal_contents, _, maybe_snapshot) = flush_buffer

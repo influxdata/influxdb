@@ -1267,7 +1267,6 @@ mod tests {
                 map.insert(TableId::from(1), "test_table_2".into());
                 map
             },
-            processing_engine_plugins: Default::default(),
             processing_engine_triggers: Default::default(),
             deleted: false,
         };
@@ -1630,6 +1629,117 @@ mod tests {
                 expected = tc.explain_contains,
                 actual = explain.column_by_name("plan").unwrap().as_string::<i32>(),
             );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_non_specified_key_val_cols() {
+        let writer = TestWriter::new();
+        let _ = writer.write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0);
+
+        // create a last cache provider so we can use it to create our UDTF provider:
+        let db_schema = writer.db_schema();
+        let table_def = db_schema.table_definition("cpu").unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let usage_col_id = table_def.column_name_to_id("usage").unwrap();
+        provider
+            .create_cache(
+                db_schema.id,
+                None,
+                CreateLastCacheArgs {
+                    table_def,
+                    count: LastCacheSize::default(),
+                    ttl: LastCacheTtl::default(),
+                    key_columns: LastCacheKeyColumnsArg::SeriesKey,
+                    value_columns: LastCacheValueColumnsArg::Explicit(vec![usage_col_id]),
+                },
+            )
+            .unwrap();
+
+        let write_batch = writer.write_lp_to_write_batch(
+            "\
+            cpu,region=us-east,host=a usage=77,temp=66\n\
+            cpu,region=us-east,host=b usage=77,temp=66\n\
+            cpu,region=us-west,host=c usage=77,temp=66\n\
+            cpu,region=us-west,host=d usage=77,temp=66\n\
+            cpu,region=ca-east,host=e usage=77,temp=66\n\
+            cpu,region=ca-cent,host=f usage=77,temp=66\n\
+            cpu,region=ca-west,host=g usage=77,temp=66\n\
+            cpu,region=ca-west,host=h usage=77,temp=66\n\
+            cpu,region=eu-cent,host=i usage=77,temp=66\n\
+            cpu,region=eu-cent,host=j usage=77,temp=66\n\
+            cpu,region=eu-west,host=k usage=77,temp=66\n\
+            cpu,region=eu-west,host=l usage=77,temp=66\n\
+            ",
+            1_000,
+        );
+
+        let wal_contents = influxdb3_wal::create::wal_contents(
+            (0, 1, 0),
+            [influxdb3_wal::create::write_batch_op(write_batch)],
+        );
+        provider.write_wal_contents_to_cache(&wal_contents);
+
+        let ctx = SessionContext::new();
+        let last_cache_fn = LastCacheFunction::new(db_schema.id, Arc::clone(&provider));
+        ctx.register_udtf(LAST_CACHE_UDTF_NAME, Arc::new(last_cache_fn));
+
+        struct TestCase<'a> {
+            sql: &'a str,
+            expected: &'a [&'a str],
+        }
+
+        let test_cases = [
+            TestCase {
+                sql: "select * from last_cache('cpu')",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| ca-cent | f    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-east | e    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-west | g    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| ca-west | h    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | i    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | j    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-east | a    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-east | b    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-west | c    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| us-west | d    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+            TestCase {
+                sql: "select * from last_cache('cpu') WHERE region = 'eu-west'",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+            TestCase {
+                sql: "select * from last_cache('cpu') WHERE region IN ('eu-west', 'eu-cent')",
+                expected: &[
+                    "+---------+------+-------+-----------------------------+",
+                    "| region  | host | usage | time                        |",
+                    "+---------+------+-------+-----------------------------+",
+                    "| eu-cent | i    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-cent | j    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | k    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "| eu-west | l    | 77.0  | 1970-01-01T00:00:00.000001Z |",
+                    "+---------+------+-------+-----------------------------+",
+                ],
+            },
+        ];
+
+        for t in test_cases {
+            let results = ctx.sql(t.sql).await.unwrap().collect().await.unwrap();
+            assert_batches_sorted_eq!(t.expected, &results);
         }
     }
 }

@@ -1,7 +1,6 @@
 ---
 source: influxdb3_catalog/src/catalog/enterprise.rs
 expression: db
-snapshot_kind: text
 ---
 {
   "id": 0,
@@ -126,7 +125,6 @@ snapshot_kind: text
       }
     ]
   ],
-  "processing_engine_plugins": [],
   "processing_engine_triggers": [],
   "deleted": false
 }

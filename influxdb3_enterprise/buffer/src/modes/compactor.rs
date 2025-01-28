@@ -45,6 +45,7 @@ impl Bufferer for CompactorMode {
         _ingest_time: Time,
         _accept_partial: bool,
         _precision: Precision,
+        _no_sync: bool,
     ) -> WriteBufferResult<BufferedWriteRequest> {
         Err(WriteBufferError::NoWriteInCompactorOnly)
     }

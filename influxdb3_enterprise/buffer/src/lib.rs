@@ -78,9 +78,17 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
         ingest_time: Time,
         accept_partial: bool,
         precision: Precision,
+        no_sync: bool,
     ) -> WriteBufferResult<BufferedWriteRequest> {
         self.mode
-            .write_lp(database, lp, ingest_time, accept_partial, precision)
+            .write_lp(
+                database,
+                lp,
+                ingest_time,
+                accept_partial,
+                precision,
+                no_sync,
+            )
             .await
     }
 
@@ -972,6 +980,7 @@ mod test_helpers {
                     Time::from_timestamp_nanos(w.time_seconds * 1_000_000_000),
                     false,
                     Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();

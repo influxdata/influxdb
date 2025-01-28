@@ -884,6 +884,7 @@ mod tests {
                     Time::from_timestamp_nanos(time),
                     false,
                     influxdb3_write::Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();
@@ -995,6 +996,7 @@ mod tests {
                     Time::from_timestamp_nanos(time),
                     false,
                     influxdb3_write::Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();
@@ -1060,6 +1062,7 @@ mod tests {
                 Time::from_timestamp_nanos(time),
                 false,
                 influxdb3_write::Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();
@@ -1109,6 +1112,7 @@ mod tests {
                     Time::from_timestamp_nanos(time),
                     false,
                     influxdb3_write::Precision::Nanosecond,
+                    false,
                 )
                 .await
                 .unwrap();
@@ -1174,6 +1178,7 @@ mod tests {
                 Time::from_timestamp_nanos(time),
                 false,
                 influxdb3_write::Precision::Nanosecond,
+                false,
             )
             .await
             .unwrap();

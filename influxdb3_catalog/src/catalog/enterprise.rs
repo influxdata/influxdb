@@ -123,7 +123,6 @@ impl DatabaseSchema {
                 tables: tables.into(),
                 table_map,
                 deleted: self.deleted,
-                processing_engine_plugins: self.processing_engine_plugins.clone(),
                 processing_engine_triggers: self.processing_engine_triggers.clone(),
             })
         });
@@ -876,14 +875,8 @@ impl CatalogIdMap {
                     Mapped::Ignore(mapped_op)
                 }
             }
-            CatalogOp::CreatePlugin(create_plugin) => {
-                Mapped::Ignore(CatalogOp::CreatePlugin(create_plugin))
-            }
             CatalogOp::CreateTrigger(create_trigger) => {
                 Mapped::Ignore(CatalogOp::CreateTrigger(create_trigger))
-            }
-            CatalogOp::DeletePlugin(delete_plugin) => {
-                Mapped::Ignore(CatalogOp::DeletePlugin(delete_plugin))
             }
             CatalogOp::DeleteTrigger(delete_trigger) => {
                 Mapped::Ignore(CatalogOp::DeleteTrigger(delete_trigger))
