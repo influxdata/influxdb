@@ -11,6 +11,7 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
+use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
 use hashbrown::HashMap;
 use hyper::header::ACCEPT;
@@ -46,6 +47,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::future::Future;
 use std::pin::Pin;
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
@@ -1545,73 +1547,190 @@ async fn record_batch_stream_to_body(
     mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
 ) -> Result<Body, Error> {
-    fn to_json(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        let mut writer = arrow_json::ArrayWriter::new(Vec::new());
-        for batch in batches {
-            writer.write(&batch)?;
-        }
-
-        writer.finish()?;
-
-        Ok(Bytes::from(writer.into_inner()))
-    }
-
-    fn to_csv(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        let mut writer = arrow_csv::writer::Writer::new(Vec::new());
-        for batch in batches {
-            writer.write(&batch)?;
-        }
-
-        Ok(Bytes::from(writer.into_inner()))
-    }
-
-    fn to_pretty(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        Ok(Bytes::from(format!(
-            "{}",
-            pretty::pretty_format_batches(&batches)?
-        )))
-    }
-
-    fn to_parquet(batches: Vec<RecordBatch>) -> Result<Bytes> {
-        let mut bytes = Vec::new();
-        let mem_pool = Arc::new(UnboundedMemoryPool::default());
-        let mut writer =
-            TrackedMemoryArrowWriter::try_new(&mut bytes, batches[0].schema(), mem_pool)?;
-        for batch in batches {
-            writer.write(batch)?;
-        }
-        writer.close()?;
-        Ok(Bytes::from(bytes))
-    }
-
     match format {
         QueryFormat::Pretty => {
             let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            to_pretty(batches).map(Body::from)
+            Ok(Body::from(Bytes::from(format!(
+                "{}",
+                pretty::pretty_format_batches(&batches)?
+            ))))
         }
         QueryFormat::Parquet => {
-            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            to_parquet(batches).map(Body::from)
+            // Grab the first batch so that we can get the schema
+            let Some(batch) = stream.next().await.transpose()? else {
+                return Ok(Body::empty());
+            };
+            let schema = batch.schema();
+
+            let mut bytes = Vec::new();
+            let mem_pool = Arc::new(UnboundedMemoryPool::default());
+            let mut writer = TrackedMemoryArrowWriter::try_new(&mut bytes, schema, mem_pool)?;
+
+            // Write the first batch we got and then continue writing batches
+            writer.write(batch)?;
+            while let Some(batch) = stream.next().await.transpose()? {
+                writer.write(batch)?;
+            }
+            writer.close()?;
+            Ok(Body::from(Bytes::from(bytes)))
         }
         QueryFormat::Csv => {
-            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            to_csv(batches).map(Body::from)
+            struct CsvFuture {
+                first_poll: bool,
+                stream: Pin<Box<dyn RecordBatchStream + Send>>,
+            }
+
+            impl Future for CsvFuture {
+                type Output = Option<Result<Bytes, DataFusionError>>;
+
+                fn poll(
+                    mut self: Pin<&mut Self>,
+                    ctx: &mut std::task::Context<'_>,
+                ) -> Poll<Self::Output> {
+                    match self.stream.poll_next_unpin(ctx) {
+                        Poll::Ready(Some(batch)) => {
+                            let batch = match batch {
+                                Ok(batch) => batch,
+                                Err(e) => return Poll::Ready(Some(Err(e))),
+                            };
+                            let mut writer = if self.first_poll {
+                                self.first_poll = false;
+                                arrow_csv::Writer::new(Vec::new())
+                            } else {
+                                arrow_csv::WriterBuilder::new()
+                                    .with_header(false)
+                                    .build(Vec::new())
+                            };
+                            if let Err(err) = writer.write(&batch) {
+                                Poll::Ready(Some(Err(err.into())))
+                            } else {
+                                Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                            }
+                        }
+                        Poll::Ready(None) => Poll::Ready(None),
+                        Poll::Pending => Poll::Pending,
+                    }
+                }
+            }
+
+            let mut future = CsvFuture {
+                first_poll: true,
+                stream,
+            };
+            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
+                future.poll_unpin(ctx)
+            })))
         }
         QueryFormat::Json => {
-            let batches = stream.try_collect::<Vec<RecordBatch>>().await?;
-            to_json(batches).map(Body::from)
+            struct JsonFuture {
+                state: State,
+                stream: Pin<Box<dyn RecordBatchStream + Send>>,
+            }
+
+            enum State {
+                FirstPoll,
+                Body,
+                Done,
+            }
+
+            #[derive(Default, Debug)]
+            struct JsonMiddle;
+
+            impl arrow_json::writer::JsonFormat for JsonMiddle {
+                fn start_row<W: std::io::Write>(
+                    &self,
+                    writer: &mut W,
+                    is_first_row: bool,
+                ) -> std::result::Result<(), arrow_schema::ArrowError> {
+                    if !is_first_row {
+                        writer.write_all(b",")?;
+                    }
+
+                    Ok(())
+                }
+            }
+
+            impl Future for JsonFuture {
+                type Output = Option<Result<Bytes, DataFusionError>>;
+
+                fn poll(
+                    mut self: Pin<&mut Self>,
+                    ctx: &mut std::task::Context<'_>,
+                ) -> Poll<Self::Output> {
+                    match dbg!(self.stream.poll_next_unpin(ctx)) {
+                        Poll::Ready(Some(batch)) => {
+                            let batch = match batch {
+                                Ok(batch) => batch,
+                                Err(e) => return Poll::Ready(Some(Err(e))),
+                            };
+                            match self.state {
+                                State::FirstPoll => {
+                                    let mut writer = arrow_json::ArrayWriter::new(Vec::new());
+                                    if let Err(err) = writer.write(&batch) {
+                                        Poll::Ready(Some(Err(err.into())))
+                                    } else {
+                                        self.state = State::Body;
+                                        Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                                    }
+                                }
+                                State::Body => {
+                                    let mut writer = arrow_json::WriterBuilder::new()
+                                        .build::<Vec<_>, JsonMiddle>(Vec::new());
+                                    if let Err(err) = writer.write(&batch) {
+                                        Poll::Ready(Some(Err(err.into())))
+                                    } else {
+                                        Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                                    }
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        Poll::Ready(None) => {
+                            match self.state {
+                                // We've never written anything so just close the
+                                // stream with an empty array
+                                State::FirstPoll => {
+                                    self.state = State::Done;
+                                    Poll::Ready(Some(Ok(Bytes::from("[]"))))
+                                }
+                                // We have written to this before so we should
+                                // write the final bytes to close the object
+                                State::Body => {
+                                    self.state = State::Done;
+                                    Poll::Ready(Some(Ok(Bytes::from("]"))))
+                                }
+                                State::Done => Poll::Ready(None),
+                            }
+                        }
+                        Poll::Pending => Poll::Pending,
+                    }
+                }
+            }
+
+            let mut future = JsonFuture {
+                state: State::FirstPoll,
+                stream,
+            };
+            Ok(Body::wrap_stream(futures::stream::poll_fn(move |ctx| {
+                future.poll_unpin(ctx)
+            })))
         }
         QueryFormat::JsonLines => {
             let stream = futures::stream::poll_fn(move |ctx| match stream.poll_next_unpin(ctx) {
                 Poll::Ready(Some(batch)) => {
-                    let mut writer = arrow_json::LineDelimitedWriter::new(Vec::new());
                     let batch = match batch {
                         Ok(batch) => batch,
                         Err(e) => return Poll::Ready(Some(Err(e))),
                     };
-                    writer.write(&batch).unwrap();
-                    writer.finish().unwrap();
-                    Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                    let mut writer = arrow_json::LineDelimitedWriter::new(Vec::new());
+                    if let Err(err) = writer.write(&batch) {
+                        return Poll::Ready(Some(Err(err.into())));
+                    }
+                    if let Err(err) = writer.finish() {
+                        Poll::Ready(Some(Err(err.into())))
+                    } else {
+                        Poll::Ready(Some(Ok(Bytes::from(writer.into_inner()))))
+                    }
                 }
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,
