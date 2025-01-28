@@ -103,6 +103,29 @@ pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
         .into()
 }
 
+pub fn run_with_stdin_input(input: impl Into<String>, args: &[&str]) -> String {
+    let input = input.into();
+    let mut child_process = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let mut stdin = child_process.stdin.take().expect("failed to open stdin");
+    thread::spawn(move || {
+        stdin
+            .write_all(input.as_bytes())
+            .expect("cannot write to stdin");
+    });
+
+    String::from_utf8(child_process.wait_with_output().unwrap().stdout)
+        .unwrap()
+        .trim()
+        .into()
+}
+
 // Helper function to create a temporary Python plugin file
 fn create_plugin_file(code: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().unwrap();
@@ -578,97 +601,6 @@ async fn test_create_delete_distinct_cache() {
     assert_contains!(&result, "[404 Not Found]: cache not found");
 }
 
-#[test_log::test(tokio::test)]
-async fn test_create_plugin() {
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    influxdb3_local.info("done")
-"#,
-    );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
-
-    let server = TestServer::configure()
-        .with_plugin_dir(plugin_dir)
-        .spawn()
-        .await;
-    let server_addr = server.client_addr();
-    let db_name = "foo";
-
-    // Create database first
-    let result = run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-    assert_contains!(&result, "Database \"foo\" created successfully");
-
-    // Create plugin
-    let plugin_name = "test_plugin";
-    let result = run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-    debug!(result = ?result, "create plugin");
-    assert_contains!(&result, "Plugin test_plugin created successfully");
-}
-
-#[test_log::test(tokio::test)]
-async fn test_delete_plugin() {
-    let plugin_file = create_plugin_file(
-        r#"
-def process_writes(influxdb3_local, table_batches, args=None):
-    influxdb3_local.info("done")
-"#,
-    );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
-
-    let server = TestServer::configure()
-        .with_plugin_dir(plugin_dir)
-        .spawn()
-        .await;
-    let server_addr = server.client_addr();
-    let db_name = "foo";
-
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
-    // Delete plugin
-    let result = run_with_confirmation(&[
-        "delete",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        plugin_name,
-    ]);
-    debug!(result = ?result, "delete plugin");
-    assert_contains!(&result, "Plugin test_plugin deleted successfully");
-}
-
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_create_trigger_and_run() {
@@ -689,22 +621,6 @@ async fn test_create_trigger_and_run() {
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
         "create",
@@ -713,8 +629,8 @@ async fn test_create_trigger_and_run() {
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         "--trigger-arguments",
@@ -804,22 +720,6 @@ async fn test_triggers_are_started() {
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
         "create",
@@ -828,8 +728,8 @@ async fn test_triggers_are_started() {
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         "--trigger-arguments",
@@ -925,21 +825,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     // Setup: create database, plugin, and trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     run_with_confirmation(&[
         "create",
         "trigger",
@@ -947,8 +832,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         trigger_name,
@@ -1003,21 +888,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     // Setup: create database, plugin, and enable trigger
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     run_with_confirmation(&[
         "create",
         "trigger",
@@ -1025,8 +895,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "all_tables",
         trigger_name,
@@ -1097,21 +967,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
         table_name,
     ]);
 
-    let plugin_name = "test_plugin";
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "wal_rows",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     // Create table-specific trigger
     let result = run_with_confirmation(&[
         "create",
@@ -1120,8 +975,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         &format!("table:{}", table_name),
         trigger_name,
@@ -1520,7 +1375,7 @@ async fn test_load_wal_plugin_from_gh() {
     let db_name = "foo";
 
     // this will pull from https://github.com/influxdata/influxdb3_plugins/blob/main/examples/wal_plugin/wal_plugin.py
-    let plugin_name = "gh:examples/wal_plugin";
+    let plugin_name = "gh:examples/wal_plugin/wal_plugin.py";
 
     // Run the test to make sure it'll load from GH
     let result = run_with_confirmation(&[
@@ -1592,22 +1447,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    let plugin_name = "test_plugin";
-
-    run_with_confirmation(&[
-        "create",
-        "plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-type",
-        "request",
-        "--filename",
-        plugin_filename,
-        plugin_name,
-    ]);
-
     let trigger_path = "foo";
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
@@ -1617,8 +1456,8 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         db_name,
         "--host",
         &server_addr,
-        "--plugin",
-        plugin_name,
+        "--plugin-filename",
+        plugin_filename,
         "--trigger-spec",
         "request:foo",
         "--trigger-arguments",
@@ -1690,4 +1529,144 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = response.text().await.unwrap();
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_trigger_create_validates_file_present() {
+    let plugin_dir = TempDir::new().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir.path().to_str().unwrap())
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "foo";
+    // creating the trigger should return a 404 error from github
+    let result = run_with_confirmation_and_err(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        "gh:not_a_file.py",
+        "--trigger-spec",
+        "request:foo",
+        "--trigger-arguments",
+        "test_arg=hello",
+        trigger_path,
+    ]);
+    debug!(result = ?result, "create trigger");
+    assert_contains!(&result, "error reading file from Github: 404 Not Found");
+}
+
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_stdin() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run_with_stdin_input(
+        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
+        &["write", "--database", db_name, "--host", &server_addr],
+    );
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run_with_stdin_input(
+        "SELECT * FROM bar",
+        &["query", "--database", db_name, "--host", &server_addr],
+    );
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_file() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run(&[
+        "write",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--file",
+        "tests/server/fixtures/file.lp",
+    ]);
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--file",
+        "tests/server/fixtures/file.sql",
+    ]);
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
+}
+#[test_log::test(tokio::test)]
+async fn write_and_query_via_string() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run(&[
+        "write",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
+    ]);
+    assert_eq!("success", result);
+    debug!(result = ?result, "wrote data to database");
+    let result = run(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "SELECT * FROM bar",
+    ]);
+    debug!(result = ?result, "queried data to database");
+    assert_eq!(
+        [
+            "+--------+--------+------+------+---------------------+",
+            "| field1 | field2 | tag1 | tag2 | time                |",
+            "+--------+--------+------+------+---------------------+",
+            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
+            "+--------+--------+------+------+---------------------+",
+        ]
+        .join("\n"),
+        result
+    );
 }

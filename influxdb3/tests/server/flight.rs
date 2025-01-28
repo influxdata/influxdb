@@ -123,7 +123,6 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
                 "| public       | system             | file_index                 | BASE TABLE |",
                 "| public       | system             | last_caches                | BASE TABLE |",
                 "| public       | system             | parquet_files              | BASE TABLE |",
-                "| public       | system             | processing_engine_plugins  | BASE TABLE |",
                 "| public       | system             | processing_engine_triggers | BASE TABLE |",
                 "| public       | system             | queries                    | BASE TABLE |",
                 "+--------------+--------------------+----------------------------+------------+",

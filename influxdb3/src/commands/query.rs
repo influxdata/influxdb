@@ -2,6 +2,8 @@ use std::str::Utf8Error;
 
 use clap::{Parser, ValueEnum};
 use secrecy::ExposeSecret;
+use std::fs;
+use std::io::{stdin, BufReader, IsTerminal, Read};
 use tokio::{
     fs::OpenOptions,
     io::{self, AsyncWriteExt},
@@ -30,6 +32,11 @@ pub(crate) enum Error {
         the output as `parquet`"
     )]
     NoOutputFileForParquet,
+    #[error(
+        "No input from stdin detected, no string was passed in,  and no file \
+        path was given"
+    )]
+    NoInput,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -61,8 +68,12 @@ pub struct Config {
     #[clap(short = 'o', long = "output")]
     output_file_path: Option<String>,
 
+    /// A file containing sql statements to execute
+    #[clap(short = 'f', long = "file")]
+    file_path: Option<String>,
+
     /// The query string to execute
-    query: Vec<String>,
+    query: Option<Vec<String>>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
@@ -82,7 +93,21 @@ pub(crate) async fn command(config: Config) -> Result<()> {
         client = client.with_auth_token(t.expose_secret());
     }
 
-    let query = parse_query(config.query)?;
+    let query = if let Some(query) = config.query {
+        parse_query(query)?
+    } else if let Some(file_path) = config.file_path {
+        fs::read_to_string(file_path)?
+    } else {
+        let stdin = stdin();
+        // Checks if stdin has had data passed to it via a pipe
+        if stdin.is_terminal() {
+            return Err(Error::NoInput);
+        }
+        let mut reader = BufReader::new(stdin);
+        let mut buffer = String::new();
+        reader.read_to_string(&mut buffer)?;
+        buffer
+    };
 
     // make the query using the client
     let mut resp_bytes = match config.language {

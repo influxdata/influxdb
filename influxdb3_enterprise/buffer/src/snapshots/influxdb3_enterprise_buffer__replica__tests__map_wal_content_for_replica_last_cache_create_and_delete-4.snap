@@ -2,7 +2,6 @@
 source: influxdb3_enterprise/buffer/src/replica.rs
 description: "database schema with table 'bar' that no longer has a last cache"
 expression: db
-snapshot_kind: text
 ---
 id: 0
 name: foo
@@ -39,6 +38,5 @@ tables:
             influx_type: tag
             nullable: false
       deleted: false
-processing_engine_plugins: []
 processing_engine_triggers: []
 deleted: false
