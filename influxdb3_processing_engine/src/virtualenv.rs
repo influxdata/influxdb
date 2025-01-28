@@ -1,5 +1,5 @@
-use observability_deps::tracing::{debug, warn};
-use std::path::{Path, PathBuf};
+use observability_deps::tracing::debug;
+use std::path::Path;
 use std::process::Command;
 use std::sync::Once;
 use thiserror::Error;
@@ -7,11 +7,11 @@ use thiserror::Error;
 static PYTHON_INIT: Once = Once::new();
 
 #[derive(Error, Debug)]
-pub(crate) enum VenvError {
+pub enum VenvError {
     #[error("Failed to initialize virtualenv: {0}")]
     InitError(String),
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    #[error("Error shelling out: {0}")]
+    CommandError(#[from] std::io::Error),
 }
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
@@ -43,17 +43,8 @@ fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub fn init_pyo3(venv_path: &Option<PathBuf>) {
+pub fn init_pyo3() {
     PYTHON_INIT.call_once(|| {
-        if let Some(venv_path) = venv_path {
-            if let Err(err) = initialize_venv(venv_path) {
-                warn!(
-                    "Failed to initialize virtualenv at {}: {}",
-                    venv_path.to_string_lossy(),
-                    err
-                );
-            }
-        }
         pyo3::prepare_freethreaded_python();
     })
 }

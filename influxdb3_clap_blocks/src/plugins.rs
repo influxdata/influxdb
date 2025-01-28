@@ -17,6 +17,7 @@ pub struct ProcessingEngineConfig {
 #[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
 pub enum PackageManager {
     #[default]
+    Discover,
     Pip,
     UV,
 }

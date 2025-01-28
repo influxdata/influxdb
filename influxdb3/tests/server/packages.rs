@@ -128,15 +128,14 @@ async fn test_python_venv_pip_install() -> Result<()> {
         "package",
         "--host",
         &server_addr,
-        "--package-manager",
-        "pip",
         &format!("{}=={}", TEST_PACKAGE, TEST_VERSION),
     ]);
 
     // Verify correct version installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
-
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
     Ok(())
 }
 
@@ -167,20 +166,13 @@ async fn test_uv_venv_uv_install() -> Result<()> {
     assert_eq!(vec!["tablib is not installed"], logs);
 
     // Install with UV
-    run_with_confirmation(&[
-        "install",
-        "package",
-        "--host",
-        &server_addr,
-        "--package-manager",
-        "uv",
-        TEST_PACKAGE,
-    ]);
+    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
 
     // Verify package is installed
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
     assert!(!logs[0].contains("not installed"));
-
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
     Ok(())
 }
 
@@ -226,6 +218,8 @@ async fn test_venv_requirements_install() -> Result<()> {
     // Verify installation
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
     Ok(())
 }
 
@@ -260,5 +254,104 @@ async fn test_venv_remote_install() -> Result<()> {
     // Verify installation
     let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
     assert!(!logs[0].contains("not installed"));
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
     Ok(())
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_auto_venv_pip_install() -> Result<()> {
+    let test = VenvTest::new()?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(test.plugin_dir())
+        .with_virtual_env(test.venv_path().to_string_lossy())
+        .with_package_manager("pip")
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    run_with_confirmation(&[
+        "create",
+        "database",
+        "--host",
+        &server_addr,
+        "version_check",
+    ]);
+
+    // Check package is not installed
+    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    assert_eq!(logs, vec!["tablib is not installed"]);
+
+    // Install specific version
+    run_with_confirmation(&[
+        "install",
+        "package",
+        "--host",
+        &server_addr,
+        "--package-manager",
+        "pip",
+        &format!("{}=={}", TEST_PACKAGE, TEST_VERSION),
+    ]);
+
+    // Verify correct version installed
+    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    assert_eq!(logs, vec![TEST_VERSION]);
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
+
+    Ok(())
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_auto_venv_uv_install() -> Result<()> {
+    let test = VenvTest::new()?;
+
+    let server = TestServer::configure()
+        .with_plugin_dir(test.plugin_dir())
+        .with_virtual_env(test.venv_path().to_string_lossy())
+        .with_package_manager("uv")
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    run_with_confirmation(&[
+        "create",
+        "database",
+        "--host",
+        &server_addr,
+        "version_check",
+    ]);
+
+    // Check package is not installed
+    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    assert_eq!(vec!["tablib is not installed"], logs);
+
+    // Install with UV
+    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
+
+    // Verify package is installed
+    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    assert!(!logs[0].contains("not installed"));
+    // And that it isn't on the system python.
+    assert_tablib_not_in_system_python();
+
+    Ok(())
+}
+
+fn assert_tablib_not_in_system_python() {
+    let output = Command::new("python3")
+        .args([
+            "-c",
+            "import pkg_resources; pkg_resources.get_distribution('tablib')",
+        ])
+        .output()
+        .map_err(|e| anyhow::anyhow!("Failed to run python: {}", e))
+        .unwrap();
+
+    if output.status.success() {
+        panic!("tablib is installed in system Python. In OS X this can cause dependency conflicts to tests, as pyo3 doesn't fully leverage the virtualenv paths.");
+    }
 }

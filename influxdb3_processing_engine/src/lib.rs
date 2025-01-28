@@ -214,9 +214,15 @@ impl ProcessingEngineManagerImpl {
         wal: Arc<dyn Wal>,
     ) -> Self {
         // if given a plugin dir, try to initialize the virtualenv.
-        if environment.plugin_dir.is_some() {
-            #[cfg(feature = "system-py")]
-            virtualenv::init_pyo3(&environment.virtual_env_location);
+        #[cfg(feature = "system-py")]
+        if let Some(plugin_dir) = &environment.plugin_dir {
+            {
+                environment
+                    .package_manager
+                    .init_pyenv(plugin_dir, environment.virtual_env_location.as_ref())
+                    .expect("unable to initialize python environment");
+                virtualenv::init_pyo3();
+            }
         }
         Self {
             environment_manager: environment,

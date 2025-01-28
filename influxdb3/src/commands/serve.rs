@@ -18,7 +18,9 @@ use influxdb3_clap_blocks::{
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
-use influxdb3_processing_engine::environment::{PipManager, PythonEnvironmentManager, UVManager};
+use influxdb3_processing_engine::environment::{
+    DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
+};
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
@@ -43,6 +45,7 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::process::Command;
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
 use thiserror::Error;
@@ -624,18 +627,34 @@ pub(crate) fn setup_processing_engine_env_manager(
     config: &ProcessingEngineConfig,
 ) -> ProcessingEngineEnvironmentManager {
     let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
+        PackageManager::Discover => determine_package_manager(),
         PackageManager::Pip => Arc::new(PipManager),
         PackageManager::UV => Arc::new(UVManager),
     };
-    println!(
-        "setting up package manager {:?} as {:?}",
-        config.package_manager, config.package_manager
-    );
     ProcessingEngineEnvironmentManager {
         plugin_dir: config.plugin_dir.clone(),
         virtual_env_location: config.virtual_env_location.clone(),
         package_manager,
     }
+}
+
+fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
+    // Check for uv first (highest preference)
+    if let Ok(output) = Command::new("uv").arg("--version").output() {
+        if output.status.success() {
+            return Arc::new(UVManager);
+        }
+    }
+
+    // Check for pip second
+    if let Ok(output) = Command::new("pip").arg("--version").output() {
+        if output.status.success() {
+            return Arc::new(PipManager);
+        }
+    }
+
+    // If neither is available, return DisabledManager
+    Arc::new(DisabledManager)
 }
 
 async fn setup_telemetry_store(
