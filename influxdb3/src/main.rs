@@ -26,6 +26,7 @@ mod commands {
     pub mod delete;
     pub mod disable;
     pub mod enable;
+    pub mod install;
     pub mod query;
     pub mod serve;
     pub mod show;
@@ -102,6 +103,9 @@ enum Command {
     /// Run the InfluxDB 3 Core server
     Serve(commands::serve::Config),
 
+    /// Install packages for the processing engine
+    Install(commands::install::Config),
+
     /// List resources on the InfluxDB 3 Core server
     Show(commands::show::Config),
 
@@ -165,6 +169,12 @@ fn main() -> Result<(), std::io::Error> {
                     handle_init_logs(init_logs_and_tracing(&config.logging_config));
                 if let Err(e) = commands::serve::command(config).await {
                     eprintln!("Serve command failed: {e}");
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Install(config)) => {
+                if let Err(e) = commands::install::command(config).await {
+                    eprintln!("Install command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

@@ -1,3 +1,4 @@
+use crate::environment::{PluginEnvironmentError, PythonEnvironmentManager};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
@@ -46,6 +47,9 @@ pub enum ProcessingEngineError {
 
     #[error("request handler for trigger down")]
     RequestHandlerDown,
+
+    #[error("error installing python packages: {0}")]
+    PythonPackageError(#[from] PluginEnvironmentError),
 }
 
 /// `[ProcessingEngineManager]` is used to interact with the processing engine,
@@ -114,4 +118,6 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         request_headers: HashMap<String, String>,
         request_body: Bytes,
     ) -> Result<Response<Body>, ProcessingEngineError>;
+
+    fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager>;
 }

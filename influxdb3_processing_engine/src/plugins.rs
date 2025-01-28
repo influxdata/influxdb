@@ -1,3 +1,4 @@
+use crate::environment::PythonEnvironmentManager;
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
 #[cfg(feature = "system-py")]
@@ -23,6 +24,7 @@ use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
+use std::path::PathBuf;
 #[cfg(feature = "system-py")]
 use std::str::FromStr;
 use std::sync::Arc;
@@ -94,6 +96,13 @@ pub(crate) fn run_wal_contents_plugin(
             .await
             .expect("trigger plugin failed");
     });
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessingEngineEnvironmentManager {
+    pub plugin_dir: Option<PathBuf>,
+    pub virtual_env_location: Option<PathBuf>,
+    pub package_manager: Arc<dyn PythonEnvironmentManager>,
 }
 
 #[cfg(feature = "system-py")]
@@ -781,8 +790,13 @@ mod tests {
     use influxdb3_write::Precision;
     use iox_time::Time;
 
+    fn ensure_pyo3() {
+        pyo3::prepare_freethreaded_python();
+    }
+
     #[test]
     fn test_wal_plugin() {
+        ensure_pyo3();
         let now = Time::from_timestamp_nanos(1);
         let catalog = Catalog::new("foo".into(), "bar".into());
         let code = r#"
@@ -865,6 +879,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     #[test]
     fn test_wal_plugin_invalid_lines() {
+        ensure_pyo3();
         // set up a catalog and write some data into it to create a schema
         let now = Time::from_timestamp_nanos(1);
         let catalog = Arc::new(Catalog::new("foo".into(), "bar".into()));
