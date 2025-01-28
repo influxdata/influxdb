@@ -152,7 +152,7 @@ from(bucket: "x") |> range(start: -1h)
 			t.Fatalf("expected Cron to be \"\" but was %s", op.Cron)
 		}
 		if !cmp.Equal(*tu.Flux, expscript) {
-			t.Fatalf(cmp.Diff(*tu.Flux, expscript))
+			t.Fatal(cmp.Diff(*tu.Flux, expscript))
 		}
 	})
 

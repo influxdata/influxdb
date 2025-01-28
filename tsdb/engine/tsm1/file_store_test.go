@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2430,12 +2431,12 @@ func TestFileStore_OpenFail(t *testing.T) {
 	const mmapErrMsg = "mmap failure in test"
 	const fullMmapErrMsg = "system limit for vm.max_map_count may be too low: " + mmapErrMsg
 	// With an mmap failure, the files should all be left where they are, because they are not corrupt
-	openFail(t, dir, fullMmapErrMsg, tsm1.NewMmapError(fmt.Errorf(mmapErrMsg)))
+	openFail(t, dir, fullMmapErrMsg, tsm1.NewMmapError(errors.New(mmapErrMsg)))
 	assert.FileExistsf(t, f, "file not found, but should not have been moved for mmap failure")
 
 	// With a non-mmap failure, the file failing to open should be moved aside
 	const otherErrMsg = "some Random Init Failure"
-	openFail(t, dir, otherErrMsg, fmt.Errorf(otherErrMsg))
+	openFail(t, dir, otherErrMsg, errors.New(otherErrMsg))
 	assert.NoFileExistsf(t, f, "file found, but should have been moved for open failure")
 	assert.FileExistsf(t, f+"."+tsm1.BadTSMFileExtension, "file not found, but should have been moved here for open failure")
 }
