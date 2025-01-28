@@ -10,7 +10,7 @@ pub struct ProcessingEngineConfig {
     pub plugin_dir: Option<PathBuf>,
     #[clap(long = "virtual-env-location", env = "VIRTUAL_ENV")]
     pub virtual_env_location: Option<PathBuf>,
-    #[clap(long = "package-manager", default_value = "pip")]
+    #[clap(long = "package-manager", default_value = "discover")]
     pub package_manager: PackageManager,
 }
 
