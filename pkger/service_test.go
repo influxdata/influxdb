@@ -5163,7 +5163,7 @@ func TestService(t *testing.T) {
 			}
 			dashSVC := mock.NewDashboardService()
 			dashSVC.FindDashboardsF = func(_ context.Context, f influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
-				if (f.IDs != nil && len(f.IDs) > 0 &&
+				if (len(f.IDs) > 0 &&
 					f.IDs[0] != nil && *f.IDs[0] != dash.ID) &&
 					(f.OrganizationID == nil || *f.OrganizationID != orgID) {
 					return nil, 0, errors.New("not suppose to get here")
