@@ -2,6 +2,7 @@ package check
 
 import (
 	"encoding/json"
+	errors2 "errors"
 	"fmt"
 	"strings"
 
@@ -101,7 +102,7 @@ func multiError(errs []error) error {
 		b.WriteString(err.Error() + "\n")
 	}
 
-	return fmt.Errorf(b.String())
+	return errors2.New(b.String())
 }
 
 // GenerateFlux returns a flux script for the threshold provided. If there

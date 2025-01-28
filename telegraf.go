@@ -131,7 +131,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 				"buckets": []string{},
 			}
 		}
-	} else if tcd.Metadata == nil || len(tcd.Metadata) == 0 {
+	} else if len(tcd.Metadata) == 0 {
 		// Get buckets from the config.
 		m, err := parseMetadata(tc.Config)
 		if err != nil {

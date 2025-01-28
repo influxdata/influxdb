@@ -66,13 +66,13 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	err := sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
 	err = sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	validateIndex := func() {
@@ -98,7 +98,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	pt.SetTime(time.Unix(2, 6))
 	err = sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	sh.Close()
@@ -129,13 +129,13 @@ func TestShardRebuildIndex(t *testing.T) {
 
 	err := sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
 	err = sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	indexPath := filepath.Join(tmpShard, "index")
@@ -160,10 +160,10 @@ func TestShardRebuildIndex(t *testing.T) {
 	// ensure the index gets rebuilt after its directory is deleted and
 	// the shard is reopened.
 	if err := sh.Close(); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 	if err := os.RemoveAll(indexPath); err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	sh = tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
@@ -177,7 +177,7 @@ func TestShardRebuildIndex(t *testing.T) {
 	pt.SetTime(time.Unix(2, 6))
 	err = sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	sh.Close()
@@ -216,7 +216,7 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 
 	err := sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if err := sh.Close(); err != nil {
@@ -342,7 +342,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	err := sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	pt = models.MustNewPoint(
@@ -354,7 +354,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	err = sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
@@ -629,7 +629,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	err := sh.WritePoints(context.Background(), []models.Point{pt})
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err.Error())
 	}
 
 	if got, exp := sh.SeriesN(), int64(1); got != exp {
