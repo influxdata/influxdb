@@ -2033,6 +2033,38 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 	}
 }
 
+func TestShardDeletion_With_Compact_Contention(t *testing.T) {
+	const measurement = "mem"
+	const field = "value"
+	const loops = 100
+
+	tmpDir := t.TempDir()
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+	sfile := MustOpenSeriesFile()
+
+	defer sfile.Close()
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = tmpWal
+	currentTime := time.Now()
+
+	points := make([]models.Point, 0, loops)
+
+	for i := 0; i < loops; i++ {
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: 1.0},
+			currentTime,
+		))
+	}
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	require.NoError(t, sh.Open(), "opening shard")
+	sh.Close()
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
