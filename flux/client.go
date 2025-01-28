@@ -3,6 +3,7 @@ package flux
 import (
 	"context"
 	"crypto/tls"
+	errors2 "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,7 +79,7 @@ func (c *Client) ping(u *url.URL) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		var err = fmt.Errorf(string(body))
+		var err = errors2.New(string(body))
 		return err
 	}
 

@@ -7,7 +7,7 @@ orbs:
 parameters:
   cross-container-tag:
     type: string
-    default: go1.22.11-latest
+    default: go1.23.5-latest
 
   workflow:
     type: string
@@ -346,7 +346,7 @@ jobs:
       - run:
           name: staticcheck
           command: |
-            go install honnef.co/go/tools/cmd/staticcheck
+            go install honnef.co/go/tools/cmd/staticcheck@2024.1.1
             staticcheck ./...
           when: always
 

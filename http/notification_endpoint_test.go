@@ -385,7 +385,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
 			body, _ := io.ReadAll(res.Body)
-			t.Logf(res.Header.Get("X-Influx-Error"))
+			t.Log(res.Header.Get("X-Influx-Error"))
 
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetNotificationEndpoint() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
