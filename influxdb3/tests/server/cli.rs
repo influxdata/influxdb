@@ -73,11 +73,16 @@ pub fn run_with_confirmation(args: &[&str]) -> String {
             .write_all(b"yes\n")
             .expect("cannot write confirmation msg to stdin");
     });
+    let output = child_process.wait_with_output().unwrap();
+    if !output.status.success() {
+        panic!(
+            "failed to run 'influxdb3 {}' with status {}",
+            args.join(" "),
+            output.status
+        );
+    }
 
-    String::from_utf8(child_process.wait_with_output().unwrap().stdout)
-        .unwrap()
-        .trim()
-        .into()
+    String::from_utf8(output.stdout).unwrap().trim().into()
 }
 
 pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
@@ -956,6 +961,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     run_with_confirmation(&[
         "create",
         "table",
+        table_name,
         "--database",
         db_name,
         "--host",
@@ -964,7 +970,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
         "tag1",
         "--fields",
         "field1:float64",
-        table_name,
     ]);
 
     // Create table-specific trigger

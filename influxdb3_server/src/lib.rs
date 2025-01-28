@@ -28,6 +28,7 @@ use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_config::EnterpriseConfig;
+use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_time::TimeProvider;
@@ -37,7 +38,6 @@ use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use thiserror::Error;
@@ -87,7 +87,7 @@ pub struct CommonServerState {
     telemetry_store: Arc<TelemetryStore>,
     enterprise_config: Arc<RwLock<EnterpriseConfig>>,
     object_store: Arc<dyn ObjectStore>,
-    plugin_dir: Option<PathBuf>,
+    processing_engine_environment: ProcessingEngineEnvironmentManager,
 }
 
 impl CommonServerState {
@@ -98,7 +98,7 @@ impl CommonServerState {
         telemetry_store: Arc<TelemetryStore>,
         enterprise_config: Arc<RwLock<EnterpriseConfig>>,
         object_store: Arc<dyn ObjectStore>,
-        plugin_dir: Option<PathBuf>,
+        processing_engine_environment: ProcessingEngineEnvironmentManager,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
@@ -107,7 +107,7 @@ impl CommonServerState {
             telemetry_store,
             enterprise_config,
             object_store,
-            plugin_dir,
+            processing_engine_environment,
         })
     }
 
@@ -235,6 +235,8 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_config::EnterpriseConfig;
     use influxdb3_id::{DbId, TableId};
+    use influxdb3_processing_engine::environment::DisabledManager;
+    use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
@@ -818,7 +820,11 @@ mod tests {
             Arc::clone(&sample_telem_store),
             Arc::clone(&enterprise_config),
             Arc::clone(&object_store),
-            None,
+            ProcessingEngineEnvironmentManager {
+                plugin_dir: None,
+                virtual_env_location: None,
+                package_manager: Arc::new(DisabledManager),
+            },
         )
         .unwrap();
         let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {

@@ -680,6 +680,66 @@ impl Client {
         }
     }
 
+    /// Make a request to api/v3/configure/plugin_environment/install_packages
+    pub async fn api_v3_configure_plugin_environment_install_packages(
+        &self,
+        packages: Vec<String>,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/plugin_environment/install_packages";
+        let url = self.base_url.join(api_path)?;
+        #[derive(Serialize)]
+        struct Req {
+            packages: Vec<String>,
+        }
+        let mut req = self.http_client.post(url).json(&Req { packages });
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
+    /// Make a request to api/v3/configure/plugin_environment/install_requirements
+    pub async fn api_v3_configure_processing_engine_trigger_install_requirements(
+        &self,
+        requirements_location: impl Into<String> + Send,
+    ) -> Result<()> {
+        let api_path = "/api/v3/configure/plugin_environment/install_requirements";
+        let url = self.base_url.join(api_path)?;
+        #[derive(Serialize)]
+        struct Req {
+            requirements_location: String,
+        }
+        let mut req = self.http_client.post(url).json(&Req {
+            requirements_location: requirements_location.into(),
+        });
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(()),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
+
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger/disable`
     pub async fn api_v3_configure_processing_engine_trigger_disable(
         &self,

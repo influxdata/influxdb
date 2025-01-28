@@ -31,6 +31,7 @@ influxdb3_client = { path = "../influxdb3_client" }
 influxdb3_clap_blocks = { path = "../influxdb3_clap_blocks" }
 influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
+influxdb3_processing_engine = {path = "../influxdb3_processing_engine"}
 influxdb3_server = { path = "../influxdb3_server" }
 influxdb3_wal = { path = "../influxdb3_wal" }
 influxdb3_write = { path = "../influxdb3_write" }
@@ -74,6 +75,7 @@ uuid.workspace = true
 # Optional Dependencies
 console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
 bytes.workspace = true
+tempfile = "3.15.0"
 
 [features]
 default = ["jemalloc_replacing_malloc", "azure", "gcp", "aws"]

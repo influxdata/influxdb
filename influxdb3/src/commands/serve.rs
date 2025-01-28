@@ -10,6 +10,7 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
     memory_size::MemorySize,
@@ -39,6 +40,10 @@ use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_process::{
     build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
 };
+use influxdb3_processing_engine::environment::{
+    DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
+};
+use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
@@ -65,11 +70,9 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::process::Command;
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::Path, str::FromStr};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -400,9 +403,9 @@ pub struct Config {
     )]
     pub distinct_cache_eviction_interval: humantime::Duration,
 
-    /// The local directory that has python plugins and their test files.
-    #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR", action)]
-    pub plugin_dir: Option<PathBuf>,
+    /// The processing engine config.
+    #[clap(flatten)]
+    pub processing_engine_config: ProcessingEngineConfig,
 
     /// Threshold for internal buffer, can be either percentage or absolute value.
     /// eg: 70% or 100000
@@ -854,7 +857,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
         Arc::clone(&enterprise_config),
         Arc::clone(&object_store),
-        config.plugin_dir,
+        setup_processing_engine_env_manager(&config.processing_engine_config),
     )?;
 
     let sys_table_compacted_data: Option<Arc<dyn CompactedDataSystemTableView>> =
@@ -946,6 +949,40 @@ pub async fn command(config: Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub(crate) fn setup_processing_engine_env_manager(
+    config: &ProcessingEngineConfig,
+) -> ProcessingEngineEnvironmentManager {
+    let package_manager: Arc<dyn PythonEnvironmentManager> = match config.package_manager {
+        PackageManager::Discover => determine_package_manager(),
+        PackageManager::Pip => Arc::new(PipManager),
+        PackageManager::UV => Arc::new(UVManager),
+    };
+    ProcessingEngineEnvironmentManager {
+        plugin_dir: config.plugin_dir.clone(),
+        virtual_env_location: config.virtual_env_location.clone(),
+        package_manager,
+    }
+}
+
+fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
+    // Check for uv first (highest preference)
+    if let Ok(output) = Command::new("uv").arg("--version").output() {
+        if output.status.success() {
+            return Arc::new(UVManager);
+        }
+    }
+
+    // Check for pip second
+    if let Ok(output) = Command::new("pip").arg("--version").output() {
+        if output.status.success() {
+            return Arc::new(PipManager);
+        }
+    }
+
+    // If neither is available, return DisabledManager
+    Arc::new(DisabledManager)
 }
 
 async fn setup_telemetry_store(

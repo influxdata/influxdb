@@ -1,7 +1,8 @@
+use crate::environment::PythonEnvironmentManager;
 use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
-use crate::plugins::PluginError;
+use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
 use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
@@ -29,12 +30,16 @@ use std::time::SystemTime;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
+pub mod environment;
 pub mod manager;
 pub mod plugins;
 
+#[cfg(feature = "system-py")]
+pub mod virtualenv;
+
 #[derive(Debug)]
 pub struct ProcessingEngineManagerImpl {
-    plugin_dir: Option<std::path::PathBuf>,
+    environment_manager: ProcessingEngineEnvironmentManager,
     catalog: Arc<Catalog>,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
@@ -201,15 +206,26 @@ impl PluginChannels {
 
 impl ProcessingEngineManagerImpl {
     pub fn new(
-        plugin_dir: Option<std::path::PathBuf>,
+        environment: ProcessingEngineEnvironmentManager,
         catalog: Arc<Catalog>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
         wal: Arc<dyn Wal>,
     ) -> Self {
+        // if given a plugin dir, try to initialize the virtualenv.
+        #[cfg(feature = "system-py")]
+        if let Some(plugin_dir) = &environment.plugin_dir {
+            {
+                environment
+                    .package_manager
+                    .init_pyenv(plugin_dir, environment.virtual_env_location.as_ref())
+                    .expect("unable to initialize python environment");
+                virtualenv::init_pyo3();
+            }
+        }
         Self {
-            plugin_dir,
+            environment_manager: environment,
             catalog,
             write_buffer,
             query_executor,
@@ -244,7 +260,11 @@ impl ProcessingEngineManagerImpl {
         }
 
         // otherwise we assume it is a local file
-        let plugin_dir = self.plugin_dir.clone().context("plugin dir not set")?;
+        let plugin_dir = self
+            .environment_manager
+            .plugin_dir
+            .clone()
+            .context("plugin dir not set")?;
         let plugin_path = plugin_dir.join(name);
 
         // read it at least once to make sure it's there
@@ -694,6 +714,10 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             ProcessingEngineError::RequestHandlerDown
         })?)
     }
+
+    fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
+        Arc::clone(&self.environment_manager.package_manager)
+    }
 }
 
 #[async_trait::async_trait]
@@ -750,7 +774,9 @@ pub(crate) struct Request {
 
 #[cfg(test)]
 mod tests {
+    use crate::environment::DisabledManager;
     use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+    use crate::plugins::ProcessingEngineEnvironmentManager;
     use crate::ProcessingEngineManagerImpl;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
@@ -1010,10 +1036,21 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#;
         writeln!(file, "{}", code).unwrap();
-        let plugin_dir = Some(file.path().parent().unwrap().to_path_buf());
+        let environment_manager = ProcessingEngineEnvironmentManager {
+            plugin_dir: Some(file.path().parent().unwrap().to_path_buf()),
+            virtual_env_location: None,
+            package_manager: Arc::new(DisabledManager),
+        };
 
         (
-            ProcessingEngineManagerImpl::new(plugin_dir, catalog, wbuf, qe, time_provider, wal),
+            ProcessingEngineManagerImpl::new(
+                environment_manager,
+                catalog,
+                wbuf,
+                qe,
+                time_provider,
+                wal,
+            ),
             file,
         )
     }

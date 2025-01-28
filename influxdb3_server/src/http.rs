@@ -25,7 +25,7 @@ use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_processing_engine::manager::ProcessingEngineManager;
+use influxdb3_processing_engine::manager::{ProcessingEngineError, ProcessingEngineManager};
 use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -1101,6 +1101,51 @@ where
             .body(Body::empty())?)
     }
 
+    async fn install_plugin_environment_packages(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessingEngineInstallPackagesRequest { packages } =
+            if let Some(query) = req.uri().query() {
+                serde_urlencoded::from_str(query)?
+            } else {
+                self.read_body_json(req).await?
+            };
+        let manager = self.processing_engine.get_environment_manager();
+        manager
+            .install_packages(packages)
+            .map_err(ProcessingEngineError::from)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
+    async fn install_plugin_environment_requirements(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let ProcessingEngineInstallRequirementsRequest {
+            requirements_location,
+        } = if let Some(query) = req.uri().query() {
+            serde_urlencoded::from_str(query)?
+        } else {
+            self.read_body_json(req).await?
+        };
+        info!(
+            "installing plugin environment requirements from {}",
+            requirements_location
+        );
+        let manager = self.processing_engine.get_environment_manager();
+        manager
+            .install_requirements(requirements_location)
+            .map_err(ProcessingEngineError::from)?;
+
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())?)
+    }
+
     async fn disable_processing_engine_trigger(
         &self,
         req: Request<Body>,
@@ -1706,6 +1751,16 @@ struct ProcessEngineTriggerDeleteRequest {
 }
 
 #[derive(Debug, Deserialize)]
+struct ProcessingEngineInstallPackagesRequest {
+    packages: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProcessingEngineInstallRequirementsRequest {
+    requirements_location: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct ProcessingEngineTriggerIdentifier {
     db: String,
     trigger_name: String,
@@ -1852,6 +1907,14 @@ pub(crate) async fn route_request<T: TimeProvider>(
         }
         (Method::DELETE, "/api/v3/configure/processing_engine_trigger") => {
             http_server.delete_processing_engine_trigger(req).await
+        }
+        (Method::POST, "/api/v3/configure/plugin_environment/install_packages") => {
+            http_server.install_plugin_environment_packages(req).await
+        }
+        (Method::POST, "/api/v3/configure/plugin_environment/install_requirements") => {
+            http_server
+                .install_plugin_environment_requirements(req)
+                .await
         }
         (Method::GET, "/api/v3/configure/database") => http_server.show_databases(req).await,
         (Method::POST, "/api/v3/configure/database") => http_server.create_database(req).await,
