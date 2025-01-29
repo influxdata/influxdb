@@ -5,6 +5,9 @@ use url::Url;
 
 use crate::commands::common::Format;
 
+mod system;
+use system::SystemConfig;
+
 #[derive(Debug, Parser)]
 pub struct Config {
     #[clap(subcommand)]
@@ -15,6 +18,9 @@ pub struct Config {
 pub enum SubCommand {
     /// List databases
     Databases(DatabaseConfig),
+
+    /// Display system table data.
+    System(SystemConfig),
 }
 
 #[derive(Debug, Parser)]
@@ -64,6 +70,7 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
             println!("{}", std::str::from_utf8(&resp_bytes)?);
         }
+        SubCommand::System(cfg) => system::command(cfg).await?,
     }
 
     Ok(())
