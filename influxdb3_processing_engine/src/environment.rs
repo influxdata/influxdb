@@ -59,11 +59,7 @@ impl PythonEnvironmentManager for UVManager {
         };
 
         if !is_valid_venv(venv_path) {
-            Command::new("uv")
-                .arg("venv")
-                .arg(venv_path)
-                .current_dir(plugin_dir)
-                .output()?;
+            Command::new("uv").arg("venv").arg(venv_path).output()?;
         }
 
         #[cfg(feature = "system-py")]
@@ -106,7 +102,6 @@ impl PythonEnvironmentManager for PipManager {
                 .arg("-m")
                 .arg("venv")
                 .arg(venv_path)
-                .current_dir(plugin_dir)
                 .output()?;
         }
 
