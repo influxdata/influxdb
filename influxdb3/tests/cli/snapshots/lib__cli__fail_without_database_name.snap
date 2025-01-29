@@ -1,7 +1,6 @@
 ---
-source: influxdb3/tests/server/cli.rs
+source: influxdb3/tests/cli/mod.rs
 expression: output
-snapshot_kind: text
 ---
 error: the following required arguments were not provided:
   --database <DATABASE_NAME>

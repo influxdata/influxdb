@@ -1,4 +1,4 @@
-use crate::{ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
@@ -1222,7 +1222,7 @@ async fn distinct_cache_create_and_delete() {
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_test() {
-    use crate::ConfigProvider;
+    use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
     // Create plugin file
@@ -1329,7 +1329,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test() {
-    use crate::ConfigProvider;
+    use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
     // Create plugin file with a scheduled task
@@ -1403,7 +1403,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_errors() {
-    use crate::ConfigProvider;
+    use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
     struct Test {
@@ -1526,7 +1526,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_load_wal_plugin_from_gh() {
-    use crate::ConfigProvider;
+    use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
     let plugin_dir = TempDir::new().unwrap();

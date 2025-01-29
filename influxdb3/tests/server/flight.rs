@@ -4,8 +4,8 @@ use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use test_helpers::assert_contains;
 
-use crate::collect_stream;
-use crate::TestServer;
+use crate::server::collect_stream;
+use crate::server::TestServer;
 
 #[test_log::test(tokio::test)]
 async fn flight() -> Result<(), influxdb3_client::Error> {

@@ -1,4 +1,4 @@
-use crate::TestServer;
+use crate::server::TestServer;
 use hyper::StatusCode;
 use influxdb3_client::Error;
 use influxdb3_client::Precision;

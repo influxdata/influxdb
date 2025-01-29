@@ -1,5 +1,5 @@
 ---
-source: influxdb3/tests/server/cli.rs
+source: influxdb3/tests/cli/mod.rs
 expression: result
 ---
 distinct cache deleted successfully

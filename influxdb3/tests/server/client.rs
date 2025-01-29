@@ -4,7 +4,7 @@
 
 use influxdb3_client::{Format, LastCacheCreatedResponse, Precision};
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn write_and_query() {

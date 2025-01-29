@@ -2,7 +2,7 @@ use hyper::StatusCode;
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn api_v1_write_request_parsing() {

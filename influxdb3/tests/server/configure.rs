@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use test_helpers::assert_contains;
 
-use crate::TestServer;
+use crate::server::TestServer;
 
 #[tokio::test]
 async fn api_v3_configure_distinct_cache_create() {
