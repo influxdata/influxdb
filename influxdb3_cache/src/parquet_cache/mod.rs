@@ -15,6 +15,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::{DashMap, Entry};
+use data_types::{TimestampMinMax, TimestampRange};
 use futures::{
     future::{BoxFuture, Shared},
     stream::BoxStream,
@@ -76,11 +77,14 @@ pub struct ImmediateCacheRequest {
 pub struct EventualCacheRequest {
     path: Path,
     notifier: oneshot::Sender<()>,
+    file_timestamp_min_max: Option<TimestampMinMax>,
 }
 
 impl EventualCacheRequest {
-    fn get_path_and_notifier(self) -> (Path, oneshot::Sender<()>) {
-        (self.path, self.notifier)
+    fn get_path_and_notifier_and_timestamp(
+        self,
+    ) -> (Path, oneshot::Sender<()>, Option<TimestampMinMax>) {
+        (self.path, self.notifier, self.file_timestamp_min_max)
     }
 }
 
@@ -108,10 +112,17 @@ impl CacheRequest {
     // Create a new [`CacheRequest::Eventual`] for eventually loading the path passed in, by doing
     // a GET request from object store for the path. Since it is async operation, the receiver is
     // passed back to notify once the data is loaded into the cache
-    pub fn create_eventual_mode_cache_request(path: Path) -> (Self, oneshot::Receiver<()>) {
+    pub fn create_eventual_mode_cache_request(
+        path: Path,
+        file_timestamp_min_max: Option<TimestampMinMax>,
+    ) -> (Self, oneshot::Receiver<()>) {
         let (notifier, receiver) = oneshot::channel();
         (
-            Self::Eventual(EventualCacheRequest { path, notifier }),
+            Self::Eventual(EventualCacheRequest {
+                path,
+                notifier,
+                file_timestamp_min_max,
+            }),
             receiver,
         )
     }
@@ -122,7 +133,11 @@ impl CacheRequest {
                 path,
                 parquet_data: _,
             }) => path,
-            CacheRequest::Eventual(EventualCacheRequest { path, notifier: _ }) => path,
+            CacheRequest::Eventual(EventualCacheRequest {
+                path,
+                notifier: _,
+                file_timestamp_min_max: _,
+            }) => path,
         }
     }
 }
@@ -206,7 +221,7 @@ impl ParquetCacheOracle for MemCacheOracle {
                     tokio::spawn(async move {
                         if let Err(error) = tx.send(eventual_cache_req).await {
                             error!(%error, "error registering cache request");
-                        };
+                        }
                     });
                 } else {
                     let _ = eventual_cache_req.notifier.send(());
@@ -227,6 +242,7 @@ pub fn create_cached_obj_store_and_oracle(
     time_provider: Arc<dyn TimeProvider>,
     metric_registry: Arc<Registry>,
     cache_capacity: usize,
+    query_cache_duration: Duration,
     prune_percent: f64,
     prune_interval: Duration,
 ) -> (Arc<dyn ObjectStore>, Arc<dyn ParquetCacheOracle>) {
@@ -236,6 +252,7 @@ pub fn create_cached_obj_store_and_oracle(
         inner: object_store,
         memory_capacity: cache_capacity,
         prune_percent,
+        query_cache_duration,
     }));
     let oracle = Arc::new(MemCacheOracle::new(Arc::clone(&store), prune_interval));
     (store, oracle)
@@ -252,6 +269,7 @@ pub fn test_cached_obj_store_and_oracle(
         time_provider,
         metric_registry,
         1024 * 1024 * 1024,
+        Duration::from_millis(1000),
         0.1,
         Duration::from_millis(10),
     )
@@ -373,6 +391,7 @@ struct Cache {
     access_metrics: AccessMetrics,
     /// Track metrics for observing the size of the cache
     size_metrics: SizeMetrics,
+    query_cache_duration: Duration,
 }
 
 impl Cache {
@@ -382,6 +401,7 @@ impl Cache {
         prune_percent: f64,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<Registry>,
+        query_cache_duration: Duration,
     ) -> Self {
         Self {
             capacity,
@@ -391,6 +411,7 @@ impl Cache {
             time_provider,
             access_metrics: AccessMetrics::new(&metric_registry),
             size_metrics: SizeMetrics::new(&metric_registry),
+            query_cache_duration,
         }
     }
 
@@ -589,6 +610,7 @@ pub struct MemCachedObjectStoreArgs {
     pub inner: Arc<dyn ObjectStore>,
     pub memory_capacity: usize,
     pub prune_percent: f64,
+    pub query_cache_duration: Duration,
 }
 
 impl MemCachedObjectStore {
@@ -600,6 +622,7 @@ impl MemCachedObjectStore {
             inner,
             memory_capacity,
             prune_percent,
+            query_cache_duration,
         }: MemCachedObjectStoreArgs,
     ) -> Self {
         Self {
@@ -607,8 +630,9 @@ impl MemCachedObjectStore {
             cache: Arc::new(Cache::new(
                 memory_capacity,
                 prune_percent,
-                time_provider,
+                Arc::clone(&time_provider),
                 metric_registry,
+                query_cache_duration,
             )),
         }
     }
@@ -806,7 +830,16 @@ fn background_cache_request_handler(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(cache_request) = rx.recv().await {
-            let (path, notifier) = cache_request.get_path_and_notifier();
+            let (path, notifier, file_timestamp_min_max) =
+                cache_request.get_path_and_notifier_and_timestamp();
+
+            if !should_request_be_cached(file_timestamp_min_max, &mem_store.cache) {
+                debug!(?path, ">>> not caching parquet file path");
+                let _ = notifier.send(());
+                continue;
+            }
+
+            debug!(?path, ">>> caching parquet file path");
             // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);
@@ -837,12 +870,42 @@ fn background_cache_request_handler(
                         mem_store_captured.cache.remove(&path);
                     }
                 };
-                // notify that the cache request has been fulfilled:
+                // notify that the cache request has been fulfilled, if receiver has been
+                // dropped this error is not bubbled up
                 let _ = notifier.send(());
             });
         }
         info!("cache request handler closed");
     })
+}
+
+fn should_request_be_cached(
+    file_timestamp_min_max: Option<TimestampMinMax>,
+    cache: &Cache,
+) -> bool {
+    // If there's a timestamp range, check if there's capacity to add these
+    // files. These are currently expected to come through from query path
+    // which could be fetching older file. Check it's within allowed interval
+    // before adding to cache
+    file_timestamp_min_max
+        .map(|file_timestamp_min_max| {
+            if cache.used.load(Ordering::SeqCst) < cache.capacity {
+                let end = cache.time_provider.now();
+                let start = end - cache.query_cache_duration;
+                let allowed_time_range =
+                    TimestampRange::new(start.timestamp_nanos(), end.timestamp_nanos());
+                debug!(
+                    ?file_timestamp_min_max,
+                    ?allowed_time_range,
+                    ">>> parquet file timestamp min max to cache"
+                );
+
+                file_timestamp_min_max.overlaps(allowed_time_range)
+            } else {
+                false
+            }
+        })
+        .unwrap_or(true)
 }
 
 /// A background task for pruning un-needed entries in the cache
@@ -852,6 +915,7 @@ fn background_cache_pruner(
     interval_duration: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
+        debug!(">>> test: background cache pruning running");
         let mut interval = tokio::time::interval(interval_duration);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -869,6 +933,7 @@ pub(crate) mod tests {
 
     use arrow::datatypes::ToByteSlice;
     use bytes::Bytes;
+    use data_types::TimestampMinMax;
     use influxdb3_test_helpers::object_store::{
         RequestCountedObjectStore, SynchronizedObjectStore,
     };
@@ -882,7 +947,8 @@ pub(crate) mod tests {
     use crate::parquet_cache::{
         create_cached_obj_store_and_oracle,
         metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_BYTES_NAME, CACHE_SIZE_N_FILES_NAME},
-        test_cached_obj_store_and_oracle, CacheRequest, ParquetFileDataToCache,
+        should_request_be_cached, test_cached_obj_store_and_oracle, Cache, CacheRequest,
+        ParquetFileDataToCache,
     };
 
     macro_rules! assert_payload_at_equals {
@@ -926,7 +992,7 @@ pub(crate) mod tests {
 
         // cache the entry:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path.clone());
+            CacheRequest::create_eventual_mode_cache_request(path.clone(), None);
         oracle.register(cache_request);
 
         // wait for cache notify:
@@ -1038,8 +1104,10 @@ pub(crate) mod tests {
         oracle.register(immediate_cache_request);
 
         // Now try to cache 1st path eventually
-        let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_1_eventually_cached.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create_eventual_mode_cache_request(
+            path_1_eventually_cached.clone(),
+            None,
+        );
         oracle.register(cache_request);
 
         // Oracle should've fulfilled the immediate cache request
@@ -1074,8 +1142,10 @@ pub(crate) mod tests {
         );
 
         // Now try to cache 1st path again eventually
-        let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_1_eventually_cached.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create_eventual_mode_cache_request(
+            path_1_eventually_cached.clone(),
+            None,
+        );
         oracle.register(cache_request);
         // should resolve immediately as path is already in cache
         let _ = notifier_rx.await;
@@ -1087,8 +1157,10 @@ pub(crate) mod tests {
         );
 
         // Try caching 2nd path (previously immediately cached)
-        let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_2_immediately_cached.clone());
+        let (cache_request, notifier_rx) = CacheRequest::create_eventual_mode_cache_request(
+            path_2_immediately_cached.clone(),
+            None,
+        );
         oracle.register(cache_request);
         // should resolve immediately as path is already in cache
         let _ = notifier_rx.await;
@@ -1113,6 +1185,7 @@ pub(crate) mod tests {
             Arc::clone(&time_provider) as _,
             Default::default(),
             cache_capacity_bytes,
+            Duration::from_millis(10),
             cache_prune_percent,
             cache_prune_interval,
         );
@@ -1127,7 +1200,7 @@ pub(crate) mod tests {
 
         // cache the entry and wait for it to complete:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_1.clone());
+            CacheRequest::create_eventual_mode_cache_request(path_1.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // there will have been one get request made by the cache oracle:
@@ -1155,7 +1228,7 @@ pub(crate) mod tests {
         // cache the second entry and wait for it to complete, this will not evict the first entry
         // as both can fit in the cache:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_2.clone());
+            CacheRequest::create_eventual_mode_cache_request(path_2.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will have another request for the second path to the inner store, by the oracle:
@@ -1195,7 +1268,7 @@ pub(crate) mod tests {
         // cache the third entry and wait for it to complete, this will push the cache past its
         // capacity:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path_3.clone());
+            CacheRequest::create_eventual_mode_cache_request(path_3.clone(), None);
         oracle.register(cache_request);
         let _ = notifier_rx.await;
         // will now have another request for the third path to the inner store, by the oracle:
@@ -1251,7 +1324,7 @@ pub(crate) mod tests {
 
         // cache the entry, but don't wait on it until below in spawned task:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path.clone());
+            CacheRequest::create_eventual_mode_cache_request(path.clone(), None);
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching"
@@ -1413,7 +1486,7 @@ pub(crate) mod tests {
 
         // have the cache oracle cache the object:
         let (cache_request, notifier_rx) =
-            CacheRequest::create_eventual_mode_cache_request(path.clone());
+            CacheRequest::create_eventual_mode_cache_request(path.clone(), None);
         oracle.register(cache_request);
 
         // we are in the middle of a get request, i.e., the cache entry is "fetching" once this
@@ -1458,5 +1531,59 @@ pub(crate) mod tests {
         cached_store.delete(&path).await.unwrap();
         // removing the entry should bring the cache sizes back to zero:
         metric_verifier.assert_size(0, 0);
+    }
+
+    #[test_log::test(test)]
+    fn test_should_request_be_cached_partial_overlap_of_file_time() {
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(100)));
+        let max_size_bytes = 100;
+        let cache = Cache::new(
+            max_size_bytes,
+            0.1,
+            Arc::clone(&time_provider),
+            Arc::new(Registry::new()),
+            Duration::from_nanos(100),
+        );
+
+        let file_timestamp_min_max = Some(TimestampMinMax::new(0, 100));
+        let should_cache = should_request_be_cached(file_timestamp_min_max, &cache);
+        assert!(should_cache);
+    }
+
+    #[test_log::test(test)]
+    fn test_should_request_be_cached_no_overlap_of_file_time() {
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(1000)));
+        let max_size_bytes = 100;
+        let cache = Cache::new(
+            max_size_bytes,
+            0.1,
+            Arc::clone(&time_provider),
+            Arc::new(Registry::new()),
+            Duration::from_nanos(100),
+        );
+
+        let file_timestamp_min_max = Some(TimestampMinMax::new(0, 100));
+        let should_cache = should_request_be_cached(file_timestamp_min_max, &cache);
+        assert!(!should_cache);
+    }
+
+    #[test_log::test(test)]
+    fn test_should_request_be_cached_no_timestamp_set() {
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(1000)));
+        let max_size_bytes = 100;
+        let cache = Cache::new(
+            max_size_bytes,
+            0.1,
+            Arc::clone(&time_provider),
+            Arc::new(Registry::new()),
+            Duration::from_nanos(100),
+        );
+
+        let file_timestamp_min_max = Some(TimestampMinMax::new(0, 100));
+        let should_cache = should_request_be_cached(file_timestamp_min_max, &cache);
+        assert!(!should_cache);
     }
 }

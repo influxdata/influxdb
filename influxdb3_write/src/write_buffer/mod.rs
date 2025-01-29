@@ -5,6 +5,7 @@ pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
 pub(crate) use table_buffer::INDEX_HASH_SEED;
+use tokio::sync::{oneshot, watch::Receiver};
 pub mod validator;
 
 use crate::persister::Persister;
@@ -24,9 +25,12 @@ use data_types::{
 use datafusion::catalog::Session;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::object_store::ObjectStoreUrl;
-use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, DistinctCacheProvider};
 use influxdb3_cache::last_cache::{self, LastCacheProvider};
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
+use influxdb3_cache::{
+    distinct_cache::{self, CreateDistinctCacheArgs, DistinctCacheProvider},
+    parquet_cache::CacheRequest,
+};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::FieldDataType;
@@ -52,7 +56,6 @@ use schema::Schema;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use tokio::sync::watch::Receiver;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -351,6 +354,10 @@ impl WriteBufferImpl {
         }
 
         let mut chunk_order = chunks.len() as i64;
+        // Although this sends a cache request, it does not mean all these
+        // files will be cached. This depends on parquet cache's capacity
+        // and whether these files are recent enough
+        self.cache_parquet_files(&parquet_files);
 
         for parquet_file in parquet_files {
             let parquet_chunk = parquet_chunk_from_file(
@@ -367,6 +374,29 @@ impl WriteBufferImpl {
         }
 
         Ok(chunks)
+    }
+
+    fn cache_parquet_files(&self, parquet_files: &[ParquetFile]) {
+        if let Some(parquet_cache) = &self.parquet_cache {
+            let all_cache_notifiers: Vec<oneshot::Receiver<()>> = parquet_files
+                .iter()
+                .map(|file| {
+                    // When datafusion tries to fetch this file we'll have cache in "Fetching" state.
+                    // There is a slim chance that this request hasn't been processed yet, then we
+                    // could incur extra GET req to populate the cache. Having a transparent
+                    // cache might be handy for this case.
+                    let (cache_req, receiver) = CacheRequest::create_eventual_mode_cache_request(
+                        ObjPath::from(file.path.as_str()),
+                        Some(file.timestamp_min_max()),
+                    );
+                    parquet_cache.register(cache_req);
+                    receiver
+                })
+                .collect();
+            // there's no explicit await on these receivers - we're only letting parquet cache know
+            // this file can be cached if it meets cache's policy.
+            debug!(len = ?all_cache_notifiers.len(), ">>> num parquet file cache requests created");
+        }
     }
 
     #[cfg(test)]
@@ -2920,6 +2950,160 @@ mod tests {
                 "+--------+------+----------------------+-------+",
             ],
             &all_vals
+        );
+    }
+
+    // 2 threads are used here as we drop the write buffer in this test and the test
+    // relies on parquet cache being able to work with eventual mode cache requests.
+    // When write buffer is dropped the default background_cache_handler loop gets
+    // stuck waiting for new messages in the channel. So, using another thread works
+    // around the problem - another way may have been to have some shutdown hook
+    // but that'd require further changes. For now, this work around should suffice
+    // if finer grained control is necessary, shutdown hook can be explored.
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+    async fn test_query_path_parquet_cache() {
+        let inner_store = Arc::new(RequestCountedObjectStore::new(Arc::new(InMemory::new())));
+        let (write_buffer, ctx, _) = setup_cache_optional(
+            Time::from_timestamp_nanos(100),
+            Arc::clone(&inner_store) as _,
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            false,
+        )
+        .await;
+        let db_name = "test_db";
+        // perform writes over time to generate WAL files and some snapshots
+        for i in 1..=3 {
+            let _ = write_buffer
+                .write_lp(
+                    NamespaceName::new(db_name).unwrap(),
+                    "temp,warehouse=us-east,room=01a,device=10001 reading=36\n\
+                temp,warehouse=us-east,room=01b,device=10002 reading=29\n\
+                temp,warehouse=us-east,room=02a,device=30003 reading=33\n\
+                ",
+                    Time::from_timestamp_nanos(i * 1_000_000_000),
+                    false,
+                    Precision::Nanosecond,
+                    false,
+                )
+                .await
+                .unwrap();
+        }
+
+        // Wait for snapshot to be created, once this is done, then the parquet has been persisted
+        verify_snapshot_count(1, &write_buffer.persister).await;
+
+        // get the path for the created parquet file
+        let persisted_files = write_buffer
+            .persisted_files()
+            .get_files(DbId::from(0), TableId::from(0));
+        assert_eq!(1, persisted_files.len());
+        let path = ObjPath::from(persisted_files[0].path.as_str());
+
+        let batches = write_buffer
+            .get_record_batches_unchecked(db_name, "temp", &ctx)
+            .await;
+        assert_batches_sorted_eq!(
+            [
+                "+--------+---------+------+----------------------+-----------+",
+                "| device | reading | room | time                 | warehouse |",
+                "+--------+---------+------+----------------------+-----------+",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:03Z | us-east   |",
+                "+--------+---------+------+----------------------+-----------+",
+            ],
+            &batches
+        );
+
+        // at this point everything should've been snapshotted
+        drop(write_buffer);
+
+        debug!(">>> test: stopped");
+        // nothing in the cache at this point and not in buffer
+        let (write_buffer, ctx, _) = setup_cache_optional(
+            // move the time
+            Time::from_timestamp_nanos(2_000_000_000),
+            Arc::clone(&inner_store) as _,
+            WalConfig {
+                gen1_duration: Gen1Duration::new_1m(),
+                max_write_buffer_size: 100,
+                flush_interval: Duration::from_millis(10),
+                snapshot_size: 1,
+            },
+            true,
+        )
+        .await;
+        debug!(">>> test: restarted");
+
+        // nothing in query buffer
+        let batches =
+            get_table_batches_from_query_buffer(&write_buffer, db_name, "temp", &ctx).await;
+        assert_batches_sorted_eq!(["++", "++",], &batches);
+
+        // we need to get everything from OS and cache them
+        let batches = write_buffer
+            .get_record_batches_unchecked(db_name, "temp", &ctx)
+            .await;
+        assert_batches_sorted_eq!(
+            [
+                "+--------+---------+------+----------------------+-----------+",
+                "| device | reading | room | time                 | warehouse |",
+                "+--------+---------+------+----------------------+-----------+",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:03Z | us-east   |",
+                "+--------+---------+------+----------------------+-----------+",
+            ],
+            &batches
+        );
+
+        assert!(inner_store.total_read_request_count(&path) > 0);
+        let expected_req_counts = inner_store.total_read_request_count(&path);
+
+        let batches = write_buffer
+            .get_record_batches_unchecked(db_name, "temp", &ctx)
+            .await;
+        assert_batches_sorted_eq!(
+            [
+                "+--------+---------+------+----------------------+-----------+",
+                "| device | reading | room | time                 | warehouse |",
+                "+--------+---------+------+----------------------+-----------+",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10001  | 36.0    | 01a  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 10002  | 29.0    | 01b  | 1970-01-01T00:00:03Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:01Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:02Z | us-east   |",
+                "| 30003  | 33.0    | 02a  | 1970-01-01T00:00:03Z | us-east   |",
+                "+--------+---------+------+----------------------+-----------+",
+            ],
+            &batches
+        );
+
+        // everything came from cache, all counts should stay the same as
+        // above
+        assert_eq!(
+            expected_req_counts,
+            inner_store.total_read_request_count(&path)
         );
     }
 

@@ -295,6 +295,16 @@ pub struct Config {
     )]
     pub disable_parquet_mem_cache: bool,
 
+    /// The duration from `now` to check if parquet files pulled in query path requires caching
+    /// Enter as a human-readable time, e.g., "5h", "3d"
+    #[clap(
+        long = "parquet-mem-cache-query-path-duration",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL",
+        default_value = "5h",
+        action
+    )]
+    pub parquet_mem_cache_query_path_duration: humantime::Duration,
+
     /// The interval on which to evict expired entries from the Last-N-Value cache, expressed as a
     /// human-readable time, e.g., "20s", "1m", "1h".
     #[clap(
@@ -458,6 +468,7 @@ pub async fn command(config: Config) -> Result<()> {
             Arc::clone(&time_provider) as _,
             Arc::clone(&metrics),
             config.parquet_mem_cache_size.as_num_bytes(),
+            config.parquet_mem_cache_query_path_duration.into(),
             config.parquet_mem_cache_prune_percentage.into(),
             config.parquet_mem_cache_prune_interval.into(),
         );
