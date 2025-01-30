@@ -353,6 +353,12 @@ impl Error {
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
+            Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
+                err @ CatalogError::CatalogUpdatedElsewhere { .. },
+            )) => Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: e.to_string(),

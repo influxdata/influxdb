@@ -30,8 +30,8 @@ const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 #[derive(Debug, Error, Clone)]
 pub enum Error {
-    #[error("catalog updated elsewhere")]
-    CatalogUpdatedElsewhere,
+    #[error("table '{table_name}' already exists")]
+    CatalogUpdatedElsewhere { table_name: Arc<str> },
 
     #[error(
         "Update to schema would exceed number of columns per table limit of {} columns",
@@ -609,7 +609,9 @@ impl DatabaseSchema {
                 // for existence and insertion.
                 // We'd like this to be automatically handled by the system,
                 // but for now it is better to error than get into an inconsistent state.
-                return Err(CatalogUpdatedElsewhere);
+                return Err(CatalogUpdatedElsewhere {
+                    table_name: Arc::clone(&table_def.table_name),
+                });
             }
             Overwritten::Neither | Overwritten::Pair(_, _) => {}
         }

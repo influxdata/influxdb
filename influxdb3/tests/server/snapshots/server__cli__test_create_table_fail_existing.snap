@@ -1,0 +1,6 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: result
+snapshot_kind: text
+---
+Create command failed: server responded with error [409 Conflict]: table 'bar' already exists
