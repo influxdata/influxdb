@@ -476,6 +476,48 @@ async fn test_create_table() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_create_table_fail_existing() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "bar";
+    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+    let result = run_with_confirmation(&[
+        "create",
+        "table",
+        table_name,
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--tags",
+        "one",
+        "--fields",
+        "four:utf8",
+    ]);
+    debug!(result = ?result, "create table");
+    assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
+
+    let result = run_with_confirmation_and_err(&[
+        "create",
+        "table",
+        table_name,
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--tags",
+        "one",
+        "--fields",
+        "four:utf8",
+    ]);
+
+    insta::assert_snapshot!("test_create_table_fail_existing", result);
+}
+
+#[test_log::test(tokio::test)]
 async fn test_delete_table() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();

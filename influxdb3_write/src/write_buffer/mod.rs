@@ -100,6 +100,12 @@ pub enum Error {
     #[error("tried accessing table that do not exist")]
     TableDoesNotExist,
 
+    #[error("table '{db_name}.{table_name}' already exists")]
+    TableAlreadyExists {
+        db_name: Arc<str>,
+        table_name: Arc<str>,
+    },
+
     #[error("tried accessing column with name ({0}) that does not exist")]
     ColumnDoesNotExist(String),
 
@@ -734,7 +740,15 @@ impl DatabaseManager for WriteBufferImpl {
         };
 
         let table_id = TableId::new();
-        let table_name = table.into();
+        let table_name: Arc<str> = table.into();
+
+        if db_schema.table_map.contains_right(&table_name) {
+            return Err(Error::TableAlreadyExists {
+                db_name: Arc::clone(&db_schema.name),
+                table_name: Arc::clone(&table_name),
+            });
+        }
+
         let mut key = Vec::new();
         let field_definitions = {
             let mut field_definitions = Vec::new();

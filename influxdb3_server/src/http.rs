@@ -364,6 +364,15 @@ impl Error {
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
+            Self::WriteBuffer(
+                err @ WriteBufferError::CatalogUpdateError(CatalogError::CatalogUpdatedElsewhere {
+                    ..
+                })
+                | err @ WriteBufferError::TableAlreadyExists { .. },
+            ) => Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: e.to_string(),
