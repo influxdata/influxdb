@@ -55,6 +55,9 @@ pub enum Error {
         #[source]
         source: reqwest::Error,
     },
+
+    #[error("unrecognized precision unit: {0}")]
+    UnrecognizedUnit(String),
 }
 
 impl Error {
@@ -902,6 +905,21 @@ pub enum Precision {
     Millisecond,
     Microsecond,
     Nanosecond,
+}
+
+impl std::str::FromStr for Precision {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let p = match s {
+            "s" => Self::Second,
+            "ms" => Self::Millisecond,
+            "us" => Self::Microsecond,
+            "ns" => Self::Nanosecond,
+            _ => return Err(Error::UnrecognizedUnit(s.into())),
+        };
+        Ok(p)
+    }
 }
 
 /// Builder type for composing a request to `/api/v3/write_lp`

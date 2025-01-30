@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::Parser;
+use influxdb3_client::Precision;
 use secrecy::ExposeSecret;
 use tokio::io;
 
@@ -53,6 +54,10 @@ pub struct Config {
 
     /// Give a quoted line protocol line via the command line
     line_protocol: Option<Vec<String>>,
+
+    /// Specify a supported precision (eg: ns, us, ms, s).
+    #[clap(short = 'p', long = "precision")]
+    precision: Option<Precision>,
 }
 
 pub(crate) async fn command(config: Config) -> Result<()> {
@@ -83,6 +88,9 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     };
 
     let mut req = client.api_v3_write_lp(database_name);
+    if let Some(precision) = config.precision {
+        req = req.precision(precision);
+    }
     if config.accept_partial_writes {
         req = req.accept_partial(true);
     }

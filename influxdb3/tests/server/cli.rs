@@ -1769,3 +1769,98 @@ async fn write_and_query_via_string() {
         result
     );
 }
+
+#[test_log::test(tokio::test)]
+async fn write_with_precision_arg() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let table_name = "bar";
+
+    struct TestCase {
+        name: &'static str,
+        precision: Option<&'static str>,
+        expected: &'static str,
+    }
+
+    let tests = vec![
+        TestCase {
+            name: "default precision is seconds",
+            precision: None,
+            expected: "1970-01-01T00:00:01",
+        },
+        TestCase {
+            name: "set seconds precision",
+            precision: Some("s"),
+            expected: "1970-01-01T00:00:01",
+        },
+        TestCase {
+            name: "set milliseconds precision",
+            precision: Some("ms"),
+            expected: "1970-01-01T00:00:00.001",
+        },
+        TestCase {
+            name: "set microseconds precision",
+            precision: Some("us"),
+            expected: "1970-01-01T00:00:00.000001",
+        },
+        TestCase {
+            name: "set nanoseconds precision",
+            precision: Some("ns"),
+            expected: "1970-01-01T00:00:00.000000001",
+        },
+    ];
+
+    for test in tests {
+        let TestCase {
+            name,
+            precision,
+            expected,
+        } = test;
+        let name_tag = name.replace(' ', "_");
+        let lp = format!("{table_name},name={name_tag} theanswer=42 1");
+
+        let mut args = vec!["write", "--host", &server_addr, "--database", db_name];
+        if let Some(precision) = precision {
+            args.extend(vec!["--precision", precision]);
+        }
+        args.push(&lp);
+
+        run(args.as_slice());
+        let result = server
+            .api_v3_query_sql(&[
+                ("db", db_name),
+                (
+                    "q",
+                    format!("SELECT * FROM {table_name} WHERE name='{name_tag}'").as_str(),
+                ),
+                ("format", "json"),
+            ])
+            .await
+            .json::<Value>()
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            json!([{
+                "name": name_tag,
+                "theanswer": 42.0,
+                "time": expected,
+            }]),
+            "test failed: {name}",
+        );
+    }
+
+    let lp = format!("{table_name},name=invalid_precision theanswer=42 1");
+    let output = run_and_err(&[
+        "write",
+        "--host",
+        &server_addr,
+        "--database",
+        db_name,
+        "--precision",
+        "fake",
+        &lp,
+    ]);
+    insta::assert_snapshot!("invalid_precision", output);
+}
