@@ -14,30 +14,45 @@ pub enum VenvError {
     CommandError(#[from] std::io::Error),
 }
 
-fn get_python_version() -> Result<(u8, u8), std::io::Error> {
+fn get_python_version() -> Result<(u8, u8), VenvError> {
     let output = Command::new("python3")
         .args([
             "-c",
             "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
         ])
-        .output()?;
+        .output()
+        .map_err(VenvError::CommandError)?;
+
+    if !output.status.success() {
+        return Err(VenvError::InitError(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
+    }
 
     let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let mut parts = version.split('.');
-    let major: u8 = parts.next().unwrap().parse().unwrap();
-    let minor: u8 = parts.next().unwrap().parse().unwrap();
+    let major: u8 = parts
+        .next()
+        .ok_or_else(|| VenvError::InitError("Invalid version format".to_string()))?
+        .parse()
+        .map_err(|_| VenvError::InitError("Invalid major version".to_string()))?;
+    let minor: u8 = parts
+        .next()
+        .ok_or_else(|| VenvError::InitError("Invalid version format".to_string()))?
+        .parse()
+        .map_err(|_| VenvError::InitError("Invalid minor version".to_string()))?;
 
     Ok((major, minor))
 }
 
 fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
-    let (major, minor) = get_python_version()?;
+    let (major, minor) = get_python_version().unwrap();
     let site_packages = venv_dir
         .join("lib")
         .join(format!("python{}.{}", major, minor))
         .join("site-packages");
 
-    debug!("Setting PYTHONPATH to: {}", site_packages.to_string_lossy());
+    print!("Setting PYTHONPATH to: {}", site_packages.to_string_lossy());
     std::env::set_var("PYTHONPATH", &site_packages);
 
     Ok(())
@@ -59,7 +74,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
             activate_script
         )));
     }
-    set_pythonpath(venv_path)?;
+    set_pythonpath(venv_path).unwrap();
 
     let output = Command::new("bash")
         .arg("-c")
@@ -67,7 +82,8 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
             "source {} && env",
             activate_script.to_str().unwrap()
         ))
-        .output()?;
+        .output()
+        .expect("couldn't source");
 
     if !output.status.success() {
         return Err(VenvError::InitError(

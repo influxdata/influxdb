@@ -4,19 +4,42 @@ use crate::virtualenv::{initialize_venv, VenvError};
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use observability_deps::tracing::info;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PluginEnvironmentError {
     #[error("Package manager not available: {0}")]
     PackageManagerNotFound(String),
-    #[error("External call failed: {0}")]
-    InstallationFailed(#[from] std::io::Error),
+    #[error("Required binary '{binary}' not found or not executable: {error}")]
+    BinaryNotFound { binary: String, error: String },
+    #[error("Installation failed: {0}")]
+    InstallationFailed(String),
+    #[error("Command execution failed: {command} - {error}")]
+    CommandFailed { command: String, error: String },
     #[error("Plugin environment management is disabled")]
     PluginEnvironmentDisabled,
     #[cfg(feature = "system-py")]
     #[error("Virtual environment error: {0}")]
     VenvError(#[from] VenvError),
+}
+
+fn check_binary_available(binary: &str) -> Result<(), PluginEnvironmentError> {
+    let output = Command::new(binary)
+        .arg("--version")
+        .output()
+        .map_err(|e| PluginEnvironmentError::BinaryNotFound {
+            binary: binary.to_string(),
+            error: e.to_string(),
+        })?;
+
+    if !output.status.success() {
+        return Err(PluginEnvironmentError::BinaryNotFound {
+            binary: binary.to_string(),
+            error: String::from_utf8_lossy(&output.stderr).to_string(),
+        });
+    }
+    Ok(())
 }
 
 pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
@@ -53,13 +76,30 @@ impl PythonEnvironmentManager for UVManager {
         plugin_dir: &Path,
         virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
+        info!("initializing environment");
+        check_binary_available("uv")?;
+        check_binary_available("python3")?;
+
         let venv_path = match virtual_env_location {
             Some(path) => path,
             None => &plugin_dir.join(".venv"),
         };
 
         if !is_valid_venv(venv_path) {
-            Command::new("uv").arg("venv").arg(venv_path).output()?;
+            let output = Command::new("uv")
+                .arg("venv")
+                .arg(venv_path)
+                .output()
+                .map_err(|e| PluginEnvironmentError::CommandFailed {
+                    command: "uv venv".to_string(),
+                    error: e.to_string(),
+                })?;
+
+            if !output.status.success() {
+                return Err(PluginEnvironmentError::InstallationFailed(
+                    format!("uv venv {:?}", venv_path)
+                ));
+            }
         }
 
         #[cfg(feature = "system-py")]
@@ -68,10 +108,21 @@ impl PythonEnvironmentManager for UVManager {
     }
 
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
-        Command::new("uv")
+        let output = Command::new("uv")
             .args(["pip", "install"])
             .args(&packages)
-            .output()?;
+            .output()
+            .map_err(|e| PluginEnvironmentError::CommandFailed {
+            command: "uv pip install".to_string(),
+            error: e.to_string(),
+        })?;
+
+        if !output.status.success() {
+            return Err(PluginEnvironmentError::InstallationFailed(
+                format!("uv pip install {:?} failed", packages),
+            ));
+        }
+
         Ok(())
     }
 
@@ -79,9 +130,19 @@ impl PythonEnvironmentManager for UVManager {
         &self,
         requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
-        Command::new("uv")
+        let output = Command::new("uv")
             .args(["pip", "install", "-r", &requirements_path])
-            .output()?;
+            .output()
+            .map_err(|e| PluginEnvironmentError::CommandFailed {
+                command: "uv pip install -r".to_string(),
+                error: e.to_string(),
+            })?;
+
+        if !output.status.success() {
+            return Err(PluginEnvironmentError::InstallationFailed(
+                format!("uv pip install -r {:?} failed", requirements_path),
+            ));
+        }
         Ok(())
     }
 }
@@ -92,17 +153,30 @@ impl PythonEnvironmentManager for PipManager {
         plugin_dir: &Path,
         virtual_env_location: Option<&PathBuf>,
     ) -> Result<(), PluginEnvironmentError> {
+        check_binary_available("python3")?;
+        check_binary_available("pip")?;
+
         let venv_path = match virtual_env_location {
             Some(path) => path,
             None => &plugin_dir.join(".venv"),
         };
 
         if !is_valid_venv(venv_path) {
-            Command::new("python")
+            let output = Command::new("python3")
                 .arg("-m")
                 .arg("venv")
                 .arg(venv_path)
-                .output()?;
+                .output()
+                .map_err(|e| PluginEnvironmentError::CommandFailed {
+                    command: "python3 -m venv".to_string(),
+                    error: e.to_string(),
+                })?;
+
+            if !output.status.success() {
+                return Err(PluginEnvironmentError::InstallationFailed(
+                    format!("python3 -m venv {:?} failed", venv_path),
+                ));
+            }
         }
 
         #[cfg(feature = "system-py")]
@@ -110,19 +184,39 @@ impl PythonEnvironmentManager for PipManager {
         Ok(())
     }
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
-        Command::new("pip")
+        let output = Command::new("pip")
             .arg("install")
             .args(&packages)
-            .output()?;
+            .output()
+            .map_err(|e| PluginEnvironmentError::CommandFailed {
+                command: "pip install".to_string(),
+                error: e.to_string(),
+            })?;
+
+        if !output.status.success() {
+            return Err(PluginEnvironmentError::InstallationFailed(
+                format!("pip install {:?} failed", packages),
+            ));
+        }
         Ok(())
     }
     fn install_requirements(
         &self,
         requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
-        Command::new("pip")
+        let output = Command::new("pip")
             .args(["install", "-r", &requirements_path])
-            .output()?;
+            .output()
+            .map_err(|e| PluginEnvironmentError::CommandFailed {
+                command: "pip install -r".to_string(),
+                error: e.to_string(),
+            })?;
+
+        if !output.status.success() {
+            return Err(PluginEnvironmentError::InstallationFailed(
+                format!("pip install {:?} failed", requirements_path),
+            ));
+        }
         Ok(())
     }
 }
