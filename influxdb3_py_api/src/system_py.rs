@@ -1,3 +1,4 @@
+use crate::logging::{LogLevel, ProcessingEngineLog};
 use crate::ExecutePluginError;
 use anyhow::Context;
 use arrow_array::types::Int32Type;
@@ -13,8 +14,10 @@ use hashbrown::HashMap;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_wal::{FieldData, WriteBatch};
 use iox_query_params::StatementParams;
+use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
@@ -35,6 +38,22 @@ struct PyPluginCallApi {
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
     return_state: Arc<Mutex<PluginReturnState>>,
+    logger: Option<ProcessingEngineLogger>,
+}
+
+#[derive(Debug)]
+pub struct ProcessingEngineLogger {
+    sys_event_store: Arc<SysEventStore>,
+    trigger_name: String,
+}
+
+impl ProcessingEngineLogger {
+    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: String) -> Self {
+        Self {
+            sys_event_store,
+            trigger_name,
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -79,6 +98,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         info!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Info, line.clone());
         self.return_state.lock().log_lines.push(LogLine::Info(line));
         Ok(())
     }
@@ -88,6 +108,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         warn!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Warn, line.clone());
         self.return_state
             .lock()
             .log_lines
@@ -100,6 +121,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         error!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Error, line.clone());
         self.return_state
             .lock()
             .log_lines
@@ -256,6 +278,20 @@ impl PyPluginCallApi {
     }
 }
 
+impl PyPluginCallApi {
+    fn write_to_logger(&self, level: LogLevel, log_line: String) {
+        if let Some(logger) = &self.logger {
+            let processing_engine_log = ProcessingEngineLog::new(
+                logger.sys_event_store.time_provider().now(),
+                level,
+                logger.trigger_name.clone(),
+                log_line,
+            );
+            logger.sys_event_store.record(processing_engine_log);
+        }
+    }
+}
+
 // constant for the process writes call site string
 const PROCESS_WRITES_CALL_SITE: &str = "process_writes";
 
@@ -396,6 +432,7 @@ pub fn execute_python_with_batch(
     write_batch: &WriteBatch,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
@@ -495,6 +532,7 @@ pub fn execute_python_with_batch(
         let api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
+            logger,
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -531,6 +569,7 @@ pub fn execute_schedule_trigger(
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     Python::with_gil(|py| {
@@ -552,6 +591,7 @@ pub fn execute_schedule_trigger(
         let api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
+            logger,
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -584,10 +624,12 @@ pub fn execute_schedule_trigger(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_request_trigger(
     code: &str,
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
     query_params: HashMap<String, String>,
     request_headers: HashMap<String, String>,
@@ -607,6 +649,7 @@ pub fn execute_request_trigger(
         let api = PyPluginCallApi {
             db_schema,
             query_executor,
+            logger,
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);

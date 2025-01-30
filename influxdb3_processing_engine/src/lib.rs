@@ -14,6 +14,7 @@ use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
+use influxdb3_sys_events::SysEventStore;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::PluginType;
 use influxdb3_wal::{
@@ -44,6 +45,8 @@ pub struct ProcessingEngineManagerImpl {
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
+    #[allow(unused)]
+    sys_event_store: Arc<SysEventStore>,
     wal: Arc<dyn Wal>,
     plugin_event_tx: RwLock<PluginChannels>,
 }
@@ -212,6 +215,7 @@ impl ProcessingEngineManagerImpl {
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
         wal: Arc<dyn Wal>,
+        sys_event_store: Arc<SysEventStore>,
     ) -> Self {
         // if given a plugin dir, try to initialize the virtualenv.
         #[cfg(feature = "system-py")]
@@ -229,6 +233,7 @@ impl ProcessingEngineManagerImpl {
             catalog,
             write_buffer,
             query_executor,
+            sys_event_store,
             time_provider,
             wal,
             plugin_event_tx: Default::default(),
@@ -442,6 +447,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let plugin_context = PluginContext {
                 write_buffer,
                 query_executor,
+                sys_event_store: Arc::clone(&self.sys_event_store),
             };
             let plugin_code = self.read_plugin_code(&trigger.plugin_filename).await?;
             match trigger.trigger.plugin_type() {
@@ -788,6 +794,7 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_catalog::catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
+    use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{Gen1Duration, TriggerSpecificationDefinition, WalConfig};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
@@ -1046,6 +1053,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
             package_manager: Arc::new(DisabledManager),
         };
 
+        let sys_event_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
+
         (
             ProcessingEngineManagerImpl::new(
                 environment_manager,
@@ -1054,6 +1063,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 qe,
                 time_provider,
                 wal,
+                sys_event_store,
             ),
             file,
         )

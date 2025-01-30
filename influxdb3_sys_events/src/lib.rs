@@ -48,6 +48,10 @@ impl SysEventStore {
         }
     }
 
+    pub fn time_provider(&self) -> &Arc<dyn TimeProvider> {
+        &self.time_provider
+    }
+
     /// records an event by adding it to this event store
     pub fn record<E>(&self, val: E)
     where
