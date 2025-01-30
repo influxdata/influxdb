@@ -299,7 +299,7 @@ pub struct Config {
     /// Enter as a human-readable time, e.g., "5h", "3d"
     #[clap(
         long = "parquet-mem-cache-query-path-duration",
-        env = "INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL",
+        env = "INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION",
         default_value = "5h",
         action
     )]
