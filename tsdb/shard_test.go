@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -2706,7 +2708,8 @@ func TestMeasurementFieldSetRace(t *testing.T) {
 func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 	const measurement = "cpu"
 	const field = "value"
-	const loops = 100
+	const pointCopies = 100
+	const trials = 10
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping on windows")
 	}
@@ -2725,49 +2728,51 @@ func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = tmpWal
 	opts.InmemIndex = inmem.NewIndex(filepath.Base(tmpDir), sfile.SeriesFile)
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	require.NoError(t, sh.Open(), "opening shard: %s", sh.Path())
+	defer func() {
+		require.NoError(t, sh.Close(), "closing shard %s", tmpShard)
+	}()
+	var wg sync.WaitGroup
+	mu := sync.RWMutex{}
+	maxConcurrency := atomic.Int64{}
 
 	currentTime := time.Now()
 
-	points := make([]models.Point, 0, loops*len(types))
+	points := make([]models.Point, 0, pointCopies*len(types))
 
-	for i := 0; i < loops; i++ {
+	for i := 0; i < pointCopies; i++ {
 		points = append(points, models.MustNewPoint(
 			measurement,
 			models.NewTags(map[string]string{"host": "server"}),
 			map[string]interface{}{field: 1.0},
-			currentTime,
+			currentTime.Add(time.Duration(i)*time.Second),
 		))
 		points = append(points, models.MustNewPoint(
 			measurement,
 			models.NewTags(map[string]string{"host": "server"}),
 			map[string]interface{}{field: int64(1)},
-			currentTime,
+			currentTime.Add(time.Duration(i)*time.Second),
 		))
 		points = append(points, models.MustNewPoint(
 			measurement,
 			models.NewTags(map[string]string{"host": "server"}),
 			map[string]interface{}{field: "one"},
-			currentTime,
+			currentTime.Add(time.Duration(i)*time.Second),
 		))
 		points = append(points, models.MustNewPoint(
 			measurement,
 			models.NewTags(map[string]string{"host": "server"}),
 			map[string]interface{}{field: true},
-			currentTime,
+			currentTime.Add(time.Duration(i)*time.Second),
 		))
 	}
-	var wg sync.WaitGroup
-	mu := sync.RWMutex{}
-	maxConcurrency := atomic.Int64{}
 	concurrency := atomic.Int64{}
+	snapshots := make([]string, 0, trials)
 
-	for i := 0; i < 10; i++ {
-		opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
-
-		sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
-		require.NoError(t, sh.Open(), "opening shard: %s", sh.Path())
+	for i := 0; i < trials; i++ {
 		mu.Lock()
-
 		wg.Add(len(points))
 		// Write points concurrently
 		for _, p := range points {
@@ -2784,9 +2789,6 @@ func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 						influxql.InspectDataType(fs[field]),
 						sh.MeasurementFields([]byte(measurement)).Field(field).Type,
 						"field types mismatch")
-					f, err := sh.CreateSnapshot(false)
-					require.NoError(t, err, "creating snapshot: %s", sh.Path())
-					require.NoError(t, os.RemoveAll(f), "removing snapshot %s", f)
 				} else {
 					require.ErrorContains(t, err, tsdb.ErrFieldTypeConflict.Error(), "unexpected error")
 				}
@@ -2797,7 +2799,26 @@ func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 		}
 		mu.Unlock()
 		wg.Wait()
-		require.NoError(t, sh.Close(), "closing shard %s", tmpShard)
+		f, err := sh.CreateSnapshot(false)
+		require.NoError(t, err, "creating snapshot: %s", sh.Path())
+		snapshots = append(snapshots, f)
 	}
+	for _, dir := range snapshots {
+		files, err := os.ReadDir(dir)
+		require.NoError(t, err, "reading snapshot directory %s", dir)
+		for _, file := range files {
+			ffile := path.Join(dir, file.Name())
+			fh, err := os.Open(ffile)
+			require.NoError(t, err, "opening snapshot file %s", ffile)
+			tr, err := tsm1.NewTSMReader(fh)
+			require.NoError(t, err, "creating TSM reader for %s", ffile)
+			key, typ := tr.KeyAt(0)
+			t.Log(string(key), typ)
+			require.NoError(t, err, "getting type for key %s", points[0].Key())
+			require.NoError(t, tr.Close(), "closing TSM reader")
+		}
+	}
+	// TODO(DSB): compare types in snapshots.
+	// Open TSMReaders for each snapshot and compare the field types.
 	t.Logf("max concurrency: %d", maxConcurrency.Load())
 }
