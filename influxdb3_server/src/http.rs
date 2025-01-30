@@ -353,9 +353,12 @@ impl Error {
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
-            Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
-                err @ CatalogError::CatalogUpdatedElsewhere { .. },
-            )) => Response::builder()
+            Self::WriteBuffer(
+                err @ WriteBufferError::CatalogUpdateError(CatalogError::CatalogUpdatedElsewhere {
+                    ..
+                })
+                | err @ WriteBufferError::TableAlreadyExists { .. },
+            ) => Response::builder()
                 .status(StatusCode::CONFLICT)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
