@@ -1,19 +1,17 @@
 //! The in memory buffer of a table that can be quickly added to and queried
 
 use arrow::array::{
-    Array, ArrayBuilder, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
-    Int64Builder, StringArray, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
-    UInt64Builder,
+    Array, ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
+    StringDictionaryBuilder, TimestampNanosecondBuilder, UInt64Builder,
 };
-use arrow::datatypes::{GenericStringType, Int32Type};
+use arrow::datatypes::Int32Type;
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
-use datafusion::physical_expr::utils::Guarantee;
 use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
 use influxdb3_wal::{FieldData, Row};
-use observability_deps::tracing::{debug, error};
+use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
 use std::collections::btree_map::Entry;
@@ -21,11 +19,8 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
-use twox_hash::XxHash64;
 
-use crate::{ChunkFilter, HashedLiteralGuarantee};
-
-pub const INDEX_HASH_SEED: u64 = 0;
+use crate::ChunkFilter;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -41,16 +36,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct TableBuffer {
     chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
     snapshotting_chunks: Vec<SnapshotChunk>,
-    index: BufferIndex,
     pub(crate) sort_key: SortKey,
 }
 
 impl TableBuffer {
-    pub fn new(index_columns: Vec<ColumnId>, sort_key: SortKey) -> Self {
+    pub fn new(sort_key: SortKey) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
             snapshotting_chunks: vec![],
-            index: BufferIndex::new(index_columns),
             sort_key,
         }
     }
@@ -64,7 +57,6 @@ impl TableBuffer {
                 timestamp_max: i64::MIN,
                 data: Default::default(),
                 row_count: 0,
-                index: self.index.clone(),
             });
 
         buffer_chunk.add_rows(rows);
@@ -117,7 +109,7 @@ impl TableBuffer {
                 .entry(*t)
                 .or_insert_with(|| (ts_min_max, Vec::new()));
             *ts = ts.union(&ts_min_max);
-            v.push(c.record_batch(Arc::clone(&table_def), filter)?);
+            v.push(c.record_batch(Arc::clone(&table_def))?);
         }
         Ok(batches)
     }
@@ -151,8 +143,6 @@ impl TableBuffer {
             for builder in c.data.values() {
                 size += size_of::<ColumnId>() + size_of::<String>() + builder.size();
             }
-
-            size += c.index.size();
         }
 
         size
@@ -228,7 +218,6 @@ struct MutableTableChunk {
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
     row_count: usize,
-    index: BufferIndex,
 }
 
 impl MutableTableChunk {
@@ -269,7 +258,6 @@ impl MutableTableChunk {
                         }
                         let b = self.data.get_mut(&f.id).expect("tag builder should exist");
                         if let Builder::Tag(b) = b {
-                            self.index.add_row_if_indexed_column(b.len(), f.id, v);
                             b.append(v)
                                 .expect("shouldn't be able to overflow 32 bit dictionary");
                         } else {
@@ -288,7 +276,6 @@ impl MutableTableChunk {
                         let Builder::Key(b) = b else {
                             panic!("unexpected field type");
                         };
-                        self.index.add_row_if_indexed_column(b.len(), f.id, v);
                         b.append_value(v);
                     }
                     FieldData::String(v) => {
@@ -371,12 +358,8 @@ impl MutableTableChunk {
                         Builder::U64(b) => b.append_null(),
                         Builder::String(b) => b.append_null(),
                         Builder::Tag(b) | Builder::Key(b) => {
-                            // NOTE: we use an empty string "" for tags that are omitted and still
-                            //       update the index for rows that contain the empty tag
-                            let value = "";
-                            self.index
-                                .add_row_if_indexed_column(row_index, *column_id, value);
-                            b.append_value(value);
+                            // NOTE: we use an empty string "" for tags that are omitted
+                            b.append_value("");
                         }
                         Builder::Time(b) => b.append_null(),
                     }
@@ -391,12 +374,7 @@ impl MutableTableChunk {
         TimestampMinMax::new(self.timestamp_min, self.timestamp_max)
     }
 
-    fn record_batch(
-        &self,
-        table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
-    ) -> Result<RecordBatch> {
-        let row_ids = self.index.get_rows_from_index_for_filter(filter);
+    fn record_batch(&self, table_def: Arc<TableDefinition>) -> Result<RecordBatch> {
         let schema = table_def.schema.as_arrow();
 
         let mut cols = Vec::with_capacity(schema.fields().len());
@@ -405,24 +383,12 @@ impl MutableTableChunk {
             let column_def = table_def
                 .column_definition(f.name().as_ref())
                 .expect("a valid column name");
-            match row_ids {
-                Some(ref row_ids) => {
-                    let col = match self.data.get(&column_def.id) {
-                        Some(b) => b.get_rows(row_ids),
-                        None => array_ref_nulls_for_type(column_def.data_type, row_ids.len()),
-                    };
+            let b = match self.data.get(&column_def.id) {
+                Some(b) => b.as_arrow(),
+                None => array_ref_nulls_for_type(column_def.data_type, self.row_count),
+            };
 
-                    cols.push(col);
-                }
-                None => {
-                    let b = match self.data.get(&column_def.id) {
-                        Some(b) => b.as_arrow(),
-                        None => array_ref_nulls_for_type(column_def.data_type, self.row_count),
-                    };
-
-                    cols.push(b);
-                }
-            }
+            cols.push(b);
         }
 
         Ok(RecordBatch::try_new(schema, cols)?)
@@ -540,197 +506,6 @@ impl std::fmt::Debug for MutableTableChunk {
     }
 }
 
-/// Tracks which rows in a [`TableBuffer`] have a given unique value on a per column basis
-///
-/// The index maps [`ColumnId`] to a `u64`, which is the hash of the original string literal, to a
-/// set of row indexes (`HashSet<usize>`).
-///
-/// # Example
-///
-/// Given the following writes to the `foo` table:
-///
-/// ```text
-/// foo,tag=a val=1 1
-/// foo,tag=b val=1 2
-/// foo,tag=c val=1 3
-/// foo,tag=a val=1 4
-/// ```
-///
-/// The `BufferIndex`, after these rows have been buffered, and assuming that the index is on the
-/// `tag` column, would have the following structure:
-///
-/// ```text
-///                    "tag"
-///                  /   |   \
-///                "a"  "b"  "c"
-///                 |    |    |
-///               [0,3] [1]  [2]
-/// ```
-///
-/// Though, instead of the `"tag"`, would be the column ID for the `"tag"` column, and instead of
-/// the literals `a`, `b`, and `c`, there would be the 64 bit hash for each value, respectively.
-#[derive(Debug, Clone)]
-struct BufferIndex {
-    // column id -> hashed string value as u64 -> row indexes
-    columns: HashMap<ColumnId, HashMap<u64, HashSet<usize>>>,
-}
-
-impl BufferIndex {
-    fn new(column_ids: Vec<ColumnId>) -> Self {
-        let mut columns = HashMap::new();
-
-        for id in column_ids {
-            columns.insert(id, HashMap::new());
-        }
-
-        Self { columns }
-    }
-
-    fn add_row_if_indexed_column(&mut self, row_index: usize, column_id: ColumnId, value: &str) {
-        if let Some(column) = self.columns.get_mut(&column_id) {
-            let hashed_value = XxHash64::oneshot(INDEX_HASH_SEED, value.as_bytes());
-            column
-                .entry(hashed_value)
-                .and_modify(|c| {
-                    c.insert(row_index);
-                })
-                .or_insert([row_index].into_iter().collect());
-        }
-    }
-
-    fn get_rows_from_index_for_filter(&self, filter: &ChunkFilter) -> Option<HashSet<usize>> {
-        debug!(?filter, ">>> processing filter");
-        let mut row_ids = RowIndexSet::new();
-        for (
-            col_id,
-            HashedLiteralGuarantee {
-                guarantee,
-                literal_hashes,
-            },
-        ) in filter.guarantees()
-        {
-            debug!(
-                ?col_id,
-                ?guarantee,
-                ?literal_hashes,
-                current = ?row_ids,
-                ">>> processing buffer guarantee"
-            );
-            let Some(row_map) = self.columns.get(col_id) else {
-                continue;
-            };
-            match guarantee {
-                Guarantee::In => {
-                    // If the literal set is empty, that means the evaluated filter is scanning for
-                    // rows where the tag is in nothing. That should yield no rows, so we give back
-                    // an empty set...
-                    // NOTE: tags cannot be NULL. They are given a value of "" if omitted in writes
-                    if literal_hashes.is_empty() {
-                        return Some(Default::default());
-                    }
-                    row_ids.start_in();
-                    for literal_hash in literal_hashes {
-                        if let Some(row) = row_map.get(literal_hash) {
-                            row_ids.update_in(row);
-                        }
-                    }
-                    row_ids.finish_column();
-                }
-                Guarantee::NotIn => {
-                    let in_rows = row_map
-                        .values()
-                        .flatten()
-                        .copied()
-                        .collect::<HashSet<usize>>();
-                    row_ids.start_not_in(in_rows);
-                    for literal_hash in literal_hashes {
-                        if let Some(row) = row_map.get(literal_hash) {
-                            row_ids.update_not_in(row);
-                        };
-                    }
-                    row_ids.finish_column();
-                }
-            }
-        }
-
-        debug!(result = ?row_ids, ">>> done processing filter guarantees");
-
-        row_ids.finish()
-    }
-
-    fn size(&self) -> usize {
-        let mut size = size_of::<Self>();
-        for (_, v) in &self.columns {
-            size +=
-                size_of::<ColumnId>() + size_of::<u64>() + size_of::<HashMap<u64, Vec<usize>>>();
-            for (_, v) in v {
-                size += size_of::<u64>() + size_of::<Vec<usize>>();
-                size += v.len() * size_of::<usize>();
-            }
-        }
-        size
-    }
-}
-
-#[derive(Debug)]
-struct RowIndexSet {
-    set: HashSet<usize>,
-    temp: HashSet<usize>,
-    state: IndexingState,
-}
-
-#[derive(Debug)]
-enum IndexingState {
-    Initialized,
-    Processing,
-}
-
-impl RowIndexSet {
-    fn new() -> Self {
-        Self {
-            set: HashSet::new(),
-            temp: HashSet::new(),
-            state: IndexingState::Initialized,
-        }
-    }
-
-    fn start_in(&mut self) {
-        self.temp.clear();
-    }
-
-    fn update_in(&mut self, indexes: &HashSet<usize>) {
-        self.temp = self.temp.union(indexes).copied().collect();
-    }
-
-    fn start_not_in(&mut self, initial_indexes: HashSet<usize>) {
-        self.temp = initial_indexes;
-    }
-
-    fn update_not_in(&mut self, indexes: &HashSet<usize>) {
-        self.temp = self.temp.difference(indexes).copied().collect();
-    }
-
-    fn finish_column(&mut self) {
-        debug!(row_ids = ?self.temp, state = ?self.state, set = ?self.set, ">>> update set with row ids");
-        use IndexingState::*;
-        match self.state {
-            Initialized => {
-                std::mem::swap(&mut self.set, &mut self.temp);
-            }
-            Processing => self.set = self.set.intersection(&self.temp).copied().collect(),
-        };
-        self.state = Processing;
-    }
-
-    fn finish(self) -> Option<HashSet<usize>> {
-        use IndexingState::*;
-        match self.state {
-            Initialized => None,
-            Processing => Some(self.set),
-        }
-    }
-}
-
 pub enum Builder {
     Bool(BooleanBuilder),
     I64(Int64Builder),
@@ -786,77 +561,6 @@ impl Builder {
         }
     }
 
-    fn get_rows(&self, rows: &HashSet<usize>) -> ArrayRef {
-        match self {
-            Self::Bool(b) => {
-                let b = b.finish_cloned();
-                let mut builder = BooleanBuilder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-            Self::I64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = Int64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-            Self::F64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = Float64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-            Self::U64(b) => {
-                let b = b.finish_cloned();
-                let mut builder = UInt64Builder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-            Self::String(b) => {
-                let b = b.finish_cloned();
-                let mut builder = StringBuilder::new();
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-            Self::Tag(b) | Self::Key(b) => {
-                let b = b.finish_cloned();
-                let bv = b.values();
-                let bva: &StringArray = bv.as_any().downcast_ref::<StringArray>().unwrap();
-
-                let mut builder: GenericByteDictionaryBuilder<Int32Type, GenericStringType<i32>> =
-                    StringDictionaryBuilder::new();
-                for row in rows {
-                    let val = b.key(*row).unwrap();
-                    let tag_val = bva.value(val);
-
-                    builder
-                        .append(tag_val)
-                        .expect("shouldn't be able to overflow 32 bit dictionary");
-                }
-                Arc::new(builder.finish())
-            }
-            Self::Time(b) => {
-                let b = b.finish_cloned();
-                let mut builder = TimestampNanosecondBuilder::with_capacity(rows.len());
-                for row in rows {
-                    builder.append_value(b.value(*row));
-                }
-                Arc::new(builder.finish())
-            }
-        }
-    }
-
-    #[allow(dead_code)]
     fn size(&self) -> usize {
         let data_size = match self {
             Self::Bool(b) => b.capacity() + b.validity_slice().map(|s| s.len()).unwrap_or(0),
@@ -891,7 +595,7 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::NamespaceName;
-    use datafusion::prelude::{col, lit, lit_timestamp_nano, Expr};
+    use datafusion::prelude::{col, lit_timestamp_nano, Expr};
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
     use iox_time::Time;
 
@@ -950,9 +654,8 @@ mod tests {
         }
 
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let tag_col_id = table_def.column_name_to_id("tag").unwrap();
 
-        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty());
         for (rows, offset) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
         }
@@ -990,146 +693,6 @@ mod tests {
     }
 
     #[test]
-    fn test_row_index_tag_filtering() {
-        let writer = TestWriter::new();
-        let rows = writer.write_to_rows(
-            "\
-            tbl,tag=a value=1i 1\n\
-            tbl,tag=b value=2i 1\n\
-            tbl,tag=a value=3i 2\n\
-            tbl,tag=b value=4i 2\n\
-            tbl,tag=a value=5i 3\n\
-            tbl,tag=c value=6i 3",
-            0,
-        );
-        let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let tag_id = table_def.column_name_to_id("tag").unwrap();
-        let mut table_buffer = TableBuffer::new(vec![tag_id], SortKey::empty());
-
-        table_buffer.buffer_chunk(0, &rows);
-
-        struct TestCase<'a> {
-            filter: &'a [Expr],
-            expected_rows: &'a [usize],
-            expected_output: &'a [&'a str],
-        }
-
-        let test_cases = [
-            TestCase {
-                filter: &[col("tag").eq(lit("a"))],
-                expected_rows: &[0, 2, 4],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
-                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
-                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").eq(lit("b"))],
-                expected_rows: &[1, 3],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
-                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").eq(lit("c"))],
-                expected_rows: &[5],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").eq(lit("a")).or(col("tag").eq(lit("c")))],
-                expected_rows: &[0, 2, 4, 5],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
-                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
-                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
-                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").not_eq(lit("a"))],
-                expected_rows: &[1, 3, 5],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
-                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
-                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").in_list(vec![lit("a"), lit("c")], false)],
-                expected_rows: &[0, 2, 4, 5],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| a   | 1970-01-01T00:00:00.000000001Z | 1     |",
-                    "| a   | 1970-01-01T00:00:00.000000002Z | 3     |",
-                    "| a   | 1970-01-01T00:00:00.000000003Z | 5     |",
-                    "| c   | 1970-01-01T00:00:00.000000003Z | 6     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-            TestCase {
-                filter: &[col("tag").in_list(vec![lit("a"), lit("c")], true)],
-                expected_rows: &[1, 3],
-                expected_output: &[
-                    "+-----+--------------------------------+-------+",
-                    "| tag | time                           | value |",
-                    "+-----+--------------------------------+-------+",
-                    "| b   | 1970-01-01T00:00:00.000000001Z | 2     |",
-                    "| b   | 1970-01-01T00:00:00.000000002Z | 4     |",
-                    "+-----+--------------------------------+-------+",
-                ],
-            },
-        ];
-
-        for t in test_cases {
-            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
-            let rows = table_buffer
-                .chunk_time_to_chunks
-                .get(&0)
-                .unwrap()
-                .index
-                .get_rows_from_index_for_filter(&filter)
-                .unwrap();
-            assert_eq!(
-                rows,
-                HashSet::<usize>::from_iter(t.expected_rows.iter().copied())
-            );
-            let batches = table_buffer
-                .partitioned_record_batches(Arc::clone(&table_def), &filter)
-                .unwrap()
-                .into_values()
-                .flat_map(|(_, batch)| batch.into_iter())
-                .collect::<Vec<RecordBatch>>();
-            assert_batches_sorted_eq!(t.expected_output, &batches);
-        }
-    }
-
-    #[test]
     fn test_computed_size_of_buffer() {
         let writer = TestWriter::new();
 
@@ -1142,22 +705,16 @@ mod tests {
             0,
         );
 
-        let tag_col_id = writer
-            .db_schema()
-            .table_definition("tbl")
-            .and_then(|tbl| tbl.column_name_to_id("tag"))
-            .unwrap();
-
-        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty());
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 18021);
+        assert_eq!(size, 17769);
     }
 
     #[test]
     fn timestamp_min_max_works_when_empty() {
-        let table_buffer = TableBuffer::new(vec![ColumnId::from(0)], SortKey::empty());
+        let table_buffer = TableBuffer::new(SortKey::empty());
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);
@@ -1183,8 +740,7 @@ mod tests {
             row_batches.push((offset, rows));
         }
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let tag_col_id = table_def.column_name_to_id("tag").unwrap();
-        let mut table_buffer = TableBuffer::new(vec![tag_col_id], SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty());
 
         for (offset, rows) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
@@ -1248,205 +804,6 @@ mod tests {
                 .unwrap()
                 .into_values()
                 .flat_map(|(_, batches)| batches)
-                .collect::<Vec<RecordBatch>>();
-            assert_batches_sorted_eq!(t.expected_output, &batches);
-        }
-    }
-
-    #[test_log::test]
-    fn test_multiple_tag_filters() {
-        let writer = TestWriter::new();
-
-        let rows = writer.write_to_rows(
-            "\
-            tbl,t1=a,t2=aa,t3=aaa val=1\n\
-            tbl,t1=b,t2=aa,t3=aaa val=2\n\
-            tbl,t1=a,t2=bb,t3=aaa val=3\n\
-            tbl,t1=b,t2=bb,t3=aaa val=4\n\
-            tbl,t1=a,t2=aa,t3=bbb val=5\n\
-            tbl,t1=b,t2=aa,t3=bbb val=6\n\
-            tbl,t1=a,t2=bb,t3=bbb val=7\n\
-            tbl,t1=b,t2=bb,t3=bbb val=8\n\
-            ",
-            0,
-        );
-        let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let t1_id = table_def.column_name_to_id("t1").unwrap();
-        let t2_id = table_def.column_name_to_id("t2").unwrap();
-        let t3_id = table_def.column_name_to_id("t3").unwrap();
-        let mut table_buffer = TableBuffer::new(vec![t1_id, t2_id, t3_id], SortKey::empty());
-
-        table_buffer.buffer_chunk(0, &rows);
-
-        struct TestCase<'a> {
-            filter: &'a [Expr],
-            expected_output: &'a [&'a str],
-        }
-
-        let test_cases = [
-            TestCase {
-                filter: &[],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
-                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
-                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
-                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
-                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
-                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").eq(lit("a"))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
-                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").eq(lit("a")).and(col("t2").eq(lit("aa")))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").eq(lit("a")).and(col("t2").not_eq(lit("aa")))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
-                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").eq(lit("a")).and(col("t1").not_eq(lit("a")))],
-                expected_output: &[
-                    "+----+----+----+------+-----+",
-                    "| t1 | t2 | t3 | time | val |",
-                    "+----+----+----+------+-----+",
-                    "+----+----+----+------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").in_list(vec![lit("a"), lit("b")], false)],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
-                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
-                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
-                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
-                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
-                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").in_list(vec![lit("a"), lit("b")], true)],
-                expected_output: &[
-                    "+----+----+----+------+-----+",
-                    "| t1 | t2 | t3 | time | val |",
-                    "+----+----+----+------+-----+",
-                    "+----+----+----+------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1")
-                    .in_list(vec![lit("a"), lit("b")], false)
-                    .and(col("t2").in_list(vec![lit("bb")], false))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | bb | aaa | 1970-01-01T00:00:00Z | 3.0 |",
-                    "| a  | bb | bbb | 1970-01-01T00:00:00Z | 7.0 |",
-                    "| b  | bb | aaa | 1970-01-01T00:00:00Z | 4.0 |",
-                    "| b  | bb | bbb | 1970-01-01T00:00:00Z | 8.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1")
-                    .in_list(vec![lit("a"), lit("b")], false)
-                    .and(col("t2").in_list(vec![lit("bb")], true))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
-                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1")
-                    .in_list(vec![lit("a"), lit("b")], false)
-                    .and(col("t2").in_list(vec![lit("bb")], true))
-                    .and(col("t3").eq(lit("aaa")))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | aaa | 1970-01-01T00:00:00Z | 1.0 |",
-                    "| b  | aa | aaa | 1970-01-01T00:00:00Z | 2.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1")
-                    .in_list(vec![lit("a"), lit("b")], false)
-                    .and(col("t2").in_list(vec![lit("bb")], true))
-                    .and(col("t3").not_eq(lit("aaa")))],
-                expected_output: &[
-                    "+----+----+-----+----------------------+-----+",
-                    "| t1 | t2 | t3  | time                 | val |",
-                    "+----+----+-----+----------------------+-----+",
-                    "| a  | aa | bbb | 1970-01-01T00:00:00Z | 5.0 |",
-                    "| b  | aa | bbb | 1970-01-01T00:00:00Z | 6.0 |",
-                    "+----+----+-----+----------------------+-----+",
-                ],
-            },
-            TestCase {
-                filter: &[col("t1").eq(lit("not-a-valid-value"))],
-                expected_output: &[
-                    "+----+----+----+------+-----+",
-                    "| t1 | t2 | t3 | time | val |",
-                    "+----+----+----+------+-----+",
-                    "+----+----+----+------+-----+",
-                ],
-            },
-        ];
-
-        for t in test_cases {
-            let filter = ChunkFilter::new(&table_def, t.filter).unwrap();
-            let batches = table_buffer
-                .partitioned_record_batches(Arc::clone(&table_def), &filter)
-                .unwrap()
-                .into_values()
-                .flat_map(|(_, batch)| batch.into_iter())
                 .collect::<Vec<RecordBatch>>();
             assert_batches_sorted_eq!(t.expected_output, &batches);
         }
