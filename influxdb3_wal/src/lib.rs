@@ -781,7 +781,7 @@ impl TriggerSpecificationDefinition {
             }
             _ => Err(Error::TriggerSpecificationParseError {
                 trigger_spec: spec_str.to_string(),
-                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', or 'every:'".to_string()),
+                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', 'every:', or 'request:'".to_string()),
             }),
         }
     }

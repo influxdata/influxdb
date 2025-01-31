@@ -18,15 +18,10 @@ use datafusion::{
     error::DataFusionError,
     execution::context::ExecutionProps,
     logical_expr::interval_arithmetic::Interval,
-    physical_expr::{
-        analyze, create_physical_expr,
-        utils::{Guarantee, LiteralGuarantee},
-        AnalysisContext, ExprBoundaries,
-    },
+    physical_expr::{analyze, create_physical_expr, AnalysisContext, ExprBoundaries},
     prelude::Expr,
     scalar::ScalarValue,
 };
-use hashbrown::{HashMap, HashSet};
 use influxdb3_cache::{
     distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
     last_cache::LastCacheProvider,
@@ -40,12 +35,10 @@ use influxdb3_wal::{
 use iox_query::QueryChunk;
 use iox_time::Time;
 use observability_deps::tracing::debug;
-use schema::{InfluxColumnType, TIME_COLUMN_NAME};
+use schema::TIME_COLUMN_NAME;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 use thiserror::Error;
-use twox_hash::XxHash64;
-use write_buffer::INDEX_HASH_SEED;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -434,28 +427,17 @@ pub(crate) fn guess_precision(timestamp: i64) -> Precision {
 pub struct ChunkFilter<'a> {
     time_lower_bound_ns: Option<i64>,
     time_upper_bound_ns: Option<i64>,
-    guarantees: HashMap<ColumnId, HashedLiteralGuarantee>,
     filters: &'a [Expr],
 }
 
-#[derive(Debug)]
-pub struct HashedLiteralGuarantee {
-    pub guarantee: Guarantee,
-    pub literal_hashes: HashSet<u64>,
-}
-
 impl<'a> ChunkFilter<'a> {
-    /// Create a new `BufferFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
+    /// Create a new `ChunkFilter` given a [`TableDefinition`] and set of filter [`Expr`]s from
     /// a logical query plan.
     ///
-    /// This method analyzes the incoming `exprs` to do two things:
-    ///
-    /// - determine if there are any filters on the `time` column, in which case, attempt to derive
-    ///   an interval that defines the boundaries on `time` from the query.
-    /// - determine if there are any [`LiteralGuarantee`]s on tag columns contained in the filter
-    ///   predicates of the query.
+    /// This method analyzes the incoming `exprs` to determine if there are any filters on the
+    /// `time` column and attempt to derive the boundaries on `time` from the query.
     pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
-        debug!(input = ?exprs, ">>> creating buffer filter");
+        debug!(input = ?exprs, ">>> creating chunk filter");
         let mut time_interval: Option<Interval> = None;
         let arrow_schema = table_def.schema.as_arrow();
         let time_col_index = arrow_schema
@@ -463,7 +445,6 @@ impl<'a> ChunkFilter<'a> {
             .iter()
             .position(|f| f.name() == TIME_COLUMN_NAME)
             .context("table should have a time column")?;
-        let mut guarantees = HashMap::new();
 
         // DF schema and execution properties used for handling physical expressions:
         let df_schema = DFSchema::try_from(Arc::clone(&arrow_schema))
@@ -472,105 +453,43 @@ impl<'a> ChunkFilter<'a> {
 
         for expr in exprs.iter().filter(|e| {
             // NOTE: filter out most expression types, as they are not relevant to time bound
-            // analysis, or deriving literal guarantees on tag columns
-            matches!(
-                e,
-                Expr::BinaryExpr(_) | Expr::Not(_) | Expr::Between(_) | Expr::InList(_)
-            )
+            // analysis:
+            matches!(e, Expr::BinaryExpr(_) | Expr::Not(_) | Expr::Between(_))
+            // Check if the expression refers to the `time` column:
+                && e.column_refs()
+                    .contains(&Column::new_unqualified(TIME_COLUMN_NAME))
         }) {
             let Ok(physical_expr) = create_physical_expr(expr, &df_schema, &props) else {
                 continue;
             };
-            // Check if the expression refers to the `time` column:
-            if expr
-                .column_refs()
-                .contains(&Column::new_unqualified(TIME_COLUMN_NAME))
-            {
-                // Determine time bounds, if provided:
-                let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
-                    .context("unable to create unbounded expr boundaries on incoming expression")?;
-                let mut analysis = analyze(
-                    &physical_expr,
-                    AnalysisContext::new(boundaries),
-                    &arrow_schema,
-                )
-                .context("unable to analyze provided filters for a boundary on the time column")?;
+            // Determine time bounds, if provided:
+            let boundaries = ExprBoundaries::try_new_unbounded(&arrow_schema)
+                .context("unable to create unbounded expr boundaries on incoming expression")?;
+            let mut analysis = analyze(
+                &physical_expr,
+                AnalysisContext::new(boundaries),
+                &arrow_schema,
+            )
+            .context("unable to analyze provided filters for a boundary on the time column")?;
 
-                // Set the boundaries on the time column using the evaluated interval, if it exisxts
-                // If an interval was already derived from a previous expression, we take their
-                // intersection, or produce an error if:
-                // - the derived intervals are not compatible (different types)
-                // - the derived intervals do not intersect, this should be a user error, i.e., a
-                //   poorly formed query
-                if let Some(ExprBoundaries { interval, .. }) = (time_col_index
-                    < analysis.boundaries.len())
-                .then_some(analysis.boundaries.remove(time_col_index))
-                {
-                    if let Some(existing) = time_interval.take() {
-                        let intersection = existing.intersect(interval).context(
+            // Set the boundaries on the time column using the evaluated interval, if it exisxts
+            // If an interval was already derived from a previous expression, we take their
+            // intersection, or produce an error if:
+            // - the derived intervals are not compatible (different types)
+            // - the derived intervals do not intersect, this should be a user error, i.e., a
+            //   poorly formed query
+            if let Some(ExprBoundaries { interval, .. }) = (time_col_index
+                < analysis.boundaries.len())
+            .then_some(analysis.boundaries.remove(time_col_index))
+            {
+                if let Some(existing) = time_interval.take() {
+                    let intersection = existing.intersect(interval).context(
                                 "failed to derive a time interval from provided filters",
                             )?.context("provided filters on time column did not produce a valid set of boundaries")?;
-                        time_interval.replace(intersection);
-                    } else {
-                        time_interval.replace(interval);
-                    }
+                    time_interval.replace(intersection);
+                } else {
+                    time_interval.replace(interval);
                 }
-            }
-
-            // Determine any literal guarantees made on tag columns:
-            let literal_guarantees = LiteralGuarantee::analyze(&physical_expr);
-            for LiteralGuarantee {
-                column,
-                guarantee,
-                literals,
-            } in literal_guarantees
-            {
-                // We are only interested in literal guarantees on tag columns for the buffer index:
-                let Some((column_id, InfluxColumnType::Tag)) = table_def
-                    .column_definition(column.name())
-                    .map(|def| (def.id, def.data_type))
-                else {
-                    continue;
-                };
-
-                // We are only interested in string literals with respect to tag columns:
-                let literals = literals
-                    .into_iter()
-                    .filter_map(|l| match l {
-                        ScalarValue::Utf8(Some(s)) | ScalarValue::Utf8View(Some(s)) => Some(s),
-                        _ => None,
-                    })
-                    .map(|s| XxHash64::oneshot(INDEX_HASH_SEED, s.as_bytes()))
-                    .collect::<HashSet<u64>>();
-
-                if literals.is_empty() {
-                    continue;
-                }
-
-                // Update the guarantees on this column. We handle multiple guarantees here, i.e.,
-                // if there are multiple Expr's that lead to multiple guarantees on a given column.
-                guarantees
-                    .entry(column_id)
-                    .and_modify(|e: &mut HashedLiteralGuarantee| {
-                        debug!(current = ?e.guarantee, incoming = ?guarantee, ">>> updating existing guarantee");
-                        use Guarantee::*;
-                        match (e.guarantee, guarantee) {
-                            (In, In) | (NotIn, NotIn) => {
-                                e.literal_hashes = e.literal_hashes.union(&literals).cloned().collect()
-                            }
-                            (In, NotIn) => {
-                                e.literal_hashes = e.literal_hashes.difference(&literals).cloned().collect()
-                            }
-                            (NotIn, In) => {
-                                e.literal_hashes = literals.difference(&e.literal_hashes).cloned().collect()
-                            }
-                        }
-                    })
-                    .or_insert(HashedLiteralGuarantee {
-                        guarantee,
-                        literal_hashes: literals,
-                    });
-                debug!(?guarantees, ">>> updated guarantees");
             }
         }
 
@@ -597,7 +516,6 @@ impl<'a> ChunkFilter<'a> {
         Ok(Self {
             time_lower_bound_ns,
             time_upper_bound_ns,
-            guarantees,
             filters: exprs,
         })
     }
@@ -611,10 +529,6 @@ impl<'a> ChunkFilter<'a> {
             (Some(l), None) => max_time_ns >= l,
             (Some(l), Some(u)) => min_time_ns <= u && max_time_ns >= l,
         }
-    }
-
-    pub fn guarantees(&self) -> impl Iterator<Item = (&ColumnId, &HashedLiteralGuarantee)> {
-        self.guarantees.iter()
     }
 
     pub fn original_filters(&self) -> &[Expr] {

@@ -79,7 +79,23 @@ pub struct TableListConfig {
     output_format: Format,
 }
 
-const SYS_TABLES_QUERY: &str = "WITH cols (table_name, column_name) AS (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'system' ORDER BY (table_name, column_name)) SELECT table_name, array_agg(column_name) AS column_names FROM cols GROUP BY table_name ORDER BY table_name";
+// NOTE(trevor): this query is modified from core to exclude the enterprise-specific tables.
+// They should be included, but currently, the `compacted_data` table breaks this query
+// because it requies a `WHERE table_name = ` predicate. When that requirement is lifted,
+// then the `WHERE table_name NOT IN ...` clause could be removed, bringing this back in
+// line with core.
+//
+// See: https://github.com/influxdata/influxdb_pro/issues/460
+const SYS_TABLES_QUERY: &str = r#"
+    WITH cols (table_name, column_name) AS (
+        SELECT table_name, column_name FROM information_schema.columns 
+        WHERE table_schema = 'system' 
+        ORDER BY (table_name, column_name)
+    ) SELECT table_name, array_agg(column_name) AS column_names 
+    FROM cols 
+    WHERE table_name NOT IN ('compacted_data', 'compaction_events', 'file_index')
+    GROUP BY table_name 
+    ORDER BY table_name"#;
 
 #[derive(Debug)]
 pub struct SystemTableNotFound {
