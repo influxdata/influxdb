@@ -2661,58 +2661,24 @@ func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
 
 var types []influxql.DataType = []influxql.DataType{influxql.Float, influxql.String, influxql.Integer, influxql.Boolean}
 
-func TestMeasurementFieldSetRace(t *testing.T) {
-	const name = "cpu"
-	nameBytes := []byte(name)
-	var wg sync.WaitGroup
-	maxConcurrency := atomic.Int64{}
-	concurrency := atomic.Int64{}
-	maxConcurrencyMF := atomic.Int64{}
-	for i := 0; i < 100; i++ {
-		fields := tsdb.NewMeasurementFields()
-		concurrencyMF := atomic.Int64{}
-		mu := sync.RWMutex{}
-		mu.Lock()
-		for j := 0; j < 100*len(types); j++ {
-			wg.Add(1)
-			concurrencyMF.Add(1)
-			concurrency.Add(1)
-			go func(index int, fields *tsdb.MeasurementFields, mu *sync.RWMutex) {
-				defer wg.Done()
-				defer concurrency.Add(-1)
-				defer concurrencyMF.Add(-1)
-				defer mu.RUnlock()
-				mu.RLock()
-				err := fields.CreateFieldIfNotExists(nameBytes, types[index%len(types)])
-				if fields.Field(name).Type != types[index%len(types)] {
-					require.EqualError(t, err, tsdb.ErrFieldTypeConflict.Error())
-				} else {
-					require.NoError(t, err)
-				}
-				if cMF := concurrencyMF.Load(); maxConcurrencyMF.Load() < cMF {
-					maxConcurrencyMF.Store(cMF)
-				}
-				if c := concurrency.Load(); maxConcurrency.Load() < c {
-					maxConcurrency.Store(c)
-				}
-			}(i+j, fields, &mu)
-		}
-		mu.Unlock()
-	}
-	wg.Wait()
-	t.Logf("max concurrency: %d, max concurrency within a MeasurementFields struct %d", maxConcurrency.Load(), maxConcurrencyMF.Load())
-}
-
 // Tests concurrently writing to the same shard with different field types which
 // can trigger a panic when the shard is snapshotted to TSM files.
-func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
+func TestShard_WritePoints_ForceFieldConflictConcurrent(t *testing.T) {
+	const Runs = 50
+	if testing.Short() || runtime.GOOS == "windows" {
+		t.Skip("Skipping on short or windows")
+	}
+	for i := 0; i < Runs; i++ {
+		conflictShard(t, i)
+	}
+}
+
+func conflictShard(t *testing.T, run int) {
 	const measurement = "cpu"
 	const field = "value"
-	const pointCopies = 100
-	const trials = 10
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping on windows")
-	}
+	const pointCopies = 10
+	const trialsPerShard = 10
+
 	tmpDir, _ := os.MkdirTemp("", "shard_test")
 	defer func() {
 		require.NoError(t, os.RemoveAll(tmpDir), "removing %s", tmpDir)
@@ -2723,6 +2689,7 @@ func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 	sfile := MustOpenSeriesFile()
 	defer func() {
 		require.NoError(t, sfile.Close(), "closing series file")
+		require.NoError(t, os.RemoveAll(sfile.Path()), "removing series file %s", sfile.Path())
 	}()
 
 	opts := tsdb.NewEngineOptions()
@@ -2769,56 +2736,83 @@ func TestShard_WritePoints_FieldConflictConcurrent2(t *testing.T) {
 		))
 	}
 	concurrency := atomic.Int64{}
-	snapshots := make([]string, 0, trials)
 
-	for i := 0; i < trials; i++ {
+	for i := 0; i < trialsPerShard; i++ {
 		mu.Lock()
 		wg.Add(len(points))
 		// Write points concurrently
-		for _, p := range points {
-			concurrency.Add(1)
-			go func() {
-				mu.RLock()
-				defer concurrency.Add(-1)
-				defer mu.RUnlock()
-				defer wg.Done()
-				if err := sh.WritePoints([]models.Point{p}, tsdb.NoopStatsTracker()); err == nil {
-					fs, err := p.Fields()
-					require.NoError(t, err, "getting fields")
-					require.Equal(t,
-						influxql.InspectDataType(fs[field]),
-						sh.MeasurementFields([]byte(measurement)).Field(field).Type,
-						"field types mismatch")
-				} else {
-					require.ErrorContains(t, err, tsdb.ErrFieldTypeConflict.Error(), "unexpected error")
-				}
-				if c := concurrency.Load(); maxConcurrency.Load() < c {
-					maxConcurrency.Store(c)
-				}
-			}()
+		for i := 0; i < pointCopies; i++ {
+			for j := 0; j < len(types); j++ {
+				p := points[i*len(types)+j]
+				concurrency.Add(1)
+				go func() {
+					mu.RLock()
+					defer concurrency.Add(-1)
+					defer mu.RUnlock()
+					defer wg.Done()
+					if err := sh.WritePoints([]models.Point{p}, tsdb.NoopStatsTracker()); err == nil {
+						fs, err := p.Fields()
+						require.NoError(t, err, "getting fields")
+						require.Equal(t,
+							sh.MeasurementFields([]byte(measurement)).Field(field).Type,
+							influxql.InspectDataType(fs[field]),
+							"field types mismatch on run %d: exp: %s, got: %s", run+1, sh.MeasurementFields([]byte(measurement)).Field(field).Type.String(), influxql.InspectDataType(fs[field]).String())
+					} else {
+						require.ErrorContains(t, err, tsdb.ErrFieldTypeConflict.Error(), "unexpected error")
+					}
+					if c := concurrency.Load(); maxConcurrency.Load() < c {
+						maxConcurrency.Store(c)
+					}
+				}()
+			}
 		}
 		mu.Unlock()
 		wg.Wait()
-		f, err := sh.CreateSnapshot(false)
+		dir, err := sh.CreateSnapshot(false)
 		require.NoError(t, err, "creating snapshot: %s", sh.Path())
-		snapshots = append(snapshots, f)
+		require.NoError(t, os.RemoveAll(dir), "removing snapshot directory %s", dir)
 	}
-	for _, dir := range snapshots {
-		files, err := os.ReadDir(dir)
-		require.NoError(t, err, "reading snapshot directory %s", dir)
-		for _, file := range files {
-			ffile := path.Join(dir, file.Name())
-			fh, err := os.Open(ffile)
-			require.NoError(t, err, "opening snapshot file %s", ffile)
-			tr, err := tsm1.NewTSMReader(fh)
-			require.NoError(t, err, "creating TSM reader for %s", ffile)
-			key, typ := tr.KeyAt(0)
-			t.Log(string(key), typ)
-			require.NoError(t, err, "getting type for key %s", points[0].Key())
-			require.NoError(t, tr.Close(), "closing TSM reader")
+	keyType := map[string]byte{}
+	files, err := os.ReadDir(tmpShard)
+	require.NoError(t, err, "reading shard directory %s", tmpShard)
+	for _, file := range files {
+		if !strings.HasSuffix(path.Ext(file.Name()), tsm1.TSMFileExtension) {
+			continue
 		}
+		ffile := path.Join(tmpShard, file.Name())
+		fh, err := os.Open(ffile)
+		require.NoError(t, err, "opening snapshot file %s", ffile)
+		tr, err := tsm1.NewTSMReader(fh)
+		require.NoError(t, err, "creating TSM reader for %s", ffile)
+		key, typ := tr.KeyAt(0)
+		if oldTyp, ok := keyType[string(key)]; ok {
+			require.Equal(t, oldTyp, typ,
+				"field type mismatch in run %d -- %q in %s: exp: %s, got: %s",
+				run+1,
+				string(key),
+				ffile,
+				blockTypeString(oldTyp),
+				blockTypeString(typ))
+		} else {
+			keyType[string(key)] = typ
+		}
+		// Must close after all uses of key (mapped memory)
+		require.NoError(t, tr.Close(), "closing TSM reader")
 	}
-	// TODO(DSB): compare types in snapshots.
-	// Open TSMReaders for each snapshot and compare the field types.
-	t.Logf("max concurrency: %d", maxConcurrency.Load())
+	t.Logf("Type %s wins run %d with concurrency: %d", sh.MeasurementFields([]byte(measurement)).Field(field).Type.String(), run+1, maxConcurrency.Load())
+}
+
+func blockTypeString(typ byte) string {
+	switch typ {
+	case tsm1.BlockFloat64:
+		return "float64"
+	case tsm1.BlockInteger:
+		return "int64"
+	case tsm1.BlockBoolean:
+		return "bool"
+	case tsm1.BlockString:
+		return "string"
+	default:
+		return "unknown"
+	}
 }
