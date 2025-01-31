@@ -584,16 +584,6 @@ impl DatabaseSchema {
             catalog_batch.database_id,
             Arc::clone(&catalog_batch.database_name),
         );
-
-        // We need to special case when we create a DB via the commandline as
-        // this will only contain one op to create a database. If we don't
-        // startup of the database will fail
-        if catalog_batch.ops.len() == 1 {
-            if let CatalogOp::CreateDatabase(_) = catalog_batch.ops[0] {
-                return Ok(db_schema);
-            }
-        }
-
         let new_db = DatabaseSchema::new_if_updated_from_batch(&db_schema, catalog_batch)?
             .expect("database must be new");
         Ok(new_db)
@@ -707,10 +697,18 @@ trait UpdateDatabaseSchema {
 impl UpdateDatabaseSchema for CatalogOp {
     fn update_schema<'a>(
         &self,
-        schema: Cow<'a, DatabaseSchema>,
+        mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         match &self {
-            CatalogOp::CreateDatabase(_) => Ok(schema),
+            CatalogOp::CreateDatabase(create_database) => {
+                if create_database.database_id != schema.id
+                    || create_database.database_name != schema.name
+                {
+                    warn!("Create database call received by a mismatched DatabaseSchema. This should not be possible.")
+                }
+                schema.to_mut();
+                Ok(schema)
+            }
             CatalogOp::CreateTable(create_table) => create_table.update_schema(schema),
             CatalogOp::AddFields(field_additions) => field_additions.update_schema(schema),
             CatalogOp::CreateDistinctCache(distinct_cache_definition) => {

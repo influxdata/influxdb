@@ -12,7 +12,6 @@ use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use test_helpers::tempfile::NamedTempFile;
-#[cfg(feature = "system-py")]
 use test_helpers::tempfile::TempDir;
 use test_helpers::{assert_contains, assert_not_contains};
 
@@ -848,6 +847,44 @@ async fn test_triggers_are_started() {
             }
         };
     }
+}
+
+#[test_log::test(tokio::test)]
+async fn test_database_create_persists() {
+    // create tmp dir for object store
+    let tmp_file = TempDir::new().unwrap();
+    let tmp_dir = tmp_file.path().to_str().unwrap();
+
+    let mut server = TestServer::configure()
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+
+    let server_addr = server.client_addr();
+    let db_name = "foo";
+    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+
+    // restart the server
+    server.kill();
+
+    server = TestServer::configure()
+        .with_object_store_dir(tmp_dir)
+        .spawn()
+        .await;
+
+    let server_addr = server.client_addr();
+
+    let result = run_with_confirmation(&["show", "databases", "--host", &server_addr]);
+    assert_eq!(
+        r#"+---------------+
+| iox::database |
++---------------+
+| foo           |
++---------------+"#,
+        result
+    );
 }
 
 #[test_log::test(tokio::test)]
