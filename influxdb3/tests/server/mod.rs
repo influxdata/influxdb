@@ -1,4 +1,5 @@
 use std::{
+    future::Future,
     io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
     time::Duration,
@@ -14,18 +15,18 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Response;
 
 mod auth;
-mod cli;
 mod client;
 mod configure;
 mod flight;
 mod limits;
+#[cfg(feature = "system-py")]
 mod packages;
 mod ping;
 mod query;
 mod system_tables;
 mod write;
 
-trait ConfigProvider {
+pub trait ConfigProvider {
     /// Convert this to a set of command line arguments for `influxdb3 serve`
     fn as_args(&self) -> Vec<String>;
 
@@ -36,11 +37,11 @@ trait ConfigProvider {
     ///
     /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
     /// on localhost.
-    async fn spawn(&self) -> TestServer
+    fn spawn(&self) -> impl Future<Output = TestServer>
     where
-        Self: Sized,
+        Self: Sized + Sync,
     {
-        TestServer::spawn_inner(self).await
+        async { TestServer::spawn_inner(self).await }
     }
 }
 
@@ -267,7 +268,7 @@ impl TestServer {
         FlightClient::new(channel)
     }
 
-    fn kill(&mut self) {
+    pub fn kill(&mut self) {
         self.server_process.kill().expect("kill the server process");
     }
 

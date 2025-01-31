@@ -1,7 +1,6 @@
 ---
-source: influxdb3/tests/server/cli.rs
+source: influxdb3/tests/cli/mod.rs
 expression: output
-snapshot_kind: text
 ---
 error: invalid value 'fake' for '--precision <PRECISION>': unrecognized precision unit: fake
 

@@ -1,7 +1,6 @@
 ---
-source: influxdb3/tests/server/cli.rs
+source: influxdb3/tests/cli/mod.rs
 expression: output
-snapshot_kind: text
 ---
 distinct_caches summary:
 +-------+------+------------+--------------+-----------------+-----------------+

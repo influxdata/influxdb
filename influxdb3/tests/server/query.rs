@@ -1,6 +1,6 @@
 use core::str;
 
-use crate::TestServer;
+use crate::server::TestServer;
 use futures::StreamExt;
 use hyper::{
     header::{HeaderValue, ACCEPT},

@@ -1,6 +1,6 @@
 ---
 source: influxdb3/tests/server/query.rs
-description: "query: select * from bar group by *, chunked: false"
+description: "query: select * from bar group by /t[1,2]/, chunked: false"
 expression: values
 ---
 [
