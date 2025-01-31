@@ -283,6 +283,7 @@ impl QueryableBuffer {
                 let executor = Arc::clone(&executor);
                 let persisted_snapshot = Arc::clone(&persisted_snapshot);
                 let parquet_cache = parquet_cache.clone();
+                let buffer = Arc::clone(&buffer);
 
                 set.spawn(async move {
                     let path = persist_job.path.to_string();
@@ -313,6 +314,16 @@ impl QueryableBuffer {
                     // https://github.com/influxdata/influxdb/issues/25676
                     // https://github.com/influxdata/influxdb/issues/25677
                     .expect("sort, deduplicate, and persist buffer data as parquet");
+
+                    {
+                        // we can clear the buffer as we move on
+                        let mut buffer = buffer.write();
+                        if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
+                            if let Some(table) = db.get_mut(&table_id) {
+                                table.clear_snapshots();
+                            }
+                        }
+                    }
 
                     persisted_snapshot.lock().add_parquet_file(
                         database_id,
@@ -384,25 +395,9 @@ impl QueryableBuffer {
                         }
                     }
                 }
+                // should this be saved in the background?
+                persisted_files.add_persisted_snapshot_files(persisted_snapshot);
             }
-
-            // clear out the write buffer and add all the persisted files to the persisted files
-            // on a background task to ensure that the cache has been populated before we clear
-            // the buffer
-            tokio::spawn(async move {
-                // same reason as explained above, if persist jobs are empty, no snapshotting
-                // has happened so no need to clear the snapshots
-                if !persist_jobs_empty {
-                    let mut buffer = buffer.write();
-                    for (_, table_map) in buffer.db_to_table.iter_mut() {
-                        for (_, table_buffer) in table_map.iter_mut() {
-                            table_buffer.clear_snapshots();
-                        }
-                    }
-
-                    persisted_files.add_persisted_snapshot_files(persisted_snapshot);
-                }
-            });
 
             let _ = sender.send(snapshot_details);
         });
