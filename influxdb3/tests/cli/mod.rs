@@ -1635,7 +1635,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         "--plugin-filename",
         plugin_filename,
         "--trigger-spec",
-        "request:foo",
+        "request:bar",
         "--trigger-arguments",
         "test_arg=hello",
         trigger_path,
@@ -1646,7 +1646,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     // send an HTTP request to the server
     let client = reqwest::Client::new();
     let response = client
-        .post(format!("{}/api/v3/engine/foo", server_addr))
+        .post(format!("{}/api/v3/engine/bar", server_addr))
         .header("Content-Type", "application/json")
         .query(&[("q1", "whatevs")])
         .body(r#"{"hello": "world"}"#)
@@ -1694,7 +1694,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     // send an HTTP request to the server
     let response = client
-        .post(format!("{}/api/v3/engine/foo", server_addr))
+        .post(format!("{}/api/v3/engine/bar", server_addr))
         .header("Content-Type", "application/json")
         .query(&[("q1", "whatevs")])
         .body(r#"{"hello": "world"}"#)
