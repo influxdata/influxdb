@@ -956,7 +956,8 @@ async fn cache_parquet_from_snapshot(
         .iter()
         .flat_map(|(_, db)| db.tables.iter().flat_map(|(_, tbl)| tbl.iter()))
     {
-        let (req, not) = CacheRequest::create_eventual_mode_cache_request(path.as_str().into());
+        let (req, not) =
+            CacheRequest::create_eventual_mode_cache_request(path.as_str().into(), None);
         parquet_cache.register(req);
         cache_notifiers.push(not);
     }

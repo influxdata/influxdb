@@ -51,6 +51,7 @@ impl ParquetCachePreFetcher {
         for parquet_meta in parquet_infos {
             let (cache_request, receiver) = CacheRequest::create_eventual_mode_cache_request(
                 ObjPath::from(parquet_meta.path.as_str()),
+                None,
             );
             let logging_receiver = receiver.inspect_err(|err| {
                 // NOTE: This warning message never comes out when file is missing in object store,
@@ -182,7 +183,7 @@ mod tests {
         let (now, parquet_max_time) = parquet_max_time_nanos(3);
         let pre_fetcher = setup_mock_prefetcher_3days();
         let (cache_request, _) =
-            CacheRequest::create_eventual_mode_cache_request(ObjPath::from(PATH));
+            CacheRequest::create_eventual_mode_cache_request(ObjPath::from(PATH), None);
 
         pre_fetcher.check_and_register(now, cache_request, parquet_max_time);
     }
@@ -201,6 +202,7 @@ mod tests {
             Arc::clone(&time_provider) as _,
             Default::default(),
             cache_capacity_bytes,
+            std::time::Duration::from_millis(1000),
             cache_prune_percent,
             cache_prune_interval,
         );
