@@ -587,6 +587,7 @@ impl ReplicatedBuffer {
             number_of_wal_files = paths.len(),
             first_wal_file_path = ?paths.first(),
             last_wal_file_path = ?paths.last(),
+            ?last_snapshotted_wal_file_sequence_number,
             "loaded existing wal paths from object store"
         );
 
@@ -835,15 +836,30 @@ impl ReplicatedBuffer {
 
                         // Now that the snapshot has been loaded, clear the buffer of the data that
                         // was separated out previously and update the persisted files. If there is
-                        // a parquet cache, then load parquet files from the snapshot into the cache
-                        // before clearing the buffer, to minimize time holding the buffer lock:
-                        if let Some(parquet_cache) = parquet_cache {
-                            cache_parquet_from_snapshot(&parquet_cache, &snapshot).await;
-                        }
-                        let mut buffer = buffer.write();
-                        for (_, tbl_map) in buffer.db_to_table.iter_mut() {
-                            for (_, tbl_buf) in tbl_map.iter_mut() {
-                                tbl_buf.clear_snapshots();
+                        // a parquet cache, then load parquet files one table at a time and
+                        // clearing the buffer for each table
+                        for (db_id, db_tables) in &snapshot.databases {
+                            for (table_id, parquet_files) in &db_tables.tables {
+                                if let Some(ref parquet_cache) = parquet_cache {
+                                    cache_parquet_from_snapshot_for_table(
+                                        parquet_cache,
+                                        parquet_files,
+                                    )
+                                    .await;
+                                }
+
+                                {
+                                    let mut buffer = buffer.write();
+                                    // By the time we get here, there is a chance that db_id and
+                                    // table_id are deleted from outside. In those circumstances
+                                    // we can ignore those ids, but the cache already has been
+                                    // loaded - this will be evicted gradually (internal pruning)
+                                    if let Some(db) = buffer.db_to_table.get_mut(db_id) {
+                                        if let Some(table) = db.get_mut(table_id) {
+                                            table.clear_snapshots();
+                                        }
+                                    }
+                                }
                             }
                         }
                         persisted_files.add_persisted_snapshot_files(snapshot);
@@ -946,18 +962,16 @@ async fn get_wal_contents_from_object_store(
         .map_err(Into::into)
 }
 
-async fn cache_parquet_from_snapshot(
+async fn cache_parquet_from_snapshot_for_table(
     parquet_cache: &Arc<dyn ParquetCacheOracle>,
-    snapshot: &PersistedSnapshot,
+    parquet_files_for_table: &[ParquetFile],
 ) {
     let mut cache_notifiers = vec![];
-    for ParquetFile { path, .. } in snapshot
-        .databases
-        .iter()
-        .flat_map(|(_, db)| db.tables.iter().flat_map(|(_, tbl)| tbl.iter()))
-    {
-        let (req, not) =
-            CacheRequest::create_eventual_mode_cache_request(path.as_str().into(), None);
+    for parquet_file in parquet_files_for_table {
+        let (req, not) = CacheRequest::create_eventual_mode_cache_request(
+            parquet_file.path.as_str().into(),
+            None,
+        );
         parquet_cache.register(req);
         cache_notifiers.push(not);
     }
@@ -1782,6 +1796,140 @@ mod tests {
                 // are made, hence it going up by more than 1:
                 assert_eq!(
                     3,
+                    test_store.total_read_request_count(&Path::from(path.as_str()))
+                );
+            }
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn parquet_cache_with_single_read_replica() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time_provider: Arc<dyn TimeProvider> =
+            Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let primary_node_id = "primary_node";
+        // spin up two primary write buffers:
+        let primary_ids = [primary_node_id];
+        let mut primaries = HashMap::new();
+        for p in primary_ids {
+            let primary = setup_primary(
+                p,
+                Arc::clone(&obj_store),
+                WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    // small snapshot size will have parquet written out after 3 WAL periods:
+                    snapshot_size: 1,
+                },
+                Arc::clone(&time_provider),
+            )
+            .await;
+            primaries.insert(p, primary);
+        }
+
+        // setup replica
+        // let time_provider: Arc<dyn TimeProvider> =
+        //     Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let test_store = Arc::new(RequestCountedObjectStore::new(Arc::clone(&obj_store)));
+        let (cached_obj_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            Arc::clone(&test_store) as _,
+            Arc::clone(&time_provider),
+            Default::default(),
+        );
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
+        let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+        let replicas = Replicas::new(CreateReplicasArgs {
+            // could load a new catalog from the object store, but it is easier to just re-use
+            // skinner's:
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider),
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            object_store: Arc::clone(&cached_obj_store),
+            metric_registry: Arc::new(Registry::new()),
+            replication_interval: Duration::from_millis(10),
+            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
+            parquet_cache: Some(parquet_cache),
+            catalog,
+            time_provider: Arc::clone(&time_provider),
+            wal: None,
+        })
+        .await
+        .unwrap();
+
+        do_writes(
+            "foo",
+            primaries[primary_node_id].as_ref(),
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,source=primary_src f1=0.1",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,source=primary_src f1=0.2",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,source=primary_src f1=0.3",
+                },
+            ],
+        )
+        .await;
+        // ensure snapshots have been taken so there are parquet files for each writer:
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            primary_node_id,
+            Arc::clone(&time_provider),
+        )
+        .await;
+
+        // spin up a single read replica and see if the file is getting cached on replica
+        {
+            // once the `Replicas` has some persisted files, then it will also have those files in
+            // the cache, since the buffer isn't cleared until the cache requests are registered/
+            // fulfilled:
+            let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar", 1).await;
+            // should be 1 parquet file
+            assert_eq!(1, persisted_files.len());
+            // use the RequestCountedObjectStore to check for read requests to the inner object
+            // store for each persisted parquet file:
+            for ParquetFile { path, .. } in &persisted_files {
+                // there should be 1 request made to the store for each file, by the cache oracle:
+                assert_eq!(
+                    1,
+                    test_store.total_read_request_count(&Path::from(path.as_str()))
+                );
+            }
+
+            // fetch chunks/record batches from the `Replicas`, as if performing a query, i.e., so
+            // that datafusion will request to the object store for the persisted files:
+            let chunks = replicas.get_all_chunks("foo", "bar");
+            let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+            assert_batches_sorted_eq!(
+                [
+                    "+-----+-------------+---------------------+",
+                    "| f1  | source      | time                |",
+                    "+-----+-------------+---------------------+",
+                    "| 0.1 | primary_src | 1970-01-01T00:00:01 |",
+                    "| 0.2 | primary_src | 1970-01-01T00:00:02 |",
+                    "| 0.3 | primary_src | 1970-01-01T00:00:03 |",
+                    "+-----+-------------+---------------------+",
+                ],
+                &batches
+            );
+
+            // check the RequestCountedObjectStore again for each persisted file:
+            for ParquetFile { path, .. } in &persisted_files {
+                // requests to this path should not have changed, due to the cache:
+                assert_eq!(
+                    1,
                     test_store.total_read_request_count(&Path::from(path.as_str()))
                 );
             }
