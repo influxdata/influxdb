@@ -178,10 +178,10 @@ impl QueryDatabase for QueryExecutorEnterprise {
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
             db_schema,
-            write_buffer: Arc::clone(&__self.core.write_buffer),
-            exec: Arc::clone(&__self.core.exec),
-            datafusion_config: Arc::clone(&__self.core.datafusion_config),
-            query_log: Arc::clone(&__self.core.query_log),
+            write_buffer: Arc::clone(&self.core.write_buffer),
+            exec: Arc::clone(&self.core.exec),
+            datafusion_config: Arc::clone(&self.core.datafusion_config),
+            query_log: Arc::clone(&self.core.query_log),
             system_schema_provider,
         }))))
     }

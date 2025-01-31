@@ -477,11 +477,15 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                     )?
                 }
                 PluginType::Request => {
+                    let TriggerSpecificationDefinition::RequestPath { path } = &trigger.trigger
+                    else {
+                        unreachable!()
+                    };
                     let rec = self
                         .plugin_event_tx
                         .write()
                         .await
-                        .add_request_trigger(trigger_name.to_string());
+                        .add_request_trigger(path.to_string());
 
                     plugins::run_request_plugin(
                         db_name.to_string(),

@@ -71,6 +71,12 @@ pub enum PluginError {
     #[error("non-schedule plugin with schedule trigger: {0}")]
     NonSchedulePluginWithScheduleTrigger(String),
 
+    #[error("Trigger schedule type {schedule_type} invalid for trigger type {trigger_type} and type mismatch")]
+    TriggerScheduleTypeMismatch {
+        schedule_type: String,
+        trigger_type: String,
+    },
+
     #[error("error reading file from Github: {0} {1}")]
     FetchingFromGithub(reqwest::StatusCode, String),
 }
