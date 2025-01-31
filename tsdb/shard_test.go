@@ -2775,7 +2775,7 @@ func conflictShard(t *testing.T, run int) {
 	keyType := map[string]byte{}
 	files, err := os.ReadDir(tmpShard)
 	require.NoError(t, err, "reading shard directory %s", tmpShard)
-	for _, file := range files {
+	for i, file := range files {
 		if !strings.HasSuffix(path.Ext(file.Name()), tsm1.TSMFileExtension) {
 			continue
 		}
@@ -2787,12 +2787,14 @@ func conflictShard(t *testing.T, run int) {
 		key, typ := tr.KeyAt(0)
 		if oldTyp, ok := keyType[string(key)]; ok {
 			require.Equal(t, oldTyp, typ,
-				"field type mismatch in run %d -- %q in %s: exp: %s, got: %s",
+				"field type mismatch in run %d TSM file %d -- %q in %s\nfirst seen: %s, newest: %s, field type: %s",
 				run+1,
+				i+1,
 				string(key),
 				ffile,
 				blockTypeString(oldTyp),
-				blockTypeString(typ))
+				blockTypeString(typ),
+				sh.MeasurementFields([]byte(measurement)).Field(field).Type.String())
 		} else {
 			keyType[string(key)] = typ
 		}
