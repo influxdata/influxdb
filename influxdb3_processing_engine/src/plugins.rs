@@ -316,7 +316,7 @@ mod python_plugin {
                             Arc::clone(&self.query_executor),
                             Some(ProcessingEngineLogger::new(
                                 Arc::clone(&self.sys_event_store),
-                                self.trigger_definition.trigger_name.clone(),
+                                self.trigger_definition.trigger_name.as_str(),
                             )),
                             &self.trigger_definition.trigger_arguments,
                             request.query_params,
@@ -432,7 +432,7 @@ mod python_plugin {
                             Arc::clone(&self.query_executor),
                             Some(ProcessingEngineLogger::new(
                                 Arc::clone(&self.sys_event_store),
-                                self.trigger_definition.trigger_name.clone(),
+                                self.trigger_definition.trigger_name.as_str(),
                             )),
                             table_filter,
                             &self.trigger_definition.trigger_arguments,
@@ -587,7 +587,7 @@ mod python_plugin {
                 Arc::clone(&plugin.query_executor),
                 Some(ProcessingEngineLogger::new(
                     Arc::clone(&plugin.sys_event_store),
-                    plugin.trigger_definition.trigger_name.clone(),
+                    plugin.trigger_definition.trigger_name.as_str(),
                 )),
                 &plugin.trigger_definition.trigger_arguments,
             )?;

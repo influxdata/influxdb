@@ -10,7 +10,7 @@ use std::sync::Arc;
 pub struct ProcessingEngineLog {
     event_time: Time,
     log_level: LogLevel,
-    trigger_name: String,
+    trigger_name: Arc<str>,
     log_line: String,
 }
 
@@ -35,7 +35,7 @@ impl ProcessingEngineLog {
     pub fn new(
         event_time: Time,
         log_level: LogLevel,
-        trigger_name: String,
+        trigger_name: Arc<str>,
         log_line: String,
     ) -> Self {
         Self {
@@ -61,6 +61,7 @@ impl ToRecordBatch<ProcessingEngineLog> for ProcessingEngineLog {
         ];
         Schema::new(fields)
     }
+
     fn to_record_batch(
         items: Option<&RingBuffer<Event<ProcessingEngineLog>>>,
     ) -> Option<Result<RecordBatch, ArrowError>> {
@@ -73,8 +74,8 @@ impl ToRecordBatch<ProcessingEngineLog> for ProcessingEngineLog {
         for item in items.in_order() {
             let event = &item.data;
             event_time_builder.append_value(event.event_time.timestamp_nanos());
-            trigger_name_builder.append_value(event.trigger_name.as_str());
-            log_level_builder.append_value(event.log_level.to_string().as_str());
+            trigger_name_builder.append_value(&event.trigger_name);
+            log_level_builder.append_value(event.log_level.to_string());
             log_text_builder.append_value(event.log_line.as_str());
         }
         let columns: Vec<ArrayRef> = vec![

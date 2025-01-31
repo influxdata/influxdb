@@ -44,14 +44,14 @@ struct PyPluginCallApi {
 #[derive(Debug)]
 pub struct ProcessingEngineLogger {
     sys_event_store: Arc<SysEventStore>,
-    trigger_name: String,
+    trigger_name: Arc<str>,
 }
 
 impl ProcessingEngineLogger {
-    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: String) -> Self {
+    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: impl Into<Arc<str>>) -> Self {
         Self {
             sys_event_store,
-            trigger_name,
+            trigger_name: trigger_name.into(),
         }
     }
 }
@@ -284,7 +284,7 @@ impl PyPluginCallApi {
             let processing_engine_log = ProcessingEngineLog::new(
                 logger.sys_event_store.time_provider().now(),
                 level,
-                logger.trigger_name.clone(),
+                Arc::clone(&logger.trigger_name),
                 log_line,
             );
             logger.sys_event_store.record(processing_engine_log);
