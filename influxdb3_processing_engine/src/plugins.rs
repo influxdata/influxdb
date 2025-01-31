@@ -7,9 +7,9 @@ use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
-use influxdb3_client::plugin_development::{WalPluginTestRequest, WalPluginTestResponse};
-#[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
+#[cfg(feature = "system-py")]
+use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::Gen1Duration;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerDefinition;
@@ -736,8 +736,8 @@ pub(crate) fn run_test_schedule_plugin(
     catalog: Arc<Catalog>,
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
-    request: influxdb3_client::plugin_development::SchedulePluginTestRequest,
-) -> Result<influxdb3_client::plugin_development::SchedulePluginTestResponse, PluginError> {
+    request: influxdb3_types::http::SchedulePluginTestRequest,
+) -> Result<influxdb3_types::http::SchedulePluginTestResponse, PluginError> {
     let database = request.database;
     let db = catalog.db_schema(&database).ok_or(PluginError::MissingDb)?;
 
@@ -769,14 +769,12 @@ pub(crate) fn run_test_schedule_plugin(
     let errors = test_write_handler.validate_all_writes(&database_writes);
     let trigger_time = schedule_time.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
 
-    Ok(
-        influxdb3_client::plugin_development::SchedulePluginTestResponse {
-            trigger_time: Some(trigger_time),
-            log_lines,
-            database_writes,
-            errors,
-        },
-    )
+    Ok(influxdb3_types::http::SchedulePluginTestResponse {
+        trigger_time: Some(trigger_time),
+        log_lines,
+        database_writes,
+        errors,
+    })
 }
 
 #[cfg(feature = "system-py")]
