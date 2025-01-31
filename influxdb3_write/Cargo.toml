@@ -61,7 +61,6 @@ serde_with.workspace = true
 sha2.workspace = true
 snap.workspace = true
 thiserror.workspace = true
-twox-hash.workspace = true
 tokio.workspace = true
 url.workspace = true
 uuid.workspace = true

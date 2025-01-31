@@ -4,7 +4,6 @@ mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
-pub(crate) use table_buffer::INDEX_HASH_SEED;
 use tokio::sync::{oneshot, watch::Receiver};
 pub mod validator;
 
