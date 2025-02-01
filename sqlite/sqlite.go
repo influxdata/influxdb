@@ -138,7 +138,8 @@ func (s *SqlStore) BackupSqlStore(ctx context.Context, w io.Writer) (rErr error)
 	if err != nil {
 		return err
 	}
-	defer errors2.Capture(&rErr, dest.Close)()
+
+	defer errors2.Capture(&rErr, dest.Close)() // close the backup sqlite store
 
 	if err := backup(ctx, dest, s); err != nil {
 		return err
@@ -227,16 +228,19 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) (rErr error
 	if err != nil {
 		return err
 	}
-	defer errors2.Capture(&rErr, f.Close)()
+	copySyncClose := func(f *os.File, r io.Reader) (innerErr error) {
+		defer errors2.Capture(&innerErr, f.Close) // close the temp file
 
-	// Copy the contents of r to the temporary file
-	if _, err := io.Copy(f, r); err != nil {
-		return err
+		// Copy the contents of r to the temporary file
+		if _, err := io.Copy(f, r); err != nil {
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			return err
+		}
+		return nil
 	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	if err := f.Close(); err != nil {
+	if err = copySyncClose(f, r); err != nil {
 		return err
 	}
 
