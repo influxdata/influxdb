@@ -284,6 +284,7 @@ impl QueryableBuffer {
                 let persisted_snapshot = Arc::clone(&persisted_snapshot);
                 let parquet_cache = parquet_cache.clone();
                 let buffer = Arc::clone(&buffer);
+                let persisted_files = Arc::clone(&persisted_files);
 
                 set.spawn(async move {
                     let path = persist_job.path.to_string();
@@ -314,10 +315,23 @@ impl QueryableBuffer {
                     // https://github.com/influxdata/influxdb/issues/25676
                     // https://github.com/influxdata/influxdb/issues/25677
                     .expect("sort, deduplicate, and persist buffer data as parquet");
+                    let parquet_file = ParquetFile {
+                        id: ParquetFileId::new(),
+                        path,
+                        size_bytes: file_size_bytes,
+                        row_count: file_meta_data.num_rows as u64,
+                        chunk_time,
+                        min_time,
+                        max_time,
+                    };
 
                     {
                         // we can clear the buffer as we move on
                         let mut buffer = buffer.write();
+
+                        // add file first
+                        persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
+                        // then clear the buffer
                         if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
                             if let Some(table) = db.get_mut(&table_id) {
                                 table.clear_snapshots();
@@ -325,19 +339,9 @@ impl QueryableBuffer {
                         }
                     }
 
-                    persisted_snapshot.lock().add_parquet_file(
-                        database_id,
-                        table_id,
-                        ParquetFile {
-                            id: ParquetFileId::new(),
-                            path,
-                            size_bytes: file_size_bytes,
-                            row_count: file_meta_data.num_rows as u64,
-                            chunk_time,
-                            min_time,
-                            max_time,
-                        },
-                    )
+                    persisted_snapshot
+                        .lock()
+                        .add_parquet_file(database_id, table_id, parquet_file)
                 });
             }
 
@@ -395,8 +399,6 @@ impl QueryableBuffer {
                         }
                     }
                 }
-                // should this be saved in the background?
-                persisted_files.add_persisted_snapshot_files(persisted_snapshot);
             }
 
             let _ = sender.send(snapshot_details);
