@@ -39,7 +39,7 @@ impl PersistedFiles {
     /// Add single file to a table
     pub fn add_persisted_file(&self, db_id: &DbId, table_id: &TableId, parquet_file: &ParquetFile) {
         let mut inner = self.inner.write();
-        inner.add_persisted_files(db_id, table_id, parquet_file);
+        inner.add_persisted_file(db_id, table_id, parquet_file);
     }
 
     /// Get the list of files for a given database and table, always return in descending order of min_time
@@ -131,7 +131,7 @@ impl Inner {
         self.parquet_files_count += file_count;
     }
 
-    pub fn add_persisted_files(
+    pub fn add_persisted_file(
         &mut self,
         db_id: &DbId,
         table_id: &TableId,
