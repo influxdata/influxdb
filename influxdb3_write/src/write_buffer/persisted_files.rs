@@ -36,6 +36,12 @@ impl PersistedFiles {
         inner.add_persisted_snapshot(persisted_snapshot);
     }
 
+    /// Add single file to a table
+    pub fn add_persisted_file(&self, db_id: &DbId, table_id: &TableId, parquet_file: &ParquetFile) {
+        let mut inner = self.inner.write();
+        inner.add_persisted_file(db_id, table_id, parquet_file);
+    }
+
     /// Get the list of files for a given database and table, always return in descending order of min_time
     pub fn get_files(&self, db_id: DbId, table_id: TableId) -> Vec<ParquetFile> {
         self.get_files_filtered(db_id, table_id, &ChunkFilter::default())
@@ -123,6 +129,26 @@ impl Inner {
         let file_count =
             update_persisted_files_with_snapshot(false, persisted_snapshot, &mut self.files);
         self.parquet_files_count += file_count;
+    }
+
+    pub fn add_persisted_file(
+        &mut self,
+        db_id: &DbId,
+        table_id: &TableId,
+        parquet_file: &ParquetFile,
+    ) {
+        let existing_parquet_files = self
+            .files
+            .entry(*db_id)
+            .or_default()
+            .entry(*table_id)
+            .or_default();
+        if !existing_parquet_files.contains(parquet_file) {
+            self.parquet_files_row_count += parquet_file.row_count;
+            self.parquet_files_size_mb += as_mb(parquet_file.size_bytes);
+            existing_parquet_files.push(parquet_file.clone());
+        }
+        self.parquet_files_count += 1;
     }
 }
 
