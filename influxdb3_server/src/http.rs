@@ -1598,7 +1598,7 @@ async fn record_batch_stream_to_body(
                     mut self: Pin<&mut Self>,
                     ctx: &mut std::task::Context<'_>,
                 ) -> Poll<Self::Output> {
-                    match dbg!(self.stream.poll_next_unpin(ctx)) {
+                    match self.stream.poll_next_unpin(ctx) {
                         Poll::Ready(Some(batch)) => {
                             let batch = match batch {
                                 Ok(batch) => batch,
