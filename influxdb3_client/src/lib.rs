@@ -1,17 +1,14 @@
-pub mod plugin_development;
-
-use crate::plugin_development::{
-    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
-    WalPluginTestResponse,
-};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use iox_query_params::StatementParam;
 use reqwest::{Body, IntoUrl, Method, StatusCode};
 use secrecy::{ExposeSecret, Secret};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
 use url::Url;
+
+use influxdb3_types::http::*;
+pub use influxdb3_types::write::Precision;
 
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
@@ -54,9 +51,6 @@ pub enum Error {
         #[source]
         source: reqwest::Error,
     },
-
-    #[error("unrecognized precision unit: {0}")]
-    UnrecognizedUnit(String),
 }
 
 impl Error {
@@ -241,13 +235,7 @@ impl Client {
         name: impl Into<String> + Send,
     ) -> Result<()> {
         let url = self.base_url.join("/api/v3/configure/last_cache")?;
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            name: String,
-        }
-        let mut req = self.http_client.delete(url).json(&Req {
+        let mut req = self.http_client.delete(url).json(&LastCacheDeleteRequest {
             db: db.into(),
             table: table.into(),
             name: name.into(),
@@ -306,17 +294,14 @@ impl Client {
         name: impl Into<String> + Send,
     ) -> Result<()> {
         let url = self.base_url.join("/api/v3/configure/distinct_cache")?;
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            name: String,
-        }
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            table: table.into(),
-            name: name.into(),
-        });
+        let mut req = self
+            .http_client
+            .delete(url)
+            .json(&DistinctCacheDeleteRequest {
+                db: db.into(),
+                table: table.into(),
+                name: name.into(),
+            });
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
@@ -348,12 +333,10 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req { db: db.into() });
+        let mut req = self
+            .http_client
+            .post(url)
+            .json(&CreateDatabaseRequest { db: db.into() });
 
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
@@ -439,26 +422,13 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            tags: Vec<String>,
-            fields: Vec<Field>,
-        }
-        #[derive(Serialize)]
-        struct Field {
-            name: String,
-            r#type: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req {
+        let mut req = self.http_client.post(url).json(&CreateTableRequest {
             db: db.into(),
             table: table.into(),
             tags: tags.into_iter().map(Into::into).collect(),
             fields: fields
                 .into_iter()
-                .map(|(name, r#type)| Field {
+                .map(|(name, r#type)| CreateTableField {
                     name: name.into(),
                     r#type: r#type.into(),
                 })
@@ -494,20 +464,15 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            plugin_name: String,
-            file_name: String,
-            plugin_type: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req {
-            db: db.into(),
-            plugin_name: plugin_name.into(),
-            file_name: file_name.into(),
-            plugin_type: plugin_type.into(),
-        });
+        let mut req = self
+            .http_client
+            .post(url)
+            .json(&ProcessingEnginePluginCreateRequest {
+                db: db.into(),
+                plugin_name: plugin_name.into(),
+                file_name: file_name.into(),
+                plugin_type: plugin_type.into(),
+            });
 
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
@@ -535,16 +500,13 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            plugin_name: String,
-        }
-
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            plugin_name: plugin_name.into(),
-        });
+        let mut req = self
+            .http_client
+            .delete(url)
+            .json(&ProcessingEnginePluginDeleteRequest {
+                db: db.into(),
+                plugin_name: plugin_name.into(),
+            });
 
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
@@ -576,23 +538,17 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            trigger_name: String,
-            plugin_filename: String,
-            trigger_specification: String,
-            trigger_arguments: Option<HashMap<String, String>>,
-            disabled: bool,
-        }
-        let mut req = self.http_client.post(url).json(&Req {
-            db: db.into(),
-            trigger_name: trigger_name.into(),
-            plugin_filename: plugin_filename.into(),
-            trigger_specification: trigger_spec.into(),
-            trigger_arguments,
-            disabled,
-        });
+        let mut req = self
+            .http_client
+            .post(url)
+            .json(&ProcessingEngineTriggerCreateRequest {
+                db: db.into(),
+                trigger_name: trigger_name.into(),
+                plugin_filename: plugin_filename.into(),
+                trigger_specification: trigger_spec.into(),
+                trigger_arguments,
+                disabled,
+            });
 
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
@@ -621,18 +577,14 @@ impl Client {
 
         let url = self.base_url.join(api_path)?;
 
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            trigger_name: String,
-            force: bool,
-        }
-
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            trigger_name: trigger_name.into(),
-            force,
-        });
+        let mut req = self
+            .http_client
+            .delete(url)
+            .json(&ProcessingEngineTriggerDeleteRequest {
+                db: db.into(),
+                trigger_name: trigger_name.into(),
+                force,
+            });
 
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
@@ -682,25 +634,24 @@ impl Client {
         }
     }
 
-    /// Make a request to api/v3/configure/plugin_environment/install_packages
+    /// Make a request to `POST /api/v3/configure/plugin_environment/install_packages`
     pub async fn api_v3_configure_plugin_environment_install_packages(
         &self,
         packages: Vec<String>,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/plugin_environment/install_packages";
         let url = self.base_url.join(api_path)?;
-        #[derive(Serialize)]
-        struct Req {
-            packages: Vec<String>,
-        }
-        let mut req = self.http_client.post(url).json(&Req { packages });
+        let mut req = self
+            .http_client
+            .post(url)
+            .json(&ProcessingEngineInstallPackagesRequest { packages });
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
         let resp = req
             .send()
             .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
@@ -711,27 +662,26 @@ impl Client {
         }
     }
 
-    /// Make a request to api/v3/configure/plugin_environment/install_requirements
+    /// Make a request to `POST /api/v3/configure/plugin_environment/install_requirements`
     pub async fn api_v3_configure_processing_engine_trigger_install_requirements(
         &self,
         requirements_location: impl Into<String> + Send,
     ) -> Result<()> {
         let api_path = "/api/v3/configure/plugin_environment/install_requirements";
         let url = self.base_url.join(api_path)?;
-        #[derive(Serialize)]
-        struct Req {
-            requirements_location: String,
-        }
-        let mut req = self.http_client.post(url).json(&Req {
-            requirements_location: requirements_location.into(),
-        });
+        let mut req =
+            self.http_client
+                .post(url)
+                .json(&ProcessingEngineInstallRequirementsRequest {
+                    requirements_location: requirements_location.into(),
+                });
         if let Some(token) = &self.auth_token {
             req = req.bearer_auth(token.expose_secret());
         }
         let resp = req
             .send()
             .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
+            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
@@ -855,25 +805,6 @@ impl Client {
     }
 }
 
-/// The response of the `/ping` API on `influxdb3`
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PingResponse {
-    version: String,
-    revision: String,
-}
-
-impl PingResponse {
-    /// Get the `version` from the response
-    pub fn version(&self) -> &str {
-        &self.version
-    }
-
-    /// Get the `revision` from the response
-    pub fn revision(&self) -> &str {
-        &self.revision
-    }
-}
-
 /// The URL parameters of the request to the `/api/v3/write_lp` API
 // TODO - this should re-use a type defined in the server code, or a separate crate,
 //        central to both.
@@ -891,33 +822,6 @@ impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
             precision: builder.precision,
             accept_partial: builder.accept_partial,
         }
-    }
-}
-
-/// Time series precision
-// TODO - this should re-use a type defined in the server code, or a separate crate,
-//        central to both.
-#[derive(Debug, Copy, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Precision {
-    Second,
-    Millisecond,
-    Microsecond,
-    Nanosecond,
-}
-
-impl std::str::FromStr for Precision {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let p = match s {
-            "s" => Self::Second,
-            "ms" => Self::Millisecond,
-            "us" => Self::Microsecond,
-            "ns" => Self::Nanosecond,
-            _ => return Err(Error::UnrecognizedUnit(s.into())),
-        };
-        Ok(p)
     }
 }
 
@@ -1340,33 +1244,6 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LastCacheCreatedResponse {
-    /// The table name the cache is associated with
-    pub table: String,
-    /// Given name of the cache
-    pub name: String,
-    /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<u32>,
-    /// Columns that store values in the cache
-    pub value_columns: LastCacheValueColumnsDef,
-    /// The number of last values to hold in the cache
-    pub count: usize,
-    /// The time-to-live (TTL) in seconds for entries in the cache
-    pub ttl: u64,
-}
-
-/// A last cache will either store values for an explicit set of columns, or will accept all
-/// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum LastCacheValueColumnsDef {
-    /// Explicit list of column names
-    Explicit { columns: Vec<u32> },
-    /// Stores all non-key columns
-    AllNonKeyColumns,
-}
-
 /// Type for composing requests to the `POST /api/v3/configure/distinct_cache` API created by the
 /// [`Client::api_v3_configure_distinct_cache_create`] method
 #[derive(Debug, Serialize)]
@@ -1449,22 +1326,6 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
             }),
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DistinctCacheCreatedResponse {
-    /// The id of the table the cache was created on
-    pub table_id: u32,
-    /// The name of the table the cache was created on
-    pub table_name: String,
-    /// The name of the created cache
-    pub cache_name: String,
-    /// The columns in the cache
-    pub column_ids: Vec<u32>,
-    /// The maximum number of unique value combinations the cache will hold
-    pub max_cardinality: usize,
-    /// The maximum age for entries in the cache
-    pub max_age_seconds: u64,
 }
 
 #[cfg(test)]

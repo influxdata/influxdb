@@ -13,20 +13,19 @@ use datafusion::execution::RecordBatchStream;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
-use hashbrown::HashMap;
-use hyper::header::ACCEPT;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
+use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Error as CatalogError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_processing_engine::manager::{ProcessingEngineError, ProcessingEngineManager};
+use influxdb3_types::http::*;
 use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::persister::TrackedMemoryArrowWriter;
 use influxdb3_write::write_buffer::Error as WriteBufferError;
@@ -226,6 +225,9 @@ pub enum Error {
 
     #[error("Processing engine error: {0}")]
     ProcessingEngine(#[from] influxdb3_processing_engine::manager::ProcessingEngineError),
+
+    #[error(transparent)]
+    Influxdb3TypesHttp(#[from] influxdb3_types::http::Error),
 }
 
 #[derive(Debug, Error)]
@@ -598,15 +600,9 @@ where
     }
 
     fn ping(&self) -> Result<Response<Body>> {
-        #[derive(Debug, Serialize)]
-        struct PingResponse<'a> {
-            version: &'a str,
-            revision: &'a str,
-        }
-
         let body = serde_json::to_string(&PingResponse {
-            version: &INFLUXDB3_VERSION,
-            revision: INFLUXDB3_GIT_HASH_SHORT,
+            version: INFLUXDB3_VERSION.to_string(),
+            revision: INFLUXDB3_GIT_HASH_SHORT.to_string(),
         })?;
 
         Ok(Response::new(Body::from(body)))
@@ -1004,7 +1000,7 @@ where
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
-        let ProcessEngineTriggerCreateRequest {
+        let ProcessingEngineTriggerCreateRequest {
             db,
             plugin_filename,
             trigger_name,
@@ -1052,7 +1048,7 @@ where
     }
 
     async fn delete_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let ProcessEngineTriggerDeleteRequest {
+        let ProcessingEngineTriggerDeleteRequest {
             db,
             trigger_name,
             force,
@@ -1172,8 +1168,7 @@ where
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
-        let request: influxdb3_client::plugin_development::WalPluginTestRequest =
-            self.read_body_json(req).await?;
+        let request: influxdb3_types::http::WalPluginTestRequest = self.read_body_json(req).await?;
 
         let output = self
             .processing_engine
@@ -1200,7 +1195,7 @@ where
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
-        let request: influxdb3_client::plugin_development::SchedulePluginTestRequest =
+        let request: influxdb3_types::http::SchedulePluginTestRequest =
             self.read_body_json(req).await?;
 
         let output = self
@@ -1220,6 +1215,8 @@ where
         trigger_path: &str,
         req: Request<Body>,
     ) -> Result<Response<Body>> {
+        use hashbrown::HashMap;
+
         // pull out the query params into a hashmap
         let uri = req.uri();
         let query_str = uri.query().unwrap_or("");
@@ -1487,62 +1484,6 @@ pub enum ValidateDbNameError {
     Empty,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct QueryRequest<D, F, P> {
-    #[serde(rename = "db")]
-    pub(crate) database: D,
-    #[serde(rename = "q")]
-    pub(crate) query_str: String,
-    pub(crate) format: F,
-    pub(crate) params: Option<P>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum QueryFormat {
-    Parquet,
-    Csv,
-    Pretty,
-    Json,
-    #[serde(alias = "jsonl")]
-    JsonLines,
-}
-
-impl QueryFormat {
-    fn as_content_type(&self) -> &str {
-        match self {
-            Self::Parquet => "application/vnd.apache.parquet",
-            Self::Csv => "text/csv",
-            Self::Pretty => "text/plain; charset=utf-8",
-            Self::Json => "application/json",
-            Self::JsonLines => "application/jsonl",
-        }
-    }
-
-    fn try_from_headers(headers: &HeaderMap) -> Result<Self> {
-        match headers.get(ACCEPT).map(HeaderValue::as_bytes) {
-            // Accept Headers use the MIME types maintained by IANA here:
-            // https://www.iana.org/assignments/media-types/media-types.xhtml
-            // Note parquet hasn't been accepted yet just Arrow, but there
-            // is the possibility it will be:
-            // https://issues.apache.org/jira/browse/PARQUET-1889
-            Some(b"application/vnd.apache.parquet") => Ok(Self::Parquet),
-            Some(b"text/csv") => Ok(Self::Csv),
-            Some(b"text/plain") => Ok(Self::Pretty),
-            Some(b"application/json" | b"*/*") | None => Ok(Self::Json),
-            Some(mime_type) => match String::from_utf8(mime_type.to_vec()) {
-                Ok(s) => {
-                    if s.contains("text/html") || s.contains("*/*") {
-                        return Ok(Self::Json);
-                    }
-                    Err(Error::InvalidMimeType(s))
-                }
-                Err(e) => Err(Error::NonUtf8MimeType(e)),
-            },
-        }
-    }
-}
-
 async fn record_batch_stream_to_body(
     mut stream: Pin<Box<dyn RecordBatchStream + Send>>,
     format: QueryFormat,
@@ -1767,127 +1708,6 @@ impl From<iox_http::write::WriteParams> for WriteParams {
     }
 }
 
-/// Request definition for the `POST /api/v3/configure/distinct_cache` API
-#[derive(Debug, Deserialize)]
-struct DistinctCacheCreateRequest {
-    /// The name of the database associated with the cache
-    db: String,
-    /// The name of the table associated with the cache
-    table: String,
-    /// The name of the cache. If not provided, the cache name will be generated from the table
-    /// name and selected column names.
-    name: Option<String>,
-    /// The columns to create the cache on.
-    // TODO: this should eventually be made optional, so that if not provided, the columns used will
-    // correspond to the series key columns for the table, i.e., the tags. See:
-    // https://github.com/influxdata/influxdb/issues/25585
-    columns: Vec<String>,
-    /// The maximumn number of distinct value combinations to hold in the cache
-    max_cardinality: Option<MaxCardinality>,
-    /// The duration in seconds that entries will be kept in the cache before being evicted
-    max_age: Option<u64>,
-}
-
-/// Request definition for the `DELETE /api/v3/configure/distinct_cache` API
-#[derive(Debug, Deserialize)]
-struct DistinctCacheDeleteRequest {
-    db: String,
-    table: String,
-    name: String,
-}
-
-/// Request definition for the `POST /api/v3/configure/last_cache` API
-#[derive(Debug, Deserialize)]
-struct LastCacheCreateRequest {
-    db: String,
-    table: String,
-    name: Option<String>,
-    key_columns: Option<Vec<String>>,
-    value_columns: Option<Vec<String>>,
-    count: Option<usize>,
-    ttl: Option<u64>,
-}
-
-/// Request definition for the `DELETE /api/v3/configure/last_cache` API
-#[derive(Debug, Deserialize)]
-struct LastCacheDeleteRequest {
-    db: String,
-    table: String,
-    name: String,
-}
-
-/// Request definition for `POST /api/v3/configure/processing_engine_trigger` API
-#[derive(Debug, Deserialize)]
-struct ProcessEngineTriggerCreateRequest {
-    db: String,
-    plugin_filename: String,
-    trigger_name: String,
-    trigger_specification: String,
-    trigger_arguments: Option<HashMap<String, String>>,
-    disabled: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProcessEngineTriggerDeleteRequest {
-    db: String,
-    trigger_name: String,
-    #[serde(default)]
-    force: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProcessingEngineInstallPackagesRequest {
-    packages: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProcessingEngineInstallRequirementsRequest {
-    requirements_location: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ProcessingEngineTriggerIdentifier {
-    db: String,
-    trigger_name: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ShowDatabasesRequest {
-    format: QueryFormat,
-    #[serde(default)]
-    show_deleted: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateDatabaseRequest {
-    db: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct DeleteDatabaseRequest {
-    db: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateTableRequest {
-    db: String,
-    table: String,
-    tags: Vec<String>,
-    fields: Vec<CreateTableField>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateTableField {
-    name: String,
-    r#type: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct DeleteTableRequest {
-    db: String,
-    table: String,
-}
-
 pub(crate) async fn route_request<T: TimeProvider>(
     http_server: Arc<HttpApi<T>>,
     mut req: Request<Body>,
@@ -2049,7 +1869,7 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
 mod tests {
     use http::{header::ACCEPT, HeaderMap, HeaderValue};
 
-    use crate::http::QueryFormat;
+    use super::QueryFormat;
 
     use super::validate_db_name;
     use super::ValidateDbNameError;

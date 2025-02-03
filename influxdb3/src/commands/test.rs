@@ -1,8 +1,8 @@
 use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
 use anyhow::Context;
 use hashbrown::HashMap;
-use influxdb3_client::plugin_development::{SchedulePluginTestRequest, WalPluginTestRequest};
 use influxdb3_client::Client;
+use influxdb3_types::http::{SchedulePluginTestRequest, WalPluginTestRequest};
 use secrecy::ExposeSecret;
 use std::error::Error;
 

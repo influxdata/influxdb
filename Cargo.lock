@@ -2779,6 +2779,7 @@ dependencies = [
  "influxdb3_server",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
+ "influxdb3_types",
  "influxdb3_wal",
  "influxdb3_write",
  "influxdb_iox_client",
@@ -2917,6 +2918,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "hashbrown 0.15.2",
+ "influxdb3_types",
  "iox_query_params",
  "mockito",
  "reqwest 0.11.27",
@@ -3012,6 +3014,7 @@ dependencies = [
  "influxdb3_client",
  "influxdb3_internal_api",
  "influxdb3_py_api",
+ "influxdb3_types",
  "influxdb3_wal",
  "influxdb3_write",
  "iox_query",
@@ -3088,6 +3091,7 @@ dependencies = [
  "influxdb3_processing_engine",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
+ "influxdb3_types",
  "influxdb3_wal",
  "influxdb3_write",
  "influxdb_influxql_parser",
@@ -3189,6 +3193,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_types"
+version = "0.1.0"
+dependencies = [
+ "hashbrown 0.15.2",
+ "hyper 0.14.32",
+ "influxdb3_cache",
+ "iox_http",
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "influxdb3_wal"
 version = "0.1.0"
 dependencies = [
@@ -3244,13 +3260,13 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_cache",
  "influxdb3_catalog",
- "influxdb3_client",
  "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_py_api",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_test_helpers",
+ "influxdb3_types",
  "influxdb3_wal",
  "insta",
  "iox_catalog",

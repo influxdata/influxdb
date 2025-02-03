@@ -2,7 +2,8 @@
 //!
 //! This is useful for verifying that the client can parse API responses from the server
 
-use influxdb3_client::{Format, LastCacheCreatedResponse, Precision};
+use influxdb3_client::{Format, Precision};
+use influxdb3_types::http::LastCacheCreatedResponse;
 
 use crate::server::TestServer;
 
