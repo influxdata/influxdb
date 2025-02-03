@@ -17,7 +17,7 @@ use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, FieldData, Row};
 use iox_time::TimeProvider;
 use schema::{InfluxColumnType, InfluxFieldType};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CacheError {
@@ -68,7 +68,7 @@ pub struct CreateDistinctCacheArgs {
     pub column_ids: Vec<ColumnId>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct MaxCardinality(NonZeroUsize);
 
 impl TryFrom<usize> for MaxCardinality {
@@ -86,6 +86,12 @@ const DEFAULT_MAX_CARDINALITY: usize = 100_000;
 impl Default for MaxCardinality {
     fn default() -> Self {
         Self(NonZeroUsize::new(DEFAULT_MAX_CARDINALITY).unwrap())
+    }
+}
+
+impl From<NonZeroUsize> for MaxCardinality {
+    fn from(v: NonZeroUsize) -> Self {
+        Self(v)
     }
 }
 

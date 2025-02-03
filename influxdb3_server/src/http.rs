@@ -529,9 +529,9 @@ where
                 database,
                 body,
                 default_time,
-                params.accept_partial,
-                params.precision,
-                params.no_sync,
+                params.accept_partial.unwrap_or(true),
+                params.precision.unwrap_or(Precision::Auto),
+                params.no_sync.unwrap_or(false),
             )
             .await?;
 
@@ -1677,33 +1677,6 @@ async fn record_batch_stream_to_body(
                 Poll::Pending => Poll::Pending,
             });
             Ok(Body::wrap_stream(stream))
-        }
-    }
-}
-
-// This is a hack around the fact that bool default is false not true
-const fn true_fn() -> bool {
-    true
-}
-#[derive(Debug, Deserialize)]
-pub(crate) struct WriteParams {
-    pub(crate) db: String,
-    #[serde(default = "true_fn")]
-    pub(crate) accept_partial: bool,
-    #[serde(default)]
-    pub(crate) precision: Precision,
-    #[serde(default)]
-    pub(crate) no_sync: bool,
-}
-
-impl From<iox_http::write::WriteParams> for WriteParams {
-    fn from(legacy: iox_http::write::WriteParams) -> Self {
-        Self {
-            db: legacy.namespace.to_string(),
-            // legacy behaviour was to not accept partial:
-            accept_partial: false,
-            precision: legacy.precision.into(),
-            no_sync: false,
         }
     }
 }

@@ -56,7 +56,7 @@ pub enum Format {
     Csv,
 }
 
-impl From<Format> for influxdb3_client::Format {
+impl From<Format> for influxdb3_types::http::QueryFormat {
     fn from(format: Format) -> Self {
         match format {
             Format::Json => Self::Json,

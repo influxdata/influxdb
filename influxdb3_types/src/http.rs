@@ -1,10 +1,12 @@
 use hashbrown::HashMap;
-
 use hyper::header::ACCEPT;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use influxdb3_cache::distinct_cache::MaxCardinality;
+use iox_query_params::StatementParams;
 use serde::{Deserialize, Serialize};
+
+use crate::write::Precision;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -15,7 +17,7 @@ pub enum Error {
     NonUtf8MimeType(#[from] std::string::FromUtf8Error),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PingResponse {
     pub version: String,
     pub revision: String,
@@ -44,7 +46,7 @@ pub enum LastCacheValueColumnsDef {
     AllNonKeyColumns,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct LastCacheCreatedResponse {
     /// The table name the cache is associated with
     pub table: String,
@@ -61,7 +63,7 @@ pub struct LastCacheCreatedResponse {
 }
 
 /// Request definition for the `POST /api/v3/configure/distinct_cache` API
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DistinctCacheCreateRequest {
     /// The name of the database associated with the cache
     pub db: String,
@@ -69,6 +71,7 @@ pub struct DistinctCacheCreateRequest {
     pub table: String,
     /// The name of the cache. If not provided, the cache name will be generated from the table
     /// name and selected column names.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// The columns to create the cache on.
     // TODO: this should eventually be made optional, so that if not provided, the columns used will
@@ -76,13 +79,15 @@ pub struct DistinctCacheCreateRequest {
     // https://github.com/influxdata/influxdb/issues/25585
     pub columns: Vec<String>,
     /// The maximumn number of distinct value combinations to hold in the cache
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_cardinality: Option<MaxCardinality>,
     /// The duration in seconds that entries will be kept in the cache before being evicted
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_age: Option<u64>,
 }
 
 /// Resposne definition for the `POST /api/v3/configure/distinct_cache` API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DistinctCacheCreatedResponse {
     /// The id of the table the cache was created on
     pub table_id: u32,
@@ -107,14 +112,19 @@ pub struct DistinctCacheDeleteRequest {
 }
 
 /// Request definition for the `POST /api/v3/configure/last_cache` API
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct LastCacheCreateRequest {
     pub db: String,
     pub table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub key_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub value_columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ttl: Option<u64>,
 }
 
@@ -174,14 +184,14 @@ pub struct ProcessingEngineInstallRequirementsRequest {
     pub requirements_location: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ProcessingEngineTriggerIdentifier {
     pub db: String,
     pub trigger_name: String,
 }
 
 /// Request definition for the `POST /api/v3/plugin_test/wal` API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WalPluginTestRequest {
     pub filename: String,
     pub database: String,
@@ -190,7 +200,7 @@ pub struct WalPluginTestRequest {
 }
 
 /// Response definition for the `POST /api/v3/plugin_test/wal` API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WalPluginTestResponse {
     pub log_lines: Vec<String>,
     pub database_writes: HashMap<String, Vec<String>>,
@@ -198,7 +208,7 @@ pub struct WalPluginTestResponse {
 }
 
 /// Request definition for the `POST /api/v3/plugin_test/schedule` API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SchedulePluginTestRequest {
     pub filename: String,
     pub database: String,
@@ -207,7 +217,7 @@ pub struct SchedulePluginTestRequest {
 }
 
 /// Response definition for the `POST /api/v3/plugin_test/schedule` API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SchedulePluginTestResponse {
     pub trigger_time: Option<String>,
     pub log_lines: Vec<String>,
@@ -216,7 +226,7 @@ pub struct SchedulePluginTestResponse {
 }
 
 /// Request definition for the `GET /api/v3/configure/database` API
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct ShowDatabasesRequest {
     pub format: QueryFormat,
     #[serde(default)]
@@ -230,7 +240,7 @@ pub struct CreateDatabaseRequest {
 }
 
 /// Request definition for the `DELETE /api/v3/configure/database` API
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteDatabaseRequest {
     pub db: String,
 }
@@ -251,14 +261,16 @@ pub struct CreateTableField {
 }
 
 /// Request definition for the `DELETE /api/v3/configure/table` API
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteTableRequest {
     pub db: String,
     pub table: String,
 }
 
+pub type ClientQueryRequest = QueryRequest<String, Option<QueryFormat>, StatementParams>;
+
 /// Request definition for the `POST /api/v3/query_sql` and `POST /api/v3/query_influxql` APIs
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct QueryRequest<D, F, P> {
     #[serde(rename = "db")]
     pub database: D,
@@ -268,7 +280,7 @@ pub struct QueryRequest<D, F, P> {
     pub params: Option<P>,
 }
 
-#[derive(Copy, Clone, Debug, Deserialize)]
+#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryFormat {
     Parquet,
@@ -310,6 +322,27 @@ impl QueryFormat {
                 }
                 Err(e) => Err(Error::NonUtf8MimeType(e)),
             },
+        }
+    }
+}
+
+/// The URL parameters of the request to the `/api/v3/write_lp` API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WriteParams {
+    pub db: String,
+    pub precision: Option<Precision>,
+    pub accept_partial: Option<bool>,
+    pub no_sync: Option<bool>,
+}
+
+impl From<iox_http::write::WriteParams> for WriteParams {
+    fn from(legacy: iox_http::write::WriteParams) -> Self {
+        Self {
+            db: legacy.namespace.to_string(),
+            // legacy behaviour was to not accept partial:
+            accept_partial: Some(false),
+            precision: Some(legacy.precision.into()),
+            no_sync: Some(false),
         }
     }
 }
