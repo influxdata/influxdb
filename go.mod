@@ -1,6 +1,6 @@
 module github.com/influxdata/influxdb
 
-go 1.22
+go 1.23
 
 require (
 	collectd.org v0.3.0
