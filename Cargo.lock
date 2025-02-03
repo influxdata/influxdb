@@ -2288,6 +2288,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashlink"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
+dependencies = [
+ "hashbrown 0.15.2",
+]
+
+[[package]]
 name = "hdrhistogram"
 version = "7.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2834,6 +2843,8 @@ dependencies = [
  "data_types",
  "datafusion",
  "futures",
+ "hashbrown 0.15.2",
+ "hashlink 0.10.0",
  "indexmap 2.7.0",
  "influxdb3_catalog",
  "influxdb3_id",
@@ -5853,7 +5864,7 @@ dependencies = [
  "futures-io",
  "futures-util",
  "hashbrown 0.14.5",
- "hashlink",
+ "hashlink 0.9.1",
  "hex",
  "indexmap 2.7.0",
  "log",

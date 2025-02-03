@@ -34,6 +34,7 @@ use tokio::sync::{
     oneshot, watch,
 };
 
+mod experimental;
 mod metrics;
 
 /// Shared future type for cache values that are being fetched

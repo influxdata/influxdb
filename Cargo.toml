@@ -75,6 +75,7 @@ flate2 = "1.0.27"
 futures = "0.3.31"
 futures-util = "0.3.31"
 hashbrown = { version = "0.15.1", features = ["serde"] }
+hashlink = "0.10.0"
 hex = "0.4.3"
 http = "0.2.9"
 humantime = "2.1.0"
@@ -82,6 +83,7 @@ hyper = "0.14"
 insta = { version = "1.39", features = ["json", "redactions", "yaml"] }
 indexmap = { version = "2.2.6" }
 itertools = "0.13.0"
+jemalloc_pprof = "0.6.0"
 libc = { version = "0.2" }
 mime = "0.3.17"
 mockito = { version = "1.4.0", default-features = false }
