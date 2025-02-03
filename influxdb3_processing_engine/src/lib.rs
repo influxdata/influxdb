@@ -10,11 +10,11 @@ use hyper::{Body, Response};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
-use influxdb3_sys_events::SysEventStore;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::PluginType;
 use influxdb3_wal::{

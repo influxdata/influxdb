@@ -15,6 +15,7 @@ arrow-schema.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 hashbrown.workspace = true
+humantime.workspace = true
 iox_time.workspace = true
 influxdb3_id = { path = "../influxdb3_id" }
 influxdb3_wal = { path = "../influxdb3_wal" }

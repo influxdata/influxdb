@@ -3043,6 +3043,7 @@ dependencies = [
  "chrono",
  "futures",
  "hashbrown 0.15.2",
+ "humantime",
  "influxdb3_catalog",
  "influxdb3_id",
  "influxdb3_internal_api",

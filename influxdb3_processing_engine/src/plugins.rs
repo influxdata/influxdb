@@ -9,9 +9,9 @@ use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
 #[cfg(feature = "system-py")]
-use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
-#[cfg(feature = "system-py")]
 use influxdb3_sys_events::SysEventStore;
+#[cfg(feature = "system-py")]
+use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::Gen1Duration;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerDefinition;

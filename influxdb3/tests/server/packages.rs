@@ -1,7 +1,6 @@
 use crate::cli::run_with_confirmation;
 #[cfg(feature = "system-py")]
 use crate::server::{ConfigProvider, TestServer};
-use crate::{ConfigProvider, TestServer};
 use anyhow::{bail, Result};
 use serde_json::Value;
 use std::io::Write;
