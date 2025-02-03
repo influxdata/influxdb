@@ -1,4 +1,6 @@
 use observability_deps::tracing::debug;
+use pyo3::Python;
+use std::ffi::CString;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Once;
@@ -46,8 +48,21 @@ fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
 pub fn init_pyo3() {
     PYTHON_INIT.call_once(|| {
         pyo3::prepare_freethreaded_python();
-    })
+
+        // This sets the signal handler fo SIGINT to be the default, allowing CTRL+C to work.
+        // See https://github.com/PyO3/pyo3/issues/3218.
+        Python::with_gil(|py| {
+            py.run(
+                &CString::new("import signal;signal.signal(signal.SIGINT, signal.SIG_DFL)")
+                    .unwrap(),
+                None,
+                None,
+            )
+            .expect("should be able to set signal handler.");
+        });
+    });
 }
+
 #[cfg(unix)]
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
