@@ -213,6 +213,30 @@ jobs:
           name: cargo nextest
           command: TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
 
+  # Fetch python-build-standalone for official builds
+  fetch-python:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
+    environment:
+      PBS_DATE: "20250106"
+      PBS_VERSION: "3.11.11"
+    steps:
+      - checkout
+      - run:
+          name: pull Python Build Standalone
+          command: |
+            .circleci/scripts/fetch-python-standalone.bash \
+              "python-artifacts" \
+              "${PBS_DATE}" \
+              "${PBS_VERSION}"
+      - store_artifacts:
+          path: python-artifacts
+      - persist_to_workspace:
+          root: .
+          paths:
+            - python-artifacts
+
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
@@ -560,6 +584,8 @@ workflows:
       - cargo-audit:
           <<: *any_filter
       - test:
+          <<: *any_filter
+      - fetch-python:
           <<: *any_filter
       - build-dev:
           # This workflow requires secrets stored in the environment.
