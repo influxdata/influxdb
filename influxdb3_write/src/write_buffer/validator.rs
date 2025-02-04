@@ -185,16 +185,8 @@ fn validate_and_qualify_v1_line(
             for (tag_key, tag_val) in tag_set {
                 if let Some(col_id) = table_def.column_name_to_id(tag_key.as_str()) {
                     fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
-                } else {
-                    return Err(WriteLineError {
-                        original_line: line.to_string(),
-                        line_number: line_number + 1,
-                        error_message: format!(
-                            "Detected a new tag '{tag_key}' in write. The tag set is immutable on first write to the table."
-                        ),
-                    });
+                    index_count += 1;
                 }
-                index_count += 1;
             }
         }
         for (field_name, field_val) in line.field_set.iter() {
@@ -503,7 +495,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::WriteValidator;
-    use crate::{write_buffer::Error, Precision, WriteLineError};
+    use crate::{write_buffer::Error, Precision};
 
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::Catalog;
@@ -578,21 +570,6 @@ mod tests {
         assert_eq!(result.field_count, 2);
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
-
-        // Validate another write, this time failing when adding a new tag:
-        match WriteValidator::initialize(namespace.clone(), catalog, 0)
-            .unwrap()
-            .v1_parse_lines_and_update_schema(
-                "cpu,tag1=foo,tag2=baz val1=\"bar\",val2=false 1236",
-                false,
-                Time::from_timestamp_nanos(0),
-                Precision::Auto,
-            ) {
-            Err(Error::ParseError(WriteLineError { error_message, .. })) => {
-                assert_eq!("Detected a new tag 'tag2' in write. The tag set is immutable on first write to the table.", error_message);
-            }
-            Ok(_) | Err(_) => panic!("Validator should have failed on new tag"),
-        }
 
         Ok(())
     }
