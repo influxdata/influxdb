@@ -68,7 +68,7 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 .send()
                 .await?;
 
-            println!("{}", std::str::from_utf8(&resp_bytes)?);
+            println!("{}", String::from_utf8_lossy(&resp_bytes));
         }
         SubCommand::System(cfg) => system::command(cfg).await?,
     }
