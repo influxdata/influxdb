@@ -13,7 +13,7 @@ pub(crate) struct TelemetrySender {
 }
 
 impl TelemetrySender {
-    pub fn new(client: reqwest::Client, base_url: impl IntoUrl) -> Self {
+    pub(crate) fn new(client: reqwest::Client, base_url: impl IntoUrl) -> Self {
         let base_url: Url = base_url
             .into_url()
             .expect("Cannot parse telemetry sender url");
@@ -25,7 +25,7 @@ impl TelemetrySender {
         }
     }
 
-    pub async fn try_sending(&mut self, telemetry: &TelemetryPayload) -> Result<()> {
+    pub(crate) async fn try_sending(&mut self, telemetry: &TelemetryPayload) -> Result<()> {
         debug!(telemetry = ?telemetry, "trying to send data to telemetry server");
         let json = serde_json::to_vec(&telemetry).map_err(TelemetryError::CannotSerializeJson)?;
         self.client

@@ -16,16 +16,16 @@ pub(crate) struct EventsBucket {
 }
 
 impl EventsBucket {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    pub fn add_write_sample(&mut self, num_lines: usize, size_bytes: usize) {
+    pub(crate) fn add_write_sample(&mut self, num_lines: usize, size_bytes: usize) {
         self.writes.add_sample(num_lines, size_bytes);
         self.num_writes += 1;
     }
 
-    pub fn update_num_queries(&mut self) {
+    pub(crate) fn update_num_queries(&mut self) {
         self.queries.add_sample();
         self.num_queries += 1;
     }
@@ -48,7 +48,7 @@ pub(crate) struct PerMinuteWrites {
 }
 
 impl PerMinuteWrites {
-    pub fn add_sample(&mut self, num_lines: usize, size_bytes: usize) -> Option<()> {
+    pub(crate) fn add_sample(&mut self, num_lines: usize, size_bytes: usize) -> Option<()> {
         let new_num_lines = num_lines as u64;
         self.lines.update(new_num_lines);
         self.total_lines += new_num_lines;
@@ -67,7 +67,7 @@ pub(crate) struct PerMinuteReads {
 }
 
 impl PerMinuteReads {
-    pub fn add_sample(&mut self) -> Option<()> {
+    pub(crate) fn add_sample(&mut self) -> Option<()> {
         self.num_queries.update(1);
         self.total_num_queries += 1;
         Some(())

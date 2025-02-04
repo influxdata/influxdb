@@ -52,6 +52,7 @@ pub struct QueryableBuffer {
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
 }
 
+#[derive(Debug)]
 pub struct QueryableBufferArgs {
     pub executor: Arc<Executor>,
     pub catalog: Arc<Catalog>,
@@ -95,7 +96,7 @@ impl QueryableBuffer {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        buffer_filter: &ChunkFilter,
+        buffer_filter: &ChunkFilter<'_>,
         _projection: Option<&Vec<usize>>,
         _ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
@@ -411,7 +412,7 @@ impl QueryableBuffer {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
         self.persisted_files
             .get_files_filtered(db_id, table_id, filter)

@@ -109,6 +109,7 @@ impl SysEventStore {
 // sense to use heap.
 pub type RingBuffer<T> = RingBufferVec<T>;
 
+#[derive(Debug)]
 pub struct RingBufferVec<T> {
     buf: Vec<T>,
     max: usize,
