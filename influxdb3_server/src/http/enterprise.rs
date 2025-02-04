@@ -6,8 +6,8 @@ use hyper::Response;
 use hyper::StatusCode;
 use influxdb3_config::Config;
 use influxdb3_config::Index;
+use influxdb3_types::http::*;
 use iox_time::TimeProvider;
-use serde::Deserialize;
 
 impl<T> HttpApi<T>
 where
@@ -182,19 +182,4 @@ where
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
-}
-
-/// Request definition for the `POST /api/v3/pro/configure/file_index` API
-#[derive(Debug, Deserialize)]
-struct FileIndexCreateRequest {
-    db: String,
-    table: Option<String>,
-    columns: Vec<String>,
-}
-
-/// Request definition for the `DELETE /api/v3/pro/configure/file_index` API
-#[derive(Debug, Deserialize)]
-struct FileIndexDeleteRequest {
-    db: String,
-    table: Option<String>,
 }
