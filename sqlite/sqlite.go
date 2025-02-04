@@ -229,7 +229,7 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) (rErr error
 		return err
 	}
 	copySyncClose := func(f *os.File, r io.Reader) (innerErr error) {
-		defer errors2.Capture(&innerErr, f.Close) // close the temp file
+		defer errors2.Capture(&innerErr, f.Close)() // close the temp file
 
 		// Copy the contents of r to the temporary file
 		if _, err := io.Copy(f, r); err != nil {
@@ -240,7 +240,7 @@ func (s *SqlStore) RestoreSqlStore(ctx context.Context, r io.Reader) (rErr error
 		}
 		return nil
 	}
-	if err = copySyncClose(f, r); err != nil {
+	if err := copySyncClose(f, r); err != nil {
 		return err
 	}
 
