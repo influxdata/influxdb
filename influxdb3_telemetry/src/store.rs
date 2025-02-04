@@ -60,10 +60,14 @@ impl TelemetryStore {
         });
 
         if !cfg!(test) {
-            sample_metrics(store.clone(), Duration::from_secs(SAMPLER_INTERVAL_SECS)).await;
+            sample_metrics(
+                Arc::clone(&store),
+                Duration::from_secs(SAMPLER_INTERVAL_SECS),
+            )
+            .await;
             send_telemetry_in_background(
                 telemetry_endpoint,
-                store.clone(),
+                Arc::clone(&store),
                 Duration::from_secs(MAIN_SENDER_INTERVAL_SECS),
             )
             .await;
@@ -158,7 +162,7 @@ struct TelemetryStoreInner {
 }
 
 impl TelemetryStoreInner {
-    pub fn new(
+    fn new(
         instance_id: Arc<str>,
         os: Arc<str>,
         influx_version: Arc<str>,
@@ -188,10 +192,10 @@ impl TelemetryStoreInner {
             "Snapshot write size in bytes"
         );
         TelemetryPayload {
-            os: self.os.clone(),
-            version: self.influx_version.clone(),
-            instance_id: self.instance_id.clone(),
-            storage_type: self.storage_type.clone(),
+            os: Arc::clone(&self.os),
+            version: Arc::clone(&self.influx_version),
+            instance_id: Arc::clone(&self.instance_id),
+            storage_type: Arc::clone(&self.storage_type),
             cores: self.cores,
             product_type: "Enterprise",
             uptime_secs: self.start_timer.elapsed().as_secs(),

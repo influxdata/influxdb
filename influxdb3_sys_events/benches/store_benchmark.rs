@@ -91,7 +91,7 @@ impl ToRecordBatch<SampleSysEvent> for SampleSysEvent {
 }
 
 impl SampleSysEvent {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let rand_start_range = 0..100_000_000;
         let start = rand::thread_rng().gen_range(rand_start_range);
         SampleSysEvent {
@@ -197,7 +197,7 @@ impl ToRecordBatch<SampleSysEvent2> for SampleSysEvent2 {
 }
 
 impl SampleSysEvent2 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let rand_start_range = 0..100_000_000;
         let start = rand::thread_rng().gen_range(rand_start_range);
         SampleSysEvent2 {
@@ -293,7 +293,7 @@ impl ToRecordBatch<SampleSysEvent3> for SampleSysEvent3 {
 }
 
 impl SampleSysEvent3 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let rand_start_range = 0..100_000_000;
         let start = rand::thread_rng().gen_range(rand_start_range);
         SampleSysEvent3 {

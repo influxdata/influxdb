@@ -12,7 +12,8 @@ trogging.workspace = true
 
 # Local Deps
 influxdb3_client = { path = "../influxdb3_client" }
-influxdb3_process= { path = "../influxdb3_process", default-features = false }
+influxdb3_process = { path = "../influxdb3_process", default-features = false }
+influxdb3_types = { path = "../influxdb3_types" }
 
 # crates.io Dependencies
 anyhow.workspace = true

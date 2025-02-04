@@ -39,7 +39,7 @@ impl Authorizer for AllOrNothingAuthorizer {
 }
 
 /// The defult [`Authorizer`] implementation that will authorize all requests
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct DefaultAuthorizer;
 
 #[async_trait]

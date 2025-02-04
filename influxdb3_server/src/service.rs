@@ -39,7 +39,7 @@ pub(crate) fn hybrid<MakeRest, Grpc>(
 /// on a single port.
 ///
 /// [hyper-server]: https://docs.rs/hyper/0.14.28/hyper/server/struct.Server.html
-pub struct HybridMakeService<MakeRest, Grpc> {
+pub(crate) struct HybridMakeService<MakeRest, Grpc> {
     make_rest: MakeRest,
     grpc: Grpc,
 }
@@ -67,7 +67,7 @@ where
 
 pin_project! {
     /// A future that builds a new `Service` for serving REST requests or gRPC requests
-    pub struct HybridMakeServiceFuture<RestFuture, Grpc> {
+    pub(crate) struct HybridMakeServiceFuture<RestFuture, Grpc> {
         #[pin]
         rest_future: RestFuture,
         grpc: Option<Grpc>,
@@ -94,7 +94,7 @@ where
 }
 
 /// The service that can serve both gRPC and REST HTTP Requests
-pub struct HybridService<Rest, Grpc> {
+pub(crate) struct HybridService<Rest, Grpc> {
     rest: Rest,
     grpc: Grpc,
 }

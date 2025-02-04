@@ -6,14 +6,17 @@ use hyper::Response;
 use hyper::StatusCode;
 use influxdb3_config::Config;
 use influxdb3_config::Index;
+use influxdb3_types::http::*;
 use iox_time::TimeProvider;
-use serde::Deserialize;
 
 impl<T> HttpApi<T>
 where
     T: TimeProvider,
 {
-    pub async fn enterprise_echo(&self, req: Request<Body>) -> Result<Response<Body>, Error> {
+    pub(crate) async fn enterprise_echo(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
         let body = req.into_body();
         Response::builder()
             .status(200)
@@ -21,7 +24,7 @@ where
             .map_err(Into::into)
     }
 
-    pub async fn configure_file_index_create(
+    pub(crate) async fn configure_file_index_create(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>, Error> {
@@ -119,7 +122,7 @@ where
             .unwrap())
     }
 
-    pub async fn configure_file_index_delete(
+    pub(crate) async fn configure_file_index_delete(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>, Error> {
@@ -179,19 +182,4 @@ where
             .status(StatusCode::OK)
             .body(Body::empty())?)
     }
-}
-
-/// Request definition for the `POST /api/v3/pro/configure/file_index` API
-#[derive(Debug, Deserialize)]
-struct FileIndexCreateRequest {
-    db: String,
-    table: Option<String>,
-    columns: Vec<String>,
-}
-
-/// Request definition for the `DELETE /api/v3/pro/configure/file_index` API
-#[derive(Debug, Deserialize)]
-struct FileIndexDeleteRequest {
-    db: String,
-    table: Option<String>,
 }
