@@ -1,18 +1,20 @@
 pub mod enterprise;
 pub mod plugin_development;
 
-use crate::plugin_development::{
-    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
-    WalPluginTestResponse,
-};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use iox_query_params::StatementParam;
-use reqwest::{Body, IntoUrl, Method, StatusCode};
+use reqwest::{
+    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
+    Body, IntoUrl, Method, StatusCode,
+};
 use secrecy::{ExposeSecret, Secret};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
 use url::Url;
+
+use influxdb3_types::http::*;
+pub use influxdb3_types::write::Precision;
 
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
@@ -25,6 +27,9 @@ pub enum Error {
 
     #[error("failed to read the API response bytes: {0}")]
     Bytes(#[source] reqwest::Error),
+
+    #[error("failed to serialize the request body: {0}")]
+    RequestSerialization(#[source] serde_json::Error),
 
     #[error(
         "provided parameter ('{name}') could not be converted \
@@ -55,9 +60,6 @@ pub enum Error {
         #[source]
         source: reqwest::Error,
     },
-
-    #[error("unrecognized precision unit: {0}")]
-    UnrecognizedUnit(String),
 }
 
 impl Error {
@@ -137,9 +139,12 @@ impl Client {
     pub fn api_v3_write_lp<S: Into<String>>(&self, db: S) -> WriteRequestBuilder<'_, NoBody> {
         WriteRequestBuilder {
             client: self,
-            db: db.into(),
-            precision: None,
-            accept_partial: None,
+            params: WriteParams {
+                db: db.into(),
+                precision: None,
+                accept_partial: None,
+                no_sync: None,
+            },
             body: NoBody,
         }
     }
@@ -168,10 +173,12 @@ impl Client {
         QueryRequestBuilder {
             client: self,
             kind: QueryKind::Sql,
-            db: db.into(),
-            query: query.into(),
-            format: None,
-            params: None,
+            request: ClientQueryRequest {
+                database: db.into(),
+                query_str: query.into(),
+                format: None,
+                params: None,
+            },
         }
     }
 
@@ -199,10 +206,12 @@ impl Client {
         QueryRequestBuilder {
             client: self,
             kind: QueryKind::InfluxQl,
-            db: db.into(),
-            query: query.into(),
-            format: None,
-            params: None,
+            request: ClientQueryRequest {
+                database: db.into(),
+                query_str: query.into(),
+                format: None,
+                params: None,
+            },
         }
     }
 
@@ -241,32 +250,20 @@ impl Client {
         table: impl Into<String> + Send,
         name: impl Into<String> + Send,
     ) -> Result<()> {
-        let url = self.base_url.join("/api/v3/configure/last_cache")?;
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            name: String,
-        }
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            table: table.into(),
-            name: name.into(),
-        });
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::DELETE, "/api/v3/configure/last_cache", src)
-        })?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/last_cache",
+                Some(LastCacheDeleteRequest {
+                    db: db.into(),
+                    table: table.into(),
+                    name: name.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Compose a request to the `POST /api/v3/configure/distinct_cache` API
@@ -306,95 +303,61 @@ impl Client {
         table: impl Into<String> + Send,
         name: impl Into<String> + Send,
     ) -> Result<()> {
-        let url = self.base_url.join("/api/v3/configure/distinct_cache")?;
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            name: String,
-        }
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            table: table.into(),
-            name: name.into(),
-        });
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::DELETE, "/api/v3/configure/distinct_cache", src)
-        })?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/distinct_cache",
+                Some(DistinctCacheDeleteRequest {
+                    db: db.into(),
+                    table: table.into(),
+                    name: name.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Compose a request to the `GET /api/v3/configure/database` API
     pub fn api_v3_configure_db_show(&self) -> ShowDatabasesRequestBuilder<'_> {
         ShowDatabasesRequestBuilder {
             client: self,
-            show_deleted: false,
-            format: Format::Json,
+            request: ShowDatabasesRequest {
+                show_deleted: false,
+                format: QueryFormat::Json,
+            },
         }
     }
 
     /// Make a request to the `POST /api/v3/configure/database` API
     pub async fn api_v3_configure_db_create(&self, db: impl Into<String> + Send) -> Result<()> {
-        let api_path = "/api/v3/configure/database";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req { db: db.into() });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/database",
+                Some(CreateDatabaseRequest { db: db.into() }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to the `DELETE /api/v3/configure/database?db=foo` API
     pub async fn api_v3_configure_db_delete(&self, db: impl AsRef<str> + Send) -> Result<()> {
-        let api_path = "/api/v3/configure/database";
-
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self.http_client.delete(url).query(&[("db", db.as_ref())]);
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/database",
+                None::<()>,
+                Some(DeleteDatabaseRequest {
+                    db: db.as_ref().to_string(),
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to the `DELETE /api/v3/configure/table?db=foo&table=bar` API
@@ -403,29 +366,19 @@ impl Client {
         db: T,
         table: T,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/table";
-
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self
-            .http_client
-            .delete(url)
-            .query(&[("db", db.as_ref()), ("table", table.as_ref())]);
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/table",
+                None::<()>,
+                Some(DeleteTableRequest {
+                    db: db.as_ref().to_string(),
+                    table: table.as_ref().to_string(),
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to the `POST /api/v3/configure/table` API
@@ -436,51 +389,27 @@ impl Client {
         tags: Vec<impl Into<String> + Send>,
         fields: Vec<(impl Into<String> + Send, impl Into<String> + Send)>,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/table";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            table: String,
-            tags: Vec<String>,
-            fields: Vec<Field>,
-        }
-        #[derive(Serialize)]
-        struct Field {
-            name: String,
-            r#type: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req {
-            db: db.into(),
-            table: table.into(),
-            tags: tags.into_iter().map(Into::into).collect(),
-            fields: fields
-                .into_iter()
-                .map(|(name, r#type)| Field {
-                    name: name.into(),
-                    r#type: r#type.into(),
-                })
-                .collect(),
-        });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/table",
+                Some(CreateTableRequest {
+                    db: db.into(),
+                    table: table.into(),
+                    tags: tags.into_iter().map(Into::into).collect(),
+                    fields: fields
+                        .into_iter()
+                        .map(|(name, r#type)| CreateTableField {
+                            name: name.into(),
+                            r#type: r#type.into(),
+                        })
+                        .collect(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to the `POST /api/v3/configure/processing_engine_plugin` API
@@ -491,78 +420,44 @@ impl Client {
         file_name: impl Into<String> + Send,
         plugin_type: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_plugin";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            plugin_name: String,
-            file_name: String,
-            plugin_type: String,
-        }
-
-        let mut req = self.http_client.post(url).json(&Req {
-            db: db.into(),
-            plugin_name: plugin_name.into(),
-            file_name: file_name.into(),
-            plugin_type: plugin_type.into(),
-        });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/processing_engine_plugin",
+                Some(ProcessingEnginePluginCreateRequest {
+                    db: db.into(),
+                    plugin_name: plugin_name.into(),
+                    file_name: file_name.into(),
+                    plugin_type: plugin_type.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
+
     /// Make a request to the `DELETE /api/v3/configure/processing_engine_plugin` API
     pub async fn api_v3_configure_processing_engine_plugin_delete(
         &self,
         db: impl Into<String> + Send,
         plugin_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_plugin";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            plugin_name: String,
-        }
-
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            plugin_name: plugin_name.into(),
-        });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/processing_engine_plugin",
+                Some(ProcessingEnginePluginDeleteRequest {
+                    db: db.into(),
+                    plugin_name: plugin_name.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
+
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger`
     pub async fn api_v3_configure_processing_engine_trigger_create(
         &self,
@@ -573,44 +468,25 @@ impl Client {
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            trigger_name: String,
-            plugin_filename: String,
-            trigger_specification: String,
-            trigger_arguments: Option<HashMap<String, String>>,
-            disabled: bool,
-        }
-        let mut req = self.http_client.post(url).json(&Req {
-            db: db.into(),
-            trigger_name: trigger_name.into(),
-            plugin_filename: plugin_filename.into(),
-            trigger_specification: trigger_spec.into(),
-            trigger_arguments,
-            disabled,
-        });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/processing_engine_trigger",
+                Some(ProcessingEngineTriggerCreateRequest {
+                    db: db.into(),
+                    trigger_name: trigger_name.into(),
+                    plugin_filename: plugin_filename.into(),
+                    trigger_specification: trigger_spec.into(),
+                    trigger_arguments,
+                    disabled,
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
+
     /// Make a request to `DELETE /api/v3/configure/processing_engine_trigger`
     pub async fn api_v3_configure_processing_engine_trigger_delete(
         &self,
@@ -618,38 +494,20 @@ impl Client {
         trigger_name: impl Into<String> + Send,
         force: bool,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger";
-
-        let url = self.base_url.join(api_path)?;
-
-        #[derive(Serialize)]
-        struct Req {
-            db: String,
-            trigger_name: String,
-            force: bool,
-        }
-
-        let mut req = self.http_client.delete(url).json(&Req {
-            db: db.into(),
-            trigger_name: trigger_name.into(),
-            force,
-        });
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/processing_engine_trigger",
+                Some(ProcessingEngineTriggerDeleteRequest {
+                    db: db.into(),
+                    trigger_name: trigger_name.into(),
+                    force,
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger/enable`
@@ -658,89 +516,55 @@ impl Client {
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/enable";
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self
-            .http_client
-            .post(url)
-            .query(&[("db", db.into()), ("trigger_name", trigger_name.into())]);
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-
-        match resp.status() {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/processing_engine_trigger/enable",
+                None::<()>,
+                Some(ProcessingEngineTriggerIdentifier {
+                    db: db.into(),
+                    trigger_name: trigger_name.into(),
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
-    /// Make a request to api/v3/configure/plugin_environment/install_packages
+    /// Make a request to `POST /api/v3/configure/plugin_environment/install_packages`
     pub async fn api_v3_configure_plugin_environment_install_packages(
         &self,
         packages: Vec<String>,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/plugin_environment/install_packages";
-        let url = self.base_url.join(api_path)?;
-        #[derive(Serialize)]
-        struct Req {
-            packages: Vec<String>,
-        }
-        let mut req = self.http_client.post(url).json(&Req { packages });
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/plugin_environment/install_packages",
+                Some(ProcessingEngineInstallPackagesRequest { packages }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
-    /// Make a request to api/v3/configure/plugin_environment/install_requirements
+    /// Make a request to `POST /api/v3/configure/plugin_environment/install_requirements`
     pub async fn api_v3_configure_processing_engine_trigger_install_requirements(
         &self,
         requirements_location: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/plugin_environment/install_requirements";
-        let url = self.base_url.join(api_path)?;
-        #[derive(Serialize)]
-        struct Req {
-            requirements_location: String,
-        }
-        let mut req = self.http_client.post(url).json(&Req {
-            requirements_location: requirements_location.into(),
-        });
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::DELETE, api_path, src))?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/plugin_environment/install_requirements",
+                Some(ProcessingEngineInstallRequirementsRequest {
+                    requirements_location: requirements_location.into(),
+                }),
+                None::<()>,
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger/disable`
@@ -749,29 +573,19 @@ impl Client {
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
     ) -> Result<()> {
-        let api_path = "/api/v3/configure/processing_engine_trigger/disable";
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self
-            .http_client
-            .post(url)
-            .query(&[("db", db.into()), ("trigger_name", trigger_name.into())]);
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-
-        match resp.status() {
-            StatusCode::OK => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::POST,
+                "/api/v3/configure/processing_engine_trigger/disable",
+                None::<()>,
+                Some(ProcessingEngineTriggerIdentifier {
+                    db: db.into(),
+                    trigger_name: trigger_name.into(),
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
     }
 
     /// Make a request to the `POST /api/v3/plugin_test/wal` API
@@ -779,28 +593,13 @@ impl Client {
         &self,
         wal_plugin_test_request: WalPluginTestRequest,
     ) -> Result<WalPluginTestResponse> {
-        let api_path = "/api/v3/plugin_test/wal";
-
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self.http_client.post(url).json(&wal_plugin_test_request);
-
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-
-        if resp.status().is_success() {
-            resp.json().await.map_err(Error::Json)
-        } else {
-            Err(Error::ApiError {
-                code: resp.status(),
-                message: resp.text().await.map_err(Error::Text)?,
-            })
-        }
+        self.send_json(
+            Method::POST,
+            "/api/v3/plugin_test/wal",
+            Some(wal_plugin_test_request),
+            None::<()>,
+        )
+        .await
     }
 
     /// Make a request to the `POST /api/v3/plugin_test/schedule` API
@@ -808,29 +607,13 @@ impl Client {
         &self,
         schedule_plugin_test_request: SchedulePluginTestRequest,
     ) -> Result<SchedulePluginTestResponse> {
-        let api_path = "/api/v3/plugin_test/schedule";
-        let url = self.base_url.join(api_path)?;
-
-        let mut req = self
-            .http_client
-            .post(url)
-            .json(&schedule_plugin_test_request);
-        if let Some(token) = &self.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, api_path, src))?;
-
-        if resp.status().is_success() {
-            resp.json().await.map_err(Error::Json)
-        } else {
-            Err(Error::ApiError {
-                code: resp.status(),
-                message: resp.text().await.map_err(Error::Text)?,
-            })
-        }
+        self.send_json(
+            Method::POST,
+            "/api/v3/plugin_test/schedule",
+            Some(schedule_plugin_test_request),
+            None::<()>,
+        )
+        .await
     }
 
     /// Send a `/ping` request to the target `influxdb3` server to check its
@@ -854,71 +637,156 @@ impl Client {
             })
         }
     }
-}
 
-/// The response of the `/ping` API on `influxdb3`
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PingResponse {
-    version: String,
-    revision: String,
-}
-
-impl PingResponse {
-    /// Get the `version` from the response
-    pub fn version(&self) -> &str {
-        &self.version
+    /// Serialize the given `B` to json then send the request and return the resulting bytes.
+    async fn send_json_get_bytes<B, Q>(
+        &self,
+        method: Method,
+        url_path: &str,
+        body: Option<B>,
+        query: Option<Q>,
+        mut headers: Option<HeaderMap>,
+    ) -> Result<Bytes>
+    where
+        B: Serialize + Send + Sync,
+        Q: Serialize + Send + Sync,
+    {
+        let b = body
+            .map(|body| serde_json::to_string(&body))
+            .transpose()
+            .map_err(Error::RequestSerialization)?
+            .map(Into::into);
+        let hs = headers.get_or_insert_default();
+        hs.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_str("application/json").unwrap(),
+        );
+        self.send_get_bytes(method, url_path, b, query, headers)
+            .await
     }
 
-    /// Get the `revision` from the response
-    pub fn revision(&self) -> &str {
-        &self.revision
-    }
-}
+    /// Send an HTTP request with the specified parameters, return the bytes read from the response
+    /// body.
+    async fn send_get_bytes<Q>(
+        &self,
+        method: Method,
+        url_path: &str,
+        body: Option<Body>,
+        query: Option<Q>,
+        headers: Option<HeaderMap>,
+    ) -> Result<Bytes>
+    where
+        Q: Serialize + Send + Sync,
+    {
+        let url = self.base_url.join(url_path)?;
+        let mut req = self.http_client.request(method.clone(), url.clone());
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        if let Some(body) = body {
+            req = req.body(body);
+        }
+        if let Some(query) = query {
+            req = req.query(&query);
+        }
+        if let Some(headers) = headers {
+            req = req.headers(headers);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(method, url, src))?;
+        let status = resp.status();
+        let content = resp.bytes().await.map_err(Error::Bytes)?;
 
-/// The URL parameters of the request to the `/api/v3/write_lp` API
-// TODO - this should re-use a type defined in the server code, or a separate crate,
-//        central to both.
-#[derive(Debug, Serialize)]
-struct WriteParams<'a> {
-    db: &'a str,
-    precision: Option<Precision>,
-    accept_partial: Option<bool>,
-}
-
-impl<'a, B> From<&'a WriteRequestBuilder<'a, B>> for WriteParams<'a> {
-    fn from(builder: &'a WriteRequestBuilder<'a, B>) -> Self {
-        Self {
-            db: &builder.db,
-            precision: builder.precision,
-            accept_partial: builder.accept_partial,
+        match status {
+            s if s.is_success() => Ok(content),
+            code => Err(Error::ApiError {
+                code,
+                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
+            }),
         }
     }
-}
 
-/// Time series precision
-// TODO - this should re-use a type defined in the server code, or a separate crate,
-//        central to both.
-#[derive(Debug, Copy, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Precision {
-    Second,
-    Millisecond,
-    Microsecond,
-    Nanosecond,
-}
+    /// Send an HTTP request and return `Some(O)` if the response status is HTTP 201 Created.
+    async fn send_create<B, Q, O>(
+        &self,
+        method: Method,
+        url_path: &str,
+        body: Option<B>,
+        query: Option<Q>,
+    ) -> Result<Option<O>>
+    where
+        B: Serialize + Send + Sync,
+        Q: Serialize + Send + Sync,
+        O: DeserializeOwned + Send + Sync,
+    {
+        let url = self.base_url.join(url_path)?;
+        let mut req = self.http_client.request(method.clone(), url.clone());
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        if let Some(body) = body {
+            req = req.json(&body);
+        }
+        if let Some(query) = query {
+            req = req.query(&query);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(method, url, src))?;
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED => {
+                let content = resp.json::<O>().await.map_err(Error::Json)?;
+                Ok(Some(content))
+            }
+            StatusCode::NO_CONTENT => Ok(None),
+            code => Err(Error::ApiError {
+                code,
+                message: resp.text().await.map_err(Error::Text)?,
+            }),
+        }
+    }
 
-impl std::str::FromStr for Precision {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        let p = match s {
-            "s" => Self::Second,
-            "ms" => Self::Millisecond,
-            "us" => Self::Microsecond,
-            "ns" => Self::Nanosecond,
-            _ => return Err(Error::UnrecognizedUnit(s.into())),
-        };
-        Ok(p)
+    /// Send an HTTP request and return `O` on success.
+    async fn send_json<B, Q, O>(
+        &self,
+        method: Method,
+        url_path: &str,
+        body: Option<B>,
+        query: Option<Q>,
+    ) -> Result<O>
+    where
+        B: Serialize + Send + Sync,
+        Q: Serialize + Send + Sync,
+        O: DeserializeOwned + Send + Sync,
+    {
+        let url = self.base_url.join(url_path)?;
+        let mut req = self.http_client.request(method.clone(), url.clone());
+        if let Some(token) = &self.auth_token {
+            req = req.bearer_auth(token.expose_secret());
+        }
+        if let Some(body) = body {
+            req = req.json(&body);
+        }
+        if let Some(query) = query {
+            req = req.query(&query);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|src| Error::request_send(method, url, src))?;
+        let status = resp.status();
+        if status.is_success() {
+            resp.json().await.map_err(Error::Json)
+        } else {
+            Err(Error::ApiError {
+                code: resp.status(),
+                message: resp.text().await.map_err(Error::Text)?,
+            })
+        }
     }
 }
 
@@ -928,22 +796,20 @@ impl std::str::FromStr for Precision {
 #[derive(Debug)]
 pub struct WriteRequestBuilder<'c, B> {
     client: &'c Client,
-    db: String,
-    precision: Option<Precision>,
-    accept_partial: Option<bool>,
+    params: WriteParams,
     body: B,
 }
 
 impl<B> WriteRequestBuilder<'_, B> {
     /// Set the precision
     pub fn precision(mut self, set_to: Precision) -> Self {
-        self.precision = Some(set_to);
+        self.params.precision = Some(set_to);
         self
     }
 
     /// Set the `accept_partial` parameter
     pub fn accept_partial(mut self, set_to: bool) -> Self {
-        self.accept_partial = Some(set_to);
+        self.params.accept_partial = Some(set_to);
         self
     }
 }
@@ -956,9 +822,7 @@ impl<'c> WriteRequestBuilder<'c, NoBody> {
     pub fn body<T: Into<Body>>(self, body: T) -> WriteRequestBuilder<'c, Body> {
         WriteRequestBuilder {
             client: self.client,
-            db: self.db,
-            precision: self.precision,
-            accept_partial: self.accept_partial,
+            params: self.params,
             body: body.into(),
         }
     }
@@ -967,27 +831,19 @@ impl<'c> WriteRequestBuilder<'c, NoBody> {
 impl WriteRequestBuilder<'_, Body> {
     /// Send the request to the server
     pub async fn send(self) -> Result<()> {
-        let url = self.client.base_url.join("/api/v3/write_lp")?;
-        let params = WriteParams::from(&self);
-        let mut req = self.client.http_client.post(url).query(&params);
-        if let Some(token) = &self.client.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .body(self.body)
-            .send()
-            .await
-            .map_err(|src| Error::request_send(Method::POST, "/api/v3/write_lp", src))?;
-        let status = resp.status();
-        let content = resp.bytes().await.map_err(Error::Bytes)?;
-        match status {
-            // TODO - handle the OK response content, return to caller, etc.
-            StatusCode::OK | StatusCode::NO_CONTENT => Ok(()),
-            code => Err(Error::ApiError {
-                code,
-                message: String::from_utf8(content.to_vec())?,
-            }),
-        }
+        // ignore the returned value since we don't expect a response body
+        let _bytes = self
+            .client
+            .send_get_bytes(
+                Method::POST,
+                "/api/v3/write_lp",
+                Some(self.body),
+                Some(self.params),
+                None,
+            )
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -1003,10 +859,7 @@ pub struct NoBody;
 pub struct QueryRequestBuilder<'c> {
     client: &'c Client,
     kind: QueryKind,
-    db: String,
-    query: String,
-    format: Option<Format>,
-    params: Option<HashMap<String, StatementParam>>,
+    request: ClientQueryRequest,
 }
 
 // TODO - for now the send method just returns the bytes from the response.
@@ -1014,8 +867,8 @@ pub struct QueryRequestBuilder<'c> {
 //   send, e.g., using types more specific to the format selected.
 impl QueryRequestBuilder<'_> {
     /// Specify the format, `json`, `csv`, `pretty`, or `parquet`
-    pub fn format(mut self, format: Format) -> Self {
-        self.format = Some(format);
+    pub fn format(mut self, format: QueryFormat) -> Self {
+        self.request.format = Some(format);
         self
     }
 
@@ -1042,7 +895,8 @@ impl QueryRequestBuilder<'_> {
         name: S,
         param: P,
     ) -> Self {
-        self.params
+        self.request
+            .params
             .get_or_insert_with(Default::default)
             .insert(name.into(), param.into());
         self
@@ -1085,7 +939,8 @@ impl QueryRequestBuilder<'_> {
                     source,
                 })?;
 
-            self.params
+            self.request
+                .params
                 .get_or_insert_with(Default::default)
                 .insert(name, param);
         }
@@ -1122,7 +977,8 @@ impl QueryRequestBuilder<'_> {
                 name: name.clone(),
                 source,
             })?;
-        self.params
+        self.request
+            .params
             .get_or_insert_with(Default::default)
             .insert(name, param);
         Ok(self)
@@ -1131,48 +987,12 @@ impl QueryRequestBuilder<'_> {
     /// Send the request to `/api/v3/query_sql` or `/api/v3/query_influxql`
     pub async fn send(self) -> Result<Bytes> {
         let url = match self.kind {
-            QueryKind::Sql => self.client.base_url.join("/api/v3/query_sql")?,
-            QueryKind::InfluxQl => self.client.base_url.join("/api/v3/query_influxql")?,
+            QueryKind::Sql => "/api/v3/query_sql",
+            QueryKind::InfluxQl => "/api/v3/query_influxql",
         };
-        let params = QueryParams::from(&self);
-        let mut req = self.client.http_client.post(url).json(&params);
-        if let Some(token) = &self.client.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::POST, format!("/api/v3/query_{}", self.kind), src)
-        })?;
-        let status = resp.status();
-        let content = resp.bytes().await.map_err(Error::Bytes)?;
-
-        match status {
-            StatusCode::OK => Ok(content),
-            code => Err(Error::ApiError {
-                code,
-                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
-            }),
-        }
-    }
-}
-
-/// Query parameters for the `/api/v3/query_sql` API
-#[derive(Debug, Serialize)]
-pub struct QueryParams<'a> {
-    db: &'a str,
-    #[serde(rename = "q")]
-    query: &'a str,
-    format: Option<Format>,
-    params: Option<&'a HashMap<String, StatementParam>>,
-}
-
-impl<'a> From<&'a QueryRequestBuilder<'a>> for QueryParams<'a> {
-    fn from(builder: &'a QueryRequestBuilder<'a>) -> Self {
-        Self {
-            db: &builder.db,
-            query: &builder.query,
-            format: builder.format,
-            params: builder.params.as_ref(),
-        }
+        self.client
+            .send_json_get_bytes(Method::POST, url, Some(self.request), None::<()>, None)
+            .await
     }
 }
 
@@ -1192,61 +1012,31 @@ impl Display for QueryKind {
     }
 }
 
-/// Output format to request from the server when producing results from APIs that use the
-/// query executor, e.g., `/api/v3/query_sql` and `GET /api/v3/configure/database`
-#[derive(Debug, Serialize, Copy, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum Format {
-    Json,
-    #[serde(rename = "jsonl")]
-    JsonLines,
-    Csv,
-    Parquet,
-    Pretty,
-}
-
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct ShowDatabasesRequestBuilder<'c> {
-    #[serde(skip_serializing)]
     client: &'c Client,
-    format: Format,
-    show_deleted: bool,
+    request: ShowDatabasesRequest,
 }
 
 impl ShowDatabasesRequestBuilder<'_> {
     /// Specify whether or not to show deleted databases in the output
     pub fn with_show_deleted(mut self, show_deleted: bool) -> Self {
-        self.show_deleted = show_deleted;
+        self.request.show_deleted = show_deleted;
         self
     }
 
-    /// Specify the [`Format`] of the returned `Bytes`
-    pub fn with_format(mut self, format: Format) -> Self {
-        self.format = format;
+    /// Specify the [`QueryFormat`] of the returned `Bytes`
+    pub fn with_format(mut self, format: QueryFormat) -> Self {
+        self.request.format = format;
         self
     }
 
     /// Send the request, returning the raw [`Bytes`] in the response from the server
     pub async fn send(self) -> Result<Bytes> {
-        let url = self.client.base_url.join("/api/v3/configure/database")?;
-        let mut req = self.client.http_client.get(url).query(&self);
-        if let Some(token) = &self.client.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req
-            .send()
+        let url = "/api/v3/configure/database";
+        self.client
+            .send_json_get_bytes(Method::GET, url, None::<()>, Some(self.request), None)
             .await
-            .map_err(|src| Error::request_send(Method::GET, "/api/v3/configure/database", src))?;
-        let status = resp.status();
-        let content = resp.bytes().await.map_err(Error::Bytes)?;
-
-        match status {
-            StatusCode::OK => Ok(content),
-            code => Err(Error::ApiError {
-                code,
-                message: String::from_utf8(content.to_vec()).map_err(Error::InvalidUtf8)?,
-            }),
-        }
     }
 }
 
@@ -1254,18 +1044,7 @@ impl ShowDatabasesRequestBuilder<'_> {
 pub struct CreateLastCacheRequestBuilder<'c> {
     #[serde(skip_serializing)]
     client: &'c Client,
-    db: String,
-    table: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    key_columns: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    value_columns: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    count: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ttl: Option<u64>,
+    request: LastCacheCreateRequest,
 }
 
 impl<'c> CreateLastCacheRequestBuilder<'c> {
@@ -1273,116 +1052,67 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     fn new(client: &'c Client, db: impl Into<String>, table: impl Into<String>) -> Self {
         Self {
             client,
-            db: db.into(),
-            table: table.into(),
-            name: None,
-            key_columns: None,
-            value_columns: None,
-            count: None,
-            ttl: None,
+            request: LastCacheCreateRequest {
+                db: db.into(),
+                table: table.into(),
+                name: None,
+                key_columns: None,
+                value_columns: None,
+                count: None,
+                ttl: None,
+            },
         }
     }
 
     /// Specify a cache name
     pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+        self.request.name = Some(name.into());
         self
     }
 
     /// Speciffy the key columns for the cache
     pub fn key_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
-        self.key_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self.request.key_columns = Some(column_names.into_iter().map(Into::into).collect());
         self
     }
 
     /// Specify the value columns for the cache
     pub fn value_columns(mut self, column_names: impl IntoIterator<Item: Into<String>>) -> Self {
-        self.value_columns = Some(column_names.into_iter().map(Into::into).collect());
+        self.request.value_columns = Some(column_names.into_iter().map(Into::into).collect());
         self
     }
 
     /// Specify the size, or number of new entries a cache will hold before evicting old ones
     pub fn count(mut self, count: usize) -> Self {
-        self.count = Some(count);
+        self.request.count = Some(count);
         self
     }
 
     /// Specify the time-to-live (TTL) in seconds for entries in the cache
     pub fn ttl(mut self, ttl: u64) -> Self {
-        self.ttl = Some(ttl);
+        self.request.ttl = Some(ttl);
         self
     }
 
     /// Send the request to `POST /api/v3/configure/last_cache`
     pub async fn send(self) -> Result<Option<LastCacheCreatedResponse>> {
-        let url = self.client.base_url.join("/api/v3/configure/last_cache")?;
-        let mut req = self.client.http_client.post(url).json(&self);
-        if let Some(token) = &self.client.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::POST, "/api/v3/configure/last_cache", src)
-        })?;
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED => {
-                let content = resp
-                    .json::<LastCacheCreatedResponse>()
-                    .await
-                    .map_err(Error::Json)?;
-                Ok(Some(content))
-            }
-            StatusCode::NO_CONTENT => Ok(None),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        self.client
+            .send_create(
+                Method::POST,
+                "/api/v3/configure/last_cache",
+                Some(self.request),
+                None::<()>,
+            )
+            .await
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct LastCacheCreatedResponse {
-    /// The table name the cache is associated with
-    pub table: String,
-    /// Given name of the cache
-    pub name: String,
-    /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<u32>,
-    /// Columns that store values in the cache
-    pub value_columns: LastCacheValueColumnsDef,
-    /// The number of last values to hold in the cache
-    pub count: usize,
-    /// The time-to-live (TTL) in seconds for entries in the cache
-    pub ttl: u64,
-}
-
-/// A last cache will either store values for an explicit set of columns, or will accept all
-/// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum LastCacheValueColumnsDef {
-    /// Explicit list of column names
-    Explicit { columns: Vec<u32> },
-    /// Stores all non-key columns
-    AllNonKeyColumns,
 }
 
 /// Type for composing requests to the `POST /api/v3/configure/distinct_cache` API created by the
 /// [`Client::api_v3_configure_distinct_cache_create`] method
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct CreateDistinctCacheRequestBuilder<'c> {
-    #[serde(skip_serializing)]
     client: &'c Client,
-    db: String,
-    table: String,
-    columns: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_cardinality: Option<NonZeroUsize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_age: Option<u64>,
+    request: DistinctCacheCreateRequest,
 }
 
 impl<'c> CreateDistinctCacheRequestBuilder<'c> {
@@ -1394,78 +1124,46 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
     ) -> Self {
         Self {
             client,
-            db: db.into(),
-            table: table.into(),
-            columns: columns.into_iter().map(Into::into).collect(),
-            name: None,
-            max_cardinality: None,
-            max_age: None,
+            request: DistinctCacheCreateRequest {
+                db: db.into(),
+                table: table.into(),
+                columns: columns.into_iter().map(Into::into).collect(),
+                name: None,
+                max_cardinality: None,
+                max_age: None,
+            },
         }
     }
 
     /// Specify the name of the cache to be created, `snake_case` names are encouraged
     pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+        self.request.name = Some(name.into());
         self
     }
 
     /// Specify the maximum cardinality for the cache as a non-zero unsigned integer
     pub fn max_cardinality(mut self, max_cardinality: NonZeroUsize) -> Self {
-        self.max_cardinality = Some(max_cardinality);
+        self.request.max_cardinality = Some(max_cardinality.into());
         self
     }
 
     /// Specify the maximum age for entries in the cache
     pub fn max_age(mut self, max_age: Duration) -> Self {
-        self.max_age = Some(max_age.as_secs());
+        self.request.max_age = Some(max_age.as_secs());
         self
     }
 
     /// Send the create cache request
     pub async fn send(self) -> Result<Option<DistinctCacheCreatedResponse>> {
-        let url = self
-            .client
-            .base_url
-            .join("/api/v3/configure/distinct_cache")?;
-        let mut req = self.client.http_client.post(url).json(&self);
-        if let Some(token) = &self.client.auth_token {
-            req = req.bearer_auth(token.expose_secret());
-        }
-        let resp = req.send().await.map_err(|src| {
-            Error::request_send(Method::POST, "/api/v3/configure/distinct_cache", src)
-        })?;
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED => {
-                let content = resp
-                    .json::<DistinctCacheCreatedResponse>()
-                    .await
-                    .map_err(Error::Json)?;
-                Ok(Some(content))
-            }
-            StatusCode::NO_CONTENT => Ok(None),
-            code => Err(Error::ApiError {
-                code,
-                message: resp.text().await.map_err(Error::Text)?,
-            }),
-        }
+        self.client
+            .send_create(
+                Method::POST,
+                "/api/v3/configure/distinct_cache",
+                Some(self.request),
+                None::<()>,
+            )
+            .await
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DistinctCacheCreatedResponse {
-    /// The id of the table the cache was created on
-    pub table_id: u32,
-    /// The name of the table the cache was created on
-    pub table_name: String,
-    /// The name of the created cache
-    pub cache_name: String,
-    /// The columns in the cache
-    pub column_ids: Vec<u32>,
-    /// The maximum number of unique value combinations the cache will hold
-    pub max_cardinality: usize,
-    /// The maximum age for entries in the cache
-    pub max_age_seconds: u64,
 }
 
 #[cfg(test)]
@@ -1473,7 +1171,7 @@ mod tests {
     use mockito::{Matcher, Server};
     use serde_json::json;
 
-    use crate::{Client, Format, Precision};
+    use crate::{Client, Precision, QueryFormat};
 
     #[tokio::test]
     async fn api_v3_write_lp() {
@@ -1543,7 +1241,7 @@ mod tests {
 
         let r = client
             .api_v3_query_sql(db, query)
-            .format(Format::Json)
+            .format(QueryFormat::Json)
             .send()
             .await
             .expect("send request to server");
@@ -1614,7 +1312,7 @@ mod tests {
 
         let r = client
             .api_v3_query_influxql(db, query)
-            .format(Format::Json)
+            .format(QueryFormat::Json)
             .send()
             .await
             .expect("send request to server");

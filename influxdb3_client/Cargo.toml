@@ -9,6 +9,9 @@ license.workspace = true
 # core dependencies
 iox_query_params.workspace = true
 
+# Local deps
+influxdb3_types = { path = "../influxdb3_types" }
+
 # crates.io dependencies
 bytes.workspace = true
 hashbrown.workspace = true

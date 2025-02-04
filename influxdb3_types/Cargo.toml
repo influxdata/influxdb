@@ -1,0 +1,23 @@
+[package]
+name = "influxdb3_types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Crates
+iox_http.workspace = true
+iox_query_params.workspace = true
+
+# Local deps
+influxdb3_cache = { path = "../influxdb3_cache" }
+
+# crates.io dependencies
+serde.workspace = true
+hashbrown.workspace = true
+hyper.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

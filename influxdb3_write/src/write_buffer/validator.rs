@@ -20,6 +20,7 @@ use super::Error;
 
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
+#[derive(Debug)]
 pub struct WithCatalog {
     catalog: Arc<Catalog>,
     db_schema: Arc<DatabaseSchema>,
@@ -28,6 +29,7 @@ pub struct WithCatalog {
 
 /// Type state for the [`WriteValidator`] after it has parsed v1 or v3
 /// line protocol.
+#[derive(Debug)]
 pub struct LinesParsed {
     catalog: WithCatalog,
     lines: Vec<QualifiedLine>,
@@ -48,6 +50,7 @@ impl LinesParsed {
 
 /// A state machine for validating v1 or v3 line protocol and updating
 /// the [`Catalog`] with new tables or schema changes.
+#[derive(Debug)]
 pub struct WriteValidator<State> {
     state: State,
 }
@@ -166,7 +169,7 @@ type ColumnTracker = Vec<(ColumnId, Arc<str>, InfluxColumnType)>;
 fn validate_and_qualify_v1_line(
     db_schema: &mut Cow<'_, DatabaseSchema>,
     line_number: usize,
-    line: ParsedLine,
+    line: ParsedLine<'_>,
     ingest_time: Time,
     precision: Precision,
 ) -> Result<(QualifiedLine, Option<CatalogOp>), WriteLineError> {
@@ -468,6 +471,7 @@ fn convert_qualified_line(
     table_chunks.push_row(chunk_time, line.row);
 }
 
+#[derive(Debug)]
 struct QualifiedLine {
     table_id: TableId,
     row: Row,

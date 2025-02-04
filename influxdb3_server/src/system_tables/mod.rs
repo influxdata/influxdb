@@ -32,8 +32,8 @@ use crate::system_tables::python_call::ProcessingEngineTriggerTable;
 mod python_call;
 mod queries;
 
-pub const SYSTEM_SCHEMA_NAME: &str = "system";
-pub const TABLE_NAME_PREDICATE: &str = "table_name";
+pub(crate) const SYSTEM_SCHEMA_NAME: &str = "system";
+pub(crate) const TABLE_NAME_PREDICATE: &str = "table_name";
 
 pub(crate) const QUERIES_TABLE_NAME: &str = "queries";
 pub(crate) const LAST_CACHES_TABLE_NAME: &str = "last_caches";

@@ -28,6 +28,7 @@ use influxdb3_cache::{
 };
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+pub use influxdb3_types::write::Precision;
 use influxdb3_wal::{
     DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
     WalFileSequenceNumber,
@@ -115,7 +116,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
@@ -129,7 +130,7 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
@@ -359,34 +360,6 @@ impl ParquetFile {
             chunk_time: 0,
             min_time: 0,
             max_time: 1,
-        }
-    }
-}
-
-/// The precision of the timestamp
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum Precision {
-    Auto,
-    Second,
-    Millisecond,
-    Microsecond,
-    Nanosecond,
-}
-
-impl Default for Precision {
-    fn default() -> Self {
-        Self::Auto
-    }
-}
-
-impl From<iox_http::write::Precision> for Precision {
-    fn from(legacy: iox_http::write::Precision) -> Self {
-        match legacy {
-            iox_http::write::Precision::Second => Precision::Second,
-            iox_http::write::Precision::Millisecond => Precision::Millisecond,
-            iox_http::write::Precision::Microsecond => Precision::Microsecond,
-            iox_http::write::Precision::Nanosecond => Precision::Nanosecond,
         }
     }
 }

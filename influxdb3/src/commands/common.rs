@@ -42,7 +42,7 @@ impl Format {
     }
 }
 
-impl From<Format> for influxdb3_client::Format {
+impl From<Format> for influxdb3_types::http::QueryFormat {
     fn from(this: Format) -> Self {
         match this {
             Format::Pretty => Self::Pretty,

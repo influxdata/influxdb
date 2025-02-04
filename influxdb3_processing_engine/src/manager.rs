@@ -2,11 +2,11 @@ use crate::environment::{PluginEnvironmentError, PythonEnvironmentManager};
 use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
-use influxdb3_client::plugin_development::{
+use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
-use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::WriteBuffer;
 use std::fmt::Debug;
