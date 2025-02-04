@@ -31,7 +31,7 @@ pub enum Error {
     RecordBatchError(#[from] arrow::error::ArrowError),
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
     chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
@@ -73,7 +73,7 @@ impl TableBuffer {
     pub fn partitioned_record_batches(
         &self,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
@@ -92,7 +92,7 @@ impl TableBuffer {
                 })
                 .collect();
             let cols = cols?;
-            let rb = RecordBatch::try_new(schema.clone(), cols)?;
+            let rb = RecordBatch::try_new(Arc::clone(&schema), cols)?;
             let (ts, v) = batches
                 .entry(sc.chunk_time)
                 .or_insert_with(|| (sc.timestamp_min_max, Vec::new()));
@@ -506,7 +506,7 @@ impl std::fmt::Debug for MutableTableChunk {
     }
 }
 
-pub enum Builder {
+pub(super) enum Builder {
     Bool(BooleanBuilder),
     I64(Int64Builder),
     F64(Float64Builder),

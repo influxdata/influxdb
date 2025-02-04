@@ -327,7 +327,7 @@ impl WriteBufferImpl {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
@@ -409,7 +409,7 @@ impl WriteBufferImpl {
         &self,
         database_name: &str,
         table_name: &str,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Vec<Arc<dyn QueryChunk>> {
@@ -503,7 +503,7 @@ impl Bufferer for WriteBufferImpl {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
         self.buffer.persisted_parquet_files(db_id, table_id, filter)
     }
@@ -518,7 +518,7 @@ impl ChunkContainer for WriteBufferImpl {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> crate::Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
@@ -546,7 +546,7 @@ impl DistinctCacheManager for WriteBufferImpl {
             let catalog_op = CatalogOp::CreateDistinctCache(new_cache_definition.clone());
             let catalog_batch = CatalogBatch {
                 database_id: db_schema.id,
-                database_name: db_schema.name.clone(),
+                database_name: Arc::clone(&db_schema.name),
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 ops: vec![catalog_op],
             };
@@ -1652,7 +1652,7 @@ mod tests {
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
         // there is only one initial catalog so far:
-        verify_catalog_count(1, object_store.clone()).await;
+        verify_catalog_count(1, Arc::clone(&object_store)).await;
 
         // do three writes to force a new snapshot
         wbuf.write_lp(
@@ -1694,7 +1694,7 @@ mod tests {
             wbuf.wal.last_snapshot_sequence_number().await
         );
         // There should be a catalog now, since the above writes updated the catalog
-        verify_catalog_count(2, object_store.clone()).await;
+        verify_catalog_count(2, Arc::clone(&object_store)).await;
         // Check the catalog sequence number in the latest snapshot is correct:
         let persisted_snapshot_bytes = object_store
             .get(&SnapshotInfoFilePath::new(
@@ -2146,10 +2146,10 @@ mod tests {
 
         // Set DbId to a large number to make sure it is properly set on replay
         // and assert that it's what we expect it to be before we replay
-        dbg!(DbId::next_id());
+        debug!(db_id = ?DbId::next_id());
         DbId::from(10_000).set_next_id();
         assert_eq!(DbId::next_id().as_u32(), 10_000);
-        dbg!(DbId::next_id());
+        debug!(db_id = ?DbId::next_id());
         let (_wbuf, _, _) = setup(
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
@@ -2161,7 +2161,7 @@ mod tests {
             },
         )
         .await;
-        dbg!(DbId::next_id());
+        debug!(db_id = ?DbId::next_id());
 
         assert_eq!(DbId::next_id().as_u32(), 1);
     }
@@ -3125,7 +3125,7 @@ mod tests {
         time_seconds: i64,
     }
 
-    async fn do_writes<W: WriteBuffer, LP: AsRef<str>>(
+    async fn do_writes<W: WriteBuffer, LP: AsRef<str> + Send + Sync>(
         db: &'static str,
         buffer: &W,
         writes: &[TestWrite<LP>],
@@ -3145,7 +3145,7 @@ mod tests {
         }
     }
 
-    async fn do_writes_partial<W: WriteBuffer, LP: AsRef<str>>(
+    async fn do_writes_partial<W: WriteBuffer, LP: AsRef<str> + Send + Sync>(
         db: &'static str,
         buffer: &W,
         writes: &[TestWrite<LP>],

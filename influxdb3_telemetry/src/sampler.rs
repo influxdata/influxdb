@@ -9,7 +9,7 @@ use crate::store::TelemetryStore;
 use crate::Result;
 
 #[cfg_attr(test, automock)]
-pub trait SystemInfoProvider: Send + Sync + 'static {
+pub(crate) trait SystemInfoProvider: Send + Sync + 'static {
     fn refresh_metrics(&mut self, pid: Pid);
 
     fn get_pid(&self) -> Result<Pid, &'static str>;
@@ -22,7 +22,7 @@ struct SystemInfo {
 }
 
 impl SystemInfo {
-    pub fn new() -> SystemInfo {
+    pub(crate) fn new() -> SystemInfo {
         Self {
             system: System::new(),
         }
@@ -60,13 +60,13 @@ struct CpuAndMemorySampler {
 }
 
 impl CpuAndMemorySampler {
-    pub fn new(system: impl SystemInfoProvider) -> Self {
+    pub(crate) fn new(system: impl SystemInfoProvider) -> Self {
         Self {
             system: Box::new(system),
         }
     }
 
-    pub fn get_cpu_and_mem_used(&mut self) -> Option<(f32, u64)> {
+    pub(crate) fn get_cpu_and_mem_used(&mut self) -> Option<(f32, u64)> {
         let pid = self.system.get_pid().ok()?;
         self.system.refresh_metrics(pid);
         let (cpu_used, memory_used) = self.system.get_process_specific_metrics(pid)?;

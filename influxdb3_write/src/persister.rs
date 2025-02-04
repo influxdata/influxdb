@@ -352,7 +352,7 @@ impl Persister {
 
     /// Returns the configured `ObjectStore` that data is loaded from and persisted to.
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
-        self.object_store.clone()
+        Arc::clone(&self.object_store)
     }
 
     pub fn as_any(&self) -> &dyn Any {
@@ -391,6 +391,7 @@ pub async fn serialize_to_parquet(
     })
 }
 
+#[derive(Debug)]
 pub struct ParquetBytes {
     pub bytes: Bytes,
     pub meta_data: FileMetaData,
@@ -615,12 +616,12 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let catalog = Catalog::new(node_id.clone(), instance_id.clone());
+        let catalog = Catalog::new(Arc::clone(&node_id), Arc::clone(&instance_id));
         let _ = catalog.db_or_create("my_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
 
-        let catalog = Catalog::new(node_id.clone(), instance_id.clone());
+        let catalog = Catalog::new(Arc::clone(&node_id), Arc::clone(&instance_id));
         let _ = catalog.db_or_create("my_second_db");
 
         persister.persist_catalog(&catalog).await.unwrap();
@@ -920,13 +921,13 @@ mod tests {
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
-        let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+        let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);
 
         let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
-        let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(id_array)]).unwrap();
 
         let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
-        let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(id_array)]).unwrap();
 
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();
@@ -948,13 +949,13 @@ mod tests {
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
 
         let schema = Arc::new(Schema::new(vec![Field::new("id", DataType::Int32, false)]));
-        let stream_builder = RecordBatchReceiverStreamBuilder::new(schema.clone(), 5);
+        let stream_builder = RecordBatchReceiverStreamBuilder::new(Arc::clone(&schema), 5);
 
         let id_array = Int32Array::from(vec![1, 2, 3, 4, 5]);
-        let batch1 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(id_array)]).unwrap();
 
         let id_array = Int32Array::from(vec![6, 7, 8, 9, 10]);
-        let batch2 = RecordBatch::try_new(schema.clone(), vec![Arc::new(id_array)]).unwrap();
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![Arc::new(id_array)]).unwrap();
 
         stream_builder.tx().send(Ok(batch1)).await.unwrap();
         stream_builder.tx().send(Ok(batch2)).await.unwrap();

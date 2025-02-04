@@ -54,7 +54,7 @@ impl PersistedFiles {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile> {
         let inner = self.inner.read();
         let mut files = inner
@@ -98,7 +98,9 @@ struct Inner {
 }
 
 impl Inner {
-    pub fn new_from_persisted_snapshots(persisted_snapshots: Vec<PersistedSnapshot>) -> Self {
+    pub(crate) fn new_from_persisted_snapshots(
+        persisted_snapshots: Vec<PersistedSnapshot>,
+    ) -> Self {
         let mut file_count = 0;
         let mut size_in_mb = 0.0;
         let mut row_count = 0;
@@ -123,7 +125,7 @@ impl Inner {
         }
     }
 
-    pub fn add_persisted_snapshot(&mut self, persisted_snapshot: PersistedSnapshot) {
+    pub(crate) fn add_persisted_snapshot(&mut self, persisted_snapshot: PersistedSnapshot) {
         self.parquet_files_row_count += persisted_snapshot.row_count;
         self.parquet_files_size_mb += as_mb(persisted_snapshot.parquet_size_bytes);
         let file_count =
@@ -131,7 +133,7 @@ impl Inner {
         self.parquet_files_count += file_count;
     }
 
-    pub fn add_persisted_file(
+    pub(crate) fn add_persisted_file(
         &mut self,
         db_id: &DbId,
         table_id: &TableId,

@@ -48,23 +48,23 @@ impl<W, Q, P, T, L> ServerBuilder<W, Q, P, T, L> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoWriteBuf;
 #[derive(Debug)]
 pub struct WithWriteBuf(Arc<dyn WriteBuffer>);
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoQueryExec;
 #[derive(Debug)]
 pub struct WithQueryExec(Arc<dyn QueryExecutor>);
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoPersister;
 #[derive(Debug)]
 pub struct WithPersister(Arc<Persister>);
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoTimeProvider;
 #[derive(Debug)]
 pub struct WithTimeProvider<T>(Arc<T>);
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoListener;
 #[derive(Debug)]
 pub struct WithListener(TcpListener);

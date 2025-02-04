@@ -231,7 +231,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Error)]
-pub enum AuthorizationError {
+pub(crate) enum AuthorizationError {
     #[error("the request was not authorized")]
     Unauthorized,
     #[error("the request was not in the form of 'Authorization: Bearer <token>'")]
@@ -459,7 +459,7 @@ impl Error {
     }
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub(crate) struct HttpApi<T> {
@@ -1466,7 +1466,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
     Ok(())
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Copy, Debug, thiserror::Error)]
 pub enum ValidateDbNameError {
     #[error(
         "invalid character in database name: must be ASCII, \

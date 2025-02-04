@@ -17,7 +17,7 @@ pub(crate) struct Writes {
 }
 
 impl Writes {
-    pub fn add_sample(&mut self, events_bucket: &EventsBucket) -> Option<()> {
+    pub(crate) fn add_sample(&mut self, events_bucket: &EventsBucket) -> Option<()> {
         let num_writes = events_bucket.num_writes as u64;
         self.lines.update(&events_bucket.writes.lines);
         self.size_bytes.update(&events_bucket.writes.size_bytes);
@@ -28,7 +28,7 @@ impl Writes {
         Some(())
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.lines.reset();
         self.size_bytes.reset();
         self.num_writes.reset();
@@ -46,13 +46,13 @@ pub(crate) struct Queries {
 }
 
 impl Queries {
-    pub fn add_sample(&mut self, events_bucket: &EventsBucket) -> Option<()> {
+    pub(crate) fn add_sample(&mut self, events_bucket: &EventsBucket) -> Option<()> {
         self.num_queries.update(events_bucket.num_queries as u64);
         self.total_num_queries += events_bucket.queries.total_num_queries;
         Some(())
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.num_queries.reset();
         self.total_num_queries = 0;
     }
@@ -64,11 +64,11 @@ pub(crate) struct Cpu {
 }
 
 impl Cpu {
-    pub fn add_sample(&mut self, cpu_used: f32) -> Option<()> {
+    pub(crate) fn add_sample(&mut self, cpu_used: f32) -> Option<()> {
         self.utilization.update(cpu_used)
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.utilization.reset();
     }
 }
@@ -79,11 +79,11 @@ pub(crate) struct Memory {
 }
 
 impl Memory {
-    pub fn add_sample(&mut self, mem_used: u64) -> Option<()> {
+    pub(crate) fn add_sample(&mut self, mem_used: u64) -> Option<()> {
         self.usage.update(mem_used)
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.usage.reset();
     }
 }

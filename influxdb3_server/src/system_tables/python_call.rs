@@ -14,7 +14,7 @@ pub(super) struct ProcessingEngineTriggerTable {
 }
 
 impl ProcessingEngineTriggerTable {
-    pub fn new(triggers: Vec<TriggerDefinition>) -> Self {
+    pub(super) fn new(triggers: Vec<TriggerDefinition>) -> Self {
         Self {
             schema: trigger_schema(),
             triggers,

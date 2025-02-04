@@ -27,7 +27,7 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> RollingStats<T> {
     /// is updated locally here to calculate the rolling average for usually
     /// an hour for a metric. Refer to [`crate::metrics::Writes`] or
     /// [`crate::metrics::Queries`] to see how it is used
-    pub fn update(&mut self, higher_precision_stats: &Stats<T>) -> Option<()> {
+    pub(crate) fn update(&mut self, higher_precision_stats: &Stats<T>) -> Option<()> {
         if self.num_samples == 0 {
             self.min = higher_precision_stats.min;
             self.max = higher_precision_stats.max;
@@ -50,7 +50,7 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> RollingStats<T> {
         Some(())
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         *self = RollingStats::default();
     }
 }
@@ -68,7 +68,7 @@ pub(crate) struct Stats<T> {
 impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
     /// Update the [`Self::min`]/[`Self::max`]/[`Self::avg`] from a
     /// new value that is sampled.
-    pub fn update(&mut self, new_val: T) -> Option<()> {
+    pub(crate) fn update(&mut self, new_val: T) -> Option<()> {
         if self.num_samples == 0 {
             self.min = new_val;
             self.max = new_val;
@@ -84,7 +84,7 @@ impl<T: Default + Num + Copy + NumCast + PartialOrd> Stats<T> {
         Some(())
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         *self = Stats::default();
     }
 }

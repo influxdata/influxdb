@@ -113,7 +113,7 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
         &self,
         db_id: DbId,
         table_id: TableId,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
@@ -127,7 +127,7 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;

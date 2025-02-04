@@ -5,6 +5,9 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[lints]
+workspace = true
+
 [features]
 "system-py" = ["influxdb3_py_api/system-py", "pyo3"]
 
