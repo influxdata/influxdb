@@ -1,3 +1,4 @@
+use crate::logging::{LogLevel, ProcessingEngineLog};
 use crate::ExecutePluginError;
 use anyhow::Context;
 use arrow_array::types::Int32Type;
@@ -10,11 +11,14 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use hashbrown::HashMap;
+use humantime::format_duration;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_id::TableId;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_sys_events::SysEventStore;
 use influxdb3_wal::{FieldData, WriteBatch};
 use iox_query_params::StatementParams;
+use iox_time::TimeProvider;
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use pyo3::exceptions::{PyException, PyValueError};
@@ -35,6 +39,31 @@ struct PyPluginCallApi {
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
     return_state: Arc<Mutex<PluginReturnState>>,
+    logger: Option<ProcessingEngineLogger>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProcessingEngineLogger {
+    sys_event_store: Arc<SysEventStore>,
+    trigger_name: Arc<str>,
+}
+
+impl ProcessingEngineLogger {
+    pub fn new(sys_event_store: Arc<SysEventStore>, trigger_name: impl Into<Arc<str>>) -> Self {
+        Self {
+            sys_event_store,
+            trigger_name: trigger_name.into(),
+        }
+    }
+
+    pub fn log(&self, log_level: LogLevel, log_line: impl Into<String>) {
+        self.sys_event_store.record(ProcessingEngineLog::new(
+            self.sys_event_store.time_provider().now(),
+            log_level,
+            Arc::clone(&self.trigger_name),
+            log_line.into(),
+        ))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -79,6 +108,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         info!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Info, line.clone());
         self.return_state.lock().log_lines.push(LogLine::Info(line));
         Ok(())
     }
@@ -88,6 +118,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         warn!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Warn, line.clone());
         self.return_state
             .lock()
             .log_lines
@@ -100,6 +131,7 @@ impl PyPluginCallApi {
         let line = self.log_args_to_string(args)?;
 
         error!("processing engine: {}", line);
+        self.write_to_logger(LogLevel::Error, line.clone());
         self.return_state
             .lock()
             .log_lines
@@ -256,6 +288,14 @@ impl PyPluginCallApi {
     }
 }
 
+impl PyPluginCallApi {
+    fn write_to_logger(&self, level: LogLevel, log_line: String) {
+        if let Some(logger) = &self.logger {
+            logger.log(level, log_line);
+        }
+    }
+}
+
 // constant for the process writes call site string
 const PROCESS_WRITES_CALL_SITE: &str = "process_writes";
 
@@ -396,9 +436,19 @@ pub fn execute_python_with_batch(
     write_batch: &WriteBatch,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
+    let start_time = if let Some(logger) = &logger {
+        logger.log(
+            LogLevel::Info,
+            "starting execution of wal plugin.".to_string(),
+        );
+        Some(logger.sys_event_store.time_provider().now())
+    } else {
+        None
+    };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);
@@ -495,6 +545,7 @@ pub fn execute_python_with_batch(
         let api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
+            logger: logger.clone(),
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -522,6 +573,21 @@ pub fn execute_python_with_batch(
         let empty_return_state = PluginReturnState::default();
         let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
 
+        if let Some(logger) = &logger {
+            let runtime = logger
+                .sys_event_store
+                .time_provider()
+                .now()
+                .checked_duration_since(start_time.unwrap());
+            logger.log(
+                LogLevel::Info,
+                format!(
+                    "finished execution in {}",
+                    format_duration(runtime.unwrap_or_default())
+                ),
+            );
+        }
+
         Ok(ret)
     })
 }
@@ -531,8 +597,18 @@ pub fn execute_schedule_trigger(
     schedule_time: DateTime<Utc>,
     schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
 ) -> Result<PluginReturnState, ExecutePluginError> {
+    let start_time = if let Some(logger) = &logger {
+        logger.log(
+            LogLevel::Info,
+            format!("starting execution with scheduled time {}", schedule_time),
+        );
+        Some(logger.sys_event_store.time_provider().now())
+    } else {
+        None
+    };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);
@@ -552,6 +628,7 @@ pub fn execute_schedule_trigger(
         let api = PyPluginCallApi {
             db_schema: schema,
             query_executor,
+            logger: logger.clone(),
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -579,20 +656,44 @@ pub fn execute_schedule_trigger(
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();
         let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
-
+        if let Some(logger) = &logger {
+            let runtime = logger
+                .sys_event_store
+                .time_provider()
+                .now()
+                .checked_duration_since(start_time.unwrap());
+            logger.log(
+                LogLevel::Info,
+                format!(
+                    "finished execution in {:?}",
+                    format_duration(runtime.unwrap_or_default())
+                ),
+            );
+        }
         Ok(ret)
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute_request_trigger(
     code: &str,
     db_schema: Arc<DatabaseSchema>,
     query_executor: Arc<dyn QueryExecutor>,
+    logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
     query_params: HashMap<String, String>,
     request_headers: HashMap<String, String>,
     request_body: Bytes,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
+    let start_time = if let Some(logger) = &logger {
+        logger.log(
+            LogLevel::Info,
+            "starting execution of request plugin.".to_string(),
+        );
+        Some(logger.sys_event_store.time_provider().now())
+    } else {
+        None
+    };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
         let globals = PyDict::new(py);
@@ -607,6 +708,7 @@ pub fn execute_request_trigger(
         let api = PyPluginCallApi {
             db_schema,
             query_executor,
+            logger: logger.clone(),
             return_state: Default::default(),
         };
         let return_state = Arc::clone(&api.return_state);
@@ -669,6 +771,21 @@ pub fn execute_request_trigger(
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();
         let ret = std::mem::replace(&mut *return_state.lock(), empty_return_state);
+
+        if let Some(logger) = &logger {
+            let runtime = logger
+                .sys_event_store
+                .time_provider()
+                .now()
+                .checked_duration_since(start_time.unwrap());
+            logger.log(
+                LogLevel::Info,
+                format!(
+                    "finished execution in {}",
+                    format_duration(runtime.unwrap_or_default())
+                ),
+            )
+        }
 
         Ok((
             response_code,

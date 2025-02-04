@@ -9,6 +9,8 @@ use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
 #[cfg(feature = "system-py")]
+use influxdb3_sys_events::SysEventStore;
+#[cfg(feature = "system-py")]
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::Gen1Duration;
 #[cfg(feature = "system-py")]
@@ -95,6 +97,7 @@ pub(crate) fn run_wal_contents_plugin(
         plugin_code,
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
+        sys_event_store: context.sys_event_store,
     };
     tokio::task::spawn(async move {
         trigger_plugin
@@ -135,6 +138,7 @@ pub(crate) fn run_schedule_plugin(
         plugin_code,
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
+        sys_event_store: context.sys_event_store,
     };
 
     let runner = python_plugin::ScheduleTriggerRunner::try_new(
@@ -165,6 +169,7 @@ pub(crate) fn run_request_plugin(
         plugin_code,
         write_buffer: context.write_buffer,
         query_executor: context.query_executor,
+        sys_event_store: context.sys_event_store,
     };
     tokio::task::spawn(async move {
         trigger_plugin
@@ -180,6 +185,8 @@ pub(crate) struct PluginContext {
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
     // query executor to hand off to the plugin
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
+    // sys events for writing logs to ring buffers
+    pub(crate) sys_event_store: Arc<SysEventStore>,
 }
 
 #[cfg(feature = "system-py")]
@@ -190,6 +197,7 @@ struct TriggerPlugin {
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
+    sys_event_store: Arc<SysEventStore>,
 }
 
 #[cfg(feature = "system-py")]
@@ -205,7 +213,7 @@ mod python_plugin {
     use influxdb3_catalog::catalog::DatabaseSchema;
     use influxdb3_py_api::system_py::{
         execute_python_with_batch, execute_request_trigger, execute_schedule_trigger,
-        PluginReturnState,
+        PluginReturnState, ProcessingEngineLogger,
     };
     use influxdb3_wal::{WalContents, WalOp};
     use influxdb3_write::Precision;
@@ -306,6 +314,10 @@ mod python_plugin {
                             self.plugin_code.code().as_ref(),
                             Arc::clone(&schema),
                             Arc::clone(&self.query_executor),
+                            Some(ProcessingEngineLogger::new(
+                                Arc::clone(&self.sys_event_store),
+                                self.trigger_definition.trigger_name.as_str(),
+                            )),
                             &self.trigger_definition.trigger_arguments,
                             request.query_params,
                             request.headers,
@@ -418,6 +430,10 @@ mod python_plugin {
                             write_batch,
                             Arc::clone(&schema),
                             Arc::clone(&self.query_executor),
+                            Some(ProcessingEngineLogger::new(
+                                Arc::clone(&self.sys_event_store),
+                                self.trigger_definition.trigger_name.as_str(),
+                            )),
                             table_filter,
                             &self.trigger_definition.trigger_arguments,
                         )?;
@@ -569,6 +585,10 @@ mod python_plugin {
                 trigger_time,
                 Arc::clone(&db_schema),
                 Arc::clone(&plugin.query_executor),
+                Some(ProcessingEngineLogger::new(
+                    Arc::clone(&plugin.sys_event_store),
+                    plugin.trigger_definition.trigger_name.as_str(),
+                )),
                 &plugin.trigger_definition.trigger_arguments,
             )?;
 
@@ -634,6 +654,7 @@ pub(crate) fn run_test_wal_plugin(
         &data.valid_data,
         db,
         query_executor,
+        None,
         None,
         &request.input_arguments,
     )?;
@@ -761,6 +782,7 @@ pub(crate) fn run_test_schedule_plugin(
         schedule_time,
         db,
         query_executor,
+        None,
         &request.input_arguments,
     )?;
 
