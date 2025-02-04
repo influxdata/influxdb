@@ -1,5 +1,4 @@
 pub mod enterprise;
-pub mod plugin_development;
 
 use bytes::Bytes;
 use hashbrown::HashMap;

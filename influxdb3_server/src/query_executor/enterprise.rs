@@ -524,7 +524,7 @@ impl SchemaProvider for CompactionSystemTablesProvider {
 }
 
 impl CompactionSystemTablesProvider {
-    pub fn new(
+    pub(crate) fn new(
         db_schema: Arc<DatabaseSchema>,
         compacted_data: Arc<dyn CompactedDataSystemTableView>,
         sys_events_store: Arc<SysEventStore>,

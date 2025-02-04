@@ -22,7 +22,7 @@ use self::{last_caches::LastCachesTable, queries::QueriesTable};
 
 // ================
 // Enterprise only
-pub mod enterprise;
+pub(crate) mod enterprise;
 // ================
 mod distinct_caches;
 mod last_caches;

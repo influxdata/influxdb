@@ -15,7 +15,7 @@ pub(crate) struct CompactionEventsSysTable {
 }
 
 impl CompactionEventsSysTable {
-    pub fn new(sys_events_store: Arc<SysEventStore>) -> Self {
+    pub(crate) fn new(sys_events_store: Arc<SysEventStore>) -> Self {
         Self {
             compaction_events_store: sys_events_store as Arc<dyn CompactionEventStore>,
             schema: Arc::new(CompactionEvent::schema()),

@@ -21,7 +21,7 @@ pub(crate) struct CompactedDataTable {
 }
 
 impl CompactedDataTable {
-    pub fn new(
+    pub(crate) fn new(
         db_schema: Arc<DatabaseSchema>,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
     ) -> Self {
@@ -190,7 +190,7 @@ mod tests {
     }
 
     impl MockCompactedDataSystemTable {
-        pub fn new(db_name: impl Into<String>, table_name: impl Into<String>) -> Self {
+        pub(crate) fn new(db_name: impl Into<String>, table_name: impl Into<String>) -> Self {
             Self {
                 db_name: db_name.into(),
                 table_name: table_name.into(),
@@ -224,7 +224,7 @@ mod tests {
         }
 
         fn catalog(&self) -> &influxdb3_enterprise_compactor::catalog::CompactedCatalog {
-            todo!()
+            unimplemented!()
         }
     }
 

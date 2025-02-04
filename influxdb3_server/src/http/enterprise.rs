@@ -13,7 +13,10 @@ impl<T> HttpApi<T>
 where
     T: TimeProvider,
 {
-    pub async fn enterprise_echo(&self, req: Request<Body>) -> Result<Response<Body>, Error> {
+    pub(crate) async fn enterprise_echo(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>, Error> {
         let body = req.into_body();
         Response::builder()
             .status(200)
@@ -21,7 +24,7 @@ where
             .map_err(Into::into)
     }
 
-    pub async fn configure_file_index_create(
+    pub(crate) async fn configure_file_index_create(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>, Error> {
@@ -119,7 +122,7 @@ where
             .unwrap())
     }
 
-    pub async fn configure_file_index_delete(
+    pub(crate) async fn configure_file_index_delete(
         &self,
         req: Request<Body>,
     ) -> Result<Response<Body>, Error> {

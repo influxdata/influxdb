@@ -13,7 +13,7 @@ impl WriteBufferImpl {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
@@ -28,7 +28,7 @@ impl WriteBufferImpl {
         &self,
         db_schema: Arc<DatabaseSchema>,
         table_def: Arc<TableDefinition>,
-        filter: &ChunkFilter,
+        filter: &ChunkFilter<'_>,
         last_compacted_parquet_file_id: Option<ParquetFileId>,
         mut chunk_order_offset: i64, // offset the chunk order by this amount
     ) -> Vec<Arc<dyn QueryChunk>> {
