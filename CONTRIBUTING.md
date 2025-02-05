@@ -169,5 +169,102 @@ And run with:
 cargo clippy --all-targets --workspace -- -D warnings
 ```
 
+## Multi-process load generating setup
+
+This section outlines the usage of a workflow based on `just` and `pueue` that
+enables streamlined setup for multi-process load generating scenarios.
+
+It was initially intended for reproducing WAL snapshotting and compaction
+scenarios under load. The defaults at the outset reflect this goal, but may be
+made configurable over time [with `just` CLI
+overrides](https://just.systems/man/en/setting-variables-from-the-command-line.html).
+
+### Requirements
+
+Using this requires the the following CLI tools:
+
+* https://just.systems
+* https://github.com/Nukesor/pueue
+
+### Setup
+
+With this tools installed you will need to run the `pueue` daemon:
+
+```
+pueued -d
+```
+
+This daemon is what actually manages process lifetimes via commands from the
+`pueue` CLI.
+
+#### Linux Optional Setup
+
+For Linux users who are concerned about the impact of repeatedly writing and
+deleting load generator to their development, on option is to set up a `tmpfs`
+as follows:
+
+```
+sudo mkdir -p /mnt/test-data
+sudo mount -o size=8G -t tmpfs none /mnt/test-data
+export LOADTEST_DATA_DIR
+```
+
+The environment variable `LOADTEST_DATA_DIR` is used to set a global variable
+that recipes use to build paths for storing component data directories and
+process stdout/stderr.
+
+### Usage
+
+To see what `just` targets are available, you can run:
+
+```
+just list
+```
+
+Targets are grouped to make it easier to figure out which to use. The
+`workloads` group is intended for the multi-process just targets.
+
+Workloads can be initiated with the following command:
+
+```
+just compaction-workload <testid> <load-generator-worker-count>
+```
+
+This will initiate a set of background processes managed by `pueue` that look
+like this:
+
+```
+$ pueue status
+
+Group "default" (5 parallel): running
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Id   Status    Command                                                        Path                                                      Start      End
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ 0    Running   just run-writer writer /mnt/test-data/<testid>         /home/wayne/projects/github.com/influxdata/influxdb_pro   18:32:51
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ 1    Running   just run-compactor compactor /mnt/test-data/<testid>   /home/wayne/projects/github.com/influxdata/influxdb_pro   18:32:51
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ 2    Running   just run-load-generator testdb <load-generator-worker-count>  /home/wayne/projects/github.com/influxdata/influxdb_pro   18:33:01
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+```
+
+All running processes can be killed with:
+
+```
+just kill <testid>
+```
+
+Data directory and log files can be archived with:
+
+```
+just archive <testid>
+```
+
+All process and data directories for a given test id can be cleaned up with:
+
+```
+just clean <testid>
+```
+
 [`rustfmt`]: https://github.com/rust-lang/rustfmt
 [`clippy`]: https://github.com/rust-lang/rust-clippy
