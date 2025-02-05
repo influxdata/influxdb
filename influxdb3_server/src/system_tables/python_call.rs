@@ -81,7 +81,7 @@ pub(super) struct ProcessingEngineLogsTable {
 }
 
 impl ProcessingEngineLogsTable {
-    pub fn new(sys_event_store: Arc<SysEventStore>) -> Self {
+    pub(super) fn new(sys_event_store: Arc<SysEventStore>) -> Self {
         Self { sys_event_store }
     }
 }
