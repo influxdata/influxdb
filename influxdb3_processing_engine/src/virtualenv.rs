@@ -17,7 +17,14 @@ pub enum VenvError {
 }
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
-    let output = Command::new("python3")
+    // linux/osx have python3, but windows only has python. Use python since it is in all of them
+    let python_exe = if cfg!(target_os = "windows") {
+        "python"
+    } else {
+        "python3"
+    };
+
+    let output = Command::new(python_exe)
         .args([
             "-c",
             "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
@@ -63,11 +70,17 @@ pub fn init_pyo3() {
     });
 }
 
-#[cfg(unix)]
+// FIXME: this still doesn't work right on windows (sys.path isn't adding the
+// venv's site-packages). Perhaps look at /path/to/venv/pyvenv.cfg?
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
 
-    let activate_script = venv_path.join("bin").join("activate");
+    let activate_script = if cfg!(target_os = "windows") {
+        venv_path.join("Scripts").join("activate")
+    } else {
+        venv_path.join("bin").join("activate")
+    };
+
     if !activate_script.exists() {
         return Err(VenvError::InitError(format!(
             "Activation script not found at {:?}",
@@ -75,13 +88,19 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
         )));
     }
 
-    let output = Command::new("bash")
-        .arg("-c")
-        .arg(format!(
-            "source {} && env",
-            activate_script.to_str().unwrap()
-        ))
-        .output()?;
+    let output = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", activate_script.to_str().unwrap()])
+            .output()?
+    } else {
+        Command::new("bash")
+            .arg("-c")
+            .arg(format!(
+                "source {} && env",
+                activate_script.to_str().unwrap()
+            ))
+            .output()?
+    };
 
     if !output.status.success() {
         return Err(VenvError::InitError(
