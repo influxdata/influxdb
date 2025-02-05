@@ -18,8 +18,8 @@ use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal, WalConfig
 use influxdb3_write::{
     persister::{Persister, DEFAULT_OBJECT_STORE_URL},
     write_buffer::{
-        self, parquet_chunk_from_file, persisted_files::PersistedFiles, WriteBufferImpl,
-        WriteBufferImplArgs,
+        self, cache_parquet_files, parquet_chunk_from_file, persisted_files::PersistedFiles,
+        WriteBufferImpl, WriteBufferImplArgs,
     },
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
     DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
@@ -38,6 +38,7 @@ pub struct ReadWriteMode {
     object_store_url: ObjectStoreUrl,
     replicas: Option<Replicas>,
     compacted_data: Option<Arc<CompactedData>>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
 
 #[derive(Debug)]
@@ -109,7 +110,7 @@ impl ReadWriteMode {
                     metric_registry,
                     replication_interval,
                     node_ids,
-                    parquet_cache,
+                    parquet_cache: parquet_cache.clone(),
                     catalog,
                     time_provider,
                     wal: Some(primary.wal()),
@@ -126,6 +127,7 @@ impl ReadWriteMode {
             compacted_data,
             object_store,
             object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
+            parquet_cache,
         })
     }
 
@@ -229,6 +231,8 @@ impl ChunkContainer for ReadWriteMode {
                     &table_def.table_name,
                     filter,
                 );
+
+            cache_parquet_files(self.parquet_cache.clone(), &parquet_files);
 
             chunks.extend(
                 parquet_files

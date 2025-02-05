@@ -27,8 +27,8 @@ use influxdb3_write::{
     paths::SnapshotInfoFilePath,
     persister::{Persister, DEFAULT_OBJECT_STORE_URL},
     write_buffer::{
-        parquet_chunk_from_file, persisted_files::PersistedFiles, queryable_buffer::BufferState,
-        N_SNAPSHOTS_TO_LOAD_ON_START,
+        cache_parquet_files, parquet_chunk_from_file, persisted_files::PersistedFiles,
+        queryable_buffer::BufferState, N_SNAPSHOTS_TO_LOAD_ON_START,
     },
     ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
 };
@@ -474,6 +474,9 @@ impl ReplicatedBuffer {
             files.retain(|f| f.id > last_parquet_file_id);
         }
 
+        // cache any parquet files that match cache policy
+        cache_parquet_files(self.parquet_cache.clone(), &files);
+
         files
             .into_iter()
             .map(|parquet_file| {
@@ -618,6 +621,9 @@ impl ReplicatedBuffer {
         last_path
             .as_ref()
             .map(WalFileSequenceNumber::try_from)
+            // if we cannot find any last_path (because it's from snapshot)
+            // use the seq num from last snapshot if that's been passed in
+            .or(Ok(last_snapshotted_wal_file_sequence_number).transpose())
             .transpose()
             .context("invalid wal file path")
             .map_err(Into::into)
@@ -968,6 +974,7 @@ async fn cache_parquet_from_snapshot_for_table(
 ) {
     let mut cache_notifiers = vec![];
     for parquet_file in parquet_files_for_table {
+        debug!(path = ?parquet_file.path.as_str(), "Trying to cache parquet file when replaying wal");
         let (req, not) = CacheRequest::create_eventual_mode_cache_request(
             parquet_file.path.as_str().into(),
             None,
@@ -1803,12 +1810,12 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn parquet_cache_with_single_read_replica() {
+    async fn test_parquet_cache_in_write_path_single_read_replica() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let primary_node_id = "primary_node";
-        // spin up two primary write buffers:
+        // spin up primary write buffers:
         let primary_ids = [primary_node_id];
         let mut primaries = HashMap::new();
         for p in primary_ids {
@@ -1829,8 +1836,6 @@ mod tests {
         }
 
         // setup replica
-        // let time_provider: Arc<dyn TimeProvider> =
-        //     Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let test_store = Arc::new(RequestCountedObjectStore::new(Arc::clone(&obj_store)));
         let (cached_obj_store, parquet_cache) = test_cached_obj_store_and_oracle(
             Arc::clone(&test_store) as _,
@@ -1841,9 +1846,9 @@ mod tests {
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
         let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+
+        // This is a READ replica
         let replicas = Replicas::new(CreateReplicasArgs {
-            // could load a new catalog from the object store, but it is easier to just re-use
-            // skinner's:
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
@@ -1933,6 +1938,155 @@ mod tests {
                     test_store.total_read_request_count(&Path::from(path.as_str()))
                 );
             }
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_parquet_cache_in_query_path_single_read_replica() {
+        let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let primary_node_id = "primary_node";
+        // spin up primary write buffers:
+        let primary_ids = [primary_node_id];
+        let mut primaries = HashMap::new();
+        for p in primary_ids {
+            let primary = setup_primary(
+                p,
+                Arc::clone(&obj_store),
+                WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    // small snapshot size will have parquet written out after 3 WAL periods:
+                    snapshot_size: 1,
+                },
+                Arc::clone(&time_provider) as _,
+            )
+            .await;
+            primaries.insert(p, primary);
+        }
+
+        do_writes(
+            "foo",
+            primaries[primary_node_id].as_ref(),
+            &[
+                TestWrite {
+                    time_seconds: 1,
+                    lp: "bar,source=primary_src f1=0.1",
+                },
+                TestWrite {
+                    time_seconds: 2,
+                    lp: "bar,source=primary_src f1=0.2",
+                },
+                TestWrite {
+                    time_seconds: 3,
+                    lp: "bar,source=primary_src f1=0.3",
+                },
+            ],
+        )
+        .await;
+        // ensure snapshots have been taken so there are parquet files for each writer:
+        verify_snapshot_count(
+            1,
+            Arc::clone(&obj_store),
+            primary_node_id,
+            Arc::clone(&time_provider) as _,
+        )
+        .await;
+
+        // setup read replica/move the time
+        time_provider.set(Time::from_timestamp_millis(2000).unwrap());
+        let test_store = Arc::new(RequestCountedObjectStore::new(Arc::clone(&obj_store)));
+        let (cached_obj_store, parquet_cache) = test_cached_obj_store_and_oracle(
+            Arc::clone(&test_store) as _,
+            Arc::clone(&time_provider) as _,
+            Default::default(),
+        );
+        let ctx = IOxSessionContext::with_testing();
+        let runtime_env = ctx.inner().runtime_env();
+        register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
+        let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+
+        let replicas = Replicas::new(CreateReplicasArgs {
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            distinct_cache: DistinctCacheProvider::new_from_catalog(
+                Arc::clone(&time_provider) as _,
+                Arc::clone(&catalog),
+            )
+            .unwrap(),
+            object_store: Arc::clone(&cached_obj_store),
+            metric_registry: Arc::new(Registry::new()),
+            replication_interval: Duration::from_millis(10),
+            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
+            parquet_cache: Some(parquet_cache),
+            catalog,
+            time_provider: Arc::clone(&time_provider) as _,
+            wal: None,
+        })
+        .await
+        .unwrap();
+
+        let persisted_files = wait_for_replica_persistence(&replicas, "foo", "bar", 1).await;
+        assert_eq!(1, persisted_files.len());
+        for ParquetFile { path, .. } in &persisted_files {
+            assert_eq!(
+                0,
+                test_store.total_read_request_count(&Path::from(path.as_str()))
+            );
+        }
+
+        // try fetching to cache in query path
+        let chunks = replicas.get_all_chunks("foo", "bar");
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----+-------------+---------------------+",
+                "| f1  | source      | time                |",
+                "+-----+-------------+---------------------+",
+                "| 0.1 | primary_src | 1970-01-01T00:00:01 |",
+                "| 0.2 | primary_src | 1970-01-01T00:00:02 |",
+                "| 0.3 | primary_src | 1970-01-01T00:00:03 |",
+                "+-----+-------------+---------------------+",
+            ],
+            &batches
+        );
+
+        debug!("===============================================");
+        // This time allows the cache request to be fulfilled, not sure
+        // if there's any way around this.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        debug!("===============================================");
+
+        // check the RequestCountedObjectStore again for each persisted file
+        for ParquetFile { path, .. } in &persisted_files {
+            assert_eq!(
+                4,
+                test_store.total_read_request_count(&Path::from(path.as_str()))
+            );
+        }
+
+        // try fetching again, this time everything should be cached
+        let chunks = replicas.get_all_chunks("foo", "bar");
+        let batches = chunks_to_record_batches(chunks, ctx.inner()).await;
+        assert_batches_sorted_eq!(
+            [
+                "+-----+-------------+---------------------+",
+                "| f1  | source      | time                |",
+                "+-----+-------------+---------------------+",
+                "| 0.1 | primary_src | 1970-01-01T00:00:01 |",
+                "| 0.2 | primary_src | 1970-01-01T00:00:02 |",
+                "| 0.3 | primary_src | 1970-01-01T00:00:03 |",
+                "+-----+-------------+---------------------+",
+            ],
+            &batches
+        );
+
+        for ParquetFile { path, .. } in &persisted_files {
+            // requests to this path should not have changed, due to the cache:
+            assert_eq!(
+                4,
+                test_store.total_read_request_count(&Path::from(path.as_str()))
+            );
         }
     }
 

@@ -12,7 +12,7 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
-use influxdb3_write::write_buffer::{self, parquet_chunk_from_file};
+use influxdb3_write::write_buffer::{self, cache_parquet_files, parquet_chunk_from_file};
 use influxdb3_write::{
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
@@ -29,6 +29,7 @@ use tokio::sync::watch::Receiver;
 pub struct ReadMode {
     replicas: Replicas,
     compacted_data: Option<Arc<CompactedData>>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
 }
 
 #[derive(Debug)]
@@ -69,7 +70,7 @@ impl ReadMode {
                 metric_registry,
                 replication_interval,
                 node_ids,
-                parquet_cache,
+                parquet_cache: parquet_cache.clone(),
                 catalog,
                 time_provider,
                 wal: None,
@@ -77,6 +78,7 @@ impl ReadMode {
             .await
             .context("failed to initialize replicas")?,
             compacted_data,
+            parquet_cache,
         })
     }
 }
@@ -142,6 +144,8 @@ impl ChunkContainer for ReadMode {
                     &table_def.table_name,
                     filter,
                 );
+
+            cache_parquet_files(self.parquet_cache.clone(), &parquet_files);
 
             buffer_chunks.extend(
                 parquet_files
