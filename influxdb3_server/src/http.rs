@@ -514,8 +514,6 @@ where
         accept_rp: bool,
     ) -> Result<Response<Body>> {
         validate_db_name(&params.db, accept_rp)?;
-        info!("write_lp to {}", params.db);
-
         let body = self.read_body(req).await?;
         let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
 
