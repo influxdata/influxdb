@@ -663,7 +663,10 @@ workflows:
       - doc:
           <<: *any_filter
       - build-release:
-          <<: *release_filter
+# TEMPORARY
+          #<<: *release_filter
+          <<: *nofork_filter
+# END TEMPORARY
           name: build-release-<< matrix.target >>
           matrix:
             parameters:
@@ -675,19 +678,31 @@ workflows:
           requires:
             - fetch-python
       - build-packages:
-          <<: *release_filter
+# TEMPORARY
+          #<<: *release_filter
+          <<: *nofork_filter
+# END TEMPORARY
           requires:
             - build-release
       - check_package_deb_arm64:
-          <<: *release_filter
+# TEMPORARY
+          #<<: *release_filter
+          <<: *nofork_filter
+# END TEMPORARY
           requires:
             - build-packages
       - check_package_deb_amd64:
-          <<: *release_filter
+# TEMPORARY
+          #<<: *release_filter
+          <<: *nofork_filter
+# END TEMPORARY
           requires:
             - build-packages
       - check_package_rpm:
+# TEMPORARY
+          #<<: *release_filter
           <<: *nofork_filter
+# END TEMPORARY
           name:
             check_package_rpm-<< matrix.arch >>
           matrix:
