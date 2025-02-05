@@ -80,7 +80,7 @@ pub struct NoListener;
 #[derive(Debug)]
 pub struct WithListener(TcpListener);
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct NoProcessingEngine;
 #[derive(Debug)]
 pub struct WithProcessingEngine(ProcessingEngineManagerImpl);
