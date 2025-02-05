@@ -52,8 +52,8 @@ use observability_deps::tracing::{debug, error, warn};
 use parquet_file::storage::ParquetExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
-use std::sync::Arc;
 use std::time::Duration;
+use std::{borrow::Borrow, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -362,7 +362,7 @@ impl WriteBufferImpl {
         // Although this sends a cache request, it does not mean all these
         // files will be cached. This depends on parquet cache's capacity
         // and whether these files are recent enough
-        self.cache_parquet_files(&parquet_files);
+        cache_parquet_files(self.parquet_cache.clone(), &parquet_files);
 
         for parquet_file in parquet_files {
             let parquet_chunk = parquet_chunk_from_file(
@@ -381,29 +381,6 @@ impl WriteBufferImpl {
         Ok(chunks)
     }
 
-    fn cache_parquet_files(&self, parquet_files: &[ParquetFile]) {
-        if let Some(parquet_cache) = &self.parquet_cache {
-            let all_cache_notifiers: Vec<oneshot::Receiver<()>> = parquet_files
-                .iter()
-                .map(|file| {
-                    // When datafusion tries to fetch this file we'll have cache in "Fetching" state.
-                    // There is a slim chance that this request hasn't been processed yet, then we
-                    // could incur extra GET req to populate the cache. Having a transparent
-                    // cache might be handy for this case.
-                    let (cache_req, receiver) = CacheRequest::create_eventual_mode_cache_request(
-                        ObjPath::from(file.path.as_str()),
-                        Some(file.timestamp_min_max()),
-                    );
-                    parquet_cache.register(cache_req);
-                    receiver
-                })
-                .collect();
-            // there's no explicit await on these receivers - we're only letting parquet cache know
-            // this file can be cached if it meets cache's policy.
-            debug!(len = ?all_cache_notifiers.len(), ">>> num parquet file cache requests created");
-        }
-    }
-
     #[cfg(test)]
     fn get_table_chunks_from_buffer_only(
         &self,
@@ -418,6 +395,33 @@ impl WriteBufferImpl {
         self.buffer
             .get_table_chunks(db_schema, table_def, filter, projection, ctx)
             .unwrap()
+    }
+}
+
+pub fn cache_parquet_files<T: AsRef<ParquetFile>>(
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    parquet_files: &[T],
+) {
+    if let Some(parquet_cache) = parquet_cache {
+        let all_cache_notifiers: Vec<oneshot::Receiver<()>> = parquet_files
+            .iter()
+            .map(|file| {
+                // When datafusion tries to fetch this file we'll have cache in "Fetching" state.
+                // There is a slim chance that this request hasn't been processed yet, then we
+                // could incur extra GET req to populate the cache. Having a transparent
+                // cache might be handy for this case.
+                let f: &ParquetFile = file.borrow().as_ref();
+                let (cache_req, receiver) = CacheRequest::create_eventual_mode_cache_request(
+                    ObjPath::from(f.path.as_str()),
+                    Some(f.timestamp_min_max()),
+                );
+                parquet_cache.register(cache_req);
+                receiver
+            })
+            .collect();
+        // there's no explicit await on these receivers - we're only letting parquet cache know
+        // this file can be cached if it meets cache's policy.
+        debug!(len = ?all_cache_notifiers.len(), ">>> num parquet file cache requests created");
     }
 }
 

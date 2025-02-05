@@ -346,6 +346,12 @@ impl ParquetFile {
     }
 }
 
+impl AsRef<ParquetFile> for ParquetFile {
+    fn as_ref(&self) -> &ParquetFile {
+        self
+    }
+}
+
 #[cfg(test)]
 impl ParquetFile {
     pub(crate) fn create_for_test(path: impl Into<String>) -> Self {
