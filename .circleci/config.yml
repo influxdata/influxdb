@@ -266,12 +266,23 @@ jobs:
         type: string
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Extract python for this target
+          command: |
+            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
+      - run:
+          name: Show PYO3_CONFIG_FILE
+          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo build
-          command: target-env cargo build --target=<< parameters.target >> --workspace
+          command: |
+            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
+            target-env cargo build --target=<< parameters.target >> --features="system-py" --workspace
       - when:
           condition:
             not:
@@ -319,19 +330,32 @@ jobs:
         default: release
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Extract python for this target
+          command: |
+            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
+      - run:
+          name: Show PYO3_CONFIG_FILE
+          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo release build
-          command: target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+          command: |
+            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
+            target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - run:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+            gzip "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar"
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
@@ -543,6 +567,8 @@ workflows:
   version: 2
   snapshot:
     jobs:
+      - fetch-python:
+          <<: *main_filter
       - build-release:
           <<: *main_filter
           name: build-snapshot-<< matrix.target >>
@@ -553,10 +579,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - build-packages:
           <<: *main_filter
           requires:
@@ -583,9 +609,9 @@ workflows:
           <<: *any_filter
       - cargo-audit:
           <<: *any_filter
-      - test:
-          <<: *any_filter
       - fetch-python:
+          <<: *any_filter
+      - test:
           <<: *any_filter
       - build-dev:
           # This workflow requires secrets stored in the environment.
@@ -599,10 +625,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - doc:
           <<: *any_filter
       - build-release:
@@ -613,10 +639,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - build-packages:
           <<: *release_filter
           requires:
