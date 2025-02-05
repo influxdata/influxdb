@@ -7,22 +7,26 @@ license.workspace = true
 
 [dependencies]
 # Crates dependencies
+anyhow.workspace = true
 datafusion.workspace = true
 hashbrown.workspace = true
 object_store.workspace = true
 serde.workspace = true
-xxhash-rust.workspace = true
+twox-hash.workspace = true
 
 # Core dependencies
+observability_deps.workspace = true
 schema.workspace = true
 
 # Local dependencies
-influxdb3_write = { path = "../../influxdb3_write" }
+influxdb3_catalog = { path = "../../influxdb3_catalog" }
 influxdb3_id = { path = "../../influxdb3_id" }
+influxdb3_write = { path = "../../influxdb3_write" }
 
 [dev-dependencies]
 pretty_assertions.workspace = true
 serde_json.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true

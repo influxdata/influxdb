@@ -2,7 +2,13 @@ pub mod memory;
 
 use influxdb3_id::{ParquetFileId, SerdeVecMap};
 use serde::{Deserialize, Serialize};
-use xxhash_rust::xxh64::xxh64;
+use twox_hash::XxHash64;
+
+const INDEX_HASH_SEED: u64 = 0;
+
+pub(crate) fn hash_for_index(data: &[u8]) -> u64 {
+    XxHash64::oneshot(INDEX_HASH_SEED, data)
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 /// The `FileIndex` is an index of Column/Values to an `object_store::Path`. It's expected that
@@ -28,8 +34,8 @@ impl FileIndex {
 
     /// Inserts an id for a given value and column or creates the entry if it does not yet exist
     pub fn insert(&mut self, column: &str, value: &str, file_id: &ParquetFileId) {
-        let column = xxh64(column.as_bytes(), 0);
-        let value = xxh64(value.as_bytes(), 0);
+        let column = hash_for_index(column.as_bytes());
+        let value = hash_for_index(value.as_bytes());
         let ids = self
             .index
             .entry(column)
@@ -43,8 +49,8 @@ impl FileIndex {
 
     /// Get all `object_store::Path`s for a given column and value if they exist
     pub fn lookup(&self, column: &str, value: &str) -> &[ParquetFileId] {
-        let column = xxh64(column.as_bytes(), 0);
-        let value = xxh64(value.as_bytes(), 0);
+        let column = hash_for_index(column.as_bytes());
+        let value = hash_for_index(value.as_bytes());
         self.index
             .get(&column)
             .and_then(|m| m.get(&value))
