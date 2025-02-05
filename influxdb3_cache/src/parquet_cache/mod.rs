@@ -89,6 +89,11 @@ impl EventualCacheRequest {
 }
 
 #[derive(Debug)]
+pub struct EvictionCacheRequest {
+    path: Path,
+}
+
+#[derive(Debug)]
 pub enum CacheRequest {
     // When creating parquet files, the serialized bytes are already
     // present so it can be directly loaded into the cache. This
@@ -98,6 +103,9 @@ pub enum CacheRequest {
     // GET request is needed to pull the actual data and store it in
     // the cache. This Eventual mode request caters for that use case.
     Eventual(EventualCacheRequest),
+    /// These requests allow immediate eviction of a particular path
+    /// from the cache
+    Evict(EvictionCacheRequest),
 }
 
 impl CacheRequest {
@@ -138,6 +146,7 @@ impl CacheRequest {
                 notifier: _,
                 file_timestamp_min_max: _,
             }) => path,
+            CacheRequest::Evict(EvictionCacheRequest { path }) => path,
         }
     }
 }
@@ -226,6 +235,10 @@ impl ParquetCacheOracle for MemCacheOracle {
                 } else {
                     let _ = eventual_cache_req.notifier.send(());
                 }
+            }
+            CacheRequest::Evict(eviction_req) => {
+                debug!(path = ?eviction_req.path, ">>> removing path from cache");
+                self.mem_store.cache.remove(&eviction_req.path);
             }
         }
     }
