@@ -59,7 +59,6 @@ impl SnapshotTracker {
     /// is >= 3x the snapshot size, snapshot everything up to the last period.
     pub(crate) fn snapshot(&mut self, force_snapshot: bool) -> Option<SnapshotDetails> {
         debug!(
-            wal_periods = ?self.wal_periods,
             wal_periods_len = ?self.wal_periods.len(),
             num_snapshots_after = ?self.number_of_periods_to_snapshot_after(),
             ">>> wal periods and snapshots"
