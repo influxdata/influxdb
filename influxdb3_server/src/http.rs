@@ -42,6 +42,7 @@ use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
+use schema::InfluxColumnType;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
@@ -216,12 +217,27 @@ pub enum Error {
     #[error("v1 query API error: {0}")]
     V1Query(#[from] v1::QueryError),
 
-    #[error("Configuration failed as the DB '{0}' does not exist in the database or the index")]
+    #[error("the DB '{0}' does not exist in the database or the index")]
     FileIndexDbDoesNotExist(String),
-    #[error("Configuration failed as the table '{1}' in DB '{0}' does not exist in the database or the index")]
-    FileIndexTableDoesNotExist(String, String),
-    #[error("Configuration failed as the column '{2}' in table '{1}' in DB '{0}' does not exist in the database or the index")]
+
+    #[error(
+        "the table '{table_name}' in DB '{db_name}' does not exist in the database or the index"
+    )]
+    FileIndexTableDoesNotExist { table_name: String, db_name: String },
+
+    #[error(
+        "the column '{2}' in table '{1}' in DB '{0}' does not exist in the database or the index"
+    )]
     FileIndexColumnDoesNotExist(String, String, String),
+
+    #[error(
+        "tried to index column '{column_name}' with type {column_type}, \
+        file indexes can only use tag or string fields"
+    )]
+    FileIndexInvalidColumnType {
+        column_name: String,
+        column_type: InfluxColumnType,
+    },
 
     #[error("failed to configure file index: {0}")]
     FileIndexConfiguration(#[from] EnterpriseConfigError),
@@ -464,11 +480,15 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::FileIndexTableDoesNotExist(_, _) => Response::builder()
+            Self::FileIndexTableDoesNotExist { .. } => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             Self::FileIndexColumnDoesNotExist(_, _, _) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::FileIndexInvalidColumnType { .. } => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
