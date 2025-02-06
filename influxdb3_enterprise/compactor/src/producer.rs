@@ -465,7 +465,7 @@ impl CompactedDataProducer {
     ) -> Result<()> {
         let index_columns = self
             .enterprise_config
-            .index_columns(plan.db_schema.id, &plan.table_definition)
+            .index_columns(&plan.db_schema.id, &plan.table_definition)
             .unwrap_or_else(|| plan.table_definition.index_column_ids());
 
         let args = CompactFilesArgs {

@@ -18,7 +18,7 @@ use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
-use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
+use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize, Serializer};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -27,6 +27,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 pub mod enterprise;
+pub use schema::{InfluxColumnType, InfluxFieldType};
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 

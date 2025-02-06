@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::catalog::InfluxColumnType;
+use influxdb3_catalog::catalog::InfluxFieldType;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
@@ -51,16 +53,24 @@ impl EnterpriseConfig {
     /// Get's all of the columns for the compactor to index on and deduplicates them
     /// so that only unique column names are passed in. This allows users to set the
     /// same columns at the DB and the Table level
-    pub fn index_columns(&self, db_id: DbId, table_def: &TableDefinition) -> Option<Vec<ColumnId>> {
+    pub fn index_columns(
+        &self,
+        db_id: &DbId,
+        table_def: &TableDefinition,
+    ) -> Option<Vec<ColumnId>> {
         let table_id = table_def.table_id;
         let inner = self.inner.read();
-        inner.file_index_columns.get(&db_id).and_then(|db| {
-            let mut set: BTreeSet<ColumnId> = BTreeSet::from_iter(
-                db.db_columns
-                    .clone()
-                    .into_iter()
-                    .map(|c| table_def.column_name_to_id(c).unwrap()),
-            );
+        inner.file_index_columns.get(db_id).and_then(|db| {
+            let mut set: BTreeSet<ColumnId> =
+                BTreeSet::from_iter(db.db_columns.clone().into_iter().filter_map(|c| {
+                    table_def
+                        .column_definition(c)
+                        .and_then(|def| match def.data_type {
+                            InfluxColumnType::Tag
+                            | InfluxColumnType::Field(InfluxFieldType::String) => Some(def.id),
+                            _ => None,
+                        })
+                }));
 
             for item in db.table_columns.get(&table_id).cloned().unwrap_or_default() {
                 set.insert(item);
@@ -82,8 +92,11 @@ impl EnterpriseConfig {
 
         let mut index_summaries = Vec::new();
         for (db_id, idx) in &inner.file_index_columns {
+            let db_schema = catalog
+                .db_schema_by_id(db_id)
+                .expect("a valid database ID in the index");
             let line = IndexSummary {
-                db: catalog.db_id_to_name(db_id).unwrap(),
+                db: Arc::clone(&db_schema.name),
                 table: None,
                 columns: idx.db_columns.clone(),
                 // We don't know the column ids for the db level so we leave this empty by default
@@ -94,25 +107,24 @@ impl EnterpriseConfig {
                 index_summaries.push(line.clone());
             }
 
-            for (table_id, columns) in &idx.table_columns {
-                let mut line = line.clone();
-                let table_def = catalog
-                    .db_schema_by_id(db_id)
-                    .unwrap()
+            for (table_id, column_ids) in &idx.table_columns {
+                let table_def = db_schema
                     .table_definition_by_id(table_id)
-                    .unwrap();
-                let table_name = Arc::clone(&table_def.table_name);
-                line.table = Some(table_name);
-                for name in &line.columns {
-                    line.column_ids
-                        .push(table_def.column_name_to_id_unchecked(Arc::clone(name)));
-                }
-                line.column_ids.extend_from_slice(columns);
-                line.columns.extend(
-                    columns
-                        .iter()
-                        .map(|c| table_def.column_id_to_name_unchecked(c)),
-                );
+                    .expect("a valid table id in the index");
+                let columns = column_ids
+                    .iter()
+                    .map(|id| {
+                        table_def
+                            .column_id_to_name(id)
+                            .expect("a valid column id in the index")
+                    })
+                    .collect();
+                let line = IndexSummary {
+                    db: Arc::clone(&db_schema.name),
+                    table: Some(Arc::clone(&table_def.table_name)),
+                    columns,
+                    column_ids: column_ids.clone(),
+                };
                 index_summaries.push(line);
             }
         }
@@ -171,8 +183,8 @@ impl EnterpriseConfig {
             .and_modify(|idx| {
                 idx.table_columns
                     .entry(table_id)
-                    .and_modify(|set| {
-                        *set = columns.clone();
+                    .and_modify(|existing| {
+                        existing.extend(columns.clone());
                     })
                     .or_insert_with(|| columns.clone());
             })

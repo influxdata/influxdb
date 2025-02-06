@@ -14,8 +14,8 @@ async fn file_index_config() {
     idx_server
         .write_lp_to_db(
             "gundam",
-            "unicorn,height=19.7,id=\"RX-0\" health=0.5 94\n\
-             mercury,height=18.0,id=\"XVX-016\" health=1.0 104",
+            "unicorn,id=RX-0,operator=londo height=19.7,health=0.5,status=\"active\" 94\n\
+             mercury,id=XVX-016,operator=earth height=18.0,health=1.0,status=\"active\" 104",
             Precision::Millisecond,
         )
         .await
@@ -34,90 +34,135 @@ async fn file_index_config() {
             .expect("do query")
     };
 
-    idx_server
+    // Test that adding an index works:
+    assert!(idx_server
         .api_v3_configure_file_index_create(&json!({
             "db": "gundam",
             "table": "unicorn",
-            "columns": ["id", "health"]
+            "columns": ["id"]
         }))
-        .await;
+        .await
+        .status()
+        .is_success());
 
     assert_eq!(
         "\
          +---------------+------------+---------------+------------------+\n\
          | database_name | table_name | index_columns | index_column_ids |\n\
          +---------------+------------+---------------+------------------+\n\
-         | gundam        | unicorn    | [id, health]  | [1, 2]           |\n\
+         | gundam        | unicorn    | [id]          | [0]              |\n\
          +---------------+------------+---------------+------------------+",
         query().await
     );
 
     // add just a db column to the index
-    idx_server
+    assert!(idx_server
         .api_v3_configure_file_index_create(&json!({
             "db": "gundam",
-            "table": null,
             "columns": ["height"]
         }))
-        .await;
+        .await
+        .status()
+        .is_success());
     assert_eq!(
         "\
-         +---------------+------------+----------------------+------------------+\n\
-         | database_name | table_name | index_columns        | index_column_ids |\n\
-         +---------------+------------+----------------------+------------------+\n\
-         | gundam        |            | [height]             | []               |\n\
-         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
-         +---------------+------------+----------------------+------------------+",
+         +---------------+------------+---------------+------------------+\n\
+         | database_name | table_name | index_columns | index_column_ids |\n\
+         +---------------+------------+---------------+------------------+\n\
+         | gundam        |            | [height]      | []               |\n\
+         | gundam        | unicorn    | [id]          | [0]              |\n\
+         +---------------+------------+---------------+------------------+",
         query().await
     );
 
-    // add another table column to the index
-    idx_server
+    // add another table to the index
+    assert!(idx_server
         .api_v3_configure_file_index_create(&json!({
             "db": "gundam",
             "table": "mercury",
-            "columns": ["time"]
+            "columns": ["operator"]
         }))
-        .await;
+        .await
+        .status()
+        .is_success());
     assert_eq!(
         "\
-         +---------------+------------+----------------------+------------------+\n\
-         | database_name | table_name | index_columns        | index_column_ids |\n\
-         +---------------+------------+----------------------+------------------+\n\
-         | gundam        |            | [height]             | []               |\n\
-         | gundam        | unicorn    | [height, id, health] | [0, 1, 2]        |\n\
-         | gundam        | mercury    | [height, time]       | [4, 7]           |\n\
-         +---------------+------------+----------------------+------------------+",
+         +---------------+------------+---------------+------------------+\n\
+         | database_name | table_name | index_columns | index_column_ids |\n\
+         +---------------+------------+---------------+------------------+\n\
+         | gundam        |            | [height]      | []               |\n\
+         | gundam        | unicorn    | [id]          | [0]              |\n\
+         | gundam        | mercury    | [operator]    | [7]              |\n\
+         +---------------+------------+---------------+------------------+",
         query().await
     );
-    // Test that dropping a table from the index only drops that table
-    idx_server
-        .api_v3_configure_file_index_delete(&json!({
+
+    // add another column to existing table to the index
+    assert!(idx_server
+        .api_v3_configure_file_index_create(&json!({
             "db": "gundam",
             "table": "unicorn",
+            "columns": ["operator"]
         }))
-        .await;
+        .await
+        .status()
+        .is_success());
     assert_eq!(
         "\
          +---------------+------------+----------------+------------------+\n\
          | database_name | table_name | index_columns  | index_column_ids |\n\
          +---------------+------------+----------------+------------------+\n\
          | gundam        |            | [height]       | []               |\n\
-         | gundam        | mercury    | [height, time] | [4, 7]           |\n\
+         | gundam        | unicorn    | [id, operator] | [0, 1]           |\n\
+         | gundam        | mercury    | [operator]     | [7]              |\n\
          +---------------+------------+----------------+------------------+",
         query().await
     );
+
+    // Test that dropping a table from the index only drops that table
+    assert!(idx_server
+        .api_v3_configure_file_index_delete(&json!({
+            "db": "gundam",
+            "table": "unicorn",
+        }))
+        .await
+        .status()
+        .is_success());
+    assert_eq!(
+        "\
+         +---------------+------------+---------------+------------------+\n\
+         | database_name | table_name | index_columns | index_column_ids |\n\
+         +---------------+------------+---------------+------------------+\n\
+         | gundam        |            | [height]      | []               |\n\
+         | gundam        | mercury    | [operator]    | [7]              |\n\
+         +---------------+------------+---------------+------------------+",
+        query().await
+    );
+
     // Test that dropping the db from the index drops all tables under it
-    idx_server
+    assert!(idx_server
         .api_v3_configure_file_index_delete(&json!({
             "db": "gundam",
             "table": null,
         }))
-        .await;
+        .await
+        .status()
+        .is_success());
     assert_eq!(
         "\
          ++\n\
          ++",
         query().await
     );
+
+    // Test that adding an index with a non-tag or string column fails:
+    assert!(idx_server
+        .api_v3_configure_file_index_create(&json!({
+            "db": "gundam",
+            "table": "unicorn",
+            "columns": ["health"]
+        }))
+        .await
+        .status()
+        .is_client_error());
 }
