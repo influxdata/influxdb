@@ -1696,7 +1696,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -1748,7 +1748,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1819,7 +1819,7 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(f.Measurement),
-				Field:       &tsdb.Field{ID: 0, Name: f.Field, Type: f.FieldType},
+				Field:       &tsdb.Field{Name: f.Field, Type: f.FieldType},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1882,7 +1882,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -2017,7 +2017,7 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -2743,15 +2743,14 @@ func conflictShard(t *testing.T, run int) {
 		// Write points concurrently
 		for i := 0; i < pointCopies; i++ {
 			for j := 0; j < len(types); j++ {
-				p := points[i*len(types)+j]
 				concurrency.Add(1)
-				go func() {
+				go func(mp models.Point) {
 					mu.RLock()
 					defer concurrency.Add(-1)
 					defer mu.RUnlock()
 					defer wg.Done()
-					if err := sh.WritePoints([]models.Point{p}, tsdb.NoopStatsTracker()); err == nil {
-						fs, err := p.Fields()
+					if err := sh.WritePoints([]models.Point{mp}, tsdb.NoopStatsTracker()); err == nil {
+						fs, err := mp.Fields()
 						require.NoError(t, err, "getting fields")
 						require.Equal(t,
 							sh.MeasurementFields([]byte(measurement)).Field(field).Type,
@@ -2763,7 +2762,7 @@ func conflictShard(t *testing.T, run int) {
 					if c := concurrency.Load(); maxConcurrency.Load() < c {
 						maxConcurrency.Store(c)
 					}
-				}()
+				}(points[i*len(types)+j])
 			}
 		}
 		mu.Unlock()
