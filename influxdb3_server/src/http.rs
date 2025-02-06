@@ -1815,7 +1815,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
             Ok(response)
         }
         Err(error) => {
-            error!(%error, %method, %uri, ?content_length, "Error while handling request");
+            error!(%error, %method, path = uri.path(), ?content_length, "Error while handling request");
             Ok(error.into_response())
         }
     }
