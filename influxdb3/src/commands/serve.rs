@@ -75,7 +75,6 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 use trace_exporters::TracingConfig;
@@ -651,12 +650,12 @@ pub async fn command(config: Config) -> Result<()> {
     }
 
     let enterprise_config = match EnterpriseConfig::load(&object_store).await {
-        Ok(config) => Arc::new(RwLock::new(config)),
+        Ok(config) => Arc::new(config),
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
             let config = EnterpriseConfig::default();
             config.persist(catalog.node_id(), &object_store).await?;
-            Arc::new(RwLock::new(EnterpriseConfig::default()))
+            Arc::new(config)
         }
         Err(err) => return Err(err.into()),
     };

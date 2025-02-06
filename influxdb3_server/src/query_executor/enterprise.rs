@@ -25,7 +25,7 @@ use iox_query_params::StatementParams;
 use iox_system_tables::SystemTableProvider;
 use metric::Registry;
 use observability_deps::tracing::{debug, info};
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 use trace::span::{Span, SpanExt};
 use trace::{ctx::SpanContext, span::SpanRecorder};
 use trace_http::ctx::RequestLogContext;
@@ -53,14 +53,14 @@ use super::{
 pub struct QueryExecutorEnterprise {
     core: QueryExecutorImpl,
     compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-    enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+    enterprise_config: Arc<EnterpriseConfig>,
 }
 
 impl QueryExecutorEnterprise {
     pub fn new(
         core_args: CreateQueryExecutorArgs,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+        enterprise_config: Arc<EnterpriseConfig>,
     ) -> Self {
         Self {
             core: QueryExecutorImpl::new(core_args),
@@ -584,7 +584,6 @@ mod tests {
     use metric::Registry;
     use object_store::{local::LocalFileSystem, memory::InMemory, ObjectStore};
     use observability_deps::tracing::debug;
-    use tokio::sync::RwLock;
 
     use crate::query_executor::{
         enterprise::{
@@ -736,7 +735,7 @@ mod tests {
             Some(Arc::new(MockCompactedDataSysTable::new(Arc::clone(
                 &catalog,
             )))),
-            Arc::new(RwLock::new(Default::default())),
+            Arc::new(Default::default()),
         );
 
         (

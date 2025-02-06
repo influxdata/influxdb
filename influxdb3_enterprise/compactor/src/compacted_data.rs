@@ -148,7 +148,7 @@ impl CompactedData {
             return Default::default();
         };
 
-        let Some(table_def) = db.table_definition(table_name) else {
+        let Some(table_id) = db.table_name_to_id(table_name) else {
             return Default::default();
         };
 
@@ -156,7 +156,7 @@ impl CompactedData {
         let Some(table) = d
             .databases
             .get(&db.id)
-            .and_then(|t| t.tables.get(&table_def.table_id))
+            .and_then(|t| t.tables.get(&table_id))
         else {
             return Default::default();
         };

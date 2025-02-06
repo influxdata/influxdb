@@ -3,7 +3,7 @@ use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-#[tokio::test]
+#[test_log::test(tokio::test)]
 async fn file_index_config() {
     let obj_store_path = tmp_dir();
     let idx_server = TestServer::configure_pro()

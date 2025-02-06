@@ -7,7 +7,6 @@ use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_sys_events::SysEventStore;
 use iox_system_tables::SystemTableProvider;
-use tokio::sync::RwLock;
 
 use super::AllSystemSchemaTablesProvider;
 
@@ -23,7 +22,7 @@ impl AllSystemSchemaTablesProvider {
     pub(crate) fn add_enterprise_tables(
         mut self,
         compacted_data: Option<Arc<dyn CompactedDataSystemTableView>>,
-        enterprise_config: Arc<RwLock<EnterpriseConfig>>,
+        enterprise_config: Arc<EnterpriseConfig>,
         sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         self.tables.insert(

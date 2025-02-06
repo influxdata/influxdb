@@ -73,7 +73,7 @@ pub struct CompactedDataProducer {
     pub compaction_config: CompactionConfig,
     pub object_store_url: ObjectStoreUrl,
     pub executor: Arc<Executor>,
-    pub enterprise_config: Arc<tokio::sync::RwLock<EnterpriseConfig>>,
+    pub enterprise_config: Arc<EnterpriseConfig>,
     pub datafusion_config: Arc<StdHashMap<String, String>>,
     pub compacted_data: Arc<CompactedData>,
     parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
@@ -106,7 +106,7 @@ pub struct CompactedDataProducerArgs {
     pub compactor_id: Arc<str>,
     pub node_ids: Vec<String>,
     pub compaction_config: CompactionConfig,
-    pub enterprise_config: Arc<tokio::sync::RwLock<EnterpriseConfig>>,
+    pub enterprise_config: Arc<EnterpriseConfig>,
     pub datafusion_config: Arc<StdHashMap<String, String>>,
     pub object_store: Arc<dyn ObjectStore>,
     pub object_store_url: ObjectStoreUrl,
@@ -465,8 +465,6 @@ impl CompactedDataProducer {
     ) -> Result<()> {
         let index_columns = self
             .enterprise_config
-            .read()
-            .await
             .index_columns(plan.db_schema.id, &plan.table_definition)
             .unwrap_or_else(|| plan.table_definition.index_column_ids());
 

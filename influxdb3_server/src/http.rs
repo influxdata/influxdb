@@ -22,6 +22,7 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Error as CatalogError;
+use influxdb3_config::EnterpriseConfigError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_processing_engine::manager::{ProcessingEngineError, ProcessingEngineManager};
@@ -221,6 +222,9 @@ pub enum Error {
     FileIndexTableDoesNotExist(String, String),
     #[error("Configuration failed as the column '{2}' in table '{1}' in DB '{0}' does not exist in the database or the index")]
     FileIndexColumnDoesNotExist(String, String, String),
+
+    #[error("failed to configure file index: {0}")]
+    FileIndexConfiguration(#[from] EnterpriseConfigError),
 
     #[error("Operation with object store failed: {0}")]
     ObjectStore(#[from] object_store::Error),
@@ -452,11 +456,19 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
+            Self::FileIndexConfiguration(_) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
             Self::FileIndexDbDoesNotExist(_) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
             Self::FileIndexTableDoesNotExist(_, _) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::FileIndexColumnDoesNotExist(_, _, _) => Response::builder()
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
