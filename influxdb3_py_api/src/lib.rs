@@ -13,5 +13,6 @@ pub enum ExecutePluginError {
     PluginError(#[from] anyhow::Error),
 }
 
+pub mod logging;
 #[cfg(feature = "system-py")]
 pub mod system_py;

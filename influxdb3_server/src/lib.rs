@@ -28,7 +28,6 @@ use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_config::EnterpriseConfig;
-use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_time::TimeProvider;
@@ -86,7 +85,6 @@ pub struct CommonServerState {
     telemetry_store: Arc<TelemetryStore>,
     enterprise_config: Arc<EnterpriseConfig>,
     object_store: Arc<dyn ObjectStore>,
-    processing_engine_environment: ProcessingEngineEnvironmentManager,
 }
 
 impl CommonServerState {
@@ -97,7 +95,6 @@ impl CommonServerState {
         telemetry_store: Arc<TelemetryStore>,
         enterprise_config: Arc<EnterpriseConfig>,
         object_store: Arc<dyn ObjectStore>,
-        processing_engine_environment: ProcessingEngineEnvironmentManager,
     ) -> Result<Self> {
         Ok(Self {
             metrics,
@@ -106,7 +103,6 @@ impl CommonServerState {
             telemetry_store,
             enterprise_config,
             object_store,
-            processing_engine_environment,
         })
     }
 
@@ -235,6 +231,7 @@ mod tests {
     use influxdb3_id::{DbId, TableId};
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+    use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
@@ -817,14 +814,9 @@ mod tests {
             Arc::clone(&sample_telem_store),
             Arc::clone(&enterprise_config),
             Arc::clone(&object_store),
-            ProcessingEngineEnvironmentManager {
-                plugin_dir: None,
-                virtual_env_location: None,
-                package_manager: Arc::new(DisabledManager),
-            },
         )
         .unwrap();
-        let query_executor = QueryExecutorImpl::new(CreateQueryExecutorArgs {
+        let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),
             exec: Arc::clone(&exec),
@@ -832,8 +824,8 @@ mod tests {
             datafusion_config: Default::default(),
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
-            sys_events_store,
-        });
+            sys_events_store: Arc::clone(&sys_events_store),
+        }));
 
         // bind to port 0 will assign a random available port:
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
@@ -842,13 +834,28 @@ mod tests {
             .expect("bind tcp address");
         let addr = listener.local_addr().unwrap();
 
+        let processing_engine = ProcessingEngineManagerImpl::new(
+            ProcessingEngineEnvironmentManager {
+                plugin_dir: None,
+                virtual_env_location: None,
+                package_manager: Arc::new(DisabledManager),
+            },
+            write_buffer.catalog(),
+            Arc::clone(&write_buffer),
+            Arc::clone(&query_executor) as _,
+            Arc::clone(&time_provider) as _,
+            write_buffer.wal(),
+            sys_events_store,
+        );
+
         let server = ServerBuilder::new(common_state)
             .write_buffer(Arc::clone(&write_buffer))
-            .query_executor(Arc::new(query_executor))
+            .query_executor(query_executor)
             .persister(persister)
             .authorizer(Arc::new(DefaultAuthorizer))
             .time_provider(Arc::clone(&time_provider))
             .tcp_listener(listener)
+            .processing_engine(processing_engine)
             .build()
             .await;
         let frontend_shutdown = CancellationToken::new();
