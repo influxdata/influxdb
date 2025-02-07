@@ -44,6 +44,7 @@ use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
@@ -867,7 +868,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&telemetry_store),
         Arc::clone(&enterprise_config),
         Arc::clone(&object_store),
-        setup_processing_engine_env_manager(&config.processing_engine_config),
     )?;
 
     let sys_table_compacted_data: Option<Arc<dyn CompactedDataSystemTableView>> =
@@ -909,13 +909,24 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(Error::BindAddress)?;
 
+    let processing_engine = ProcessingEngineManagerImpl::new(
+        setup_processing_engine_env_manager(&config.processing_engine_config),
+        write_buffer.catalog(),
+        Arc::clone(&write_buffer),
+        Arc::clone(&query_executor) as _,
+        Arc::clone(&time_provider) as _,
+        write_buffer.wal(),
+        sys_events_store,
+    );
+
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
         .write_buffer(Arc::clone(&write_buffer))
         .query_executor(query_executor)
         .time_provider(Arc::clone(&time_provider))
         .persister(Arc::clone(&persister))
-        .tcp_listener(listener);
+        .tcp_listener(listener)
+        .processing_engine(processing_engine);
 
     let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
         builder

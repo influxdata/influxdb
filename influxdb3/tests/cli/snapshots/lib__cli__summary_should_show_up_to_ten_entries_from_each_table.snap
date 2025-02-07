@@ -17,6 +17,9 @@ parquet_files summary:
 | table_name | path | size_bytes | row_count | min_time | max_time |
 +------------+------+------------+-----------+----------+----------+
 +------------+------+------------+-----------+----------+----------+
+processing_engine_logs summary:
+++
+++
 processing_engine_triggers summary:
 ++
 ++

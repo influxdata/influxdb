@@ -43,6 +43,7 @@ influxdb3_internal_api = { path = "../influxdb3_internal_api" }
 influxdb3_process = { path = "../influxdb3_process", default-features = false }
 influxdb3_processing_engine = { path = "../influxdb3_processing_engine" }
 influxdb3_types = { path = "../influxdb3_types"}
+influxdb3_py_api = {path = "../influxdb3_py_api"}
 influxdb3_wal = { path = "../influxdb3_wal"}
 influxdb3_write = { path = "../influxdb3_write" }
 iox_query_influxql_rewrite = { path = "../iox_query_influxql_rewrite" }

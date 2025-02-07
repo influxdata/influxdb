@@ -27,7 +27,7 @@ pub(crate) mod enterprise;
 mod distinct_caches;
 mod last_caches;
 mod parquet_files;
-use crate::system_tables::python_call::ProcessingEngineTriggerTable;
+use crate::system_tables::python_call::{ProcessingEngineLogsTable, ProcessingEngineTriggerTable};
 
 mod python_call;
 mod queries;
@@ -41,6 +41,8 @@ pub(crate) const DISTINCT_CACHES_TABLE_NAME: &str = "distinct_caches";
 pub(crate) const PARQUET_FILES_TABLE_NAME: &str = "parquet_files";
 
 const PROCESSING_ENGINE_TRIGGERS_TABLE_NAME: &str = "processing_engine_triggers";
+
+const PROCESSING_ENGINE_LOGS_TABLE_NAME: &str = "processing_engine_logs";
 
 #[derive(Debug)]
 pub(crate) enum SystemSchemaProvider {
@@ -104,7 +106,7 @@ impl AllSystemSchemaTablesProvider {
         db_schema: Arc<DatabaseSchema>,
         query_log: Arc<QueryLog>,
         buffer: Arc<dyn WriteBuffer>,
-        _sys_events_store: Arc<SysEventStore>,
+        sys_events_store: Arc<SysEventStore>,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -137,6 +139,10 @@ impl AllSystemSchemaTablesProvider {
             ))),
         );
         tables.insert(PARQUET_FILES_TABLE_NAME, parquet_files);
+        let logs_table = Arc::new(SystemTableProvider::new(Arc::new(
+            ProcessingEngineLogsTable::new(sys_events_store),
+        )));
+        tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
         Self {
             buffer,
             db_schema,

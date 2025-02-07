@@ -3,6 +3,8 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::common::Result;
 use datafusion::logical_expr::Expr;
+use influxdb3_py_api::logging::ProcessingEngineLog;
+use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
 use influxdb3_wal::TriggerDefinition;
 use iox_system_tables::IoxSystemTable;
 use std::sync::Arc;
@@ -70,5 +72,39 @@ impl IoxSystemTable for ProcessingEngineTriggerTable {
             Arc::new(disabled),
         ];
         Ok(RecordBatch::try_new(Arc::clone(&self.schema), columns)?)
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct ProcessingEngineLogsTable {
+    sys_event_store: Arc<SysEventStore>,
+}
+
+impl ProcessingEngineLogsTable {
+    pub(super) fn new(sys_event_store: Arc<SysEventStore>) -> Self {
+        Self { sys_event_store }
+    }
+}
+
+#[async_trait]
+impl IoxSystemTable for ProcessingEngineLogsTable {
+    fn schema(&self) -> SchemaRef {
+        Arc::new(ProcessingEngineLog::schema())
+    }
+
+    async fn scan(
+        &self,
+        _filters: Option<Vec<Expr>>,
+        _limit: Option<usize>,
+    ) -> Result<RecordBatch> {
+        let Some(result) = self
+            .sys_event_store
+            .as_record_batch::<ProcessingEngineLog>()
+        else {
+            return Ok(RecordBatch::new_empty(Arc::new(
+                ProcessingEngineLog::schema(),
+            )));
+        };
+        Ok(result?)
     }
 }
