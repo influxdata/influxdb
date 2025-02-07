@@ -47,6 +47,8 @@ influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
 
 # crates.io deps
 bimap.workspace = true
+criterion.workspace = true
+dhat.workspace = true
 insta.workspace = true
 object_store.workspace = true
 pretty_assertions.workspace = true

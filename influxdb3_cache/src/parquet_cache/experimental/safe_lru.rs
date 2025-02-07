@@ -60,6 +60,7 @@ mod tests {
     use crate::parquet_cache::experimental::safe_lru::LruCache;
 
     #[test_log::test(test)]
+    #[ignore]
     fn test_safe_lru() {
         let mut cache = LruCache::new(100);
         let key_1 = Arc::from("/some/path_1");

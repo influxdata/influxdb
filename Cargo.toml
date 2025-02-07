@@ -70,6 +70,7 @@ csv = "1.3.0"
 datafusion = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "ae0a57b05895ccf4d2febb9c91bbb0956cf7e863" }
 datafusion-proto = { git = "https://github.com/influxdata/arrow-datafusion.git", rev = "ae0a57b05895ccf4d2febb9c91bbb0956cf7e863" }
 dashmap = "6.1.0"
+dhat = "0.3.3"
 dotenvy = "0.15.7"
 flate2 = "1.0.27"
 futures = "0.3.31"
