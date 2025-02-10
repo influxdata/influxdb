@@ -8,6 +8,8 @@ test-data/
 **.history
 # rust compiled binary target directory:
 **/target
+# rust compiled vendor directory when using cargo vendor
+**/vendor
 # other:
 **/*.rs.bk
 **/*.rs.bk

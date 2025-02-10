@@ -2,7 +2,6 @@
 //! storage.
 
 use crate::PersistedSnapshot;
-use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
 use arrow::datatypes::SchemaRef;
@@ -18,25 +17,19 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use futures_util::pin_mut;
 use futures_util::stream::TryStreamExt;
 use futures_util::stream::{FuturesOrdered, StreamExt};
-use influxdb3_cache::{last_cache, parquet_cache::ParquetFileDataToCache};
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::catalog::InnerCatalog;
+use influxdb3_cache::parquet_cache::ParquetFileDataToCache;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
-use observability_deps::tracing::info;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::format::FileMetaData;
-use std::any::Any;
 use std::io::Write;
 use std::sync::Arc;
-use thiserror::Error;
-use uuid::Uuid;
 
-#[derive(Debug, Error)]
-pub enum Error {
+#[derive(Debug, thiserror::Error)]
+pub enum PersisterError {
     #[error("datafusion error: {0}")]
     DataFusion(#[from] DataFusionError),
 
@@ -55,22 +48,22 @@ pub enum Error {
     #[error("parse int error: {0}")]
     ParseInt(#[from] std::num::ParseIntError),
 
-    #[error("failed to initialize last cache: {0}")]
-    InitializingLastCache(#[from] last_cache::Error),
+    #[error("unexpected persister error: {0:?}")]
+    Unexpected(#[from] anyhow::Error),
 }
 
-impl From<Error> for DataFusionError {
-    fn from(error: Error) -> Self {
+impl From<PersisterError> for DataFusionError {
+    fn from(error: PersisterError) -> Self {
         match error {
-            Error::DataFusion(e) => e,
-            Error::ObjectStore(e) => DataFusionError::ObjectStore(e),
-            Error::ParquetError(e) => DataFusionError::ParquetError(e),
+            PersisterError::DataFusion(e) => e,
+            PersisterError::ObjectStore(e) => DataFusionError::ObjectStore(e),
+            PersisterError::ParquetError(e) => DataFusionError::ParquetError(e),
             _ => DataFusionError::External(Box::new(error)),
         }
     }
 }
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = PersisterError> = std::result::Result<T, E>;
 
 pub const DEFAULT_OBJECT_STORE_URL: &str = "iox://influxdb3/";
 
@@ -121,71 +114,6 @@ impl Persister {
     /// Get the host identifier prefix
     pub fn node_identifier_prefix(&self) -> &str {
         &self.node_identifier_prefix
-    }
-
-    /// Try loading the catalog, if there is no catalog generate new
-    /// instance id and create a new catalog and persist it immediately
-    pub async fn load_or_create_catalog(&self) -> Result<Catalog> {
-        let catalog = match self.load_catalog().await? {
-            Some(c) => Catalog::from_inner(c),
-            None => {
-                let uuid = Uuid::new_v4().to_string();
-                let instance_id = Arc::from(uuid.as_str());
-                info!(instance_id = ?instance_id, "Catalog not found, creating new instance id");
-                let new_catalog =
-                    Catalog::new(Arc::from(self.node_identifier_prefix.as_str()), instance_id);
-                self.persist_catalog(&new_catalog).await?;
-                new_catalog
-            }
-        };
-        Ok(catalog)
-    }
-
-    /// Loads the most recently persisted catalog from object storage.
-    ///
-    /// This is used on server start.
-    pub async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
-        let mut list = self
-            .object_store
-            .list(Some(&CatalogFilePath::dir(&self.node_identifier_prefix)));
-        let mut catalog_path: Option<ObjPath> = None;
-        while let Some(item) = list.next().await {
-            let item = item?;
-            catalog_path = match catalog_path {
-                Some(old_path) => {
-                    let Some(new_catalog_name) = item.location.filename() else {
-                        // Skip this iteration as this listed file has no
-                        // filename
-                        catalog_path = Some(old_path);
-                        continue;
-                    };
-                    let old_catalog_name = old_path
-                        .filename()
-                        // NOTE: this holds so long as CatalogFilePath is used
-                        // from crate::paths
-                        .expect("catalog file paths are guaranteed to have a filename");
-
-                    // We order catalogs by number starting with u32::MAX and
-                    // then decrease it, therefore if the new catalog file name
-                    // is less than the old one this is the path we want
-                    if new_catalog_name < old_catalog_name {
-                        Some(item.location)
-                    } else {
-                        Some(old_path)
-                    }
-                }
-                None => Some(item.location),
-            };
-        }
-
-        match catalog_path {
-            None => Ok(None),
-            Some(path) => {
-                let bytes = self.object_store.get(&path).await?.bytes().await?;
-                let catalog: InnerCatalog = serde_json::from_slice(&bytes)?;
-                Ok(Some(catalog))
-            }
-        }
     }
 
     /// Loads the most recently persisted N snapshot parquet file lists from object storage.
@@ -272,45 +200,6 @@ impl Persister {
         Ok(self.object_store.get(&path).await?.bytes().await?)
     }
 
-    /// Persists the catalog with the given `WalFileSequenceNumber`. If this is the highest ID, it will
-    /// be the catalog that is returned the next time `load_catalog` is called.
-    pub async fn persist_catalog(&self, catalog: &Catalog) -> Result<()> {
-        let catalog_path = CatalogFilePath::new(
-            self.node_identifier_prefix.as_str(),
-            catalog.sequence_number(),
-        );
-        let json = serde_json::to_vec_pretty(&catalog)?;
-        self.object_store
-            .put(catalog_path.as_ref(), json.into())
-            .await?;
-        // It's okay if this fails as it's just cleanup of the old catalog
-        // a new persist will come in and clean the old one up.
-        let prefix = self.node_identifier_prefix.clone();
-        let obj_store = Arc::clone(&self.object_store);
-        tokio::spawn(async move {
-            let mut items = Vec::new();
-            let mut stream = obj_store.list(Some(&format!("{}/catalogs", prefix).into()));
-            while let Some(item) = stream.next().await {
-                match item {
-                    Ok(item) => items.push(item),
-                    Err(_) => return,
-                }
-            }
-
-            // We want to sort by the newest paths first
-            items.sort_by(|a, b| a.location.cmp(&b.location));
-
-            // We skip over the ten most recent catalogs and delete any leftovers
-            // In most cases this will just be one of them.
-            for item in items.iter().skip(10) {
-                if obj_store.delete(&item.location).await.is_err() {
-                    return;
-                }
-            }
-        });
-        Ok(())
-    }
-
     /// Persists the snapshot file
     pub async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
         let snapshot_file_path = SnapshotInfoFilePath::new(
@@ -354,10 +243,6 @@ impl Persister {
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         Arc::clone(&self.object_store)
     }
-
-    pub fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
 }
 
 pub async fn serialize_to_parquet(
@@ -382,7 +267,7 @@ pub async fn serialize_to_parquet(
 
     let writer_meta = writer.close()?;
     if writer_meta.num_rows == 0 {
-        return Err(Error::NoRows);
+        return Err(PersisterError::NoRows);
     }
 
     Ok(ParquetBytes {
@@ -454,189 +339,17 @@ mod tests {
     use super::*;
     use crate::{DatabaseTables, ParquetFile, ParquetFileId};
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-    use influxdb3_wal::{
-        CatalogBatch, CatalogOp, FieldDataType, FieldDefinition, SnapshotSequenceNumber,
-        WalFileSequenceNumber, WalTableDefinition,
-    };
+    use influxdb3_id::{DbId, SerdeVecMap, TableId};
+    use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
-    use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
-    use tokio::time::{Duration, sleep};
     use {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
         arrow::datatypes::Schema, chrono::Utc,
         datafusion::physical_plan::stream::RecordBatchReceiverStreamBuilder,
         object_store::local::LocalFileSystem,
     };
-
-    #[tokio::test]
-    async fn persist_catalog() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let local_disk =
-            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(
-            Arc::new(local_disk),
-            "test_host",
-            Arc::clone(&time_provider) as _,
-        );
-        let catalog = Catalog::new(node_id, instance_id);
-        let _ = catalog.db_or_create("my_db");
-
-        persister.persist_catalog(&catalog).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn persist_catalog_with_cleanup() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let prefix = test_helpers::tmp_dir().unwrap();
-        let local_disk = LocalFileSystem::new_with_prefix(prefix).unwrap();
-        let obj_store: Arc<dyn ObjectStore> = Arc::new(local_disk);
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::clone(&obj_store), "test_host", time_provider);
-        let catalog = Catalog::new(Arc::clone(&node_id), instance_id);
-        persister.persist_catalog(&catalog).await.unwrap();
-        let db_schema = catalog.db_or_create("my_db_1").unwrap();
-        persister.persist_catalog(&catalog).await.unwrap();
-        let _ = catalog.db_or_create("my_db_2").unwrap();
-        persister.persist_catalog(&catalog).await.unwrap();
-        let _ = catalog.db_or_create("my_db_3").unwrap();
-        persister.persist_catalog(&catalog).await.unwrap();
-        let _ = catalog.db_or_create("my_db_4").unwrap();
-        persister.persist_catalog(&catalog).await.unwrap();
-        let _ = catalog.db_or_create("my_db_5").unwrap();
-        persister.persist_catalog(&catalog).await.unwrap();
-
-        let batch = |name: &str, num: u32| {
-            let _ = catalog.apply_catalog_batch(&CatalogBatch {
-                database_id: db_schema.id,
-                database_name: Arc::clone(&db_schema.name),
-                time_ns: 5000,
-                ops: vec![CatalogOp::CreateTable(WalTableDefinition {
-                    database_id: db_schema.id,
-                    database_name: Arc::clone(&db_schema.name),
-                    table_name: name.into(),
-                    table_id: TableId::from(num),
-                    field_definitions: vec![FieldDefinition {
-                        name: "column".into(),
-                        id: ColumnId::from(num),
-                        data_type: FieldDataType::String,
-                    }],
-                    key: vec![num.into()],
-                })],
-            });
-        };
-
-        batch("table_zero", 0);
-        persister.persist_catalog(&catalog).await.unwrap();
-        batch("table_one", 1);
-        persister.persist_catalog(&catalog).await.unwrap();
-        batch("table_two", 2);
-        persister.persist_catalog(&catalog).await.unwrap();
-        batch("table_three", 3);
-        persister.persist_catalog(&catalog).await.unwrap();
-
-        // We've persisted the catalog 10 times and nothing has changed
-        // So now we need to persist the catalog two more times and we should
-        // see the first 2 catalogs be dropped.
-        batch("table_four", 4);
-        persister.persist_catalog(&catalog).await.unwrap();
-        batch("table_five", 5);
-        persister.persist_catalog(&catalog).await.unwrap();
-
-        // Make sure the deletions have all ocurred
-        sleep(Duration::from_secs(2)).await;
-
-        let mut stream = obj_store.list(None);
-        let mut items = Vec::new();
-        while let Some(item) = stream.next().await {
-            items.push(item.unwrap());
-        }
-
-        // Sort by oldest fisrt
-        items.sort_by(|a, b| b.location.cmp(&a.location));
-
-        assert_eq!(items.len(), 10);
-        // The first path should contain this number meaning we've
-        // eliminated the first two items
-        assert_eq!(18446744073709551613, u64::MAX - 2);
-
-        // Assert that we have 10 catalogs of decreasing number
-        assert_eq!(
-            items[0].location,
-            "test_host/catalogs/18446744073709551613.json".into()
-        );
-        assert_eq!(
-            items[1].location,
-            "test_host/catalogs/18446744073709551612.json".into()
-        );
-        assert_eq!(
-            items[2].location,
-            "test_host/catalogs/18446744073709551611.json".into()
-        );
-        assert_eq!(
-            items[3].location,
-            "test_host/catalogs/18446744073709551610.json".into()
-        );
-        assert_eq!(
-            items[4].location,
-            "test_host/catalogs/18446744073709551609.json".into()
-        );
-        assert_eq!(
-            items[5].location,
-            "test_host/catalogs/18446744073709551608.json".into()
-        );
-        assert_eq!(
-            items[6].location,
-            "test_host/catalogs/18446744073709551607.json".into()
-        );
-        assert_eq!(
-            items[7].location,
-            "test_host/catalogs/18446744073709551606.json".into()
-        );
-        assert_eq!(
-            items[8].location,
-            "test_host/catalogs/18446744073709551605.json".into()
-        );
-        assert_eq!(
-            items[9].location,
-            "test_host/catalogs/18446744073709551604.json".into()
-        );
-    }
-
-    #[tokio::test]
-    async fn persist_and_load_newest_catalog() {
-        let node_id: Arc<str> = Arc::from("sample-host-id");
-        let instance_id: Arc<str> = Arc::from("sample-instance-id");
-        let local_disk =
-            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let catalog = Catalog::new(Arc::clone(&node_id), Arc::clone(&instance_id));
-        let _ = catalog.db_or_create("my_db");
-
-        persister.persist_catalog(&catalog).await.unwrap();
-
-        let catalog = Catalog::new(Arc::clone(&node_id), Arc::clone(&instance_id));
-        let _ = catalog.db_or_create("my_second_db");
-
-        persister.persist_catalog(&catalog).await.unwrap();
-
-        let catalog = persister
-            .load_catalog()
-            .await
-            .expect("loading the catalog did not cause an error")
-            .expect("there was a catalog to load");
-
-        // my_second_db
-        assert!(catalog.db_exists(DbId::from(1)));
-        // my_db
-        assert!(!catalog.db_exists(DbId::from(0)));
-    }
 
     #[tokio::test]
     async fn persist_snapshot_info_file() {
@@ -647,9 +360,6 @@ mod tests {
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::new(0),
@@ -672,9 +382,6 @@ mod tests {
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::default(),
@@ -687,9 +394,6 @@ mod tests {
         let info_file_2 = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
             wal_file_sequence_number: WalFileSequenceNumber::new(1),
             catalog_sequence_number: CatalogSequenceNumber::default(),
@@ -702,9 +406,6 @@ mod tests {
         let info_file_3 = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
             wal_file_sequence_number: WalFileSequenceNumber::new(2),
             catalog_sequence_number: CatalogSequenceNumber::default(),
@@ -739,9 +440,6 @@ mod tests {
         let info_file = PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::default(),
@@ -769,12 +467,9 @@ mod tests {
             let info_file = PersistedSnapshot {
                 node_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
-                next_db_id: DbId::from(1),
-                next_table_id: TableId::from(1),
-                next_column_id: ColumnId::from(1),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
                 wal_file_sequence_number: WalFileSequenceNumber::new(id),
-                catalog_sequence_number: CatalogSequenceNumber::new(id as u32),
+                catalog_sequence_number: CatalogSequenceNumber::new(id),
                 databases: SerdeVecMap::new(),
                 min_time: 0,
                 max_time: 1,
@@ -789,7 +484,7 @@ mod tests {
         assert_eq!(snapshots[0].next_file_id.as_u64(), 1000);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 1000);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 1000);
-        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 1000);
+        assert_eq!(snapshots[0].catalog_sequence_number.get(), 1000);
     }
 
     #[tokio::test]
@@ -833,7 +528,7 @@ mod tests {
         assert_eq!(snapshots[0].next_file_id.as_u64(), 9877);
         assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
         assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 0);
-        assert_eq!(snapshots[0].catalog_sequence_number.as_u32(), 0);
+        assert_eq!(snapshots[0].catalog_sequence_number.get(), 0);
     }
 
     #[tokio::test]
@@ -850,18 +545,18 @@ mod tests {
     fn persisted_snapshot_structure() {
         let databases = [
             (
-                DbId::new(),
+                DbId::new(0),
                 DatabaseTables {
                     tables: [
                         (
-                            TableId::new(),
+                            TableId::new(0),
                             vec![
                                 ParquetFile::create_for_test("1.parquet"),
                                 ParquetFile::create_for_test("2.parquet"),
                             ],
                         ),
                         (
-                            TableId::new(),
+                            TableId::new(1),
                             vec![
                                 ParquetFile::create_for_test("3.parquet"),
                                 ParquetFile::create_for_test("4.parquet"),
@@ -872,18 +567,18 @@ mod tests {
                 },
             ),
             (
-                DbId::new(),
+                DbId::new(1),
                 DatabaseTables {
                     tables: [
                         (
-                            TableId::new(),
+                            TableId::new(0),
                             vec![
                                 ParquetFile::create_for_test("5.parquet"),
                                 ParquetFile::create_for_test("6.parquet"),
                             ],
                         ),
                         (
-                            TableId::new(),
+                            TableId::new(1),
                             vec![
                                 ParquetFile::create_for_test("7.parquet"),
                                 ParquetFile::create_for_test("8.parquet"),
@@ -898,9 +593,6 @@ mod tests {
         let snapshot = PersistedSnapshot {
             node_id: "host".to_string(),
             next_file_id: ParquetFileId::new(),
-            next_db_id: DbId::new(),
-            next_table_id: TableId::new(),
-            next_column_id: ColumnId::new(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
             wal_file_sequence_number: WalFileSequenceNumber::new(0),
             catalog_sequence_number: CatalogSequenceNumber::new(0),
@@ -982,51 +674,5 @@ mod tests {
         // Assert that we have a file of bytes > 0
         assert!(!bytes.is_empty());
         assert_eq!(bytes.len() as u64, bytes_written);
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn load_or_create_catalog_new_catalog() {
-        let local_disk =
-            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        info!(local_disk = ?local_disk, "Using local disk");
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let _ = persister.load_or_create_catalog().await.unwrap();
-        let persisted_catalog = persister.load_catalog().await.unwrap();
-
-        assert!(persisted_catalog.is_some());
-    }
-
-    #[test_log::test(tokio::test)]
-    async fn load_or_create_catalog_existing_catalog() {
-        // write raw json to catalog
-        let catalog_json = r#"
-            {
-              "databases": [],
-              "sequence": 0,
-              "node_id": "test_host",
-              "instance_id": "24b1e1bf-b301-4101-affa-e3d668fe7d20",
-              "db_map": [],
-              "table_map": []
-            }
-        "#;
-        let local_disk =
-            LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        info!(local_disk = ?local_disk, "Using local disk");
-
-        let catalog_path = CatalogFilePath::new("test_host", CatalogSequenceNumber::new(0));
-        let _ = local_disk
-            .put(&catalog_path, catalog_json.into())
-            .await
-            .unwrap();
-
-        // read json as catalog
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let catalog = persister.load_or_create_catalog().await.unwrap();
-        assert_eq!(
-            &*catalog.instance_id(),
-            "24b1e1bf-b301-4101-affa-e3d668fe7d20"
-        );
     }
 }

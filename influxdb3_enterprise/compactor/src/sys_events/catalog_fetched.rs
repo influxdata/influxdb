@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use serde::Serialize;
 
 use crate::sys_events::{EventData, EventOutcome};
@@ -7,13 +8,17 @@ use crate::sys_events::{EventData, EventOutcome};
 #[derive(Debug, Clone, Serialize)]
 pub struct SuccessInfo {
     pub node_id: Arc<str>,
-    pub catalog_sequence_number: u32,
+    pub catalog_sequence_number: CatalogSequenceNumber,
     #[serde(skip_serializing)]
     pub duration: Duration,
 }
 
 impl SuccessInfo {
-    pub fn new(node_id: &str, catalog_sequence_number: u32, fetch_duration: Duration) -> Self {
+    pub fn new(
+        node_id: &str,
+        catalog_sequence_number: CatalogSequenceNumber,
+        fetch_duration: Duration,
+    ) -> Self {
         Self {
             node_id: Arc::from(node_id),
             catalog_sequence_number,

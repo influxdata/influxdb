@@ -10,6 +10,8 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_catalog::CatalogError;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
@@ -139,8 +141,8 @@ pub enum Error {
     #[error("failed to initialized write buffer: {0:?}")]
     WriteBufferInit(#[source] anyhow::Error),
 
-    #[error("failed to initialize from persisted catalog: {0}")]
-    InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
+    #[error("failed to initialize catalog: {0}")]
+    InitializeCatalog(#[from] CatalogError),
 
     #[error("Failed to execute job: {0}")]
     Job(#[source] executor::JobError),
@@ -640,19 +642,35 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let catalog = Arc::new(
-        persister
-            .load_or_create_catalog()
-            .await
-            .map_err(Error::InitializePersistedCatalog)?,
+        Catalog::new(
+            config
+                .enterprise_config
+                .cluster_identifier_prefix
+                .unwrap_or_else(|| config.node_identifier_prefix.clone()),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await?,
     );
-    info!(instance_id = ?catalog.instance_id(), "catalog initialized");
+    info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
+
+    let _ = catalog
+        .register_node(
+            &config.node_identifier_prefix,
+            num_cpus as u64,
+            config.enterprise_config.mode.into(),
+        )
+        .await?;
+    let node_def = catalog
+        .node(&config.node_identifier_prefix)
+        .expect("node should be registered in catalog");
 
     #[cfg(not(feature = "no_license"))]
     {
         load_and_validate_license(
             Arc::clone(&object_store),
             config.node_identifier_prefix.clone(),
-            catalog.instance_id(),
+            node_def.instance_id(),
             config.enterprise_config.license_email,
         )
         .await?;
@@ -664,7 +682,7 @@ pub async fn command(config: Config) -> Result<()> {
         // If the config is not found we should create it
         Err(object_store::Error::NotFound { .. }) => {
             let config = EnterpriseConfig::default();
-            config.persist(catalog.node_id(), &object_store).await?;
+            config.persist(catalog.catalog_id(), &object_store).await?;
             Arc::new(config)
         }
         Err(err) => return Err(err.into()),
@@ -734,6 +752,7 @@ pub async fn command(config: Config) -> Result<()> {
                 sys_events_store: Arc::clone(&compaction_event_store),
                 time_provider: Arc::clone(&time_provider),
                 span_ctx,
+                catalog: Arc::clone(&catalog),
             })
             .await?;
 
@@ -743,6 +762,7 @@ pub async fn command(config: Config) -> Result<()> {
             let consumer = CompactedDataConsumer::new(
                 compactor_id,
                 Arc::clone(&object_store),
+                Arc::clone(&catalog),
                 parquet_cache_prefetcher,
                 Arc::clone(&compaction_event_store),
             )
@@ -842,11 +862,7 @@ pub async fn command(config: Config) -> Result<()> {
             (buf, Some(persisted_files), Some(write_buffer_impl))
         }
         BufferMode::Compactor => {
-            let catalog = compacted_data
-                .as_ref()
-                .map(|cd| cd.compacted_catalog.catalog())
-                .expect("there was no compacted data initialized");
-            let buf = Arc::new(WriteBufferEnterprise::compactor(catalog));
+            let buf = Arc::new(WriteBufferEnterprise::compactor(Arc::clone(&catalog)));
             (buf, None, None)
         }
     };
@@ -863,7 +879,7 @@ pub async fn command(config: Config) -> Result<()> {
     info!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
-        catalog.instance_id(),
+        node_def.instance_id(),
         num_cpus,
         persisted_files,
         config.telemetry_endpoint.as_str(),
@@ -925,7 +941,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
-        write_buffer.wal(),
         sys_events_store,
     );
 

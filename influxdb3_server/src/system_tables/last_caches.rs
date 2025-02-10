@@ -1,27 +1,26 @@
 use std::sync::Arc;
 
-use arrow::array::{GenericListBuilder, StringViewBuilder, UInt32Builder, UInt64Builder};
+use arrow::array::{GenericListBuilder, StringViewBuilder, UInt16Builder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
-use influxdb3_cache::last_cache::LastCacheProvider;
-use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef};
+use influxdb3_catalog::{
+    catalog::DatabaseSchema,
+    log::{CreateLastCacheLog, LastCacheValueColumnsDef},
+};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
 pub(super) struct LastCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,
-    provider: Arc<LastCacheProvider>,
 }
 
 impl LastCachesTable {
-    pub(super) fn new(db_schema: Arc<DatabaseSchema>, provider: Arc<LastCacheProvider>) -> Self {
+    pub(super) fn new(db_schema: Arc<DatabaseSchema>) -> Self {
         Self {
             db_schema,
             schema: last_caches_schema(),
-            provider,
         }
     }
 }
@@ -32,7 +31,7 @@ fn last_caches_schema() -> SchemaRef {
         Field::new("name", DataType::Utf8View, false),
         Field::new(
             "key_column_ids",
-            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::UInt16, true))),
             false,
         ),
         Field::new(
@@ -42,7 +41,7 @@ fn last_caches_schema() -> SchemaRef {
         ),
         Field::new(
             "value_column_ids",
-            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::UInt16, true))),
             true,
         ),
         Field::new(
@@ -67,21 +66,21 @@ impl IoxSystemTable for LastCachesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let caches = self.provider.get_last_caches_for_db(self.db_schema.id);
-        from_last_cache_definitions(&self.db_schema, self.schema(), &caches)
+        let caches = self.db_schema.list_last_caches();
+        from_last_cache_definitions(&self.db_schema, self.schema(), caches)
     }
 }
 
 fn from_last_cache_definitions(
     db_schema: &DatabaseSchema,
     sys_table_schema: SchemaRef,
-    cache_defns: &[LastCacheDefinition],
+    cache_defns: Vec<&CreateLastCacheLog>,
 ) -> Result<RecordBatch, DataFusionError> {
     let mut table_name_arr = StringViewBuilder::with_capacity(cache_defns.len());
     let mut cache_name_arr = StringViewBuilder::with_capacity(cache_defns.len());
 
-    let key_col_id_builder = UInt32Builder::new();
-    let mut key_col_ids_arr = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+    let key_col_id_builder = UInt16Builder::new();
+    let mut key_col_ids_arr = GenericListBuilder::<i32, UInt16Builder>::with_capacity(
         key_col_id_builder,
         cache_defns.len(),
     );
@@ -92,8 +91,8 @@ fn from_last_cache_definitions(
         cache_defns.len(),
     );
 
-    let value_col_builder = UInt32Builder::new();
-    let mut value_col_ids_arr = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+    let value_col_builder = UInt16Builder::new();
+    let mut value_col_ids_arr = GenericListBuilder::<i32, UInt16Builder>::with_capacity(
         value_col_builder,
         cache_defns.len(),
     );
@@ -115,7 +114,7 @@ fn from_last_cache_definitions(
         cache_name_arr.append_value(&cache_defn.name);
 
         for key_col in &cache_defn.key_columns {
-            key_col_ids_arr.values().append_value(key_col.as_u32());
+            key_col_ids_arr.values().append_value(key_col.get());
             let col_name = table_defn
                 .column_id_to_name(key_col)
                 .expect("column id should have name associated to it");
@@ -130,7 +129,7 @@ fn from_last_cache_definitions(
                     let col_name = table_defn
                         .column_id_to_name(col)
                         .expect("column id should have name associated to it");
-                    value_col_ids_arr.values().append_value(col.as_u32());
+                    value_col_ids_arr.values().append_value(col.get());
                     value_col_names_arr.values().append_value(col_name);
                 }
                 value_col_ids_arr.append(true);
@@ -143,7 +142,7 @@ fn from_last_cache_definitions(
         }
 
         count_arr.append_value(cache_defn.count.into());
-        ttl_arr.append_value(cache_defn.ttl);
+        ttl_arr.append_value(cache_defn.ttl.as_secs());
     }
 
     let columns: Vec<ArrayRef> = vec![

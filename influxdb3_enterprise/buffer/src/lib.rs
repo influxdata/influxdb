@@ -1,21 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError};
-use influxdb3_cache::{
-    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
-    last_cache::LastCacheProvider,
-};
+use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal};
+use influxdb3_id::{DbId, TableId};
+use influxdb3_wal::Wal;
 use influxdb3_write::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
-    DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
-    write_buffer::{
-        self, Result as WriteBufferResult, WriteBufferImpl, persisted_files::PersistedFiles,
-    },
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    write_buffer::{Result as WriteBufferResult, WriteBufferImpl, persisted_files::PersistedFiles},
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -133,94 +128,12 @@ impl<Mode: LastCacheManager> LastCacheManager for WriteBufferEnterprise<Mode> {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         self.mode.last_cache_provider()
     }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn create_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<ColumnId>>,
-        value_columns: Option<Vec<ColumnId>>,
-    ) -> WriteBufferResult<Option<LastCacheDefinition>> {
-        self.mode
-            .create_last_cache(
-                db_id,
-                tbl_id,
-                cache_name,
-                count,
-                ttl,
-                key_columns,
-                value_columns,
-            )
-            .await
-    }
-
-    async fn delete_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: &str,
-    ) -> WriteBufferResult<()> {
-        self.mode.delete_last_cache(db_id, tbl_id, cache_name).await
-    }
 }
 
 #[async_trait::async_trait]
 impl<Mode: DistinctCacheManager> DistinctCacheManager for WriteBufferEnterprise<Mode> {
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
         self.mode.distinct_cache_provider()
-    }
-
-    async fn create_distinct_cache(
-        &self,
-        db_schema: Arc<DatabaseSchema>,
-        cache_name: Option<String>,
-        args: CreateDistinctCacheArgs,
-    ) -> WriteBufferResult<Option<DistinctCacheDefinition>> {
-        self.mode
-            .create_distinct_cache(db_schema, cache_name, args)
-            .await
-    }
-
-    async fn delete_distinct_cache(
-        &self,
-        db_id: &DbId,
-        tbl_id: &TableId,
-        cache_name: &str,
-    ) -> WriteBufferResult<()> {
-        self.mode
-            .delete_distinct_cache(db_id, tbl_id, cache_name)
-            .await
-    }
-}
-
-#[async_trait::async_trait]
-impl<Mode: DatabaseManager> DatabaseManager for WriteBufferEnterprise<Mode> {
-    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error> {
-        self.mode.create_database(name).await
-    }
-    async fn soft_delete_database(&self, name: String) -> WriteBufferResult<()> {
-        self.mode.soft_delete_database(name).await
-    }
-
-    async fn create_table(
-        &self,
-        db: String,
-        table: String,
-        tags: Vec<String>,
-        fields: Vec<(String, String)>,
-    ) -> Result<(), write_buffer::Error> {
-        self.mode.create_table(db, table, tags, fields).await
-    }
-    async fn soft_delete_table(
-        &self,
-        db_name: String,
-        table_name: String,
-    ) -> WriteBufferResult<()> {
-        self.mode.soft_delete_table(db_name, table_name).await
     }
 }
 
@@ -237,11 +150,10 @@ mod tests {
         distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
+    use influxdb3_catalog::{catalog::Catalog, log::FieldDataType};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
-    use influxdb3_write::{
-        Bufferer, DatabaseManager, persister::Persister, test_helpers::WriteBufferTester,
-    };
+    use influxdb3_write::{Bufferer, persister::Persister, test_helpers::WriteBufferTester};
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
@@ -266,7 +178,15 @@ mod tests {
             node_id,
             Arc::clone(&time_provider),
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&non_cached_obj_store) as _,
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -387,7 +307,15 @@ mod tests {
             node_id,
             Arc::clone(&time_provider),
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&non_cached_obj_store) as _,
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -492,6 +420,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn ha_configuration_simultaneous_start_with_writes() {
         // setup globals:
+        let cluster_id = "test-cluster";
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
@@ -516,7 +445,13 @@ mod tests {
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
+            let h = tokio::spawn(setup_read_write(
+                tp,
+                os,
+                cluster_id,
+                node_id,
+                read_from_node_ids.into(),
+            ));
             handles.push(h);
         }
         let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -637,10 +572,12 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
+        let cluster_id = "dethklok";
         let node_id = "skwisgaar";
         let write_buffer = setup_read_write(
             Arc::<MockProvider>::clone(&time_provider),
             object_store,
+            cluster_id,
             node_id,
             // pass in the writer itself to be replicated (which we don't want it to do):
             vec![node_id],
@@ -682,6 +619,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn create_db_and_table_on_separate_replicated_write_buffers() {
         // setup globals:
+        let cluster_id = "nine_nine";
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
@@ -706,7 +644,13 @@ mod tests {
         ] {
             let tp = Arc::clone(&time_provider);
             let os = Arc::clone(&object_store);
-            let h = tokio::spawn(setup_read_write(tp, os, node_id, read_from_node_ids.into()));
+            let h = tokio::spawn(setup_read_write(
+                tp,
+                os,
+                cluster_id,
+                node_id,
+                read_from_node_ids.into(),
+            ));
             handles.push(h);
         }
         let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
@@ -718,17 +662,19 @@ mod tests {
 
         // create the db on the first writer:
         writer_buffers[0]
-            .create_database("foo".to_string())
+            .catalog()
+            .create_database("foo")
             .await
             .expect("create database foo");
 
         // now create the table on the second writer:
         writer_buffers[1]
+            .catalog()
             .create_table(
-                "foo".to_string(),
-                "bar".to_string(),
-                vec!["tag1".to_string()],
-                vec![("field1".to_string(), "uint64".into())],
+                "foo",
+                "bar",
+                &["tag1"],
+                &[("field1", FieldDataType::UInteger)],
             )
             .await
             .expect("create table bar on database foo");
@@ -793,6 +739,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn two_writers_deletes_do_not_propagate_endlessly() {
         // setup globals:
+        let cluster_id = "nielson";
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store = Arc::new(InMemory::new());
 
@@ -820,6 +767,7 @@ mod tests {
             let h = tokio::spawn(setup_read_write(
                 tp,
                 os,
+                cluster_id,
                 writer_id,
                 read_from_writer_ids.into(),
             ));
@@ -864,7 +812,8 @@ mod tests {
 
         // now send a delete to the database:
         write_buffers[0]
-            .soft_delete_database("movie_ratings".to_string())
+            .catalog()
+            .soft_delete_database("movie_ratings")
             .await
             .unwrap();
 
@@ -873,27 +822,38 @@ mod tests {
 
         // now send a delete to the database again but this time through the other writer:
         write_buffers[1]
-            .soft_delete_database("movie_ratings".to_string())
+            .catalog()
+            .soft_delete_database("movie_ratings")
             .await
             .unwrap();
 
         // now wait for some more wal flush intervals to go by:
         tokio::time::sleep(Duration::from_millis(500)).await;
 
-        // now delete them in both writers at the same time:
+        // now delete them in both writers at the same time, one of these will fail with NOT_FOUND:
         let mut handles = vec![];
         for write_buffer in &write_buffers {
             let write_buffer_cloned = Arc::clone(write_buffer);
             let handle = tokio::spawn(async move {
                 write_buffer_cloned
-                    .soft_delete_database("movie_ratings".to_string())
+                    .catalog()
+                    .soft_delete_database("movie_ratings")
                     .await
-                    .unwrap()
             });
             handles.push(handle);
         }
 
-        let _ = try_join_all(handles).await.unwrap();
+        let delete_results = try_join_all(handles).await.unwrap();
+        assert_eq!(delete_results.iter().filter(|r| r.is_ok()).count(), 1);
+        assert_eq!(
+            delete_results
+                .iter()
+                .filter(|r| r
+                    .as_ref()
+                    .is_err_and(|e| matches!(e, influxdb3_catalog::CatalogError::NotFound)))
+                .count(),
+            1
+        );
 
         // now wait for some more wal flush intervals to go by:
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -922,6 +882,7 @@ mod test_helpers {
     use data_types::NamespaceName;
     use datafusion::{arrow::array::RecordBatch, execution::context::SessionContext};
     use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_wal::WalConfig;
     use influxdb3_write::{Precision, WriteBuffer, persister::Persister};
     use iox_query::{
@@ -1030,7 +991,10 @@ mod test_helpers {
     pub(crate) async fn setup_read_write(
         time_provider: Arc<dyn TimeProvider>,
         object_store: Arc<dyn ObjectStore>,
+        cluster_id: &str,
         node_id: &str,
+        // NOTE(trevor/catalog-refactor): cluster-wide catalog should eventually make this unnecessary
+        // as nodes can be read from based on their registration in the catalog
         read_from_node_ids: Vec<&str>,
     ) -> WriteBufferEnterprise<ReadWriteMode> {
         let persister = Arc::new(Persister::new(
@@ -1038,7 +1002,19 @@ mod test_helpers {
             node_id,
             Arc::clone(&time_provider),
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
+        catalog
+            .register_node(node_id, 1, influxdb3_catalog::log::NodeMode::ReadWrite)
+            .await
+            .unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),

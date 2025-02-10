@@ -20,19 +20,31 @@ influxdb3_wal = { path = "../influxdb3_wal" }
 anyhow.workspace = true
 arrow.workspace = true
 bimap.workspace = true
+bitcode.workspace = true
+byteorder.workspace = true
+bytes.workspace = true
 chrono.workspace = true
+clap.workspace = true
+crc32fast.workspace = true
+cron.workspace = true
+futures.workspace = true
 hashbrown.workspace = true
+humantime.workspace = true
 indexmap.workspace = true
+object_store.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true
+test-log.workspace = true
 
 [lints]
 workspace = true

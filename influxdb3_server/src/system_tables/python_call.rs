@@ -3,20 +3,20 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::common::Result;
 use datafusion::logical_expr::Expr;
+use influxdb3_catalog::log::CreateTriggerLog;
 use influxdb3_py_api::logging::ProcessingEngineLog;
 use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
-use influxdb3_wal::TriggerDefinition;
 use iox_system_tables::IoxSystemTable;
 use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) struct ProcessingEngineTriggerTable {
     schema: SchemaRef,
-    triggers: Vec<TriggerDefinition>,
+    triggers: Vec<CreateTriggerLog>,
 }
 
 impl ProcessingEngineTriggerTable {
-    pub(super) fn new(triggers: Vec<TriggerDefinition>) -> Self {
+    pub(super) fn new(triggers: Vec<CreateTriggerLog>) -> Self {
         Self {
             schema: trigger_schema(),
             triggers,

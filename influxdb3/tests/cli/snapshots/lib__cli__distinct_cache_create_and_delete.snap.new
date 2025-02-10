@@ -1,11 +1,12 @@
 ---
 source: influxdb3/tests/cli/mod.rs
+assertion_line: 1212
 expression: result
 ---
 new cache created: {
   "catalog_batch": {
     "Database": {
-      "time_ns": 1741121586981639000,
+      "time_ns": 1741121638778557000,
       "database_id": 0,
       "database_name": "foo",
       "ops": [

@@ -1,16 +1,6 @@
-use crate::environment::{PluginEnvironmentError, PythonEnvironmentManager};
-use bytes::Bytes;
-use hashbrown::HashMap;
-use hyper::{Body, Response};
-use influxdb3_internal_api::query_executor::QueryExecutor;
-use influxdb3_types::http::{
-    SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
-    WalPluginTestResponse,
-};
-use influxdb3_wal::{TriggerSettings, TriggerSpecificationDefinition};
-use influxdb3_write::WriteBuffer;
+use crate::environment::PluginEnvironmentError;
+use influxdb3_catalog::CatalogError;
 use std::fmt::Debug;
-use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -19,7 +9,7 @@ pub enum ProcessingEngineError {
     DatabaseNotFound(String),
 
     #[error("catalog update error: {0}")]
-    CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
+    CatalogUpdateError(#[from] CatalogError),
 
     #[error("write buffer error: {0}")]
     WriteBufferError(#[from] influxdb3_write::write_buffer::Error),
@@ -47,81 +37,4 @@ pub enum ProcessingEngineError {
 
     #[error("error installing python packages: {0}")]
     PythonPackageError(#[from] PluginEnvironmentError),
-}
-
-/// `[ProcessingEngineManager]` is used to interact with the processing engine,
-/// in particular plugins and triggers.
-///
-#[async_trait::async_trait]
-pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
-    #[allow(clippy::too_many_arguments)]
-    async fn insert_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: String,
-        plugin_filename: String,
-        trigger_settings: TriggerSettings,
-        trigger_specification: TriggerSpecificationDefinition,
-        trigger_arguments: Option<HashMap<String, String>>,
-        disabled: bool,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn delete_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> Result<(), ProcessingEngineError>;
-
-    /// Starts running the trigger, which will run in the background.
-    async fn run_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        processing_engine_manager: Arc<dyn ProcessingEngineManager>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn disable_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn enable_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        manager: Arc<dyn ProcessingEngineManager>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn start_triggers(
-        &self,
-        manager: Arc<dyn ProcessingEngineManager>,
-    ) -> Result<(), ProcessingEngineError>;
-
-    async fn test_wal_plugin(
-        &self,
-        request: WalPluginTestRequest,
-        query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<WalPluginTestResponse, crate::plugins::PluginError>;
-
-    async fn test_schedule_plugin(
-        &self,
-        request: SchedulePluginTestRequest,
-        query_executor: Arc<dyn QueryExecutor>,
-    ) -> Result<SchedulePluginTestResponse, crate::plugins::PluginError>;
-
-    async fn request_trigger(
-        &self,
-        trigger_path: &str,
-        query_params: HashMap<String, String>,
-        request_headers: HashMap<String, String>,
-        request_body: Bytes,
-    ) -> Result<Response<Body>, ProcessingEngineError>;
-
-    fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager>;
 }

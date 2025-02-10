@@ -10,19 +10,19 @@ use crate::server::{ConfigProvider, TestServer, enterprise::tmp_dir};
 async fn two_primaries_one_replica() {
     let obj_store_path = tmp_dir();
     // create two primaries:
-    let spock = TestServer::configure_pro()
+    let spock = TestServer::configure_enterprise()
         .with_node_id("spock")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
-    let tuvok = TestServer::configure_pro()
+    let tuvok = TestServer::configure_enterprise()
         .with_node_id("tuvok")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
 
     // create a replica that replicates both:
-    let replica = TestServer::configure_pro()
+    let replica = TestServer::configure_enterprise()
         .with_node_id("replica")
         .with_mode(BufferMode::Read)
         .with_read_from_node_ids(["spock", "tuvok"])
@@ -83,12 +83,12 @@ async fn two_primaries_one_replica() {
 async fn replicate_last_cache() {
     let obj_store_path = tmp_dir();
     // create two primaries:
-    let spock = TestServer::configure_pro()
+    let spock = TestServer::configure_enterprise()
         .with_node_id("spock")
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
-    let tuvok = TestServer::configure_pro()
+    let tuvok = TestServer::configure_enterprise()
         .with_node_id("tuvok")
         .with_object_store(&obj_store_path)
         .spawn()
@@ -117,7 +117,7 @@ async fn replicate_last_cache() {
     );
 
     // create a replica that replicates both:
-    let replica = TestServer::configure_pro()
+    let replica = TestServer::configure_enterprise()
         .with_node_id("replica")
         .with_mode(BufferMode::Read)
         .with_read_from_node_ids(["spock", "tuvok"])

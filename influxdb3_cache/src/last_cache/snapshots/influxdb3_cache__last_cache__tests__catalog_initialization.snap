@@ -1,7 +1,6 @@
 ---
 source: influxdb3_cache/src/last_cache/mod.rs
 expression: caches
-snapshot_kind: text
 ---
 [
   {
@@ -9,8 +8,7 @@ snapshot_kind: text
     "table": "test_table_1",
     "name": "test_cache_1",
     "key_columns": [
-      0,
-      1
+      0
     ],
     "value_columns": "all_non_key_columns",
     "count": 1,
@@ -21,13 +19,13 @@ snapshot_kind: text
     "table": "test_table_2",
     "name": "test_cache_2",
     "key_columns": [
-      6
+      0
     ],
     "value_columns": {
       "explicit": {
         "columns": [
-          8,
-          7
+          1,
+          3
         ]
       }
     },
@@ -42,8 +40,8 @@ snapshot_kind: text
     "value_columns": {
       "explicit": {
         "columns": [
-          9,
-          7
+          2,
+          3
         ]
       }
     },

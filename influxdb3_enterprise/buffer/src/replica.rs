@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId as IoxTableId,
     TransitionPartitionId,
@@ -13,17 +13,15 @@ use influxdb3_cache::{
     last_cache::LastCacheProvider,
     parquet_cache::{CacheRequest, ParquetCacheOracle},
 };
-use influxdb3_catalog::catalog::{
-    Catalog, DatabaseSchema, TableDefinition, enterprise::CatalogIdMap,
-};
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
-use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_wal::{
-    SnapshotDetails, Wal, WalContents, WalFileSequenceNumber, WalOp, object_store::wal_path,
+    SnapshotDetails, WalContents, WalFileSequenceNumber, WalOp, object_store::wal_path,
     serialize::verify_file_type_and_deserialize,
 };
 use influxdb3_write::{
-    ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
+    ChunkFilter, ParquetFile, PersistedSnapshot,
     chunk::BufferChunk,
     paths::SnapshotInfoFilePath,
     persister::{DEFAULT_OBJECT_STORE_URL, Persister},
@@ -84,11 +82,13 @@ pub(crate) struct CreateReplicasArgs {
     pub object_store: Arc<dyn ObjectStore>,
     pub metric_registry: Arc<Registry>,
     pub replication_interval: Duration,
+    // NOTE(trevor/catalog-refactor): this needs to go, nodes can just be pulled from the catalog
+    // once there is a mechanism for handling the broadcast of a RegisterNodeLog through the
+    // catalog.
     pub node_ids: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
     pub time_provider: Arc<dyn TimeProvider>,
-    pub wal: Option<Arc<dyn Wal>>,
 }
 
 impl Replicas {
@@ -103,7 +103,6 @@ impl Replicas {
             parquet_cache,
             catalog,
             time_provider,
-            wal,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicated_buffers = vec![];
@@ -115,7 +114,6 @@ impl Replicas {
             let parquet_cache = parquet_cache.clone();
             let catalog = Arc::clone(&catalog);
             let time_provider = Arc::clone(&time_provider);
-            let wal = wal.clone();
             info!(%node_identifier_prefix, "creating replicated buffer for writer");
             replicated_buffers.push(
                 ReplicatedBuffer::new(CreateReplicatedBufferArgs {
@@ -129,7 +127,6 @@ impl Replicas {
                     parquet_cache,
                     catalog,
                     time_provider,
-                    wal,
                 })
                 .await?,
             )
@@ -251,86 +248,10 @@ pub(crate) struct ReplicatedBuffer {
     persisted_files: Arc<PersistedFiles>,
     last_cache: Arc<LastCacheProvider>,
     distinct_cache: Arc<DistinctCacheProvider>,
-    catalog: Arc<ReplicatedCatalog>,
+    catalog: Arc<Catalog>,
     metrics: ReplicatedBufferMetrics,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     time_provider: Arc<dyn TimeProvider>,
-    wal: Option<Arc<dyn Wal>>,
-}
-
-#[derive(Debug)]
-struct ReplicatedCatalog {
-    catalog: Arc<Catalog>,
-    id_map: Arc<parking_lot::Mutex<CatalogIdMap>>,
-}
-
-impl ReplicatedCatalog {
-    /// Create a replicated catalog from a primary, i.e., local catalog, and the catalog of another
-    /// write buffer that is being replicated.
-    fn new(primary: Arc<Catalog>, replica: Arc<Catalog>) -> Result<Self> {
-        let id_map = primary
-            .merge(replica)
-            .context("unable to merge replica catalog with primary")?;
-        Ok(Self {
-            catalog: primary,
-            id_map: Arc::new(parking_lot::Mutex::new(id_map)),
-        })
-    }
-
-    /// Merge the `other` catalog into this one
-    ///
-    /// This may be needed if the replicated catalog is re-initialized
-    fn merge_catlog(&self, other: Arc<Catalog>) -> Result<()> {
-        let ids = self
-            .catalog
-            .merge(other)
-            .context("failed to merge other catalog into this replicated catalog")?;
-        self.id_map.lock().extend(ids);
-        Ok(())
-    }
-
-    fn map_wal_contents(&self, wal_contents: WalContents) -> Result<WalContents> {
-        self.id_map
-            .lock()
-            .map_wal_contents(&self.catalog, wal_contents)
-            .context("failed to map WAL contents")
-            .map_err(Into::into)
-    }
-
-    fn map_snapshot_contents(&self, snapshot: PersistedSnapshot) -> Result<PersistedSnapshot> {
-        let id_map = self.id_map.lock();
-        Ok(PersistedSnapshot {
-            databases: snapshot
-                .databases
-                .into_iter()
-                .map(|(replica_db_id, db_tables)| {
-                    let local_db_id = id_map.map_db_id(&replica_db_id).ok_or_else(|| {
-                        Error::Unexpected(anyhow!(
-                            "invalid database id in persisted snapshot: {replica_db_id}"
-                        ))
-                    })?;
-                    Ok((
-                        local_db_id,
-                        DatabaseTables {
-                            tables: db_tables
-                                .tables
-                                .into_iter()
-                                .map(|(replica_table_id, files)| {
-                                    Ok((
-                                        id_map
-                                            .map_table_id(&replica_table_id)
-                                            .ok_or_else(|| Error::Unexpected(anyhow!("invalid table id in persisted snapshot: {replica_table_id}")))?,
-                                        files,
-                                    ))
-                                })
-                                .collect::<Result<SerdeVecMap<_, _>>>()?,
-                        },
-                    ))
-                })
-                .collect::<Result<SerdeVecMap<DbId, DatabaseTables>>>()?,
-            ..snapshot
-        })
-    }
 }
 
 pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr_duration";
@@ -339,8 +260,6 @@ pub const REPLICA_TTBR_METRIC: &str = "influxdb3_replica_ttbr_duration";
 struct ReplicatedBufferMetrics {
     replica_ttbr: DurationHistogram,
 }
-
-const REPLICA_CATALOG_RETRY_INTERVAL_SECONDS: u64 = 1;
 
 pub(crate) struct CreateReplicatedBufferArgs {
     replica_order: i64,
@@ -353,7 +272,6 @@ pub(crate) struct CreateReplicatedBufferArgs {
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     catalog: Arc<Catalog>,
     time_provider: Arc<dyn TimeProvider>,
-    wal: Option<Arc<dyn Wal>>,
 }
 
 impl ReplicatedBuffer {
@@ -369,16 +287,14 @@ impl ReplicatedBuffer {
             parquet_cache,
             catalog,
             time_provider,
-            wal,
         }: CreateReplicatedBufferArgs,
     ) -> Result<Arc<Self>> {
-        let (persisted_catalog, persisted_snapshots) =
-            get_persisted_catalog_and_snapshots_for_writer(
-                Arc::clone(&object_store),
-                &node_identifier_prefix,
-                Arc::clone(&time_provider),
-            )
-            .await?;
+        let persisted_snapshots = get_persisted_snapshots_for_writer(
+            Arc::clone(&object_store),
+            &node_identifier_prefix,
+            Arc::clone(&time_provider),
+        )
+        .await?;
         let node_id: Cow<'static, str> = Cow::from(node_identifier_prefix.clone());
         let attributes = Attributes::from([("from_node_id", node_id)]);
         let replica_ttbr = metric_registry
@@ -387,14 +303,7 @@ impl ReplicatedBuffer {
                 "time to be readable for the data in each replicated write buffer",
             )
             .recorder(attributes);
-        let replica_catalog = ReplicatedCatalog::new(Arc::clone(&catalog), persisted_catalog)?;
-        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(
-            &replica_catalog.catalog,
-        ))));
-        let persisted_snapshots = persisted_snapshots
-            .into_iter()
-            .map(|snapshot| replica_catalog.map_snapshot_contents(snapshot))
-            .collect::<Result<Vec<_>>>()?;
+        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
         let last_snapshotted_wal_file_sequence_number = persisted_snapshots
             .first()
             .map(|snapshot| snapshot.wal_file_sequence_number);
@@ -412,9 +321,8 @@ impl ReplicatedBuffer {
             distinct_cache,
             metrics: ReplicatedBufferMetrics { replica_ttbr },
             parquet_cache,
-            catalog: Arc::new(replica_catalog),
+            catalog,
             time_provider,
-            wal,
         };
         let last_wal_file_sequence_number = replicated_buffer
             .replay(last_snapshotted_wal_file_sequence_number)
@@ -430,7 +338,7 @@ impl ReplicatedBuffer {
     }
 
     fn catalog(&self) -> Arc<Catalog> {
-        Arc::clone(&self.catalog.catalog)
+        Arc::clone(&self.catalog)
     }
 
     #[cfg(test)]
@@ -555,21 +463,19 @@ impl ReplicatedBuffer {
     }
 
     /// Reload the snapshots and catalog for this writer
-    async fn reload_snapshots_and_catalog(&self) -> Result<()> {
-        let (persisted_catalog, persisted_snapshots) =
-            get_persisted_catalog_and_snapshots_for_writer(
-                Arc::clone(&self.object_store),
-                &self.node_identifier_prefix,
-                Arc::clone(&self.time_provider),
-            )
-            .await?;
+    async fn reload_snapshots(&self) -> Result<()> {
+        let persisted_snapshots = get_persisted_snapshots_for_writer(
+            Arc::clone(&self.object_store),
+            &self.node_identifier_prefix,
+            Arc::clone(&self.time_provider),
+        )
+        .await?;
 
-        self.catalog.merge_catlog(persisted_catalog)?;
         for persisted_snapshot in persisted_snapshots {
-            self.persisted_files.add_persisted_snapshot_files(
-                self.catalog.map_snapshot_contents(persisted_snapshot)?,
-            );
+            self.persisted_files
+                .add_persisted_snapshot_files(persisted_snapshot);
         }
+
         Ok(())
     }
 
@@ -667,17 +573,34 @@ impl ReplicatedBuffer {
 
     /// Replay the given [`WalContents`].
     ///
-    /// This will map identifiers within the `WalContents`, i.e., those on the replicated write buffer, to
-    /// those of the local catalog, then apply the `WalContents` to the local buffer, handling
-    /// snapshots if present.
-    ///
-    /// If this replicated buffer is running on a write-enabled server, any catalog batches will be
-    /// extracted from the `WalContents` and written to the local pirimary buffer's WAL.
+    /// The maximum catalog sequence is extracted from the replayed WAL files and used to update
+    /// the local catalog if they are in advance of that.
     async fn replay_wal_file(&self, wal_contents: WalContents) -> Result<()> {
         let persist_time_ms = wal_contents.persist_timestamp_ms;
 
-        let wal_contents = self.catalog.map_wal_contents(wal_contents)?;
-        self.apply_catalog_batches_to_local(&wal_contents).await?;
+        // get the latest catalog sequence from the wal contents so catalog can be updated
+        if let Some(latest_catalog_sequence) = wal_contents
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                WalOp::Write(write_batch) => Some(write_batch.catalog_sequence),
+                WalOp::Noop(_) => None,
+            })
+            .max()
+            .map(CatalogSequenceNumber::new)
+        {
+            debug!(
+                catlog_sequence_from_wal = latest_catalog_sequence.get(),
+                current_catalog_sequence = self.catalog.sequence_number().get(),
+                catalog = ?self.catalog,
+                from_node = self.node_identifier_prefix,
+                "updating catalog for replica to latest from WAL"
+            );
+            self.catalog
+                .update_to_sequence_number(latest_catalog_sequence)
+                .await
+                .context("failed to update the catalog from latest sequence number found in replicated WAL file")?;
+        }
 
         match wal_contents.snapshot {
             None => self.buffer_wal_contents(wal_contents),
@@ -688,52 +611,6 @@ impl ReplicatedBuffer {
 
         self.record_ttbr(persist_time_ms);
 
-        Ok(())
-    }
-
-    /// Apply catalog batches from a WAL file to the local catalog if this replica is tied to a
-    /// local primary buffer that has a WAL
-    ///
-    /// This is to ensure that catalog updates received by other replicated write buffers are also made
-    /// durable on the local buffer
-    ///
-    /// Replicated catalog batches are extracted from the mapped [`WalContents`] and filtered to
-    /// remove any that would not actually change the local catalog to prevent insertion of ops
-    /// to the local WAL that make changes that were already applied locally or by other replicas.
-    async fn apply_catalog_batches_to_local(
-        &self,
-        mapped_wal_contents: &WalContents,
-    ) -> Result<()> {
-        let Some(wal) = self.wal.as_ref() else {
-            return Ok(());
-        };
-        let catalog_ops: Vec<WalOp> = mapped_wal_contents
-            .ops
-            .iter()
-            .filter_map(|op| match op {
-                WalOp::Write(_) => None,
-                WalOp::Catalog(ordered_catalog_batch) => Some(
-                    self.catalog
-                        .catalog
-                        .apply_catalog_batch(ordered_catalog_batch.clone().batch())
-                        .transpose()?
-                        .map(WalOp::Catalog)
-                        .context("failed to apply and order the replicated catalog batch")
-                        .map_err(Into::into),
-                ),
-                WalOp::Noop(_) => None,
-            })
-            .collect::<Result<Vec<_>>>()?;
-        if !catalog_ops.is_empty() {
-            info!(
-                from_node_id = self.node_identifier_prefix,
-                "writing catalog ops from replicated write buffer to local WAL"
-            );
-            debug!(?catalog_ops, ">>> catalog ops being written");
-            wal.write_ops(catalog_ops)
-                .await
-                .context("failed to write replicated catalog ops to local WAL")?;
-        }
         Ok(())
     }
 
@@ -769,7 +646,8 @@ impl ReplicatedBuffer {
         self.distinct_cache
             .write_wal_contents_to_cache(&wal_contents);
         let mut buffer = self.buffer.write();
-        buffer.buffer_ops(&wal_contents.ops, &self.last_cache, &self.distinct_cache);
+        // TODO: what about the catalog stuff :shrug:
+        buffer.buffer_write_ops(&wal_contents.ops);
     }
 
     fn buffer_wal_contents_and_handle_snapshots(
@@ -788,7 +666,8 @@ impl ReplicatedBuffer {
             // when it is no longer needed, and is not held accross
             // await points below, which the compiler does not allow
             let mut buffer = self.buffer.write();
-            buffer.buffer_ops(&wal_contents.ops, &self.last_cache, &self.distinct_cache);
+            // TODO: what about the catalog stuff :shrug:
+            buffer.buffer_write_ops(&wal_contents.ops);
             for (db_id, tbl_map) in buffer.db_to_table.iter_mut() {
                 let db_schema = catalog.db_schema_by_id(db_id).expect("db exists");
                 for (tbl_id, tbl_buf) in tbl_map.iter_mut() {
@@ -800,7 +679,6 @@ impl ReplicatedBuffer {
             }
         }
 
-        let node_id = self.node_identifier_prefix.clone();
         let snapshot_path = SnapshotInfoFilePath::new(
             &self.node_identifier_prefix,
             snapshot_details.snapshot_sequence_number,
@@ -809,7 +687,6 @@ impl ReplicatedBuffer {
         let buffer = Arc::clone(&self.buffer);
         let persisted_files = Arc::clone(&self.persisted_files);
         let parquet_cache = self.parquet_cache.clone();
-        let replica_catalog = Arc::clone(&self.catalog);
 
         tokio::spawn(async move {
             // Update the persisted files:
@@ -827,18 +704,6 @@ impl ReplicatedBuffer {
                             .expect("unable to collect get result from object storage into bytes");
                         let snapshot = serde_json::from_slice::<PersistedSnapshot>(&snapshot_bytes)
                             .expect("unable to deserialize snapshot bytes");
-                        // Map the IDs in the snapshot:
-                        let snapshot = replica_catalog
-                            .map_snapshot_contents(snapshot)
-                            .inspect_err(|error| {
-                                error!(
-                                    from_writer = node_id,
-                                    ?snapshot_path,
-                                    %error,
-                                    "the replicated write buffer produced an invalid snapshot file"
-                                );
-                            })
-                            .expect("failed to map the persisted snapshot file");
 
                         // Now that the snapshot has been loaded, clear the buffer of the data that
                         // was separated out previously and update the persisted files. If there is
@@ -902,56 +767,22 @@ impl ReplicatedBuffer {
     }
 }
 
-async fn get_persisted_catalog_and_snapshots_for_writer(
+async fn get_persisted_snapshots_for_writer(
     object_store: Arc<dyn ObjectStore>,
     node_identifier_prefix: &str,
     time_provider: Arc<dyn TimeProvider>,
-) -> Result<(Arc<Catalog>, Vec<PersistedSnapshot>)> {
-    // Create a temporary persister to load snapshot files and catalog
+) -> Result<Vec<PersistedSnapshot>> {
+    // Create a temporary persister to load snapshot files
     let persister = Persister::new(
         Arc::clone(&object_store),
         node_identifier_prefix,
         time_provider,
     );
-    let persisted_snapshots = persister
+    persister
         .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
         .await
-        .context("failed to load snapshots for replicated write buffer")?;
-    // Attempt to load the catalog for the replica in a retry loop. This is for the scenario
-    // where two writers are started at the same time, and the catalog may not be persisted
-    // yet in the other replicated writer when this code runs. So, the retry only happens when
-    // there are no catalogs found for the replica.
-    loop {
-        let catalog = match persister.load_catalog().await {
-            Ok(Some(persisted)) => Ok(Arc::new(Catalog::from_inner(persisted))),
-            Ok(None) => {
-                warn!(
-                    from_node_id = node_identifier_prefix,
-                    "there was no catalog for replicated write buffer, this may mean that it has \
-                            not been persisted to object store yet, or that the node-id of the \
-                            replica was not specified correctly, will retry in {} second(s)",
-                    REPLICA_CATALOG_RETRY_INTERVAL_SECONDS
-                );
-                tokio::time::sleep(Duration::from_secs(REPLICA_CATALOG_RETRY_INTERVAL_SECONDS))
-                    .await;
-                continue;
-            }
-            Err(error) => {
-                error!(
-                    from_node_id = node_identifier_prefix,
-                    %error,
-                    "error when attempting to load catalog from replicated write buffer from \
-                    object store, will retry"
-                );
-                Err(error)
-            }
-        }
-        .context(
-            "received error from object store when accessing catalog for replica, \
-                    please see the logs",
-        )?;
-        break Ok((catalog, persisted_snapshots));
-    }
+        .context("failed to load snapshots for replicated write buffer")
+        .map_err(Into::into)
 }
 
 async fn get_wal_contents_from_object_store(
@@ -1066,7 +897,7 @@ fn background_replication_interval(
                     Ok(None) => {
                         // if nothing was replayed, for whatever reason, we try to do the initial
                         // snapshot and catalog load again...
-                        if let Err(error) = replicated_buffer.reload_snapshots_and_catalog().await {
+                        if let Err(error) = replicated_buffer.reload_snapshots().await {
                             error!(
                                 %error,
                                 from_node_id = replicated_buffer.node_identifier_prefix,
@@ -1092,21 +923,17 @@ fn background_replication_interval(
 mod tests {
     use std::{collections::HashMap, sync::Arc, time::Duration};
 
-    use datafusion::{assert_batches_sorted_eq, common::assert_contains};
+    use datafusion::assert_batches_sorted_eq;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::{
         distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
-    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{ColumnId, DbId, ParquetFileId, TableId};
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
-    use influxdb3_wal::{
-        CatalogBatch, FieldDataType, Gen1Duration, OrderedCatalogBatch, WalConfig, WalContents,
-        WalFileSequenceNumber, WalOp,
-    };
+    use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        ChunkFilter, DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot,
+        Bufferer, ChunkFilter, DistinctCacheManager, LastCacheManager, ParquetFile,
         persister::Persister,
         test_helpers::WriteBufferTester,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
@@ -1116,7 +943,6 @@ mod tests {
     use metric::{Attributes, DurationHistogram, Metric, Registry};
     use object_store::{ObjectStore, memory::InMemory, path::Path};
     use observability_deps::tracing::debug;
-    use schema::InfluxColumnType;
 
     use crate::{
         replica::{
@@ -1128,12 +954,11 @@ mod tests {
         },
     };
 
-    use super::ReplicatedCatalog;
-
     // TODO - this needs to be addressed, see:
     // https://github.com/influxdata/influxdb_pro/issues/375
     #[test_log::test(tokio::test)]
     async fn replay_and_replicate_other_wal() {
+        let cluster_id = "test_cluster";
         // Spin up a primary write buffer to do some writes and generate files in an object store:
         let primary_id = "espresso";
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -1147,6 +972,7 @@ mod tests {
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
         let primary = setup_primary(
             primary_id,
+            cluster_id,
             Arc::clone(&obj_store),
             WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
@@ -1192,6 +1018,15 @@ mod tests {
         .await;
 
         // Spin up a replicated buffer:
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&obj_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let replica = ReplicatedBuffer::new(CreateReplicatedBufferArgs {
             replica_order: 0,
             object_store: Arc::clone(&obj_store),
@@ -1201,12 +1036,8 @@ mod tests {
             replication_interval: Duration::from_millis(10),
             metric_registry: Arc::new(Registry::new()),
             parquet_cache: None,
-            catalog: Arc::new(Catalog::new(
-                "replica-host".into(),
-                "replica-instance".into(),
-            )),
+            catalog,
             time_provider: Arc::clone(&time_provider),
-            wal: None,
         })
         .await
         .unwrap();
@@ -1337,7 +1168,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn multi_replicated_buffers_with_overlap() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         // Create a session context:
@@ -1348,12 +1179,14 @@ mod tests {
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let cluster_id = "vulcans";
         // Spin up two primary write buffers to do some writes and generate files in an object store:
         let primary_ids = ["spock", "tuvok"];
         let mut primaries = HashMap::new();
         for p in primary_ids {
             let primary = setup_primary(
                 p,
+                cluster_id,
                 Arc::clone(&obj_store),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
@@ -1368,11 +1201,22 @@ mod tests {
         }
 
         // Spin up a set of replicated buffers:
+
+        // give the replicas a separate instance of the catalog so they manage reading updates to it
+        let replica_catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&obj_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let replicas = Replicas::new(CreateReplicasArgs {
-            last_cache: LastCacheProvider::new_from_catalog(primaries["spock"].catalog()).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&replica_catalog)).unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
-                primaries["spock"].catalog(),
+                Arc::clone(&replica_catalog),
             )
             .unwrap(),
             object_store: Arc::clone(&obj_store),
@@ -1380,9 +1224,8 @@ mod tests {
             replication_interval: Duration::from_millis(10),
             node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: None,
-            catalog: primaries["spock"].catalog(),
+            catalog: Arc::clone(&replica_catalog),
             time_provider,
-            wal: None,
         })
         .await
         .unwrap();
@@ -1474,9 +1317,13 @@ mod tests {
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        let cluster_id = "test_cluster";
+
         // Spin up a primary write buffer to do some writes and generate files in an object store:
         let primary = setup_primary(
             "newton",
+            cluster_id,
             Arc::clone(&obj_store),
             WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
@@ -1491,6 +1338,15 @@ mod tests {
         // Spin up a replicated buffer:
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&obj_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
         Replicas::new(CreateReplicasArgs {
             // just using the catalog from primary for caches since they aren't used:
             last_cache: LastCacheProvider::new_from_catalog(primary.catalog()).unwrap(),
@@ -1504,9 +1360,8 @@ mod tests {
             replication_interval: Duration::from_millis(replication_interval_ms),
             node_ids: vec!["newton".to_string()],
             parquet_cache: None,
-            catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
+            catalog,
             time_provider: Arc::<MockProvider>::clone(&time_provider),
-            wal: None,
         })
         .await
         .unwrap();
@@ -1575,12 +1430,14 @@ mod tests {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let cluster_id = "simpsons_characters";
         // spin up two primary write buffers:
         let primary_ids = ["skinner", "chalmers"];
         let mut primaries = HashMap::new();
         for p in primary_ids {
             let primary = setup_primary(
                 p,
+                cluster_id,
                 Arc::clone(&obj_store),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
@@ -1667,7 +1524,16 @@ mod tests {
             let ctx = IOxSessionContext::with_testing();
             let runtime_env = ctx.inner().runtime_env();
             register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
-            let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+
+            let catalog = Arc::new(
+                Catalog::new(
+                    cluster_id,
+                    Arc::clone(&test_store) as _,
+                    Arc::clone(&time_provider),
+                )
+                .await
+                .unwrap(),
+            );
             let replicas = Replicas::new(CreateReplicasArgs {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
@@ -1684,7 +1550,6 @@ mod tests {
                 parquet_cache: Some(parquet_cache),
                 catalog,
                 time_provider,
-                wal: None,
             })
             .await
             .unwrap();
@@ -1742,6 +1607,16 @@ mod tests {
             let ctx = IOxSessionContext::with_testing();
             let runtime_env = ctx.inner().runtime_env();
             register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&non_cached_obj_store));
+
+            let catalog = Arc::new(
+                Catalog::new(
+                    "replica",
+                    Arc::clone(&test_store) as _,
+                    Arc::clone(&time_provider),
+                )
+                .await
+                .unwrap(),
+            );
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
                 last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
@@ -1756,9 +1631,8 @@ mod tests {
                 replication_interval: Duration::from_millis(10),
                 node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: None,
-                catalog: Arc::new(Catalog::new("replica".into(), "replica".into())),
+                catalog,
                 time_provider,
-                wal: None,
             })
             .await
             .unwrap();
@@ -1816,6 +1690,7 @@ mod tests {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let cluster_id = "test_cluster";
         let primary_node_id = "primary_node";
         // spin up primary write buffers:
         let primary_ids = [primary_node_id];
@@ -1823,6 +1698,7 @@ mod tests {
         for p in primary_ids {
             let primary = setup_primary(
                 p,
+                cluster_id,
                 Arc::clone(&obj_store),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
@@ -1847,7 +1723,15 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
-        let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&test_store) as _,
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
 
         // This is a READ replica
         let replicas = Replicas::new(CreateReplicasArgs {
@@ -1864,7 +1748,6 @@ mod tests {
             parquet_cache: Some(parquet_cache),
             catalog,
             time_provider: Arc::clone(&time_provider),
-            wal: None,
         })
         .await
         .unwrap();
@@ -1947,6 +1830,7 @@ mod tests {
     async fn test_parquet_cache_in_query_path_single_read_replica() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let cluster_id = "test_cluster";
         let primary_node_id = "primary_node";
         // spin up primary write buffers:
         let primary_ids = [primary_node_id];
@@ -1954,6 +1838,7 @@ mod tests {
         for p in primary_ids {
             let primary = setup_primary(
                 p,
+                cluster_id,
                 Arc::clone(&obj_store),
                 WalConfig {
                     gen1_duration: Gen1Duration::new_1m(),
@@ -2007,7 +1892,16 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&cached_obj_store));
-        let catalog = Arc::new(Catalog::new("replica".into(), "replica".into()));
+        // create a new catalog for the replica instead of re-using the one from above:
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&test_store) as _,
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
 
         let replicas = Replicas::new(CreateReplicasArgs {
             last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
@@ -2023,7 +1917,6 @@ mod tests {
             parquet_cache: Some(parquet_cache),
             catalog,
             time_provider: Arc::clone(&time_provider) as _,
-            wal: None,
         })
         .await
         .unwrap();
@@ -2092,970 +1985,32 @@ mod tests {
         }
     }
 
-    #[test]
-    fn map_wal_content_for_replica_existing_db_new_table() {
-        // setup two catalogs, one as the "primary" i.e. local catalog that is shared between a
-        // local write buffer as well as replicas and a compactor, and one as a "replica", that is
-        // mapped onto the local primary
-        let primary = create::catalog("a");
-        let replica = create::catalog("b");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // get the DbId of the "foo" database as it is represented _on the replica_:
-        let db_id = replica.db_name_to_id("foo").unwrap();
-        // fabricate some WalContents that would originate from the "b" replica buffer that contain
-        // a single CreateTable operation for the table "pow" that does not exist locally:
-        let t1_col_id = ColumnId::new();
-        let wal_content = influxdb3_wal::create::wal_contents(
-            (0, 1, 0),
-            [influxdb3_wal::create::catalog_batch_op(
-                db_id,
-                "foo",
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    "foo",
-                    TableId::new(),
-                    "pow",
-                    [
-                        influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f1",
-                            FieldDataType::Boolean,
-                        ),
-                    ],
-                    [t1_col_id],
-                )],
-                0,
-            )],
-        );
-        // check the replicated catalog's id map before we map the above wal content
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        // do the mapping, which will allocate a new ID for the "pow" table locally:
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
-        // check the replicated catalog's id map again, which will contain an entry for the new table:
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        // check the mapped wal contents, which should now use the local IDs for DB/tables
-        insta::with_settings!({ description => "mapped WAL content for local catalog"}, {
-            insta::assert_yaml_snapshot!(mapped_wal_content);
-        });
-        // apply the mapped catalog batch to the primary catalog, as it would be done during replay:
-        primary
-            .apply_catalog_batch(&mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
-            .unwrap();
-        // check for the new table definition in the local primary catalog after the mapped batch
-        // was applied:
-        let db = primary.db_schema("foo").unwrap();
-        let tbl = db.table_definition("pow").unwrap();
-        insta::with_settings!({
-            description => "table definition in primary catalog after mapping and applying replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(tbl);
-        });
-    }
-
-    /// note that there isn't really a way to just do new db right now.
-    #[test]
-    fn map_wal_content_for_replica_new_db_new_table() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // create a new db and table id as if they were on the replica:
-        let db_id = DbId::new();
-        let table_id = TableId::new();
-        let t1_col_id = ColumnId::new();
-        let wal_content = influxdb3_wal::create::wal_contents(
-            (0, 1, 0),
-            [influxdb3_wal::create::catalog_batch_op(
-                db_id,
-                "sup",
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    "sup",
-                    table_id,
-                    "dog",
-                    [
-                        influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f1",
-                            FieldDataType::Float,
-                        ),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "time",
-                            FieldDataType::Timestamp,
-                        ),
-                    ],
-                    [t1_col_id],
-                )],
-                0,
-            )],
-        );
-        replica
-            .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-            .expect("catalog batch should apply successfully on replica catalog");
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        primary
-            .apply_catalog_batch(&mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
-            .unwrap();
-        let db = primary.db_schema("sup").unwrap();
-        insta::with_settings!({
-            description => "database schema in primary catalog after mapping and applying replica \
-            WAL content, should include table 'dog'"
-        }, {
-            insta::assert_yaml_snapshot!(db);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_new_db_new_table_already_on_local() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // create a new db and table as if they were on the local primary and apply it to the primary:
-        let (primary_db_id, primary_table_id) = {
-            let db_id = DbId::new();
-            let table_id = TableId::new();
-            let t1_col_id = ColumnId::new();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "fizz",
-                    0,
-                    [influxdb3_wal::create::create_table_op(
-                        db_id,
-                        "fizz",
-                        table_id,
-                        "buzz",
-                        [
-                            influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "f1",
-                                FieldDataType::Float,
-                            ),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "time",
-                                FieldDataType::Timestamp,
-                            ),
-                        ],
-                        [t1_col_id],
-                    )],
-                    0,
-                )],
-            );
-            primary
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("catalog batch should apply successfully on primary catalog");
-            (db_id, table_id)
-        };
-        // now do the same thing as if the db/table were created separately on the replica:
-        let (replica_db_id, replica_table_id, replica_wal_content) = {
-            let db_id = DbId::new();
-            let table_id = TableId::new();
-            let t1_col_id = ColumnId::new();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "fizz",
-                    0,
-                    [influxdb3_wal::create::create_table_op(
-                        db_id,
-                        "fizz",
-                        table_id,
-                        "buzz",
-                        [
-                            influxdb3_wal::create::field_def(t1_col_id, "t1", FieldDataType::Tag),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "f1",
-                                FieldDataType::Float,
-                            ),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "time",
-                                FieldDataType::Timestamp,
-                            ),
-                        ],
-                        [t1_col_id],
-                    )],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("catalog batch should apply successfully on replica catalog");
-            (db_id, table_id, wal_content)
-        };
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        let mapped_wal_content = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .unwrap();
-        // the replicated catalog ops would not result in changes, so they are ignored:
-        assert!(mapped_wal_content.ops.is_empty());
-        let id_map = replicated_catalog.id_map.lock().clone();
-        assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
-        assert_eq!(
-            primary_table_id,
-            id_map.map_table_id(&replica_table_id).unwrap()
-        );
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_field_additions() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // there is a db called "foo" and a table called "bar" already, but get their IDs on the
-        // replica's catalog, so we can use the ID map to map them onto the primary
-        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-        let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let wal_content = influxdb3_wal::create::wal_contents(
-            (0, 1, 0),
-            [influxdb3_wal::create::catalog_batch_op(
-                db_id,
-                "foo",
-                0,
-                [influxdb3_wal::create::add_fields_op(
-                    db_id,
-                    "foo",
-                    table_id,
-                    "bar",
-                    [influxdb3_wal::create::field_def(
-                        ColumnId::new(),
-                        "f4",
-                        FieldDataType::Float,
-                    )],
-                )],
-                0,
-            )],
-        );
-        replica
-            .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-            .expect("catalog batch should apply successfully to the replica catalog");
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        // apply the mapped wal content to the primary:
-        primary
-            .apply_catalog_batch(&mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
-            .unwrap();
-        let db = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            description => "database schema in primary catalog after mapping and applying replica \
-            WAL content, table 'bar' should include field 'f4'"
-        }, {
-            insta::assert_yaml_snapshot!(db);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_field_additions_already_on_primary() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // perform a set of field additions on the primary, and then separately on the replica.
-        let (primary_db_id, primary_table_id) = {
-            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::add_fields_op(
-                        db_id,
-                        "foo",
-                        table_id,
-                        "bar",
-                        [influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f4",
-                            FieldDataType::Float,
-                        )],
-                    )],
-                    0,
-                )],
-            );
-            primary
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("catalog batch should apply on primary");
-            (db_id, table_id)
-        };
-        let (replica_db_id, replica_table_id, replica_wal_content) = {
-            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::add_fields_op(
-                        db_id,
-                        "foo",
-                        table_id,
-                        "bar",
-                        [influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f4",
-                            FieldDataType::Float,
-                        )],
-                    )],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("catalog batch should apply on primary");
-            (db_id, table_id, wal_content)
-        };
-        // the same field additions have been made on both primary and replica independently, now
-        // check the id map in the replicated catalog before mapping the wal content from the
-        // replica onto the primary
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        let mapped_wal_content = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .unwrap();
-        // the catalog op would not result in changes, so it is ignored:
-        assert!(mapped_wal_content.ops.is_empty());
-        let id_map = replicated_catalog.id_map.lock().clone();
-        assert_eq!(primary_db_id, id_map.map_db_id(&replica_db_id).unwrap());
-        assert_eq!(
-            primary_table_id,
-            id_map.map_table_id(&replica_table_id).unwrap()
-        );
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        // check the structure of the db schema in primary to ensure only one "f4" column is there:
-        let db = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "db schema in primary after applying mapped replica batch, there should \
-            be a single field 'f4' in the 'bar' table."
-        }, {
-            insta::assert_yaml_snapshot!(db);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_last_cache_create_and_delete() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // create a last cache on the replica:
-        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-        let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
-        let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-        let wal_content = influxdb3_wal::create::wal_contents(
-            (0, 1, 0),
-            [influxdb3_wal::create::catalog_batch_op(
-                db_id,
-                "foo",
-                0,
-                [influxdb3_wal::create::create_last_cache_op_builder(
-                    table_id,
-                    "bar",
-                    "test_cache",
-                    [t1_col_id],
-                )
-                .build()],
-                0,
-            )],
-        );
-        replica
-            .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-            .expect("catalog batch should apply successfully on replica catalog");
-        let id_map = replicated_catalog.id_map.lock().clone();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map before mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
-        let id_map = replicated_catalog.id_map.lock().clone();
-        // NOTE: this wont have changed, unless we give last caches IDs
-        insta::with_settings!({
-            sort_maps => true,
-            description => "id map after mapping replica WAL content"
-        }, {
-            insta::assert_yaml_snapshot!(id_map);
-        });
-        primary
-            .apply_catalog_batch(&mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
-            .unwrap();
-        let db = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            description => "database schema with table 'bar' that now has a last cache definition \
-            from the replica"
-        }, {
-            insta::assert_yaml_snapshot!(db);
-        });
-        // now delete the last cache on the replica:
-        let wal_content = influxdb3_wal::create::wal_contents(
-            (0, 1, 0),
-            [influxdb3_wal::create::catalog_batch_op(
-                db_id,
-                "foo",
-                0,
-                [influxdb3_wal::create::delete_last_cache_op(
-                    table_id,
-                    "bar",
-                    "test_cache",
-                )],
-                0,
-            )],
-        );
-        replica
-            .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-            .expect("catalog batch to delete last cache should apply on replica catalog");
-        let mapped_wal_content = replicated_catalog.map_wal_contents(wal_content).unwrap();
-        primary
-            .apply_catalog_batch(&mapped_wal_content.ops[0].as_catalog().cloned().unwrap())
-            .expect("mapped catalog batch should apply on primary to delete last cache");
-        let db = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            description => "database schema with table 'bar' that no longer has a last cache"
-        }, {
-            insta::assert_yaml_snapshot!(db);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_last_cache_create_already_on_primary() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // create the same last cache on both primary and replica:
-        {
-            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
-            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::create_last_cache_op_builder(
-                        table_id,
-                        "bar",
-                        "test_cache",
-                        [t1_col_id],
-                    )
-                    .build()],
-                    0,
-                )],
-            );
-            primary
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to primary to create last cache");
-        }
-        let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
-            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::create_last_cache_op_builder(
-                        table_id,
-                        "bar",
-                        "test_cache",
-                        [t1_col_id],
-                    )
-                    .build()],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to replica to create last cache");
-            wal_content
-        };
-        let mapped_wal_content = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .unwrap();
-        // the replicated catalog op would not result in a change, so it is ignored:
-        assert!(mapped_wal_content.ops.is_empty());
-        // check the structure of the primary db schema to ensure it has only a single last cache:
-        let db_before_applying = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            description => "database schema for 'foo' db before applying the mapped catalog \
-            batch from the replica; it should have a 'bar' table containing a single last cache \
-            definition"
-        }, {
-            insta::assert_yaml_snapshot!(db_before_applying);
-        });
-        // check structure of the db schema on primary to ensure only a single last cache:
-        let db_after_applying = primary.db_schema("foo").unwrap();
-        insta::with_settings!({
-            description => "database schema for 'foo' db after applying the mapped catalog batch \
-            from the replica; it should still have a 'bar' table containing just a single last \
-            cache definition"
-        }, {
-            insta::assert_yaml_snapshot!(db_after_applying);
-        });
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_with_incompatible_last_cache_def() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // Simulate a WalOp on each writer that creates a last cache using the same cache
-        // name, but with different cache configurations.
-        //
-        // First on the primary:
-        {
-            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
-            let (table_id, table_def) = db_schema.table_id_and_definition("bar").unwrap();
-            let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::create_last_cache_op_builder(
-                        table_id,
-                        "bar",
-                        "test_cache",
-                        [t1_col_id],
-                    )
-                    .build()],
-                    0,
-                )],
-            );
-            primary
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to primary to create last cache");
-        }
-        // now on the replica:
-        let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::create_last_cache_op_builder(
-                        table_id,
-                        "bar",
-                        "test_cache",
-                        // this cache has a different set of key cols:
-                        [],
-                    )
-                    .build()],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to replica to create last cache");
-            wal_content
-        };
-        let err = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .expect_err(
-                "mapping the wal content should fail due to incompatible last cache definitions",
-            );
-        assert_contains!(
-            err.to_string(),
-            "WAL contained a CreateLastCache operation with a last cache name that already \
-            exists in the local catalog, but is not compatible"
-        );
-    }
-
-    #[test]
-    fn map_wal_content_for_replica_last_cache_create_unseen_table() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // create a wal op that creates a table and then a last cache for it on the replica:
-        let mut replica_wal_content = {
-            let db_id = replica.db_name_to_id("foo").unwrap();
-            let table_id = TableId::new();
-            let fruits_col_id = ColumnId::new();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [
-                        influxdb3_wal::create::create_table_op(
-                            db_id,
-                            "foo",
-                            table_id,
-                            "baz",
-                            [influxdb3_wal::create::field_def(
-                                fruits_col_id,
-                                "fruits",
-                                FieldDataType::Tag,
-                            )],
-                            [fruits_col_id],
-                        ),
-                        influxdb3_wal::create::create_last_cache_op_builder(
-                            table_id,
-                            "bar",
-                            "test_cache",
-                            // this cache has a different set of key cols:
-                            [],
-                        )
-                        .build(),
-                    ],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch with table create and last cache create on replica");
-            wal_content
-        };
-        // now remove the create table op, simulating a corrupted wal:
-        replica_wal_content = WalContents {
-            ops: replica_wal_content
-                .ops
-                .into_iter()
-                .map(|op| match op {
-                    WalOp::Write(_) => op,
-                    WalOp::Catalog(catalog_batch) => {
-                        let sequence = catalog_batch.sequence_number();
-                        let batch = catalog_batch.into_batch();
-                        WalOp::Catalog(OrderedCatalogBatch::new(
-                            CatalogBatch {
-                                ops: batch.ops.into_iter().skip(1).collect(),
-                                ..batch
-                            },
-                            sequence,
-                        ))
-                    }
-                    WalOp::Noop(_) => op,
-                })
-                .collect(),
-            ..replica_wal_content
-        };
-        let err = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .expect_err("mapping wal contents should fail");
-        assert_contains!(
-            err.to_string(),
-            "failed to map WAL contents: last cache definition contained invalid table id"
-        );
-    }
-
-    #[test]
-    fn map_wal_with_incompatible_field_additions() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // add a field "f4" as a string column on the primary:
-        {
-            let (db_id, db_schema) = primary.db_id_and_schema("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::add_fields_op(
-                        db_id,
-                        "foo",
-                        table_id,
-                        "bar",
-                        [influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f4",
-                            FieldDataType::String,
-                        )],
-                    )],
-                    0,
-                )],
-            );
-            primary
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to primary");
-        }
-        // now add the same "f4", but as a float, to the replica:
-        let replica_wal_content = {
-            let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-            let table_id = db_schema.table_name_to_id("bar").unwrap();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [influxdb3_wal::create::add_fields_op(
-                        db_id,
-                        "foo",
-                        table_id,
-                        "bar",
-                        [influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "f4",
-                            FieldDataType::Float,
-                        )],
-                    )],
-                    0,
-                )],
-            );
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to replica to make sure it is valid");
-            wal_content
-        };
-        let err = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .unwrap_err()
-            .to_string();
-        assert_contains!(err, "Field type mismatch on table bar column f4");
-    }
-
-    #[test]
-    fn map_wal_with_field_additions_for_invalid_table() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        // Perform two WAL operations on the replica to create a table, then add fields to it:
-        let mut replica_wal_content = {
-            let db_id = replica.db_name_to_id("foo").unwrap();
-            let table_id = TableId::new();
-            let wal_content = influxdb3_wal::create::wal_contents(
-                (0, 1, 0),
-                [influxdb3_wal::create::catalog_batch_op(
-                    db_id,
-                    "foo",
-                    0,
-                    [
-                        influxdb3_wal::create::create_table_op(
-                            db_id,
-                            "foo",
-                            table_id,
-                            "phi",
-                            [influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "zeta",
-                                FieldDataType::Integer,
-                            )],
-                            [],
-                        ),
-                        influxdb3_wal::create::add_fields_op(
-                            db_id,
-                            "foo",
-                            table_id,
-                            "phi",
-                            [influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "theta",
-                                FieldDataType::UInteger,
-                            )],
-                        ),
-                    ],
-                    0,
-                )],
-            );
-            // apply the wal content to the replica to make sure it is valid:
-            replica
-                .apply_catalog_batch(&wal_content.ops[0].as_catalog().cloned().unwrap())
-                .expect("apply catalog batch to replica to check its validity");
-            wal_content
-        };
-        // now remove the create table op, simulating a corrupted wal:
-        replica_wal_content = WalContents {
-            ops: replica_wal_content
-                .ops
-                .into_iter()
-                .map(|op| match op {
-                    WalOp::Write(_) => op,
-                    WalOp::Catalog(cat) => {
-                        let sequence = cat.sequence_number();
-                        let batch = cat.into_batch();
-                        WalOp::Catalog(OrderedCatalogBatch::new(
-                            CatalogBatch {
-                                ops: batch.ops.into_iter().skip(1).collect(),
-                                ..batch
-                            },
-                            sequence,
-                        ))
-                    }
-                    WalOp::Noop(_) => op,
-                })
-                .collect(),
-            ..replica_wal_content
-        };
-        let err = replicated_catalog
-            .map_wal_contents(replica_wal_content)
-            .expect_err("applying corrupt wal content to primary should fail");
-
-        assert_contains!(
-            err.to_string(),
-            "failed to map WAL contents: Table phi not in DB schema for foo"
-        );
-    }
-
-    #[test]
-    fn map_persisted_snapshot_for_replica() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        let (db_id, db_schema) = replica.db_id_and_schema("foo").unwrap();
-        let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let snapshot = create::persisted_snapshot("host-primary")
-            .table(
-                db_id,
-                table_id,
-                create::parquet_file(ParquetFileId::new()).build(),
-            )
-            .build();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "persisted snapshot as it was created on the replica, before mapping"
-        }, {
-            // use JSON snapshots since persisted snapshots are actually persisted as JSON:
-            insta::assert_json_snapshot!(snapshot);
-        });
-        let mapped_snapshot = replicated_catalog.map_snapshot_contents(snapshot).unwrap();
-        insta::with_settings!({
-            sort_maps => true,
-            description => "persisted snapshot after mapping, as intended for the primary"
-        }, {
-            insta::assert_json_snapshot!(mapped_snapshot);
-        });
-    }
-
-    #[test]
-    fn map_persisted_snapshot_with_invalid_ids_fails() {
-        let primary = create::catalog("primary");
-        let replica = create::catalog("replica");
-        let replicated_catalog =
-            ReplicatedCatalog::new(Arc::clone(&primary), Arc::clone(&replica)).unwrap();
-        let snapshot = create::persisted_snapshot("host-replica")
-            .table(
-                DbId::new(),
-                TableId::new(),
-                create::parquet_file(ParquetFileId::new()).build(),
-            )
-            .build();
-        let err = replicated_catalog
-            .map_snapshot_contents(snapshot)
-            .expect_err("snapshot with unseen database id should fail to map");
-        assert_contains!(
-            err.to_string(),
-            "invalid database id in persisted snapshot: 2"
-        );
-        let db_id = replica.db_name_to_id("foo").unwrap();
-        let snapshot = create::persisted_snapshot("host-replica")
-            .table(
-                db_id,
-                TableId::new(),
-                create::parquet_file(ParquetFileId::new()).build(),
-            )
-            .build();
-        let err = replicated_catalog
-            .map_snapshot_contents(snapshot)
-            .expect_err("snapshot with unseen table id should fail to map");
-        assert_contains!(err.to_string(), "invalid table id in persisted snapshot: 3");
-    }
-
     async fn setup_primary(
         node_id: &str,
+        cluster_id: &str,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Arc<WriteBufferImpl> {
+        debug!(node_id, cluster_id, "setting up primary for test");
+        let catalog = Arc::new(
+            Catalog::new(
+                cluster_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
+        catalog
+            .register_node(node_id, 1, influxdb3_catalog::log::NodeMode::ReadWrite)
+            .await
+            .unwrap();
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             node_id,
             Arc::clone(&time_provider),
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -3120,164 +2075,5 @@ mod tests {
         }
 
         panic!("no files were persisted after several tries, most found: {most_files_found}");
-    }
-
-    mod create {
-        use influxdb3_catalog::catalog::CatalogSequenceNumber;
-        use influxdb3_id::{ColumnId, ParquetFileId, SerdeVecMap};
-        use influxdb3_wal::SnapshotSequenceNumber;
-        use influxdb3_write::DatabaseTables;
-
-        use super::*;
-
-        pub(super) fn table<C, N, SK>(name: &str, cols: C, series_key: SK) -> TableDefinition
-        where
-            C: IntoIterator<Item = (ColumnId, N, InfluxColumnType)>,
-            N: Into<Arc<str>>,
-            SK: IntoIterator<Item = ColumnId>,
-        {
-            TableDefinition::new(
-                TableId::new(),
-                name.into(),
-                cols.into_iter()
-                    .map(|(id, name, ty)| (id, name.into(), ty))
-                    .collect(),
-                series_key.into_iter().collect(),
-            )
-            .expect("create table definition")
-        }
-
-        pub(super) fn catalog(name: &str) -> Arc<Catalog> {
-            let node_id = format!("host-{name}").as_str().into();
-            let instance_name = format!("instance-{name}").as_str().into();
-            let cat = Catalog::new(node_id, instance_name);
-            let t1_col_id = ColumnId::new();
-            let t2_col_id = ColumnId::new();
-            let tbl = table(
-                "bar",
-                [
-                    (t1_col_id, "t1", InfluxColumnType::Tag),
-                    (t2_col_id, "t2", InfluxColumnType::Tag),
-                    (
-                        ColumnId::new(),
-                        "f1",
-                        InfluxColumnType::Field(schema::InfluxFieldType::Boolean),
-                    ),
-                ],
-                [t1_col_id, t2_col_id],
-            );
-            let mut db = DatabaseSchema::new(DbId::new(), "foo".into());
-            db.table_map
-                .insert(tbl.table_id, Arc::clone(&tbl.table_name));
-            db.tables.insert(tbl.table_id, Arc::new(tbl));
-            cat.insert_database(db);
-            cat.into()
-        }
-
-        pub(super) struct ParquetFileBuilder {
-            id: ParquetFileId,
-            path: Option<String>,
-            size_bytes: Option<u64>,
-            row_count: Option<u64>,
-            chunk_time: Option<i64>,
-            min_time: Option<i64>,
-            max_time: Option<i64>,
-        }
-
-        impl ParquetFileBuilder {
-            pub(super) fn build(self) -> ParquetFile {
-                ParquetFile {
-                    id: self.id,
-                    path: self.path.unwrap_or_default(),
-                    size_bytes: self.size_bytes.unwrap_or_default(),
-                    row_count: self.row_count.unwrap_or_default(),
-                    chunk_time: self.chunk_time.unwrap_or_default(),
-                    min_time: self.min_time.unwrap_or_default(),
-                    max_time: self.max_time.unwrap_or_default(),
-                }
-            }
-        }
-
-        pub(super) fn parquet_file(id: ParquetFileId) -> ParquetFileBuilder {
-            ParquetFileBuilder {
-                id,
-                path: None,
-                size_bytes: None,
-                row_count: None,
-                chunk_time: None,
-                min_time: None,
-                max_time: None,
-            }
-        }
-
-        pub(super) struct PersistedSnapshotBuilder {
-            node_id: String,
-            next_file_id: ParquetFileId,
-            next_db_id: DbId,
-            next_table_id: TableId,
-            next_column_id: ColumnId,
-            snapshot_sequence_number: Option<SnapshotSequenceNumber>,
-            wal_file_sequence_number: Option<WalFileSequenceNumber>,
-            catalog_sequence_number: Option<CatalogSequenceNumber>,
-            parquet_size_bytes: Option<u64>,
-            row_count: Option<u64>,
-            min_time: Option<i64>,
-            max_time: Option<i64>,
-            databases: SerdeVecMap<DbId, DatabaseTables>,
-        }
-
-        impl PersistedSnapshotBuilder {
-            pub(super) fn build(self) -> PersistedSnapshot {
-                PersistedSnapshot {
-                    node_id: self.node_id,
-                    next_file_id: self.next_file_id,
-                    next_db_id: self.next_db_id,
-                    next_table_id: self.next_table_id,
-                    next_column_id: self.next_column_id,
-                    snapshot_sequence_number: self.snapshot_sequence_number.unwrap_or_default(),
-                    wal_file_sequence_number: self.wal_file_sequence_number.unwrap_or_default(),
-                    catalog_sequence_number: self.catalog_sequence_number.unwrap_or_default(),
-                    parquet_size_bytes: self.parquet_size_bytes.unwrap_or_default(),
-                    row_count: self.row_count.unwrap_or_default(),
-                    min_time: self.min_time.unwrap_or_default(),
-                    max_time: self.max_time.unwrap_or_default(),
-                    databases: self.databases,
-                }
-            }
-
-            pub(super) fn table(
-                mut self,
-                db_id: DbId,
-                table_id: TableId,
-                parquet_file: ParquetFile,
-            ) -> Self {
-                self.databases
-                    .entry(db_id)
-                    .or_default()
-                    .tables
-                    .entry(table_id)
-                    .or_default()
-                    .push(parquet_file);
-                self
-            }
-        }
-
-        pub(super) fn persisted_snapshot(node_id: &str) -> PersistedSnapshotBuilder {
-            PersistedSnapshotBuilder {
-                node_id: node_id.into(),
-                next_file_id: ParquetFileId::next_id(),
-                next_db_id: DbId::next_id(),
-                next_table_id: TableId::next_id(),
-                next_column_id: ColumnId::next_id(),
-                snapshot_sequence_number: None,
-                wal_file_sequence_number: None,
-                catalog_sequence_number: None,
-                parquet_size_bytes: None,
-                row_count: None,
-                min_time: None,
-                max_time: None,
-                databases: Default::default(),
-            }
-        }
     }
 }

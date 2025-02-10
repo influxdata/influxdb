@@ -6,7 +6,7 @@ use serde_json::json;
 #[test_log::test(tokio::test)]
 async fn file_index_config() {
     let obj_store_path = tmp_dir();
-    let idx_server = TestServer::configure_pro()
+    let idx_server = TestServer::configure_enterprise()
         .with_node_id("idx_server")
         .with_object_store(&obj_store_path)
         .spawn()
@@ -98,7 +98,7 @@ async fn file_index_config() {
          +---------------+------------+---------------+------------------+\n\
          | gundam        |            | [height]      | []               |\n\
          | gundam        | unicorn    | [id]          | [0]              |\n\
-         | gundam        | mercury    | [operator]    | [7]              |\n\
+         | gundam        | mercury    | [operator]    | [1]              |\n\
          +---------------+------------+---------------+------------------+",
         query().await
     );
@@ -122,7 +122,7 @@ async fn file_index_config() {
          +---------------+------------+----------------+------------------+\n\
          | gundam        |            | [height]       | []               |\n\
          | gundam        | unicorn    | [id, operator] | [0, 1]           |\n\
-         | gundam        | mercury    | [operator]     | [7]              |\n\
+         | gundam        | mercury    | [operator]     | [1]              |\n\
          +---------------+------------+----------------+------------------+",
         query().await
     );
@@ -144,7 +144,7 @@ async fn file_index_config() {
          | database_name | table_name | index_columns | index_column_ids |\n\
          +---------------+------------+---------------+------------------+\n\
          | gundam        |            | [height]      | []               |\n\
-         | gundam        | mercury    | [operator]    | [7]              |\n\
+         | gundam        | mercury    | [operator]    | [1]              |\n\
          +---------------+------------+---------------+------------------+",
         query().await
     );

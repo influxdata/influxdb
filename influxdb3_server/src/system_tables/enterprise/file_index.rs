@@ -1,6 +1,6 @@
 use arrow::array::GenericListBuilder;
 use arrow::array::StringViewBuilder;
-use arrow::array::UInt32Builder;
+use arrow::array::UInt16Builder;
 use std::sync::Arc;
 
 use arrow_array::{ArrayRef, RecordBatch, StringArray};
@@ -38,7 +38,7 @@ impl FileIndexTable {
             ),
             Field::new(
                 "index_column_ids",
-                DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+                DataType::List(Arc::new(Field::new("item", DataType::UInt16, true))),
                 false,
             ),
         ];
@@ -79,8 +79,8 @@ impl FileIndexTable {
                 Arc::new(list_builder.finish())
             },
             {
-                let uint_builder = UInt32Builder::new();
-                let mut list_builder = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+                let uint_builder = UInt16Builder::new();
+                let mut list_builder = GenericListBuilder::<i32, UInt16Builder>::with_capacity(
                     uint_builder,
                     lines.len(),
                 );
@@ -88,7 +88,7 @@ impl FileIndexTable {
                     list_builder.append_value(
                         line.column_ids
                             .iter()
-                            .map(|id| Some(id.as_u32()))
+                            .map(|id| Some(id.get()))
                             .collect::<Vec<_>>(),
                     );
                 }

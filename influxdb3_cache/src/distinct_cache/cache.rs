@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet, BinaryHeap},
-    num::NonZeroUsize,
     sync::Arc,
     time::Duration,
 };
@@ -12,13 +11,15 @@ use arrow::{
     error::ArrowError,
 };
 use indexmap::IndexMap;
-use influxdb3_catalog::catalog::TableDefinition;
-use influxdb3_id::{ColumnId, TableId};
-use influxdb3_wal::{DistinctCacheDefinition, FieldData, Row};
+use influxdb3_catalog::{
+    catalog::TableDefinition,
+    log::{MaxAge, MaxCardinality},
+};
+use influxdb3_id::ColumnId;
+use influxdb3_wal::{FieldData, Row};
 use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
 use schema::{InfluxColumnType, InfluxFieldType};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CacheError {
@@ -69,74 +70,6 @@ pub struct CreateDistinctCacheArgs {
     pub column_ids: Vec<ColumnId>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub struct MaxCardinality(NonZeroUsize);
-
-impl TryFrom<usize> for MaxCardinality {
-    type Error = anyhow::Error;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Ok(Self(
-            NonZeroUsize::try_from(value).context("invalid size provided")?,
-        ))
-    }
-}
-
-const DEFAULT_MAX_CARDINALITY: usize = 100_000;
-
-impl Default for MaxCardinality {
-    fn default() -> Self {
-        Self(NonZeroUsize::new(DEFAULT_MAX_CARDINALITY).unwrap())
-    }
-}
-
-impl From<NonZeroUsize> for MaxCardinality {
-    fn from(v: NonZeroUsize) -> Self {
-        Self(v)
-    }
-}
-
-impl From<MaxCardinality> for usize {
-    fn from(value: MaxCardinality) -> Self {
-        value.0.into()
-    }
-}
-
-const DEFAULT_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct MaxAge(Duration);
-
-impl Default for MaxAge {
-    fn default() -> Self {
-        Self(DEFAULT_MAX_AGE)
-    }
-}
-
-impl From<MaxAge> for Duration {
-    fn from(value: MaxAge) -> Self {
-        value.0
-    }
-}
-
-impl From<Duration> for MaxAge {
-    fn from(duration: Duration) -> Self {
-        Self(duration)
-    }
-}
-
-impl From<u64> for MaxAge {
-    fn from(seconds: u64) -> Self {
-        Self(Duration::new(seconds, 0))
-    }
-}
-
-impl MaxAge {
-    pub(crate) fn as_seconds(&self) -> u64 {
-        self.0.as_secs()
-    }
-}
-
 impl DistinctCache {
     /// Create a new [`DistinctCache`]
     ///
@@ -154,7 +87,6 @@ impl DistinctCache {
         if column_ids.is_empty() {
             return Err(CacheError::EmptyColumnSet);
         }
-        let _ = table_def.index_column_ids();
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
             let col = table_def.columns.get(id).with_context(|| {
@@ -353,23 +285,6 @@ impl DistinctCache {
         }
 
         Ok(())
-    }
-
-    /// Create a [`DistinctCacheDefinition`] from this cache along with the given args
-    pub(super) fn to_definition(
-        &self,
-        table_id: TableId,
-        table_name: Arc<str>,
-        cache_name: Arc<str>,
-    ) -> DistinctCacheDefinition {
-        DistinctCacheDefinition {
-            table_id,
-            table_name,
-            cache_name,
-            column_ids: self.column_ids.to_vec(),
-            max_cardinality: self.max_cardinality,
-            max_age_seconds: self.max_age.as_secs(),
-        }
     }
 }
 

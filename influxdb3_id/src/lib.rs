@@ -1,55 +1,45 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Display;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 mod serialize;
 pub use serialize::SerdeVecMap;
 
 macro_rules! catalog_identifier_type {
-    ($name:ident, $atomic:ident) => {
+    ($name:ident, $ty:ty) => {
         #[derive(
             Debug, Copy, Clone, Eq, PartialOrd, Ord, PartialEq, Serialize, Deserialize, Hash,
         )]
-        pub struct $name(u32);
-
-        static $atomic: AtomicU32 = AtomicU32::new(0);
+        pub struct $name($ty);
 
         impl $name {
-            pub fn new() -> Self {
-                Self(
-                    $atomic
-                        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
-                        .expect("overflowed u32 when generating new identifier"),
-                )
+            pub fn new(id: $ty) -> Self {
+                Self(id)
             }
 
-            pub fn next_id() -> $name {
-                Self($atomic.load(Ordering::SeqCst))
+            pub fn next(&self) -> Self {
+                Self::from(self.0.checked_add(1).expect("incrementing id overflow"))
             }
 
-            pub fn set_next_id(&self) {
-                $atomic.store(self.0, Ordering::SeqCst)
-            }
-
-            pub fn as_u32(&self) -> u32 {
+            pub fn get(&self) -> $ty {
                 self.0
             }
         }
 
-        impl Default for $name {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
-        impl From<u32> for $name {
-            fn from(value: u32) -> Self {
+        impl From<$ty> for $name {
+            fn from(value: $ty) -> Self {
                 Self(value)
             }
         }
+
+        impl Default for $name {
+            /// The default for any identifier type is 0
+            fn default() -> Self {
+                Self::new(0)
+            }
+        }
+
         impl Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", self.0)
@@ -58,9 +48,9 @@ macro_rules! catalog_identifier_type {
     };
 }
 
-catalog_identifier_type!(DbId, NEXT_DB_ID);
-catalog_identifier_type!(TableId, NEXT_TABLE_ID);
-catalog_identifier_type!(ColumnId, NEXT_COLUMN_ID);
+catalog_identifier_type!(DbId, u32);
+catalog_identifier_type!(TableId, u32);
+catalog_identifier_type!(ColumnId, u16);
 
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);
@@ -100,17 +90,5 @@ impl From<u64> for ParquetFileId {
 impl Default for ParquetFileId {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::DbId;
-
-    #[test]
-    #[should_panic]
-    fn test_overflow_error() {
-        DbId::from(u32::MAX).set_next_id();
-        DbId::new();
     }
 }

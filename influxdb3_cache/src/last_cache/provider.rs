@@ -2,11 +2,18 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 
-use influxdb3_catalog::catalog::{Catalog, TableDefinition};
+use influxdb3_catalog::{
+    catalog::{Catalog, CatalogBroadcastReceiver},
+    log::{
+        CatalogBatch, CreateLastCacheLog, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheTtl,
+        LastCacheValueColumnsDef, SoftDeleteTableLog,
+    },
+};
 use influxdb3_id::{DbId, TableId};
-use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef, WalContents, WalOp};
-use observability_deps::tracing::debug;
+use influxdb3_wal::{WalContents, WalOp};
+use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
+use tokio::sync::broadcast::error::RecvError;
 
 use super::{
     CreateLastCacheArgs, Error,
@@ -48,7 +55,7 @@ impl LastCacheProvider {
                                 CreateLastCacheArgs {
                                     table_def: Arc::clone(&table_def),
                                     count: cache_def.count,
-                                    ttl: Duration::from_secs(cache_def.ttl).into(),
+                                    ttl: cache_def.ttl,
                                     key_columns:
                                         crate::last_cache::cache::LastCacheKeyColumnsArg::Explicit(
                                             cache_def.key_columns.clone()
@@ -67,6 +74,8 @@ impl LastCacheProvider {
                 }
             }
         }
+
+        background_catalog_update(Arc::clone(&provider), catalog.subscribe_to_updates());
 
         Ok(provider)
     }
@@ -114,8 +123,8 @@ impl LastCacheProvider {
             })
     }
 
-    /// Get the [`LastCacheDefinition`] for all caches contained in a database
-    pub fn get_last_caches_for_db(&self, db: DbId) -> Vec<LastCacheDefinition> {
+    /// Get the [`CreateLastCacheLog`] for all caches contained in a database
+    pub fn get_last_caches_for_db(&self, db: DbId) -> Vec<CreateLastCacheLog> {
         let read = self.cache_map.read();
         read.get(&db)
             .map(|table| {
@@ -147,7 +156,7 @@ impl LastCacheProvider {
         db_id: DbId,
         cache_name: Option<&str>,
         args: CreateLastCacheArgs,
-    ) -> Result<Option<LastCacheDefinition>, Error> {
+    ) -> Result<Option<CreateLastCacheLog>, Error> {
         let table_def = Arc::clone(&args.table_def);
         let last_cache = LastCache::new(args)?;
         let key_column_names = last_cache
@@ -192,31 +201,29 @@ impl LastCacheProvider {
             .or_default()
             .insert(Arc::clone(&cache_name), last_cache);
 
-        Ok(Some(LastCacheDefinition {
+        Ok(Some(CreateLastCacheLog {
             table_id: table_def.table_id,
             table: Arc::clone(&table_def.table_name),
             name: cache_name,
             key_columns,
             value_columns,
             count,
-            ttl,
+            ttl: LastCacheTtl::from_secs(ttl),
         }))
     }
 
-    pub fn create_cache_from_definition(
-        &self,
-        db_id: DbId,
-        table_def: Arc<TableDefinition>,
-        definition: &LastCacheDefinition,
-    ) {
+    pub fn create_cache_from_definition(&self, db_id: DbId, log: &CreateLastCacheLog) {
+        let table_def = self
+            .catalog
+            .db_schema_by_id(&db_id)
+            .and_then(|db| db.table_definition_by_id(&log.table_id))
+            .expect("db and table id should be valid when creating last cache from log");
         let last_cache = LastCache::new(CreateLastCacheArgs {
             table_def,
-            count: definition.count,
-            ttl: Duration::from_secs(definition.ttl).into(),
-            key_columns: super::cache::LastCacheKeyColumnsArg::Explicit(
-                definition.key_columns.clone(),
-            ),
-            value_columns: match &definition.value_columns {
+            count: log.count,
+            ttl: log.ttl,
+            key_columns: super::cache::LastCacheKeyColumnsArg::Explicit(log.key_columns.clone()),
+            value_columns: match &log.value_columns {
                 LastCacheValueColumnsDef::Explicit { columns } => {
                     LastCacheValueColumnsArg::Explicit(columns.clone())
                 }
@@ -229,9 +236,9 @@ impl LastCacheProvider {
             .write()
             .entry(db_id)
             .or_default()
-            .entry(definition.table_id)
+            .entry(log.table_id)
             .or_default()
-            .insert(Arc::clone(&definition.name), last_cache);
+            .insert(Arc::clone(&log.name), last_cache);
     }
 
     /// Delete a cache from the provider
@@ -241,17 +248,17 @@ impl LastCacheProvider {
     /// table's database; likewise for the database's entry in the provider's cache map.
     pub fn delete_cache(
         &self,
-        db_id: DbId,
-        table_id: TableId,
+        db_id: &DbId,
+        table_id: &TableId,
         cache_name: &str,
     ) -> Result<(), Error> {
         let mut lock = self.cache_map.write();
 
-        let Some(db) = lock.get_mut(&db_id) else {
+        let Some(db) = lock.get_mut(db_id) else {
             return Err(Error::CacheDoesNotExist);
         };
 
-        let Some(table) = db.get_mut(&table_id) else {
+        let Some(table) = db.get_mut(table_id) else {
             return Err(Error::CacheDoesNotExist);
         };
 
@@ -260,11 +267,11 @@ impl LastCacheProvider {
         }
 
         if table.is_empty() {
-            db.remove(&table_id);
+            db.remove(table_id);
         }
 
         if db.is_empty() {
-            lock.remove(&db_id);
+            lock.remove(db_id);
         }
 
         Ok(())
@@ -318,7 +325,6 @@ impl LastCacheProvider {
                         }
                     }
                 }
-                WalOp::Catalog(_) => (),
                 WalOp::Noop(_) => (),
             }
         }
@@ -374,6 +380,61 @@ impl LastCacheProvider {
             .flat_map(|(_, db)| db.iter().flat_map(|(_, table)| table.iter()))
             .count()
     }
+}
+
+fn background_catalog_update(
+    provider: Arc<LastCacheProvider>,
+    mut subscription: CatalogBroadcastReceiver,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            match subscription.recv().await {
+                Ok(catalog_update) => {
+                    for batch in catalog_update
+                        .batches()
+                        .filter_map(CatalogBatch::as_database)
+                    {
+                        for op in batch.ops.iter() {
+                            match op {
+                                DatabaseCatalogOp::SoftDeleteDatabase(_) => {
+                                    provider.delete_caches_for_db(&batch.database_id);
+                                }
+                                DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
+                                    table_id,
+                                    ..
+                                }) => {
+                                    provider.delete_caches_for_table(&batch.database_id, table_id);
+                                }
+                                DatabaseCatalogOp::CreateLastCache(log) => {
+                                    provider.create_cache_from_definition(batch.database_id, log);
+                                }
+                                DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
+                                    table_id,
+                                    name,
+                                    ..
+                                }) => {
+                                    // This only errors when the cache isn't there, so we ignore the
+                                    // error...
+                                    let _ =
+                                        provider.delete_cache(&batch.database_id, table_id, name);
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+                Err(RecvError::Closed) => break,
+                Err(RecvError::Lagged(num_messages_skipped)) => {
+                    // TODO: in this case, we would need to re-initialize the last cache provider
+                    // from the catalog, if possible.
+                    warn!(
+                        num_messages_skipped,
+                        "last cache provider catalog subscription is lagging"
+                    );
+                }
+            }
+        }
+    })
 }
 
 fn background_eviction_process(

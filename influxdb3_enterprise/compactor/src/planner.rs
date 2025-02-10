@@ -68,7 +68,7 @@ impl CompactionPlanGroup {
                     .and_then(|t| t.get(&table_id));
 
                 let db_schema = compacted_data
-                    .compacted_catalog
+                    .catalog
                     .db_schema_by_id(&db_id)
                     .ok_or("database schema is missing")?;
 

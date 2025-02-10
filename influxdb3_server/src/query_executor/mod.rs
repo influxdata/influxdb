@@ -815,8 +815,15 @@ mod tests {
         ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),

@@ -1,9 +1,10 @@
 ---
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
-expression: catalog
+expression: snapshot
 ---
 {
+  "nodes": [],
   "databases": [
     [
       0,
@@ -12,9 +13,9 @@ expression: catalog
         "name": "test_db",
         "tables": [
           [
-            1,
+            0,
             {
-              "table_id": 1,
+              "table_id": 0,
               "table_name": "test_table_1",
               "key": [
                 0,
@@ -23,40 +24,40 @@ expression: catalog
               ],
               "cols": [
                 [
-                  5,
+                  4,
                   {
                     "name": "bool_field",
-                    "id": 5,
+                    "id": 4,
                     "type": "bool",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  8,
+                  7,
                   {
-                    "name": "f64_field",
-                    "id": 8,
+                    "name": "float_field",
+                    "id": 7,
                     "type": "f64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  6,
+                  5,
                   {
                     "name": "i64_field",
-                    "id": 6,
+                    "id": 5,
                     "type": "i64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  4,
+                  3,
                   {
                     "name": "string_field",
-                    "id": 4,
+                    "id": 3,
                     "type": "str",
                     "influx_type": "field",
                     "nullable": true
@@ -108,10 +109,10 @@ expression: catalog
                   }
                 ],
                 [
-                  3,
+                  8,
                   {
                     "name": "time",
-                    "id": 3,
+                    "id": 8,
                     "type": {
                       "time": [
                         "ns",
@@ -123,75 +124,78 @@ expression: catalog
                   }
                 ],
                 [
-                  7,
+                  6,
                   {
                     "name": "u64_field",
-                    "id": 7,
+                    "id": 6,
                     "type": "u64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ]
               ],
-              "deleted": false
+              "last_caches": [],
+              "distinct_caches": [],
+              "deleted": false,
+              "next_column_id": 9
             }
           ],
           [
-            2,
+            1,
             {
-              "table_id": 2,
+              "table_id": 1,
               "table_name": "test_table_2",
               "key": [
-                9,
-                10,
-                11
+                0,
+                1,
+                2
               ],
               "cols": [
                 [
-                  14,
+                  4,
                   {
                     "name": "bool_field",
-                    "id": 14,
+                    "id": 4,
                     "type": "bool",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  17,
+                  7,
                   {
-                    "name": "f64_field",
-                    "id": 17,
+                    "name": "float_field",
+                    "id": 7,
                     "type": "f64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  15,
+                  5,
                   {
                     "name": "i64_field",
-                    "id": 15,
+                    "id": 5,
                     "type": "i64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  13,
+                  3,
                   {
                     "name": "string_field",
-                    "id": 13,
+                    "id": 3,
                     "type": "str",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ],
                 [
-                  9,
+                  0,
                   {
                     "name": "tag_1",
-                    "id": 9,
+                    "id": 0,
                     "type": {
                       "dict": [
                         "i32",
@@ -203,10 +207,10 @@ expression: catalog
                   }
                 ],
                 [
-                  10,
+                  1,
                   {
                     "name": "tag_2",
-                    "id": 10,
+                    "id": 1,
                     "type": {
                       "dict": [
                         "i32",
@@ -218,10 +222,10 @@ expression: catalog
                   }
                 ],
                 [
-                  11,
+                  2,
                   {
                     "name": "tag_3",
-                    "id": 11,
+                    "id": 2,
                     "type": {
                       "dict": [
                         "i32",
@@ -233,10 +237,10 @@ expression: catalog
                   }
                 ],
                 [
-                  12,
+                  8,
                   {
                     "name": "time",
-                    "id": 12,
+                    "id": 8,
                     "type": {
                       "time": [
                         "ns",
@@ -248,26 +252,31 @@ expression: catalog
                   }
                 ],
                 [
-                  16,
+                  6,
                   {
                     "name": "u64_field",
-                    "id": 16,
+                    "id": 6,
                     "type": "u64",
                     "influx_type": "field",
                     "nullable": true
                   }
                 ]
               ],
-              "deleted": false
+              "last_caches": [],
+              "distinct_caches": [],
+              "deleted": false,
+              "next_column_id": 9
             }
           ]
         ],
         "processing_engine_triggers": [],
-        "deleted": false
+        "deleted": false,
+        "next_table_id": 2
       }
     ]
   ],
-  "instance_id": "instance-id",
-  "node_id": "sample-host-id",
-  "sequence": 0
+  "sequence": 3,
+  "catalog_id": "sample-host-id",
+  "catalog_uuid": "[uuid]",
+  "next_db_id": 1
 }

@@ -53,7 +53,15 @@ async fn five_files_multiple_series_same_schema() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -285,7 +293,15 @@ async fn two_files_two_series_and_same_schema() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -449,7 +465,15 @@ async fn two_files_same_series_and_schema() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -595,7 +619,15 @@ async fn compact_with_new_tag_added() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -783,7 +815,15 @@ async fn deduplication_of_data() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -922,7 +962,15 @@ async fn compactor_casting() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(Catalog::new(node_id.into(), "test-instance".into()));
+    let catalog = Arc::new(
+        Catalog::new(
+            node_id,
+            Arc::clone(&obj_store) as _,
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
     let write_buffer = Arc::new(
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),

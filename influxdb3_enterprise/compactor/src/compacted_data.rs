@@ -1,7 +1,7 @@
 //! Module has a view of all compacted data from a given compactor id.
 
-use crate::catalog::CompactedCatalog;
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_enterprise_data_layout::{
     CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
@@ -41,7 +41,7 @@ pub trait CompactedDataSystemTableView: Send + Sync + 'static + std::fmt::Debug 
         table_name: &str,
     ) -> Option<Vec<CompactedDataSystemTableQueryResult>>;
 
-    fn catalog(&self) -> &CompactedCatalog;
+    fn catalog(&self) -> Arc<Catalog>;
 }
 
 /// Result type for functions in this module.
@@ -49,7 +49,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct CompactedData {
     pub compactor_id: Arc<str>,
-    pub compacted_catalog: CompactedCatalog,
+    pub catalog: Arc<Catalog>,
     inner_compacted_data: RwLock<InnerCompactedData>,
 }
 
@@ -146,7 +146,7 @@ impl CompactedData {
         table_name: &str,
         filter: &ChunkFilter<'_>,
     ) -> (Vec<Arc<ParquetFile>>, Vec<Arc<NodeSnapshotMarker>>) {
-        let Some(db) = self.compacted_catalog.db_schema(database_name) else {
+        let Some(db) = self.catalog.db_schema(database_name) else {
             return Default::default();
         };
 
@@ -224,7 +224,7 @@ impl CompactedData {
     pub(crate) async fn load_compacted_data(
         compactor_id: Arc<str>,
         compaction_summary: CompactionSummary,
-        compacted_catalog: CompactedCatalog,
+        catalog: Arc<Catalog>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Result<Self> {
         let mut databases = HashMap::new();
@@ -290,7 +290,7 @@ impl CompactedData {
 
         Ok(Self {
             compactor_id,
-            compacted_catalog,
+            catalog,
             inner_compacted_data: RwLock::new(InnerCompactedData {
                 databases,
                 compaction_summary: Arc::new(compaction_summary),
@@ -317,7 +317,7 @@ impl CompactedDataSystemTableView for CompactedData {
         db_name: &str,
         table_name: &str,
     ) -> Option<Vec<CompactedDataSystemTableQueryResult>> {
-        let db = self.compacted_catalog.db_schema(db_name)?;
+        let db = self.catalog.db_schema(db_name)?;
         let table_id = db.table_name_to_id(table_name)?;
 
         let inner_data = self.inner_compacted_data.read();
@@ -344,8 +344,8 @@ impl CompactedDataSystemTableView for CompactedData {
         Some(results)
     }
 
-    fn catalog(&self) -> &CompactedCatalog {
-        &self.compacted_catalog
+    fn catalog(&self) -> Arc<Catalog> {
+        Arc::clone(&self.catalog)
     }
 }
 

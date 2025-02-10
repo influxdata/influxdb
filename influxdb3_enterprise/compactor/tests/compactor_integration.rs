@@ -9,6 +9,7 @@ use futures::StreamExt;
 use hashbrown::HashMap;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_buffer::WriteBufferEnterprise;
 use influxdb3_enterprise_buffer::modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode};
@@ -46,6 +47,16 @@ async fn two_writers_gen1_compaction() {
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let time_provider: Arc<dyn TimeProvider> =
         Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+    let cluster_id = Arc::<str>::from("test_cluster");
+    let catalog = Arc::new(
+        Catalog::new(
+            Arc::clone(&cluster_id),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
 
     let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
 
@@ -65,25 +76,21 @@ async fn two_writers_gen1_compaction() {
         node1_id,
         Arc::clone(&time_provider),
     ));
-    let node1_catalog = Arc::new(node1_persister.load_or_create_catalog().await.unwrap());
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&node1_catalog)).unwrap();
-    let distinct_cache = DistinctCacheProvider::new_from_catalog(
-        Arc::clone(&time_provider),
-        Arc::clone(&node1_catalog),
-    )
-    .unwrap();
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let distinct_cache =
+        DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .unwrap();
 
     let node2_persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         node2_id,
         Arc::clone(&time_provider),
     ));
-    let node2_catalog = node2_persister.load_or_create_catalog().await.unwrap();
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let node2_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
         persister: Arc::clone(&node2_persister),
-        catalog: Arc::new(node2_catalog),
+        catalog: Arc::clone(&catalog),
         last_cache: Arc::clone(&last_cache),
         distinct_cache: Arc::clone(&distinct_cache),
         time_provider: Arc::clone(&time_provider),
@@ -97,7 +104,6 @@ async fn two_writers_gen1_compaction() {
     .await
     .unwrap();
 
-    let compactor_id = "compact".into();
     let compaction_config =
         CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
     let obj_store = Arc::new(InMemory::new());
@@ -105,7 +111,7 @@ async fn two_writers_gen1_compaction() {
 
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
-        compactor_id,
+        compactor_id: Arc::clone(&cluster_id),
         node_ids: vec!["node1".to_string(), "node2".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
@@ -116,6 +122,7 @@ async fn two_writers_gen1_compaction() {
         parquet_cache_prefetcher,
         sys_events_store: Arc::clone(&sys_events_store),
         time_provider: Arc::clone(&time_provider),
+        catalog: Arc::clone(&catalog),
     })
     .await
     .unwrap();
@@ -124,7 +131,7 @@ async fn two_writers_gen1_compaction() {
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
             node_id: node1_id.into(),
             persister: Arc::clone(&node1_persister),
-            catalog: Arc::clone(&node1_catalog),
+            catalog: Arc::clone(&catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
@@ -168,10 +175,7 @@ async fn two_writers_gen1_compaction() {
     // wait for two compactions to happen
     let mut count = 0;
     loop {
-        let db_schema = compacted_data
-            .compacted_catalog
-            .db_schema("test_db")
-            .unwrap();
+        let db_schema = compacted_data.catalog.db_schema("test_db").unwrap();
         let table_id = db_schema.table_name_to_id("m1").unwrap();
         if let Some(detail) = compacted_data.compaction_detail(db_schema.id, table_id) {
             if detail.sequence_number.as_u64() > 1 {
@@ -250,6 +254,16 @@ async fn compact_consumer_picks_up_latest_summary() {
     let time_provider: Arc<dyn TimeProvider> =
         Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
+    let cluster_id = Arc::<str>::from("test_cluster");
+    let catalog = Arc::new(
+        Catalog::new(
+            Arc::clone(&cluster_id),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
 
     // create two write buffers to write data that will be compacted:
     let mut write_buffers = HashMap::new();
@@ -258,6 +272,7 @@ async fn compact_consumer_picks_up_latest_summary() {
             node_id,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
+            Arc::clone(&catalog),
             Arc::clone(&exec),
             Arc::clone(&metrics),
         )
@@ -295,6 +310,7 @@ async fn compact_consumer_picks_up_latest_summary() {
         parquet_cache_prefetcher: None,
         sys_events_store: Arc::clone(&sys_events_store),
         time_provider: Arc::clone(&time_provider),
+        catalog: Arc::clone(&catalog),
     })
     .await
     .unwrap();
@@ -315,6 +331,7 @@ async fn compact_consumer_picks_up_latest_summary() {
         CompactedDataConsumer::new(
             Arc::clone(&compactor_id),
             Arc::clone(&object_store),
+            Arc::clone(&catalog),
             None,
             Arc::clone(&sys_events_store),
         )
@@ -333,10 +350,7 @@ async fn compact_consumer_picks_up_latest_summary() {
     // wait for some compactions to happen by checking the producer:
     let mut count = 0;
     loop {
-        let db_schema = compacted_data
-            .compacted_catalog
-            .db_schema("test_db")
-            .unwrap();
+        let db_schema = compacted_data.catalog.db_schema("test_db").unwrap();
         let table_id = db_schema.table_name_to_id("m1").unwrap();
         if let Some(detail) = compacted_data.compaction_detail(db_schema.id, table_id) {
             if detail.sequence_number.as_u64() > 1 {
@@ -374,8 +388,8 @@ async fn compact_consumer_picks_up_latest_summary() {
     }
 }
 
-#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 /// Test that old files are deleted as compaction happens
+#[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 4))]
 async fn compaction_cleanup() {
     let metrics = Arc::new(metric::Registry::default());
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -407,20 +421,28 @@ async fn compaction_cleanup() {
     let time_provider: Arc<dyn TimeProvider> =
         Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
-    let compactor_id = "compactor";
+    // NOTE(trevor/catalog-refactor): calling this "compactor" to reduce code churn below, as all
+    // the files are prefixed in the "compactor" dir.
+    let cluster_id = Arc::<str>::from("compactor");
+    let catalog = Arc::new(
+        Catalog::new(
+            Arc::clone(&cluster_id),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
 
     let compactor_persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        compactor_id,
+        cluster_id.as_ref(),
         Arc::clone(&time_provider),
     ));
-    let compactor_catalog = Arc::new(compactor_persister.load_or_create_catalog().await.unwrap());
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&compactor_catalog)).unwrap();
-    let distinct_cache = DistinctCacheProvider::new_from_catalog(
-        Arc::clone(&time_provider),
-        Arc::clone(&compactor_catalog),
-    )
-    .unwrap();
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let distinct_cache =
+        DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .unwrap();
 
     let node_id = "host";
 
@@ -433,7 +455,7 @@ async fn compaction_cleanup() {
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
-        compactor_id: compactor_id.into(),
+        compactor_id: Arc::clone(&cluster_id),
         node_ids: vec![node_id.to_string()],
         compaction_config,
         enterprise_config: Arc::new(EnterpriseConfig::default()),
@@ -444,6 +466,7 @@ async fn compaction_cleanup() {
         parquet_cache_prefetcher,
         sys_events_store: Arc::clone(&sys_events_store),
         time_provider: Arc::clone(&time_provider),
+        catalog: Arc::clone(&catalog),
     })
     .await
     .unwrap();
@@ -453,13 +476,12 @@ async fn compaction_cleanup() {
         node_id,
         Arc::clone(&time_provider),
     ));
-    let writer_catalog = Arc::new(writer_persister.load_or_create_catalog().await.unwrap());
 
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
             node_id: node_id.into(),
             persister: Arc::clone(&writer_persister),
-            catalog: Arc::clone(&writer_catalog),
+            catalog: Arc::clone(&catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
@@ -548,7 +570,7 @@ async fn compaction_cleanup() {
     );
     assert_eq!(
         compactor_cd,
-        BTreeSet::from(["compactor/cd/1/1/18446744073709551607.json".into(),]),
+        BTreeSet::from(["compactor/cd/0/0/18446744073709551607.json".into(),]),
     );
     assert_eq!(
         compactor_cs,
@@ -659,6 +681,7 @@ async fn setup_write_buffer(
     node_id: &str,
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
+    catalog: Arc<Catalog>,
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
 ) -> WriteBufferEnterprise<ReadWriteMode> {
@@ -667,7 +690,6 @@ async fn setup_write_buffer(
         node_id,
         Arc::clone(&time_provider),
     ));
-    let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
     let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
     let distinct_cache =
         DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))

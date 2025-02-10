@@ -3,7 +3,7 @@
 use influxdb3_id::ColumnId;
 
 mod cache;
-pub use cache::{CreateLastCacheArgs, LastCacheTtl};
+pub use cache::CreateLastCacheArgs;
 mod provider;
 pub use provider::LastCacheProvider;
 mod table_function;
@@ -48,25 +48,25 @@ mod tests {
 
     use arrow::array::AsArray;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
-    use bimap::BiHashMap;
     use datafusion::prelude::SessionContext;
     use indexmap::IndexMap;
-    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-    use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-    use influxdb3_wal::{LastCacheDefinition, LastCacheSize};
+    use influxdb3_catalog::{
+        catalog::Catalog,
+        log::{DEFAULT_CACHE_TTL, FieldDataType, LastCacheSize, LastCacheTtl},
+    };
+    use influxdb3_id::ColumnId;
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
 
     use crate::{
         last_cache::{
             CreateLastCacheArgs, LAST_CACHE_UDTF_NAME, LastCacheFunction, LastCacheProvider,
             cache::{
-                DEFAULT_CACHE_TTL, KeyValue, LastCache, LastCacheKeyColumnsArg,
-                LastCacheValueColumnsArg, Predicate,
+                KeyValue, LastCache, LastCacheKeyColumnsArg, LastCacheValueColumnsArg, Predicate,
             },
         },
         test_helpers::{TestWriter, column_ids_for_names},
     };
-
-    use super::LastCacheTtl;
 
     fn predicates(
         preds: impl IntoIterator<Item = (ColumnId, Predicate)>,
@@ -74,11 +74,13 @@ mod tests {
         preds.into_iter().collect()
     }
 
-    #[test]
-    fn pick_up_latest_write() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn pick_up_latest_write() {
+        let writer = TestWriter::new().await;
         // Do a write to update the catalog with a database and table:
-        let _ = writer.write_lp_to_rows("cpu,host=a,region=us usage=120", 1_000);
+        let _ = writer
+            .write_lp_to_rows("cpu,host=a,region=us usage=120", 1_000)
+            .await;
 
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         let key_columns = column_ids_for_names(["host"], &table_def);
@@ -94,7 +96,9 @@ mod tests {
         .unwrap();
 
         // Do a write to update the last cache:
-        let rows = writer.write_lp_to_rows("cpu,host=a,region=us usage=99", 2_000);
+        let rows = writer
+            .write_lp_to_rows("cpu,host=a,region=us usage=99", 2_000)
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -118,7 +122,9 @@ mod tests {
         );
 
         // Do another write and see that the cache only holds the latest value:
-        let rows = writer.write_lp_to_rows("cpu,host=a,region=us usage=88", 3_000);
+        let rows = writer
+            .write_lp_to_rows("cpu,host=a,region=us usage=88", 3_000)
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -152,10 +158,12 @@ mod tests {
     ///
     /// We expect that the query result will include a `host` column, to delineate rows associated
     /// with different host values in the cache.
-    #[test]
-    fn cache_key_column_predicates() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("cpu,region=us,host=a usage=1", 500);
+    #[tokio::test]
+    async fn cache_key_column_predicates() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
+            .await;
 
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
@@ -172,8 +180,9 @@ mod tests {
         .unwrap();
 
         // Write some lines to fill multiple keys in the cache:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
             cpu,region=us,host=a usage=100\n\
             cpu,region=us,host=b usage=80\n\
             cpu,region=us,host=c usage=60\n\
@@ -181,8 +190,9 @@ mod tests {
             cpu,region=ca,host=e usage=20\n\
             cpu,region=ca,host=f usage=30\n\
             ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -273,7 +283,7 @@ mod tests {
             // TODO: should this be an error?
             TestCase {
                 predicates: predicates([(
-                    ColumnId::new(),
+                    ColumnId::new(u16::MAX),
                     Predicate::new_in([KeyValue::string("12345")]),
                 )]),
                 expected: &[
@@ -375,10 +385,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn non_default_cache_size() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("cpu,region=us,host=a usage=1", 500);
+    #[tokio::test]
+    async fn non_default_cache_size() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
+            .await;
 
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
@@ -424,7 +436,7 @@ mod tests {
         ];
 
         for write in writes {
-            let rows = writer.write_lp_to_rows(write.lp, write.time_ns);
+            let rows = writer.write_lp_to_rows(write.lp, write.time_ns).await;
             for row in &rows {
                 cache.push(row, Arc::clone(&table_def));
             }
@@ -525,10 +537,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn cache_ttl() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("cpu,region=us,host=a usage=1", 500);
+    #[tokio::test]
+    async fn cache_ttl() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows("cpu,region=us,host=a usage=1", 500)
+            .await;
 
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         let host_col_id = table_def.column_name_to_id("host").unwrap();
@@ -546,8 +560,9 @@ mod tests {
         .unwrap();
 
         // Write some lines to fill the cache:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 cpu,region=us,host=a usage=100\n\
                 cpu,region=us,host=b usage=80\n\
                 cpu,region=us,host=c usage=60\n\
@@ -555,8 +570,9 @@ mod tests {
                 cpu,region=ca,host=e usage=20\n\
                 cpu,region=ca,host=f usage=30\n\
                 ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -599,7 +615,9 @@ mod tests {
         );
 
         // Ensure that records can be written to the cache again:
-        let rows = writer.write_lp_to_rows("cpu,region=us,host=a usage=333", 500_000_000);
+        let rows = writer
+            .write_lp_to_rows("cpu,region=us,host=a usage=333", 500_000_000)
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -622,13 +640,15 @@ mod tests {
         );
     }
 
-    #[test]
-    fn fields_as_key_columns() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows(
-            "temp,component_id=111 active=true,type=\"camera\",loc=\"port\",reading=150",
-            500,
-        );
+    #[tokio::test]
+    async fn fields_as_key_columns() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows(
+                "temp,component_id=111 active=true,type=\"camera\",loc=\"port\",reading=150",
+                500,
+            )
+            .await;
 
         let table_def = writer.db_schema().table_definition("temp").unwrap();
         let component_id_col_id = table_def.column_name_to_id("component_id").unwrap();
@@ -659,7 +679,7 @@ mod tests {
                 temp,component_id=444 active=true,type=\"solar-panel\",loc=\"port\",reading=233\n\
                 temp,component_id=555 active=false,type=\"solar-panel\",loc=\"huygens\",reading=200\n\
                 temp,component_id=666 active=false,type=\"comms-dish\",loc=\"huygens\",reading=220\n\
-                ", 1_000);
+                ", 1_000).await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -741,10 +761,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn series_key_as_default() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("wind_speed,state=ca,county=napa,farm=10-01 speed=60", 500);
+    #[tokio::test]
+    async fn series_key_as_default() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows("wind_speed,state=ca,county=napa,farm=10-01 speed=60", 500)
+            .await;
 
         let table_def = writer.db_schema().table_definition("wind_speed").unwrap();
         let state_col_id = table_def.column_name_to_id("state").unwrap();
@@ -761,8 +783,9 @@ mod tests {
         .unwrap();
 
         // Write some lines to fill the cache:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 wind_speed,state=ca,county=napa,farm=10-01 speed=50\n\
                 wind_speed,state=ca,county=napa,farm=10-02 speed=49\n\
                 wind_speed,state=ca,county=orange,farm=20-01 speed=40\n\
@@ -770,8 +793,9 @@ mod tests {
                 wind_speed,state=ca,county=yolo,farm=30-01 speed=62\n\
                 wind_speed,state=ca,county=nevada,farm=40-01 speed=66\n\
                 ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -875,13 +899,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn null_values() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows(
-            "temp,province=on,county=bruce,township=kincardine lo=15,hi=21,avg=18",
-            500,
-        );
+    #[tokio::test]
+    async fn null_values() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows(
+                "temp,province=on,county=bruce,township=kincardine lo=15,hi=21,avg=18",
+                500,
+            )
+            .await;
 
         let table_def = writer.db_schema().table_definition("temp").unwrap();
 
@@ -896,8 +922,9 @@ mod tests {
         .unwrap();
 
         // Write some lines to fill the cache, but omit fields to produce nulls:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 temp,province=on,county=bruce,township=kincardine hi=21,avg=18\n\
                 temp,province=on,county=huron,township=goderich lo=16,hi=22\n\
                 temp,province=on,county=bruce,township=culrock lo=13,avg=15\n\
@@ -905,8 +932,9 @@ mod tests {
                 temp,province=on,county=york,township=york lo=20\n\
                 temp,province=on,county=welland,township=bertie avg=20\n\
                 ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
         }
@@ -930,10 +958,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn new_fields_added_to_default_cache() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows(r#"plays,game_id=1 type="shot",player="kessel""#, 500);
+    #[tokio::test]
+    async fn new_fields_added_to_default_cache() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows(r#"plays,game_id=1 type="shot",player="kessel""#, 500)
+            .await;
 
         let table_def = writer.db_schema().table_definition("plays").unwrap();
         let game_id_col_id = table_def.column_name_to_id("game_id").unwrap();
@@ -950,15 +980,17 @@ mod tests {
 
         // Write some lines to fill the cache. The last two lines include a new field "zone" which
         // should be added and appear in queries:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 plays,game_id=1 type=\"shot\",player=\"mackinnon\"\n\
                 plays,game_id=2 type=\"shot\",player=\"matthews\"\n\
                 plays,game_id=3 type=\"hit\",player=\"tkachuk\",zone=\"away\"\n\
                 plays,game_id=4 type=\"save\",player=\"bobrovsky\",zone=\"home\"\n\
                 ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         // get the table definition after the write as the catalog has changed:
         let table_def = writer.db_schema().table_definition("plays").unwrap();
         for row in &rows {
@@ -1024,10 +1056,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn new_field_ordering() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("tbl,t1=a f1=1", 500);
+    #[tokio::test]
+    async fn new_field_ordering() {
+        let writer = TestWriter::new().await;
+        let _ = writer.write_lp_to_rows("tbl,t1=a f1=1", 500).await;
 
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
         let t1_col_id = table_def.column_name_to_id("t1").unwrap();
@@ -1046,14 +1078,16 @@ mod tests {
 
         // Write some lines to fill the cache. In this case, with just the existing
         // columns in the table, i.e., t1 and f1
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 tbl,t1=a f1=1
                 tbl,t1=b f1=10
                 tbl,t1=c f1=100
                 ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
@@ -1061,14 +1095,16 @@ mod tests {
 
         // Write lines containing new fields f2 and f3, but with different orders for
         // each key column value, i.e., t1=a and t1=b:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
                 tbl,t1=a f1=1,f2=2,f3=3,f4=4
                 tbl,t1=b f1=10,f4=40,f3=30
                 tbl,t1=c f1=100,f3=300,f2=200
                 ",
-            1_500,
-        );
+                1_500,
+            )
+            .await;
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
         for row in &rows {
             cache.push(row, Arc::clone(&table_def));
@@ -1135,10 +1171,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn idempotent_cache_creation() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_rows("tbl,t1=a,t2=b f1=1,f2=2", 500);
+    #[tokio::test]
+    async fn idempotent_cache_creation() {
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_rows("tbl,t1=a,t2=b f1=1,f2=2", 500)
+            .await;
 
         let db_id = writer.db_schema().id;
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
@@ -1258,107 +1296,76 @@ mod tests {
         assert_eq!(provider.size(), 2);
     }
 
-    #[test]
-    fn catalog_initialization() {
-        // Set up a database in the catalog:
-        let db_name = "test_db";
-        let mut database = DatabaseSchema {
-            id: DbId::from(0),
-            name: db_name.into(),
-            tables: SerdeVecMap::new(),
-            table_map: {
-                let mut map = BiHashMap::new();
-                map.insert(TableId::from(0), "test_table_1".into());
-                map.insert(TableId::from(1), "test_table_2".into());
-                map
-            },
-            processing_engine_triggers: Default::default(),
-            deleted: false,
-        };
-        let table_id = TableId::from(0);
-        use schema::InfluxColumnType::*;
-        use schema::InfluxFieldType::*;
-        // Add a table to it:
-        let mut table_def = TableDefinition::new(
-            table_id,
-            "test_table_1".into(),
-            vec![
-                (ColumnId::from(0), "t1".into(), Tag),
-                (ColumnId::from(1), "t2".into(), Tag),
-                (ColumnId::from(2), "t3".into(), Tag),
-                (ColumnId::from(3), "time".into(), Timestamp),
-                (ColumnId::from(4), "f1".into(), Field(String)),
-                (ColumnId::from(5), "f2".into(), Field(Float)),
-            ],
-            vec![0.into(), 1.into(), 2.into()],
-        )
-        .unwrap();
-        // Give that table a last cache:
-        table_def.add_last_cache(
-            LastCacheDefinition::new_all_non_key_value_columns(
-                table_id,
-                "test_table_1",
-                "test_cache_1",
-                vec![ColumnId::from(0), ColumnId::from(1)],
-                1,
-                600,
-            )
-            .unwrap(),
-        );
-        database
-            .tables
-            .insert(table_def.table_id, Arc::new(table_def));
-        // Add another table to it:
-        let table_id = TableId::from(1);
-        let mut table_def = TableDefinition::new(
-            table_id,
-            "test_table_2".into(),
-            vec![
-                (ColumnId::from(6), "t1".into(), Tag),
-                (ColumnId::from(7), "time".into(), Timestamp),
-                (ColumnId::from(8), "f1".into(), Field(String)),
-                (ColumnId::from(9), "f2".into(), Field(Float)),
-            ],
-            vec![6.into()],
-        )
-        .unwrap();
-        // Give that table a last cache:
-        table_def.add_last_cache(
-            LastCacheDefinition::new_with_explicit_value_columns(
-                table_id,
-                "test_table_2",
-                "test_cache_2",
-                vec![ColumnId::from(6)],
-                vec![ColumnId::from(8), ColumnId::from(7)],
-                5,
-                60,
-            )
-            .unwrap(),
-        );
-        // Give that table another last cache:
-        table_def.add_last_cache(
-            LastCacheDefinition::new_with_explicit_value_columns(
-                table_id,
-                "test_table_2",
-                "test_cache_3",
-                vec![],
-                vec![ColumnId::from(9), ColumnId::from(7)],
-                10,
-                500,
-            )
-            .unwrap(),
-        );
-        database
-            .tables
-            .insert(table_def.table_id, Arc::new(table_def));
-        // Create the catalog and clone its InnerCatalog (which is what the LastCacheProvider is
-        // initialized from):
+    #[tokio::test]
+    async fn catalog_initialization() {
+        let obj_store = Arc::new(InMemory::new());
         let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let catalog = Catalog::new(node_id, instance_id);
-        let db_id = database.id;
-        catalog.insert_database(database);
-        let catalog = Arc::new(catalog);
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&obj_store) as _,
+                Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+            )
+            .await
+            .unwrap(),
+        );
+        let db_name = "test_db";
+        catalog.create_database(db_name).await.unwrap();
+        catalog
+            .create_table(
+                db_name,
+                "test_table_1",
+                &["t1", "t2", "t3"],
+                &[("f1", FieldDataType::String), ("f2", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_last_cache(
+                db_name,
+                "test_table_1",
+                Some("test_cache_1"),
+                Some(&["t1"]),
+                None as Option<&[&str]>,
+                LastCacheSize::new(1).unwrap(),
+                LastCacheTtl::from_secs(600),
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                db_name,
+                "test_table_2",
+                &["t1"],
+                &[("f1", FieldDataType::String), ("f2", FieldDataType::Float)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_last_cache(
+                db_name,
+                "test_table_2",
+                Some("test_cache_2"),
+                Some(&["t1"]),
+                Some(&["f1", "time"]),
+                LastCacheSize::new(5).unwrap(),
+                LastCacheTtl::from_secs(60),
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_last_cache(
+                db_name,
+                "test_table_2",
+                Some("test_cache_3"),
+                Option::<&[&str]>::Some(&[]),
+                Some(&["f2", "time"]),
+                LastCacheSize::new(10).unwrap(),
+                LastCacheTtl::from_secs(500),
+            )
+            .await
+            .unwrap();
+
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
         let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
             .expect("create last cache provider from catalog");
@@ -1366,6 +1373,7 @@ mod tests {
         assert_eq!(3, provider.size());
         // Get the cache definitions and snapshot them to check their content. They are sorted to
         // ensure order, since the provider uses hashmaps and their order may not be guaranteed.
+        let db_id = catalog.db_name_to_id(db_name).unwrap();
         let mut caches = provider.get_last_caches_for_db(db_id);
         caches.sort_by(|a, b| match a.table.partial_cmp(&b.table).unwrap() {
             ord @ Ordering::Less | ord @ Ordering::Greater => ord,
@@ -1388,8 +1396,10 @@ mod tests {
     /// out any predicates that were pushed down from the provided SQL query to the cache.
     #[tokio::test]
     async fn datafusion_udtf_predicate_conversion() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0);
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0)
+            .await;
 
         // create a last cache provider so we can use it to create our UDTF provider:
         let db_schema = writer.db_schema();
@@ -1410,8 +1420,9 @@ mod tests {
             .unwrap();
 
         // make some writes into the cache:
-        let write_batch = writer.write_lp_to_write_batch(
-            "\
+        let write_batch = writer
+            .write_lp_to_write_batch(
+                "\
             cpu,region=us-east,host=a usage=77,temp=66\n\
             cpu,region=us-east,host=b usage=77,temp=66\n\
             cpu,region=us-west,host=c usage=77,temp=66\n\
@@ -1425,8 +1436,9 @@ mod tests {
             cpu,region=eu-west,host=k usage=77,temp=66\n\
             cpu,region=eu-west,host=l usage=77,temp=66\n\
             ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
         let wal_contents = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
             [influxdb3_wal::create::write_batch_op(write_batch)],
@@ -1638,8 +1650,10 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_non_specified_key_val_cols() {
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0);
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0)
+            .await;
 
         // create a last cache provider so we can use it to create our UDTF provider:
         let db_schema = writer.db_schema();
@@ -1660,8 +1674,9 @@ mod tests {
             )
             .unwrap();
 
-        let write_batch = writer.write_lp_to_write_batch(
-            "\
+        let write_batch = writer
+            .write_lp_to_write_batch(
+                "\
             cpu,region=us-east,host=a usage=77,temp=66\n\
             cpu,region=us-east,host=b usage=77,temp=66\n\
             cpu,region=us-west,host=c usage=77,temp=66\n\
@@ -1675,8 +1690,9 @@ mod tests {
             cpu,region=eu-west,host=k usage=77,temp=66\n\
             cpu,region=eu-west,host=l usage=77,temp=66\n\
             ",
-            1_000,
-        );
+                1_000,
+            )
+            .await;
 
         let wal_contents = influxdb3_wal::create::wal_contents(
             (0, 1, 0),

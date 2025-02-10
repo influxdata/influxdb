@@ -559,7 +559,6 @@ mod tests {
     };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_enterprise_compactor::{
-        catalog::CompactedCatalog,
         compacted_data::CompactedDataSystemTableView,
         sys_events::{
             CompactionEventStore, catalog_fetched,
@@ -569,10 +568,11 @@ mod tests {
         },
     };
     use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
-    use influxdb3_id::{DbId, ParquetFileId, TableId};
+    use influxdb3_id::ParquetFileId;
     use influxdb3_internal_api::query_executor::QueryExecutor;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
+    use influxdb3_types::http::FieldDataType;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
         ParquetFile, WriteBuffer,
@@ -595,14 +595,12 @@ mod tests {
 
     #[derive(Debug)]
     struct MockCompactedDataSysTable {
-        catalog: CompactedCatalog,
+        catalog: Arc<Catalog>,
     }
 
     impl MockCompactedDataSysTable {
         fn new(catalog: Arc<Catalog>) -> Self {
-            Self {
-                catalog: CompactedCatalog::new_for_testing("mock-compactor", catalog),
-            }
+            Self { catalog }
         }
     }
 
@@ -656,8 +654,8 @@ mod tests {
             ])
         }
 
-        fn catalog(&self) -> &CompactedCatalog {
-            &self.catalog
+        fn catalog(&self) -> Arc<Catalog> {
+            Arc::clone(&self.catalog)
         }
     }
 
@@ -687,8 +685,15 @@ mod tests {
         ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from(node_id);
-        let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
@@ -887,7 +892,7 @@ mod tests {
         // success event - catalog
         let catalog_success_event = catalog_fetched::SuccessInfo {
             node_id: Arc::from(host),
-            catalog_sequence_number: 123,
+            catalog_sequence_number: 123.into(),
             duration: Duration::from_millis(10),
         };
         sys_events_store.record_catalog_success(catalog_success_event);
@@ -1081,23 +1086,23 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let exec = make_exec(Arc::clone(&object_store));
+        let catalog = Catalog::new(
+            "test",
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider) as _,
+        )
+        .await
+        .unwrap();
         let sys_events_store = Arc::new(SysEventStore::new(time_provider));
-        let catalog = Catalog::new("test".into(), "test".into());
-        let db_id = DbId::new();
+        catalog.create_database("test_db").await.unwrap();
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
+            .create_table(
                 "test_db",
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    "test_db",
-                    TableId::new(),
-                    "test_table",
-                    [],
-                    [],
-                )],
-            ))
+                "test_table",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
             .unwrap();
         let query_exec =
             CompactionSysTableQueryExecutorImpl::new(CompactionSysTableQueryExecutorArgs {
