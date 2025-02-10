@@ -349,6 +349,37 @@ jobs:
             target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+
+      - when:
+          condition:
+            not:
+              equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+          - run:
+              name: Check benches compile
+              command: target-env cargo check --target=<< parameters.target >> --workspace --benches
+          - run:
+              name: Check extra features (like prod image)
+              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
+
+      - when:
+          condition:
+            or:
+              - equal: [ << parameters.target >>, aarch64-unknown-linux-gnu ]
+              - equal: [ << parameters.target >>, x86_64-unknown-linux-gnu ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python'
+              name: adjust RPATH for linux
+              command: patchelf --add-rpath '$ORIGIN/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+      - when:
+          condition:
+            equal: [ << parameters.target >>, aarch64-apple-darwin ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@loader_path/python'
+              name: adjust RPATH for darwin
+              command: osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -add_rpath '@executable_path/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - run:
           name: tar and gzip build artifacts
           command: |
