@@ -244,7 +244,7 @@ jobs:
   # Build a dev binary.
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -305,7 +305,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 edge releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -349,6 +349,36 @@ jobs:
             target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+      - when:
+          condition:
+            or:
+              - equal: [ << parameters.target >>, aarch64-unknown-linux-gnu ]
+              - equal: [ << parameters.target >>, x86_64-unknown-linux-gnu ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python/lib'
+              name: adjust RPATH for linux
+              command: |
+                # for tarballs
+                echo "Running: patchelf --add-rpath '$ORIGIN/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                patchelf --add-rpath '$ORIGIN/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                # for deb/rpm installs
+                echo "Running: patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+      - when:
+          condition:
+            equal: [ << parameters.target >>, aarch64-apple-darwin ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
+              name: adjust LC_LOAD_DYLIB path for darwin
+              command: |
+                export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
+                echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change '/install/lib/lib${PBS_LIBPYTHON}.dylib' '@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change "/install/lib/lib${PBS_LIBPYTHON}.dylib" "@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib" "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                # re-sign after install_name_tool since osxcross won't do it
+                echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - run:
           name: tar and gzip build artifacts
           command: |
