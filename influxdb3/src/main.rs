@@ -14,6 +14,7 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+use std::env;
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -122,6 +123,9 @@ fn main() -> Result<(), std::io::Error> {
 
     // load all environment variables from .env before doing anything
     load_dotenv();
+
+    #[cfg(all(target_os = "windows", feature = "system-py"))]
+    set_windows_path(); // for libpython
 
     let config: Config = clap::Parser::parse();
 
@@ -300,4 +304,30 @@ fn init_logs_and_tracing(
 
     let subscriber = Registry::default().with(layers);
     trogging::install_global(subscriber)
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_path() {
+    return if cfg!(target_os != "windows");
+
+    // get current executable's dir
+    let exe_path = env::current_exe().unwrap();
+    let exe_dir = exe_path.parent().unwrap();
+    let lib_dir = exe_dir.join("python");
+
+    let current_path = env::var("PATH").unwrap();
+
+    let new_path = if current_path == "" {
+        format!("{}", lib_dir.display())
+    } else {
+        format!("{};{}", lib_dir.display(), current_path)
+    };
+
+    unsafe { env::set_var("PATH", new_path) };
+
+    println!(
+        "Updated PATH to add '{}': {}",
+        new_path,
+        env::var("PATH").unwrap()
+    );
 }
