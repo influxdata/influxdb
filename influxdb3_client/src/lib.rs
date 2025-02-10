@@ -913,7 +913,7 @@ impl QueryRequestBuilder<'_> {
     ///
     /// let client = Client::new("http://localhost:8181")?;
     /// let response_bytes = client
-    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $fooz")
+    ///     .api_v3_query_sql("db_name", "SELECT * FROM foo WHERE bar = $bar AND foo > $foo")
     ///     .with_params_from([
     ///         ("bar", json!(false)),
     ///         ("foo", json!(10)),

@@ -2084,19 +2084,21 @@ mod tests {
             ))
             .unwrap();
         let mut tables: Vec<(TableId, Arc<str>)> = vec![];
-        for i in 0..Catalog::NUM_TABLES_LIMIT {
-            let table_id = TableId::new();
-            let table_name = Arc::<str>::from(format!("test-table-{i}").as_str());
-            catalog
-                .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                    db_id,
-                    db_name,
-                    0,
-                    [influxdb3_wal::create::create_table_op(
+
+        catalog
+            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
+                db_id,
+                db_name,
+                0,
+                (0..Catalog::NUM_TABLES_LIMIT).map(|i| {
+                    let table_id = TableId::new();
+                    let table_name = Arc::<str>::from(format!("test-table-{i}").as_str());
+                    tables.push((table_id, Arc::clone(&table_name)));
+                    influxdb3_wal::create::create_table_op(
                         db_id,
                         db_name,
                         table_id,
-                        Arc::clone(&table_name),
+                        table_name,
                         [
                             influxdb3_wal::create::field_def(
                                 ColumnId::new(),
@@ -2110,11 +2112,11 @@ mod tests {
                             ),
                         ],
                         [],
-                    )],
-                ))
-                .unwrap();
-            tables.push((table_id, table_name));
-        }
+                    )
+                }),
+            ))
+            .unwrap();
+
         assert_eq!(4_000, catalog.inner.read().table_count());
         // should not be able to create another table:
         let table_id = TableId::new();
