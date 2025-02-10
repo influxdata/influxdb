@@ -17,7 +17,12 @@ pub enum VenvError {
 }
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
-    let output = Command::new("python3")
+    // linux/osx have python3, but windows only has python. Use python since it is in all of them
+    #[cfg(unix)]
+    let python_exe = "python3";
+    #[cfg(windows)]
+    let python_exe = "python";
+    let output = Command::new(python_exe)
         .args([
             "-c",
             "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
@@ -63,11 +68,15 @@ pub fn init_pyo3() {
     });
 }
 
-#[cfg(unix)]
+// FIXME: this doesn't work on windows
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
 
+    #[cfg(unix)]
     let activate_script = venv_path.join("bin").join("activate");
+    #[cfg(windows)]
+    let activate_script = venv_path.join("Scripts").join("activate");
+
     if !activate_script.exists() {
         return Err(VenvError::InitError(format!(
             "Activation script not found at {:?}",
@@ -76,12 +85,18 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     }
     set_pythonpath(venv_path)?;
 
+    #[cfg(unix)]
     let output = Command::new("bash")
         .arg("-c")
         .arg(format!(
             "source {} && env",
             activate_script.to_str().unwrap()
         ))
+        .output()?;
+
+    #[cfg(windows)]
+    let output = Command::new("cmd")
+        .args(&["/C", &activate_script.to_str().unwrap()])
         .output()?;
 
     if !output.status.success() {
