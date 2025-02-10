@@ -98,7 +98,7 @@ impl PythonEnvironmentManager for PipManager {
         };
 
         if !is_valid_venv(venv_path) {
-            Command::new("python")
+            Command::new("python3")
                 .arg("-m")
                 .arg("venv")
                 .arg(venv_path)
