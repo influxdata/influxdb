@@ -1178,7 +1178,6 @@ async fn test_show_system() {
     for case in cases {
         let output = run_and_err(&case.args);
         let snap_name = case.name.replace(' ', "_");
-        println!("Actual output {}", output);
         insta::assert_snapshot!(snap_name, output);
     }
 }
