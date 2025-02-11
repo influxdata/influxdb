@@ -1161,11 +1161,24 @@ async fn test_show_system() {
             name: "iox schema table name exists, but should error because we're concerned here with system tables",
             args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "cpu"],
         },
+        FailTestCase {
+            name: "fail without output-file when format is parquet for table",
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "--format", "parquet","distinct_caches"]
+        },
+        FailTestCase {
+            name: "fail without output-file when format is parquet for table-list",
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table-list", "--format", "parquet"]
+        },
+        FailTestCase {
+            name: "fail without output-file when format is parquet for summary",
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "summary", "--format", "parquet"]
+        },
     ];
 
     for case in cases {
         let output = run_and_err(&case.args);
         let snap_name = case.name.replace(' ', "_");
+        println!("Actual output {}", output);
         insta::assert_snapshot!(snap_name, output);
     }
 }
