@@ -394,7 +394,7 @@ jobs:
             - artifacts
   build-packages:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:db0cd91a5445c4287154cea1d4d5566735cb0d3b7b9e2a95724a83f9d979d497
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
