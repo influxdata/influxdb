@@ -44,6 +44,3 @@ databases:
 sequence: 1
 node_id: host-a
 instance_id: instance-a
-db_map:
-  - db_id: 0
-    name: foo

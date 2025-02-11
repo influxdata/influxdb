@@ -16,6 +16,7 @@ use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, FieldData, Row};
 use iox_time::TimeProvider;
+use observability_deps::tracing::debug;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
@@ -229,6 +230,13 @@ impl DistinctCache {
         projection: Option<&[usize]>,
         limit: Option<usize>,
     ) -> Result<RecordBatch, ArrowError> {
+        debug!(
+            ?schema,
+            ?predicates,
+            ?projection,
+            ?limit,
+            ">>> distinct cache record batches"
+        );
         let n_columns = projection
             .as_ref()
             .and_then(|p| p.iter().max().copied())
