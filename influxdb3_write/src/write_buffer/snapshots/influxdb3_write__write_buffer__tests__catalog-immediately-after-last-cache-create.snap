@@ -82,12 +82,6 @@ expression: catalog_json
       }
     ]
   ],
-  "db_map": [
-    {
-      "db_id": 0,
-      "name": "db"
-    }
-  ],
   "instance_id": "[uuid]",
   "node_id": "test_host",
   "sequence": 2

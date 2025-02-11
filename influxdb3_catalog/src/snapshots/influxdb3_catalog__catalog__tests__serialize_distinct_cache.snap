@@ -15,7 +15,7 @@ expression: catalog
             0,
             {
               "table_id": 0,
-              "table_name": "test",
+              "table_name": "test_table",
               "key": [
                 0,
                 1,
@@ -93,20 +93,17 @@ expression: catalog
                   }
                 ]
               ],
-              "last_caches": [
+              "distinct_caches": [
                 {
                   "table_id": 0,
-                  "table": "test",
-                  "name": "test_table_last_cache",
-                  "keys": [
-                    1,
-                    2
+                  "table": "test_table",
+                  "name": "test_cache",
+                  "cols": [
+                    0,
+                    1
                   ],
-                  "vals": [
-                    4
-                  ],
-                  "n": 1,
-                  "ttl": 600
+                  "max_cardinality": 100,
+                  "max_age_seconds": 10
                 }
               ],
               "deleted": false
@@ -120,5 +117,5 @@ expression: catalog
   ],
   "instance_id": "instance-id",
   "node_id": "sample-host-id",
-  "sequence": 0
+  "sequence": 2
 }
