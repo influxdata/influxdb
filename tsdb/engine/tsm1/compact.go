@@ -1125,16 +1125,25 @@ func (c *Compactor) writeNewFiles(generation, sequence int, src []string, iter K
 			}
 			return nil, err
 		} else if err != nil {
+			var errs []error
+			errs = append(errs, err)
 			// We hit an error and didn't finish the compaction.  Abort.
 			// Remove any tmp files we already completed
 			// discard later errors to return the first one from the write() call
 			for _, f := range files {
-				_ = os.RemoveAll(f)
+				err = os.RemoveAll(f)
+				if err != nil {
+					errs = append(errs, err)
+				}
 			}
 			// Remove the temp file
 			// discard later errors to return the first one from the write() call
-			_ = os.RemoveAll(fileName)
-			return nil, err
+			err = os.RemoveAll(fileName)
+			if err != nil {
+				errs = append(errs, err)
+			}
+
+			return nil, errors.Join(errs...)
 		}
 
 		files = append(files, fileName)
