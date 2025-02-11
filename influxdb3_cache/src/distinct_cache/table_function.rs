@@ -102,8 +102,8 @@ impl TableProvider for DistinctCacheFunctionProvider {
             predicates,
             Arc::clone(&self.table_def),
             &[batches],
-            self.schema(),
-            projection,
+            schema,
+            projection.is_some(),
             limit,
         )?;
 
@@ -292,7 +292,7 @@ struct DistinctCacheExec {
     inner: MemoryExec,
     table_def: Arc<TableDefinition>,
     predicates: Option<IndexMap<ColumnId, Predicate>>,
-    projection: Option<Vec<usize>>,
+    is_projected: bool,
     limit: Option<usize>,
 }
 
@@ -302,7 +302,7 @@ impl DistinctCacheExec {
         table_def: Arc<TableDefinition>,
         partitions: &[Vec<RecordBatch>],
         schema: SchemaRef,
-        projection: Option<&Vec<usize>>,
+        is_projected: bool,
         limit: Option<usize>,
     ) -> Result<Self> {
         Ok(Self {
@@ -310,7 +310,7 @@ impl DistinctCacheExec {
             inner: MemoryExec::try_new(partitions, schema, None)?,
             predicates,
             table_def,
-            projection: projection.cloned(),
+            is_projected,
             limit,
         })
     }
@@ -328,14 +328,13 @@ impl DisplayAs for DistinctCacheExec {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
                 write!(f, "DistinctCacheExec:")?;
-                if let Some(projection) = &self.projection {
+                if self.is_projected {
                     write!(f, " projection=[")?;
                     let schema = self.schema();
-                    let mut p_iter = projection.iter();
-                    while let Some(i) = p_iter.next() {
-                        let name = schema.fields().get(*i).ok_or(std::fmt::Error)?.name();
-                        write!(f, "{name}@{i}")?;
-                        if p_iter.size_hint().0 > 0 {
+                    let mut field_iter = schema.fields().iter().peekable();
+                    while let (Some(field), next) = (field_iter.next(), field_iter.peek()) {
+                        write!(f, "{name}", name = field.name())?;
+                        if next.is_some() {
                             write!(f, ", ")?;
                         }
                     }
