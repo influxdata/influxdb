@@ -74,7 +74,6 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
             activate_script
         )));
     }
-    set_pythonpath(venv_path)?;
 
     let output = Command::new("bash")
         .arg("-c")
@@ -95,6 +94,8 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
         .lines()
         .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| std::env::set_var(key, value));
+
+    set_pythonpath(venv_path)?;
 
     Ok(())
 }
