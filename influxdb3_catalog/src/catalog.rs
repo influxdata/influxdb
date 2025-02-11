@@ -19,7 +19,7 @@ use iox_time::Time;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -160,24 +160,10 @@ impl CatalogSequenceNumber {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Catalog {
+    #[serde(flatten)]
     inner: RwLock<InnerCatalog>,
-}
-
-impl PartialEq for Catalog {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner.read().eq(&other.inner.read())
-    }
-}
-
-impl Serialize for Catalog {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        self.inner.read().serialize(serializer)
-    }
 }
 
 impl Catalog {
@@ -359,78 +345,20 @@ impl Catalog {
     }
 }
 
-#[serde_with::serde_as]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct InnerCatalog {
     /// The catalog is a map of databases with their table schemas
-    databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
-    sequence: CatalogSequenceNumber,
+    pub(crate) databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
+    pub(crate) sequence: CatalogSequenceNumber,
     /// The `node_id` is the prefix that is passed in when starting up
     /// (`node_identifier_prefix`)
-    // TODO: deprecate this alias
-    #[serde(alias = "writer_id")]
-    node_id: Arc<str>,
+    pub(crate) node_id: Arc<str>,
     /// The instance_id uniquely identifies the instance that generated the catalog
-    instance_id: Arc<str>,
+    pub(crate) instance_id: Arc<str>,
     /// If true, the catalog has been updated since the last time it was serialized
-    #[serde(skip)]
-    updated: bool,
-    #[serde_as(as = "DbMapAsArray")]
-    db_map: BiHashMap<DbId, Arc<str>>,
+    pub(crate) updated: bool,
+    pub(crate) db_map: BiHashMap<DbId, Arc<str>>,
 }
-
-serde_with::serde_conv!(
-    DbMapAsArray,
-    BiHashMap<DbId, Arc<str>>,
-    |map: &BiHashMap<DbId, Arc<str>>| {
-        map.iter().fold(Vec::new(), |mut acc, (id, name)| {
-            acc.push(DbMap {
-                db_id: *id,
-                name: Arc::clone(&name)
-            });
-            acc
-        })
-    },
-    |vec: Vec<DbMap>| -> Result<_, std::convert::Infallible> {
-        Ok(vec.into_iter().fold(BiHashMap::new(), |mut acc, db| {
-            acc.insert(db.db_id, db.name);
-            acc
-        }))
-    }
-);
-
-#[derive(Debug, Serialize, Deserialize)]
-struct DbMap {
-    db_id: DbId,
-    name: Arc<str>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TableMap {
-    table_id: TableId,
-    name: Arc<str>,
-}
-
-serde_with::serde_conv!(
-    TableMapAsArray,
-    BiHashMap<TableId, Arc<str>>,
-    |map: &BiHashMap<TableId, Arc<str>>| {
-        map.iter().fold(Vec::new(), |mut acc, (table_id, name)| {
-            acc.push(TableMap {
-                table_id: *table_id,
-                name: Arc::clone(&name)
-            });
-            acc
-        })
-    },
-    |vec: Vec<TableMap>| -> Result<_, std::convert::Infallible> {
-        let mut map = BiHashMap::new();
-        for item in vec {
-            map.insert(item.table_id, item.name);
-        }
-        Ok(map)
-    }
-);
 
 impl InnerCatalog {
     pub(crate) fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
@@ -1439,19 +1367,20 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        insta::with_settings!({
-            sort_maps => true,
-            description => "catalog serialization to help catch breaking changes"
-        }, {
-            insta::assert_json_snapshot!(catalog);
-        });
-
-        // Serialize/deserialize to ensure roundtrip to/from JSON
-        let serialized = serde_json::to_string(&catalog).unwrap();
-        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
-        let deserialized = Catalog::from_inner(deserialized_inner);
-        assert_eq!(catalog, deserialized);
-        assert_eq!(instance_id, deserialized.instance_id());
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                insta::assert_json_snapshot!(catalog);
+                // Serialize/deserialize to ensure roundtrip to/from JSON
+                let serialized = serde_json::to_string(&catalog).unwrap();
+                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
+                insta::assert_json_snapshot!(catalog);
+                assert_eq!(instance_id, catalog.instance_id());
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
     }
 
     #[test]
@@ -1483,8 +1412,7 @@ mod tests {
                 ],
                 "sequence": 0,
                 "node_id": "test",
-                "instance_id": "test",
-                "db_map": []
+                "instance_id": "test"
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "duplicate key found");
@@ -1529,8 +1457,7 @@ mod tests {
                 ],
                 "sequence": 0,
                 "node_id": "test",
-                "instance_id": "test",
-                "db_map": []
+                "instance_id": "test"
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "duplicate key found");
@@ -1681,17 +1608,18 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        insta::with_settings!({
-            sort_maps => true,
-            description => "catalog serialization to help catch breaking changes"
-        }, {
-            insta::assert_json_snapshot!(catalog);
-        });
-
-        let serialized = serde_json::to_string(&catalog).unwrap();
-        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
-        let deserialized = Catalog::from_inner(deserialized_inner);
-        assert_eq!(catalog, deserialized);
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                insta::assert_json_snapshot!(catalog);
+                let serialized = serde_json::to_string(&catalog).unwrap();
+                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
+                insta::assert_json_snapshot!(catalog);
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
     }
 
     #[test]
@@ -1747,17 +1675,71 @@ mod tests {
             .databases
             .insert(database.id, Arc::new(database));
 
-        insta::with_settings!({
-            sort_maps => true,
-            description => "catalog serialization to help catch breaking changes"
-        }, {
-            insta::assert_json_snapshot!(catalog);
-        });
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                insta::assert_json_snapshot!(catalog);
+                let serialized = serde_json::to_string(&catalog).unwrap();
+                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
+                insta::assert_json_snapshot!(catalog);
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
+    }
 
-        let serialized = serde_json::to_string(&catalog).unwrap();
-        let deserialized_inner: InnerCatalog = serde_json::from_str(&serialized).unwrap();
-        let deserialized = Catalog::from_inner(deserialized_inner);
-        assert_eq!(catalog, deserialized);
+    #[test]
+    fn test_serialize_distinct_cache() {
+        let node_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("instance-id");
+        let catalog = Catalog::new(node_id, instance_id);
+        let mut database = catalog.db_or_create("test_db").unwrap().as_ref().clone();
+        use InfluxColumnType::*;
+        use InfluxFieldType::*;
+        let table_id = TableId::new();
+        let table_name = Arc::<str>::from("test_table");
+        let tag_1_id = ColumnId::new();
+        let tag_2_id = ColumnId::new();
+        let tag_3_id = ColumnId::new();
+        let mut table_def = TableDefinition::new(
+            table_id,
+            Arc::clone(&table_name),
+            vec![
+                (tag_1_id, "tag_1".into(), Tag),
+                (tag_2_id, "tag_2".into(), Tag),
+                (tag_3_id, "tag_3".into(), Tag),
+                (ColumnId::new(), "time".into(), Timestamp),
+                (ColumnId::new(), "field".into(), Field(String)),
+            ],
+            vec![tag_1_id, tag_2_id, tag_3_id],
+        )
+        .unwrap();
+        table_def.add_distinct_cache(DistinctCacheDefinition {
+            table_id,
+            table_name,
+            cache_name: Arc::<str>::from("test_cache"),
+            column_ids: vec![tag_1_id, tag_2_id],
+            max_cardinality: 100,
+            max_age_seconds: 10,
+        });
+        database
+            .insert_table(table_id, Arc::new(table_def))
+            .unwrap();
+        catalog.inner.write().upsert_db(database);
+
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                insta::assert_json_snapshot!(catalog);
+                let serialized = serde_json::to_string(&catalog).unwrap();
+                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
+                insta::assert_json_snapshot!(catalog);
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
     }
 
     #[test]

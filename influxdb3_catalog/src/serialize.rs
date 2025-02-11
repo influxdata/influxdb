@@ -1,5 +1,7 @@
+use crate::catalog::CatalogSequenceNumber;
 use crate::catalog::ColumnDefinition;
 use crate::catalog::DatabaseSchema;
+use crate::catalog::InnerCatalog;
 use crate::catalog::TableDefinition;
 use arrow::datatypes::DataType as ArrowDataType;
 use bimap::BiHashMap;
@@ -8,12 +10,78 @@ use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
+use influxdb3_wal::DistinctCacheDefinition;
 use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef, PluginType, TriggerDefinition};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+impl Serialize for InnerCatalog {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let snapshot = CatalogSnapshot::from(self);
+        snapshot.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for InnerCatalog {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        CatalogSnapshot::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CatalogSnapshot {
+    databases: SerdeVecMap<DbId, DatabaseSnapshot>,
+    sequence: CatalogSequenceNumber,
+    #[serde(alias = "writer_id")]
+    node_id: Arc<str>,
+    instance_id: Arc<str>,
+}
+
+impl From<&InnerCatalog> for CatalogSnapshot {
+    fn from(catalog: &InnerCatalog) -> Self {
+        Self {
+            databases: catalog
+                .databases
+                .iter()
+                .map(|(id, db)| (*id, db.as_ref().into()))
+                .collect(),
+            sequence: catalog.sequence,
+            node_id: Arc::clone(&catalog.node_id),
+            instance_id: Arc::clone(&catalog.instance_id),
+        }
+    }
+}
+
+impl From<CatalogSnapshot> for InnerCatalog {
+    fn from(snap: CatalogSnapshot) -> Self {
+        let db_map = snap
+            .databases
+            .iter()
+            .map(|(id, db)| (*id, Arc::clone(&db.name)))
+            .collect();
+        Self {
+            databases: snap
+                .databases
+                .into_iter()
+                .map(|(id, db)| (id, Arc::new(db.into())))
+                .collect(),
+            sequence: snap.sequence,
+            node_id: snap.node_id,
+            instance_id: snap.instance_id,
+            updated: false,
+            db_map,
+        }
+    }
+}
 
 impl Serialize for DatabaseSchema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -137,6 +205,8 @@ struct TableSnapshot {
     cols: SerdeVecMap<ColumnId, ColumnDefinitionSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     last_caches: Vec<LastCacheSnapshot>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    distinct_caches: Vec<DistinctCacheSnapshot>,
     deleted: bool,
 }
 
@@ -299,6 +369,7 @@ impl From<&TableDefinition> for TableSnapshot {
                 })
                 .collect(),
             last_caches: def.last_caches.values().map(Into::into).collect(),
+            distinct_caches: def.distinct_caches.values().map(Into::into).collect(),
             deleted: def.deleted,
         }
     }
@@ -383,6 +454,11 @@ impl From<TableSnapshot> for TableDefinition {
                 .last_caches
                 .into_iter()
                 .map(|lc_snap| (Arc::clone(&lc_snap.name), lc_snap.into()))
+                .collect(),
+            distinct_caches: snap
+                .distinct_caches
+                .into_iter()
+                .map(|dc_snap| (Arc::clone(&dc_snap.name), dc_snap.into()))
                 .collect(),
             ..table_def
         }
@@ -479,6 +555,42 @@ impl From<LastCacheSnapshot> for LastCacheDefinition {
                 .try_into()
                 .expect("catalog contains invalid last cache size"),
             ttl: snap.ttl,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DistinctCacheSnapshot {
+    table_id: TableId,
+    table: Arc<str>,
+    name: Arc<str>,
+    cols: Vec<ColumnId>,
+    max_cardinality: usize,
+    max_age_seconds: u64,
+}
+
+impl From<&DistinctCacheDefinition> for DistinctCacheSnapshot {
+    fn from(def: &DistinctCacheDefinition) -> Self {
+        Self {
+            table_id: def.table_id,
+            table: Arc::clone(&def.table_name),
+            name: Arc::clone(&def.cache_name),
+            cols: def.column_ids.clone(),
+            max_cardinality: def.max_cardinality,
+            max_age_seconds: def.max_age_seconds,
+        }
+    }
+}
+
+impl From<DistinctCacheSnapshot> for DistinctCacheDefinition {
+    fn from(snap: DistinctCacheSnapshot) -> Self {
+        Self {
+            table_id: snap.table_id,
+            table_name: snap.table,
+            cache_name: snap.name,
+            column_ids: snap.cols,
+            max_cardinality: snap.max_cardinality,
+            max_age_seconds: snap.max_age_seconds,
         }
     }
 }

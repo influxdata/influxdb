@@ -267,8 +267,7 @@ expression: catalog
       }
     ]
   ],
-  "sequence": 0,
-  "node_id": "sample-host-id",
   "instance_id": "instance-id",
-  "db_map": []
+  "node_id": "sample-host-id",
+  "sequence": 0
 }
