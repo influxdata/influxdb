@@ -697,12 +697,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 			continue
 		}
 
-		// Skip any points whos keys have been dropped. Dropped has already been incremented for them.
+		// Skip any points whose keys have been dropped. Dropped has already been incremented for them.
 		if len(droppedKeys) > 0 && bytesutil.Contains(droppedKeys, keys[i]) {
 			continue
 		}
 
-		cont, err := func(p models.Point, iter models.FieldIterator) (cont bool, err error) {
+		err := func(p models.Point, iter models.FieldIterator) error {
 			name := p.Name()
 			mf := engine.MeasurementFields(name)
 			mf.mu.Lock()
@@ -711,15 +711,16 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 			if err := ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); err != nil {
 				switch err := err.(type) {
 				case PartialWriteError:
+					// This will turn into an error later, outside this lambda
 					if reason == "" {
 						reason = err.Reason
 					}
 					dropped += err.Dropped
 					atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
 				default:
-					return false, err
+					return err
 				}
-				return true, nil
+				return nil
 			}
 
 			points[j] = points[i]
@@ -752,11 +753,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 					},
 				})
 			}
-			return true, nil
+			return nil
 		}(p, iter)
-		if cont {
-			continue
-		} else if err != nil {
+		if err != nil {
 			return nil, nil, err
 		}
 	}
