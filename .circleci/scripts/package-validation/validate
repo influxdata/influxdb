@@ -45,7 +45,11 @@ install_rpm() {
   # see "install_deb" for "update"
   yum update -y
   yum install -y binutils
-  yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+  # temporary install with rpm --nodeps until we compile with older glibc
+  #yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+  yum install -y shadow-utils       # for useradd
+  yum install -y libxcrypt-compat   # for libcrypt.so.1
+  rpm -ivh --nodeps "$(realpath "${PACKAGE_PATH}")"
 }
 
 case ${PACKAGE_TYPE}
