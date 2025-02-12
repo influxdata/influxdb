@@ -212,7 +212,7 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 	}
 }
 
-func Test(t *testing.T) {
+func TestRententionNever(t *testing.T) {
 	s := itesting.NewTestInmemStore(t)
 	id := mock.NewStaticIDGenerator(idOne)
 	orgID := mock.NewStaticIDGenerator(idOne)
