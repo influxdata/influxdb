@@ -213,20 +213,19 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 }
 
 func TestRententionNever(t *testing.T) {
-	s := itesting.NewTestInmemStore(t)
 	id := mock.NewStaticIDGenerator(idOne)
 	orgID := mock.NewStaticIDGenerator(idOne)
 	bucket := &influxdb.Bucket{
 		ID:                  id.ID(),
-		Type:                influxdb.BucketTypeUser,
 		OrgID:               orgID.ID(),
+		Type:                influxdb.BucketTypeUser,
 		Name:                "bucket",
 		Description:         "words",
 		RetentionPolicyName: "",
 		RetentionPeriod:     time.Duration(60) * time.Minute,
 		ShardGroupDuration:  time.Duration(24) * time.Hour,
 	}
-	store := tenant.NewStore(s)
+	store := tenant.NewStore(itesting.NewTestInmemStore(t))
 	ctx := context.Background()
 	err := store.Update(ctx, func(tx kv.Tx) error {
 		if err := store.CreateBucket(tx.Context(), tx, bucket); err != nil {
