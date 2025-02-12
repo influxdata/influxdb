@@ -705,8 +705,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		err := func(p models.Point, iter models.FieldIterator) error {
 			name := p.Name()
 			mf := engine.MeasurementFields(name)
-			mf.mu.Lock()
-			defer mf.mu.Unlock()
+			mf.mu.RLock()
+			defer mf.mu.RUnlock()
 			// Check with the field validator.
 			if err := ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); err != nil {
 				switch err := err.(type) {
@@ -1586,7 +1586,7 @@ func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	fields atomic.Value // map[string]*Field
 }
