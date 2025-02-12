@@ -665,7 +665,7 @@ pub fn execute_schedule_trigger(
             logger.log(
                 LogLevel::Info,
                 format!(
-                    "finished execution in {:?}",
+                    "finished execution in {}",
                     format_duration(runtime.unwrap_or_default())
                 ),
             );

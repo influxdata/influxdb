@@ -7,7 +7,7 @@ use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
-use influxdb3_wal::TriggerSpecificationDefinition;
+use influxdb3_wal::{TriggerFlag, TriggerSpecificationDefinition};
 use influxdb3_write::WriteBuffer;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -57,11 +57,13 @@ pub enum ProcessingEngineError {
 ///
 #[async_trait::async_trait]
 pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
+    #[allow(clippy::too_many_arguments)]
     async fn insert_trigger(
         &self,
         db_name: &str,
         trigger_name: String,
         plugin_filename: String,
+        flags: Vec<TriggerFlag>,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
