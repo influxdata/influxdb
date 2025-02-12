@@ -212,7 +212,7 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 	}
 }
 
-func TestRententionNever(t *testing.T) {
+func TestRetentionNever(t *testing.T) {
 	id := mock.NewStaticIDGenerator(idOne)
 	orgID := mock.NewStaticIDGenerator(idOne)
 	bucket := &influxdb.Bucket{
