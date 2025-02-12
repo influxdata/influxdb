@@ -218,6 +218,10 @@ jobs:
     machine:
       image: ubuntu-2204:current
       resource_class: medium
+    # environment variables for python-build-standalone. Should correspond to
+    # https://github.com/astral-sh/python-build-standalone/releases. See
+    # scripts/fetch-python-standalone.bash for details. This should match the
+    # 'build-docker' job, below.
     environment:
       PBS_DATE: "20250106"
       PBS_VERSION: "3.11.11"
@@ -226,10 +230,11 @@ jobs:
       - run:
           name: pull Python Build Standalone
           command: |
+            echo "PBS_DATE=$PBS_DATE"
             .circleci/scripts/fetch-python-standalone.bash \
               "python-artifacts" \
-              "${PBS_DATE}" \
-              "${PBS_VERSION}"
+              "$PBS_DATE" \
+              "$PBS_VERSION"
       - store_artifacts:
           path: python-artifacts
       - persist_to_workspace:
@@ -535,6 +540,13 @@ jobs:
       image_name:
         type: string
         default: influxdb3-core
+    # environment variables for python-build-standalone. Should correspond to
+    # https://github.com/astral-sh/python-build-standalone/releases. See
+    # scripts/fetch-python-standalone.bash for details. This should match
+    # the 'fetch-python' job, above.
+    environment:
+      PBS_DATE: "20250106"
+      PBS_VERSION: "3.11.11"
     machine:
       image: default
     resource_class: << parameters.resource_class >>
@@ -555,6 +567,8 @@ jobs:
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
+              "$PBS_DATE" \
+              "$PBS_VERSION" \
               "<< parameters.platform >>" \
               "$DOCKER_PROFILE"
 
