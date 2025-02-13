@@ -9,7 +9,6 @@ RUN apt update \
     && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
-
 # Build influxdb3
 COPY . /influxdb3
 WORKDIR /influxdb3
@@ -47,7 +46,7 @@ RUN \
     PYO3_CONFIG_FILE="/influxdb3/python-artifacts/$PBS_TARGET/pyo3_config_file.txt" cargo build --target-dir /influxdb3/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
     objcopy --compress-debug-sections "target/$PROFILE/$PACKAGE" && \
     cp "/influxdb3/target/$PROFILE/$PACKAGE" "/root/$PACKAGE" && \
-    patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' "/root/$PACKAGE" && \
+    patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' "/root/$PACKAGE" && \
     cp -a "/influxdb3/python-artifacts/$PBS_TARGET/python" /root/python && \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target
 
