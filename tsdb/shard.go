@@ -703,14 +703,17 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		}
 
 		err := func(p models.Point, iter models.FieldIterator) error {
+			var newFields []*FieldCreate
+			var validateErr error
 			name := p.Name()
 			mf := engine.MeasurementFields(name)
 			mf.mu.RLock()
 			defer mf.mu.RUnlock()
 			// Check with the field validator.
-			if err := ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); err != nil {
-				switch err := err.(type) {
-				case PartialWriteError:
+			if newFields, validateErr = ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); validateErr != nil {
+				var err PartialWriteError
+				switch {
+				case errors.As(validateErr, &err):
 					// This will turn into an error later, outside this lambda
 					if reason == "" {
 						reason = err.Reason
@@ -725,34 +728,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 
 			points[j] = points[i]
 			j++
-
-			// Create any fields that are missing.
-			iter.Reset()
-			for iter.Next() {
-				fieldKey := iter.FieldKey()
-
-				// Skip fields named "time". They are illegal.
-				if bytes.Equal(fieldKey, timeBytes) {
-					continue
-				}
-
-				if mf.FieldBytes(fieldKey) != nil {
-					continue
-				}
-
-				dataType := dataTypeFromModelsFieldType(iter.Type())
-				if dataType == influxql.Unknown {
-					continue
-				}
-
-				fieldsToCreate = append(fieldsToCreate, &FieldCreate{
-					Measurement: name,
-					Field: &Field{
-						Name: string(fieldKey),
-						Type: dataType,
-					},
-				})
-			}
+			fieldsToCreate = append(fieldsToCreate, newFields...)
 			return nil
 		}(p, iter)
 		if err != nil {
