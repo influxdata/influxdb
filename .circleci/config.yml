@@ -364,12 +364,9 @@ jobs:
               # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python/lib'
               name: adjust RPATH for linux
               command: |
-                # for tarballs
-                echo "Running: patchelf --add-rpath '$ORIGIN/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
-                patchelf --add-rpath '$ORIGIN/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
-                # for deb/rpm installs
-                echo "Running: patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
-                patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                # tarballs need $ORIGIN/python/lib, deb/rpm need $ORIGIN/../lib/influxdb3/python/lib
+                echo "Running: patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                  patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - when:
           condition:
             equal: [ << parameters.target >>, aarch64-apple-darwin ]

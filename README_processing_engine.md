@@ -343,8 +343,7 @@ to use the InfluxDB processing engine. This is achieved by:
 
     ```sh
     # linux
-    $ patchelf --add-rpath '$ORIGIN/python/lib' target/.../influxdb3
-    $ patchelf --add-rpath '$ORIGIN/../lib/influxdb3/python/lib' target/.../influxdb3
+    $ patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' target/.../influxdb3
 
     # osx
     $ install_name_tool -change '/install/lib/libpython3.NN.dylib' \
