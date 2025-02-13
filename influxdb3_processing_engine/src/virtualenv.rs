@@ -17,7 +17,7 @@ pub enum VenvError {
 }
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
-    // linux/osx have python3, but windows only has python. Use python since it is in all of them
+    // linux/osx have python3, but windows only has python
     let python_exe = if cfg!(target_os = "windows") {
         "python"
     } else {
