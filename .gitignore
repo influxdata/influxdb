@@ -2,6 +2,8 @@
 influxdb3_license/service/license_service
 # default results directory for the load generator:
 results/
+# default test data for the justfile workloads file
+test-data/
 # datafusion-cli history:
 **.history
 # rust compiled binary target directory:
