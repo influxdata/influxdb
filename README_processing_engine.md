@@ -76,7 +76,7 @@ well as a few OS-specific libraries. Specifically:
      well as `glibc` (currently compatible with `glibc` 2.36+ (though 2.35 is
      known to work; future releases will be built against an earlier `glibc`
      release to improve compatibility))
- * Darwin (seen with `otool -L`; cross-compiled with `osxcross`):
+ * Darwin (seen with `otool -L`; cross-compiled with [osxcross](https://github.com/tpoechtrager/osxcross)):
    * `python-build-standalone` is linked against:
      * `CoreFoundation.framework/Versions/A/CoreFoundation` compatibility
        version 150.0.0
@@ -255,12 +255,12 @@ In an ideal world, InfluxDB would build against a version of
 about dynamic library compatibility. Unfortunately, this is not possible for
 many reasons:
 
- * static `python-build-standalone` builds for Darwin are [not available](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
- * static `python-build-standalone` builds for Windows are [not stable](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
+ * static `python-build-standalone` builds for Darwin are [not available](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst) and doing so may have [license implications](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#linking-static-library-on-macos)
+ * static `python-build-standalone` builds for Windows are [not stable](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst) and considered [brittle](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#windows-static-distributions-are-extremely-brittle)
  * static `python-build-standalone` builds for Linux/arm64 (aarch64) are [not available](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
  * static `python-build-standalone` builds for Linux/amd64 (x86_64) are
   available using MUSL libc, but:
-   * because they are static, they [cannot load compiled Python extensions](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
+   * because they are static, they [cannot load compiled Python extensions](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst) which is a limitation of [ELF](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#static-linking-of-musl-libc-prevents-extension-module-library-loading)
      (aka, 'wheels' that have compiled C, Rust, etc code instead of pure python)
      outside of the Python standard library, greatly diminishing the utility of
      the processing engine
@@ -349,7 +349,16 @@ to use the InfluxDB processing engine. This is achieved by:
     # osx
     $ install_name_tool -change '/install/lib/libpython3.NN.dylib' \
         '@executable_path/python/lib/libpythonNN.dylib' target/.../influxdb3
+    $ rcodesign sign target/.../influxdb3  # only with osxcross' install_name_tool
     ```
+
+   This is required, in part, due to how `python-build-standalone` is
+   [built](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#references-to-build-time-paths).
+   When using `osxcross`'s version of `install_name_tool`, must also use
+   `rcodesign` from [apple-codesign](https://crates.io/crates/apple-codesign)
+   to re-sign the binaries (Apple's `install_name_tool` does this
+   automatically). Rust may gain [support](https://github.com/rust-lang/cargo/issues/5077)
+   for setting arbitrary rpaths at some point.
 
  * The Windows `zip` file for the current (alpha) builds has copies of the
    top-level DLL files from the 'python/' directory alongside `influxdb3`.
@@ -357,8 +366,22 @@ to use the InfluxDB processing engine. This is achieved by:
    are either in the same directory as the binary or found somewhere in `PATH`
    (and open source tooling doesn't seem to support modifying this). For user
    convenience, the `*.dll` files are shipped alongside the binary on Windows
-   to avoid having to setup the `PATH`. This may be addressed in a future
-   release
+   to avoid having to setup the `PATH`. Rust believes this shouldn't be handled
+   by [rustc](https://github.com/rust-lang/cargo/issues/1500). This may be
+   addressed in a future release
+
+
+### There is no `pip.exe` on Windows. Why?
+
+From [upstream](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#no-pipexe-on-windows):
+"The Windows distributions have pip installed however no `Scripts/pip.exe`,
+`Scripts/pip3.exe`, and `Scripts/pipX.Y.exe` files are provided because the way
+these executables are built isn't portable. (It might be possible to change how
+these are built to make them portable.)
+
+To use pip, run `python.exe -m pip`. (It is generally a best practice to invoke
+pip via `python -m pip` on all platforms so you can be explicit about the
+python executable that pip uses.)"
 
 
 ### What limitations are there?
