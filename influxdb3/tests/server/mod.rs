@@ -383,6 +383,18 @@ impl TestServer {
             .expect("send /query request to server")
     }
 
+    pub async fn api_v3_configure_table_create(&self, request: &serde_json::Value) -> Response {
+        self.http_client
+            .post(format!(
+                "{base}/api/v3/configure/table",
+                base = self.client_addr()
+            ))
+            .json(request)
+            .send()
+            .await
+            .expect("failed to send request to create table")
+    }
+
     pub async fn api_v3_configure_last_cache_create(
         &self,
         request: &serde_json::Value,
