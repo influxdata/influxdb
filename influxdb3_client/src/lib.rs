@@ -12,6 +12,7 @@ use url::Url;
 
 use influxdb3_types::http::*;
 pub use influxdb3_types::write::Precision;
+use influxdb3_wal::TriggerFlag;
 
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
@@ -456,6 +457,7 @@ impl Client {
     }
 
     /// Make a request to `POST /api/v3/configure/processing_engine_trigger`
+    #[allow(clippy::too_many_arguments)]
     pub async fn api_v3_configure_processing_engine_trigger_create(
         &self,
         db: impl Into<String> + Send,
@@ -464,7 +466,13 @@ impl Client {
         trigger_spec: impl Into<String> + Send,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
+        execute_async: bool,
     ) -> Result<()> {
+        let flags = if execute_async {
+            vec![TriggerFlag::ExecuteAsynchronously]
+        } else {
+            vec![]
+        };
         let _bytes = self
             .send_json_get_bytes(
                 Method::POST,
@@ -474,6 +482,7 @@ impl Client {
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.into(),
                     trigger_specification: trigger_spec.into(),
+                    flags,
                     trigger_arguments,
                     disabled,
                 }),
