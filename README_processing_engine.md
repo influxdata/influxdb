@@ -63,7 +63,7 @@ The following operating systems and architectures are currently supported:
  * Linux amd64/arm64 (`tar.gz`, `deb` and `rpm`)
  * Darwin arm64 (`tar.gz`)
  * Windows amd64 (`zip`)
- * Docker (Linux amd64)
+ * Docker (Linux amd64/arm64)
 
 Due to constraints with `python-build-standalone` and statically linking, all
 builds are dynamically linked to `python-build-standalone`'s `libpython` as
