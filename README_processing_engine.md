@@ -175,6 +175,70 @@ $ source /path/to/venv/bin/activate                              # server
 $ /here/influxdb3 test schedule_plugin -d foo test-requests.py   # client
 ```
 
+### Local development with python-build-standalone
+
+Local development with python-build-standalone currently consists of:
+
+1. download python-build-standalone and unpack it somewhere
+  * get from https://github.com/astral-sh/python-build-standalone/releases
+  * based on your host OS, choose one of `aarch64-apple-darwin-install_only_stripped.tar.gz`, `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`, `x86_64-pc-windows-msvc-shared-install_only_stripped.tar.gz`, `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
+2. create `pyo3_config_file.txt` to match the unpacked dir and downloaded python version. Eg, if downloaded and unpacked a 3.11.x version to `/tmp/python`:
+
+    ```
+    $ cat ./pyo3_config_file.txt
+    implementation=CPython
+    version=3.11
+    shared=true
+    abi3=false
+    lib_name=python3.11
+    lib_dir=/tmp/python/lib
+    executable=/tmp/python/bin/python3.11
+    pointer_width=64
+    build_flags=
+    suppress_build_script_link_lines=false
+    ```
+
+3. build with:
+
+    ```
+    # note: PYO3_CONFIG_FILE must be an absolute path
+    $ PYO3_CONFIG_FILE=${PWD}/pyo3_config_file.txt cargo build --features "aws,gcp,azure,jemalloc_replacing_malloc,system-py"
+    ```
+
+4. Linux/OSX: patch up the binary to find libpython:
+
+    ```
+    # linux
+    $ patchelf --set-rpath '$ORIGIN/python/lib' ./target/<profile>/influxdb3
+
+    # osx (be sure to match the libpython version with what you downloaded)
+    $ install_name_tool -change '/install/lib/libpython3.11.dylib' '@executable_path/python/lib/libpython3.11.dylib' ./target/<profile>/influxdb3
+    ```
+
+5. Linux/OSX: put the python runtime in the expected location (XXX: may be
+   possible at run time to see where the libpython we are using is and adjust
+   the code to base the location of the runtime on that). Eg, if unpacked to
+   `/tmp/python`:
+
+    ```
+    $ test -e ./target/<profile>/python || ln -s /tmp/python ./target/<profile>/python
+    ```
+
+6. run with:
+
+    ```
+    $ mkdir -p /path/to/plugin/dir
+
+    # linux and osx (if can't find libpython or the runtime, check previous steps)
+    $ ./target/<profile>/influxdb3 ... --plugin-dir /path/to/plugin/dir
+
+    # windows requires moving the binary into the python-build-standalone unpack directory
+    $ cp ./target/<profile>/influxdb3 \path\to\python-standalone\python
+    # run influxdb with
+    $ \path\to\python-standalone\python\influxdb3.exe ... --plugin-dir \path\to\plugin\dir
+    ```
+
+
 ## Discussion
 
 ### Why python-build-standalone?
