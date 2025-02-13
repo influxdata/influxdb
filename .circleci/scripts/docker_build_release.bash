@@ -19,6 +19,20 @@ REPO_URL="https://github.com/influxdata/influxdb"
 # Convert arch to platform
 PLATFORM="linux/${ARCH}"
 
+# Convert arch to python-build-standalone target
+PBS_TARGET=
+case "$PLATFORM" in
+  linux/amd64)
+    PBS_TARGET="x86_64-unknown-linux-gnu"
+    ;;
+  linux/arm64)
+    PBS_TARGET="aarch64-unknown-linux-gnu"
+    ;;
+  *)
+    echo "Unknown python-build-standalone platform: '$PLATFORM'"
+    exit 1
+esac
+
 exec docker buildx build \
   --build-arg CARGO_INCREMENTAL="no" \
   --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
@@ -26,6 +40,7 @@ exec docker buildx build \
   --build-arg RUST_VERSION="$RUST_VERSION" \
   --build-arg PACKAGE="$PACKAGE" \
   --build-arg PROFILE="$PROFILE" \
+  --build-arg PBS_TARGET="$PBS_TARGET" \
   --build-arg PBS_DATE="$PBS_DATE" \
   --build-arg PBS_VERSION="$PBS_VERSION" \
   --platform "$PLATFORM" \
