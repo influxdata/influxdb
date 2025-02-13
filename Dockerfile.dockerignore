@@ -3,5 +3,6 @@ target/
 tests/
 docker/
 !.cargo/
+!.circleci/scripts/fetch-python-standalone.bash
 !.git/
 !docker/entrypoint.sh

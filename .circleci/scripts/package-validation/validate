@@ -45,7 +45,11 @@ install_rpm() {
   # see "install_deb" for "update"
   yum update -y
   yum install -y binutils
-  yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+  # temporary install with rpm --nodeps until we compile with older glibc
+  #yum localinstall -y "$(realpath "${PACKAGE_PATH}")"
+  yum install -y shadow-utils       # for useradd
+  yum install -y libxcrypt-compat   # for libcrypt.so.1
+  rpm -ivh --nodeps "$(realpath "${PACKAGE_PATH}")"
 }
 
 case ${PACKAGE_TYPE}
@@ -79,12 +83,25 @@ fi
 
 if [[ "${NEEDED:-}" ]]
 then
-  cat <<'EOF'
+  if echo "$NEEDED" | grep -Eq "Shared library: \[libpython" ; then
+    # if have libpython, ensure we are only linking things we expect
+    if echo "$NEEDED" | grep -Ev "Shared library: \[(ld-linux.*|libc|libdl|libgcc_s|libm|libpthread|libpython3.[0-9]{2})\.so" ; then
+      cat <<'EOF'
+ERROR: found unexpected dynamically linked libraries! This may
+       prevent all platforms from running influxdb3 without
+       installing these dependencies.
+EOF
+      exit 2
+    fi
+  else
+    # if no libpython, then complain if any are NEEDED
+    cat <<'EOF'
 ERROR: influxdb3 not statically linked! This may prevent all
        platforms from running influxdb3 without installing
        separate dependencies.
 EOF
-  exit 2
+    exit 2
+  fi
 fi
 
 printf 'Finished validating influxdb3!\n'

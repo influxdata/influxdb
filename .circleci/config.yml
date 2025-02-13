@@ -213,6 +213,35 @@ jobs:
           name: cargo nextest
           command: TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast
 
+  # Fetch python-build-standalone for official builds
+  fetch-python:
+    machine:
+      image: ubuntu-2204:current
+      resource_class: medium
+    # environment variables for python-build-standalone. Should correspond to
+    # https://github.com/astral-sh/python-build-standalone/releases. See
+    # scripts/fetch-python-standalone.bash for details. This should match the
+    # 'build-docker' job, below.
+    environment:
+      PBS_DATE: "20250106"
+      PBS_VERSION: "3.11.11"
+    steps:
+      - checkout
+      - run:
+          name: pull Python Build Standalone
+          command: |
+            echo "PBS_DATE=$PBS_DATE"
+            .circleci/scripts/fetch-python-standalone.bash \
+              "python-artifacts" \
+              "$PBS_DATE" \
+              "$PBS_VERSION"
+      - store_artifacts:
+          path: python-artifacts
+      - persist_to_workspace:
+          root: .
+          paths:
+            - python-artifacts
+
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
@@ -220,7 +249,7 @@ jobs:
   # Build a dev binary.
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -242,12 +271,23 @@ jobs:
         type: string
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Extract python for this target
+          command: |
+            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
+      - run:
+          name: Show PYO3_CONFIG_FILE
+          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo build
-          command: target-env cargo build --target=<< parameters.target >> --workspace
+          command: |
+            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
+            target-env cargo build --target=<< parameters.target >> --features="system-py" --workspace
       - when:
           condition:
             not:
@@ -270,7 +310,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 edge releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -295,19 +335,59 @@ jobs:
         default: release
     steps:
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Extract python for this target
+          command: |
+            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
+      - run:
+          name: Show PYO3_CONFIG_FILE
+          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
       - run:
           name: Install Target
           command: rustup target add << parameters.target >>
       - run:
           name: Cargo release build
-          command: target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
+          command: |
+            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
+            target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
+      - when:
+          condition:
+            or:
+              - equal: [ << parameters.target >>, aarch64-unknown-linux-gnu ]
+              - equal: [ << parameters.target >>, x86_64-unknown-linux-gnu ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python/lib'
+              name: adjust RPATH for linux
+              command: |
+                # tarballs need $ORIGIN/python/lib, deb/rpm need $ORIGIN/../lib/influxdb3/python/lib
+                echo "Running: patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                  patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+      - when:
+          condition:
+            equal: [ << parameters.target >>, aarch64-apple-darwin ]
+          steps:
+          - run:
+              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
+              name: adjust LC_LOAD_DYLIB path for darwin
+              command: |
+                export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
+                echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change '/install/lib/lib${PBS_LIBPYTHON}.dylib' '@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change "/install/lib/lib${PBS_LIBPYTHON}.dylib" "@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib" "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                # re-sign after install_name_tool since osxcross won't do it
+                echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - run:
           name: tar and gzip build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -czvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar.gz" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+            gzip "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar"
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
@@ -316,7 +396,7 @@ jobs:
             - artifacts
   build-packages:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next:latest
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:db0cd91a5445c4287154cea1d4d5566735cb0d3b7b9e2a95724a83f9d979d497
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -457,6 +537,13 @@ jobs:
       image_name:
         type: string
         default: influxdb3-core
+    # environment variables for python-build-standalone. Should correspond to
+    # https://github.com/astral-sh/python-build-standalone/releases. See
+    # scripts/fetch-python-standalone.bash for details. This should match
+    # the 'fetch-python' job, above.
+    environment:
+      PBS_DATE: "20250106"
+      PBS_VERSION: "3.11.11"
     machine:
       image: default
     resource_class: << parameters.resource_class >>
@@ -477,6 +564,8 @@ jobs:
               "influxdb3" \
               "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
+              "$PBS_DATE" \
+              "$PBS_VERSION" \
               "<< parameters.platform >>" \
               "$DOCKER_PROFILE"
 
@@ -519,6 +608,8 @@ workflows:
   version: 2
   snapshot:
     jobs:
+      - fetch-python:
+          <<: *main_filter
       - build-release:
           <<: *main_filter
           name: build-snapshot-<< matrix.target >>
@@ -529,10 +620,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - build-packages:
           <<: *main_filter
           requires:
@@ -559,6 +650,8 @@ workflows:
           <<: *any_filter
       - cargo-audit:
           <<: *any_filter
+      - fetch-python:
+          <<: *any_filter
       - test:
           <<: *any_filter
       - build-dev:
@@ -573,10 +666,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - doc:
           <<: *any_filter
       - build-release:
@@ -587,10 +680,10 @@ workflows:
               target:
                 - aarch64-apple-darwin
                 - aarch64-unknown-linux-gnu
-                - aarch64-unknown-linux-musl
                 - x86_64-pc-windows-gnu
                 - x86_64-unknown-linux-gnu
-                - x86_64-unknown-linux-musl
+          requires:
+            - fetch-python
       - build-packages:
           <<: *release_filter
           requires:
