@@ -13,9 +13,11 @@ const MaxFieldValueLength = 1048576
 // ValidateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) error {
+func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, error) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
+	var fieldsToCreate []*FieldCreate
+
 	for iter.Next() {
 		if !skipSizeValidation {
 			// Check for size of field too large. Note it is much cheaper to check the whole point size
@@ -23,7 +25,7 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			// unescape the string, and must at least parse the string)
 			if pointSize > MaxFieldValueLength && iter.Type() == models.String {
 				if sz := len(iter.StringValue()); sz > MaxFieldValueLength {
-					return PartialWriteError{
+					return nil, PartialWriteError{
 						Reason: fmt.Sprintf(
 							"input field \"%s\" on measurement \"%s\" is too long, %d > %d",
 							iter.FieldKey(), point.Name(), sz, MaxFieldValueLength),
@@ -33,14 +35,9 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			}
 		}
 
+		fieldKey := iter.FieldKey()
 		// Skip fields name "time", they are illegal.
-		if bytes.Equal(iter.FieldKey(), timeBytes) {
-			continue
-		}
-
-		// If the fields is not present, there cannot be a conflict.
-		f := mf.FieldBytes(iter.FieldKey())
-		if f == nil {
+		if bytes.Equal(fieldKey, timeBytes) {
 			continue
 		}
 
@@ -49,18 +46,26 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			continue
 		}
 
-		// If the types are not the same, there is a conflict.
-		if f.Type != dataType {
-			return PartialWriteError{
+		// If the field is not present, remember to create it.
+		f := mf.FieldBytes(fieldKey)
+		if f == nil {
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
+				Measurement: point.Name(),
+				Field: &Field{
+					Name: string(fieldKey),
+					Type: dataType,
+				}})
+		} else if f.Type != dataType {
+			// If the types are not the same, there is a conflict.
+			return nil, PartialWriteError{
 				Reason: fmt.Sprintf(
 					"%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s",
-					ErrFieldTypeConflict, iter.FieldKey(), point.Name(), dataType, f.Type),
+					ErrFieldTypeConflict, fieldKey, point.Name(), dataType, f.Type),
 				Dropped: 1,
 			}
 		}
 	}
-
-	return nil
+	return fieldsToCreate, nil
 }
 
 // dataTypeFromModelsFieldType returns the influxql.DataType that corresponds to the
