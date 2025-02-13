@@ -9,6 +9,8 @@ use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
 #[cfg(feature = "system-py")]
+use influxdb3_py_api::system_py::ProcessingEngineLogger;
+#[cfg(feature = "system-py")]
 use influxdb3_sys_events::SysEventStore;
 #[cfg(feature = "system-py")]
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
@@ -94,14 +96,8 @@ pub(crate) fn run_wal_contents_plugin(
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
+
     tokio::task::spawn(async move {
         trigger_plugin
             .run_wal_contents_plugin(plugin_receiver)
@@ -135,14 +131,7 @@ pub(crate) fn run_schedule_plugin(
         )));
     }
 
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
 
     let runner = python_plugin::ScheduleTriggerRunner::try_new(
         &trigger_plugin.trigger_definition.trigger,
@@ -166,14 +155,7 @@ pub(crate) fn run_request_plugin(
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
     tokio::task::spawn(async move {
         trigger_plugin
             .run_request_plugin(plugin_receiver)
@@ -200,7 +182,7 @@ struct TriggerPlugin {
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
-    sys_event_store: Arc<SysEventStore>,
+    logger: ProcessingEngineLogger,
 }
 
 #[cfg(feature = "system-py")]
@@ -216,6 +198,7 @@ mod python_plugin {
     use hyper::http::HeaderValue;
     use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
+    use influxdb3_py_api::logging::LogLevel;
     use influxdb3_py_api::system_py::{
         execute_python_with_batch, execute_request_trigger, execute_schedule_trigger,
         PluginReturnState, ProcessingEngineLogger,
@@ -229,6 +212,26 @@ mod python_plugin {
     use tokio::sync::mpsc::Receiver;
 
     impl TriggerPlugin {
+        pub(crate) fn new(
+            db_name: String,
+            plugin_code: Arc<PluginCode>,
+            trigger_definition: TriggerDefinition,
+            context: PluginContext,
+        ) -> Self {
+            let logger = ProcessingEngineLogger::new(
+                context.sys_event_store,
+                trigger_definition.trigger_name.clone(),
+            );
+            Self {
+                trigger_definition,
+                plugin_code,
+                db_name,
+                write_buffer: Arc::clone(&context.write_buffer),
+                query_executor: Arc::clone(&context.query_executor),
+                logger,
+            }
+        }
+
         pub(crate) async fn run_wal_contents_plugin(
             &self,
             mut receiver: Receiver<WalEvent>,
@@ -246,9 +249,7 @@ mod python_plugin {
                             Some(WalEvent::WriteWalContents(wal_contents)) => {
                                 if run_in_dedicated_task {
                                     let clone = self.clone();
-                                    futures.push(tokio::task::spawn(async move {
-                                        clone.process_wal_contents(wal_contents).await
-                                    }));
+                                    futures.push(async move {clone.process_wal_contents(wal_contents).await});
                                 } else if let Err(e) = self.process_wal_contents(wal_contents).await {
                                     error!(?self.trigger_definition, "error processing wal contents: {}", e);
                                 }
@@ -257,7 +258,7 @@ mod python_plugin {
                                 sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
                                 break;
                             }
-                                None => {break;}
+                            None => {break;}
                         }
                     }
                     Some(result) = futures.next() => {
@@ -300,12 +301,11 @@ mod python_plugin {
                         runner.advance_time();
                         if run_in_dedicated_task {
                             let trigger =self.clone();
-                            let fut = async move {tokio::task::spawn_blocking(move || {
-                                ScheduleTriggerRunner::run_at_time(trigger, trigger_time, schema)}).await
-                                };
+                            let fut = async move {ScheduleTriggerRunner::run_at_time(trigger, trigger_time, schema).await};
                             futures.push(fut);
-                        } else {
-                            ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await?;
+                        } else if let Err(err) = ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await {
+                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
+                            error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
                         }
                     }
                     event = receiver.recv() => {
@@ -322,7 +322,8 @@ mod python_plugin {
                     }
                     Some(result) = futures.next() => {
                         if let Err(e) = result {
-                            error!(?self.trigger_definition, "error running async scheduled: {}", e);
+                            self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
+                            error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
                         }
                     }
                 }
@@ -352,10 +353,7 @@ mod python_plugin {
                         };
                         let plugin_code = self.plugin_code.code();
                         let query_executor = Arc::clone(&self.query_executor);
-                        let logger = Some(ProcessingEngineLogger::new(
-                            Arc::clone(&self.sys_event_store),
-                            self.trigger_definition.trigger_name.as_str(),
-                        ));
+                        let logger = Some(self.logger.clone());
                         let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
 
                         let result = tokio::task::spawn_blocking(move || {
@@ -383,6 +381,10 @@ mod python_plugin {
                                 let errors = self.handle_return_state(plugin_return_state).await;
                                 // TODO: here is one spot we'll pick up errors to put into the plugin system table
                                 for error in errors {
+                                    self.logger.log(
+                                        LogLevel::Error,
+                                        format!("error running request plugin: {}", error),
+                                    );
                                     error!(?self.trigger_definition, "error running request plugin: {}", error);
                                 }
 
@@ -404,6 +406,10 @@ mod python_plugin {
                             }
                             Err(e) => {
                                 // build json string with the error with serde so that it is {"error": "error message"}
+                                self.logger.log(
+                                    LogLevel::Error,
+                                    format!("error running request plugin: {}", e),
+                                );
                                 error!(?self.trigger_definition, "error running request plugin: {}", e);
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
                                 Response::builder()
@@ -473,10 +479,7 @@ mod python_plugin {
                             }
                         };
 
-                        let logger = Some(ProcessingEngineLogger::new(
-                            Arc::clone(&self.sys_event_store),
-                            self.trigger_definition.trigger_name.as_str(),
-                        ));
+                        let logger = Some(self.logger.clone());
                         let plugin_code = Arc::clone(&self.plugin_code.code());
                         let query_executor = Arc::clone(&self.query_executor);
                         let schema_clone = Arc::clone(&schema);
@@ -501,8 +504,11 @@ mod python_plugin {
                         .await??;
 
                         let errors = self.handle_return_state(result).await;
-                        // TODO: here is one spot we'll pick up errors to put into the plugin system table
                         for error in errors {
+                            self.logger.log(
+                                LogLevel::Error,
+                                format!("error running wal plugin: {}", error),
+                            );
                             error!(?self.trigger_definition, "error running wal plugin: {}", error);
                         }
                     }
@@ -640,10 +646,7 @@ mod python_plugin {
         ) -> Result<(), PluginError> {
             let plugin_code = plugin.plugin_code.code();
             let query_executor = Arc::clone(&plugin.query_executor);
-            let logger = Some(ProcessingEngineLogger::new(
-                Arc::clone(&plugin.sys_event_store),
-                plugin.trigger_definition.trigger_name.as_str(),
-            ));
+            let logger = Some(plugin.logger.clone());
             let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
             let result = tokio::task::spawn_blocking(move || {
                 execute_schedule_trigger(
