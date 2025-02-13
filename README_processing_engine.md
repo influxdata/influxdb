@@ -122,15 +122,15 @@ At a high level, the build process for Official builds consists of:
     suppress_build_script_link_lines=false
     ```
 
-   PYO3 will try to auto-detect the location which can work well with a system
-   python, but not with an unpacked `python-build-standalone`. While the
-   `PYO3_PYTHON` environment variable can be used to point to the unpacked
-   directory (eg, `PYO3_PYTHON=/path/to/python-standalone/python/bin/python3`),
-   this was not sufficient. Defining the build configuration in the
-   `PYO3_CONFIG_FILE` correctly worked for all supported environments with our
-   current build process
- 4. run `PYO3_CONFIG_FILE=/path/to/pyo3_config_file.txt cargo build --features=system-py`
-    to build InfluxDB
+    PYO3 will try to auto-detect the location which can work well with a system
+    python, but not with an unpacked `python-build-standalone`. While the
+    `PYO3_PYTHON` environment variable can be used to point to the unpacked
+    directory (eg,
+    `PYO3_PYTHON=/path/to/python-standalone/python/bin/python3`), this was not
+    sufficient. Defining the build configuration in the `PYO3_CONFIG_FILE`
+    correctly worked for all supported environments with our current build
+    process
+ 4. run `PYO3_CONFIG_FILE=/path/to/pyo3_config_file.txt cargo build --features=system-py` to build InfluxDB
  5. adjust the library search paths for Linux and Darwin so `libpython` can
     found (see 'Discussion', below)
  6. create official build artifacts:
@@ -180,8 +180,8 @@ $ /here/influxdb3 test schedule_plugin -d foo test-requests.py   # client
 Local development with python-build-standalone currently consists of:
 
 1. download python-build-standalone and unpack it somewhere
-  * get from https://github.com/astral-sh/python-build-standalone/releases
-  * based on your host OS, choose one of `aarch64-apple-darwin-install_only_stripped.tar.gz`, `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`, `x86_64-pc-windows-msvc-shared-install_only_stripped.tar.gz`, `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
+    * get from https://github.com/astral-sh/python-build-standalone/releases
+    * based on your host OS, choose one of `aarch64-apple-darwin-install_only_stripped.tar.gz`, `aarch64-unknown-linux-gnu-install_only_stripped.tar.gz`, `x86_64-pc-windows-msvc-shared-install_only_stripped.tar.gz`, `x86_64-unknown-linux-gnu-install_only_stripped.tar.gz`
 2. create `pyo3_config_file.txt` to match the unpacked dir and downloaded python version. Eg, if downloaded and unpacked a 3.11.x version to `/tmp/python`:
 
     ```
@@ -324,10 +324,10 @@ many reasons:
  * static `python-build-standalone` builds for Linux/arm64 (aarch64) are [not available](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
  * static `python-build-standalone` builds for Linux/amd64 (x86_64) are
   available using MUSL libc, but:
-   * because they are static, they [cannot load compiled Python extensions](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst) which is a limitation of [ELF](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#static-linking-of-musl-libc-prevents-extension-module-library-loading)
+   * because they are static, they [cannot load compiled Python extensions](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst)
      (aka, 'wheels' that have compiled C, Rust, etc code instead of pure python)
      outside of the Python standard library, greatly diminishing the utility of
-     the processing engine
+     the processing engine. This is a limitation of [ELF](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#static-linking-of-musl-libc-prevents-extension-module-library-loading)
    * there are historical [performance issues](https://edu.chainguard.dev/chainguard/chainguard-images/about/images-compiled-programs/glibc-vs-musl/#python-builds) with python and MUSL
 
 It is theoretically possible to statically link `glibc`, but in practice this
@@ -341,9 +341,9 @@ Because MUSL can't be used with `python-build-standalone` without crippling the
 InfluxDB processing engine, MUSL builds that are compatible with Alpine are not
 available at this time. Alpine users can choose one of:
 
- * build InfluxDB on Alpine against Alpine's python
- * run InfluxDB within a chroot that contains `glibc`
- * run InfluxDB with [gcompat](https://git.adelielinux.org/adelie/gcompat) (untested)
+ * build InfluxDB locally on Alpine against Alpine's system python
+ * run official InfluxDB within a chroot that contains `glibc`
+ * run official InfluxDB with [gcompat](https://git.adelielinux.org/adelie/gcompat) (untested)
 
 See https://wiki.alpinelinux.org/wiki/Running_glibc_programs for details.
 
@@ -364,7 +364,7 @@ library function changes in an incompatible way, `glibc` keeps the old
 implementation in place (with the old symbol version) while adding the new
 implementation with a new symbol version. In this manner, if an application is
 compiled and linked against `glibc` 2.27, it will only ever lookup symbols that
-are 2.27 or earlier. When 2.28 comes out, it updates any symbols it needs to to
+are 2.27 or earlier. When 2.28 comes out, it updates any symbols it needs to
 2.28, leaving the rest as they are. When the application linked against 2.27
 runs on a system with 2.28, everything is ok since 2.28 will resolve all the
 2.27 symbols in the expected way the application needs.
