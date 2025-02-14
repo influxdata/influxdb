@@ -256,6 +256,8 @@ pub struct TriggerConfig {
     /// Create trigger in disabled state
     #[clap(long)]
     disabled: bool,
+    #[clap(long)]
+    run_asynchronous: bool,
     /// Name for the new trigger
     trigger_name: String,
 }
@@ -387,6 +389,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             trigger_specification,
             trigger_arguments,
             disabled,
+            run_asynchronous,
         }) => {
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
@@ -394,7 +397,6 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     .collect::<HashMap<String, String>>()
             });
 
-            //println!("does this work?");
             match client
                 .api_v3_configure_processing_engine_trigger_create(
                     database_name,
@@ -403,6 +405,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     trigger_specification.string_rep(),
                     trigger_arguments,
                     disabled,
+                    run_asynchronous,
                 )
                 .await
             {

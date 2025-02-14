@@ -5,8 +5,10 @@ set -euo pipefail
 readonly PACKAGE="$1"
 readonly FEATURES="$2"
 readonly TAG="$3"
-readonly ARCH="${4:-amd64}"  # Default to amd64 if not specified
-readonly PROFILE="${5:-release}"       # Default to release if not specified
+readonly PBS_DATE="$4"
+readonly PBS_VERSION="$5"
+readonly ARCH="${6:-amd64}"  # Default to amd64 if not specified
+readonly PROFILE="${7:-release}"       # Default to release if not specified
 
 RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
 COMMIT_SHA="$(git rev-parse HEAD)"
@@ -24,6 +26,20 @@ export DOCKER_BUILDKIT=1
 # Convert arch to platform
 PLATFORM="linux/${ARCH}"
 
+# Convert arch to python-build-standalone target
+PBS_TARGET=
+case "$PLATFORM" in
+  linux/amd64)
+    PBS_TARGET="x86_64-unknown-linux-gnu"
+    ;;
+  linux/arm64)
+    PBS_TARGET="aarch64-unknown-linux-gnu"
+    ;;
+  *)
+    echo "Unknown python-build-standalone platform: '$PLATFORM'"
+    exit 1
+esac
+
 exec docker buildx build \
   --ssh default=$SSH_AUTH_SOCK \
   --build-arg CARGO_INCREMENTAL="no" \
@@ -32,6 +48,9 @@ exec docker buildx build \
   --build-arg RUST_VERSION="$RUST_VERSION" \
   --build-arg PACKAGE="$PACKAGE" \
   --build-arg PROFILE="$PROFILE" \
+  --build-arg PBS_TARGET="$PBS_TARGET" \
+  --build-arg PBS_DATE="$PBS_DATE" \
+  --build-arg PBS_VERSION="$PBS_VERSION" \
   --platform "$PLATFORM" \
   --label org.opencontainers.image.created="$NOW" \
   --label org.opencontainers.image.url="$REPO_URL" \

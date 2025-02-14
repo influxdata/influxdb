@@ -1,15 +1,15 @@
 mod enterprise;
 pub use enterprise::*;
 
+use crate::write::Precision;
 use hashbrown::HashMap;
 use hyper::header::ACCEPT;
 use hyper::http::HeaderValue;
 use hyper::HeaderMap;
 use influxdb3_cache::distinct_cache::MaxCardinality;
+use influxdb3_wal::TriggerFlag;
 use iox_query_params::StatementParams;
 use serde::{Deserialize, Serialize};
-
-use crate::write::Precision;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -161,6 +161,7 @@ pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
     pub plugin_filename: String,
     pub trigger_name: String,
+    pub flags: Vec<TriggerFlag>,
     pub trigger_specification: String,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,

@@ -10,8 +10,10 @@ use influxdb3_id::ColumnId;
 use influxdb3_id::DbId;
 use influxdb3_id::SerdeVecMap;
 use influxdb3_id::TableId;
-use influxdb3_wal::DistinctCacheDefinition;
-use influxdb3_wal::{LastCacheDefinition, LastCacheValueColumnsDef, PluginType, TriggerDefinition};
+use influxdb3_wal::{
+    DistinctCacheDefinition, LastCacheDefinition, LastCacheValueColumnsDef, PluginType,
+    TriggerDefinition, TriggerFlag,
+};
 use schema::InfluxColumnType;
 use schema::InfluxFieldType;
 use schema::TIME_DATA_TIMEZONE;
@@ -153,6 +155,7 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                         trigger_name: trigger.trigger_name,
                         plugin_filename: trigger.plugin_filename,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
+                        flags: trigger.flags,
                         trigger_arguments: trigger.trigger_arguments,
                         disabled: trigger.disabled,
                         database_name: trigger.database_name,
@@ -223,6 +226,7 @@ struct ProcessingEngineTriggerSnapshot {
     pub plugin_filename: String,
     pub database_name: String,
     pub trigger_specification: String,
+    pub flags: Vec<TriggerFlag>,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
@@ -471,6 +475,7 @@ impl From<&TriggerDefinition> for ProcessingEngineTriggerSnapshot {
             trigger_name: trigger.trigger_name.to_string(),
             plugin_filename: trigger.plugin_filename.to_string(),
             database_name: trigger.database_name.to_string(),
+            flags: trigger.flags.clone(),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
             trigger_arguments: trigger.trigger_arguments.clone(),

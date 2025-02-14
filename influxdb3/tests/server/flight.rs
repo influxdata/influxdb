@@ -1,7 +1,9 @@
 use arrow_flight::sql::SqlInfo;
 use arrow_flight::Ticket;
+use arrow_util::assert_batches_eq;
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
+use serde_json::json;
 use test_helpers::assert_contains;
 
 use crate::server::collect_stream;
@@ -222,6 +224,147 @@ async fn flight_influxql() {
         assert_contains!(
             response.to_string(),
             "This feature is not implemented: SHOW DATABASES"
+        );
+    }
+}
+
+#[test_log::test(tokio::test)]
+async fn test_flight_distinct_cache() {
+    let server = TestServer::spawn().await;
+
+    assert!(server
+        .api_v3_configure_table_create(&json!({
+            "db": "foo",
+                "table": "bar",
+                "tags": ["t1", "t2"],
+                "fields": []
+        }))
+        .await
+        .status()
+        .is_success());
+
+    assert!(server
+        .api_v3_configure_distinct_cache_create(&json!({
+            "db": "foo",
+            "table": "bar",
+            "name": "cache1",
+            "columns": ["t1", "t2"]
+        }))
+        .await
+        .status()
+        .is_success());
+
+    assert!(server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=a,t2=aa val=1\n\
+            bar,t1=a,t2=bb val=2\n\
+            bar,t1=b,t2=aa val=3\n\
+            bar,t1=b,t2=bb val=4\n\
+            ",
+            Precision::Auto
+        )
+        .await
+        .is_ok());
+
+    let mut client = server.flight_sql_client("foo").await;
+
+    {
+        let response = client
+            .query("SELECT * FROM distinct_cache('bar')")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_eq!(
+            [
+                "+----+----+",
+                "| t1 | t2 |",
+                "+----+----+",
+                "| a  | aa |",
+                "| a  | bb |",
+                "| b  | aa |",
+                "| b  | bb |",
+                "+----+----+",
+            ],
+            &batches
+        );
+    }
+
+    // create another cache on the same table:
+    assert!(server
+        .api_v3_configure_distinct_cache_create(&json!({
+            "db": "foo",
+            "table": "bar",
+            "name": "cache2",
+            "columns": ["t1"]
+        }))
+        .await
+        .status()
+        .is_success());
+
+    {
+        // this will error because the cache name needs to be specified:
+        let error = client
+            .query("SELECT * FROM distinct_cache('bar')")
+            .await
+            .unwrap_err()
+            .to_string();
+        assert_contains!(
+            error,
+            "could not find distinct value cache for the given arguments"
+        );
+    }
+
+    assert!(server
+        .write_lp_to_db(
+            "foo",
+            "\
+            bar,t1=c,t2=aa val=1\n\
+            bar,t1=c,t2=bb val=2\n\
+            ",
+            Precision::Auto
+        )
+        .await
+        .is_ok());
+
+    {
+        let response = client
+            .query("SELECT * FROM distinct_cache('bar', 'cache1')")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_eq!(
+            [
+                "+----+----+",
+                "| t1 | t2 |",
+                "+----+----+",
+                "| a  | aa |",
+                "| a  | bb |",
+                "| b  | aa |",
+                "| b  | bb |",
+                "| c  | aa |",
+                "| c  | bb |",
+                "+----+----+",
+            ],
+            &batches
+        );
+    }
+    {
+        let response = client
+            .query("SELECT * FROM distinct_cache('bar', 'cache2')")
+            .await
+            .unwrap();
+        let batches = collect_stream(response).await;
+        assert_batches_eq!(
+            [
+                "+----+", // prevent fmt from inlining
+                "| t1 |", // prevent fmt from inlining
+                "+----+", // prevent fmt from inlining
+                "| c  |", // prevent fmt from inlining
+                "+----+", // prevent fmt from inlining
+            ],
+            &batches
         );
     }
 }
