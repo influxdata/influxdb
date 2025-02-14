@@ -19,7 +19,8 @@ use influxdb3_types::http::{
 use influxdb3_wal::PluginType;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteTriggerDefinition, SnapshotDetails, TriggerDefinition,
-    TriggerIdentifier, TriggerSpecificationDefinition, Wal, WalContents, WalFileNotifier, WalOp,
+    TriggerFlag, TriggerIdentifier, TriggerSpecificationDefinition, Wal, WalContents,
+    WalFileNotifier, WalOp,
 };
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
@@ -345,6 +346,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: String,
         plugin_filename: String,
+        flags: Vec<TriggerFlag>,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -360,6 +362,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             trigger_name,
             plugin_filename,
             trigger: trigger_specification,
+            flags,
             trigger_arguments,
             disabled,
             database_name: db_name.to_string(),
@@ -449,7 +452,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 query_executor,
                 sys_event_store: Arc::clone(&self.sys_event_store),
             };
-            let plugin_code = self.read_plugin_code(&trigger.plugin_filename).await?;
+            let plugin_code = Arc::new(self.read_plugin_code(&trigger.plugin_filename).await?);
             match trigger.trigger.plugin_type() {
                 PluginType::WalRows => {
                     let rec = self
@@ -642,13 +645,15 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let code = self.read_plugin_code(&request.filename).await?;
             let code_string = code.code().to_string();
 
-            let res =
+            let res = tokio::task::spawn_blocking(move || {
                 plugins::run_test_wal_plugin(now, catalog, query_executor, code_string, request)
                     .unwrap_or_else(|e| WalPluginTestResponse {
                         log_lines: vec![],
                         database_writes: Default::default(),
                         errors: vec![e.to_string()],
-                    });
+                    })
+            })
+            .await?;
 
             return Ok(res);
         }
@@ -674,13 +679,16 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let code = self.read_plugin_code(&request.filename).await?;
             let code_string = code.code().to_string();
 
-            let res = plugins::run_test_schedule_plugin(
-                now,
-                catalog,
-                query_executor,
-                code_string,
-                request,
-            )
+            let res = tokio::task::spawn_blocking(move || {
+                plugins::run_test_schedule_plugin(
+                    now,
+                    catalog,
+                    query_executor,
+                    code_string,
+                    request,
+                )
+            })
+            .await?
             .unwrap_or_else(|e| SchedulePluginTestResponse {
                 log_lines: vec![],
                 database_writes: Default::default(),
@@ -850,6 +858,7 @@ mod tests {
             "foo",
             "test_trigger".to_string(),
             file_name,
+            vec![],
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             false,
@@ -935,6 +944,7 @@ mod tests {
             "foo",
             "test_trigger".to_string(),
             file_name,
+            vec![],
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             true,

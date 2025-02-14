@@ -56,6 +56,7 @@ use std::sync::Arc;
 use std::task::Poll;
 use std::time::Duration;
 use thiserror::Error;
+use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
 
 mod enterprise;
@@ -631,9 +632,13 @@ where
 
         info!(%database, %query_str, ?format, "handling query_sql");
 
+        let span_ctx = Some(SpanContext::new_with_optional_collector(
+            self.common_state.trace_collector(),
+        ));
+
         let stream = self
             .query_executor
-            .query_sql(&database, &query_str, params, None, None)
+            .query_sql(&database, &query_str, params, span_ctx, None)
             .await?;
 
         Response::builder()
@@ -845,6 +850,10 @@ where
             _ => None,
         };
 
+        let span_ctx = Some(SpanContext::new_with_optional_collector(
+            self.common_state.trace_collector(),
+        ));
+
         let stream = if statement.is_show_databases() {
             self.query_executor.show_databases(true)?
         } else if statement.is_show_retention_policies() {
@@ -857,7 +866,7 @@ where
             };
 
             self.query_executor
-                .query_influxql(&database, query_str, statement, params, None, None)
+                .query_influxql(&database, query_str, statement, params, span_ctx, None)
                 .await?
         };
 
@@ -1077,6 +1086,7 @@ where
             db,
             plugin_filename,
             trigger_name,
+            flags,
             trigger_specification,
             trigger_arguments,
             disabled,
@@ -1100,6 +1110,7 @@ where
                 db.as_str(),
                 trigger_name.clone(),
                 plugin_filename,
+                flags,
                 trigger_spec,
                 trigger_arguments,
                 disabled,

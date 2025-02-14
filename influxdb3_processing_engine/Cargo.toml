@@ -15,6 +15,7 @@ bytes.workspace = true
 chrono.workspace = true
 cron.workspace =  true
 data_types.workspace = true
+futures-util.workspace = true
 humantime.workspace = true
 hashbrown.workspace = true
 hyper.workspace = true

@@ -5,19 +5,19 @@ version:
     value: '3.0.0+snapshot-{{env.CIRCLE_SHA1[:8]}}'
 
 sources:
-  - binary: /tmp/workspace/artifacts/influxdb3-enterprise_x86_64-unknown-linux-musl.tar.gz
+  - binary: /tmp/workspace/artifacts/influxdb3-enterprise_x86_64-unknown-linux-gnu.tar.gz
     target: artifacts/
     arch:   amd64
     plat:   linux
 
-  - binary: /tmp/workspace/artifacts/influxdb3-enterprise_aarch64-unknown-linux-musl.tar.gz
+  - binary: /tmp/workspace/artifacts/influxdb3-enterprise_aarch64-unknown-linux-gnu.tar.gz
     target: artifacts/
     arch:   arm64
     plat:   linux
 
   - binary: /tmp/workspace/artifacts/influxdb3-enterprise_aarch64-apple-darwin.tar.gz
     target: artifacts/
-    arch:   amd64
+    arch:   arm64
     plat:   darwin
 
   - binary: /tmp/workspace/artifacts/influxdb3-enterprise_x86_64-pc-windows-gnu.tar.gz
@@ -37,6 +37,9 @@ packages:
     binaries:
       - influxdb3
       - influxdb3.exe
+    python-runtimes:
+      - source: python
+        target: usr/lib/influxdb3
     extras:
       - source: LICENSE-APACHE
         target: usr/share/influxdb3/LICENSE-APACHE

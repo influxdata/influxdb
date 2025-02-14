@@ -9,6 +9,8 @@ use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
 #[cfg(feature = "system-py")]
+use influxdb3_py_api::system_py::ProcessingEngineLogger;
+#[cfg(feature = "system-py")]
 use influxdb3_sys_events::SysEventStore;
 #[cfg(feature = "system-py")]
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
@@ -81,24 +83,21 @@ pub enum PluginError {
 
     #[error("error reading file from Github: {0} {1}")]
     FetchingFromGithub(reqwest::StatusCode, String),
+
+    #[error("Join error, please report: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 #[cfg(feature = "system-py")]
 pub(crate) fn run_wal_contents_plugin(
     db_name: String,
-    plugin_code: PluginCode,
+    plugin_code: Arc<PluginCode>,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
+
     tokio::task::spawn(async move {
         trigger_plugin
             .run_wal_contents_plugin(plugin_receiver)
@@ -117,7 +116,7 @@ pub struct ProcessingEngineEnvironmentManager {
 #[cfg(feature = "system-py")]
 pub(crate) fn run_schedule_plugin(
     db_name: String,
-    plugin_code: PluginCode,
+    plugin_code: Arc<PluginCode>,
     trigger_definition: TriggerDefinition,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
@@ -132,14 +131,7 @@ pub(crate) fn run_schedule_plugin(
         )));
     }
 
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
 
     let runner = python_plugin::ScheduleTriggerRunner::try_new(
         &trigger_plugin.trigger_definition.trigger,
@@ -158,19 +150,12 @@ pub(crate) fn run_schedule_plugin(
 #[cfg(feature = "system-py")]
 pub(crate) fn run_request_plugin(
     db_name: String,
-    plugin_code: PluginCode,
+    plugin_code: Arc<PluginCode>,
     trigger_definition: TriggerDefinition,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin {
-        trigger_definition,
-        db_name,
-        plugin_code,
-        write_buffer: context.write_buffer,
-        query_executor: context.query_executor,
-        sys_event_store: context.sys_event_store,
-    };
+    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
     tokio::task::spawn(async move {
         trigger_plugin
             .run_request_plugin(plugin_receiver)
@@ -190,14 +175,14 @@ pub(crate) struct PluginContext {
 }
 
 #[cfg(feature = "system-py")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TriggerPlugin {
     trigger_definition: TriggerDefinition,
-    plugin_code: PluginCode,
+    plugin_code: Arc<PluginCode>,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
-    sys_event_store: Arc<SysEventStore>,
+    logger: ProcessingEngineLogger,
 }
 
 #[cfg(feature = "system-py")]
@@ -207,15 +192,18 @@ mod python_plugin {
     use chrono::{DateTime, Duration, Utc};
     use cron::{OwnedScheduleIterator, Schedule as CronSchedule};
     use data_types::NamespaceName;
+    use futures_util::stream::FuturesUnordered;
+    use futures_util::StreamExt;
     use humantime::{format_duration, parse_duration};
     use hyper::http::HeaderValue;
     use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
+    use influxdb3_py_api::logging::LogLevel;
     use influxdb3_py_api::system_py::{
         execute_python_with_batch, execute_request_trigger, execute_schedule_trigger,
         PluginReturnState, ProcessingEngineLogger,
     };
-    use influxdb3_wal::{WalContents, WalOp};
+    use influxdb3_wal::{TriggerFlag, WalContents, WalOp};
     use influxdb3_write::Precision;
     use iox_time::Time;
     use observability_deps::tracing::{info, warn};
@@ -224,30 +212,59 @@ mod python_plugin {
     use tokio::sync::mpsc::Receiver;
 
     impl TriggerPlugin {
+        pub(crate) fn new(
+            db_name: String,
+            plugin_code: Arc<PluginCode>,
+            trigger_definition: TriggerDefinition,
+            context: PluginContext,
+        ) -> Self {
+            let logger = ProcessingEngineLogger::new(
+                context.sys_event_store,
+                trigger_definition.trigger_name.clone(),
+            );
+            Self {
+                trigger_definition,
+                plugin_code,
+                db_name,
+                write_buffer: Arc::clone(&context.write_buffer),
+                query_executor: Arc::clone(&context.query_executor),
+                logger,
+            }
+        }
+
         pub(crate) async fn run_wal_contents_plugin(
             &self,
             mut receiver: Receiver<WalEvent>,
         ) -> Result<(), PluginError> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting wal contents plugin");
-
+            let run_in_dedicated_task = self
+                .trigger_definition
+                .flags
+                .contains(&TriggerFlag::ExecuteAsynchronously);
+            let mut futures = FuturesUnordered::new();
             loop {
-                let event = match receiver.recv().await {
-                    Some(event) => event,
-                    None => {
-                        warn!(?self.trigger_definition, "trigger plugin receiver closed");
-                        break;
-                    }
-                };
-
-                match event {
-                    WalEvent::WriteWalContents(wal_contents) => {
-                        if let Err(e) = self.process_wal_contents(wal_contents).await {
-                            error!(?self.trigger_definition, "error processing wal contents: {}", e);
+                tokio::select! {
+                    event = receiver.recv() => {
+                        match event {
+                            Some(WalEvent::WriteWalContents(wal_contents)) => {
+                                if run_in_dedicated_task {
+                                    let clone = self.clone();
+                                    futures.push(async move {clone.process_wal_contents(wal_contents).await});
+                                } else if let Err(e) = self.process_wal_contents(wal_contents).await {
+                                    error!(?self.trigger_definition, "error processing wal contents: {}", e);
+                                }
+                            }
+                            Some(WalEvent::Shutdown(sender)) => {
+                                sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
+                                break;
+                            }
+                            None => {break;}
                         }
                     }
-                    WalEvent::Shutdown(sender) => {
-                        sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
-                        break;
+                    Some(result) = futures.next() => {
+                        if let Err(e) = result {
+                            error!(?self.trigger_definition, "error processing wal contents: {}", e);
+                        }
                     }
                 }
             }
@@ -261,6 +278,11 @@ mod python_plugin {
             mut runner: ScheduleTriggerRunner,
             time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), PluginError> {
+            let run_in_dedicated_task = self
+                .trigger_definition
+                .flags
+                .contains(&TriggerFlag::ExecuteAsynchronously);
+            let mut futures = FuturesUnordered::new();
             loop {
                 let Some(next_run_instant) = runner.next_run_time() else {
                     break;
@@ -271,7 +293,20 @@ mod python_plugin {
                         let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
                             return Err(PluginError::MissingDb);
                         };
-                        runner.run_at_time(self, schema).await?;
+
+                        let Some(trigger_time) = runner.next_trigger_time else {
+                            return Err(anyhow!("running a cron trigger that is finished.").into());
+                        };
+
+                        runner.advance_time();
+                        if run_in_dedicated_task {
+                            let trigger =self.clone();
+                            let fut = async move {ScheduleTriggerRunner::run_at_time(trigger, trigger_time, schema).await};
+                            futures.push(fut);
+                        } else if let Err(err) = ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await {
+                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
+                            error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                        }
                     }
                     event = receiver.recv() => {
                         match event {
@@ -283,6 +318,12 @@ mod python_plugin {
                                 sender.send(()).map_err(|_| PluginError::FailedToShutdown)?;
                                 break;
                             }
+                        }
+                    }
+                    Some(result) = futures.next() => {
+                        if let Err(e) = result {
+                            self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
+                            error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
                         }
                     }
                 }
@@ -310,19 +351,24 @@ mod python_plugin {
                             error!(?self.trigger_definition, "missing db schema");
                             return Err(PluginError::MissingDb);
                         };
-                        let result = execute_request_trigger(
-                            self.plugin_code.code().as_ref(),
-                            Arc::clone(&schema),
-                            Arc::clone(&self.query_executor),
-                            Some(ProcessingEngineLogger::new(
-                                Arc::clone(&self.sys_event_store),
-                                self.trigger_definition.trigger_name.as_str(),
-                            )),
-                            &self.trigger_definition.trigger_arguments,
-                            request.query_params,
-                            request.headers,
-                            request.body,
-                        );
+                        let plugin_code = self.plugin_code.code();
+                        let query_executor = Arc::clone(&self.query_executor);
+                        let logger = Some(self.logger.clone());
+                        let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
+
+                        let result = tokio::task::spawn_blocking(move || {
+                            execute_request_trigger(
+                                plugin_code.as_ref(),
+                                schema,
+                                query_executor,
+                                logger,
+                                &trigger_arguments,
+                                request.query_params,
+                                request.headers,
+                                request.body,
+                            )
+                        })
+                        .await?;
 
                         // produce the HTTP response
                         let response = match result {
@@ -335,6 +381,10 @@ mod python_plugin {
                                 let errors = self.handle_return_state(plugin_return_state).await;
                                 // TODO: here is one spot we'll pick up errors to put into the plugin system table
                                 for error in errors {
+                                    self.logger.log(
+                                        LogLevel::Error,
+                                        format!("error running request plugin: {}", error),
+                                    );
                                     error!(?self.trigger_definition, "error running request plugin: {}", error);
                                 }
 
@@ -356,6 +406,10 @@ mod python_plugin {
                             }
                             Err(e) => {
                                 // build json string with the error with serde so that it is {"error": "error message"}
+                                self.logger.log(
+                                    LogLevel::Error,
+                                    format!("error running request plugin: {}", e),
+                                );
                                 error!(?self.trigger_definition, "error running request plugin: {}", e);
                                 let body = serde_json::json!({"error": e.to_string()}).to_string();
                                 Response::builder()
@@ -387,7 +441,7 @@ mod python_plugin {
                 return Err(PluginError::MissingDb);
             };
 
-            for wal_op in &wal_contents.ops {
+            for (op_index, wal_op) in wal_contents.ops.iter().enumerate() {
                 match wal_op {
                     WalOp::Write(write_batch) => {
                         // determine if this write batch is for this database
@@ -397,50 +451,64 @@ mod python_plugin {
                             continue;
                         }
                         let table_filter = match &self.trigger_definition.trigger {
-                                    TriggerSpecificationDefinition::AllTablesWalWrite => {
-                                        // no filter
-                                        None
-                                    }
-                                    TriggerSpecificationDefinition::SingleTableWalWrite {
-                                        table_name,
-                                    } => {
-                                        let table_id = schema
-                                            .table_name_to_id(table_name.as_ref())
-                                            .context("table not found")?;
-                                        Some(table_id)
-                                    }
-                                    // This should not occur
-                                    TriggerSpecificationDefinition::Schedule {
-                                        schedule
-                                    } => {
-                                        return Err(anyhow!("unexpectedly found scheduled trigger specification cron:{} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
-                                    }
-                                    TriggerSpecificationDefinition::Every {
-                                        duration,
-                                    } => {
-                                        return Err(anyhow!("unexpectedly found every trigger specification every:{} WAL plugin {}", format_duration(*duration), self.trigger_definition.trigger_name).into())
-                                    }
-                                    TriggerSpecificationDefinition::RequestPath { path } => {
-                                        return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
-                                    }
-                                };
+                            TriggerSpecificationDefinition::AllTablesWalWrite => {
+                                // no filter
+                                None
+                            }
+                            TriggerSpecificationDefinition::SingleTableWalWrite {
+                                table_name,
+                            } => {
+                                let table_id = schema
+                                    .table_name_to_id(table_name.as_ref())
+                                    .context("table not found")?;
+                                Some(table_id)
+                            }
+                            // This should not occur
+                            TriggerSpecificationDefinition::Schedule {
+                                schedule
+                            } => {
+                                return Err(anyhow!("unexpectedly found scheduled trigger specification cron:{} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                            }
+                            TriggerSpecificationDefinition::Every {
+                                duration,
+                            } => {
+                                return Err(anyhow!("unexpectedly found every trigger specification every:{} WAL plugin {}", format_duration(*duration), self.trigger_definition.trigger_name).into())
+                            }
+                            TriggerSpecificationDefinition::RequestPath { path } => {
+                                return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
+                            }
+                        };
 
-                        let result = execute_python_with_batch(
-                            self.plugin_code.code().as_ref(),
-                            write_batch,
-                            Arc::clone(&schema),
-                            Arc::clone(&self.query_executor),
-                            Some(ProcessingEngineLogger::new(
-                                Arc::clone(&self.sys_event_store),
-                                self.trigger_definition.trigger_name.as_str(),
-                            )),
-                            table_filter,
-                            &self.trigger_definition.trigger_arguments,
-                        )?;
+                        let logger = Some(self.logger.clone());
+                        let plugin_code = Arc::clone(&self.plugin_code.code());
+                        let query_executor = Arc::clone(&self.query_executor);
+                        let schema_clone = Arc::clone(&schema);
+                        let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
+                        let wal_contents_clone = Arc::clone(&wal_contents);
+
+                        let result = tokio::task::spawn_blocking(move || {
+                            let write_batch = match &wal_contents_clone.ops[op_index] {
+                                WalOp::Write(wb) => wb,
+                                _ => unreachable!("Index was checked."),
+                            };
+                            execute_python_with_batch(
+                                plugin_code.as_ref(),
+                                write_batch,
+                                schema_clone,
+                                query_executor,
+                                logger,
+                                table_filter,
+                                &trigger_arguments,
+                            )
+                        })
+                        .await??;
 
                         let errors = self.handle_return_state(result).await;
-                        // TODO: here is one spot we'll pick up errors to put into the plugin system table
                         for error in errors {
+                            self.logger.log(
+                                LogLevel::Error,
+                                format!("error running wal plugin: {}", error),
+                            );
                             error!(?self.trigger_definition, "error running wal plugin: {}", error);
                         }
                     }
@@ -572,34 +640,31 @@ mod python_plugin {
         }
 
         async fn run_at_time(
-            &mut self,
-            plugin: &TriggerPlugin,
+            plugin: TriggerPlugin,
+            trigger_time: DateTime<Utc>,
             db_schema: Arc<DatabaseSchema>,
         ) -> Result<(), PluginError> {
-            let Some(trigger_time) = self.next_trigger_time else {
-                return Err(anyhow!("running a cron trigger that is finished.").into());
-            };
-
-            let result = execute_schedule_trigger(
-                plugin.plugin_code.code().as_ref(),
-                trigger_time,
-                Arc::clone(&db_schema),
-                Arc::clone(&plugin.query_executor),
-                Some(ProcessingEngineLogger::new(
-                    Arc::clone(&plugin.sys_event_store),
-                    plugin.trigger_definition.trigger_name.as_str(),
-                )),
-                &plugin.trigger_definition.trigger_arguments,
-            )?;
+            let plugin_code = plugin.plugin_code.code();
+            let query_executor = Arc::clone(&plugin.query_executor);
+            let logger = Some(plugin.logger.clone());
+            let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                execute_schedule_trigger(
+                    plugin_code.as_ref(),
+                    trigger_time,
+                    db_schema,
+                    query_executor,
+                    logger,
+                    &trigger_arguments,
+                )
+            })
+            .await??;
 
             let errors = plugin.handle_return_state(result).await;
             // TODO: here is one spot we'll pick up errors to put into the plugin system table
             for error in errors {
                 error!(?plugin.trigger_definition, "error running schedule plugin: {}", error);
             }
-
-            self.advance_time();
-
             Ok(())
         }
 

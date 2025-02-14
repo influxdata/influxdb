@@ -85,13 +85,9 @@ echo
 printf "${BOLD}Select Installation Type${NC}\n"
 echo
 printf "1) ${GREEN}Docker Image${NC} ${DIM}(More Powerful, More Complex)${NC}\n"
-printf "   ├─ Requires knowledge of Docker and Docker management\n"
-printf "   └─ Includes the Processing Engine for real-time data transformation,\n"
-printf "      enrichment, and general custom Python code execution.\n\n"
+printf "   └─ Requires knowledge of Docker and Docker management\n"
 printf "2) ${GREEN}Simple Download${NC} ${DIM}(Automated Install, Quick Setup)${NC}\n"
-printf "   ├─ No external dependencies required\n"
-printf "   └─ The Processing Engine will be available soon for binary installations,\n"
-printf "      bringing the same powerful processing capabilities to local deployments.\n"
+printf "   └─ No external dependencies required\n"
 echo
 printf "Enter your choice (1-2): "
 read -r INSTALL_TYPE
@@ -147,13 +143,13 @@ fi
 printf "${BOLD}Downloading InfluxDB 3 %s to %s${NC}\n" "$EDITION" "$INSTALL_LOC"
 printf "├─${DIM} mkdir -p '%s'${NC}\n" "$INSTALL_LOC"
 mkdir -p "$INSTALL_LOC"
-printf "└─${DIM} curl -sS '%s' -o '%s/influxdb3.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sS "${URL}" -o "$INSTALL_LOC/influxdb3.tar.gz"
+printf "└─${DIM} curl -sSL '%s' -o '%s/influxdb3.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}" -o "$INSTALL_LOC/influxdb3.tar.gz"
 
 echo
 printf "${BOLD}Verifying '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
-printf "└─${DIM} curl -sS '%s.sha256' -o '%s/influxdb3.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sS "${URL}.sha256" -o "$INSTALL_LOC/influxdb3.tar.gz.sha256"
+printf "└─${DIM} curl -sSL '%s.sha256' -o '%s/influxdb3.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}.sha256" -o "$INSTALL_LOC/influxdb3.tar.gz.sha256"
 dl_sha=$(cut -d ' ' -f 1 "$INSTALL_LOC/influxdb3.tar.gz.sha256" | grep -E '^[0-9a-f]{64}$')
 if [ -z "$dl_sha" ]; then
     printf "Could not find properly formatted SHA256 in '%s/influxdb3.tar.gz.sha256'. Aborting.\n" "$INSTALL_LOC"
@@ -172,8 +168,15 @@ rm "$INSTALL_LOC/influxdb3.tar.gz.sha256"
 
 echo
 printf "${BOLD}Extracting and Processing${NC}\n"
-printf "├─${DIM} tar -xf '%s/influxdb3.tar.gz' -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
-tar -xf "$INSTALL_LOC/influxdb3.tar.gz" -C "$INSTALL_LOC"
+
+# some tarballs have a leading component, check for that
+TAR_LEVEL=0
+if tar -tf "$INSTALL_LOC/influxdb3.tar.gz" | grep -q '[a-zA-Z0-9]/influxdb3$' ; then
+    TAR_LEVEL=1
+fi
+printf "├─${DIM} tar -xf '%s/influxdb3.tar.gz' --strip-components=${TAR_LEVEL} -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
+tar -xf "$INSTALL_LOC/influxdb3.tar.gz" --strip-components="${TAR_LEVEL}" -C "$INSTALL_LOC"
+
 printf "└─${DIM} rm '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
 rm "$INSTALL_LOC/influxdb3.tar.gz"
 
@@ -378,7 +381,9 @@ else
     printf "├─ Access InfluxDB with the ${BOLD}%s${NC} command.\n" "$INSTALL_LOC/$BINARY_NAME"
 fi
 printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
-printf "└─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
+printf "├─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
+printf "└─ The Processing Engine is now included for real-time data transformation,\n"
+printf "   enrichment, and general custom Python code execution.\n\n"
 echo
 
 END_TIME=$(date +%s)

@@ -695,8 +695,15 @@ pub struct TriggerDefinition {
     pub plugin_filename: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
+    pub flags: Vec<TriggerFlag>,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerFlag {
+    ExecuteAsynchronously,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

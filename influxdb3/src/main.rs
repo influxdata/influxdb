@@ -14,6 +14,8 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+use std::env;
+use std::path::{Path, PathBuf};
 use trogging::{
     cli::LoggingConfigBuilderExt,
     tracing_subscriber::{prelude::*, Registry},
@@ -119,6 +121,12 @@ enum Command {
 fn main() -> Result<(), std::io::Error> {
     #[cfg(unix)]
     install_crash_handler(); // attempt to render a useful stacktrace to stderr
+
+    #[cfg(feature = "system-py")]
+    set_pythonhome();
+
+    #[cfg(all(target_os = "windows", feature = "system-py"))]
+    set_pythonpath();
 
     // load all environment variables from .env before doing anything
     load_dotenv();
@@ -300,4 +308,63 @@ fn init_logs_and_tracing(
 
     let subscriber = Registry::default().with(layers);
     trogging::install_global(subscriber)
+}
+
+// XXX: this should be somewhere more appropriate
+#[cfg(feature = "system-py")]
+fn set_pythonhome() {
+    // This would ideally be detected by pyo3, but it isn't
+    match env::var("PYTHONHOME") {
+        Ok(_) => {}
+        Err(env::VarError::NotPresent) => {
+            let exe_path = env::current_exe().unwrap();
+            let exe_dir = exe_path.parent().unwrap();
+
+            let pythonhome: PathBuf = if cfg!(target_os = "linux")
+                && (exe_dir == Path::new("/usr/bin") || exe_dir == Path::new("/usr/local/bin"))
+            {
+                // Official Linux builds may be in /usr or /usr/local
+                // XXX: handle this for local build and install (eg DESTDIR)
+                let parent_dir = exe_dir.parent().unwrap();
+                parent_dir.join("lib/influxdb3/python")
+            } else {
+                exe_dir.join("python")
+            };
+
+            if pythonhome.is_dir() {
+                unsafe { env::set_var("PYTHONHOME", pythonhome.to_str().unwrap()) };
+                //println!("Set PYTHONHOME to '{}'", env::var("PYTHONHOME").unwrap());
+            } else {
+                // TODO: use logger
+                eprintln!("Could not find python installation. May need to set PYTHONHOME");
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to retrieve PYTHONHOME: {e}");
+        }
+    };
+}
+
+// XXX: this should be somewhere more appropriate
+#[cfg(target_os = "windows")]
+fn set_pythonpath() {
+    let exe_path = env::current_exe().unwrap();
+    let exe_dir = exe_path.parent().unwrap();
+    let pythonpath = exe_dir.join("python/Lib");
+
+    // This shouldn't be needed, but it is on Windows
+    match env::var("PYTHONPATH") {
+        Ok(v) => {
+            let new_path = format!("{};{}", pythonpath.display(), v);
+            unsafe { env::set_var("PYTHONPATH", &new_path) };
+            //println!("Updated PYTHONPATH to: {}", env::var("PYTHONPATH").unwrap());
+        }
+        Err(env::VarError::NotPresent) => {
+            unsafe { env::set_var("PYTHONPATH", &pythonpath) };
+            //println!("Updated PYTHONPATH to: {}", env::var("PYTHONPATH").unwrap());
+        }
+        Err(e) => {
+            eprintln!("Failed to retrieve PYTHONPATH: {e}");
+        }
+    }
 }
