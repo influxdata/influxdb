@@ -1610,7 +1610,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -1661,7 +1661,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1731,7 +1731,7 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(f.Measurement),
-				Field:       &tsdb.Field{ID: 0, Name: f.Field, Type: f.FieldType},
+				Field:       &tsdb.Field{Name: f.Field, Type: f.FieldType},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1793,7 +1793,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -1943,7 +1943,7 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
