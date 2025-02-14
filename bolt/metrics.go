@@ -239,55 +239,55 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(
 		orgsDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(orgs),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		bucketsDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(buckets),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		usersDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(users),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		tokensDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(tokens),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		dashboardsDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(dashboards),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		scrapersDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(scrapers),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		telegrafsDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(telegrafs),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		remoteDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(remotes),
 	)
 
 	ch <- prometheus.MustNewConstMetric(
 		replicationDesc,
-		prometheus.CounterValue,
+		prometheus.GaugeValue,
 		float64(replications),
 	)
 
