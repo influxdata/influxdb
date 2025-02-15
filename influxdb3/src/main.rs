@@ -14,7 +14,9 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+#[cfg(feature = "system-py")]
 use std::env;
+#[cfg(feature = "system-py")]
 use std::path::{Path, PathBuf};
 use trogging::{
     cli::LoggingConfigBuilderExt,
