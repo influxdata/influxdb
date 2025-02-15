@@ -47,7 +47,7 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 		}
 
 		// If the field is not present, remember to create it.
-		f := mf.FieldBytes(fieldKey)
+		f := mf.Field(string(fieldKey))
 		if f == nil {
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
 				Measurement: point.Name(),
