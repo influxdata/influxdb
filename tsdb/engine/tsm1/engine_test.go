@@ -79,7 +79,7 @@ func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 			e.CreateSeriesIfNotExists([]byte("cpu,host=B"), []byte("cpu"), models.NewTags(map[string]string{"host": "B"}))
 
@@ -765,7 +765,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -821,7 +821,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -876,7 +876,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -933,7 +933,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -990,8 +990,8 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("F", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -1049,9 +1049,9 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 		t.Run(index, func(t *testing.T) {
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("X", influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("Y", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -1895,7 +1895,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -1954,7 +1954,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 			if err := e.WritePointsString(
@@ -2013,7 +2013,7 @@ func TestEngine_CreateIterator_SeriesKey(t *testing.T) {
 			assert := tassert.New(t)
 			e := MustOpenEngine(t, index)
 
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "east"}))
 			e.CreateSeriesIfNotExists([]byte("cpu,host=B,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "B", "region": "east"}))
 			e.CreateSeriesIfNotExists([]byte("cpu,host=C,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "C", "region": "east"}))
@@ -2258,7 +2258,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
 			e := MustOpenEngine(b, index)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 			pp := make([]models.Point, 0, sz)
 			for i := 0; i < sz; i++ {
 				p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
@@ -2283,7 +2283,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
 			e := MustOpenEngine(b, index)
-			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 
 			cpus := runtime.GOMAXPROCS(0)
 			pp := make([]models.Point, 0, sz*cpus)
@@ -2515,7 +2515,7 @@ func MustInitDefaultBenchmarkEngine(tb testing.TB, name string, pointN int) *ben
 	e := MustOpenEngine(tb, tsdb.DefaultIndex)
 
 	// Initialize metadata.
-	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists("value", influxql.Float)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	// Generate time ascending points with jitterred time & value.

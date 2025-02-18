@@ -1604,7 +1604,7 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	}
 	defer checkMeasurementFieldSetClose(t, mf)
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
-	if _, err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+	if _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 	change := tsdb.FieldChange{
@@ -1655,7 +1655,7 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		measurement := []byte("cpu")
 		fields := mf.CreateFieldsIfNotExists(measurement)
 		fieldName := "value"
-		if _, err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+		if _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 			t.Fatalf("create field error: %v", err)
 		}
 		change := tsdb.FieldChange{
@@ -1725,7 +1725,7 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 	defer checkMeasurementFieldSetClose(t, mf)
 	for _, f := range testFields {
 		fields := mf.CreateFieldsIfNotExists([]byte(f.Measurement))
-		if _, err := fields.CreateFieldIfNotExists([]byte(f.Field), f.FieldType); err != nil {
+		if _, err := fields.CreateFieldIfNotExists(f.Field, f.FieldType); err != nil {
 			t.Fatalf("create field error: %v", err)
 		}
 		change := tsdb.FieldChange{
@@ -1786,7 +1786,7 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	defer checkMeasurementFieldSetClose(t, mf)
 
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
-	if _, err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+	if _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 
@@ -1935,7 +1935,7 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
 
 	for _, fieldName := range fieldNames {
-		if _, err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+		if _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 			t.Logf("create field error: %v", err)
 			t.Fail()
 			return
