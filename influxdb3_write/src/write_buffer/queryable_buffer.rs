@@ -5,7 +5,12 @@ use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    array::AsArray,
+    datatypes::TimestampNanosecondType,
+    record_batch::RecordBatch,
+    row::{RowConverter, SortField},
+};
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TimestampMinMax,
@@ -25,7 +30,7 @@ use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use object_store::path::Path;
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{debug, error, info};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
@@ -197,27 +202,81 @@ impl QueryableBuffer {
                     for chunk in snapshot_chunks {
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
-                        let persist_job = PersistJob {
-                            database_id: *database_id,
-                            table_id: *table_id,
-                            table_name: Arc::clone(&table_name),
-                            chunk_time: chunk.chunk_time,
-                            path: ParquetFilePath::new(
-                                self.persister.node_identifier_prefix(),
-                                db_schema.name.as_ref(),
-                                database_id.as_u32(),
-                                table_name.as_ref(),
-                                table_id.as_u32(),
-                                chunk.chunk_time,
-                                snapshot_details.last_wal_sequence_number,
-                            ),
-                            batch: chunk.record_batch,
-                            schema: chunk.schema,
-                            timestamp_min_max: chunk.timestamp_min_max,
-                            sort_key: table_buffer.sort_key.clone(),
-                        };
+                        // mapping between time to main record batch array's index
+                        let mut smaller_chunks: HashMap<i64, (MinMax, Vec<usize>)> =
+                            HashMap::new();
+                        let smaller_duration = Duration::from_secs(10).as_nanos() as i64;
+                        let all_times = chunk
+                            .record_batch
+                            .column_by_name("time")
+                            .expect("time col to be present")
+                            .as_primitive::<TimestampNanosecondType>()
+                            .values();
+                        for (idx, time) in all_times.iter().enumerate() {
+                            let smaller_chunk_time = time - (time % smaller_duration);
+                            let (min_max, vec_indices) =
+                                smaller_chunks.entry(smaller_chunk_time).or_insert_with(|| {
+                                    (MinMax::new(i64::MAX, i64::MIN), Vec::new())
+                                });
 
-                        persisting_chunks.push(persist_job);
+                            min_max.update(*time);
+                            vec_indices.push(idx);
+                        }
+
+                        // at this point we have a bucket for each 10 sec block, we can create
+                        // smaller record batches here but maybe wasteful if we ever needed one
+                        // batch (let's see how this works first and then decide what can happen)
+                        let batch_schema = chunk.record_batch.schema();
+                        let parent_cols = chunk.record_batch.columns();
+                        let fields = batch_schema
+                            .fields()
+                            .iter()
+                            .map(|field| SortField::new(field.data_type().clone()))
+                            .collect();
+                        debug!(?fields, ">>> schema fields");
+
+                        let converter =
+                            RowConverter::new(fields).expect("row converter created from fields");
+                        let rows = converter
+                            .convert_columns(parent_cols)
+                            .expect("convert cols to rows to succeed");
+
+                        for (smaller_chunk_time, (min_max, all_indexes)) in smaller_chunks.iter() {
+                            // create a record batch using just all_indexes from parent recordbatch
+                            let all_rows = all_indexes
+                                .iter()
+                                .map(|idx| rows.row(*idx))
+                                .collect::<Vec<_>>();
+
+                            let child_cols = converter
+                                .convert_rows(all_rows)
+                                .expect("should convert rows back to cols");
+
+                            let smaller_rec_batch =
+                                RecordBatch::try_new(Arc::clone(&batch_schema), child_cols)
+                                    .expect("create smaller record batch");
+                            let persist_job = PersistJob {
+                                database_id: *database_id,
+                                table_id: *table_id,
+                                table_name: Arc::clone(&table_name),
+                                chunk_time: *smaller_chunk_time,
+                                path: ParquetFilePath::new(
+                                    self.persister.node_identifier_prefix(),
+                                    db_schema.name.as_ref(),
+                                    database_id.as_u32(),
+                                    table_name.as_ref(),
+                                    table_id.as_u32(),
+                                    *smaller_chunk_time,
+                                    snapshot_details.last_wal_sequence_number,
+                                ),
+                                batch: smaller_rec_batch,
+                                // this schema.clone() can be avoided?
+                                schema: chunk.schema.clone(),
+                                timestamp_min_max: min_max.to_ts_min_max(),
+                                sort_key: table_buffer.sort_key.clone(),
+                            };
+                            persisting_chunks.push(persist_job);
+                        }
                     }
                 }
             }
@@ -432,6 +491,34 @@ impl QueryableBuffer {
     pub fn get_total_size_bytes(&self) -> usize {
         let buffer = self.buffer.read();
         buffer.find_overall_buffer_size_bytes()
+    }
+}
+
+struct MinMax {
+    min: i64,
+    max: i64,
+}
+
+impl MinMax {
+    fn new(min: i64, max: i64) -> Self {
+        // this doesn't check if min < max, a lot of the times
+        // it's good to start with i64::MAX for min and i64::MIN
+        // for max in loops so this type unlike TimestampMinMax
+        // doesn't check this pre-condition
+        Self {
+            min,
+            max
+        }
+    }
+
+    fn update(&mut self, other: i64) {
+        self.min = other.min(self.min);
+        self.max = other.max(self.max);
+    }
+
+    fn to_ts_min_max(&self) -> TimestampMinMax {
+        // at this point min < max
+        TimestampMinMax::new(self.min, self.max)
     }
 }
 
@@ -653,6 +740,7 @@ async fn sort_dedupe_persist(
         persist_job.path.to_string()
     );
 
+    // TODO: this is a good place to use multiple batches
     let chunk_stats = create_chunk_statistics(
         Some(row_count),
         &persist_job.schema,

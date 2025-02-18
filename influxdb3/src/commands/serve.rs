@@ -574,7 +574,8 @@ pub async fn command(config: Config) -> Result<()> {
 
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
-        config.force_snapshot_mem_threshold.as_num_bytes(),
+        // config.force_snapshot_mem_threshold.bytes(),
+        734003200,
         &write_buffer_impl,
     )
     .await;
