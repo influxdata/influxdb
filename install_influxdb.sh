@@ -84,9 +84,9 @@ printf "└───────────────────────
 echo
 printf "${BOLD}Select Installation Type${NC}\n"
 echo
-printf "1) ${GREEN}Docker Image${NC} ${DIM}(More Powerful, More Complex)${NC}\n"
+printf "1) ${GREEN}Docker Image${NC}\n"
 printf "   └─ Requires knowledge of Docker and Docker management\n"
-printf "2) ${GREEN}Simple Download${NC} ${DIM}(Automated Install, Quick Setup)${NC}\n"
+printf "2) ${GREEN}Simple Download${NC}\n"
 printf "   └─ No external dependencies required\n"
 echo
 printf "Enter your choice (1-2): "
