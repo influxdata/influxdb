@@ -13,19 +13,21 @@ const MaxFieldValueLength = 1048576
 // ValidateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, error) {
+func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, *PartialWriteError) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	var fieldsToCreate []*FieldCreate
+	var fieldCount int
 
 	for iter.Next() {
+		fieldCount++
 		if !skipSizeValidation {
 			// Check for size of field too large. Note it is much cheaper to check the whole point size
 			// than checking the StringValue size (StringValue potentially takes an allocation if it must
 			// unescape the string, and must at least parse the string)
 			if pointSize > MaxFieldValueLength && iter.Type() == models.String {
 				if sz := len(iter.StringValue()); sz > MaxFieldValueLength {
-					return nil, PartialWriteError{
+					return nil, &PartialWriteError{
 						Reason: fmt.Sprintf(
 							"input field \"%s\" on measurement \"%s\" is too long, %d > %d",
 							iter.FieldKey(), point.Name(), sz, MaxFieldValueLength),
@@ -58,7 +60,7 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 				}})
 		} else if f.Type != dataType {
 			// If the types are not the same, there is a conflict.
-			return nil, PartialWriteError{
+			return nil, &PartialWriteError{
 				Reason: fmt.Sprintf(
 					"%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s",
 					ErrFieldTypeConflict, fieldName, point.Name(), dataType, f.Type),
@@ -66,6 +68,17 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			}
 		}
 	}
+
+	// if all fields of the point are non-valid, report a partial write
+	if len(fieldsToCreate) == 0 && fieldCount > 0 {
+		return nil, &PartialWriteError{
+			Reason: fmt.Sprintf(
+				"invalid field name: input field \"%s\" on measurement \"%s\" is invalid",
+				"time", string(point.Name())),
+			Dropped: 1,
+		}
+	}
+
 	return fieldsToCreate, nil
 }
 
