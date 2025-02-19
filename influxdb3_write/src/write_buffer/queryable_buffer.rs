@@ -6,10 +6,10 @@ use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
 use anyhow::Context;
 use arrow::{
-    array::AsArray,
+    array::{AsArray, UInt64Array},
+    compute::take,
     datatypes::TimestampNanosecondType,
     record_batch::RecordBatch,
-    row::{RowConverter, SortField},
 };
 use async_trait::async_trait;
 use data_types::{
@@ -203,8 +203,7 @@ impl QueryableBuffer {
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
                         // mapping between time to main record batch array's index
-                        let mut smaller_chunks: HashMap<i64, (MinMax, Vec<usize>)> =
-                            HashMap::new();
+                        let mut smaller_chunks: HashMap<i64, (MinMax, Vec<u64>)> = HashMap::new();
                         let smaller_duration = Duration::from_secs(10).as_nanos() as i64;
                         let all_times = chunk
                             .record_batch
@@ -214,59 +213,62 @@ impl QueryableBuffer {
                             .values();
                         for (idx, time) in all_times.iter().enumerate() {
                             let smaller_chunk_time = time - (time % smaller_duration);
-                            let (min_max, vec_indices) =
-                                smaller_chunks.entry(smaller_chunk_time).or_insert_with(|| {
-                                    (MinMax::new(i64::MAX, i64::MIN), Vec::new())
-                                });
+                            let (min_max, vec_indices) = smaller_chunks
+                                .entry(smaller_chunk_time)
+                                .or_insert_with(|| (MinMax::new(i64::MAX, i64::MIN), Vec::new()));
 
                             min_max.update(*time);
-                            vec_indices.push(idx);
+                            vec_indices.push(idx as u64);
+                        }
+
+                        let total_row_count = chunk.record_batch.column(0).len();
+
+                        for (smaller_chunk_time, (min_max, all_indexes)) in smaller_chunks.iter() {
+                            debug!(
+                                ?smaller_chunk_time,
+                                ?min_max,
+                                num_indexes = ?all_indexes.len(),
+                                ?total_row_count,
+                                ">>> number of small chunks");
                         }
 
                         // at this point we have a bucket for each 10 sec block, we can create
                         // smaller record batches here but maybe wasteful if we ever needed one
                         // batch (let's see how this works first and then decide what can happen)
                         let batch_schema = chunk.record_batch.schema();
+                        debug!(schema = ?chunk.schema, ">>> influx schema");
+                        debug!(arrow_schema = ?batch_schema, ">>> batch schema");
                         let parent_cols = chunk.record_batch.columns();
-                        let fields = batch_schema
-                            .fields()
-                            .iter()
-                            .map(|field| SortField::new(field.data_type().clone()))
-                            .collect();
-                        debug!(?fields, ">>> schema fields");
 
-                        let converter =
-                            RowConverter::new(fields).expect("row converter created from fields");
-                        let rows = converter
-                            .convert_columns(parent_cols)
-                            .expect("convert cols to rows to succeed");
+                        for (smaller_chunk_time, (min_max, all_indexes)) in
+                            smaller_chunks.into_iter()
+                        {
+                            let mut smaller_chunk_cols = vec![];
+                            let indices = UInt64Array::from_iter(all_indexes);
+                            for arr in parent_cols {
+                                let filtered =
+                                    take(&arr, &indices, None)
+                                        .expect("index should be accessible in parent cols");
 
-                        for (smaller_chunk_time, (min_max, all_indexes)) in smaller_chunks.iter() {
-                            // create a record batch using just all_indexes from parent recordbatch
-                            let all_rows = all_indexes
-                                .iter()
-                                .map(|idx| rows.row(*idx))
-                                .collect::<Vec<_>>();
-
-                            let child_cols = converter
-                                .convert_rows(all_rows)
-                                .expect("should convert rows back to cols");
-
+                                debug!(smaller_chunk_len = ?filtered.len(), ">>> filtered size");
+                                smaller_chunk_cols.push(filtered);
+                            }
+                            debug!(smaller_chunk_len = ?smaller_chunk_cols.len(), ">>> smaller chunks size");
                             let smaller_rec_batch =
-                                RecordBatch::try_new(Arc::clone(&batch_schema), child_cols)
+                                RecordBatch::try_new(Arc::clone(&batch_schema), smaller_chunk_cols)
                                     .expect("create smaller record batch");
                             let persist_job = PersistJob {
                                 database_id: *database_id,
                                 table_id: *table_id,
                                 table_name: Arc::clone(&table_name),
-                                chunk_time: *smaller_chunk_time,
+                                chunk_time: smaller_chunk_time,
                                 path: ParquetFilePath::new(
                                     self.persister.node_identifier_prefix(),
                                     db_schema.name.as_ref(),
                                     database_id.as_u32(),
                                     table_name.as_ref(),
                                     table_id.as_u32(),
-                                    *smaller_chunk_time,
+                                    smaller_chunk_time,
                                     snapshot_details.last_wal_sequence_number,
                                 ),
                                 batch: smaller_rec_batch,
@@ -277,6 +279,63 @@ impl QueryableBuffer {
                             };
                             persisting_chunks.push(persist_job);
                         }
+                        // let fields = batch_schema
+                        //     .fields()
+                        //     .iter()
+                        //     .map(|field| SortField::new(field.data_type().clone()))
+                        //     .collect();
+                        // debug!(?fields, ">>> schema fields");
+                        //
+                        // let converter =
+                        //     RowConverter::new(fields).expect("row converter created from fields");
+                        // debug!(?converter, ">>> converter");
+                        //
+                        // let rows = converter
+                        //     .convert_columns(parent_cols)
+                        //     .expect("convert cols to rows to succeed");
+                        // debug!(?rows, ">>> all rows");
+                        //
+                        // for (smaller_chunk_time, (min_max, all_indexes)) in smaller_chunks.iter() {
+                        //
+                        //     // create a record batch using just all_indexes from parent recordbatch
+                        //     let all_rows = all_indexes
+                        //         .iter()
+                        //         .map(|idx| rows.row(*idx))
+                        //         .collect::<Vec<_>>();
+                        //     debug!(?rows, ">>> all filtered child rows");
+                        //
+                        //     // hmmm this conversion turns Dictionary types to StringArray, not sure
+                        //     // why
+                        //     let child_cols = converter
+                        //         .convert_rows(all_rows)
+                        //         .expect("should convert rows back to cols");
+                        //     debug!(?child_cols, ">>> all child cols");
+                        //
+                        //     let smaller_rec_batch =
+                        //         RecordBatch::try_new(Arc::clone(&batch_schema), child_cols)
+                        //             .expect("create smaller record batch");
+                        //     let persist_job = PersistJob {
+                        //         database_id: *database_id,
+                        //         table_id: *table_id,
+                        //         table_name: Arc::clone(&table_name),
+                        //         chunk_time: *smaller_chunk_time,
+                        //         path: ParquetFilePath::new(
+                        //             self.persister.node_identifier_prefix(),
+                        //             db_schema.name.as_ref(),
+                        //             database_id.as_u32(),
+                        //             table_name.as_ref(),
+                        //             table_id.as_u32(),
+                        //             *smaller_chunk_time,
+                        //             snapshot_details.last_wal_sequence_number,
+                        //         ),
+                        //         batch: smaller_rec_batch,
+                        //         // this schema.clone() can be avoided?
+                        //         schema: chunk.schema.clone(),
+                        //         timestamp_min_max: min_max.to_ts_min_max(),
+                        //         sort_key: table_buffer.sort_key.clone(),
+                        //     };
+                        //     persisting_chunks.push(persist_job);
+                        // }
                     }
                 }
             }
@@ -494,6 +553,7 @@ impl QueryableBuffer {
     }
 }
 
+#[derive(Debug)]
 struct MinMax {
     min: i64,
     max: i64,
@@ -505,10 +565,7 @@ impl MinMax {
         // it's good to start with i64::MAX for min and i64::MIN
         // for max in loops so this type unlike TimestampMinMax
         // doesn't check this pre-condition
-        Self {
-            min,
-            max
-        }
+        Self { min, max }
     }
 
     fn update(&mut self, other: i64) {
