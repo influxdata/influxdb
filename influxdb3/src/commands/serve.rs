@@ -665,14 +665,7 @@ pub(crate) fn setup_processing_engine_env_manager(
 }
 
 fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
-    // Check for uv first (highest preference)
-    if let Ok(output) = Command::new("uv").arg("--version").output() {
-        if output.status.success() {
-            return Arc::new(UVManager);
-        }
-    }
-
-    // Check for pip second
+    // Check for pip (highest preference)
     // XXX: put this somewhere common
     let python_exe_bn = if cfg!(windows) {
         "python.exe"
@@ -681,7 +674,7 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     };
     let python_exe = if let Ok(v) = env::var("PYTHONHOME") {
         // honor PYTHONHOME (set earlier for python standalone). python build
-        // standalone has bin/python3 on OSX/Linx and python.exe on Windows
+        // standalone has bin/python3 on OSX/Linux and python.exe on Windows
         let mut path = PathBuf::from(v);
         if !cfg!(windows) {
             path.push("bin");
@@ -698,6 +691,13 @@ fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     {
         if output.status.success() {
             return Arc::new(PipManager);
+        }
+    }
+
+    // Check for uv second (ie, prefer python standalone pip)
+    if let Ok(output) = Command::new("uv").arg("--version").output() {
+        if output.status.success() {
+            return Arc::new(UVManager);
         }
     }
 
