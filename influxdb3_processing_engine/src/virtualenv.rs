@@ -18,7 +18,6 @@ pub enum VenvError {
 }
 
 fn get_python_version() -> Result<(u8, u8), std::io::Error> {
-    // XXX: put this somewhere common
     let python_exe_bn = if cfg!(windows) {
         "python.exe"
     } else {
@@ -54,10 +53,14 @@ fn get_python_version() -> Result<(u8, u8), std::io::Error> {
 
 fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
     let (major, minor) = get_python_version()?;
-    let site_packages = venv_dir
-        .join("lib")
-        .join(format!("python{}.{}", major, minor))
-        .join("site-packages");
+    let site_packages = if cfg!(target_os = "windows") {
+        venv_dir.join("Lib").join("site-packages")
+    } else {
+        venv_dir
+            .join("lib")
+            .join(format!("python{}.{}", major, minor))
+            .join("site-packages")
+    };
 
     debug!("Setting PYTHONPATH to: {}", site_packages.to_string_lossy());
     std::env::set_var("PYTHONPATH", &site_packages);
@@ -83,13 +86,11 @@ pub fn init_pyo3() {
     });
 }
 
-// FIXME: this still doesn't work right on windows (sys.path isn't adding the
-// venv's site-packages). Perhaps look at /path/to/venv/pyvenv.cfg?
 pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     use std::process::Command;
 
     let activate_script = if cfg!(target_os = "windows") {
-        venv_path.join("Scripts").join("activate")
+        venv_path.join("Scripts").join("activate.bat")
     } else {
         venv_path.join("bin").join("activate")
     };
@@ -101,9 +102,14 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
         )));
     }
 
+    // Calling the activate script isn't enough to change our process' environment. Instead,
+    // source/call the script, print the resulting environment, capture its output and
+    // set all env vars found. This should future-proof us against changes to activate script
+    // specifics.
     let output = if cfg!(target_os = "windows") {
         Command::new("cmd")
-            .args(["/C", activate_script.to_str().unwrap()])
+            .arg("/C")
+            .arg(format!("{} && set", activate_script.to_str().unwrap()))
             .output()?
     } else {
         Command::new("bash")
