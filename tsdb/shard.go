@@ -704,25 +704,18 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 		}
 
 		var newFields []*FieldCreate
-		var validateErr error
+		var validateErr *PartialWriteError
 		name := p.Name()
 		mf := engine.MeasurementFields(name)
 		// Check with the field validator.
 		if newFields, validateErr = ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); validateErr != nil {
-			var err PartialWriteError
-			switch {
-			case errors.As(validateErr, &err):
-				// This will turn into an error later, outside this lambda
-				if reason == "" {
-					reason = err.Reason
-				}
-				dropped += err.Dropped
-				atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
-				continue
-			default:
-				// Return validateErr, because err will be nil here
-				return nil, nil, validateErr
+			if reason == "" {
+				// record the first reason only
+				reason = validateErr.Reason
 			}
+			dropped += validateErr.Dropped
+			atomic.AddInt64(&s.stats.WritePointsDropped, int64(validateErr.Dropped))
+			continue
 		}
 
 		points[j] = points[i]
