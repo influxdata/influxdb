@@ -2089,7 +2089,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn notifies_watchers_of_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _, _) = setup(
