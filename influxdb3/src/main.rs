@@ -125,9 +125,6 @@ fn main() -> Result<(), std::io::Error> {
     #[cfg(feature = "system-py")]
     set_pythonhome();
 
-    #[cfg(all(target_os = "windows", feature = "system-py"))]
-    set_pythonpath();
-
     // load all environment variables from .env before doing anything
     load_dotenv();
 
@@ -343,28 +340,4 @@ fn set_pythonhome() {
             eprintln!("Failed to retrieve PYTHONHOME: {e}");
         }
     };
-}
-
-// XXX: this should be somewhere more appropriate
-#[cfg(target_os = "windows")]
-fn set_pythonpath() {
-    let exe_path = env::current_exe().unwrap();
-    let exe_dir = exe_path.parent().unwrap();
-    let pythonpath = exe_dir.join("python/Lib");
-
-    // This shouldn't be needed, but it is on Windows
-    match env::var("PYTHONPATH") {
-        Ok(v) => {
-            let new_path = format!("{};{}", pythonpath.display(), v);
-            unsafe { env::set_var("PYTHONPATH", &new_path) };
-            //println!("Updated PYTHONPATH to: {}", env::var("PYTHONPATH").unwrap());
-        }
-        Err(env::VarError::NotPresent) => {
-            unsafe { env::set_var("PYTHONPATH", &pythonpath) };
-            //println!("Updated PYTHONPATH to: {}", env::var("PYTHONPATH").unwrap());
-        }
-        Err(e) => {
-            eprintln!("Failed to retrieve PYTHONPATH: {e}");
-        }
-    }
 }
