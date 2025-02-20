@@ -1,10 +1,10 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
+use crate::PersistedSnapshot;
 use crate::paths::CatalogFilePath;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
-use crate::PersistedSnapshot;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
 use bytes::Bytes;
@@ -22,8 +22,8 @@ use influxdb3_cache::{last_cache, parquet_cache::ParquetFileDataToCache};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::InnerCatalog;
 use iox_time::TimeProvider;
-use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjPath;
 use observability_deps::tracing::info;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
@@ -463,7 +463,7 @@ mod tests {
     use object_store::memory::InMemory;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
     use {
         arrow::array::Int32Array, arrow::datatypes::DataType, arrow::datatypes::Field,
         arrow::datatypes::Schema, chrono::Utc,

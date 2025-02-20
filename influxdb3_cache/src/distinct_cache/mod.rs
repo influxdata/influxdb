@@ -5,8 +5,8 @@ pub use cache::{CacheError, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
 mod provider;
 pub use provider::{DistinctCacheProvider, ProviderError};
 mod table_function;
-pub use table_function::DistinctCacheFunction;
 pub use table_function::DISTINCT_CACHE_UDTF_NAME;
+pub use table_function::DistinctCacheFunction;
 
 #[cfg(test)]
 mod tests {
@@ -19,8 +19,8 @@ mod tests {
 
     use crate::{
         distinct_cache::{
+            DISTINCT_CACHE_UDTF_NAME, DistinctCacheFunction, DistinctCacheProvider,
             cache::{CreateDistinctCacheArgs, DistinctCache, MaxAge, MaxCardinality, Predicate},
-            DistinctCacheFunction, DistinctCacheProvider, DISTINCT_CACHE_UDTF_NAME,
         },
         test_helpers::TestWriter,
     };

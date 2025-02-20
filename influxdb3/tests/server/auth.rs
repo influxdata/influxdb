@@ -3,7 +3,7 @@ use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use reqwest::StatusCode;
 
-use crate::server::{collect_stream, ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer, collect_stream};
 
 #[tokio::test]
 async fn auth() {

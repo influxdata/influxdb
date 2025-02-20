@@ -1,9 +1,9 @@
 use crate::server::{ConfigProvider, TestServer};
-use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::Command as AssertCmd;
+use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     io::Write,
     process::{Command, Stdio},
@@ -1110,8 +1110,7 @@ async fn test_show_system() {
             ],
         },
         SuccessTestCase {
-            name:
-                "table NAME should show queries table without information or system schema queries",
+            name: "table NAME should show queries table without information or system schema queries",
             args: vec![
                 "show",
                 "system",
@@ -1155,11 +1154,29 @@ async fn test_show_system() {
         },
         FailTestCase {
             name: "random table name doesn't exist, should error",
-            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "meow"],
+            args: vec![
+                "show",
+                "system",
+                "--host",
+                server_addr.as_str(),
+                "--database",
+                db_name,
+                "table",
+                "meow",
+            ],
         },
         FailTestCase {
             name: "iox schema table name exists, but should error because we're concerned here with system tables",
-            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "cpu"],
+            args: vec![
+                "show",
+                "system",
+                "--host",
+                server_addr.as_str(),
+                "--database",
+                db_name,
+                "table",
+                "cpu",
+            ],
         },
     ];
 
@@ -1412,7 +1429,7 @@ async fn test_wal_plugin_errors() {
         expected_error: &'static str,
     }
 
-    let  tests = vec![
+    let tests = vec![
         Test {
             name: "invalid_python",
             plugin_code: r#"
@@ -1467,7 +1484,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.query("SELECT foo FROM not_here")
 "#,
             expected_error: "error executing plugin: QueryError: error: error while planning query: Error during planning: table 'public.iox.not_here' not found executing query: SELECT foo FROM not_here",
-        }
+        },
     ];
 
     let plugin_dir = TempDir::new().unwrap();

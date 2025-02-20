@@ -25,8 +25,8 @@ pub mod commands {
 use dotenvy::dotenv;
 use observability_deps::tracing::warn;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 use tokio::runtime::Runtime;
 

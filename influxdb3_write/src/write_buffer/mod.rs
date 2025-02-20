@@ -11,11 +11,11 @@ use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::queryable_buffer::QueryableBuffer;
 use crate::write_buffer::validator::WriteValidator;
-use crate::{chunk::ParquetChunk, DatabaseManager};
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
     LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
 };
+use crate::{DatabaseManager, chunk::ParquetChunk};
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
@@ -34,15 +34,15 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::FieldDataType;
 use influxdb3_wal::WalTableDefinition;
-use influxdb3_wal::{object_store::WalObjectStore, DeleteDatabaseDefinition};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DistinctCacheDefinition, DistinctCacheDelete, LastCacheDefinition,
     LastCacheDelete, LastCacheSize, Wal, WalConfig, WalFileNotifier, WalOp,
 };
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
-use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
+use influxdb3_wal::{DeleteDatabaseDefinition, object_store::WalObjectStore};
 use iox_query::QueryChunk;
+use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
@@ -617,7 +617,6 @@ impl LastCacheManager for WriteBufferImpl {
         key_columns: Option<Vec<ColumnId>>,
         value_columns: Option<Vec<ColumnId>>,
     ) -> Result<Option<LastCacheDefinition>, Error> {
-        let cache_name = cache_name.map(Into::into);
         let catalog = self.catalog();
         let db_schema = catalog
             .db_schema_by_id(&db_id)
@@ -951,10 +950,10 @@ mod tests {
     use std::num::NonZeroUsize;
 
     use super::*;
+    use crate::PersistedSnapshot;
     use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
     use crate::persister::Persister;
     use crate::test_helpers::WriteBufferTester;
-    use crate::PersistedSnapshot;
     use arrow::record_batch::RecordBatch;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
     use bytes::Bytes;

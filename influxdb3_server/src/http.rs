@@ -3,22 +3,24 @@
 use crate::CommonServerState;
 use arrow::record_batch::RecordBatch;
 use arrow::util::pretty;
-use authz::http::AuthorizationHeaderExtension;
 use authz::Authorizer;
+use authz::http::AuthorizationHeaderExtension;
 use bytes::{Bytes, BytesMut};
 use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
-use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::execution::RecordBatchStream;
+use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
+use hyper::HeaderMap;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
 use hyper::header::CONTENT_TYPE;
 use hyper::http::HeaderValue;
-use hyper::HeaderMap;
 use hyper::{Body, Method, Request, Response, StatusCode};
+use influxdb_influxql_parser::select::GroupByClause;
+use influxdb_influxql_parser::statement::Statement;
 use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge};
 use influxdb3_cache::last_cache;
 use influxdb3_catalog::catalog::Error as CatalogError;
@@ -27,13 +29,11 @@ use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
 use influxdb3_processing_engine::manager::{ProcessingEngineError, ProcessingEngineManager};
 use influxdb3_types::http::*;
 use influxdb3_wal::TriggerSpecificationDefinition;
-use influxdb3_write::persister::TrackedMemoryArrowWriter;
-use influxdb3_write::write_buffer::Error as WriteBufferError;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
-use influxdb_influxql_parser::select::GroupByClause;
-use influxdb_influxql_parser::statement::Statement;
+use influxdb3_write::persister::TrackedMemoryArrowWriter;
+use influxdb3_write::write_buffer::Error as WriteBufferError;
 use iox_http::write::single_tenant::SingleTenantRequestUnifier;
 use iox_http::write::v1::V1_NAMESPACE_RP_SEPARATOR;
 use iox_http::write::{WriteParseError, WriteRequestUnifier};
@@ -41,9 +41,9 @@ use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::convert::Infallible;
 use std::fmt::Debug;
 use std::future::Future;
@@ -335,7 +335,7 @@ impl Error {
                     .unwrap(),
             },
             Self::WriteBuffer(WriteBufferError::DistinctCacheError(ref mc_err)) => match mc_err {
-                distinct_cache::ProviderError::Cache(ref cache_err) => match cache_err {
+                distinct_cache::ProviderError::Cache(cache_err) => match cache_err {
                     distinct_cache::CacheError::EmptyColumnSet
                     | distinct_cache::CacheError::NonTagOrStringColumn { .. }
                     | distinct_cache::CacheError::ConfigurationMismatch { .. } => {
@@ -1447,7 +1447,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
         if !is_first_char {
             match (accept_rp, rp_seperator_found, char) {
                 (true, true, V1_NAMESPACE_RP_SEPARATOR) => {
-                    return Err(ValidateDbNameError::InvalidRetentionPolicy)
+                    return Err(ValidateDbNameError::InvalidRetentionPolicy);
                 }
                 (true, false, V1_NAMESPACE_RP_SEPARATOR) => {
                     rp_seperator_found = true;
@@ -1455,7 +1455,7 @@ fn validate_db_name(name: &str, accept_rp: bool) -> Result<(), ValidateDbNameErr
                 (false, _, char)
                     if !(char.is_ascii_alphanumeric() || char == '_' || char == '-') =>
                 {
-                    return Err(ValidateDbNameError::InvalidChar)
+                    return Err(ValidateDbNameError::InvalidChar);
                 }
                 _ => (),
             }
@@ -1698,7 +1698,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
                 return Ok(Response::builder()
                     .status(StatusCode::UNAUTHORIZED)
                     .body(Body::empty())
-                    .unwrap())
+                    .unwrap());
             }
             AuthorizationError::MalformedRequest => {
                 return Ok(Response::builder()
@@ -1712,7 +1712,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
                 return Ok(Response::builder()
                     .status(StatusCode::FORBIDDEN)
                     .body(Body::empty())
-                    .unwrap())
+                    .unwrap());
             }
             // We don't expect this to happen, but if the header is messed up
             // better to handle it then not at all
@@ -1720,7 +1720,7 @@ pub(crate) async fn route_request<T: TimeProvider>(
                 return Ok(Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .body(Body::empty())
-                    .unwrap())
+                    .unwrap());
             }
         }
     }
@@ -1847,12 +1847,12 @@ fn legacy_write_error_to_response(e: WriteParseError) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
-    use http::{header::ACCEPT, HeaderMap, HeaderValue};
+    use http::{HeaderMap, HeaderValue, header::ACCEPT};
 
-    use super::record_batch_stream_to_body;
-    use super::validate_db_name;
     use super::QueryFormat;
     use super::ValidateDbNameError;
+    use super::record_batch_stream_to_body;
+    use super::validate_db_name;
     use arrow_array::record_batch;
     use datafusion::execution::SendableRecordBatchStream;
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;

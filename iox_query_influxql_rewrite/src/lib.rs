@@ -85,7 +85,7 @@ impl TryFrom<Statement> for Rewritten<Statement> {
                         ExtendedOnClause::DatabaseRetentionPolicy(db, rp) => (Some(db), Some(rp)),
                         ExtendedOnClause::AllDatabases
                         | ExtendedOnClause::AllDatabasesAndRetentionPolicies => {
-                            return Err(Error::MultiDatabase)
+                            return Err(Error::MultiDatabase);
                         }
                     };
                     Ok(Self::new(Statement::ShowMeasurements(s))
@@ -207,7 +207,7 @@ pub fn parse_statements(input: &str) -> Result<Vec<Rewritten<Statement>>, Error>
 mod tests {
     use influxdb_influxql_parser::statement::Statement;
 
-    use crate::{parse_statements, Error, Rewritten};
+    use crate::{Error, Rewritten, parse_statements};
 
     fn parse_single(input: &str) -> Rewritten<Statement> {
         parse_statements(input).unwrap().pop().unwrap()

@@ -196,9 +196,9 @@ fn update_persisted_files_with_snapshot(
 #[cfg(test)]
 mod tests {
 
+    use datafusion::prelude::Expr;
     use datafusion::prelude::col;
     use datafusion::prelude::lit_timestamp_nano;
-    use datafusion::prelude::Expr;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_catalog::catalog::TableDefinition;
     use influxdb3_id::ColumnId;

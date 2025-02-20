@@ -4,13 +4,13 @@ use std::{
 };
 
 use indexmap::{
-    map::{IntoIter, Iter, IterMut},
     IndexMap,
+    map::{IntoIter, Iter, IterMut},
 };
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{self, SeqAccess, Visitor},
     ser::SerializeSeq,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 /// A new-type around a [`IndexMap`] that provides special serialization and deserialization behaviour.

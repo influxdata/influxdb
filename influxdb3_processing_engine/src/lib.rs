@@ -30,7 +30,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use tokio::sync::oneshot::Receiver;
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{RwLock, mpsc, oneshot};
 
 pub mod environment;
 pub mod manager;
@@ -792,10 +792,10 @@ pub(crate) struct Request {
 
 #[cfg(test)]
 mod tests {
+    use crate::ProcessingEngineManagerImpl;
     use crate::environment::DisabledManager;
     use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
     use crate::plugins::ProcessingEngineEnvironmentManager;
-    use crate::ProcessingEngineManagerImpl;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
@@ -810,8 +810,8 @@ mod tests {
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig, IOxSessionContext};
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
-    use object_store::memory::InMemory;
     use object_store::ObjectStore;
+    use object_store::memory::InMemory;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::io::Write;
     use std::num::NonZeroUsize;

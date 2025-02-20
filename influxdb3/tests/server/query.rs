@@ -3,13 +3,13 @@ use core::str;
 use crate::server::TestServer;
 use futures::StreamExt;
 use hyper::{
-    header::{HeaderValue, ACCEPT},
     HeaderMap, StatusCode,
+    header::{ACCEPT, HeaderValue},
 };
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use test_helpers::assert_contains;
 
 #[tokio::test]
@@ -1351,7 +1351,6 @@ async fn api_v1_query_data_conversion() {
               ]
             }),
         },
-
     ];
 
     for t in test_cases {

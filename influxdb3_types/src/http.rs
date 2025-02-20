@@ -1,8 +1,8 @@
 use crate::write::Precision;
 use hashbrown::HashMap;
+use hyper::HeaderMap;
 use hyper::header::ACCEPT;
 use hyper::http::HeaderValue;
-use hyper::HeaderMap;
 use influxdb3_cache::distinct_cache::MaxCardinality;
 use influxdb3_wal::TriggerFlag;
 use iox_query_params::StatementParams;

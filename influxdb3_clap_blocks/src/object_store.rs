@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use non_empty_string::NonEmptyString;
 use object_store::{
+    DynObjectStore,
     local::LocalFileSystem,
     memory::InMemory,
     path::Path,
     throttle::{ThrottleConfig, ThrottledStore},
-    DynObjectStore,
 };
 use observability_deps::tracing::{info, warn};
 use snafu::{ResultExt, Snafu};
@@ -1146,7 +1146,10 @@ mod tests {
         .unwrap();
 
         let object_store = config.make_object_store().unwrap();
-        assert_eq!(&object_store.to_string(), "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })")
+        assert_eq!(
+            &object_store.to_string(),
+            "LimitStore(16, MicrosoftAzure { account: NotARealStorageAccount, container: mybucket })"
+        )
     }
 
     #[test]
@@ -1193,7 +1196,9 @@ mod tests {
         // this test tests for failure to configure the object store because of data-dir configuration missing
         // if the INFLUXDB3_DB_DIR env variable is set, the test fails because the configuration is
         // actually present.
-        env::remove_var("INFLUXDB3_DB_DIR");
+        unsafe {
+            env::remove_var("INFLUXDB3_DB_DIR");
+        }
 
         let configs = vec![
             StoreConfigs::Base(

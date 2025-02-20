@@ -1,6 +1,6 @@
 use crate::environment::PluginEnvironmentError::PluginEnvironmentDisabled;
 #[cfg(feature = "system-py")]
-use crate::virtualenv::{initialize_venv, VenvError};
+use crate::virtualenv::{VenvError, initialize_venv};
 use std::env;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -29,7 +29,7 @@ pub trait PythonEnvironmentManager: Debug + Send + Sync + 'static {
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError>;
 
     fn install_requirements(&self, requirements_path: String)
-        -> Result<(), PluginEnvironmentError>;
+    -> Result<(), PluginEnvironmentError>;
 }
 
 #[derive(Debug, Copy, Clone)]

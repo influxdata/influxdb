@@ -20,17 +20,17 @@ use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCac
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
-use iox_query::chunk_statistics::{create_chunk_statistics, NoColumnRanges};
+use iox_query::QueryChunk;
+use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
-use iox_query::QueryChunk;
 use object_store::path::Path;
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
-use schema::sort::SortKey;
 use schema::Schema;
+use schema::sort::SortKey;
 use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
@@ -735,15 +735,15 @@ async fn sort_dedupe_persist(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::write_buffer::validator::WriteValidator;
     use crate::Precision;
+    use crate::write_buffer::validator::WriteValidator;
     use datafusion_util::config::register_iox_object_store;
-    use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use executor::{DedicatedExecutor, register_current_runtime_for_io};
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::ExecutorConfig;
     use iox_time::{MockProvider, Time, TimeProvider};
-    use object_store::memory::InMemory;
     use object_store::ObjectStore;
+    use object_store::memory::InMemory;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use std::num::NonZeroUsize;
 

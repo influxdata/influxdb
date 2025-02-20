@@ -14,8 +14,8 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::mem::size_of;
 use std::sync::Arc;
 use thiserror::Error;
@@ -268,7 +268,9 @@ impl MutableTableChunk {
                         if let Entry::Vacant(e) = self.data.entry(f.id) {
                             let key_builder = StringDictionaryBuilder::new();
                             if self.row_count > 0 {
-                                panic!("series key columns must be passed in the very first write for a table");
+                                panic!(
+                                    "series key columns must be passed in the very first write for a table"
+                                );
                             }
                             e.insert(Builder::Key(key_builder));
                         }
@@ -590,12 +592,12 @@ impl Builder {
 
 #[cfg(test)]
 mod tests {
-    use crate::{write_buffer::validator::WriteValidator, Precision};
+    use crate::{Precision, write_buffer::validator::WriteValidator};
 
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::NamespaceName;
-    use datafusion::prelude::{col, lit_timestamp_nano, Expr};
+    use datafusion::prelude::{Expr, col, lit_timestamp_nano};
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
     use iox_time::Time;
 

@@ -2,11 +2,11 @@ use bytes::Bytes;
 use hashbrown::HashMap;
 use iox_query_params::StatementParam;
 use reqwest::{
-    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Body, IntoUrl, Method, StatusCode,
+    header::{CONTENT_TYPE, HeaderMap, HeaderValue},
 };
 use secrecy::{ExposeSecret, Secret};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
 use url::Url;
 

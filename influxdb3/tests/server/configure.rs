@@ -1,7 +1,7 @@
 use hyper::StatusCode;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use test_helpers::assert_contains;
 
 use crate::server::TestServer;
@@ -97,8 +97,7 @@ async fn api_v3_configure_distinct_cache_create() {
             ..Default::default()
         },
         TestCase {
-            description:
-                "identical to previous request, still success, but results in no 204 content",
+            description: "identical to previous request, still success, but results in no 204 content",
             db: Some("foo"),
             table: Some("bar"),
             columns: &["t1", "t2"],
@@ -480,8 +479,7 @@ async fn api_v3_configure_last_cache_create() {
             ..Default::default()
         },
         TestCase {
-            description:
-                "Will create new cache, because key columns are unique, and so will be the name",
+            description: "Will create new cache, because key columns are unique, and so will be the name",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["t1", "t2"]),
