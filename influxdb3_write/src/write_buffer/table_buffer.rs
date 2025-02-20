@@ -14,10 +14,14 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, LinkedList};
 use std::mem::size_of;
 use std::sync::Arc;
+use std::{
+    collections::btree_map::Entry,
+    slice::Iter,
+};
 use thiserror::Error;
 
 use crate::ChunkFilter;
@@ -34,8 +38,10 @@ pub enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
-    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
-    snapshotting_chunks: Vec<SnapshotChunk>,
+    pub(crate) chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    // pub(crate) snapshotting_chunks: SnapshotChunksContainer,
+    // pub(crate) snapshotting_chunks: Vec<SnapshotChunk>,
+    pub(crate) snapshotting_chunks: LinkedList<SnapshotChunk>,
     pub(crate) sort_key: SortKey,
 }
 
@@ -43,7 +49,8 @@ impl TableBuffer {
     pub fn new(sort_key: SortKey) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
+            // snapshotting_chunks: SnapshotChunksContainer::new(),
+            snapshotting_chunks: LinkedList::new(),
             sort_key,
         }
     }
@@ -77,6 +84,7 @@ impl TableBuffer {
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
+        // for sc in self.snapshotting_chunks.as_filtered_vec(filter) {
         for sc in self.snapshotting_chunks.iter().filter(|sc| {
             filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
         }) {
@@ -125,9 +133,10 @@ impl TableBuffer {
                     (a_min.min(b_min), a_max.max(b_max))
                 })
         };
+        // self.snapshotting_chunks.find_min_max(min, max)
         let mut timestamp_min_max = TimestampMinMax::new(min, max);
 
-        for sc in &self.snapshotting_chunks {
+        for sc in self.snapshotting_chunks.iter() {
             timestamp_min_max = timestamp_min_max.union(&sc.timestamp_min_max);
         }
 
@@ -148,38 +157,122 @@ impl TableBuffer {
         size
     }
 
-    pub fn snapshot(
+    pub fn get_keys_to_remove(&self, older_than_chunk_time: i64) -> Vec<i64> {
+        self.chunk_time_to_chunks
+            .keys()
+            .filter(|k| **k < older_than_chunk_time)
+            .copied()
+            .collect::<Vec<_>>()
+    }
+
+    pub fn snapshot_lazy(
         &mut self,
         table_def: Arc<TableDefinition>,
         older_than_chunk_time: i64,
-    ) -> Vec<SnapshotChunk> {
-        let keys_to_remove = self
-            .chunk_time_to_chunks
+    ) -> impl Iterator<Item = SnapshotChunk> + use<'_> {
+        let keys_to_remove = self.chunk_time_to_chunks
             .keys()
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
-        self.snapshotting_chunks = keys_to_remove
-            .into_iter()
-            .map(|chunk_time| {
-                let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
-                let timestamp_min_max = chunk.timestamp_min_max();
-                let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
-                SnapshotChunk {
-                    chunk_time,
-                    timestamp_min_max,
-                    record_batch,
-                    schema,
-                }
-            })
-            .collect::<Vec<_>>();
+        keys_to_remove.into_iter().map(move |chunk_time| {
+            let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
+            let timestamp_min_max = chunk.timestamp_min_max();
+            let (schema, record_batch) = chunk.into_schema_record_batch(Arc::clone(&table_def));
 
-        self.snapshotting_chunks.clone()
+            SnapshotChunk {
+                chunk_time,
+                timestamp_min_max,
+                record_batch,
+                schema,
+            }
+        })
     }
+    // pub fn add_snapshot_chunks(&self, snapshot_chunks: Vec<SnapshotChunk>) {
+    //     self.snapshotting_chunks.add(snapshot_chunks);
+    // }
+    //
+    // pub fn clear_snapshots(&self) {
+    //     self.snapshotting_chunks.clear_all();
+    // }
 
     pub fn clear_snapshots(&mut self) {
         self.snapshotting_chunks.clear();
+    }
+}
+
+pub(crate) struct SnaphotChunkIter<'a> {
+    pub keys_to_remove: Iter<'a, i64>,
+    pub map: &'a mut BTreeMap<i64, MutableTableChunk>,
+    pub table_def: Arc<TableDefinition>,
+}
+
+impl Iterator for SnaphotChunkIter<'_> {
+    type Item = SnapshotChunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(chunk_time) = self.keys_to_remove.next() {
+            let chunk = self.map.remove(chunk_time).unwrap();
+            let timestamp_min_max = chunk.timestamp_min_max();
+            let (schema, record_batch) =
+                chunk.into_schema_record_batch(Arc::clone(&self.table_def));
+
+            return Some(SnapshotChunk {
+                chunk_time: *chunk_time,
+                timestamp_min_max,
+                record_batch,
+                schema,
+            });
+        }
+        None
+    }
+}
+
+pub(crate) struct SnapshotChunksContainer {
+    chunks: parking_lot::Mutex<Vec<SnapshotChunk>>,
+}
+
+impl SnapshotChunksContainer {
+    fn new() -> Self {
+        Self {
+            chunks: parking_lot::Mutex::new(vec![]),
+        }
+    }
+
+    pub(crate) fn add_one(&self, chunk: SnapshotChunk) {
+        self.chunks.lock().push(chunk);
+    }
+
+    pub(crate) fn add(&self, chunks: Vec<SnapshotChunk>) {
+        let mut all_chunks = self.chunks.lock();
+        *all_chunks = chunks;
+    }
+
+    fn clear_all(&self) {
+        self.chunks.lock().clear();
+    }
+
+    fn find_min_max(&self, current_min: i64, current_max: i64) -> TimestampMinMax {
+        let mut timestamp_min_max = TimestampMinMax::new(current_min, current_max);
+
+        for sc in self.chunks.lock().iter() {
+            timestamp_min_max = timestamp_min_max.union(&sc.timestamp_min_max);
+        }
+
+        timestamp_min_max
+    }
+
+    fn as_filtered_vec(&self, filter: &ChunkFilter<'_>) -> Vec<SnapshotChunk> {
+        // TODO: find an alternate impl for this
+        self.chunks
+            .lock()
+            .iter()
+            .filter(|sc| {
+                filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
+            })
+            .cloned()
+            .collect()
     }
 }
 
@@ -213,7 +306,7 @@ impl std::fmt::Debug for TableBuffer {
     }
 }
 
-struct MutableTableChunk {
+pub(crate) struct MutableTableChunk {
     timestamp_min: i64,
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
@@ -595,8 +688,8 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::NamespaceName;
-    use datafusion::prelude::{Expr, col, lit_timestamp_nano};
-    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    use influxdb_line_protocol::v3::SeriesKey;
+    use iox_query::test;
     use iox_time::Time;
 
     struct TestWriter {
@@ -807,5 +900,19 @@ mod tests {
                 .collect::<Vec<RecordBatch>>();
             assert_batches_sorted_eq!(t.expected_output, &batches);
         }
+    }
+
+    #[test]
+    fn test_drain_filter() {
+        // let map: BTreeMap<i64, String> = BTreeMap::new();
+        // let keys_to_remove = vec![1, 2, 3];
+        // let columns = vec![(ColumnId::new(), Arc::from("region"), InfluxColumnType::Tag)];
+        // let series_key = SeriesKey::new();
+        // let table_def = TableDefinition::new(TableId::new(0), Arc::from("foo"), columns, series_key);
+        // let drain_filter = DrainFilter {
+        //     keys_to_remove: keys_to_remove.iter(),
+        //     map: &mut map,
+        //     table_def: ,
+        // };
     }
 }
