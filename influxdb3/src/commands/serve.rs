@@ -47,9 +47,8 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::env;
 use std::process::Command;
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{
     path::{Path, PathBuf},
     str::FromStr,

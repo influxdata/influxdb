@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[derive(Debug, clap::Parser, Clone)]
 pub struct ProcessingEngineConfig {
     /// Location of the plugins
-    #[clap(long = "plugin-dir")]
+    #[clap(long = "plugin-dir", env = "INFLUXDB3_PLUGIN_DIR")]
     pub plugin_dir: Option<PathBuf>,
     #[clap(long = "virtual-env-location", env = "VIRTUAL_ENV")]
     pub virtual_env_location: Option<PathBuf>,
