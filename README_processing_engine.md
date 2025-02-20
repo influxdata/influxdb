@@ -307,7 +307,8 @@ the `PBS_DATE` and `PBS_VERSION` environment variables in
 astral-sh creates new builds for CPython minor releases as they become
 available from upstream Python. Updating the official builds to pull in a new
 minor release is straightforward, but processes for verifying builds of
-InfluxDB with the new `python-build-standalone` minor release are TBD.
+InfluxDB with the new `python-build-standalone` minor release are
+[TBD](https://github.com/influxdata/influxdb/issues/26045).
 
 
 ### How is python-build-standalone licensed?
