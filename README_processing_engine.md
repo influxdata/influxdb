@@ -154,25 +154,42 @@ $ tar -C /here --strip-components=1 -zxvf /path/to/build/influxdb3-<VERSION>_lin
 $ /here/influxdb3 serve ...
 $ /here/influxdb3 query ...
 
-# with the processing engine without an activated venv
+# with processing engine (/path/to/plugins/.venv created automatically)
 $ mkdir /path/to/plugins
 $ /here/influxdb3 serve --plugin-dir /path/to/plugins ...        # server
 $ /here/influxdb3 create database foo                            # client
 $ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
+... <plugins can use whatever is in /path/to/plugins/.venv> ...
+$ /here/influxdb3 install package bar                            # client
+... <plugins can now 'import bar'> ...
+$ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
 
-# create a venv
-$ /here/python/bin/python3 -m venv /path/to/venv
-$ source /path/to/venv/bin/activate
-(venv)$ pip install requests
+# with processsing engine and alternate venv (/path/to/other-venv created automatically)
+# start server to create/use other-venv
+$ /here/influxdb3 serve --plugin-dir /path/to/plugins --virtual-env-location /path/to/other-venv
+...
+$ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
+... <plugins can use whatever is in /path/to/other-venv> ...
+$ /here/influxdb3 install package bar                            # client
+... <plugins can now 'import bar'> ...
+$ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
+
+# with processsing engine and alternate pre-created venv
+$ /here/python/bin/python3 -m venv /path/to/another-venv         # create another-venv
+$ source /path/to/another-venv/bin/activate
+(venv)$ python3 -m pip install foo
+(venv)$ python3 -m pip freeze > /path/to/another-venv/requirements.txt
 ...
 (venv)$ deactivate
 
-# start server in the venv
-$ source /path/to/venv/bin/activate                              # server
-(venv)$ /here/influxdb3 serve --plugin-dir /path/to/plugins ...  # server
-... <plugins can now 'import requests'> ...
+# start server to use another-venv
+$ /here/influxdb3 serve --plugin-dir /path/to/plugins --virtual-env-location /path/to/another-venv
+... <plugins can now use whatever is in /path/to/another-venv> ...
 
-$ /here/influxdb3 test schedule_plugin -d foo test-requests.py   # client
+$ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
+$ /here/influxdb3 install package bar                            # client
+... <plugins can now 'import bar' in /path/to/another-venv> ...
+$ /here/influxdb3 test schedule_plugin -d foo testme.py          # client
 ```
 
 ### Local development with python-build-standalone
@@ -436,7 +453,8 @@ to use the InfluxDB processing engine. This is achieved by:
 
 ### There is no `pip.exe` on Windows. Why?
 
-From [upstream](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#no-pipexe-on-windows):
+Historical `python-build-standalone` didn't ship `pip.exe` on Windows. From
+[upstream](https://github.com/astral-sh/python-build-standalone/blob/main/docs/quirks.rst#no-pipexe-on-windows):
 "The Windows distributions have pip installed however no `Scripts/pip.exe`,
 `Scripts/pip3.exe`, and `Scripts/pipX.Y.exe` files are provided because the way
 these executables are built isn't portable. (It might be possible to change how
@@ -446,6 +464,8 @@ To use pip, run `python.exe -m pip`. (It is generally a best practice to invoke
 pip via `python -m pip` on all platforms so you can be explicit about the
 python executable that pip uses.)"
 
+While newer `python-build-standalone` releases seem to have addressed this, the
+recommendation to call with `python -m pip` still holds true.
 
 ### What limitations are there?
 
