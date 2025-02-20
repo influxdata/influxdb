@@ -1,6 +1,6 @@
 //! Entrypoint for InfluxDB 3 Core Server
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
@@ -16,29 +16,30 @@ use influxdb3_clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
-    build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
+    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID, build_malloc_conf, setup_metric_registry,
 };
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_server::{
+    CommonServerState,
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
-    serve, CommonServerState,
+    serve,
 };
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
+    WriteBuffer,
     persister::Persister,
     write_buffer::{
-        check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles, WriteBufferImpl,
-        WriteBufferImplArgs,
+        WriteBufferImpl, WriteBufferImplArgs, check_mem_and_force_snapshot_loop,
+        persisted_files::PersistedFiles,
     },
-    WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::SystemProvider;

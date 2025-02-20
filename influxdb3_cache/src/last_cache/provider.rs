@@ -9,8 +9,8 @@ use observability_deps::tracing::debug;
 use parking_lot::RwLock;
 
 use super::{
-    cache::{LastCache, LastCacheValueColumnsArg},
     CreateLastCacheArgs, Error,
+    cache::{LastCache, LastCacheValueColumnsArg},
 };
 
 /// A three level hashmap storing DbId -> TableId -> Cache Name -> LastCache

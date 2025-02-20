@@ -4,8 +4,8 @@ use std::{
     fmt::Debug,
     ops::Range,
     sync::{
-        atomic::{AtomicI64, AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicI64, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -17,20 +17,20 @@ use chrono::{DateTime, Utc};
 use dashmap::{DashMap, Entry};
 use data_types::{TimestampMinMax, TimestampRange};
 use futures::{
+    FutureExt, StreamExt, TryStreamExt,
     future::{BoxFuture, Shared},
     stream::BoxStream,
-    FutureExt, StreamExt, TryStreamExt,
 };
 use iox_time::TimeProvider;
 use metric::Registry;
 use metrics::{AccessMetrics, SizeMetrics};
 use object_store::{
-    path::Path, Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload,
-    ObjectMeta, ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload, ObjectMeta,
+    ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
 };
 use observability_deps::tracing::{debug, error, info, warn};
 use tokio::sync::{
-    mpsc::{channel, Receiver, Sender},
+    mpsc::{Receiver, Sender, channel},
     oneshot, watch,
 };
 
@@ -952,16 +952,15 @@ pub(crate) mod tests {
     };
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::{Attributes, Metric, Registry, U64Counter, U64Gauge};
-    use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload, PutResult};
+    use object_store::{ObjectStore, PutPayload, PutResult, memory::InMemory, path::Path};
 
     use pretty_assertions::assert_eq;
     use tokio::sync::Notify;
 
     use crate::parquet_cache::{
-        create_cached_obj_store_and_oracle,
+        Cache, CacheRequest, ParquetFileDataToCache, create_cached_obj_store_and_oracle,
         metrics::{CACHE_ACCESS_NAME, CACHE_SIZE_BYTES_NAME, CACHE_SIZE_N_FILES_NAME},
-        should_request_be_cached, test_cached_obj_store_and_oracle, Cache, CacheRequest,
-        ParquetFileDataToCache,
+        should_request_be_cached, test_cached_obj_store_and_oracle,
     };
 
     macro_rules! assert_payload_at_equals {

@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::{stdin, BufReader, IsTerminal, Read},
+    io::{BufReader, IsTerminal, Read, stdin},
 };
 
 use clap::Parser;

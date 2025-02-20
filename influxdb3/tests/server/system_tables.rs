@@ -2,7 +2,7 @@ use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use serde_json::json;
 
-use crate::server::{collect_stream, TestServer};
+use crate::server::{TestServer, collect_stream};
 
 #[tokio::test]
 async fn queries_table() {
@@ -144,35 +144,41 @@ async fn last_caches_table() {
     }
 
     // Create some last caches, two on DB1 and one on DB2:
-    assert!(server
-        .api_v3_configure_last_cache_create(&json!({
-            "db": db1_name,
-            "table": "cpu",
-            "key_columns": ["host"],
-        }))
-        .await
-        .status()
-        .is_success());
-    assert!(server
-        .api_v3_configure_last_cache_create(&json!({
-            "db": db1_name,
-            "table": "mem",
-            "name": "mem_last_cache",
-            "value_columns": ["usage"],
-            "ttl": 60
-        }))
-        .await
-        .status()
-        .is_success());
-    assert!(server
-        .api_v3_configure_last_cache_create(&json!({
-            "db": db2_name,
-            "table": "cpu",
-            "count": 5
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        server
+            .api_v3_configure_last_cache_create(&json!({
+                "db": db1_name,
+                "table": "cpu",
+                "key_columns": ["host"],
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+    assert!(
+        server
+            .api_v3_configure_last_cache_create(&json!({
+                "db": db1_name,
+                "table": "mem",
+                "name": "mem_last_cache",
+                "value_columns": ["usage"],
+                "ttl": 60
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+    assert!(
+        server
+            .api_v3_configure_last_cache_create(&json!({
+                "db": db2_name,
+                "table": "cpu",
+                "count": 5
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     // Check the system table for each DB:
     {
@@ -203,7 +209,8 @@ async fn last_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(resp).await;
-        assert_batches_sorted_eq!([
+        assert_batches_sorted_eq!(
+            [
                 "+-------+--------------------------------+----------------+---------------------+------------------+--------------------+-------+-------+",
                 "| table | name                           | key_column_ids | key_column_names    | value_column_ids | value_column_names | count | ttl   |",
                 "+-------+--------------------------------+----------------+---------------------+------------------+--------------------+-------+-------+",
@@ -218,15 +225,17 @@ async fn last_caches_table() {
 
     // Delete one of the caches:
     {
-        assert!(server
-            .api_v3_configure_last_cache_delete(&json!({
-                "db": db1_name,
-                "table": "cpu",
-                "name": "cpu_host_last_cache",
-            }))
-            .await
-            .status()
-            .is_success());
+        assert!(
+            server
+                .api_v3_configure_last_cache_delete(&json!({
+                    "db": db1_name,
+                    "table": "cpu",
+                    "name": "cpu_host_last_cache",
+                }))
+                .await
+                .status()
+                .is_success()
+        );
 
         let resp = server
             .flight_sql_client(db1_name)
@@ -267,7 +276,8 @@ async fn last_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(resp).await;
-        assert_batches_sorted_eq!([
+        assert_batches_sorted_eq!(
+            [
                 "+-------+--------------------------------+----------------+---------------------+------------------+--------------------+-------+-------+",
                 "| table | name                           | key_column_ids | key_column_names    | value_column_ids | value_column_names | count | ttl   |",
                 "+-------+--------------------------------+----------------+---------------------+------------------+--------------------+-------+-------+",
@@ -321,35 +331,41 @@ async fn distinct_caches_table() {
     }
 
     // create some distinct caches on the two databases:
-    assert!(server
-        .api_v3_configure_distinct_cache_create(&json!({
-            "db": db_1_name,
-            "table": "cpu",
-            "columns": ["region", "host"],
-        }))
-        .await
-        .status()
-        .is_success());
-    assert!(server
-        .api_v3_configure_distinct_cache_create(&json!({
-            "db": db_1_name,
-            "table": "mem",
-            "columns": ["region", "host"],
-            "max_cardinality": 1_000,
-        }))
-        .await
-        .status()
-        .is_success());
-    assert!(server
-        .api_v3_configure_distinct_cache_create(&json!({
-            "db": db_2_name,
-            "table": "cpu",
-            "columns": ["host"],
-            "max_age": 1_000,
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_create(&json!({
+                "db": db_1_name,
+                "table": "cpu",
+                "columns": ["region", "host"],
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_create(&json!({
+                "db": db_1_name,
+                "table": "mem",
+                "columns": ["region", "host"],
+                "max_cardinality": 1_000,
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_create(&json!({
+                "db": db_2_name,
+                "table": "cpu",
+                "columns": ["host"],
+                "max_age": 1_000,
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     // check the system table query for each db:
     {
@@ -360,14 +376,17 @@ async fn distinct_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(response_stream).await;
-        assert_batches_sorted_eq!([
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-            "| table | name                           | column_ids | column_names   | max_cardinality | max_age_seconds |",
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-            "| cpu   | cpu_region_host_distinct_cache | [0, 1]     | [region, host] | 100000          | 86400           |",
-            "| mem   | mem_region_host_distinct_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-        ], &batches);
+        assert_batches_sorted_eq!(
+            [
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+                "| table | name                           | column_ids | column_names   | max_cardinality | max_age_seconds |",
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+                "| cpu   | cpu_region_host_distinct_cache | [0, 1]     | [region, host] | 100000          | 86400           |",
+                "| mem   | mem_region_host_distinct_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+            ],
+            &batches
+        );
     }
     {
         let response_stream = server
@@ -377,34 +396,41 @@ async fn distinct_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(response_stream).await;
-        assert_batches_sorted_eq!([
-            "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
-            "| table | name                    | column_ids | column_names | max_cardinality | max_age_seconds |",
-            "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
-            "| cpu   | cpu_host_distinct_cache | [9]        | [host]       | 100000          | 1000            |",
-            "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
-        ], &batches);
+        assert_batches_sorted_eq!(
+            [
+                "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
+                "| table | name                    | column_ids | column_names | max_cardinality | max_age_seconds |",
+                "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
+                "| cpu   | cpu_host_distinct_cache | [9]        | [host]       | 100000          | 1000            |",
+                "+-------+-------------------------+------------+--------------+-----------------+-----------------+",
+            ],
+            &batches
+        );
     }
 
     // delete caches and check that the system tables reflect those changes:
-    assert!(server
-        .api_v3_configure_distinct_cache_delete(&json!({
-            "db": db_1_name,
-            "table": "cpu",
-            "name": "cpu_region_host_distinct_cache",
-        }))
-        .await
-        .status()
-        .is_success());
-    assert!(server
-        .api_v3_configure_distinct_cache_delete(&json!({
-            "db": db_2_name,
-            "table": "cpu",
-            "name": "cpu_host_distinct_cache",
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_delete(&json!({
+                "db": db_1_name,
+                "table": "cpu",
+                "name": "cpu_region_host_distinct_cache",
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_delete(&json!({
+                "db": db_2_name,
+                "table": "cpu",
+                "name": "cpu_host_distinct_cache",
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     // check the system tables again:
     {
@@ -415,13 +441,16 @@ async fn distinct_caches_table() {
             .await
             .unwrap();
         let batches = collect_stream(response_stream).await;
-        assert_batches_sorted_eq!([
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-            "| table | name                           | column_ids | column_names   | max_cardinality | max_age_seconds |",
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-            "| mem   | mem_region_host_distinct_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
-            "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
-        ], &batches);
+        assert_batches_sorted_eq!(
+            [
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+                "| table | name                           | column_ids | column_names   | max_cardinality | max_age_seconds |",
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+                "| mem   | mem_region_host_distinct_cache | [4, 5]     | [region, host] | 1000            | 86400           |",
+                "+-------+--------------------------------+------------+----------------+-----------------+-----------------+",
+            ],
+            &batches
+        );
     }
     {
         let response_stream = server

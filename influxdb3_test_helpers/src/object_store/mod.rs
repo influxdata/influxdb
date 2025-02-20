@@ -5,8 +5,8 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use hashbrown::HashMap;
 use object_store::{
-    path::Path, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOpts, PutOptions, PutPayload, PutResult,
+    GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore, PutMultipartOpts,
+    PutOptions, PutPayload, PutResult, path::Path,
 };
 use parking_lot::RwLock;
 use tokio::sync::Notify;

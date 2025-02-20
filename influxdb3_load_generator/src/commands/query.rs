@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::time::Instant;
 
 use crate::{
-    query_generator::{create_queriers, Format, Querier},
+    query_generator::{Format, Querier, create_queriers},
     report::QueryReporter,
     specification::QuerierSpec,
 };

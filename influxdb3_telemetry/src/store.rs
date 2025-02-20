@@ -7,11 +7,11 @@ use num::Float;
 use observability_deps::tracing::{debug, warn};
 
 use crate::{
+    ParquetMetrics,
     bucket::EventsBucket,
     metrics::{Cpu, Memory, Queries, Writes},
     sampler::sample_metrics,
-    sender::{send_telemetry_in_background, TelemetryPayload},
-    ParquetMetrics,
+    sender::{TelemetryPayload, send_telemetry_in_background},
 };
 
 /// This store is responsible for holding all the stats which will be sent in the background

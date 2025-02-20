@@ -1,6 +1,6 @@
-use crate::environment::PythonEnvironmentManager;
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
+use crate::environment::PythonEnvironmentManager;
 #[cfg(feature = "system-py")]
 use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
@@ -19,11 +19,11 @@ use influxdb3_wal::Gen1Duration;
 use influxdb3_wal::TriggerDefinition;
 #[cfg(feature = "system-py")]
 use influxdb3_wal::TriggerSpecificationDefinition;
-use influxdb3_write::write_buffer;
-use influxdb3_write::write_buffer::validator::WriteValidator;
 use influxdb3_write::Precision;
 #[cfg(feature = "system-py")]
 use influxdb3_write::WriteBuffer;
+use influxdb3_write::write_buffer;
+use influxdb3_write::write_buffer::validator::WriteValidator;
 #[cfg(feature = "system-py")]
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
@@ -75,7 +75,9 @@ pub enum PluginError {
     #[error("non-schedule plugin with schedule trigger: {0}")]
     NonSchedulePluginWithScheduleTrigger(String),
 
-    #[error("Trigger schedule type {schedule_type} invalid for trigger type {trigger_type} and type mismatch")]
+    #[error(
+        "Trigger schedule type {schedule_type} invalid for trigger type {trigger_type} and type mismatch"
+    )]
     TriggerScheduleTypeMismatch {
         schedule_type: String,
         trigger_type: String,
@@ -188,20 +190,20 @@ struct TriggerPlugin {
 #[cfg(feature = "system-py")]
 mod python_plugin {
     use super::*;
-    use anyhow::{anyhow, Context};
+    use anyhow::{Context, anyhow};
     use chrono::{DateTime, Duration, Utc};
     use cron::{OwnedScheduleIterator, Schedule as CronSchedule};
     use data_types::NamespaceName;
-    use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;
+    use futures_util::stream::FuturesUnordered;
     use humantime::{format_duration, parse_duration};
     use hyper::http::HeaderValue;
     use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
     use influxdb3_py_api::logging::LogLevel;
     use influxdb3_py_api::system_py::{
-        execute_python_with_batch, execute_request_trigger, execute_schedule_trigger,
-        PluginReturnState, ProcessingEngineLogger,
+        PluginReturnState, ProcessingEngineLogger, execute_python_with_batch,
+        execute_request_trigger, execute_schedule_trigger,
     };
     use influxdb3_wal::{TriggerFlag, WalContents, WalOp};
     use influxdb3_write::Precision;
@@ -693,8 +695,8 @@ pub(crate) fn run_test_wal_plugin(
 ) -> Result<WalPluginTestResponse, PluginError> {
     use data_types::NamespaceName;
     use influxdb3_wal::Gen1Duration;
-    use influxdb3_write::write_buffer::validator::WriteValidator;
     use influxdb3_write::Precision;
+    use influxdb3_write::write_buffer::validator::WriteValidator;
 
     let database = request.database;
     let namespace = NamespaceName::new(database.clone())
@@ -877,8 +879,8 @@ mod tests {
     use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
-    use influxdb3_write::write_buffer::validator::WriteValidator;
     use influxdb3_write::Precision;
+    use influxdb3_write::write_buffer::validator::WriteValidator;
     use iox_time::Time;
 
     fn ensure_pyo3() {

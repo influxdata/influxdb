@@ -4,7 +4,7 @@ use datafusion::{
     catalog::SchemaProvider,
     datasource::TableProvider,
     error::DataFusionError,
-    logical_expr::{col, BinaryExpr, Expr, Operator},
+    logical_expr::{BinaryExpr, Expr, Operator, col},
     scalar::ScalarValue,
 };
 use distinct_caches::DistinctCachesTable;

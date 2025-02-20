@@ -14,9 +14,9 @@ use data_types::Timestamp;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use indexmap::IndexMap;
-use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-use influxdb_line_protocol::v3::SeriesValue;
 use influxdb_line_protocol::FieldValue;
+use influxdb_line_protocol::v3::SeriesValue;
+use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use iox_time::Time;
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{any::Any, num::ParseIntError};
 use thiserror::Error;
-use tokio::sync::{oneshot, OwnedSemaphorePermit};
+use tokio::sync::{OwnedSemaphorePermit, oneshot};
 
 #[derive(Debug, Error)]
 pub enum Error {

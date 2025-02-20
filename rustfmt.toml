@@ -1,4 +1,4 @@
-edition = "2021"
+edition = "2024"
 
 # Unstable features not yet supported on stable Rust
 #wrap_comments = true

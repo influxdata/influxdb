@@ -378,7 +378,7 @@ impl Field {
         // if there are random nulls, check and return without writing the field if it hits the
         // probability
         if let Some((probability, rng)) = &mut self.random_null {
-            let val: f64 = rng.gen();
+            let val: f64 = rng.r#gen();
             if val <= *probability {
                 return Ok(());
             }
@@ -419,7 +419,7 @@ impl Field {
             },
             FieldValue::Boolean(f) => match f {
                 BooleanValue::Random(rng) => {
-                    let v: bool = rng.gen();
+                    let v: bool = rng.r#gen();
                     write!(w, "{}", v)?;
                 }
             },

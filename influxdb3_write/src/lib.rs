@@ -18,7 +18,7 @@ use datafusion::{
     error::DataFusionError,
     execution::context::ExecutionProps,
     logical_expr::interval_arithmetic::Interval,
-    physical_expr::{analyze, create_physical_expr, AnalysisContext, ExprBoundaries},
+    physical_expr::{AnalysisContext, ExprBoundaries, analyze, create_physical_expr},
     prelude::Expr,
     scalar::ScalarValue,
 };

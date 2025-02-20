@@ -1,7 +1,7 @@
 use crate::cli::run_with_confirmation;
 #[cfg(feature = "system-py")]
 use crate::server::{ConfigProvider, TestServer};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde_json::Value;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -347,6 +347,8 @@ fn assert_tablib_not_in_system_python() {
         .unwrap();
 
     if output.status.success() {
-        panic!("tablib is installed in system Python. In OS X this can cause dependency conflicts to tests, as pyo3 doesn't fully leverage the virtualenv paths.");
+        panic!(
+            "tablib is installed in system Python. In OS X this can cause dependency conflicts to tests, as pyo3 doesn't fully leverage the virtualenv paths."
+        );
     }
 }

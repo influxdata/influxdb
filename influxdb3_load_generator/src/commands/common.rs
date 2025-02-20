@@ -1,6 +1,6 @@
 use std::{fs::File, path::PathBuf, str::FromStr, sync::Arc};
 
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use influxdb3_client::Client;
