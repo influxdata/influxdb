@@ -968,6 +968,7 @@ mod tests {
             0,
             Utc::now().timestamp_nanos_opt().unwrap(),
             WalFileSequenceNumber::new(1),
+            None,
         );
         let (bytes_written, meta, _) = persister
             .persist_parquet_file(path.clone(), stream_builder.build())
