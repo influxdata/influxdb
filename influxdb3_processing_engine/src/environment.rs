@@ -1,7 +1,6 @@
 use crate::environment::PluginEnvironmentError::PluginEnvironmentDisabled;
 #[cfg(feature = "system-py")]
-use crate::virtualenv::{VenvError, initialize_venv};
-use std::env;
+use crate::virtualenv::{VenvError, find_python, initialize_venv};
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -87,36 +86,6 @@ impl PythonEnvironmentManager for UVManager {
     }
 }
 
-// XXX: put this somewhere common
-fn find_python() -> PathBuf {
-    let python_exe_bn = if cfg!(windows) {
-        "python.exe"
-    } else {
-        "python3"
-    };
-    if let Ok(v) = env::var("VIRTUAL_ENV") {
-        let mut path = PathBuf::from(v);
-        if cfg!(windows) {
-            path.push("Scripts");
-        } else {
-            path.push("bin");
-        }
-        path.push(python_exe_bn);
-        path
-    } else if let Ok(v) = env::var("PYTHONHOME") {
-        // honor PYTHONHOME (set earlier for python standalone). python build
-        // standalone has bin/python3 on OSX/Linx and python.exe on Windows
-        let mut path = PathBuf::from(v);
-        if !cfg!(windows) {
-            path.push("bin");
-        }
-        path.push(python_exe_bn);
-        path
-    } else {
-        PathBuf::from(python_exe_bn)
-    }
-}
-
 impl PythonEnvironmentManager for PipManager {
     fn init_pyenv(
         &self,
@@ -128,6 +97,7 @@ impl PythonEnvironmentManager for PipManager {
             None => &plugin_dir.join(".venv"),
         };
 
+        #[cfg(feature = "system-py")]
         if !is_valid_venv(venv_path) {
             let python_exe = find_python();
             Command::new(python_exe)
@@ -143,25 +113,31 @@ impl PythonEnvironmentManager for PipManager {
     }
 
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
-        let python_exe = find_python();
-        Command::new(python_exe)
-            .arg("-m")
-            .arg("pip")
-            .arg("install")
-            .args(&packages)
-            .output()?;
+        #[cfg(feature = "system-py")]
+        {
+            let python_exe = find_python();
+            Command::new(python_exe)
+                .arg("-m")
+                .arg("pip")
+                .arg("install")
+                .args(&packages)
+                .output()?;
+        }
         Ok(())
     }
     fn install_requirements(
         &self,
         requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
-        let python_exe = find_python();
-        Command::new(python_exe)
-            .arg("-m")
-            .arg("pip")
-            .args(["install", "-r", &requirements_path])
-            .output()?;
+        #[cfg(feature = "system-py")]
+        {
+            let python_exe = find_python();
+            Command::new(python_exe)
+                .arg("-m")
+                .arg("pip")
+                .args(["install", "-r", &requirements_path])
+                .output()?;
+        }
         Ok(())
     }
 }
