@@ -195,8 +195,8 @@ impl CompactedDataConsumer {
             let mut generation_details = Vec::with_capacity(new_generations.len());
             let new_gens_u8 = Generation::to_vec_levels(&new_generations);
             let removed_gens_u8 = Generation::to_vec_levels(&removed_generations);
-            for gen in new_generations {
-                let gen_path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), gen.id);
+            for genr in new_generations {
+                let gen_path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), genr.id);
                 let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
                     .await
                     .context("generation detail not found")?;

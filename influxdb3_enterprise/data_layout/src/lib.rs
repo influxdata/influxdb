@@ -146,7 +146,7 @@ impl Generation {
     }
 
     pub fn to_vec_levels(gens: &[Generation]) -> Vec<u8> {
-        gens.iter().map(|gen| gen.to_u8_level()).collect()
+        gens.iter().map(|genr| genr.to_u8_level()).collect()
     }
 }
 
@@ -265,10 +265,10 @@ impl CompactionConfig {
 
     /// Returns the start time of the next generation the passed in generation would be compacted
     /// into, or returns None if the gen has no next generation.
-    pub fn next_generation_start_time(&self, gen: &Generation) -> Option<i64> {
-        let next_level = GenerationLevel::new(gen.level.0 + 1);
+    pub fn next_generation_start_time(&self, genr: &Generation) -> Option<i64> {
+        let next_level = GenerationLevel::new(genr.level.0 + 1);
         self.generation_duration(next_level)
-            .map(|_d| self.generation_start_time(next_level, gen.start_time_secs))
+            .map(|_d| { self.generation_start_time(next_level, genr.start_time_secs )})
     }
 
     /// Returns the compaction levels greater than 2 based on the configuration
