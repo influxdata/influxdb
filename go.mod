@@ -32,12 +32,12 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20201006132531-4bb0a200dcbe
-	github.com/influxdata/flux v0.195.2
+	github.com/influxdata/flux v0.196.1
 	github.com/influxdata/httprouter v1.3.1-0.20191122104820-ee83e2772f69
 	github.com/influxdata/influx-cli/v2 v2.2.1-0.20221028161653-3285a03e9e28
 	github.com/influxdata/influxql v1.1.1-0.20211004132434-7e7d61973256
 	github.com/influxdata/line-protocol v0.0.0-20200327222509-2487e7298839
-	github.com/influxdata/pkg-config v0.2.11
+	github.com/influxdata/pkg-config v0.2.14
 	github.com/jmoiron/sqlx v1.3.4
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/jwilder/encoding v0.0.0-20170811194829-b4e1701a28ef
@@ -66,11 +66,11 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.16.0
-	golang.org/x/crypto v0.24.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
-	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.21.0
-	golang.org/x/text v0.16.0
+	golang.org/x/sync v0.10.0
+	golang.org/x/sys v0.28.0
+	golang.org/x/text v0.21.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.22.0
 	google.golang.org/protobuf v1.34.1
@@ -240,7 +240,7 @@ require (
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.183.0 // indirect
