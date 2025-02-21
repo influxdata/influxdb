@@ -141,6 +141,7 @@ impl PythonEnvironmentManager for PipManager {
         initialize_venv(venv_path)?;
         Ok(())
     }
+
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
         let python_exe = find_python();
         Command::new(python_exe)
