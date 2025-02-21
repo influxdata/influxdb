@@ -8,6 +8,10 @@ ignore = [
     # dependent on datafusion-common moving away from instant
     # https://github.com/apache/datafusion/pull/13355
     "RUSTSEC-2024-0384",
+    # ignoring because of the number of different indirect dependencies that
+    # are outside our control. follow-up on the maintainership issue is tracked
+    # by https://github.com/influxdata/influxdb/issues/26055
+    "RUSTSEC-2025-0007",
 ]
 git-fetch-with-cli = true
 
