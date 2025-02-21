@@ -349,7 +349,7 @@ impl SeriesWriter {
             compactor_id,
             generation,
             current_file_id: ParquetFileId::new(),
-            index_columns: index_columns.into_iter().map(Into::into).collect(),
+            index_columns,
             file_index: FileIndex::new(),
             min_time: i64::MAX,
             max_time: i64::MIN,
