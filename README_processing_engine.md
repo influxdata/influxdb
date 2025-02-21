@@ -310,6 +310,11 @@ minor release is straightforward, but processes for verifying builds of
 InfluxDB with the new `python-build-standalone` minor release are
 [TBD](https://github.com/influxdata/influxdb/issues/26045).
 
+References:
+ * https://www.python.org/dev/security/
+ * https://mail.python.org/mailman3/lists/security-announce.python.org/
+ * https://mail.python.org/archives/list/security-announce@python.org/latest
+ * https://github.com/astral-sh/python-build-standalone/releases
 
 ### How is python-build-standalone licensed?
 
