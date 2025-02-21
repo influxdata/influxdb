@@ -300,7 +300,7 @@ pub(crate) struct NextCompactionPlan {
 mod tests {
     use super::*;
     use influxdb3_enterprise_data_layout::{
-        gen_time_string, gen_time_string_to_start_time_secs, GenerationId,
+        GenerationId, gen_time_string, gen_time_string_to_start_time_secs,
     };
 
     #[test]
@@ -497,8 +497,7 @@ mod tests {
                 output_level: 2,
             },
             TestCase {
-                description:
-                    "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind (odd split)",
+                description: "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind (odd split)",
                 input: vec![
                     (7, 1, "2024-10-14/12-10"),
                     (6, 1, "2024-10-14/12-20"),

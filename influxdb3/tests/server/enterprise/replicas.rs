@@ -4,7 +4,7 @@ use influxdb3_client::Precision;
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use serde_json::json;
 
-use crate::server::{enterprise::tmp_dir, ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer, enterprise::tmp_dir};
 
 #[tokio::test]
 async fn two_primaries_one_replica() {
@@ -105,14 +105,16 @@ async fn replicate_last_cache() {
         .unwrap();
 
     // create a last cache on spock
-    assert!(spock
-        .api_v3_configure_last_cache_create(&json!({
-                "db": "starfleet",
-                "table": "ships",
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        spock
+            .api_v3_configure_last_cache_create(&json!({
+                    "db": "starfleet",
+                    "table": "ships",
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     // create a replica that replicates both:
     let replica = TestServer::configure_pro()

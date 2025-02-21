@@ -4,9 +4,9 @@ use crate::catalog::CompactedCatalog;
 use hashbrown::HashMap;
 use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_enterprise_data_layout::{
-    gen_time_string, CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
+    CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
     CompactionSequenceNumber, CompactionSummary, Generation, GenerationDetail,
-    GenerationDetailPath, GenerationId, NodeSnapshotMarker,
+    GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::FileIndex;
 use influxdb3_id::{DbId, TableId};

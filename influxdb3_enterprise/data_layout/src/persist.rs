@@ -5,10 +5,10 @@ use crate::{
     CompactionSummaryPath, GenerationDetail, GenerationDetailPath, GenerationId,
 };
 use bytes::Bytes;
-use futures_util::{stream::StreamExt, TryFutureExt};
+use futures_util::{TryFutureExt, stream::StreamExt};
 use influxdb3_id::{DbId, TableId};
-use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjPath;
 use observability_deps::tracing::{debug, error, info, warn};
 use std::sync::Arc;
 use thiserror::Error;
@@ -248,7 +248,7 @@ pub async fn get_bytes_at_path(
 mod tests {
     use std::sync::Arc;
 
-    use object_store::{memory::InMemory, path::Path, ObjectStore, PutPayload};
+    use object_store::{ObjectStore, PutPayload, memory::InMemory, path::Path};
 
     use crate::persist::get_bytes_at_path;
 

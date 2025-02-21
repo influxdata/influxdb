@@ -2,21 +2,21 @@
 //! compacted data. It also has the logic to poll for new compacted data from the object store
 //! and update the in-memory `CompactedData` representation.
 
-use crate::compacted_data::CompactedData;
 use crate::ParquetCachePreFetcher;
+use crate::compacted_data::CompactedData;
 use crate::{
     catalog::CompactedCatalog,
-    sys_events::{compaction_consumed, CompactionEventStore},
+    sys_events::{CompactionEventStore, compaction_consumed},
 };
 use anyhow::Context;
+use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use influxdb3_enterprise_data_layout::{
+    Generation,
     persist::{
         get_compaction_detail, get_generation_detail, load_compaction_summary,
         load_compaction_summary_for_sequence,
     },
-    Generation,
 };
-use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use object_store::ObjectStore;
 use observability_deps::tracing::warn;
 use std::sync::Arc;

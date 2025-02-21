@@ -5,7 +5,7 @@
 mod enterprise;
 pub use enterprise::*;
 
-use object_store::{path::Path, ObjectStore, PutPayload};
+use object_store::{ObjectStore, PutPayload, path::Path};
 use serde::Deserialize;
 use serde::Serialize;
 use std::future::Future;

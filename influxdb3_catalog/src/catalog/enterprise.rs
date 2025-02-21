@@ -170,7 +170,9 @@ impl TableDefinition {
             })
             .collect::<Result<Vec<ColumnId>>>()?;
         if mapped_series_key != self.series_key {
-            return Err(Error::Other(anyhow!("the series key from the other catalog's table does not match that of the local catalog")));
+            return Err(Error::Other(anyhow!(
+                "the series key from the other catalog's table does not match that of the local catalog"
+            )));
         }
 
         // merge in any new last cache definitions
@@ -180,12 +182,11 @@ impl TableDefinition {
                 let mapped_other_last_cache_def =
                     id_map.map_last_cache_definition_column_ids(merge_last_cache)?;
                 if local_last_cache != &mapped_other_last_cache_def {
-                    return Err(
-                        Error::Other(
-                            anyhow!("the last cache definition from the other writer does not match the local one.\n\
+                    return Err(Error::Other(anyhow!(
+                        "the last cache definition from the other writer does not match the local one.\n\
                             local: {local_last_cache:#?}\n\
-                            other: {mapped_other_last_cache_def:#?}")
-                    ));
+                            other: {mapped_other_last_cache_def:#?}"
+                    )));
                 }
             } else {
                 new_last_caches
@@ -797,13 +798,13 @@ impl CatalogIdMap {
                     .unwrap();
                 if let Some(local_def) = tbl_def.last_caches.get(&def.name) {
                     if local_def != &mapped_def {
-                        return Err(Error::Other(
-                                anyhow!("WAL contained a CreateLastCache operation with a last cache \
+                        return Err(Error::Other(anyhow!(
+                            "WAL contained a CreateLastCache operation with a last cache \
                                 name that already exists in the local catalog, but is not compatible. \
                                 This means that the catalogs for these two writers have diverged and the \
                                 last cache named '{name}' needs to be removed on one of the writers.",
-                                name = def.name
-                            )));
+                            name = def.name
+                        )));
                     }
                     Mapped::Ignore(CatalogOp::CreateLastCache(mapped_def))
                 } else {
@@ -1360,7 +1361,10 @@ mod tests {
             panic!("incorrect error type");
         };
         let err = e.to_string();
-        assert_eq!("the series key from the other catalog's table does not match that of the local catalog", err);
+        assert_eq!(
+            "the series key from the other catalog's table does not match that of the local catalog",
+            err
+        );
     }
 
     #[test]

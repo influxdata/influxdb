@@ -5,7 +5,7 @@ use anyhow::Context;
 use futures_util::StreamExt;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::{
-    enterprise::CatalogIdMap, Catalog, CatalogSequenceNumber, DatabaseSchema, InnerCatalog,
+    Catalog, CatalogSequenceNumber, DatabaseSchema, InnerCatalog, enterprise::CatalogIdMap,
 };
 use influxdb3_enterprise_data_layout::persist::get_bytes_at_path;
 use influxdb3_id::{DbId, SerdeVecMap};
@@ -14,8 +14,8 @@ use influxdb3_write::paths::CatalogFilePath;
 use influxdb3_write::persister::Persister;
 use influxdb3_write::{DatabaseTables, PersistedSnapshot};
 use iox_time::TimeProvider;
-use object_store::path::Path as ObjPath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjPath;
 use observability_deps::tracing::log::error;
 use observability_deps::tracing::{debug, info};
 use parking_lot::RwLock;
@@ -24,7 +24,7 @@ use std::{sync::Arc, time::Instant};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::sys_events::{catalog_fetched, CompactionEventStore};
+use crate::sys_events::{CompactionEventStore, catalog_fetched};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -518,7 +518,7 @@ pub(crate) mod test_helpers {
 
 #[cfg(test)]
 mod tests {
-    use crate::sys_events::{catalog_fetched::CatalogFetched, CompactionEvent};
+    use crate::sys_events::{CompactionEvent, catalog_fetched::CatalogFetched};
 
     use super::*;
     use influxdb3_sys_events::SysEventStore;

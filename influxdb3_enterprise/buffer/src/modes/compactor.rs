@@ -13,9 +13,9 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::{
-    write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
+    write_buffer::{self, Error as WriteBufferError, Result as WriteBufferResult},
 };
 use influxdb3_write::{DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;

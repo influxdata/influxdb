@@ -1,4 +1,4 @@
-use crate::server::{enterprise::tmp_dir, ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer, enterprise::tmp_dir};
 use influxdb3_client::Precision;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -35,15 +35,17 @@ async fn file_index_config() {
     };
 
     // Test that adding an index works:
-    assert!(idx_server
-        .api_v3_configure_file_index_create(&json!({
-            "db": "gundam",
-            "table": "unicorn",
-            "columns": ["id"]
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_create(&json!({
+                "db": "gundam",
+                "table": "unicorn",
+                "columns": ["id"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     assert_eq!(
         "\
@@ -56,14 +58,16 @@ async fn file_index_config() {
     );
 
     // add just a db column to the index
-    assert!(idx_server
-        .api_v3_configure_file_index_create(&json!({
-            "db": "gundam",
-            "columns": ["height"]
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_create(&json!({
+                "db": "gundam",
+                "columns": ["height"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
     assert_eq!(
         "\
          +---------------+------------+---------------+------------------+\n\
@@ -76,15 +80,17 @@ async fn file_index_config() {
     );
 
     // add another table to the index
-    assert!(idx_server
-        .api_v3_configure_file_index_create(&json!({
-            "db": "gundam",
-            "table": "mercury",
-            "columns": ["operator"]
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_create(&json!({
+                "db": "gundam",
+                "table": "mercury",
+                "columns": ["operator"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
     assert_eq!(
         "\
          +---------------+------------+---------------+------------------+\n\
@@ -98,15 +104,17 @@ async fn file_index_config() {
     );
 
     // add another column to existing table to the index
-    assert!(idx_server
-        .api_v3_configure_file_index_create(&json!({
-            "db": "gundam",
-            "table": "unicorn",
-            "columns": ["operator"]
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_create(&json!({
+                "db": "gundam",
+                "table": "unicorn",
+                "columns": ["operator"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
     assert_eq!(
         "\
          +---------------+------------+----------------+------------------+\n\
@@ -120,14 +128,16 @@ async fn file_index_config() {
     );
 
     // Test that dropping a table from the index only drops that table
-    assert!(idx_server
-        .api_v3_configure_file_index_delete(&json!({
-            "db": "gundam",
-            "table": "unicorn",
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_delete(&json!({
+                "db": "gundam",
+                "table": "unicorn",
+            }))
+            .await
+            .status()
+            .is_success()
+    );
     assert_eq!(
         "\
          +---------------+------------+---------------+------------------+\n\
@@ -140,14 +150,16 @@ async fn file_index_config() {
     );
 
     // Test that dropping the db from the index drops all tables under it
-    assert!(idx_server
-        .api_v3_configure_file_index_delete(&json!({
-            "db": "gundam",
-            "table": null,
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_delete(&json!({
+                "db": "gundam",
+                "table": null,
+            }))
+            .await
+            .status()
+            .is_success()
+    );
     assert_eq!(
         "\
          ++\n\
@@ -156,13 +168,15 @@ async fn file_index_config() {
     );
 
     // Test that adding an index with a non-tag or string column fails:
-    assert!(idx_server
-        .api_v3_configure_file_index_create(&json!({
-            "db": "gundam",
-            "table": "unicorn",
-            "columns": ["health"]
-        }))
-        .await
-        .status()
-        .is_client_error());
+    assert!(
+        idx_server
+            .api_v3_configure_file_index_create(&json!({
+                "db": "gundam",
+                "table": "unicorn",
+                "columns": ["health"]
+            }))
+            .await
+            .status()
+            .is_client_error()
+    );
 }

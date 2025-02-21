@@ -14,8 +14,8 @@ use object_store::path::Path as ObjPath;
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialOrd;
 use std::fmt::Display;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time;
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
@@ -268,7 +268,7 @@ impl CompactionConfig {
     pub fn next_generation_start_time(&self, genr: &Generation) -> Option<i64> {
         let next_level = GenerationLevel::new(genr.level.0 + 1);
         self.generation_duration(next_level)
-            .map(|_d| { self.generation_start_time(next_level, genr.start_time_secs )})
+            .map(|_d| self.generation_start_time(next_level, genr.start_time_secs))
     }
 
     /// Returns the compaction levels greater than 2 based on the configuration
