@@ -1,12 +1,12 @@
 #syntax=docker/dockerfile:1.2
-ARG RUST_VERSION=1.84
+ARG RUST_VERSION=1.85
 FROM rust:${RUST_VERSION}-slim-bookworm as build
 
 # cache mounts below may already exist and owned by root
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd \
+    && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd libz-dev \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 # Build influxdb3
