@@ -11,8 +11,8 @@ use parking_lot::RwLock;
 use crate::distinct_cache::cache::{MaxAge, MaxCardinality};
 
 use super::{
-    cache::{CreateDistinctCacheArgs, DistinctCache},
     CacheError,
+    cache::{CreateDistinctCacheArgs, DistinctCache},
 };
 
 #[derive(Debug, thiserror::Error)]

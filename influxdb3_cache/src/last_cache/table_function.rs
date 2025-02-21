@@ -4,8 +4,8 @@ use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
     catalog::{Session, TableProvider},
-    common::{internal_err, plan_err, DFSchema},
-    datasource::{function::TableFunctionImpl, TableType},
+    common::{DFSchema, internal_err, plan_err},
+    datasource::{TableType, function::TableFunctionImpl},
     error::DataFusionError,
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
@@ -13,7 +13,7 @@ use datafusion::{
         create_physical_expr,
         utils::{Guarantee, LiteralGuarantee},
     },
-    physical_plan::{memory::MemoryExec, DisplayAs, DisplayFormatType, ExecutionPlan},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, memory::MemoryExec},
     prelude::Expr,
     scalar::ScalarValue,
 };
@@ -23,8 +23,8 @@ use influxdb3_id::{ColumnId, DbId};
 use schema::{InfluxColumnType, InfluxFieldType};
 
 use super::{
-    cache::{KeyValue, Predicate},
     LastCacheProvider,
+    cache::{KeyValue, Predicate},
 };
 
 /// The name of the function that is called to query the last cache
@@ -245,7 +245,7 @@ fn convert_filter_exprs(
                             // becomes
                             //
                             // a IN (2)
-                            (Predicate::In(ref mut existing_set), Predicate::In(new_set)) => {
+                            (Predicate::In(existing_set), Predicate::In(new_set)) => {
                                 *existing_set =
                                     existing_set.intersection(new_set).cloned().collect();
                                 // if the result is empty, just remove the predicate
@@ -306,7 +306,7 @@ impl TableFunctionImpl for LastCacheFunction {
         let cache_name = match args.get(1) {
             Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
             Some(_) => {
-                return plan_err!("second argument, if passed, must be the cache name as a string")
+                return plan_err!("second argument, if passed, must be the cache name as a string");
             }
             None => None,
         };

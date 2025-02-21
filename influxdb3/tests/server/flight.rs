@@ -1,13 +1,13 @@
-use arrow_flight::sql::SqlInfo;
 use arrow_flight::Ticket;
+use arrow_flight::sql::SqlInfo;
 use arrow_util::assert_batches_eq;
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
 use serde_json::json;
 use test_helpers::assert_contains;
 
-use crate::server::collect_stream;
 use crate::server::TestServer;
+use crate::server::collect_stream;
 
 #[test_log::test(tokio::test)]
 async fn flight() -> Result<(), influxdb3_client::Error> {
@@ -54,9 +54,11 @@ async fn flight() -> Result<(), influxdb3_client::Error> {
             .await
             .unwrap_err();
 
-        assert!(error
-            .to_string()
-            .contains("table 'public.iox.invalid_table' not found"));
+        assert!(
+            error
+                .to_string()
+                .contains("table 'public.iox.invalid_table' not found")
+        );
     }
 
     // Prepared query:
@@ -232,41 +234,47 @@ async fn flight_influxql() {
 async fn test_flight_distinct_cache() {
     let server = TestServer::spawn().await;
 
-    assert!(server
-        .api_v3_configure_table_create(&json!({
-            "db": "foo",
+    assert!(
+        server
+            .api_v3_configure_table_create(&json!({
+                "db": "foo",
+                    "table": "bar",
+                    "tags": ["t1", "t2"],
+                    "fields": []
+            }))
+            .await
+            .status()
+            .is_success()
+    );
+
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_create(&json!({
+                "db": "foo",
                 "table": "bar",
-                "tags": ["t1", "t2"],
-                "fields": []
-        }))
-        .await
-        .status()
-        .is_success());
+                "name": "cache1",
+                "columns": ["t1", "t2"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
-    assert!(server
-        .api_v3_configure_distinct_cache_create(&json!({
-            "db": "foo",
-            "table": "bar",
-            "name": "cache1",
-            "columns": ["t1", "t2"]
-        }))
-        .await
-        .status()
-        .is_success());
-
-    assert!(server
-        .write_lp_to_db(
-            "foo",
-            "\
+    assert!(
+        server
+            .write_lp_to_db(
+                "foo",
+                "\
             bar,t1=a,t2=aa val=1\n\
             bar,t1=a,t2=bb val=2\n\
             bar,t1=b,t2=aa val=3\n\
             bar,t1=b,t2=bb val=4\n\
             ",
-            Precision::Auto
-        )
-        .await
-        .is_ok());
+                Precision::Auto
+            )
+            .await
+            .is_ok()
+    );
 
     let mut client = server.flight_sql_client("foo").await;
 
@@ -292,16 +300,18 @@ async fn test_flight_distinct_cache() {
     }
 
     // create another cache on the same table:
-    assert!(server
-        .api_v3_configure_distinct_cache_create(&json!({
-            "db": "foo",
-            "table": "bar",
-            "name": "cache2",
-            "columns": ["t1"]
-        }))
-        .await
-        .status()
-        .is_success());
+    assert!(
+        server
+            .api_v3_configure_distinct_cache_create(&json!({
+                "db": "foo",
+                "table": "bar",
+                "name": "cache2",
+                "columns": ["t1"]
+            }))
+            .await
+            .status()
+            .is_success()
+    );
 
     {
         // this will error because the cache name needs to be specified:
@@ -316,17 +326,19 @@ async fn test_flight_distinct_cache() {
         );
     }
 
-    assert!(server
-        .write_lp_to_db(
-            "foo",
-            "\
+    assert!(
+        server
+            .write_lp_to_db(
+                "foo",
+                "\
             bar,t1=c,t2=aa val=1\n\
             bar,t1=c,t2=bb val=2\n\
             ",
-            Precision::Auto
-        )
-        .await
-        .is_ok());
+                Precision::Auto
+            )
+            .await
+            .is_ok()
+    );
 
     {
         let response = client

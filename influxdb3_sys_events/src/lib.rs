@@ -191,7 +191,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
     use observability_deps::tracing::debug;
 
-    use crate::{Event, RingBuffer, SysEventStore, ToRecordBatch, MAX_CAPACITY};
+    use crate::{Event, MAX_CAPACITY, RingBuffer, SysEventStore, ToRecordBatch};
 
     #[allow(dead_code)]
     #[derive(Default, Clone, Debug)]

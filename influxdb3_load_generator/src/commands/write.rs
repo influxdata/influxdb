@@ -1,11 +1,11 @@
-use crate::line_protocol_generator::{create_generators, Generator};
+use crate::line_protocol_generator::{Generator, create_generators};
 use crate::report::WriteReporter;
 use crate::specification::DataSpec;
 use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::Parser;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use influxdb3_client::{Client, Precision};
 use std::ops::Add;
 use std::path::PathBuf;

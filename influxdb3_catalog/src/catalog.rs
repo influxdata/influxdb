@@ -7,6 +7,7 @@ use crate::catalog::Error::{
 use bimap::{BiHashMap, Overwritten};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
+use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition,
@@ -14,7 +15,6 @@ use influxdb3_wal::{
     FieldDefinition, LastCacheDefinition, LastCacheDelete, OrderedCatalogBatch, TriggerDefinition,
     TriggerIdentifier,
 };
-use influxdb_line_protocol::FieldValue;
 use iox_time::Time;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
@@ -620,7 +620,7 @@ impl DatabaseSchema {
 
 trait UpdateDatabaseSchema {
     fn update_schema<'a>(&self, schema: Cow<'a, DatabaseSchema>)
-        -> Result<Cow<'a, DatabaseSchema>>;
+    -> Result<Cow<'a, DatabaseSchema>>;
 }
 
 impl UpdateDatabaseSchema for CatalogOp {
@@ -633,7 +633,9 @@ impl UpdateDatabaseSchema for CatalogOp {
                 if create_database.database_id != schema.id
                     || create_database.database_name != schema.name
                 {
-                    warn!("Create database call received by a mismatched DatabaseSchema. This should not be possible.")
+                    warn!(
+                        "Create database call received by a mismatched DatabaseSchema. This should not be possible."
+                    )
                 }
                 schema.to_mut();
                 Ok(schema)
@@ -1145,7 +1147,7 @@ trait TableUpdate {
     fn table_id(&self) -> TableId;
     fn table_name(&self) -> Arc<str>;
     fn update_table<'a>(&self, table: Cow<'a, TableDefinition>)
-        -> Result<Cow<'a, TableDefinition>>;
+    -> Result<Cow<'a, TableDefinition>>;
 }
 
 impl<T: TableUpdate> UpdateDatabaseSchema for T {
@@ -1296,7 +1298,7 @@ pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnT
 mod tests {
     use super::*;
     use influxdb3_wal::CatalogOp::CreateTable;
-    use influxdb3_wal::{create, DatabaseDefinition, FieldDataType, WalOp};
+    use influxdb3_wal::{DatabaseDefinition, FieldDataType, WalOp, create};
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 

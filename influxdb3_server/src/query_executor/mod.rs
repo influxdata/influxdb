@@ -1,10 +1,8 @@
 //! module for query executor
 pub mod enterprise;
 
-use crate::query_planner::Planner;
-use crate::system_tables::{
-    AllSystemSchemaTablesProvider, SystemSchemaProvider, SYSTEM_SCHEMA_NAME,
-};
+use crate::system_tables::{SYSTEM_SCHEMA_NAME, SystemSchemaProvider};
+use crate::{query_planner::Planner, system_tables::AllSystemSchemaTablesProvider};
 use arrow::array::{ArrayRef, Int64Builder, StringBuilder, StructArray};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
@@ -20,23 +18,23 @@ use datafusion::execution::SendableRecordBatchStream;
 use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::Expr;
-use datafusion_util::config::DEFAULT_SCHEMA;
 use datafusion_util::MemoryStream;
-use influxdb3_cache::distinct_cache::{DistinctCacheFunction, DISTINCT_CACHE_UDTF_NAME};
-use influxdb3_cache::last_cache::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
+use datafusion_util::config::DEFAULT_SCHEMA;
+use influxdb_influxql_parser::statement::Statement;
+use influxdb3_cache::distinct_cache::{DISTINCT_CACHE_UDTF_NAME, DistinctCacheFunction};
+use influxdb3_cache::last_cache::{LAST_CACHE_UDTF_NAME, LastCacheFunction};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::{ChunkFilter, WriteBuffer};
-use influxdb_influxql_parser::statement::Statement;
+use iox_query::QueryDatabase;
 use iox_query::exec::{Executor, IOxSessionContext, QueryConfig};
 use iox_query::provider::ProviderBuilder;
 use iox_query::query_log::QueryLog;
 use iox_query::query_log::QueryText;
 use iox_query::query_log::StateReceived;
 use iox_query::query_log::{QueryCompletedToken, QueryLogEntries};
-use iox_query::QueryDatabase;
 use iox_query::{QueryChunk, QueryNamespace};
 use iox_query_params::StatementParams;
 use metric::Registry;
@@ -752,14 +750,14 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        persister::Persister,
-        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         WriteBuffer,
+        persister::Persister,
+        write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
     };
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use metric::Registry;
-    use object_store::{local::LocalFileSystem, ObjectStore};
+    use object_store::{ObjectStore, local::LocalFileSystem};
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 

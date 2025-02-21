@@ -1,13 +1,13 @@
 use crate::commands::common::{
-    parse_key_val, DataType, InfluxDb3Config, SeparatedKeyValue, SeparatedList,
+    DataType, InfluxDb3Config, SeparatedKeyValue, SeparatedList, parse_key_val,
 };
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use influxdb3_client::Client;
 use influxdb3_wal::TriggerSpecificationDefinition;
-use rand::rngs::OsRng;
 use rand::RngCore;
+use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use sha2::Digest;

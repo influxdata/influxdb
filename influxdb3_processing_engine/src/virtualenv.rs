@@ -63,7 +63,9 @@ fn set_pythonpath(venv_dir: &Path) -> Result<(), std::io::Error> {
     };
 
     debug!("Setting PYTHONPATH to: {}", site_packages.to_string_lossy());
-    std::env::set_var("PYTHONPATH", &site_packages);
+    unsafe {
+        std::env::set_var("PYTHONPATH", &site_packages);
+    }
 
     Ok(())
 }
@@ -131,7 +133,7 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(|line| line.split_once('='))
-        .for_each(|(key, value)| std::env::set_var(key, value));
+        .for_each(|(key, value)| unsafe { std::env::set_var(key, value) });
 
     set_pythonpath(venv_path)?;
 

@@ -8,13 +8,15 @@ mod provider;
 pub use provider::LastCacheProvider;
 mod table_function;
 use schema::InfluxColumnType;
-pub use table_function::{LastCacheFunction, LAST_CACHE_UDTF_NAME};
+pub use table_function::{LAST_CACHE_UDTF_NAME, LastCacheFunction};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid cache size")]
     InvalidCacheSize,
-    #[error("last cache already exists for database and table, but it was configured differently: {reason}")]
+    #[error(
+        "last cache already exists for database and table, but it was configured differently: {reason}"
+    )]
     CacheAlreadyExists { reason: String },
     #[error("specified column (name: {column_name}) does not exist in the table definition")]
     ColumnDoesNotExistByName { column_name: String },
@@ -55,13 +57,13 @@ mod tests {
 
     use crate::{
         last_cache::{
+            CreateLastCacheArgs, LAST_CACHE_UDTF_NAME, LastCacheFunction, LastCacheProvider,
             cache::{
-                KeyValue, LastCache, LastCacheKeyColumnsArg, LastCacheValueColumnsArg, Predicate,
-                DEFAULT_CACHE_TTL,
+                DEFAULT_CACHE_TTL, KeyValue, LastCache, LastCacheKeyColumnsArg,
+                LastCacheValueColumnsArg, Predicate,
             },
-            CreateLastCacheArgs, LastCacheFunction, LastCacheProvider, LAST_CACHE_UDTF_NAME,
         },
-        test_helpers::{column_ids_for_names, TestWriter},
+        test_helpers::{TestWriter, column_ids_for_names},
     };
 
     use super::LastCacheTtl;
@@ -686,9 +688,10 @@ mod tests {
             },
             // Predicates on tag key column work as expected:
             TestCase {
-                predicates: predicates([
-                    (component_id_col_id, Predicate::new_in([KeyValue::string("333")]))
-                ]),
+                predicates: predicates([(
+                    component_id_col_id,
+                    Predicate::new_in([KeyValue::string("333")]),
+                )]),
                 expected: &[
                     "+--------------+--------+--------+------+---------+-----------------------------+",
                     "| component_id | active | type   | loc  | reading | time                        |",
@@ -699,9 +702,10 @@ mod tests {
             },
             // Predicate on a non-string field key:
             TestCase {
-                predicates: predicates([
-                    (active_col_id, Predicate::new_in([KeyValue::Bool(false)]))
-                ]),
+                predicates: predicates([(
+                    active_col_id,
+                    Predicate::new_in([KeyValue::Bool(false)]),
+                )]),
                 expected: &[
                     "+--------------+--------+-------------+---------+---------+-----------------------------+",
                     "| component_id | active | type        | loc     | reading | time                        |",
@@ -713,9 +717,10 @@ mod tests {
             },
             // Predicate on a string field key:
             TestCase {
-                predicates: predicates([
-                    (type_col_id, Predicate::new_in([KeyValue::string("camera")]))
-                ]),
+                predicates: predicates([(
+                    type_col_id,
+                    Predicate::new_in([KeyValue::string("camera")]),
+                )]),
                 expected: &[
                     "+--------------+--------+--------+-----------+---------+-----------------------------+",
                     "| component_id | active | type   | loc       | reading | time                        |",
@@ -725,7 +730,7 @@ mod tests {
                     "| 333          | true   | camera | fore      | 145.0   | 1970-01-01T00:00:00.000001Z |",
                     "+--------------+--------+--------+-----------+---------+-----------------------------+",
                 ],
-            }
+            },
         ];
 
         for t in test_cases {
@@ -1473,8 +1478,7 @@ mod tests {
                     "| us-west | d    | 66.0 | 1970-01-01T00:00:00.000001Z | 77.0  |",
                     "+---------+------+------+-----------------------------+-------+",
                 ],
-                explain_contains:
-                    "LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]",
+                explain_contains: "LastCacheExec: inner=MemoryExec: partitions=1, partition_sizes=[12]",
             },
             TestCase {
                 _desc: "eq predicate on region",

@@ -1,9 +1,9 @@
 use crate::snapshot_tracker::{SnapshotTracker, WalPeriod};
+use crate::{NoopDetails, serialize::verify_file_type_and_deserialize};
 use crate::{
-    background_wal_flush, OrderedCatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal,
-    WalConfig, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch,
+    OrderedCatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig, WalContents,
+    WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch, background_wal_flush,
 };
-use crate::{serialize::verify_file_type_and_deserialize, NoopDetails};
 use bytes::Bytes;
 use data_types::Timestamp;
 use futures_util::stream::StreamExt;
@@ -15,7 +15,7 @@ use observability_deps::tracing::{debug, error, info};
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
-use tokio::sync::{oneshot, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, oneshot};
 
 #[derive(Debug)]
 pub struct WalObjectStore {
@@ -894,8 +894,8 @@ impl WalFileRemoverInner {
 mod tests {
     use super::*;
     use crate::{
-        create, Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk,
-        TableChunks,
+        Field, FieldData, Gen1Duration, Row, SnapshotSequenceNumber, TableChunk, TableChunks,
+        create,
     };
     use async_trait::async_trait;
     use indexmap::IndexMap;

@@ -6,13 +6,13 @@ use std::{
 };
 
 use arrow::record_batch::RecordBatch;
-use arrow_flight::{decode::FlightRecordBatchStream, FlightClient};
+use arrow_flight::{FlightClient, decode::FlightRecordBatchStream};
 use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
-use influxdb3_client::Precision;
 use influxdb_iox_client::flightsql::FlightSqlClient;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use influxdb3_client::Precision;
 use reqwest::Response;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
 mod auth;
 mod client;

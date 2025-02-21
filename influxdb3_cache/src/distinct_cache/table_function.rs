@@ -4,15 +4,15 @@ use arrow::{array::RecordBatch, datatypes::SchemaRef};
 use async_trait::async_trait;
 use datafusion::{
     catalog::{Session, TableProvider},
-    common::{internal_err, plan_err, DFSchema, Result},
-    datasource::{function::TableFunctionImpl, TableType},
+    common::{DFSchema, Result, internal_err, plan_err},
+    datasource::{TableType, function::TableFunctionImpl},
     execution::context::ExecutionProps,
     logical_expr::TableProviderFilterPushDown,
     physical_expr::{
         create_physical_expr,
         utils::{Guarantee, LiteralGuarantee},
     },
-    physical_plan::{memory::MemoryExec, DisplayAs, DisplayFormatType, ExecutionPlan},
+    physical_plan::{DisplayAs, DisplayFormatType, ExecutionPlan, memory::MemoryExec},
     prelude::Expr,
     scalar::ScalarValue,
 };
@@ -20,7 +20,7 @@ use indexmap::IndexMap;
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::{ColumnId, DbId};
 
-use super::{cache::Predicate, DistinctCacheProvider};
+use super::{DistinctCacheProvider, cache::Predicate};
 
 /// The name used to call the distinct value cache in SQL queries
 pub const DISTINCT_CACHE_UDTF_NAME: &str = "distinct_cache";
@@ -236,7 +236,7 @@ impl TableFunctionImpl for DistinctCacheFunction {
         let cache_name = match args.get(1) {
             Some(Expr::Literal(ScalarValue::Utf8(Some(name)))) => Some(name),
             Some(_) => {
-                return plan_err!("second argument, if passed, must be the cache name as a string")
+                return plan_err!("second argument, if passed, must be the cache name as a string");
             }
             None => None,
         };

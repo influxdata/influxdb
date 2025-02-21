@@ -4,8 +4,8 @@ use datafusion::common::Statistics;
 use iox_query::chunk_statistics::ChunkStatistics;
 use iox_query::{QueryChunk, QueryChunkData};
 use parquet_file::storage::ParquetExecInput;
-use schema::sort::SortKey;
 use schema::Schema;
+use schema::sort::SortKey;
 use std::any::Any;
 use std::sync::Arc;
 

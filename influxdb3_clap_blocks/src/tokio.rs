@@ -3,8 +3,8 @@
 use std::{
     num::{NonZeroU32, NonZeroUsize},
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };

@@ -39,7 +39,7 @@ exclude = [
 [workspace.package]
 version = "0.1.0"
 authors = ["InfluxData Enterprise Developers"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]

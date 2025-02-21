@@ -1,12 +1,12 @@
 #syntax=docker/dockerfile:1.2
-ARG RUST_VERSION=1.84
+ARG RUST_VERSION=1.85
 FROM rust:${RUST_VERSION}-slim-bookworm as build
 
 # cache mounts below may already exist and owned by root
 USER root
 
 RUN apt update \
-    && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd \
+    && apt install --yes binutils build-essential curl pkg-config libssl-dev clang lld git patchelf protobuf-compiler zstd libz-dev \
     && rm -rf /var/lib/{apt,dpkg,cache,log}
 
 RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -70,12 +70,16 @@ RUN mkdir -p /usr/lib/influxdb3
 COPY --from=build /root/python /usr/lib/influxdb3/python
 RUN chown -R root:root /usr/lib/influxdb3
 
+RUN mkdir /plugins && \
+    chown influxdb3:influxdb3 /plugins
+
 USER influxdb3
 
 RUN mkdir ~/.influxdb3
 
 ARG PACKAGE=influxdb3
 ENV PACKAGE=$PACKAGE
+ENV INFLUXDB3_PLUGIN_DIR=/plugins
 
 COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh

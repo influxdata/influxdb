@@ -21,8 +21,8 @@ mod service;
 mod system_tables;
 
 use crate::grpc::make_flight_server;
-use crate::http::route_request;
 use crate::http::HttpApi;
+use crate::http::route_request;
 use authz::Authorizer;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
@@ -199,7 +199,7 @@ where
 #[cfg(unix)]
 pub async fn wait_for_signal() {
     use observability_deps::tracing::info;
-    use tokio::signal::unix::{signal, SignalKind};
+    use tokio::signal::unix::{SignalKind, signal};
     let mut term = signal(SignalKind::terminate()).expect("failed to register signal handler");
     let mut int = signal(SignalKind::interrupt()).expect("failed to register signal handler");
 
@@ -223,21 +223,21 @@ mod tests {
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
-    use hyper::{body, Body, Client, Request, Response, StatusCode};
+    use hyper::{Body, Client, Request, Response, StatusCode, body};
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::{DbId, TableId};
+    use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-    use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
+    use influxdb3_write::WriteBuffer;
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::persisted_files::PersistedFiles;
-    use influxdb3_write::WriteBuffer;
     use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
     use iox_time::{MockProvider, Time};
     use object_store::DynObjectStore;
@@ -332,10 +332,12 @@ mod tests {
         assert!(batches[0].schema().column_with_name("host").is_some());
         assert!(batches[0].schema().column_with_name("time").is_some());
         assert!(batches[0].schema().column_with_name("val").is_some());
-        assert!(batches[0]
-            .schema()
-            .column_with_name("random_name")
-            .is_none());
+        assert!(
+            batches[0]
+                .schema()
+                .column_with_name("random_name")
+                .is_none()
+        );
 
         assert_eq!(
             batches[0]["host"].to_data().child_data()[0].buffers()[1],
