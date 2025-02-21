@@ -19,7 +19,7 @@ mod client;
 mod configure;
 mod flight;
 mod limits;
-#[cfg(feature = "system-py")]
+
 mod packages;
 mod ping;
 mod query;

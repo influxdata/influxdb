@@ -1174,7 +1174,6 @@ where
     }
 
     /// Endpoint for testing a plugin that will be trigger on WAL writes.
-    #[cfg(feature = "system-py")]
     async fn test_processing_engine_wal_plugin(
         &self,
         req: Request<Body>,
@@ -1192,16 +1191,6 @@ where
             .body(Body::from(body))?)
     }
 
-    #[cfg(not(feature = "system-py"))]
-    async fn test_processing_engine_wal_plugin(
-        &self,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        Err(Error::PythonPluginsNotEnabled)
-    }
-
-    /// Endpoint for testing a plugin that will be trigger on some cron schedule.
-    #[cfg(feature = "system-py")]
     async fn test_processing_engine_schedule_plugin(
         &self,
         req: Request<Body>,
@@ -1220,7 +1209,6 @@ where
             .body(Body::from(body))?)
     }
 
-    #[cfg(feature = "system-py")]
     async fn processing_engine_request_plugin(
         &self,
         trigger_path: &str,
@@ -1264,23 +1252,6 @@ where
             }
             Err(e) => Err(e.into()),
         }
-    }
-
-    #[cfg(not(feature = "system-py"))]
-    async fn test_processing_engine_schedule_plugin(
-        &self,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        Err(Error::PythonPluginsNotEnabled)
-    }
-
-    #[cfg(not(feature = "system-py"))]
-    async fn processing_engine_request_plugin(
-        &self,
-        _trigger_path: &str,
-        _req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        Err(Error::PythonPluginsNotEnabled)
     }
 
     async fn delete_database(&self, req: Request<Body>) -> Result<Response<Body>> {

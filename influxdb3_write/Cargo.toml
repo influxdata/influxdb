@@ -8,9 +8,6 @@ license.workspace = true
 [lints]
 workspace = true
 
-[features]
-"system-py" = ["influxdb3_py_api/system-py", "pyo3"]
-
 [dependencies]
 # Core Crates
 data_types.workspace = true
@@ -71,7 +68,6 @@ uuid.workspace = true
 
 [dependencies.pyo3]
 version = "0.23.3"
-optional = true
 
 [dev-dependencies]
 # Core Crates
