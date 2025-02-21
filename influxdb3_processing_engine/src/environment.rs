@@ -1,5 +1,5 @@
 use crate::environment::PluginEnvironmentError::PluginEnvironmentDisabled;
-#[cfg(feature = "system-py")]
+
 use crate::virtualenv::{VenvError, find_python, initialize_venv};
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -14,7 +14,7 @@ pub enum PluginEnvironmentError {
     InstallationFailed(#[from] std::io::Error),
     #[error("Plugin environment management is disabled")]
     PluginEnvironmentDisabled,
-    #[cfg(feature = "system-py")]
+
     #[error("Virtual environment error: {0}")]
     VenvError(#[from] VenvError),
 }
@@ -62,7 +62,6 @@ impl PythonEnvironmentManager for UVManager {
             Command::new("uv").arg("venv").arg(venv_path).output()?;
         }
 
-        #[cfg(feature = "system-py")]
         initialize_venv(venv_path)?;
         Ok(())
     }
@@ -97,7 +96,6 @@ impl PythonEnvironmentManager for PipManager {
             None => &plugin_dir.join(".venv"),
         };
 
-        #[cfg(feature = "system-py")]
         if !is_valid_venv(venv_path) {
             let python_exe = find_python();
             Command::new(python_exe)
@@ -107,37 +105,31 @@ impl PythonEnvironmentManager for PipManager {
                 .output()?;
         }
 
-        #[cfg(feature = "system-py")]
         initialize_venv(venv_path)?;
         Ok(())
     }
 
     fn install_packages(&self, packages: Vec<String>) -> Result<(), PluginEnvironmentError> {
-        #[cfg(feature = "system-py")]
-        {
-            let python_exe = find_python();
-            Command::new(python_exe)
-                .arg("-m")
-                .arg("pip")
-                .arg("install")
-                .args(&packages)
-                .output()?;
-        }
+        let python_exe = find_python();
+        Command::new(python_exe)
+            .arg("-m")
+            .arg("pip")
+            .arg("install")
+            .args(&packages)
+            .output()?;
         Ok(())
     }
     fn install_requirements(
         &self,
         requirements_path: String,
     ) -> Result<(), PluginEnvironmentError> {
-        #[cfg(feature = "system-py")]
-        {
-            let python_exe = find_python();
-            Command::new(python_exe)
-                .arg("-m")
-                .arg("pip")
-                .args(["install", "-r", &requirements_path])
-                .output()?;
-        }
+        let python_exe = find_python();
+        Command::new(python_exe)
+            .arg("-m")
+            .arg("pip")
+            .args(["install", "-r", &requirements_path])
+            .output()?;
+
         Ok(())
     }
 }

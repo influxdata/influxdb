@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-system-py = ["pyo3"]
 
 [dependencies]
 anyhow.workspace = true
@@ -32,8 +31,6 @@ tokio.workspace = true
 [dependencies.pyo3]
 version = "0.23.3"
 features = ["experimental-async"]
-optional = true
-
 
 [lints]
 workspace = true

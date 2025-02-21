@@ -20,5 +20,4 @@ pub enum ExecutePluginError {
 }
 
 pub mod logging;
-#[cfg(feature = "system-py")]
 pub mod system_py;
