@@ -1,9 +1,9 @@
-use crate::{chunk::BufferChunk, write_buffer::table_buffer::SnaphotChunkIter};
 use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
+use crate::{chunk::BufferChunk, write_buffer::table_buffer::SnaphotChunkIter};
 use anyhow::Context;
 use arrow::{
     array::{AsArray, UInt64Array},
@@ -36,9 +36,9 @@ use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::Schema;
 use schema::sort::SortKey;
-use std::any::Any;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{any::Any, collections::BTreeMap};
 use tokio::sync::oneshot::{self, Receiver};
 use tokio::task::JoinSet;
 
@@ -198,7 +198,8 @@ impl QueryableBuffer {
                         .table_definition_by_id(table_id)
                         .expect("table exists");
                     let sort_key = table_buffer.sort_key.clone();
-                    let all_keys_to_remove = table_buffer.get_keys_to_remove(snapshot_details.end_time_marker);
+                    let all_keys_to_remove =
+                        table_buffer.get_keys_to_remove(snapshot_details.end_time_marker);
                     info!(num_keys_to_remove = ?all_keys_to_remove.len(), ">>> num keys to remove");
 
                     let chunk_time_to_chunk = &mut table_buffer.chunk_time_to_chunks;
@@ -214,120 +215,34 @@ impl QueryableBuffer {
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
 
-                        // TODO: just for experimentation we want to force all snapshots to go
-                        // through without breaking down the record batches
-                        if !snapshot_details.forced {
-                            // when forced, we're already under memory pressure so create smaller
-                            // chunks (by time) and they need to be non-overlapping.
-                            // 1. Create smaller groups (using smaller duration), 10 secs here
-                            let mut smaller_chunks: BTreeMap<i64, (MinMax, Vec<u64>)> = BTreeMap::new();
-                            let smaller_duration = Duration::from_secs(10).as_nanos() as i64;
-                            let all_times = chunk
-                                .record_batch
-                                .column_by_name("time")
-                                .expect("time col to be present")
-                                .as_primitive::<TimestampNanosecondType>()
-                                .values();
-
-                            for (idx, time) in all_times.iter().enumerate() {
-                                let smaller_chunk_time = time - (time % smaller_duration);
-                                let (min_max, vec_indices) = smaller_chunks
-                                    .entry(smaller_chunk_time)
-                                    .or_insert_with(|| (MinMax::new(i64::MAX, i64::MIN), Vec::new()));
-
-                                min_max.update(*time);
-                                vec_indices.push(idx as u64);
-                            }
-
-                            let total_row_count = chunk.record_batch.column(0).len();
-
-                            for (smaller_chunk_time, (min_max, all_indexes)) in smaller_chunks.iter() {
-                                debug!(
-                                    ?smaller_chunk_time,
-                                    ?min_max,
-                                    num_indexes = ?all_indexes.len(),
-                                    ?total_row_count,
-                                    ">>> number of small chunks");
-                            }
-
-                            // 2. At this point we have a bucket for each 10 sec block with related
-                            //    indexes from main chunk. Use those indexes to "cheaply" create
-                            //    smaller record batches.
-                            let batch_schema = chunk.record_batch.schema();
-                            let parent_cols = chunk.record_batch.columns();
-
-                            for (loop_idx, (smaller_chunk_time, (min_max, all_indexes))) in
-                                smaller_chunks.into_iter().enumerate()
-                            {
-                                let mut smaller_chunk_cols = vec![];
-                                let indices = UInt64Array::from_iter(all_indexes);
-                                for arr in parent_cols {
-                                    // `take` here minimises allocations but is not completely free,
-                                    // it still needs to allocate for smaller batches. The
-                                    // allocations are in `ScalarBuffer::from_iter` under the hood
-                                    let filtered =
-                                        take(&arr, &indices, None)
-                                            .expect("index should be accessible in parent cols");
-
-                                    smaller_chunk_cols.push(filtered);
-                                }
-                                let smaller_rec_batch =
-                                    RecordBatch::try_new(Arc::clone(&batch_schema), smaller_chunk_cols)
-                                        .expect("create smaller record batch");
-                                let persist_job = PersistJob {
-                                    database_id: *database_id,
-                                    table_id: *table_id,
-                                    table_name: Arc::clone(&table_name),
-                                    chunk_time: smaller_chunk_time,
-                                    path: ParquetFilePath::new(
-                                        self.persister.node_identifier_prefix(),
-                                        db_schema.name.as_ref(),
-                                        database_id.as_u32(),
-                                        table_name.as_ref(),
-                                        table_id.as_u32(),
-                                        smaller_chunk_time,
-                                        snapshot_details.last_wal_sequence_number,
-                                        Some(loop_idx as u64),
-                                    ),
-                                    batch: smaller_rec_batch,
-                                    schema: chunk.schema.clone(),
-                                    timestamp_min_max: min_max.to_ts_min_max(),
-                                    sort_key: sort_key.clone(),
-                                };
-                                persisting_chunks.push(persist_job);
-                            }
-
-                        } else {
-                            let persist_job = PersistJob {
-                                database_id: *database_id,
-                                table_id: *table_id,
-                                table_name: Arc::clone(&table_name),
-                                chunk_time: chunk.chunk_time,
-                                path: ParquetFilePath::new(
-                                    self.persister.node_identifier_prefix(),
-                                    db_schema.name.as_ref(),
-                                    database_id.as_u32(),
-                                    table_name.as_ref(),
-                                    table_id.as_u32(),
-                                    chunk.chunk_time,
-                                    snapshot_details.last_wal_sequence_number,
-                                    None,
-                                ),
-                                // these clones are cheap and done one at a time
-                                batch: chunk.record_batch.clone(),
-                                schema: chunk.schema.clone(),
-                                timestamp_min_max: chunk.timestamp_min_max,
-                                sort_key: sort_key.clone(),
-                            };
-                            persisting_chunks.push(persist_job);
-                        }
+                        let persist_job = PersistJob {
+                            database_id: *database_id,
+                            table_id: *table_id,
+                            table_name: Arc::clone(&table_name),
+                            chunk_time: chunk.chunk_time,
+                            path: ParquetFilePath::new(
+                                self.persister.node_identifier_prefix(),
+                                db_schema.name.as_ref(),
+                                database_id.as_u32(),
+                                table_name.as_ref(),
+                                table_id.as_u32(),
+                                chunk.chunk_time,
+                                snapshot_details.last_wal_sequence_number,
+                                None,
+                            ),
+                            // these clones are cheap and done one at a time
+                            batch: chunk.record_batch.clone(),
+                            schema: chunk.schema.clone(),
+                            timestamp_min_max: chunk.timestamp_min_max,
+                            sort_key: sort_key.clone(),
+                        };
+                        persisting_chunks.push(persist_job);
                         snapshot_chunks.push_back(chunk);
                         // snapshot_chunks.add_one(chunk);
                         debug!(">>> finished with chunk");
                     }
                 }
             }
-
             persisting_chunks
         };
 
@@ -375,91 +290,52 @@ impl QueryableBuffer {
                 persist_jobs.len(),
                 wal_file_number.as_u64(),
             );
-            // persist the individual files, building the snapshot as we go
-            // let persisted_snapshot = Arc::new(Mutex::new(PersistedSnapshot::new(
-            //     persister.node_identifier_prefix().to_string(),
-            //     snapshot_details.snapshot_sequence_number,
-            //     snapshot_details.last_wal_sequence_number,
-            //     catalog.sequence_number(),
-            // )));
-            //
-            let mut persisted_snapshot = PersistedSnapshot::new(
-                persister.node_identifier_prefix().to_string(),
-                snapshot_details.snapshot_sequence_number,
-                snapshot_details.last_wal_sequence_number,
-                catalog.sequence_number(),
-            );
 
             let persist_jobs_empty = persist_jobs.is_empty();
-            // let mut set = JoinSet::new();
-            for persist_job in persist_jobs {
-                let persister = Arc::clone(&persister);
-                let executor = Arc::clone(&executor);
-                // let persisted_snapshot = Arc::clone(&persisted_snapshot);
-                let parquet_cache = parquet_cache.clone();
-                let buffer = Arc::clone(&buffer);
-                let persisted_files = Arc::clone(&persisted_files);
 
-                // set.spawn(async move {
-                    let path = persist_job.path.to_string();
-                    let database_id = persist_job.database_id;
-                    let table_id = persist_job.table_id;
-                    let chunk_time = persist_job.chunk_time;
-                    let min_time = persist_job.timestamp_min_max.min;
-                    let max_time = persist_job.timestamp_min_max.max;
+            let persisted_snapshot = if snapshot_details.forced {
+                let mut persisted_snapshot = PersistedSnapshot::new(
+                    persister.node_identifier_prefix().to_string(),
+                    snapshot_details.snapshot_sequence_number,
+                    snapshot_details.last_wal_sequence_number,
+                    catalog.sequence_number(),
+                );
 
-                    let SortDedupePersistSummary {
-                        file_size_bytes,
-                        file_meta_data,
-                    } = sort_dedupe_persist(
-                        persist_job,
-                        persister,
-                        executor,
-                        parquet_cache
-                    )
-                    .await
-                    .inspect_err(|error| {
-                        error!(
-                            %error,
-                            debug = ?error,
-                            "error during sort, deduplicate, and persist of buffer data as parquet"
-                        );
-                    })
-                    // for now, we are still panicking in this case, see:
-                    // https://github.com/influxdata/influxdb/issues/25676
-                    // https://github.com/influxdata/influxdb/issues/25677
-                    .expect("sort, deduplicate, and persist buffer data as parquet");
-                    let parquet_file = ParquetFile {
-                        id: ParquetFileId::new(),
-                        path,
-                        size_bytes: file_size_bytes,
-                        row_count: file_meta_data.num_rows as u64,
-                        chunk_time,
-                        min_time,
-                        max_time,
-                    };
+                sort_dedupe_serial(
+                    persist_jobs,
+                    &persister,
+                    executor,
+                    parquet_cache,
+                    buffer,
+                    persisted_files,
+                    &mut persisted_snapshot,
+                )
+                .await;
+                persisted_snapshot
+            } else {
+                // persist the individual files, building the snapshot as we go
+                let persisted_snapshot = Arc::new(Mutex::new(PersistedSnapshot::new(
+                    persister.node_identifier_prefix().to_string(),
+                    snapshot_details.snapshot_sequence_number,
+                    snapshot_details.last_wal_sequence_number,
+                    catalog.sequence_number(),
+                )));
 
-                    {
-                        // we can clear the buffer as we move on
-                        let mut buffer = buffer.write();
+                sort_dedupe_parallel(
+                    persist_jobs,
+                    &persister,
+                    executor,
+                    parquet_cache,
+                    buffer,
+                    persisted_files,
+                    Arc::clone(&persisted_snapshot),
+                )
+                .await;
 
-                        // add file first
-                        persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
-                        // then clear the buffer
-                        if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
-                            if let Some(table) = db.get_mut(&table_id) {
-                                table.clear_snapshots();
-                            }
-                        }
-                    }
-
-                    persisted_snapshot
-                        // .lock()
-                        .add_parquet_file(database_id, table_id, parquet_file)
-                // });
-            }
-
-            // set.join_all().await;
+                Arc::into_inner(persisted_snapshot)
+                    .expect("Should only have one strong reference")
+                    .into_inner()
+            };
 
             // persist the snapshot file - only if persist jobs are present
             // if persist_jobs is empty, then parquet file wouldn't have been
@@ -494,11 +370,6 @@ impl QueryableBuffer {
             // force_snapshot) snapshot runs, snapshot_tracker will check if
             // wal_periods are empty so it won't trigger a snapshot in the first
             // place.
-
-            // let persisted_snapshot = Arc::into_inner(persisted_snapshot)
-            //     .expect("Should only have one strong reference")
-            //     .into_inner();
-
             if !persist_jobs_empty {
                 loop {
                     match persister.persist_snapshot(&persisted_snapshot).await {
@@ -547,6 +418,150 @@ impl QueryableBuffer {
     pub fn get_total_size_bytes(&self) -> usize {
         let buffer = self.buffer.read();
         buffer.find_overall_buffer_size_bytes()
+    }
+}
+
+async fn sort_dedupe_parallel(
+    persist_jobs: Vec<PersistJob>,
+    persister: &Arc<Persister>,
+    executor: Arc<Executor>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    buffer: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, BufferState>>,
+    persisted_files: Arc<PersistedFiles>,
+    persisted_snapshot: Arc<Mutex<PersistedSnapshot>>,
+) {
+    // if gen1 duration is 1m we should combine upto 10 of them
+    // to create a single parquet file
+    let mut set = JoinSet::new();
+    for persist_job in persist_jobs {
+        let persister = Arc::clone(persister);
+        let executor = Arc::clone(&executor);
+        let persisted_snapshot = Arc::clone(&persisted_snapshot);
+        let parquet_cache = parquet_cache.clone();
+        let buffer = Arc::clone(&buffer);
+        let persisted_files = Arc::clone(&persisted_files);
+
+        set.spawn(async move {
+            let path = persist_job.path.to_string();
+            let database_id = persist_job.database_id;
+            let table_id = persist_job.table_id;
+            let chunk_time = persist_job.chunk_time;
+            let min_time = persist_job.timestamp_min_max.min;
+            let max_time = persist_job.timestamp_min_max.max;
+
+            let SortDedupePersistSummary {
+                file_size_bytes,
+                file_meta_data,
+            } = sort_dedupe_persist(persist_job, persister, executor, parquet_cache)
+                .await
+                .inspect_err(|error| {
+                    error!(
+                        %error,
+                        debug = ?error,
+                        "error during sort, deduplicate, and persist of buffer data as parquet"
+                    );
+                })
+                // for now, we are still panicking in this case, see:
+                // https://github.com/influxdata/influxdb/issues/25676
+                // https://github.com/influxdata/influxdb/issues/25677
+                .expect("sort, deduplicate, and persist buffer data as parquet");
+            let parquet_file = ParquetFile {
+                id: ParquetFileId::new(),
+                path,
+                size_bytes: file_size_bytes,
+                row_count: file_meta_data.num_rows as u64,
+                chunk_time,
+                min_time,
+                max_time,
+            };
+
+            {
+                // we can clear the buffer as we move on
+                let mut buffer = buffer.write();
+
+                // add file first
+                persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
+                // then clear the buffer
+                if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
+                    if let Some(table) = db.get_mut(&table_id) {
+                        table.clear_snapshots();
+                    }
+                }
+            }
+
+            persisted_snapshot
+                .lock()
+                .add_parquet_file(database_id, table_id, parquet_file)
+        });
+    }
+    set.join_all().await;
+}
+
+async fn sort_dedupe_serial(
+    persist_jobs: Vec<PersistJob>,
+    persister: &Arc<Persister>,
+    executor: Arc<Executor>,
+    parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
+    buffer: Arc<parking_lot::lock_api::RwLock<parking_lot::RawRwLock, BufferState>>,
+    persisted_files: Arc<PersistedFiles>,
+    persisted_snapshot: &mut PersistedSnapshot,
+) {
+    for persist_job in persist_jobs {
+        let persister = Arc::clone(persister);
+        let executor = Arc::clone(&executor);
+        let parquet_cache = parquet_cache.clone();
+        let buffer = Arc::clone(&buffer);
+        let persisted_files = Arc::clone(&persisted_files);
+
+        let path = persist_job.path.to_string();
+        let database_id = persist_job.database_id;
+        let table_id = persist_job.table_id;
+        let chunk_time = persist_job.chunk_time;
+        let min_time = persist_job.timestamp_min_max.min;
+        let max_time = persist_job.timestamp_min_max.max;
+
+        let SortDedupePersistSummary {
+            file_size_bytes,
+            file_meta_data,
+        } = sort_dedupe_persist(persist_job, persister, executor, parquet_cache)
+            .await
+            .inspect_err(|error| {
+                error!(
+                    %error,
+                    debug = ?error,
+                    "error during sort, deduplicate, and persist of buffer data as parquet"
+                );
+            })
+            // for now, we are still panicking in this case, see:
+            // https://github.com/influxdata/influxdb/issues/25676
+            // https://github.com/influxdata/influxdb/issues/25677
+            .expect("sort, deduplicate, and persist buffer data as parquet");
+        let parquet_file = ParquetFile {
+            id: ParquetFileId::new(),
+            path,
+            size_bytes: file_size_bytes,
+            row_count: file_meta_data.num_rows as u64,
+            chunk_time,
+            min_time,
+            max_time,
+        };
+
+        {
+            // we can clear the buffer as we move on
+            let mut buffer = buffer.write();
+
+            // add file first
+            persisted_files.add_persisted_file(&database_id, &table_id, &parquet_file);
+            // then clear the buffer
+            if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
+                if let Some(table) = db.get_mut(&table_id) {
+                    table.clear_snapshots();
+                }
+            }
+        }
+
+        persisted_snapshot
+            .add_parquet_file(database_id, table_id, parquet_file)
     }
 }
 
