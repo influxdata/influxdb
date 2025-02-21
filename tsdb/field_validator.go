@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxdb/models"
@@ -10,14 +11,17 @@ import (
 
 const MaxFieldValueLength = 1048576
 
-// ValidateFields will return a PartialWriteError if:
+// ValidateAndCreateFields will return a PartialWriteError if:
 //   - the point has inconsistent fields, or
 //   - the point has fields that are too long
-func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, error) {
+func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSizeValidation bool) ([]*FieldCreate, *PartialWriteError) {
 	pointSize := point.StringSize()
 	iter := point.FieldIterator()
 	var fieldsToCreate []*FieldCreate
 
+	// We return fieldsToCreate even on error, because other writes
+	// in parallel may depend on these previous fields having been
+	// created in memory
 	for iter.Next() {
 		if !skipSizeValidation {
 			// Check for size of field too large. Note it is much cheaper to check the whole point size
@@ -25,9 +29,9 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 			// unescape the string, and must at least parse the string)
 			if pointSize > MaxFieldValueLength && iter.Type() == models.String {
 				if sz := len(iter.StringValue()); sz > MaxFieldValueLength {
-					return nil, PartialWriteError{
+					return fieldsToCreate, &PartialWriteError{
 						Reason: fmt.Sprintf(
-							"input field \"%s\" on measurement \"%s\" is too long, %d > %d",
+							"input field %q on measurement %q is too long, %d > %d",
 							iter.FieldKey(), point.Name(), sz, MaxFieldValueLength),
 						Dropped: 1,
 					}
@@ -48,22 +52,16 @@ func ValidateFields(mf *MeasurementFields, point models.Point, skipSizeValidatio
 
 		// If the field is not present, remember to create it.
 		fieldName := string(fieldKey)
-		f := mf.Field(fieldName)
-		if f == nil {
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{
-				Measurement: point.Name(),
-				Field: &Field{
-					Name: fieldName,
-					Type: dataType,
-				}})
-		} else if f.Type != dataType {
-			// If the types are not the same, there is a conflict.
-			return nil, PartialWriteError{
+		f, created, err := mf.CreateFieldIfNotExists(fieldName, dataType)
+		if errors.Is(err, ErrFieldTypeConflict) {
+			return fieldsToCreate, &PartialWriteError{
 				Reason: fmt.Sprintf(
-					"%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s",
-					ErrFieldTypeConflict, fieldName, point.Name(), dataType, f.Type),
+					"%s: input field %q on measurement %q is type %s, already exists as type %s",
+					err, fieldName, point.Name(), dataType, f.Type),
 				Dropped: 1,
 			}
+		} else if created {
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{point.Name(), f})
 		}
 	}
 	return fieldsToCreate, nil
