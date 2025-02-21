@@ -14,7 +14,6 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, LinkedList};
 use std::mem::size_of;
 use std::sync::Arc;
@@ -690,8 +689,10 @@ mod tests {
     use super::*;
     use arrow_util::assert_batches_sorted_eq;
     use data_types::NamespaceName;
-    use influxdb_line_protocol::v3::SeriesKey;
-    use iox_query::test;
+    use datafusion::prelude::{col, lit_timestamp_nano, Expr};
+    use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
+    // use influxdb_line_protocol::v3::SeriesKey;
+    // use iox_query::test;
     use iox_time::Time;
 
     struct TestWriter {
