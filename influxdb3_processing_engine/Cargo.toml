@@ -5,9 +5,6 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-"system-py" = ["influxdb3_py_api/system-py", "pyo3"]
-
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -36,7 +33,6 @@ tokio.workspace = true
 
 [dependencies.pyo3]
 version = "0.23.3"
-optional = true
 
 [dev-dependencies]
 datafusion_util.workspace = true

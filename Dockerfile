@@ -16,7 +16,7 @@ WORKDIR /influxdb3
 ARG CARGO_INCREMENTAL=yes
 ARG CARGO_NET_GIT_FETCH_WITH_CLI=false
 ARG PROFILE=release
-ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc,system-py
+ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc
 ARG PACKAGE=influxdb3
 ARG PBS_DATE=unset
 ARG PBS_VERSION=unset
