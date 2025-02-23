@@ -178,7 +178,7 @@ pub struct Config {
     #[clap(
         long = "gen1-duration",
         env = "INFLUXDB3_GEN1_DURATION",
-        default_value = "10m",
+        default_value = "1m",
         action
     )]
     pub gen1_duration: Gen1Duration,
@@ -360,6 +360,16 @@ pub struct Config {
     /// smaller time ranges if possible in a query.
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
+
+    /// Threshold for internal buffer, can be either percentage or absolute value in MB.
+    /// eg: 70% or 1000 MB
+    #[clap(
+        long = "max-memory-for-snapshot",
+        env = "INFLUXDB3_MAX_MEMORY_FOR_SNAPSHOT",
+        default_value = "100",
+        action
+    )]
+    pub max_memory_for_snapshot: MemorySizeMb,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -568,15 +578,14 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
+        max_memory_for_snapshot_bytes: config.max_memory_for_snapshot.as_num_bytes() as u64,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
 
     info!("setting up background mem check for query buffer");
     background_buffer_checker(
-        // config.force_snapshot_mem_threshold.bytes(),
-        734003200,
-        // 536870912,
+        config.force_snapshot_mem_threshold.as_num_bytes(),
         &write_buffer_impl,
     )
     .await;
