@@ -207,6 +207,16 @@ impl Gen1Duration {
         self.0.as_nanos() as i64
     }
 
+    pub fn as_10m(&self) -> u64 {
+        let duration_secs = self.0.as_secs();
+        let ten_min_secs = 600;
+        if duration_secs >= ten_min_secs {
+            1
+        } else {
+            ten_min_secs / duration_secs
+        }
+    }
+
     pub fn new_1m() -> Self {
         Self(Duration::from_secs(60))
     }
@@ -237,7 +247,7 @@ impl Default for Gen1Duration {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 pub struct NoopDetails {
-    timestamp_ns: i64,
+    pub timestamp_ns: i64,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
