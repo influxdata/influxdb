@@ -855,6 +855,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
             query_file_limit,
+            max_memory_for_snapshot_bytes: 100_000_000,
         })
         .await
         .unwrap();
