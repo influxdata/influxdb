@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -14,11 +15,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	assert2 "github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
@@ -30,8 +29,11 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
 	"github.com/influxdata/influxql"
+	assert2 "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -1602,13 +1604,13 @@ func TestMeasurementFieldSet_SaveLoad(t *testing.T) {
 	}
 	defer checkMeasurementFieldSetClose(t, mf)
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
-	if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+	if _, _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -1653,13 +1655,13 @@ func TestMeasurementFieldSet_Corrupt(t *testing.T) {
 		measurement := []byte("cpu")
 		fields := mf.CreateFieldsIfNotExists(measurement)
 		fieldName := "value"
-		if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+		if _, _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 			t.Fatalf("create field error: %v", err)
 		}
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1723,13 +1725,13 @@ func TestMeasurementFieldSet_CorruptChangeFile(t *testing.T) {
 	defer checkMeasurementFieldSetClose(t, mf)
 	for _, f := range testFields {
 		fields := mf.CreateFieldsIfNotExists([]byte(f.Measurement))
-		if err := fields.CreateFieldIfNotExists([]byte(f.Field), f.FieldType); err != nil {
+		if _, _, err := fields.CreateFieldIfNotExists(f.Field, f.FieldType); err != nil {
 			t.Fatalf("create field error: %v", err)
 		}
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(f.Measurement),
-				Field:       &tsdb.Field{ID: 0, Name: f.Field, Type: f.FieldType},
+				Field:       &tsdb.Field{Name: f.Field, Type: f.FieldType},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -1784,14 +1786,14 @@ func TestMeasurementFieldSet_DeleteEmpty(t *testing.T) {
 	defer checkMeasurementFieldSetClose(t, mf)
 
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
-	if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+	if _, _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
 		t.Fatalf("create field error: %v", err)
 	}
 
 	change := tsdb.FieldChange{
 		FieldCreate: tsdb.FieldCreate{
 			Measurement: []byte(measurement),
-			Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+			Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 		},
 		ChangeType: tsdb.AddMeasurementField,
 	}
@@ -1933,14 +1935,15 @@ func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldS
 	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
 
 	for _, fieldName := range fieldNames {
-		if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
-			t.Errorf("create field error: %v", err)
+		if _, _, err := fields.CreateFieldIfNotExists(fieldName, influxql.Float); err != nil {
+			t.Logf("create field error: %v", err)
+			t.Fail()
 			return
 		}
 		change := tsdb.FieldChange{
 			FieldCreate: tsdb.FieldCreate{
 				Measurement: []byte(measurement),
-				Field:       &tsdb.Field{ID: 0, Name: fieldName, Type: influxql.Float},
+				Field:       &tsdb.Field{Name: fieldName, Type: influxql.Float},
 			},
 			ChangeType: tsdb.AddMeasurementField,
 		}
@@ -2581,4 +2584,161 @@ func (a seriesIDSets) ForEach(f func(ids *tsdb.SeriesIDSet)) error {
 		f(v)
 	}
 	return nil
+}
+
+// Tests concurrently writing to the same shard with different field types which
+// can trigger a panic when the shard is snapshotted to TSM files.
+func TestShard_WritePoints_ForceFieldConflictConcurrent(t *testing.T) {
+	const Runs = 50
+	if testing.Short() || runtime.GOOS == "windows" {
+		t.Skip("Skipping on short or windows")
+	}
+	for i := 0; i < Runs; i++ {
+		conflictShard(t, i)
+	}
+}
+
+func conflictShard(t *testing.T, run int) {
+	const measurement = "cpu"
+	const field = "value"
+	const numTypes = 4 // float, int, bool, string
+	const pointCopies = 10
+	const trialsPerShard = 10
+
+	tmpDir, _ := os.MkdirTemp("", "shard_test")
+	defer func() {
+		require.NoError(t, os.RemoveAll(tmpDir), "removing %s", tmpDir)
+	}()
+	tmpShard := filepath.Join(tmpDir, "shard")
+	tmpWal := filepath.Join(tmpDir, "wal")
+
+	sfile := MustOpenSeriesFile(t)
+	defer func() {
+		require.NoError(t, sfile.Close(), "closing series file")
+		require.NoError(t, os.RemoveAll(sfile.Path()), "removing series file %s", sfile.Path())
+	}()
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = tmpWal
+	opts.SeriesIDSets = seriesIDSets([]*tsdb.SeriesIDSet{})
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, sfile.SeriesFile, opts)
+	require.NoError(t, sh.Open(context.Background()), "opening shard: %s", sh.Path())
+	defer func() {
+		require.NoError(t, sh.Close(), "closing shard %s", tmpShard)
+	}()
+	var wg sync.WaitGroup
+	mu := sync.RWMutex{}
+	maxConcurrency := atomic.Int64{}
+
+	currentTime := time.Now()
+
+	points := make([]models.Point, 0, pointCopies*numTypes)
+
+	for i := 0; i < pointCopies; i++ {
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: 1.0},
+			currentTime.Add(time.Duration(i)*time.Second),
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: int64(1)},
+			currentTime.Add(time.Duration(i)*time.Second),
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: "one"},
+			currentTime.Add(time.Duration(i)*time.Second),
+		))
+		points = append(points, models.MustNewPoint(
+			measurement,
+			models.NewTags(map[string]string{"host": "server"}),
+			map[string]interface{}{field: true},
+			currentTime.Add(time.Duration(i)*time.Second),
+		))
+	}
+	concurrency := atomic.Int64{}
+
+	for i := 0; i < trialsPerShard; i++ {
+		mu.Lock()
+		wg.Add(len(points))
+		// Write points concurrently
+		for i := 0; i < pointCopies; i++ {
+			for j := 0; j < numTypes; j++ {
+				concurrency.Add(1)
+				go func(mp models.Point) {
+					mu.RLock()
+					defer concurrency.Add(-1)
+					defer mu.RUnlock()
+					defer wg.Done()
+					if err := sh.WritePoints(context.Background(), []models.Point{mp}); err == nil {
+						fs, err := mp.Fields()
+						require.NoError(t, err, "getting fields")
+						require.Equal(t,
+							sh.MeasurementFields([]byte(measurement)).Field(field).Type,
+							influxql.InspectDataType(fs[field]),
+							"field types mismatch on run %d: types exp: %s, got: %s", run+1, sh.MeasurementFields([]byte(measurement)).Field(field).Type.String(), influxql.InspectDataType(fs[field]).String())
+					} else {
+						require.ErrorContains(t, err, tsdb.ErrFieldTypeConflict.Error(), "unexpected error")
+					}
+					if c := concurrency.Load(); maxConcurrency.Load() < c {
+						maxConcurrency.Store(c)
+					}
+				}(points[i*numTypes+j])
+			}
+		}
+		mu.Unlock()
+		wg.Wait()
+		dir, err := sh.CreateSnapshot(false)
+		require.NoError(t, err, "creating snapshot: %s", sh.Path())
+		require.NoError(t, os.RemoveAll(dir), "removing snapshot directory %s", dir)
+	}
+	keyType := map[string]byte{}
+	files, err := os.ReadDir(tmpShard)
+	require.NoError(t, err, "reading shard directory %s", tmpShard)
+	for i, file := range files {
+		if !strings.HasSuffix(path.Ext(file.Name()), tsm1.TSMFileExtension) {
+			continue
+		}
+		ffile := path.Join(tmpShard, file.Name())
+		fh, err := os.Open(ffile)
+		require.NoError(t, err, "opening snapshot file %s", ffile)
+		tr, err := tsm1.NewTSMReader(fh)
+		require.NoError(t, err, "creating TSM reader for %s", ffile)
+		key, typ := tr.KeyAt(0)
+		if oldTyp, ok := keyType[string(key)]; ok {
+			require.Equal(t, oldTyp, typ,
+				"field type mismatch in run %d TSM file %d -- %q in %s\nfirst seen: %s, newest: %s, field type: %s",
+				run+1,
+				i+1,
+				string(key),
+				ffile,
+				blockTypeString(oldTyp),
+				blockTypeString(typ),
+				sh.MeasurementFields([]byte(measurement)).Field(field).Type.String())
+		} else {
+			keyType[string(key)] = typ
+		}
+		// Must close after all uses of key (mapped memory)
+		require.NoError(t, tr.Close(), "closing TSM reader")
+	}
+	// t.Logf("Type %s wins run %d with concurrency: %d", sh.MeasurementFields([]byte(measurement)).Field(field).Type.String(), run+1, maxConcurrency.Load())
+}
+
+func blockTypeString(typ byte) string {
+	switch typ {
+	case tsm1.BlockFloat64:
+		return "float64"
+	case tsm1.BlockInteger:
+		return "int64"
+	case tsm1.BlockBoolean:
+		return "bool"
+	case tsm1.BlockString:
+		return "string"
+	default:
+		return "unknown"
+	}
 }
