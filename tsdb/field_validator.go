@@ -59,6 +59,13 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 					err, fieldName, point.Name(), dataType, f.Type),
 				Dropped: 1,
 			}
+		} else if err != nil {
+			return fieldsToCreate, &PartialWriteError{
+				Reason: fmt.Sprintf(
+					"error adding field %q to measurement %q: %s",
+					fieldName, point.Name(), err),
+				Dropped: 1,
+			}
 		} else if created {
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{point.Name(), f})
 		}
