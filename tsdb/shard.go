@@ -575,7 +575,7 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 	}
 
 	// add any new fields and keep track of what needs to be saved
-	if numFieldsCreated, err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
+	if numFieldsCreated, err := s.saveFieldsAndMeasurements(fieldsToCreate); err != nil {
 		return err
 	} else {
 		atomic.AddInt64(&s.stats.FieldsCreated, int64(numFieldsCreated))
@@ -605,10 +605,10 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
 func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTracker) ([]models.Point, []*FieldCreate, error) {
 	var (
-		fieldsToCreate []*FieldCreate
-		err            error
-		dropped        int
-		reason         string // only first error reason is set unless returned from CreateSeriesListIfNotExists
+		createdFieldsToSave []*FieldCreate
+		err                 error
+		dropped             int
+		reason              string // only first error reason is set unless returned from CreateSeriesListIfNotExists
 	)
 
 	// Create all series against the index in bulk.
@@ -703,37 +703,28 @@ func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTrac
 			continue
 		}
 
-		var newFields []*FieldCreate
-		var validateErr error
 		name := p.Name()
 		mf := engine.MeasurementFields(name)
 		// Check with the field validator.
-		if newFields, validateErr = ValidateFields(mf, p, s.options.Config.SkipFieldSizeValidation); validateErr != nil {
-			var err PartialWriteError
-			switch {
-			case errors.As(validateErr, &err):
-				// This will turn into an error later, outside this lambda
-				if reason == "" {
-					reason = err.Reason
-				}
-				dropped += err.Dropped
-				atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
-				continue
-			default:
-				// Return validateErr, because err will be nil here
-				return nil, nil, validateErr
-			}
-		}
+		newFields, partialWriteError := ValidateAndCreateFields(mf, p, s.options.Config.SkipFieldSizeValidation)
+		createdFieldsToSave = append(createdFieldsToSave, newFields...)
 
+		if partialWriteError != nil {
+			if reason == "" {
+				reason = partialWriteError.Reason
+			}
+			dropped += partialWriteError.Dropped
+			atomic.AddInt64(&s.stats.WritePointsDropped, int64(partialWriteError.Dropped))
+			continue
+		}
 		points[j] = points[i]
 		j++
-		fieldsToCreate = append(fieldsToCreate, newFields...)
 	}
 	if dropped > 0 {
 		err = PartialWriteError{Reason: reason, Dropped: dropped, Database: s.database, RetentionPolicy: s.retentionPolicy}
 	}
 
-	return points[:j], fieldsToCreate, err
+	return points[:j], createdFieldsToSave, err
 }
 
 const unPrintReplRune = '?'
@@ -758,8 +749,8 @@ func makePrintable(s string) string {
 	return b.String()
 }
 
-func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (int, error) {
-	if len(fieldsToCreate) == 0 {
+func (s *Shard) saveFieldsAndMeasurements(fieldsToSave []*FieldCreate) (int, error) {
+	if len(fieldsToSave) == 0 {
 		return 0, nil
 	}
 
@@ -769,19 +760,14 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (int,
 	}
 	numCreated := 0
 	// add fields
-	changes := make([]*FieldChange, 0, len(fieldsToCreate))
-	for _, f := range fieldsToCreate {
-		mf := engine.MeasurementFields(f.Measurement)
-		if created, err := mf.CreateFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
-			return 0, err
-		} else if created {
-			numCreated++
-			s.index.SetFieldName(f.Measurement, f.Field.Name)
-			changes = append(changes, &FieldChange{
-				FieldCreate: *f,
-				ChangeType:  AddMeasurementField,
-			})
-		}
+	changes := make([]*FieldChange, 0, len(fieldsToSave))
+	for _, f := range fieldsToSave {
+		numCreated++
+		s.index.SetFieldName(f.Measurement, f.Field.Name)
+		changes = append(changes, &FieldChange{
+			FieldCreate: *f,
+			ChangeType:  AddMeasurementField,
+		})
 	}
 
 	return numCreated, engine.MeasurementFieldSet().Save(changes)
@@ -1589,18 +1575,18 @@ func (m *MeasurementFields) bytes() int {
 
 // CreateFieldIfNotExists creates a new field with the given name and type.
 // Returns an error if the field already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) (bool, error) {
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) (f *Field, created bool, err error) {
 	newField := &Field{
 		Name: name,
 		Type: typ,
 	}
-	if f, loaded := m.fields.LoadOrStore(newField.Name, newField); loaded {
-		if f.Type != typ {
-			return false, ErrFieldTypeConflict
-		}
-		return false, nil
+	var loaded bool
+	if f, loaded = m.fields.LoadOrStore(newField.Name, newField); f.Type != typ {
+		// This implies the field existed as a different type already.
+		return f, false, ErrFieldTypeConflict
+	} else {
+		return f, !loaded, nil
 	}
-	return true, nil
 }
 
 func (m *MeasurementFields) FieldN() int {
@@ -2258,7 +2244,7 @@ func (fs *MeasurementFieldSet) ApplyChanges() error {
 				fs.Delete(string(fc.Measurement))
 			} else {
 				mf := fs.CreateFieldsIfNotExists(fc.Measurement)
-				if _, err := mf.CreateFieldIfNotExists(fc.Field.Name, fc.Field.Type); err != nil {
+				if _, _, err := mf.CreateFieldIfNotExists(fc.Field.Name, fc.Field.Type); err != nil {
 					err = fmt.Errorf("failed creating %q.%q: %w", fc.Measurement, fc.Field.Name, err)
 					log.Error("field creation", zap.Error(err))
 					return err
