@@ -19,7 +19,7 @@ pub enum VenvError {
 
 // Find the python installation location (not virtual env).
 // XXX: use build flag?
-fn find_python_install() -> PathBuf {
+fn find_python_install() -> Option<PathBuf> {
     let influxdb3_exe = env::current_exe().unwrap();
     let influxdb3_exe_dir = influxdb3_exe.parent().unwrap();
     let influxdb3_rel_dir = influxdb3_exe_dir.join("python");
@@ -32,18 +32,23 @@ fn find_python_install() -> PathBuf {
     {
         // Official Linux deb/rpm/docker builds are in /usr (but also allow for
         // /usr/local) so use runtime in /usr/[local/]lib/influxdb3/python/
-        influxdb3_linux_dir
+        Some(influxdb3_linux_dir)
     } else if influxdb3_rel_dir.is_dir() {
         // Official tar/zip builds use runtime in python/ relative to executable
-        influxdb3_rel_dir
+        Some(influxdb3_rel_dir)
     } else {
         // Could not find python-build-standalone installation
-        PathBuf::new()
+        None
     };
-    debug!(
-        "Found python standalone installation: {}",
-        python_inst.display()
-    );
+
+    if python_inst.is_none() {
+        debug!("Could not find python standalone installation");
+    } else {
+        debug!(
+            "Found python standalone installation: {}",
+            python_inst.clone()?.display()
+        );
+    }
     python_inst
 }
 
@@ -54,7 +59,7 @@ pub fn find_python() -> PathBuf {
         "python3"
     };
 
-    let python_home = find_python_install();
+    let python_inst = find_python_install();
     let python_exe = if let Ok(v) = env::var("VIRTUAL_ENV") {
         // After initialize_venv(), VIRTUAL_ENV is set, so honor it (thus
         // allowing package installs to be installed in the venv)
@@ -66,11 +71,10 @@ pub fn find_python() -> PathBuf {
         }
         path.push(python_exe_bn);
         path
-    } else if !python_home.as_os_str().is_empty() {
+    } else if let Some(mut path) = python_inst {
         // Prior to initialize_venv(), VIRTUAL_ENV is not set so we'll want to
         // look for where the python installation is, which allows
         // 'python -m venv' to work correctly
-        let mut path = python_home;
         if !cfg!(windows) {
             path.push("bin");
         }
@@ -125,14 +129,14 @@ pub fn init_pyo3() {
     // to the installation location for initialization to work correctly
     let python_inst = find_python_install();
     let orig_pyhome_env = env::var("PYTHONHOME").ok();
-    if !python_inst.as_os_str().is_empty() {
+    if let Some(path) = python_inst {
         // Found python-build-standalone installation
         debug!(
             "Temporarily setting PYTHONHOME during initialization to: {}",
-            python_inst.to_string_lossy()
+            path.display()
         );
         unsafe {
-            env::set_var("PYTHONHOME", &python_inst);
+            env::set_var("PYTHONHOME", path);
         }
     }
 
@@ -210,7 +214,10 @@ pub(crate) fn initialize_venv(venv_path: &Path) -> Result<(), VenvError> {
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .filter_map(|line| line.split_once('='))
-        .for_each(|(key, value)| unsafe { std::env::set_var(key, value) });
+        .for_each(|(key, value)| unsafe {
+            //debug!("{}={}", key, value);
+            std::env::set_var(key, value)
+        });
 
     if let Ok(v) = env::var("VIRTUAL_ENV") {
         debug!("VIRTUAL_ENV set to: {}", v);
