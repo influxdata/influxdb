@@ -881,7 +881,6 @@ func (s *Shard) saveFieldsAndMeasurements(fieldsToSave []*FieldCreate) (int, err
 	changes := make([]*FieldChange, 0, len(fieldsToSave))
 	for _, f := range fieldsToSave {
 		numCreated++
-		s.index.SetFieldName(f.Measurement, f.Field.Name)
 		changes = append(changes, &FieldChange{
 			FieldCreate: *f,
 			ChangeType:  AddMeasurementField,
