@@ -749,8 +749,8 @@ func makePrintable(s string) string {
 	return b.String()
 }
 
-func (s *Shard) saveFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (int, error) {
-	if len(fieldsToCreate) == 0 {
+func (s *Shard) saveFieldsAndMeasurements(fieldsToSave []*FieldCreate) (int, error) {
+	if len(fieldsToSave) == 0 {
 		return 0, nil
 	}
 
@@ -760,8 +760,8 @@ func (s *Shard) saveFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (int, e
 	}
 	numCreated := 0
 	// add fields
-	changes := make([]*FieldChange, 0, len(fieldsToCreate))
-	for _, f := range fieldsToCreate {
+	changes := make([]*FieldChange, 0, len(fieldsToSave))
+	for _, f := range fieldsToSave {
 		numCreated++
 		s.index.SetFieldName(f.Measurement, f.Field.Name)
 		changes = append(changes, &FieldChange{
@@ -1575,18 +1575,17 @@ func (m *MeasurementFields) bytes() int {
 
 // CreateFieldIfNotExists creates a new field with the given name and type.
 // Returns an error if the field already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) (*Field, bool, error) {
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) (f *Field, created bool, err error) {
 	newField := &Field{
 		Name: name,
 		Type: typ,
 	}
-	if f, loaded := m.fields.LoadOrStore(newField.Name, newField); loaded {
-		if f.Type != typ {
-			return f, false, ErrFieldTypeConflict
-		}
-		return f, false, nil
+	var loaded bool
+	if f, loaded = m.fields.LoadOrStore(newField.Name, newField); f.Type != typ {
+		// This implies the field existed as a different type already.
+		return f, false, ErrFieldTypeConflict
 	} else {
-		return f, true, nil
+		return f, !loaded, nil
 	}
 }
 

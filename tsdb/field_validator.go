@@ -50,7 +50,6 @@ func ValidateAndCreateFields(mf *MeasurementFields, point models.Point, skipSize
 			continue
 		}
 
-		// If the field is not present, remember to create it.
 		fieldName := string(fieldKey)
 		f, created, err := mf.CreateFieldIfNotExists(fieldName, dataType)
 		if errors.Is(err, ErrFieldTypeConflict) {
