@@ -183,7 +183,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 
 				res := w.Result()
 				contentType := res.Header.Get("Content-Type")
-				body, _ := io.ReadAll(res.Body)
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
 
 				require.Equalf(t, tt.wants.statusCode, res.StatusCode, "headers: %v body: %s", res.Header, body)
 				if tt.wants.contentType != "" {
@@ -191,7 +192,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				}
 				diff, err := jsonDiff(string(body), tt.wants.body)
 				require.NoError(t, err)
-				require.Empty(t, diff)
+				require.Empty(t, diff, "authorization endpoint returned unexpected result")
 			})
 		}
 	}
@@ -346,7 +347,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			body, _ := io.ReadAll(res.Body)
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
 
 			require.Equalf(t, tt.wants.statusCode, res.StatusCode, "headers: %v body: %s", res.Header, body)
 			if tt.wants.contentType != "" {
@@ -354,7 +356,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			}
 			diff, err := jsonDiff(string(body), tt.wants.body)
 			require.NoError(t, err)
-			require.Empty(t, diff)
+			require.Empty(t, diff, "authorization endpoint returned unexpected result")
 		})
 	}
 }
@@ -730,7 +732,8 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 
 				res := w.Result()
 				contentType := res.Header.Get("Content-Type")
-				body, _ := io.ReadAll(res.Body)
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
 
 				require.Equal(t, tt.wants.statusCode, res.StatusCode)
 				if tt.wants.contentType != "" {
@@ -738,7 +741,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				}
 				diff, err := jsonDiff(string(body), tt.wants.body)
 				require.NoError(t, err)
-				require.Empty(t, diff)
+				require.Empty(t, diff, "authorization endpoint returned unexpected results")
 			})
 		}
 	}
@@ -827,17 +830,18 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 
 			res := w.Result()
 			contentType := res.Header.Get("Content-Type")
-			body, _ := io.ReadAll(res.Body)
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
 
 			require.Equal(t, tt.wants.statusCode, res.StatusCode)
 			if tt.wants.contentType != "" {
-				require.Equal(t, tt.wants.contentType, contentType)
+				require.Equal(t, tt.wants.contentType, contentType, "handleDeleteAuthorization")
 			}
 
 			if tt.wants.body != "" {
 				diff, err := jsonDiff(string(body), tt.wants.body)
 				require.NoError(t, err)
-				require.Empty(t, diff)
+				require.Empty(t, diff, "authorization endpoint returned unexpected results")
 			}
 		})
 	}

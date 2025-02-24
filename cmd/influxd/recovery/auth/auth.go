@@ -85,7 +85,7 @@ func (cmd *authListCommand) run() (rErr error) {
 		return err
 	}
 	// Create authStore read-only since we're not properly configuring if hashed tokens are enabled.
-	authStore, err := authorization.NewStore(ctx, store, false, authorization.WithReadOnly(true), authorization.WithAuthorizationHasher(hasher))
+	authStore, err := authorization.NewStore(ctx, store, false, authorization.WithReadOnly(true), authorization.WithAuthorizationHasher(hasher), authorization.WithLogger(cmd.logger))
 	if err != nil {
 		return err
 	}
@@ -138,19 +138,22 @@ func NewAuthCreateCommand() *cobra.Command {
 	return cmd
 }
 
-func (cmd *authCreateCommand) run() error {
+func (cmd *authCreateCommand) run() (rErr error) {
 	ctx := context.Background()
 	store := bolt.NewKVStore(cmd.logger.With(zap.String("system", "bolt-kvstore")), cmd.boltPath)
 	if err := store.Open(ctx); err != nil {
 		return err
 	}
-	defer store.Close()
+	defer func() {
+		rErr = errors.Join(store.Close(), rErr)
+	}()
+
 	tenantStore := tenant.NewStore(store)
 	tenantService := tenant.NewService(tenantStore)
 	hashVariantName := authorization.DefaultHashVariantName // In the future this could come from cmd
 	ignoreMissingHashIndex := !cmd.useTokenHashing          // we can ignore a missing index only if the user did not request token hashing
 	authStore, err := authorization.NewStore(ctx, store, cmd.useTokenHashing,
-		authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithIgnoreMissingHashIndex(ignoreMissingHashIndex))
+		authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithIgnoreMissingHashIndex(ignoreMissingHashIndex), authorization.WithLogger(cmd.logger))
 	if err != nil {
 		return err
 	}

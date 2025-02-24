@@ -50,7 +50,7 @@ func WithDecoderVariants(variants []influxdb2_algo.Variant) AuthorizationHasherO
 
 // NewAuthorizationHasher creates an AuthorizationHasher for influxdb2 algorithm hashed tokens.
 // variantName specifies which token hashing variant to use, with blank indicating to use the default
-// hashing variant. By defaults, all variants of the influxdb2 hashing scheme are supported for
+// hashing variant. By default, all variants of the influxdb2 hashing scheme are supported for
 // maximal compatibility.
 func NewAuthorizationHasher(opts ...AuthorizationHasherOption) (*AuthorizationHasher, error) {
 	options := authorizationHasherOptions{
@@ -80,8 +80,8 @@ func NewAuthorizationHasher(opts ...AuthorizationHasherOption) (*AuthorizationHa
 		}
 	}
 
-	// Create all variant hashers needed for requested decoder variants. This is for operations where all
-	// potential variations of a raw token must be hashed.
+	// Create all variant hashers needed for requested decoder variants. This is required for operations where
+	// all potential variations of a raw token must be hashed, such as looking up a hash in the hashed token index.
 	var allHashers []algorithm.Hash
 	for _, variant := range options.decoderVariants {
 		h, err := influxdb2_algo.New(influxdb2_algo.WithVariant(variant))
@@ -110,11 +110,11 @@ func (h *AuthorizationHasher) Hash(token string) (string, error) {
 // AllHashes generates a list of PHC-encoded hashes of token for all deterministic (i.e. non-salted) supported hashes.
 func (h *AuthorizationHasher) AllHashes(token string) ([]string, error) {
 	hashes := make([]string, len(h.allHashers))
-	for idx, h := range h.allHashers {
-		digest, err := h.Hash(token)
+	for idx, hasher := range h.allHashers {
+		digest, err := hasher.Hash(token)
 		if err != nil {
 			variantName := "N/A"
-			if influxdb_hasher, ok := h.(*influxdb2_algo.Hasher); ok {
+			if influxdb_hasher, ok := hasher.(*influxdb2_algo.Hasher); ok {
 				variantName = influxdb_hasher.Variant().Prefix()
 			}
 			return nil, fmt.Errorf("hashing raw token failed (variant=%s): %w", variantName, err)

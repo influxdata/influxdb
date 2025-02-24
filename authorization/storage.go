@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kv"
 	influxdb2_algo "github.com/influxdata/influxdb/v2/pkg/crypt/algorithm/influxdb2"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"go.uber.org/zap"
 )
 
 /*---
@@ -126,6 +127,9 @@ type Store struct {
 	// Indicates if tokens should be stored in hashed PHC format.
 	useHashedTokens bool
 
+	// Logger
+	log *zap.Logger
+
 	// Indicates if Store is read-only.
 	readOnly bool
 
@@ -153,15 +157,21 @@ func WithAuthorizationHashVariantName(name string) StoreOption {
 	}
 }
 
-func WithReadOnly(readOnly bool) StoreOption {
-	return func(s *storePlusOptions) {
-		s.readOnly = readOnly
-	}
-}
-
 func WithIgnoreMissingHashIndex(allowMissing bool) StoreOption {
 	return func(s *storePlusOptions) {
 		s.ignoreMissingHashIndex = allowMissing
+	}
+}
+
+func WithLogger(log *zap.Logger) StoreOption {
+	return func(s *storePlusOptions) {
+		s.log = log
+	}
+}
+
+func WithReadOnly(readOnly bool) StoreOption {
+	return func(s *storePlusOptions) {
+		s.readOnly = readOnly
 	}
 }
 
@@ -178,6 +188,10 @@ func NewStore(ctx context.Context, kvStore kv.Store, useHashedTokens bool, opts 
 
 	for _, o := range opts {
 		o(s)
+	}
+
+	if s.log == nil {
+		s.log = zap.NewNop()
 	}
 
 	if err := s.setup(ctx); err != nil {
@@ -264,8 +278,12 @@ func (s *Store) hashedTokenMigration(ctx context.Context) error {
 	var authsNeedingUpdate []*influxdb.Authorization
 	err := s.View(ctx, func(tx kv.Tx) error {
 		s.forEachAuthorization(ctx, tx, nil, func(a *influxdb.Authorization) bool {
-			if a.HashedToken == "" && a.Token != "" {
-				authsNeedingUpdate = append(authsNeedingUpdate, a)
+			if a.HashedToken == "" {
+				if a.Token != "" {
+					authsNeedingUpdate = append(authsNeedingUpdate, a)
+				} else {
+					s.log.Warn("found authorization without any token set during hashed token migration", zap.Uint64("ID", uint64(a.ID)), zap.String("description", a.Description))
+				}
 			}
 			return true
 		})

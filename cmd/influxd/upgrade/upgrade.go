@@ -661,7 +661,7 @@ func newInfluxDBv2(ctx context.Context, opts *optionsV2, log *zap.Logger) (svc *
 	svc.ts.BucketService = storage.NewBucketService(log, svc.ts.BucketService, engine)
 
 	hashVariantName := authorization.DefaultHashVariantName // In the future this could come from opts.
-	authStoreV2, err := authorization.NewStore(ctx, svc.store, opts.useHashedTokens, authorization.WithAuthorizationHashVariantName(hashVariantName))
+	authStoreV2, err := authorization.NewStore(ctx, svc.store, opts.useHashedTokens, authorization.WithAuthorizationHashVariantName(hashVariantName), authorization.WithLogger(log))
 	if err != nil {
 		return nil, err
 	}

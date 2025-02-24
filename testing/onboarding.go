@@ -196,9 +196,9 @@ func OnboardInitialUser(
 				ctx := context.Background()
 				results, err := s.OnboardInitialUser(ctx, tt.args.request)
 				if tt.wants.errCode == "" {
-					require.NoError(t, err)
+					require.NoError(t, err, "s.OnboardInitialUser")
 				} else {
-					require.Equal(t, tt.wants.errCode, errors.ErrorCode(err))
+					require.Equal(t, tt.wants.errCode, errors.ErrorCode(err), "s.OnboardInitialUser")
 				}
 				diff := cmp.Diff(results, tt.wants.results, onboardCmpOptions)
 				require.Empty(t, diff)

@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	jsonp "github.com/influxdata/influxdb/v2/pkg/jsonparser"
+	"go.uber.org/zap"
 )
 
 var (
@@ -80,38 +81,42 @@ func decodeAuthorization(b []byte, a *influxdb.Authorization) error {
 	return nil
 }
 
-// verifyTokensMatch returns an error if a.Token and a.HashedToken are set
-// but do not match.
-func (s *Store) verifyTokensMatch(a *influxdb.Authorization) error {
-	if a.Token == "" || a.HashedToken == "" {
-		return nil
+// transformToken updates a.Token and a.HashedToken to match configuration state,
+// if needed. If needed, transformToken generates the a.HashedToken from a.Token when
+// token hashing is enabled. transformToken will also clear a.HashedToken if token
+// hashing is turned off and a.Token is set to the matching token. If a.HashedToken and
+// a.Token are both set but do not match (a.HashedToken is a hash of a.Token), then an
+// error is returned.
+func (s *Store) transformToken(a *influxdb.Authorization) error {
+	// Verify Token and HashedToken match if both are set.
+	if a.Token != "" && a.HashedToken != "" {
+		match, err := s.hasher.Match(a.HashedToken, a.Token)
+		if err != nil {
+			return fmt.Errorf("error matching tokens: %w", err)
+		}
+		if !match {
+			return ErrHashedTokenMismatch
+		}
 	}
 
-	// If both Token and HashedToken are set, make sure they are equivalent before continuing.
-	match, err := s.hasher.Match(a.HashedToken, a.Token)
-	if err != nil {
-		return fmt.Errorf("error matching tokens: %w", err)
+	if a.Token != "" {
+		if s.useHashedTokens {
+			// Need to generate HashedToken from Token. Redaction of the hashed token takes
+			// place when the record is written to the KV store. In some cases the client
+			// code that triggered commit needs access to the raw Token, such as when a
+			// token is initially created so it can be shown to the user.
+			// Note that even if a.HashedToken is set, we will regenerate it here. This ensures
+			// that a.HashedToken will be stored using the currently configured hashing algoirithm.
+			if hashedToken, err := s.hasher.Hash(a.Token); err != nil {
+				return fmt.Errorf("error hashing token: %w", err)
+			} else {
+				a.HashedToken = hashedToken
+			}
+		} else {
+			// Token hashing disabled, a.Token is available, clear a.HashedToken if set.
+			a.HashedToken = ""
+		}
 	}
-	if !match {
-		return ErrHashedTokenMismatch
-	}
-	return nil
-}
-
-// hashToken hashes a.Token to a.HashedToken, if needed.
-func (s *Store) hashToken(a *influxdb.Authorization) error {
-	if !s.useHashedTokens || a.HashedToken != "" || a.Token == "" {
-		// Either we're not using token hashing, the token has already been hashed,
-		// or there's no token to be hashed.
-		return nil
-	}
-
-	// Hash the token. Redaction of the hashed token takes place when the record is written.
-	hashedToken, err := s.hasher.Hash(a.Token)
-	if err != nil {
-		return fmt.Errorf("error hashing token: %w", err)
-	}
-	a.HashedToken = hashedToken
 
 	return nil
 }
@@ -177,7 +182,7 @@ func (s *Store) GetAuthorizationByID(ctx context.Context, tx kv.Tx, id platform.
 	return a, nil
 }
 
-// validateToken checks if token matches tht token stored in auth. If auth.Token is set, that is
+// validateToken checks if token matches that token stored in auth. If auth.Token is set, that is
 // compared first. Otherwise, auth.HashedToken is used to verify token. If neither field in auth is set, then
 // the comparison fails.
 func (s *Store) validateToken(auth *influxdb.Authorization, token string) (bool, error) {
@@ -349,11 +354,7 @@ func (s *Store) forEachAuthorization(ctx context.Context, tx kv.Tx, pred kv.Curs
 // and makes sure indices point to it. It does not delete any indices. The updated authorization is
 // returned on success.
 func (s *Store) commitAuthorization(ctx context.Context, tx kv.Tx, a *influxdb.Authorization) error {
-	if err := s.verifyTokensMatch(a); err != nil {
-		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInvalid))
-	}
-
-	if err := s.hashToken(a); err != nil {
+	if err := s.transformToken(a); err != nil {
 		return errors.ErrInternalServiceError(err, errors.WithErrorCode(errors.EInternal))
 	}
 
@@ -602,7 +603,12 @@ func (s *Store) authorizationsPredicateFn(f influxdb.AuthorizationFilter) kv.Cur
 
 	if f.Token != nil {
 		token := *f.Token
-		allHashes, _ := s.hasher.AllHashes(token) // on error, allHashes is empty and we'll ignore hashedToken
+		allHashes, err := s.hasher.AllHashes(token)
+		if err != nil {
+			s.log.Error("error generating hashes in authorizationsPredicateFn", zap.Error(err))
+			// On error, continue onward. allHashes is empty and we'll effectively ignore hashedToken,
+			// but we'll still look at the unhashed Token if it is available.
+		}
 		return func(_, value []byte) bool {
 			// it is assumed that token never has escaped string data
 			if got, _, _, err := jsonparser.Get(value, "token"); err == nil {
@@ -652,8 +658,13 @@ func (s *Store) filterAuthorizationsFn(filter influxdb.AuthorizationFilter) func
 
 	if filter.Token != nil {
 		token := *filter.Token
-		// if AllHashes returns an error, allHashes will be empty and we will ignore a.HashedToken.
-		allHashes, _ := s.hasher.AllHashes(token)
+		allHashes, err := s.hasher.AllHashes(token)
+		if err != nil {
+			s.log.Error("error generating hashes in filterPredicateFn", zap.Error(err))
+			// On error, continue onward. allHashes is empty and we'll effectively ignore hashedToken,
+			// but we'll still look at the unhashed Token if it is available.
+		}
+
 		return func(a *influxdb.Authorization) bool {
 			if a.Token == token {
 				return true

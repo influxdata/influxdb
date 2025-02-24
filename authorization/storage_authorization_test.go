@@ -22,6 +22,8 @@ const (
 )
 
 func TestAuth(t *testing.T) {
+	generateToken := func(i int) string { return fmt.Sprintf("randomtoken%d", i) }
+
 	checkIndexCounts := func(t *testing.T, tx kv.Tx, expAuthIndexCount, expHashedAuthIndexCount int) {
 		t.Helper()
 
@@ -44,7 +46,7 @@ func TestAuth(t *testing.T) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 				ID:     platform.ID(i),
-				Token:  fmt.Sprintf("randomtoken%d", i),
+				Token:  generateToken(i),
 				OrgID:  platform.ID(i),
 				UserID: platform.ID(i),
 				Status: influxdb.Active,
@@ -54,7 +56,7 @@ func TestAuth(t *testing.T) {
 
 		// Perform sanity checks on Token vs HashedToken and indices.
 		for i := 1; i <= 10; i++ {
-			expToken := fmt.Sprintf("randomtoken%d", i)
+			expToken := generateToken(i)
 			a, err := store.GetAuthorizationByToken(context.Background(), tx, expToken)
 			require.NoError(t, err)
 			if useHashedTokens {
@@ -80,17 +82,17 @@ func TestAuth(t *testing.T) {
 	tt := []struct {
 		name    string
 		setup   func(*testing.T, bool, *authorization.Store, *authorization.AuthorizationHasher, kv.Tx)
-		update  func(*testing.T, *authorization.Store, kv.Tx)
+		update  func(*testing.T, *authorization.Store, *authorization.AuthorizationHasher, kv.Tx)
 		results func(*testing.T, bool, *authorization.Store, *authorization.AuthorizationHasher, kv.Tx)
 	}{
 		{
 			name:  "create duplicate token",
 			setup: setup,
-			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
 				// should not be able to create two authorizations with identical tokens
 				err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
 					ID:     platform.ID(1),
-					Token:  fmt.Sprintf("randomtoken%d", 1),
+					Token:  generateToken(1),
 					OrgID:  platform.ID(1),
 					UserID: platform.ID(1),
 				})
@@ -105,7 +107,7 @@ func TestAuth(t *testing.T) {
 				for i := 1; i <= 10; i++ {
 					a := &influxdb.Authorization{
 						ID:     platform.ID(i),
-						Token:  fmt.Sprintf("randomtoken%d", i),
+						Token:  generateToken(i),
 						OrgID:  platform.ID(i),
 						UserID: platform.ID(i),
 						Status: "active",
@@ -136,7 +138,7 @@ func TestAuth(t *testing.T) {
 				for i := 1; i <= 10; i++ {
 					expectedAuth := &influxdb.Authorization{
 						ID:     platform.ID(i),
-						Token:  fmt.Sprintf("randomtoken%d", i),
+						Token:  generateToken(i),
 						OrgID:  platform.ID(i),
 						UserID: platform.ID(i),
 						Status: influxdb.Active,
@@ -152,7 +154,7 @@ func TestAuth(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, expectedAuth, authByID)
 
-					authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, fmt.Sprintf("randomtoken%d", i))
+					authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, generateToken(i))
 					require.NoError(t, err)
 					require.Equal(t, expectedAuth, authByToken)
 				}
@@ -169,7 +171,7 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "update",
 			setup: setup,
-			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
@@ -191,7 +193,7 @@ func TestAuth(t *testing.T) {
 
 					expectedAuth := &influxdb.Authorization{
 						ID:     platform.ID(i),
-						Token:  fmt.Sprintf("randomtoken%d", i),
+						Token:  generateToken(i),
 						OrgID:  platform.ID(i),
 						UserID: platform.ID(i),
 						Status: influxdb.Inactive,
@@ -217,7 +219,7 @@ func TestAuth(t *testing.T) {
 		{
 			name:  "delete",
 			setup: setup,
-			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
+			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					err := store.DeleteAuthorization(context.Background(), tx, platform.ID(i))
 					require.NoError(t, err)
@@ -230,6 +232,64 @@ func TestAuth(t *testing.T) {
 					require.Nil(t, a)
 				}
 				checkIndexCounts(t, tx, 0, 0)
+			},
+		},
+		{
+			// This is an artificial test to set both Token and HashedToken. This should not occur in normal operation, but
+			// we want to make sure we have the correct behavior.
+			name:  "set Token and HashedToken",
+			setup: setup,
+			update: func(t *testing.T, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
+					require.NoError(t, err)
+
+					auth.Token = generateToken(i)
+					hashedToken, err := hasher.Hash(auth.Token)
+					require.NoError(t, err)
+					auth.HashedToken = hashedToken
+
+					newAuth, err := store.UpdateAuthorization(context.Background(), tx, platform.ID(i), auth)
+					require.NoError(t, err)
+					require.NotNil(t, newAuth)
+
+					// Make sure update fails if tokens mismatch.
+					auth.Token = "Hadouken"
+					badHashedToken, err := hasher.Hash("Shoryuken")
+					require.NoError(t, err)
+					auth.HashedToken = badHashedToken
+					newAuth, err = store.UpdateAuthorization(context.Background(), tx, platform.ID(i), auth)
+					require.ErrorIs(t, err, authorization.ErrHashedTokenMismatch)
+					require.Nil(t, newAuth)
+				}
+			},
+			results: func(t *testing.T, useHashedTokens bool, store *authorization.Store, hasher *authorization.AuthorizationHasher, tx kv.Tx) {
+				for i := 1; i <= 10; i++ {
+					authByID, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
+					require.NoError(t, err)
+					if !useHashedTokens {
+						require.Equal(t, generateToken(i), authByID.Token)
+						require.Empty(t, authByID.HashedToken)
+					} else {
+						require.Empty(t, authByID.Token)
+						hashedToken, err := hasher.Hash(generateToken(i))
+						require.NoError(t, err)
+						require.Equal(t, hashedToken, authByID.HashedToken)
+					}
+
+					// Should get the exact same record when fetching by the token.
+					authByToken, err := store.GetAuthorizationByToken(context.Background(), tx, generateToken(i))
+					require.NoError(t, err)
+					require.Equal(t, *authByID, *authByToken)
+				}
+
+				if !useHashedTokens {
+					// All unhashed index entries.
+					checkIndexCounts(t, tx, 10, 0)
+				} else {
+					// All hashed index entries.
+					checkIndexCounts(t, tx, 0, 10)
+				}
 			},
 		},
 	}
@@ -262,7 +322,7 @@ func TestAuth(t *testing.T) {
 				// update
 				if testScenario.update != nil {
 					err := ts.Update(context.Background(), func(tx kv.Tx) error {
-						testScenario.update(t, ts, tx)
+						testScenario.update(t, ts, hasher, tx)
 						return nil
 					})
 					require.NoError(t, err)
@@ -365,6 +425,101 @@ func TestAuthorizationStore_HashingConfigChanges(t *testing.T) {
 			},
 			hashedTokens: []string{"Token#1", "Token#2", "Token#3"},
 		},
+
+		// The following tests are artificial tests intended to check proper operation when both
+		// Token and HashedToken is set on an update. This should not occur in normal operation because,
+		// we do not alter tokens like this. However, this is nothing to prevent this so we want to make sure
+		// it works properly.
+		{
+			desc:   "set Token and HashedToken with hashing enabled",
+			config: testConfig{enabled: true, algo: influxdb2_algo.VariantIdentifierSHA512},
+			action: func(t *testing.T, ctx context.Context, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 3; i++ {
+					token := fmt.Sprintf("Token#%d", i)
+					auth, err := store.GetAuthorizationByToken(ctx, tx, token)
+					require.NoError(t, err)
+					require.Empty(t, auth.Token, "only HashedToken should be stored")
+
+					// Set Token and update.
+					auth.Token = token
+					newAuth, err := store.UpdateAuthorization(ctx, tx, platform.ID(i), auth)
+					require.NoError(t, err)
+
+					// newAuth.Token should not have been saved to BoltDB, but newAuth.Token should still be present
+					require.Equal(t, token, newAuth.Token)
+				}
+			},
+			// NOTE: All hashes should be updated to the currently configured algorithm.
+			exp: []authData{
+				{ID: platform.ID(1), HashedToken: sha512.MustHash("Token#1").Encode()},
+				{ID: platform.ID(2), HashedToken: sha512.MustHash("Token#2").Encode()},
+				{ID: platform.ID(3), HashedToken: sha512.MustHash("Token#3").Encode()},
+			},
+			hashedTokens: []string{"Token#1", "Token#2", "Token#3"},
+		},
+		{
+			desc:   "set Token and HashedToken with hashing disabled",
+			config: testConfig{enabled: false},
+			action: func(t *testing.T, ctx context.Context, store *authorization.Store, tx kv.Tx) {
+				for i := 1; i <= 3; i++ {
+					token := fmt.Sprintf("Token#%d", i)
+					auth, err := store.GetAuthorizationByToken(ctx, tx, token)
+					require.NoError(t, err)
+					require.Empty(t, auth.Token, "only HashedToken should be stored")
+					require.NotEmpty(t, auth.HashedToken, "HashedToken should be set")
+
+					// Set Token and update.
+					auth.Token = token
+					newAuth, err := store.UpdateAuthorization(ctx, tx, platform.ID(i), auth)
+					require.NoError(t, err)
+
+					// newAuth.Token should be set, but newAuth.HashedToken should be cleared.
+					require.Equal(t, token, newAuth.Token)
+					require.Empty(t, newAuth.HashedToken)
+				}
+			},
+			exp: []authData{
+				{ID: platform.ID(1), Token: "Token#1"},
+				{ID: platform.ID(2), Token: "Token#2"},
+				{ID: platform.ID(3), Token: "Token#3"},
+			},
+			hashedTokens: []string{},
+		},
+		/*
+			{
+				desc:   "set Token and HashedToken with hashing re-enabled",
+				config: testConfig{enabled: true, algo: influxdb2_algo.VariantIdentifierSHA256},
+				action: func(t *testing.T, ctx context.Context, store *authorization.Store, tx kv.Tx) {
+					for i := 1; i <= 3; i++ {
+						token := fmt.Sprintf("Token#%d", i)
+						auth, err := store.GetAuthorizationByToken(ctx, tx, token)
+						require.NoError(t, err)
+						require.Equal(t, auth.Token, token)
+						require.Empty(t, auth.HashedToken, "only Token should be set from the last test case")
+
+						// Set Token and update.
+						tokenDigest, err := sha256.Hash(token)
+						require.NoError(t, err)
+						hashedToken := tokenDigest.Encode()
+						auth.HashedToken = hashedToken
+						newAuth, err := store.UpdateAuthorization(ctx, tx, platform.ID(i), auth)
+						require.NoError(t, err)
+
+						// Both newAuth.Token and newAuth.HashedToken should still be set, but only
+						// HashedToken should be stored and indexed.
+						require.Equal(t, token, newAuth.Token)
+						require.Equal(t, hashedToken, newAuth.HashedToken)
+					}
+				},
+				// NOTE: All hashes should be updated to the currently configured algorithm.
+				exp: []authData{
+					{ID: platform.ID(1), HashedToken: sha256.MustHash("Token#1").Encode()},
+					{ID: platform.ID(2), HashedToken: sha256.MustHash("Token#2").Encode()},
+					{ID: platform.ID(3), HashedToken: sha256.MustHash("Token#3").Encode()},
+				},
+				hashedTokens: []string{"Token#1", "Token#2", "Token#3"},
+			},
+		*/
 	}
 
 	ctx := context.Background()
