@@ -427,8 +427,8 @@ func TestAuthorizationStore_HashingConfigChanges(t *testing.T) {
 		},
 
 		// The following tests are artificial tests intended to check proper operation when both
-		// Token and HashedToken is set on an update. This should not occur in normal operation because,
-		// we do not alter tokens like this. However, this is nothing to prevent this so we want to make sure
+		// Token and HashedToken are set on an update. This should not occur in normal operation because,
+		// we do not alter tokens like this. However, there is nothing to prevent this so we want to make sure
 		// it works properly.
 		{
 			desc:   "set Token and HashedToken with hashing enabled",
@@ -485,41 +485,6 @@ func TestAuthorizationStore_HashingConfigChanges(t *testing.T) {
 			},
 			hashedTokens: []string{},
 		},
-		/*
-			{
-				desc:   "set Token and HashedToken with hashing re-enabled",
-				config: testConfig{enabled: true, algo: influxdb2_algo.VariantIdentifierSHA256},
-				action: func(t *testing.T, ctx context.Context, store *authorization.Store, tx kv.Tx) {
-					for i := 1; i <= 3; i++ {
-						token := fmt.Sprintf("Token#%d", i)
-						auth, err := store.GetAuthorizationByToken(ctx, tx, token)
-						require.NoError(t, err)
-						require.Equal(t, auth.Token, token)
-						require.Empty(t, auth.HashedToken, "only Token should be set from the last test case")
-
-						// Set Token and update.
-						tokenDigest, err := sha256.Hash(token)
-						require.NoError(t, err)
-						hashedToken := tokenDigest.Encode()
-						auth.HashedToken = hashedToken
-						newAuth, err := store.UpdateAuthorization(ctx, tx, platform.ID(i), auth)
-						require.NoError(t, err)
-
-						// Both newAuth.Token and newAuth.HashedToken should still be set, but only
-						// HashedToken should be stored and indexed.
-						require.Equal(t, token, newAuth.Token)
-						require.Equal(t, hashedToken, newAuth.HashedToken)
-					}
-				},
-				// NOTE: All hashes should be updated to the currently configured algorithm.
-				exp: []authData{
-					{ID: platform.ID(1), HashedToken: sha256.MustHash("Token#1").Encode()},
-					{ID: platform.ID(2), HashedToken: sha256.MustHash("Token#2").Encode()},
-					{ID: platform.ID(3), HashedToken: sha256.MustHash("Token#3").Encode()},
-				},
-				hashedTokens: []string{"Token#1", "Token#2", "Token#3"},
-			},
-		*/
 	}
 
 	ctx := context.Background()

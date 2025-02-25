@@ -106,7 +106,7 @@ func (s *Store) transformToken(a *influxdb.Authorization) error {
 			// code that triggered commit needs access to the raw Token, such as when a
 			// token is initially created so it can be shown to the user.
 			// Note that even if a.HashedToken is set, we will regenerate it here. This ensures
-			// that a.HashedToken will be stored using the currently configured hashing algoirithm.
+			// that a.HashedToken will be stored using the currently configured hashing algorithm.
 			if hashedToken, err := s.hasher.Hash(a.Token); err != nil {
 				return fmt.Errorf("error hashing token: %w", err)
 			} else {
