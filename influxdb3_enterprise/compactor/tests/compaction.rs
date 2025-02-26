@@ -583,12 +583,8 @@ async fn two_files_same_series_and_schema() {
     assert_eq!(file_index.lookup("host", "b").len(), 0);
 }
 
-// TODO: we need to update this test to reconsider the fact that tag columns are no longer nullable
-// The issue stems from the batch generator that creates the `extra_tag` field in the second record
-// batch that is fed into compaction.
 #[tokio::test]
-#[ignore = "this test is no longer valid because it is not allowed to have null values for tags"]
-async fn two_files_similar_series_and_compatible_schema() {
+async fn compact_with_new_tag_added() {
     // Create and write multiple different files to the Object Store
     let obj_store = Arc::new(InMemory::new());
     let node_id = "test-host";
@@ -622,12 +618,12 @@ async fn two_files_similar_series_and_compatible_schema() {
         .unwrap(),
     );
 
-    // write into the buffer to recreate each schema and to create the tables and DB
+    // write into the buffer to recreate the schema and to create the table and DB
     // for the compactor test
     write_buffer
         .write_lp(
             NamespaceName::new("test_db").unwrap(),
-            "other_test_table,id=0i,host=\"foo\" field=0i 0\n",
+            "test_table,id=0i,host=\"foo\" field=0i 0\n",
             Time::from_timestamp_nanos(0),
             false,
             influxdb3_write::Precision::Nanosecond,
@@ -635,6 +631,17 @@ async fn two_files_similar_series_and_compatible_schema() {
         )
         .await
         .unwrap();
+    let schema1 = Arc::new(
+        write_buffer
+            .catalog()
+            .db_schema("test_db")
+            .unwrap()
+            .table_schema("test_table")
+            .unwrap()
+            .as_arrow(),
+    );
+    let batch_maker1 = BatchMaker::new(Arc::clone(&schema1));
+
     write_buffer
         .write_lp(
             NamespaceName::new("test_db").unwrap(),
@@ -647,16 +654,6 @@ async fn two_files_similar_series_and_compatible_schema() {
         .await
         .unwrap();
 
-    let schema1 = Arc::new(
-        write_buffer
-            .catalog()
-            .db_schema("test_db")
-            .unwrap()
-            .table_schema("other_test_table")
-            .unwrap()
-            .as_arrow(),
-    );
-
     let schema2 = Arc::new(
         write_buffer
             .catalog()
@@ -666,7 +663,6 @@ async fn two_files_similar_series_and_compatible_schema() {
             .unwrap()
             .as_arrow(),
     );
-    let batch_maker1 = BatchMaker::new(Arc::clone(&schema1));
     let batch_maker2 = BatchMaker::new(Arc::clone(&schema2));
 
     let batch1 = batch_maker1.id_host_field_time(
