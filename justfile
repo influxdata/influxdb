@@ -8,11 +8,15 @@ cargo_run_profile := env("LOADTEST_CARGO_RUN_PROFILE", "quick-release")
 compaction-workload testid wcount:
   pueue kill -g {{testid}} || true
   pueue group add {{testid}} --parallel 5 || true
-  cargo build --profile {{cargo_run_profile}} -F no_license -p influxdb3
+  cargo build --profile {{cargo_run_profile}} \
+    --no-default-features \
+    -F no_license \
+    -F aws \
+    -p influxdb3
   cargo build --profile {{cargo_run_profile}} -p influxdb3_load_generator
   mkdir -p {{test_data}}/logs
   pueue add -g {{testid}} just run-writer writer {{test_data}}/{{testid}}
-  pueue add -g {{testid}} just run-compactor compactor {{test_data}}/{{testid}}
+  pueue add -g {{testid}} just run-compactor writer {{test_data}}/{{testid}}
   pueue add -g {{testid}} just with-retries run-load-generator {{wcount}}
 
 # NOTE: after https://github.com/influxdata/influxdb_pro/issues/299 is
@@ -31,6 +35,8 @@ run-writer node_id data_dir:
 
   cargo run -p influxdb3 \
     -F no_license \
+    -F aws \
+    --no-default-features \
     --profile {{cargo_run_profile}} \
     -- serve \
       --http-bind 127.0.0.1:8756 \
@@ -50,8 +56,12 @@ run-compactor node_id data_dir:
   export INFLUXDB3_ENTERPRISE_COMPACTION_GEN2_DURATION=${INFLUXDB3_ENTERPRISE_COMPACTION_GEN2_DURATION:-1m}
   export INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS=${INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS:-1,1,1,1}
 
+  export LOG_FILTER="debug,reqwest=info,object_store=off,hyper_util=info,hyper::proto::h1=info,h2=info,datafusion_optimizer=info,influxdb3_wal=info,iox_query=info,datafusion=info"
+
   cargo run -p influxdb3 \
     -F no_license \
+    -F aws \
+    --no-default-features \
     --profile {{cargo_run_profile}} \
     -- serve \
       --http-bind 127.0.0.1:8757 \
@@ -61,7 +71,7 @@ run-compactor node_id data_dir:
       --compact-from-node-ids {{node_id}} \
       --compactor-id {{node_id}}-compactor-id \
       --run-compactions \
-      2>&1 > {{test_data}}/logs/compactor.log
+      2>&1 >> {{test_data}}/logs/compactor.log
 
 [doc('Run a single influxdb3_load_generator instance with the specified db name and writer count.')]
 [group('components')]
