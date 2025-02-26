@@ -3,6 +3,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -70,7 +71,7 @@ func (m *Main) Run(args ...string) error {
 		}
 	case "export-parquet":
 		c := parquet.NewCommand(&ossServer{logger: zap.NewNop()})
-		if err := c.Run(args); err != nil {
+		if err := c.Run(args); err != nil && !errors.Is(err, flag.ErrHelp) {
 			return fmt.Errorf("export failed: %w", err)
 		}
 	case "import":

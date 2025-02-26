@@ -258,7 +258,7 @@ func (e *exporter) printPlan(w io.Writer) {
 		if err != nil {
 			fmt.Fprintf(
 				w,
-				"!!Measurement %q with conflict(s) in %d tag(s), %d field(s):\n",
+				"! Measurement %q with conflict(s) in %d tag(s), %d field(s):\n",
 				measurement,
 				len(creator.tags),
 				len(creator.fieldKeys),

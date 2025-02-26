@@ -49,10 +49,10 @@ func (cmd *Command) Run(args []string) (err error) {
 		return fmt.Errorf("getting current working directory failed: %w", err)
 	}
 
-	flags := flag.NewFlagSet("export", flag.ContinueOnError)
+	flags := flag.NewFlagSet("export-parquet", flag.ContinueOnError)
 	flags.StringVar(&configPath, "config", "", "Config file of the InfluxDB v1 instance")
 	flags.StringVar(&database, "database", "", "Database to export")
-	flags.StringVar(&rp, "rp", "", "Retention policy in the database to export")
+	flags.StringVar(&rp, "rp", "", "Retention policy in the database to export (default: default RP of the DB)")
 	flags.StringVar(&measurements, "measurements", "*", "Comma-separated list of measurements to export")
 	flags.StringVar(&typeResolutions, "resolve-types", "", "Comma-separated list of field type resolutions in the form <measurements>.<field>=<type>")
 	flags.StringVar(&nameResolutions, "resolve-names", "", "Comma-separated list of field renamings in the form <measurements>.<field>=<new name>")

@@ -153,7 +153,7 @@ func (s *schemaCreator) validate() (bool, error) {
 		}
 	}
 	if len(typeConflicts) > 0 {
-		return true, fmt.Errorf("unresolved type conflicts for %s", strings.Join(typeConflicts, ","))
+		return true, fmt.Errorf("unresolved type conflicts for %q", strings.Join(typeConflicts, ","))
 	}
 
 	// Check for name clashes between tags and fields
