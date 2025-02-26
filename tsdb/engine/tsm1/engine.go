@@ -2224,6 +2224,11 @@ func (s *compactionStrategy) compactGroup() {
 	}
 
 	if err != nil {
+		defer func(fs []string) {
+			if removeErr := s.compactor.RemoveTmpFiles(fs); removeErr != nil {
+				log.Warn("Unable to remove temporary file(s)", zap.Error(removeErr))
+			}
+		}(files)
 		_, inProgress := err.(errCompactionInProgress)
 		if err == errCompactionsDisabled || inProgress {
 			log.Info("Aborted compaction", zap.Error(err))
