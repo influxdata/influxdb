@@ -81,6 +81,7 @@ run-compactor node_id data_dir:
   export INFLUXDB3_NODE_IDENTIFIER_PREFIX={{node_id}}
   export INFLUXDB3_ENTERPRISE_COMPACTION_GEN2_DURATION=${INFLUXDB3_ENTERPRISE_COMPACTION_GEN2_DURATION:-1m}
   export INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS=${INFLUXDB3_ENTERPRISE_COMPACTION_MULTIPLIERS:-1,1,1,1}
+  export INFLUXDB3_ENTERPRISE_COMPACTION_CLEANUP_WAIT=1m
 
   export LOG_FILTER="debug,reqwest=info,object_store=off,hyper_util=info,hyper::proto::h1=info,h2=info,datafusion_optimizer=info,influxdb3_wal=info,iox_query=info,datafusion=info"
 

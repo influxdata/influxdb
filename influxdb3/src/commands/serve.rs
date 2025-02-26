@@ -952,7 +952,10 @@ pub async fn command(config: Config) -> Result<()> {
             .executor()
             .spawn(async move {
                 compactor
-                    .run_compaction_loop(Duration::from_secs(10), Duration::from_secs(600))
+                    .run_compaction_loop(
+                        Duration::from_secs(10),
+                        config.enterprise_config.compaction_cleanup_wait.into(),
+                    )
                     .await;
             })
             .map_err(Error::Job);
