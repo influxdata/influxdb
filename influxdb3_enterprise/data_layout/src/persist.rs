@@ -186,6 +186,10 @@ pub async fn load_compaction_summary(
         .expect("compaction summary in list should always be present");
     let compaction_summary: CompactionSummary = serde_json::from_slice(&bytes)?;
 
+    // must initialize the currently-running process' global shared NEXT_GENERATION_ID as soon as
+    // we've loaded the last generation id from storage
+    GenerationId::initialize(compaction_summary.last_generation_id);
+
     Ok(Some(compaction_summary))
 }
 
