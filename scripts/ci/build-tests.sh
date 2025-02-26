@@ -69,6 +69,7 @@ function main () {
             build_mac "$out_dir"
             ;;
         windows)
+            export CGO_LDFLAGS="-lntdll -ladvapi32 -lkernel32 -luserenv -lws2_32 ${CGO_LDFLAGS}"
             build_windows "$out_dir"
             ;;
         *)
