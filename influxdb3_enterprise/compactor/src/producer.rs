@@ -1457,7 +1457,7 @@ mod tests {
         let parquet_files = consumer.compacted_data.parquet_files(
             consumer_db.id,
             consumer_table.table_id,
-            GenerationId::from(7),
+            GenerationId::from(8),
         );
         assert_eq!(parquet_files.len(), 1);
     }
