@@ -19,6 +19,22 @@ compaction-workload testid wcount:
   pueue add -g {{testid}} just run-compactor writer {{test_data}}/{{testid}}
   pueue add -g {{testid}} just with-retries run-load-generator {{wcount}}
 
+[doc('Run a compaction workload with periodic compactor restarts.')]
+[group('workloads')]
+restarting-compaction-workload testid wcount:
+  pueue kill -g {{testid}} || true
+  pueue group add {{testid}} --parallel 5 || true
+  cargo build --profile {{cargo_run_profile}} \
+    --no-default-features \
+    -F no_license \
+    -F aws \
+    -p influxdb3
+  cargo build --profile {{cargo_run_profile}} -p influxdb3_load_generator
+  mkdir -p {{test_data}}/logs
+  pueue add -g {{testid}} just run-writer writer {{test_data}}/{{testid}}
+  pueue add -g {{testid}} just with-restarts 1200 run-compactor writer {{test_data}}/{{testid}}
+  pueue add -g {{testid}} just with-retries run-load-generator {{wcount}}
+
 # NOTE: after https://github.com/influxdata/influxdb_pro/issues/299 is
 # implemented, we should chane this to be `--mode=write`
 [doc('Run a single influxdb3 instance in read_write mode.')]
@@ -127,4 +143,22 @@ with-retries *JUSTARGS:
   do
     echo "failed to start load-generator, retrying in 1 second"
     sleep 1
+  done
+
+[doc('Run a single influxdb3_load_generator instance with the specified db name and writer count.')]
+[group('utility')]
+[private]
+with-restarts restart_interval task *args:
+  #!/usr/bin/env bash
+  set -x
+  set -m
+
+  #kill -9 -$(ps -o pgid= $PID | grep -o '[0-9]*')
+    #( sleep 300 ; kill -9 "-$(ps -o pgid= ${q_pid} | grep -o '[0-9]*')" ) & s_pid="${!}"
+  while true; do
+    setpgid just {{task}} {{args}} & q_pid="${!}"
+    ( sleep {{restart_interval}} ; pkill -9 -g ${q_pid} ) & s_pid="${!}"
+    wait "${q_pid}"
+    kill "${s_pid}"
+    wait "${s_pid}"
   done
