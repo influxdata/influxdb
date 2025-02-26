@@ -29,6 +29,7 @@ function build_mac () {
 }
 
 function build_windows () {
+    CGO_LDFLAGS="-lntdll -ladvapi32 -lkernel32 -luserenv -lws2_32" \
     CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config) CC="$(xcc windows)" go-test-compile \
         -x -tags sqlite_foreign_keys,sqlite_json,timetzdata -o "${1}/" ./...
 }
