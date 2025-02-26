@@ -6,7 +6,7 @@ use iox_query::QueryChunk;
 
 use crate::{ChunkFilter, ParquetFileId};
 
-use super::{parquet_chunk_from_file, WriteBufferImpl};
+use super::{WriteBufferImpl, parquet_chunk_from_file};
 
 impl WriteBufferImpl {
     pub fn get_buffer_chunks(

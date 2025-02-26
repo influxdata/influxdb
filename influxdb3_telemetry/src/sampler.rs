@@ -5,8 +5,8 @@ use mockall::{automock, predicate::*};
 use observability_deps::tracing::debug;
 use sysinfo::{Pid, ProcessRefreshKind, System};
 
-use crate::store::TelemetryStore;
 use crate::Result;
+use crate::store::TelemetryStore;
 
 #[cfg_attr(test, automock)]
 pub(crate) trait SystemInfoProvider: Send + Sync + 'static {

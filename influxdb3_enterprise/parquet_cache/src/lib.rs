@@ -1,11 +1,11 @@
 use std::{future::Future, ops::Deref, sync::Arc};
 
 use bytes::Bytes;
-use futures::{future::join_all, TryFutureExt};
+use futures::{TryFutureExt, future::join_all};
 use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle, ParquetFileDataToCache};
 use influxdb3_write::ParquetFile;
 use iox_time::{Time, TimeProvider};
-use object_store::{path::Path as ObjPath, PutResult};
+use object_store::{PutResult, path::Path as ObjPath};
 use observability_deps::tracing::warn;
 use tokio::sync::oneshot::error::RecvError;
 
@@ -109,13 +109,13 @@ mod tests {
     use chrono::Utc;
     use humantime::Duration;
     use influxdb3_cache::parquet_cache::{
-        create_cached_obj_store_and_oracle, CacheRequest, ParquetCacheOracle,
+        CacheRequest, ParquetCacheOracle, create_cached_obj_store_and_oracle,
     };
     use influxdb3_id::ParquetFileId;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_write::ParquetFile;
     use iox_time::{MockProvider, Time};
-    use object_store::{memory::InMemory, path::Path as ObjPath, PutPayload};
+    use object_store::{PutPayload, memory::InMemory, path::Path as ObjPath};
     use observability_deps::tracing::debug;
     use pretty_assertions::assert_eq;
 

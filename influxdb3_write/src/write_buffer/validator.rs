@@ -1,18 +1,18 @@
 use std::{borrow::Cow, sync::Arc};
 
-use crate::{write_buffer::Result, Precision, WriteLineError};
+use crate::{Precision, WriteLineError, write_buffer::Result};
 use data_types::{NamespaceName, Timestamp};
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
-    influx_column_type_from_field_value, Catalog, DatabaseSchema, TableDefinition,
+    Catalog, DatabaseSchema, TableDefinition, influx_column_type_from_field_value,
 };
 
+use influxdb_line_protocol::{ParsedLine, parse_lines};
 use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration,
     OrderedCatalogBatch, Row, TableChunks, WriteBatch,
 };
-use influxdb_line_protocol::{parse_lines, ParsedLine};
 use iox_time::Time;
 use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 
@@ -503,7 +503,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::WriteValidator;
-    use crate::{write_buffer::Error, Precision, WriteLineError};
+    use crate::{Precision, WriteLineError, write_buffer::Error};
 
     use data_types::NamespaceName;
     use influxdb3_catalog::catalog::Catalog;
@@ -589,7 +589,10 @@ mod tests {
                 Precision::Auto,
             ) {
             Err(Error::ParseError(WriteLineError { error_message, .. })) => {
-                assert_eq!("Detected a new tag 'tag2' in write. The tag set is immutable on first write to the table.", error_message);
+                assert_eq!(
+                    "Detected a new tag 'tag2' in write. The tag set is immutable on first write to the table.",
+                    error_message
+                );
             }
             Ok(_) | Err(_) => panic!("Validator should have failed on new tag"),
         }

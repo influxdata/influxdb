@@ -2,7 +2,7 @@
 
 use crate::line_protocol_generator::{WriteSummary, WriterId};
 use crate::query_generator::QuerierId;
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use chrono::{DateTime, Local};
 use influxdb3_process::INFLUXDB3_PROCESS_NAME;
 use parking_lot::Mutex;

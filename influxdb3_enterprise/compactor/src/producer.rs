@@ -3,43 +3,43 @@
 
 use crate::compacted_data::CompactedData;
 use crate::planner::{CompactionPlanGroup, NextCompactionPlan};
+use crate::{CompactFilesArgs, ParquetCachePreFetcher, compact_files};
 use crate::{
     catalog::{CatalogSnapshotMarker, CompactedCatalog},
     sys_events::{
+        CompactionEventStore,
         compaction_completed::{self, PlanIdentifier},
         compaction_planned,
         snapshot_fetched::{FailedInfo, SuccessInfo},
-        CompactionEventStore,
     },
 };
-use crate::{compact_files, CompactFilesArgs, ParquetCachePreFetcher};
 use datafusion::{common::instant::Instant, datasource::object_store::ObjectStoreUrl};
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::CatalogSequenceNumber;
 use influxdb3_config::EnterpriseConfig;
-use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::CompactionSummaryPath;
-use influxdb3_enterprise_data_layout::{
-    persist::{
-        get_bytes_at_path, load_compaction_summary, persist_compaction_detail,
-        persist_compaction_summary, persist_generation_detail, CompactedDataPersistenceError,
-    },
-    Generation,
-};
+use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
     GenerationDetail, GenerationId, GenerationLevel, NodeSnapshotMarker,
 };
 use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
+use influxdb3_enterprise_data_layout::{
+    Generation,
+    persist::{
+        CompactedDataPersistenceError, get_bytes_at_path, load_compaction_summary,
+        persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
+    },
+};
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::SnapshotSequenceNumber;
+use influxdb3_write::PersistedSnapshot;
 use influxdb3_write::paths::SnapshotInfoFilePath;
 use influxdb3_write::persister::Persister;
-use influxdb3_write::PersistedSnapshot;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
-use object_store::path::Path;
 use object_store::ObjectStore;
+use object_store::path::Path;
 use observability_deps::tracing::{debug, info, trace, warn};
 use parking_lot::Mutex;
 use std::collections::HashMap as StdHashMap;
@@ -1051,8 +1051,8 @@ impl CompactionCleaner {
                 retry_count += 1;
                 if retry_count > 10 {
                     crate::error!(
-                            "Unable to delete {location}. Will attempt deletion during next compaction."
-                        );
+                        "Unable to delete {location}. Will attempt deletion during next compaction."
+                    );
                     break;
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
@@ -1078,7 +1078,7 @@ mod tests {
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
-    use influxdb3_write::{persister::Persister, PersistedSnapshot};
+    use influxdb3_write::{PersistedSnapshot, persister::Persister};
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use observability_deps::tracing::debug;
@@ -1088,7 +1088,7 @@ mod tests {
     use crate::test_helpers::TestWriter;
     use crate::{
         consumer::CompactedDataConsumer,
-        sys_events::{snapshot_fetched::SnapshotFetched, CompactionEvent},
+        sys_events::{CompactionEvent, snapshot_fetched::SnapshotFetched},
     };
 
     use super::*;
@@ -1096,8 +1096,8 @@ mod tests {
     use influxdb3_enterprise_data_layout::{
         CompactionDetailPath, Generation, GenerationDetailPath,
     };
-    use object_store::path::Path;
     use object_store::ObjectStore;
+    use object_store::path::Path;
 
     #[tokio::test]
     async fn test_run_compaction() {

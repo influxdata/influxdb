@@ -156,22 +156,22 @@ fn create_next_plan(
 
     let mut input_paths = vec![];
 
-    for gen in &input_generations {
-        if gen.level.is_one() {
-            let f = new_gen1_files.and_then(|files| files.iter().find(|f| f.id == gen.id));
+    for genr in &input_generations {
+        if genr.level.is_one() {
+            let f = new_gen1_files.and_then(|files| files.iter().find(|f| f.id == genr.id));
             if let Some(f) = f {
                 input_paths.push(Path::from(f.file.path.as_str()));
             } else if let Some(f) = last_compaction_detail
                 .as_ref()
-                .and_then(|d| d.leftover_gen1_files.iter().find(|f| f.id == gen.id))
+                .and_then(|d| d.leftover_gen1_files.iter().find(|f| f.id == genr.id))
             {
                 input_paths.push(Path::from(f.file.path.as_str()));
             } else {
-                warn!(id = gen.id.as_u64(), "gen1 file not found for compaction");
+                warn!(id = genr.id.as_u64(), "gen1 file not found for compaction");
             }
         } else {
             let gen_detail =
-                compacted_data.parquet_files(db_schema.id, table_definition.table_id, gen.id);
+                compacted_data.parquet_files(db_schema.id, table_definition.table_id, genr.id);
             for file in gen_detail {
                 input_paths.push(Path::from(file.path.as_str()));
             }
@@ -204,16 +204,16 @@ fn compaction_for_level(
     // first, group the generations together into what their start time would be at the
     // chosen output level. Only include generations that are less than the output level.
     let mut new_block_times_to_gens = BTreeMap::new();
-    for gen in generations {
+    for genr in generations {
         // only include generations that are less than the desired output level, unless we're
         // trying to get to gen2, in which case we should also include those
-        if (gen.level < output_level) || (output_level.is_two() && gen.level.is_two()) {
+        if (genr.level < output_level) || (output_level.is_two() && genr.level.is_two()) {
             let start_time =
-                compaction_config.generation_start_time(output_level, gen.start_time_secs);
+                compaction_config.generation_start_time(output_level, genr.start_time_secs);
             let gens = new_block_times_to_gens
                 .entry(start_time)
                 .or_insert_with(Vec::new);
-            gens.push(*gen);
+            gens.push(*genr);
         }
     }
 
@@ -300,7 +300,7 @@ pub(crate) struct NextCompactionPlan {
 mod tests {
     use super::*;
     use influxdb3_enterprise_data_layout::{
-        gen_time_string, gen_time_string_to_start_time_secs, GenerationId,
+        GenerationId, gen_time_string, gen_time_string_to_start_time_secs,
     };
 
     #[test]
@@ -497,8 +497,7 @@ mod tests {
                 output_level: 2,
             },
             TestCase {
-                description:
-                    "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind (odd split)",
+                description: "gen1 to 2 doesn't happen if we don't have a gen1 to leave behind (odd split)",
                 input: vec![
                     (7, 1, "2024-10-14/12-10"),
                     (6, 1, "2024-10-14/12-20"),

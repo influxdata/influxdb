@@ -6,7 +6,7 @@ use arrow::{
     error::ArrowError,
 };
 use arrow_array::{ArrayRef, RecordBatch};
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use influxdb3_sys_events::{Event, RingBuffer, SysEventStore, ToRecordBatch};
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::debug;

@@ -2,7 +2,7 @@
 //! quickly look up which parquet files contain a given column value.
 
 use datafusion::{
-    logical_expr::{expr::InList, Operator},
+    logical_expr::{Operator, expr::InList},
     prelude::Expr,
     scalar::ScalarValue,
 };

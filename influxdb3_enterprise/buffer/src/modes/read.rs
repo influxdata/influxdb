@@ -14,9 +14,9 @@ use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
 use influxdb3_write::write_buffer::{self, cache_parquet_files, parquet_chunk_from_file};
 use influxdb3_write::{
-    write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
+    write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
 };
 use influxdb3_write::{ChunkFilter, DatabaseManager, DistinctCacheManager};
 use iox_query::QueryChunk;

@@ -11,13 +11,13 @@
 //! consumer, which can poll object storage for updated compacted data views, the catalog, and
 //! the compacted data view itself.
 
-use arrow::array::as_largestring_array;
 use arrow::array::AsArray;
 use arrow::array::RecordBatch;
-use arrow::compute::cast_with_options;
-use arrow::compute::partition;
+use arrow::array::as_largestring_array;
 use arrow::compute::CastOptions;
 use arrow::compute::Partitions;
+use arrow::compute::cast_with_options;
+use arrow::compute::partition;
 use arrow::datatypes::TimestampNanosecondType;
 use arrow::util::display::FormatOptions;
 use arrow_schema::ArrowError;
@@ -32,38 +32,38 @@ use data_types::TableId;
 use datafusion::datasource::object_store::ObjectStoreUrl;
 use datafusion::error::DataFusionError;
 use datafusion::execution::SendableRecordBatchStream;
-use futures_util::future::BoxFuture;
 use futures_util::StreamExt;
-use influxdb3_catalog::catalog::TableDefinition;
+use futures_util::future::BoxFuture;
 use influxdb3_catalog::catalog::TIME_COLUMN_NAME;
+use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_enterprise_data_layout::{CompactedFilePath, Generation};
 use influxdb3_enterprise_index::FileIndex;
 use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::ColumnId;
 use influxdb3_id::ParquetFileId;
+use influxdb3_write::ParquetFile;
 use influxdb3_write::chunk::ParquetChunk;
 use influxdb3_write::persister::ROW_GROUP_WRITE_SIZE;
-use influxdb3_write::ParquetFile;
-use iox_query::chunk_statistics::create_chunk_statistics;
+use iox_query::QueryChunk;
 use iox_query::chunk_statistics::NoColumnRanges;
+use iox_query::chunk_statistics::create_chunk_statistics;
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg;
 use iox_query::frontend::reorg::ReorgPlanner;
-use iox_query::QueryChunk;
-use object_store::path::Path as ObjPath;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::PutResult;
+use object_store::path::Path as ObjPath;
 use observability_deps::tracing::{debug, error};
+use parquet::arrow::AsyncArrowWriter;
 use parquet::arrow::arrow_writer::ArrowWriterOptions;
 use parquet::arrow::async_writer::AsyncFileWriter;
-use parquet::arrow::AsyncArrowWriter;
 use parquet::errors::ParquetError;
 use parquet::file::properties::WriterProperties;
 use parquet_file::storage::ParquetExecInput;
-use schema::sort::SortKey;
 use schema::Schema;
+use schema::sort::SortKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
@@ -349,7 +349,7 @@ impl SeriesWriter {
             compactor_id,
             generation,
             current_file_id: ParquetFileId::new(),
-            index_columns: index_columns.into_iter().map(Into::into).collect(),
+            index_columns,
             file_index: FileIndex::new(),
             min_time: i64::MAX,
             max_time: i64::MIN,
@@ -825,7 +825,7 @@ impl AsyncFileWriter for AsyncMultiPart {
 mod test_helpers {
     use bytes::Bytes;
     use datafusion_util::config::register_iox_object_store;
-    use executor::{register_current_runtime_for_io, DedicatedExecutor};
+    use executor::{DedicatedExecutor, register_current_runtime_for_io};
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
@@ -844,7 +844,7 @@ mod test_helpers {
     use influxdb3_write::{ParquetFile, PersistedSnapshot, Precision};
     use iox_query::exec::{Executor, ExecutorConfig};
     use iox_time::{MockProvider, SystemProvider, Time, TimeProvider};
-    use object_store::{memory::InMemory, path::Path as ObjPath, ObjectStore};
+    use object_store::{ObjectStore, memory::InMemory, path::Path as ObjPath};
     use parquet::arrow::async_writer::AsyncFileWriter;
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;

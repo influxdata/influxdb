@@ -3,7 +3,7 @@ use std::str::Utf8Error;
 use clap::{Parser, ValueEnum};
 use secrecy::ExposeSecret;
 use std::fs;
-use std::io::{stdin, BufReader, IsTerminal, Read};
+use std::io::{BufReader, IsTerminal, Read, stdin};
 use tokio::{
     fs::OpenOptions,
     io::{self, AsyncWriteExt},

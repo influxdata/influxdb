@@ -6,30 +6,30 @@ use std::{
     task::{Context, Poll},
 };
 
-use anyhow::{bail, Context as AnyhowContext};
+use anyhow::{Context as AnyhowContext, bail};
 use arrow::{
-    array::{as_string_array, ArrayRef, AsArray},
-    compute::{cast_with_options, CastOptions},
+    array::{ArrayRef, AsArray, as_string_array},
+    compute::{CastOptions, cast_with_options},
     datatypes::{
-        DataType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
+        DataType, Float16Type, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type,
         TimeUnit, TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
-        TimestampSecondType, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+        TimestampSecondType, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
     },
     record_batch::RecordBatch,
 };
 
 use arrow_schema::{Field, SchemaRef};
 use bytes::Bytes;
-use chrono::{format::SecondsFormat, DateTime};
+use chrono::{DateTime, format::SecondsFormat};
 use datafusion::physical_plan::SendableRecordBatchStream;
-use futures::{ready, stream::Fuse, Stream, StreamExt};
+use futures::{Stream, StreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
-use hyper::{header::ACCEPT, header::CONTENT_TYPE, Body, Request, Response, StatusCode};
+use hyper::{Body, Request, Response, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
 use influxdb_influxql_parser::select::{Dimension, GroupByClause};
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
 use regex::Regex;
-use schema::{InfluxColumnType, INFLUXQL_MEASUREMENT_COLUMN_NAME, TIME_COLUMN_NAME};
+use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, InfluxColumnType, TIME_COLUMN_NAME};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

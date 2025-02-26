@@ -9,17 +9,17 @@ use datafusion::{
     execution::SendableRecordBatchStream,
 };
 use datafusion_util::config::DEFAULT_SCHEMA;
+use influxdb_influxql_parser::statement::Statement;
 use influxdb3_catalog::catalog::DatabaseSchema;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_compactor::compacted_data::CompactedDataSystemTableView;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
-use influxdb_influxql_parser::statement::Statement;
 use iox_query::{
+    QueryDatabase, QueryNamespace,
     exec::{Executor, IOxSessionContext, QueryConfig},
     query_log::{QueryCompletedToken, QueryLog, QueryLogEntries, QueryText, StateReceived},
-    QueryDatabase, QueryNamespace,
 };
 use iox_query_params::StatementParams;
 use iox_system_tables::SystemTableProvider;
@@ -36,11 +36,11 @@ use tracker::{
 use crate::{
     query_executor::{acquire_semaphore, query_database_sql},
     system_tables::{
+        SYSTEM_SCHEMA_NAME, SystemSchemaProvider,
         enterprise::{
-            compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
             COMPACTED_DATA_TABLE_NAME, COMPACTION_EVENTS_TABLE_NAME,
+            compacted_data::CompactedDataTable, compaction_events::CompactionEventsSysTable,
         },
-        SystemSchemaProvider, SYSTEM_SCHEMA_NAME,
     },
 };
 
@@ -562,11 +562,10 @@ mod tests {
         catalog::CompactedCatalog,
         compacted_data::CompactedDataSystemTableView,
         sys_events::{
-            catalog_fetched,
+            CompactionEventStore, catalog_fetched,
             compaction_completed::{self, PlanIdentifier},
             compaction_consumed, compaction_planned,
             snapshot_fetched::{FailedInfo, SuccessInfo},
-            CompactionEventStore,
         },
     };
     use influxdb3_enterprise_data_layout::CompactedDataSystemTableQueryResult;
@@ -576,22 +575,22 @@ mod tests {
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        persister::Persister,
-        write_buffer::{persisted_files::PersistedFiles, WriteBufferImpl, WriteBufferImplArgs},
         ParquetFile, WriteBuffer,
+        persister::Persister,
+        write_buffer::{WriteBufferImpl, WriteBufferImplArgs, persisted_files::PersistedFiles},
     };
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::Registry;
-    use object_store::{local::LocalFileSystem, memory::InMemory, ObjectStore};
+    use object_store::{ObjectStore, local::LocalFileSystem, memory::InMemory};
     use observability_deps::tracing::debug;
 
     use crate::query_executor::{
+        CreateQueryExecutorArgs,
         enterprise::{
             CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl,
             QueryExecutorEnterprise,
         },
         tests::make_exec,
-        CreateQueryExecutorArgs,
     };
 
     #[derive(Debug)]
@@ -792,7 +791,8 @@ mod tests {
                 "| 1970-01-01 | snapshot_fetched | 1234           | success      | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"db_count\":2,\"table_count\":1000,\"file_count\":100000} |",
                 "+------------+------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------+",
             ],
-            &batches.unwrap());
+            &batches.unwrap()
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -839,7 +839,8 @@ mod tests {
                 "| 1970-01-01 | snapshot_fetched | 10             | failed       | {\"node_id\":\"sample-host\",\"sequence_number\":123,\"error\":\"Foo failed\"} |",
                 "+------------+------------------+----------------+--------------+----------------------------------------------------------------------+",
             ],
-            &batches.unwrap());
+            &batches.unwrap()
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -1013,7 +1014,8 @@ mod tests {
                 "| 1970-01-01 | compaction_consumed      | 200            | failed       | {\"error\":\"foo failed\",\"summary_sequence_number\":1}                                                                                |",
                 "+------------+--------------------------+----------------+--------------+-----------------------------------------------------------------------------------------------------------------------------------+",
             ],
-            &batches.unwrap());
+            &batches.unwrap()
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -1060,16 +1062,18 @@ mod tests {
             .await
             .unwrap();
         let batches: Vec<RecordBatch> = batch_stream.try_collect().await.unwrap();
-        assert_batches_sorted_eq!([
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-            "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-            "| cpu        | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "| cpu        | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "| cpu        | 2             | 3                | 2024-01-02/23-00 | /some/path3.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-        ],
-        &batches);
+        assert_batches_sorted_eq!(
+            [
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| cpu        | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "| cpu        | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "| cpu        | 2             | 3                | 2024-01-02/23-00 | /some/path3.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+            ],
+            &batches
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -1124,14 +1128,17 @@ mod tests {
             .await
             .unwrap();
         let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
-        assert_batches_sorted_eq!([
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-            "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-            "| test_table | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "| test_table | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "| test_table | 2             | 3                | 2024-01-02/23-00 | /some/path3.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
-            "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
-        ], &batches);
+        assert_batches_sorted_eq!(
+            [
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| table_name | generation_id | generation_level | generation_time  | parquet_path        | parquet_size_bytes | parquet_row_count | parquet_chunk_time  | parquet_min_time    | parquet_max_time    |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+                "| test_table | 1             | 2                | 2024-01-02/23-00 | /some/path.parquet  | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "| test_table | 2             | 3                | 2024-01-02/23-00 | /some/path2.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "| test_table | 2             | 3                | 2024-01-02/23-00 | /some/path3.parquet | 450000             | 100000            | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 | 2009-02-13T23:31:30 |",
+                "+------------+---------------+------------------+------------------+---------------------+--------------------+-------------------+---------------------+---------------------+---------------------+",
+            ],
+            &batches
+        );
     }
 }

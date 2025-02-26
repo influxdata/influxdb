@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::{StringViewBuilder, TimestampNanosecondBuilder, UInt64Builder, UInt8Builder};
+use arrow::array::{StringViewBuilder, TimestampNanosecondBuilder, UInt8Builder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use async_trait::async_trait;
@@ -65,8 +65,7 @@ fn compacted_data_table_schema() -> SchemaRef {
 const COMPACTION_NOT_SETUP_ERROR_MESSAGE: &str = "this node is not setup to run compaction or \
     consume compacted data";
 
-const MISSING_TABLE_NAME_PREDICATE_ERROR_MESSAGE: &str =
-    "please specify a 'table_name' in the WHERE clause, for example, \
+const MISSING_TABLE_NAME_PREDICATE_ERROR_MESSAGE: &str = "please specify a 'table_name' in the WHERE clause, for example, \
     \"WHERE table_name = '<table name>'\"";
 
 fn compaction_not_setup_error() -> DataFusionError {

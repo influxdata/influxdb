@@ -7,9 +7,9 @@ use std::{
 
 use arrow::{
     array::{
-        new_null_array, ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder,
-        Int64Builder, RecordBatch, StringBuilder, StringDictionaryBuilder,
-        TimestampNanosecondBuilder, UInt64Builder,
+        ArrayRef, BooleanBuilder, Float64Builder, GenericByteDictionaryBuilder, Int64Builder,
+        RecordBatch, StringBuilder, StringDictionaryBuilder, TimestampNanosecondBuilder,
+        UInt64Builder, new_null_array,
     },
     datatypes::{
         DataType, Field as ArrowField, GenericStringType, Int32Type,
@@ -18,7 +18,7 @@ use arrow::{
     error::ArrowError,
 };
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::{ColumnDefinition, TableDefinition, TIME_COLUMN_NAME};
+use influxdb3_catalog::catalog::{ColumnDefinition, TIME_COLUMN_NAME, TableDefinition};
 use influxdb3_id::{ColumnId, TableId};
 use influxdb3_wal::{
     Field, FieldData, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef, Row,

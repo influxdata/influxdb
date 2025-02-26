@@ -16,13 +16,13 @@ use influxdb3_enterprise_compactor::compacted_data::CompactedData;
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal, WalConfig};
 use influxdb3_write::{
-    persister::{Persister, DEFAULT_OBJECT_STORE_URL},
-    write_buffer::{
-        self, cache_parquet_files, parquet_chunk_from_file, persisted_files::PersistedFiles,
-        WriteBufferImpl, WriteBufferImplArgs,
-    },
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
     DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    persister::{DEFAULT_OBJECT_STORE_URL, Persister},
+    write_buffer::{
+        self, WriteBufferImpl, WriteBufferImplArgs, cache_parquet_files, parquet_chunk_from_file,
+        persisted_files::PersistedFiles,
+    },
 };
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};

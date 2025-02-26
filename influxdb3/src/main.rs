@@ -14,12 +14,15 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
-use std::env;
-use std::path::{Path, PathBuf};
+#[cfg(feature = "system-py")]
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 use trogging::{
-    cli::LoggingConfigBuilderExt,
-    tracing_subscriber::{prelude::*, Registry},
     TroggingGuard,
+    cli::LoggingConfigBuilderExt,
+    tracing_subscriber::{Registry, prelude::*},
 };
 
 pub mod commands {
@@ -264,21 +267,23 @@ unsafe extern "C" fn signal_handler(sig: i32) {
 #[cfg(unix)]
 unsafe fn set_signal_handler(signal: libc::c_int, handler: unsafe extern "C" fn(libc::c_int)) {
     use libc::{sigaction, sigfillset, sighandler_t};
-    let mut sigset = std::mem::zeroed();
+    let mut sigset = unsafe { std::mem::zeroed() };
 
     // Block all signals during the handler. This is the expected behavior, but
     // it's not guaranteed by `signal()`.
-    if sigfillset(&mut sigset) != -1 {
+    if unsafe { sigfillset(&mut sigset) } != -1 {
         // Done because sigaction has private members.
         // This is safe because sa_restorer and sa_handlers are pointers that
         // might be null (that is, zero).
-        let mut action: sigaction = std::mem::zeroed();
+        let mut action: sigaction = unsafe { std::mem::zeroed() };
 
         // action.sa_flags = 0;
         action.sa_mask = sigset;
         action.sa_sigaction = handler as sighandler_t;
 
-        sigaction(signal, &action, std::ptr::null_mut());
+        unsafe {
+            sigaction(signal, &action, std::ptr::null_mut());
+        }
     }
 }
 

@@ -11,11 +11,11 @@ use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{ColumnId, DbId, TableId};
 use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal};
 use influxdb3_write::{
-    write_buffer::{
-        self, persisted_files::PersistedFiles, Result as WriteBufferResult, WriteBufferImpl,
-    },
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
     DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    write_buffer::{
+        self, Result as WriteBufferResult, WriteBufferImpl, persisted_files::PersistedFiles,
+    },
 };
 use iox_query::QueryChunk;
 use iox_time::Time;
@@ -240,7 +240,7 @@ mod tests {
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
-        persister::Persister, test_helpers::WriteBufferTester, Bufferer, DatabaseManager,
+        Bufferer, DatabaseManager, persister::Persister, test_helpers::WriteBufferTester,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
@@ -249,9 +249,9 @@ mod tests {
     use observability_deps::tracing::debug;
 
     use crate::{
-        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
-        test_helpers::{do_writes, make_exec, setup_read_write, verify_snapshot_count, TestWrite},
         WriteBufferEnterprise,
+        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
+        test_helpers::{TestWrite, do_writes, make_exec, setup_read_write, verify_snapshot_count},
     };
 
     #[tokio::test]
@@ -923,10 +923,10 @@ mod test_helpers {
     use datafusion::{arrow::array::RecordBatch, execution::context::SessionContext};
     use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
     use influxdb3_wal::WalConfig;
-    use influxdb3_write::{persister::Persister, Precision, WriteBuffer};
+    use influxdb3_write::{Precision, WriteBuffer, persister::Persister};
     use iox_query::{
-        exec::{DedicatedExecutor, Executor, ExecutorConfig},
         QueryChunk,
+        exec::{DedicatedExecutor, Executor, ExecutorConfig},
     };
     use iox_time::{Time, TimeProvider};
     use metric::Registry;
@@ -934,9 +934,9 @@ mod test_helpers {
     use parquet_file::storage::{ParquetStorage, StorageId};
 
     use crate::{
+        WriteBufferEnterprise,
         modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
         replica::ReplicationConfig,
-        WriteBufferEnterprise,
     };
 
     pub(crate) fn make_exec(

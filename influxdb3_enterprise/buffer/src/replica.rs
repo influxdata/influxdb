@@ -1,6 +1,6 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId as IoxTableId,
     TransitionPartitionId,
@@ -14,31 +14,31 @@ use influxdb3_cache::{
     parquet_cache::{CacheRequest, ParquetCacheOracle},
 };
 use influxdb3_catalog::catalog::{
-    enterprise::CatalogIdMap, Catalog, DatabaseSchema, TableDefinition,
+    Catalog, DatabaseSchema, TableDefinition, enterprise::CatalogIdMap,
 };
 use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::{
-    object_store::wal_path, serialize::verify_file_type_and_deserialize, SnapshotDetails, Wal,
-    WalContents, WalFileSequenceNumber, WalOp,
+    SnapshotDetails, Wal, WalContents, WalFileSequenceNumber, WalOp, object_store::wal_path,
+    serialize::verify_file_type_and_deserialize,
 };
 use influxdb3_write::{
+    ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
     chunk::BufferChunk,
     paths::SnapshotInfoFilePath,
-    persister::{Persister, DEFAULT_OBJECT_STORE_URL},
+    persister::{DEFAULT_OBJECT_STORE_URL, Persister},
     write_buffer::{
-        cache_parquet_files, parquet_chunk_from_file, persisted_files::PersistedFiles,
-        queryable_buffer::BufferState, N_SNAPSHOTS_TO_LOAD_ON_START,
+        N_SNAPSHOTS_TO_LOAD_ON_START, cache_parquet_files, parquet_chunk_from_file,
+        persisted_files::PersistedFiles, queryable_buffer::BufferState,
     },
-    ChunkFilter, DatabaseTables, ParquetFile, PersistedSnapshot,
 };
 use iox_query::{
-    chunk_statistics::{create_chunk_statistics, NoColumnRanges},
     QueryChunk,
+    chunk_statistics::{NoColumnRanges, create_chunk_statistics},
 };
 use iox_time::{Time, TimeProvider};
 use metric::{Attributes, DurationHistogram, Registry};
-use object_store::{path::Path, ObjectStore};
+use object_store::{ObjectStore, path::Path};
 use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::RwLock;
 
@@ -1106,25 +1106,25 @@ mod tests {
         WalFileSequenceNumber, WalOp,
     };
     use influxdb3_write::{
+        ChunkFilter, DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot,
         persister::Persister,
         test_helpers::WriteBufferTester,
         write_buffer::{WriteBufferImpl, WriteBufferImplArgs},
-        ChunkFilter, DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot,
     };
     use iox_query::exec::IOxSessionContext;
     use iox_time::{MockProvider, Time, TimeProvider};
     use metric::{Attributes, DurationHistogram, Metric, Registry};
-    use object_store::{memory::InMemory, path::Path, ObjectStore};
+    use object_store::{ObjectStore, memory::InMemory, path::Path};
     use observability_deps::tracing::debug;
     use schema::InfluxColumnType;
 
     use crate::{
         replica::{
-            CreateReplicasArgs, CreateReplicatedBufferArgs, Replicas, ReplicatedBuffer,
-            REPLICA_TTBR_METRIC,
+            CreateReplicasArgs, CreateReplicatedBufferArgs, REPLICA_TTBR_METRIC, Replicas,
+            ReplicatedBuffer,
         },
         test_helpers::{
-            chunks_to_record_batches, do_writes, make_exec, verify_snapshot_count, TestWrite,
+            TestWrite, chunks_to_record_batches, do_writes, make_exec, verify_snapshot_count,
         },
     };
 
@@ -1554,10 +1554,12 @@ mod tests {
         debug!(?ttbr_ms, "ttbr metric for writer");
         assert_eq!(ttbr_ms.sample_count(), 3);
         assert_eq!(ttbr_ms.total, Duration::from_millis(200));
-        assert!(ttbr_ms
-            .buckets
-            .iter()
-            .any(|bucket| bucket.le == Duration::from_millis(100) && bucket.count == 2));
+        assert!(
+            ttbr_ms
+                .buckets
+                .iter()
+                .any(|bucket| bucket.le == Duration::from_millis(100) && bucket.count == 2)
+        );
     }
 
     // TODO: this no longer holds, because the snapshot process has deleted the WAL files

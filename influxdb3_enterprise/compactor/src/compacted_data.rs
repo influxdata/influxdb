@@ -4,9 +4,9 @@ use crate::catalog::CompactedCatalog;
 use hashbrown::HashMap;
 use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_enterprise_data_layout::{
-    gen_time_string, CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
+    CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
     CompactionSequenceNumber, CompactionSummary, Generation, GenerationDetail,
-    GenerationDetailPath, GenerationId, NodeSnapshotMarker,
+    GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::FileIndex;
 use influxdb3_id::{DbId, TableId};
@@ -243,13 +243,13 @@ impl CompactedData {
 
                 // load all the generation details
                 let mut gen_details = JoinSet::new();
-                for gen in &table.compaction_detail.compacted_generations {
-                    let gen_path = GenerationDetailPath::new(Arc::clone(&compactor_id), gen.id);
+                for genr in &table.compaction_detail.compacted_generations {
+                    let gen_path = GenerationDetailPath::new(Arc::clone(&compactor_id), genr.id);
 
                     let obj_store = Arc::clone(&object_store);
                     gen_details.spawn(async move {
                         match get_generation_detail(&gen_path, obj_store).await {
-                            Some(gen) => Ok(gen),
+                            Some(genr) => Ok(genr),
                             None => Err(Error::GenerationDetailReadError(
                                 gen_path.as_path().to_string(),
                             )),
@@ -310,16 +310,16 @@ impl CompactedDataSystemTableView for CompactedData {
             .compaction_detail
             .compacted_generations
             .iter()
-            .map(|gen| {
+            .map(|genr| {
                 let parquet_files: Vec<Arc<ParquetFile>> = all_parquet_files
-                    .get(&gen.id)
+                    .get(&genr.id)
                     .expect("generation to have parquet files")
                     // is this clone cheap? does it matter?
                     .clone();
                 CompactedDataSystemTableQueryResult {
-                    generation_id: gen.id.as_u64(),
-                    generation_level: gen.level.as_u8(),
-                    generation_time: gen_time_string(gen.start_time_secs),
+                    generation_id: genr.id.as_u64(),
+                    generation_level: genr.level.as_u8(),
+                    generation_time: gen_time_string(genr.start_time_secs),
                     parquet_files,
                 }
             })

@@ -1,10 +1,10 @@
 //! Entrypoint for InfluxDB 3 Enterprise Server
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
-use futures::future::join_all;
-use futures::future::FutureExt;
 use futures::TryFutureExt;
+use futures::future::FutureExt;
+use futures::future::join_all;
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
@@ -21,9 +21,9 @@ use influxdb3_clap_blocks::{
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_buffer::{
+    WriteBufferEnterprise,
     modes::{read::CreateReadModeArgs, read_write::CreateReadWriteModeArgs},
     replica::ReplicationConfig,
-    WriteBufferEnterprise,
 };
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use influxdb3_enterprise_compactor::producer::CompactedDataProducer;
@@ -38,32 +38,33 @@ use influxdb3_enterprise_data_layout::CompactionConfig;
 use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_process::{
-    build_malloc_conf, setup_metric_registry, INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID,
+    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID, build_malloc_conf, setup_metric_registry,
 };
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-use influxdb3_processing_engine::ProcessingEngineManagerImpl;
+use influxdb3_server::CommonServerState;
 use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
     auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{
-        enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
         CreateQueryExecutorArgs,
+        enterprise::{CompactionSysTableQueryExecutorArgs, CompactionSysTableQueryExecutorImpl},
     },
-    serve, CommonServerState,
+    serve,
 };
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
 use influxdb3_write::{
+    WriteBuffer,
     persister::Persister,
     write_buffer::{
-        check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles, WriteBufferImpl,
+        WriteBufferImpl, check_mem_and_force_snapshot_loop, persisted_files::PersistedFiles,
     },
-    WriteBuffer,
 };
 use iox_query::exec::{DedicatedExecutor, Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
@@ -71,9 +72,8 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::env;
 use std::process::Command;
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{
     path::{Path, PathBuf},
     str::FromStr,
@@ -88,9 +88,9 @@ use trogging::cli::LoggingConfig;
 #[cfg(not(feature = "no_license"))]
 use {
     influxdb3_server::EXPIRED_LICENSE,
-    jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation},
-    object_store::path::Path as ObjPath,
+    jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header},
     object_store::PutPayload,
+    object_store::path::Path as ObjPath,
     serde::{Deserialize, Serialize},
     std::io::IsTerminal,
     std::sync::atomic::Ordering,
@@ -1183,7 +1183,9 @@ async fn load_and_validate_license(
             // Check license once a day if not expired otherwise check every minute
             if EXPIRED_LICENSE.load(Ordering::Relaxed) {
                 tokio::time::sleep(Duration::from_secs(60)).await;
-                error!("License is expired please acquire a new one. Queries will be disabled. Will check for valid license every minute");
+                error!(
+                    "License is expired please acquire a new one. Queries will be disabled. Will check for valid license every minute"
+                );
                 let Ok(result) = object_store.get(&license_path).await else {
                     continue;
                 };
@@ -1342,7 +1344,9 @@ async fn license_onboarding(
             .expect("Location header to be a valid utf-8 string")
     );
 
-    println!("Email sent to {display_email}. Please check your inbox to verify your email address and proceed.");
+    println!(
+        "Email sent to {display_email}. Please check your inbox to verify your email address and proceed."
+    );
     println!("Waiting for verification...");
     let start = Instant::now();
     loop {
