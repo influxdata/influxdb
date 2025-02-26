@@ -1039,7 +1039,13 @@ impl CompactionCleaner {
         }
     }
     pub async fn data_deletion(mut self) {
+        debug!(
+            "data deletion task spawned for {} files, waiting {:?}",
+            self.to_delete.len(),
+            self.wait_time
+        );
         tokio::time::sleep(self.wait_time).await;
+        debug!("data deletion wait done, proceeding with deletion");
         'outer: for location in self.to_delete.drain(0..) {
             let mut retry_count = 0;
             while let Err(e) = self.object_store.delete(&location).await {
@@ -1057,6 +1063,7 @@ impl CompactionCleaner {
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }
+            debug!("successfully deleted {location}");
         }
     }
 
