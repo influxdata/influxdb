@@ -454,14 +454,11 @@ pub fn execute_python_with_batch(
     };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
-        let globals = PyDict::new(py);
 
-        py.run(
-            &CString::new(LINE_BUILDER_CODE).unwrap(),
-            Some(&globals),
-            None,
-        )
-        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
+        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
+            .map_err(|e| {
+                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
+            })?;
 
         // convert the write batch into a python object
         let mut table_batches = Vec::with_capacity(write_batch.table_chunks.len());
@@ -558,14 +555,10 @@ pub fn execute_python_with_batch(
         let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+        py.run(&CString::new(code).unwrap(), None, None)
             .map_err(anyhow::Error::from)?;
         let py_func = py
-            .eval(
-                &CString::new(PROCESS_WRITES_CALL_SITE).unwrap(),
-                Some(&globals),
-                None,
-            )
+            .eval(&CString::new(PROCESS_WRITES_CALL_SITE).unwrap(), None, None)
             .map_err(|_| ExecutePluginError::MissingProcessWritesFunction)?;
 
         py_func
@@ -614,19 +607,16 @@ pub fn execute_schedule_trigger(
     };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
-        let globals = PyDict::new(py);
 
         let py_datetime = PyDateTime::from_timestamp(py, schedule_time.timestamp() as f64, None)
             .map_err(|e| {
                 anyhow::Error::new(e).context("error converting the schedule time to Python time")
             })?;
 
-        py.run(
-            &CString::new(LINE_BUILDER_CODE).unwrap(),
-            Some(&globals),
-            None,
-        )
-        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
+        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
+            .map_err(|e| {
+                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
+            })?;
 
         let api = PyPluginCallApi {
             db_schema: schema,
@@ -641,13 +631,13 @@ pub fn execute_schedule_trigger(
         let args = args_to_py_object(py, args);
 
         // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+        py.run(&CString::new(code).unwrap(), None, None)
             .map_err(anyhow::Error::from)?;
 
         let py_func = py
             .eval(
                 &CString::new(PROCESS_SCHEDULED_CALL_SITE).unwrap(),
-                Some(&globals),
+                None,
                 None,
             )
             .map_err(|_| ExecutePluginError::MissingProcessScheduledCallFunction)?;
@@ -699,14 +689,10 @@ pub fn execute_request_trigger(
     };
     Python::with_gil(|py| {
         // import the LineBuilder for use in the python code
-        let globals = PyDict::new(py);
-
-        py.run(
-            &CString::new(LINE_BUILDER_CODE).unwrap(),
-            Some(&globals),
-            None,
-        )
-        .map_err(|e| anyhow::Error::new(e).context("failed to eval the LineBuilder API code"))?;
+        py.run(&CString::new(LINE_BUILDER_CODE).unwrap(), None, None)
+            .map_err(|e| {
+                anyhow::Error::new(e).context("failed to eval the LineBuilder API code")
+            })?;
 
         let api = PyPluginCallApi {
             db_schema,
@@ -724,13 +710,13 @@ pub fn execute_request_trigger(
         let request_params = map_to_py_object(py, &request_headers);
 
         // run the code and get the python function to call
-        py.run(&CString::new(code).unwrap(), Some(&globals), None)
+        py.run(&CString::new(code).unwrap(), None, None)
             .map_err(anyhow::Error::from)?;
 
         let py_func = py
             .eval(
                 &CString::new(PROCESS_REQUEST_CALL_SITE).unwrap(),
-                Some(&globals),
+                None,
                 None,
             )
             .map_err(|_| ExecutePluginError::MissingProcessRequestFunction)?;

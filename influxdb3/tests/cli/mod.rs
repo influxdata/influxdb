@@ -1419,6 +1419,88 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
 #[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
+async fn test_schedule_plugin_test_with_strftime() {
+    use crate::server::ConfigProvider;
+    use influxdb3_client::Precision;
+
+    // Create plugin file with a scheduled task
+    let plugin_file = create_plugin_file(
+        r#"
+import datetime
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    influxdb3_local.info(f"Current timestamp: {timestamp}")
+    influxdb3_local.info(f"args are {args}")
+    influxdb3_local.info("Successfully called")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    // Write some test data
+    server
+        .write_lp_to_db(
+            "foo",
+            "cpu,host=host1,region=us-east usage=0.75\n\
+             cpu,host=host2,region=us-west usage=0.82\n\
+             cpu,host=host3,region=us-east usage=0.91",
+            Precision::Nanosecond,
+        )
+        .await
+        .unwrap();
+
+    let db_name = "foo";
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "*/5 * * * * *", // Run every 5 seconds
+        "--input-arguments",
+        "region=us-east",
+        plugin_name,
+    ]);
+    debug!(result = ?result, "test schedule plugin");
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // The trigger_time will be dynamic, so we'll just verify it exists and is in the right format
+    let trigger_time = res["trigger_time"].as_str().unwrap();
+    assert!(trigger_time.contains('T')); // Basic RFC3339 format check
+
+    // Check the rest of the response structure
+    // Modified expectations to include the timestamp message
+    let log_lines = &res["log_lines"];
+    assert_eq!(log_lines.as_array().unwrap().len(), 3);
+    assert!(
+        log_lines[0]
+            .as_str()
+            .unwrap()
+            .starts_with("INFO: Current timestamp:")
+    );
+    assert_eq!(
+        log_lines[1].as_str().unwrap(),
+        "INFO: args are {'region': 'us-east'}"
+    );
+    assert_eq!(log_lines[2].as_str().unwrap(), "INFO: Successfully called");
+
+    assert_eq!(res["database_writes"], serde_json::json!({}));
+    assert_eq!(res["errors"], serde_json::json!([]));
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
 async fn test_wal_plugin_errors() {
     use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
