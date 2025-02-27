@@ -122,6 +122,16 @@ pub struct EnterpriseServeConfig {
     )]
     pub compaction_multipliers: CompactionMultipliers,
 
+    /// This is the amount of time that the compactor waits after finishing a compaction run to
+    /// delete files marked as needing deletion during that compaction run.
+    #[clap(
+        long = "compaction-cleanup-wait",
+        env = "INFLUXDB3_ENTERPRISE_COMPACTION_CLEANUP_WAIT",
+        default_value = "10m",
+        action
+    )]
+    pub compaction_cleanup_wait: humantime::Duration,
+
     /// The interval to prefetch into parquet cache when compacting.
     ///
     /// Enter as a human-readable time, e.g., "1d", etc.
