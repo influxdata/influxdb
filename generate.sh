@@ -4,6 +4,9 @@ go install google.golang.org/protobuf/cmd/protoc-gen-go
 go install golang.org/x/tools/cmd/stringer
 go install github.com/benbjohnson/tmpl
 
+echo "Versions:"
+protoc --version
+protoc-gen-go --version
 
 function check_changes () {
   changes="$(git status --porcelain=v1 2>/dev/null)"
