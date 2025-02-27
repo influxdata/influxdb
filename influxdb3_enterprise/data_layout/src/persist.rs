@@ -9,7 +9,7 @@ use futures_util::{TryFutureExt, stream::StreamExt};
 use influxdb3_id::{DbId, TableId};
 use object_store::ObjectStore;
 use object_store::path::Path as ObjPath;
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, error, trace, warn};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -238,7 +238,7 @@ pub async fn get_bytes_at_path(
             Ok(bytes) => return Some(bytes),
             Err(error) => {
                 if let object_store::Error::NotFound { .. } = error {
-                    info!(%path, "File not found in object store");
+                    trace!(%path, "File not found in object store");
                     return None;
                 }
                 warn!(%error, debug = ?error, %path, "Error reading file from object store");
