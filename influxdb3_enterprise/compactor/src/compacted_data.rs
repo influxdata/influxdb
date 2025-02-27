@@ -9,6 +9,7 @@ use influxdb3_enterprise_data_layout::{
     GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::FileIndex;
+use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_write::{ChunkFilter, ParquetFile};
 use object_store::ObjectStore;
@@ -169,6 +170,8 @@ impl CompactedData {
         compaction_detail: CompactionDetail,
         generation_details: Vec<GenerationDetail>,
         removed_generations: Vec<Generation>,
+        removed_gen_details: Vec<GenerationDetail>,
+        parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     ) {
         let mut d = self.inner_compacted_data.write();
         let db = d.databases.entry(compaction_detail.db_id).or_default();
@@ -185,6 +188,26 @@ impl CompactedData {
         table.compaction_detail = compaction_detail;
         for g in generation_details {
             table.add_generation_detail(g);
+        }
+
+        // remove metas from file index and files from parquet cache
+        for removed_gen in removed_gen_details {
+            for (col, valfiles) in removed_gen.file_index.index {
+                for (val, path) in valfiles.iter() {
+                    table
+                        .file_index
+                        .remove_older_gen_parquet_metas(col, *val, path.iter());
+                }
+            }
+
+            if let Some(parquet_cache) = parquet_cache_prefetcher.as_ref() {
+                let files_to_evict = removed_gen
+                    .files
+                    .iter()
+                    .map(|f| f.as_ref().clone())
+                    .collect::<Vec<_>>();
+                parquet_cache.remove_from_cache(&files_to_evict);
+            }
         }
         table.remove_compacted_generations(removed_generations);
     }

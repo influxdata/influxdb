@@ -661,6 +661,7 @@ impl CompactedDataProducer {
 
         debug!(compaction_detail = ?compaction_detail, "Compaction detail written");
 
+        let mut all_removed_gen_details = Vec::with_capacity(plan.input_generations.len());
         // Remove all the generation details and parquet files used as inputs for this generation
         for generation in plan.input_generations.iter() {
             if generation.level == GenerationLevel::one() {
@@ -674,10 +675,11 @@ impl CompactedDataProducer {
                 continue;
             };
             let mut lock = self.to_delete.lock();
-            for file in gen_detail.files {
+            for file in &gen_detail.files {
                 lock.push(Path::from(file.path.clone()));
             }
             lock.push(path.into_inner());
+            all_removed_gen_details.push(gen_detail);
         }
 
         // Push the old compaction detail path into our deletion vec which we
@@ -691,11 +693,12 @@ impl CompactedDataProducer {
             )
             .into_inner(),
         );
-
         self.compacted_data.update_detail_with_generations(
             compaction_detail,
             vec![generation_detail],
             plan.input_generations,
+            all_removed_gen_details,
+            self.parquet_cache_prefetcher.clone(),
         );
 
         Ok(())

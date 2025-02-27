@@ -200,26 +200,38 @@ impl CompactedDataConsumer {
                 let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
                     .await
                     .context("generation detail not found")?;
+                if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
+                    let prefetch_files = gen_detail
+                        .files
+                        .iter()
+                        .map(|f| f.as_ref().clone())
+                        .collect::<Vec<_>>();
+                    let gen_1_files = compaction_detail
+                        .leftover_gen1_files
+                        .iter()
+                        .map(|f| f.file.as_ref().clone());
+                    prefetch_files.extend(gen_1_files);
+                    prefetcher.prefetch_all(&prefetch_files).await;
+                }
                 generation_details.push(gen_detail);
             }
 
-            if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
-                let mut prefetch_files = generation_details
-                    .iter()
-                    .flat_map(|gen_detail| gen_detail.files.iter().map(|f| f.as_ref().clone()))
-                    .collect::<Vec<_>>();
-                let gen_1_files = compaction_detail
-                    .leftover_gen1_files
-                    .iter()
-                    .map(|f| f.file.as_ref().clone());
-                prefetch_files.extend(gen_1_files);
-                prefetcher.prefetch_all(&prefetch_files).await;
+            let mut removed_gen_details = Vec::with_capacity(removed_generations.len());
+            for generation in &removed_generations {
+                let gen_path =
+                    GenerationDetailPath::new(Arc::clone(&self.compactor_id), generation.id);
+                let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
+                    .await
+                    .context("generation detail not found")?;
+                removed_gen_details.push(gen_detail);
             }
 
             self.compacted_data.update_detail_with_generations(
                 compaction_detail,
                 generation_details,
                 removed_generations,
+                removed_gen_details,
+                self.parquet_cache_prefetcher.clone(),
             );
 
             if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
