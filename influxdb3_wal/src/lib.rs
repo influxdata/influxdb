@@ -64,6 +64,8 @@ pub enum Error {
         trigger_spec: String,
         context: Option<String>,
     },
+    #[error("invalid error behavior {0}")]
+    InvalidErrorBehavior(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -642,15 +644,37 @@ pub struct TriggerDefinition {
     pub plugin_filename: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
-    pub flags: Vec<TriggerFlag>,
+    pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum TriggerFlag {
-    ExecuteAsynchronously,
+pub struct TriggerSettings {
+    pub run_async: bool,
+    pub error_behavior: ErrorBehavior,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorBehavior {
+    #[default]
+    Log,
+    Retry,
+    Disable,
+}
+
+impl FromStr for ErrorBehavior {
+    type Err = Error;
+    fn from_str(error_behavior_string: &str) -> Result<Self, Error> {
+        match error_behavior_string.to_lowercase().as_str() {
+            "log" => Ok(ErrorBehavior::Log),
+            "retry" => Ok(ErrorBehavior::Retry),
+            "disable" => Ok(ErrorBehavior::Disable),
+            other => Err(Error::InvalidErrorBehavior(other.to_owned())),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
