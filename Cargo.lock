@@ -2885,6 +2885,7 @@ name = "influxdb3_clap_blocks"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "clap",
  "datafusion",
  "futures",

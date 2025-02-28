@@ -32,6 +32,8 @@ tokio.workspace = true
 trace_exporters.workspace = true
 trogging.workspace = true
 url.workspace = true
+bytes.workspace = true
+futures.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
