@@ -82,6 +82,8 @@ use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
+use trace::TraceCollector;
+use trace::ctx::SpanContext;
 use trace_exporters::TracingConfig;
 use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
@@ -574,6 +576,11 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let trace_exporter = config.tracing_config.build()?;
+    let span_ctx = Some(SpanContext::new_with_optional_collector(
+        trace_exporter
+            .clone()
+            .map(|i| -> Arc<dyn TraceCollector> { i }),
+    ));
 
     let parquet_store =
         ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
@@ -727,6 +734,7 @@ pub async fn command(config: Config) -> Result<()> {
                 },
                 sys_events_store: Arc::clone(&compaction_event_store),
                 time_provider: Arc::clone(&time_provider),
+                span_ctx,
             })
             .await?;
 

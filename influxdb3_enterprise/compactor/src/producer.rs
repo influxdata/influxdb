@@ -47,6 +47,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use trace::ctx::SpanContext;
+use trace::span::{MetaValue, Span, SpanRecorder};
 
 #[derive(Debug, Error)]
 pub enum CompactedDataProducerError {
@@ -83,6 +85,7 @@ pub struct CompactedDataProducer {
     compaction_state: tokio::sync::Mutex<CompactionState>,
     sys_events_store: Arc<dyn CompactionEventStore>,
     _time_provider: Arc<dyn TimeProvider>,
+    span_ctx: Option<SpanContext>,
     // Public only for tests
     #[doc(hidden)]
     pub to_delete: Mutex<Vec<Path>>,
@@ -114,6 +117,7 @@ pub struct CompactedDataProducerArgs {
     pub parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     pub sys_events_store: Arc<dyn CompactionEventStore>,
     pub time_provider: Arc<dyn TimeProvider>,
+    pub span_ctx: Option<SpanContext>,
 }
 
 impl CompactedDataProducer {
@@ -130,6 +134,7 @@ impl CompactedDataProducer {
             parquet_cache_prefetcher,
             sys_events_store,
             time_provider,
+            span_ctx,
         }: CompactedDataProducerArgs,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
@@ -139,11 +144,16 @@ impl CompactedDataProducer {
             Arc::clone(&time_provider),
         )
         .await?;
+        let span = span_ctx
+            .clone()
+            .map(|ctx| ctx.child("CompactedDataProducer::new"));
+        let _recorder = SpanRecorder::new(span.clone());
         compaction_state
             .load_snapshots(
                 &compacted_data,
                 Arc::clone(&object_store),
                 Arc::clone(&sys_events_store),
+                span.as_ref(),
             )
             .await?;
 
@@ -159,6 +169,7 @@ impl CompactedDataProducer {
             compaction_state: tokio::sync::Mutex::new(compaction_state),
             sys_events_store,
             datafusion_config,
+            span_ctx,
             to_delete: Mutex::new(Vec::new()),
             _time_provider: time_provider,
         })
@@ -204,12 +215,30 @@ impl CompactedDataProducer {
     ) -> Result<()> {
         let mut compaction_state = self.compaction_state.lock().await;
 
+        let span_ctx = self
+            .span_ctx
+            .as_ref()
+            .map(|ctx| SpanContext::new_with_optional_collector(ctx.collector.clone()));
+        let span = span_ctx
+            .clone()
+            .map(|ctx| ctx.child("plan_and_run_compaction"));
+        let _recorder = SpanRecorder::new(span.clone());
+        {
+            let span = span
+                .clone()
+                // initialize the overall span with a child of the same name since jaeger seems to
+                // take the first recorded span for a group as the top-level span name
+                .map(|span| span.child("plan_and_run_compaction"));
+            let _recorder = SpanRecorder::new(span.clone());
+        }
+
         // load any new snapshots and catalog changes since the last time we checked
         compaction_state
             .load_snapshots(
                 &self.compacted_data,
                 Arc::clone(&self.object_store),
                 Arc::clone(&sys_events_store),
+                span.as_ref(),
             )
             .await?;
 
@@ -221,6 +250,7 @@ impl CompactedDataProducer {
             &self.compacted_data,
             &compaction_state.files_to_compact,
             GenerationLevel::two(),
+            span.as_ref(),
         ) {
             Ok(maybe_plan) => {
                 if let Some(plan) = maybe_plan {
@@ -239,16 +269,21 @@ impl CompactedDataProducer {
                             output_generation: plan.output_generation.level.as_u8(),
                         })
                         .collect();
-                    self.run_compaction_plan_group(plan, &mut compaction_state, &sys_events_store)
-                        .await
-                        .inspect_err(|err| {
-                            let event = compaction_completed::PlanGroupRunFailedInfo {
-                                duration: run_timer.elapsed(),
-                                error: err.to_string(),
-                                plans_ran: identifiers.clone(),
-                            };
-                            sys_events_store.record_compaction_plan_group_run_failed(event);
-                        })?;
+                    self.run_compaction_plan_group(
+                        plan,
+                        &mut compaction_state,
+                        &sys_events_store,
+                        span.as_ref(),
+                    )
+                    .await
+                    .inspect_err(|err| {
+                        let event = compaction_completed::PlanGroupRunFailedInfo {
+                            duration: run_timer.elapsed(),
+                            error: err.to_string(),
+                            plans_ran: identifiers.clone(),
+                        };
+                        sys_events_store.record_compaction_plan_group_run_failed(event);
+                    })?;
                     let event = compaction_completed::PlanGroupRunSuccessInfo {
                         duration: run_timer.elapsed(),
                         plans_ran: identifiers,
@@ -272,6 +307,7 @@ impl CompactedDataProducer {
                 &self.compacted_data,
                 &compaction_state.files_to_compact,
                 *level,
+                span.as_ref(),
             ) {
                 Ok(maybe_plan) => {
                     if let Some(plan) = maybe_plan {
@@ -294,6 +330,7 @@ impl CompactedDataProducer {
                             plan,
                             &mut compaction_state,
                             &sys_events_store,
+                            span.as_ref(),
                         )
                         .await
                         .inspect_err(|err| {
@@ -329,10 +366,19 @@ impl CompactedDataProducer {
         compaction_plan_group: CompactionPlanGroup,
         compaction_state: &mut CompactionState,
         sys_events_store: &Arc<dyn CompactionEventStore>,
+        span: Option<&Span>,
     ) -> Result<()> {
+        let span = span.map(|span| span.child("run_compaction_plan_group"));
+        let mut recorder = SpanRecorder::new(span.clone());
+
         let sequence_number = self.compacted_data.current_compaction_sequence_number();
         let next_sequence_number = self.compacted_data.next_compaction_sequence_number();
         let snapshot_markers = compaction_state.last_markers();
+
+        recorder.set_metadata(
+            "sequence_number",
+            MetaValue::String(next_sequence_number.as_u64().to_string().into()),
+        );
 
         let mut compaction_details = SerdeVecMap::new();
 
@@ -353,7 +399,12 @@ impl CompactedDataProducer {
             let output_generation = plan.output_generation.level.as_u8();
             let left_over_gen1_files = plan.leftover_gen1_files.len() as u64;
             if let Err(e) = self
-                .run_plan(plan, next_sequence_number, snapshot_markers.clone())
+                .run_plan(
+                    plan,
+                    next_sequence_number,
+                    snapshot_markers.clone(),
+                    span.as_ref(),
+                )
                 .await
             {
                 warn!(error = %e, "error running compaction plan");
@@ -462,7 +513,42 @@ impl CompactedDataProducer {
         plan: NextCompactionPlan,
         sequence_number: CompactionSequenceNumber,
         snapshot_markers: Vec<Arc<NodeSnapshotMarker>>,
+        span: Option<&Span>,
     ) -> Result<()> {
+        let span = span.map(|span| span.child("run_plan"));
+        let mut recorder = SpanRecorder::new(span.clone());
+
+        recorder.set_metadata(
+            "database_name",
+            MetaValue::String(plan.db_schema.name.to_string().into()),
+        );
+        recorder.set_metadata(
+            "table_name",
+            MetaValue::String(plan.table_definition.table_name.to_string().into()),
+        );
+        recorder.set_metadata(
+            "input_generations_count",
+            MetaValue::String(plan.input_generations.len().to_string().into()),
+        );
+        recorder.set_metadata(
+            "input_files_count",
+            MetaValue::String(plan.input_paths.len().to_string().into()),
+        );
+        recorder.set_metadata(
+            "input_generations_levels",
+            MetaValue::String(
+                plan.input_generations
+                    .iter()
+                    .map(|g| g.to_u8_level().to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+                    .into(),
+            ),
+        );
+        recorder.set_metadata(
+            "output_generation_level",
+            MetaValue::Int(plan.output_generation.to_u8_level() as i64),
+        );
         let index_columns = self
             .enterprise_config
             .index_columns(&plan.db_schema.id, &plan.table_definition)
@@ -480,10 +566,28 @@ impl CompactedDataProducer {
             exec: Arc::clone(&self.executor),
             parquet_cache_prefetcher: self.parquet_cache_prefetcher.clone(),
             datafusion_config: Arc::clone(&self.datafusion_config),
+            span: span.clone(),
         };
 
         // TODO: if this fails, instead write a compaction detail with all the L1 files added to it
         let compactor_output = compact_files(args).await.expect("compaction failed");
+
+        recorder.set_metadata(
+            "output_files_count",
+            MetaValue::String(compactor_output.file_metadata.len().to_string().into()),
+        );
+
+        recorder.set_metadata(
+            "output_files_total_size",
+            MetaValue::String(
+                compactor_output
+                    .file_metadata
+                    .iter()
+                    .fold(0u64, |acc, i| acc + i.size_bytes)
+                    .to_string()
+                    .into(),
+            ),
+        );
 
         // get the max time of the files in the output generation
         let max_time_ns = compactor_output
@@ -811,8 +915,11 @@ impl CompactionState {
         compacted_data: &CompactedData,
         object_store: Arc<dyn ObjectStore>,
         sys_events_store: Arc<dyn CompactionEventStore>,
+        span: Option<&Span>,
     ) -> Result<()> {
         let mut snapshots = vec![];
+        let span = span.map(|span| span.child("load_snapshots"));
+        let _recorder = SpanRecorder::new(span);
         for (node_id, marker) in &self.node_id_to_last_marker {
             let start = Instant::now();
             if marker.snapshot_sequence_number == SnapshotSequenceNumber::new(0) {
@@ -1147,6 +1254,7 @@ mod tests {
         )));
 
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
+            span_ctx: None,
             compactor_id: "compactor-1".into(),
             node_ids: vec![node_id.into()],
             compaction_config: CompactionConfig::default(),
@@ -1210,6 +1318,7 @@ mod tests {
                     .await
                     .writer_markers
                     .clone(),
+                None,
             )
             .await
             .unwrap();
@@ -1315,6 +1424,7 @@ mod tests {
                 &compacted_data,
                 Arc::clone(&object_store),
                 Arc::clone(&sys_events_store),
+                None,
             )
             .await
             .unwrap();
@@ -1369,6 +1479,7 @@ mod tests {
             CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
 
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
+            span_ctx: None,
             compactor_id: "compactor-1".into(),
             node_ids: vec![node_id.into()],
             compaction_config,

@@ -104,6 +104,7 @@ async fn two_writers_gen1_compaction() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
+        span_ctx: None,
         compactor_id,
         node_ids: vec!["node1".to_string(), "node2".to_string()],
         compaction_config,
@@ -282,6 +283,7 @@ async fn compact_consumer_picks_up_latest_summary() {
         Arc::clone(&time_provider),
     );
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
+        span_ctx: None,
         compactor_id: Arc::clone(&compactor_id),
         node_ids: vec!["spock".to_string(), "tuvok".to_string()],
         compaction_config,
@@ -430,6 +432,7 @@ async fn compaction_cleanup() {
     let sys_events_store: Arc<dyn CompactionEventStore> =
         Arc::new(SysEventStore::new(Arc::clone(&time_provider)));
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
+        span_ctx: None,
         compactor_id: compactor_id.into(),
         node_ids: vec![node_id.to_string()],
         compaction_config,

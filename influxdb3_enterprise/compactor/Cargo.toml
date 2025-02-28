@@ -49,6 +49,7 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
+trace.workspace = true
 
 [dev-dependencies]
 arrow-array.workspace = true
