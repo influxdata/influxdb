@@ -206,7 +206,7 @@ impl<T: TimeProvider>
         let processing_engine = Arc::new(self.processing_engine.0);
 
         processing_engine
-            .start_triggers()
+            .start_triggers(Arc::clone(&processing_engine) as _)
             .await
             .expect("failed to start processing engine triggers");
 

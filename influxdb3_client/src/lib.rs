@@ -12,7 +12,7 @@ use url::Url;
 
 use influxdb3_types::http::*;
 pub use influxdb3_types::write::Precision;
-use influxdb3_wal::TriggerFlag;
+use influxdb3_wal::TriggerSettings;
 
 /// Primary error type for the [`Client`]
 #[derive(Debug, thiserror::Error)]
@@ -466,13 +466,8 @@ impl Client {
         trigger_spec: impl Into<String> + Send,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
-        execute_async: bool,
+        trigger_settings: TriggerSettings,
     ) -> Result<()> {
-        let flags = if execute_async {
-            vec![TriggerFlag::ExecuteAsynchronously]
-        } else {
-            vec![]
-        };
         let _bytes = self
             .send_json_get_bytes(
                 Method::POST,
@@ -482,7 +477,7 @@ impl Client {
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.into(),
                     trigger_specification: trigger_spec.into(),
-                    flags,
+                    trigger_settings,
                     trigger_arguments,
                     disabled,
                 }),

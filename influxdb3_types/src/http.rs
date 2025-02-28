@@ -4,7 +4,7 @@ use hyper::HeaderMap;
 use hyper::header::ACCEPT;
 use hyper::http::HeaderValue;
 use influxdb3_cache::distinct_cache::MaxCardinality;
-use influxdb3_wal::TriggerFlag;
+use influxdb3_wal::TriggerSettings;
 use iox_query_params::StatementParams;
 use serde::{Deserialize, Serialize};
 
@@ -158,7 +158,7 @@ pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
     pub plugin_filename: String,
     pub trigger_name: String,
-    pub flags: Vec<TriggerFlag>,
+    pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
