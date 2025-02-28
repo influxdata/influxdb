@@ -36,9 +36,10 @@ type Command struct {
 	Stdout io.Writer
 	Logger *zap.Logger
 
-	path    string
-	force   bool
-	verbose bool
+	path      string
+	force     bool
+	verbose   bool
+	blockSize int
 }
 
 // NewCommand returns a new instance of the export Command.
@@ -93,7 +94,7 @@ func (cmd *Command) Run(args []string) (err error) {
 
 	fmt.Fprintln(cmd.Stdout, "Compacting shard.")
 
-	err = sc.CompactShard()
+	err = sc.CompactShard(cmd.blockSize)
 	if err != nil {
 		return fmt.Errorf("compaction failed: %v", err)
 	}
@@ -111,6 +112,7 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs.StringVar(&cmd.path, "path", "", "path of shard to be compacted")
 	fs.BoolVar(&cmd.force, "force", false, "Force compaction without prompting")
 	fs.BoolVar(&cmd.verbose, "verbose", false, "Enable verbose logging")
+	fs.IntVar(&cmd.blockSize, "block-size", 0, "Block size in bytes")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -224,10 +226,14 @@ func (sc *shardCompactor) openFiles() error {
 	return nil
 }
 
-func (sc *shardCompactor) CompactShard() (err error) {
+func (sc *shardCompactor) CompactShard(size int) (err error) {
 	c := tsm1.NewCompactor()
 	c.Dir = sc.path
-	c.Size = tsm1.DefaultSegmentSize
+	if size > 0 {
+		c.Size = size
+	} else {
+		c.Size = tsm1.DefaultSegmentSize
+	}
 	c.FileStore = sc
 	c.Open()
 
