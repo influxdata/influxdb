@@ -1,11 +1,12 @@
+use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
 use crate::{chunk::BufferChunk, write_buffer::table_buffer::SnaphotChunkIter};
-use crate::{paths::ParquetFilePath, write_buffer::table_buffer::array_ref_nulls_for_type};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
+use arrow_util::util::ensure_schema;
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TimestampMinMax,
@@ -312,6 +313,7 @@ impl QueryableBuffer {
                     catalog.sequence_number(),
                 );
 
+                debug!(num = ?persist_jobs.len(), ">>> number of persist jobs before grouping forced");
                 let iterator = PersistJobGroupedIterator::new(
                     &persist_jobs,
                     Arc::from(persister.node_identifier_prefix()),
@@ -334,6 +336,7 @@ impl QueryableBuffer {
                 persisted_snapshot
             } else {
                 // persist the individual files, building the snapshot as we go
+                debug!(num = ?persist_jobs.len(), ">>> number of persist jobs before grouping not forced");
                 let persisted_snapshot = Arc::new(Mutex::new(PersistedSnapshot::new(
                     persister.node_identifier_prefix().to_string(),
                     snapshot_details.snapshot_sequence_number,
@@ -743,12 +746,7 @@ impl BufferState {
                 let table_def = db_schema
                     .table_definition_by_id(table_id)
                     .expect("table should exist");
-                let sort_key = table_def
-                    .series_key
-                    .iter()
-                    .map(|c| Arc::clone(&table_def.column_id_to_name_unchecked(c)));
-
-                TableBuffer::new(SortKey::from_columns(sort_key))
+                TableBuffer::new(table_def.sort_key())
             });
             for (chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
                 table_buffer.buffer_chunk(*chunk_time, &chunk.rows);
@@ -825,60 +823,6 @@ impl<'a> PersistJobGroupedIterator<'a> {
             ),
         }
     }
-
-    fn check_and_align_schema_mismatches_between_batches(
-        &mut self,
-        current_data: &PersistJob,
-        all_batches: &mut [RecordBatch],
-        all_schemas: Vec<IoxSchema>,
-    ) -> Option<()> {
-        let table_defn = self
-            .catalog
-            .db_schema_by_id(&current_data.database_id)?
-            .table_definition_by_id(&current_data.table_id)?;
-        let expected_schema = table_defn.schema.clone();
-        let batches_with_schema_mismatch =
-            find_batches_with_mismatching_schemas(all_batches, &all_schemas, &expected_schema);
-
-        if !batches_with_schema_mismatch.is_empty() {
-            // we need to add the missing fields - as schema changes are additive, when there is
-            // a mismatch it means new column has been added to table but the batches are missing
-            // them.
-            for (idx, batch) in &batches_with_schema_mismatch {
-                let mut cols = vec![];
-                // pick it's current iox schema, to add the columns (making null for missing)
-                let outdated_batch_schema = &all_schemas[*idx];
-                debug!(
-                    ?outdated_batch_schema,
-                    ">>> outdated batch schema when aligning mismatched schema"
-                );
-                for col_idx_with_field_details in expected_schema.iter().enumerate() {
-                    let (col_idx, (influx_col_type, field)) = col_idx_with_field_details;
-                    let batch_field = outdated_batch_schema.field_by_name(field.name());
-                    let len = batch.columns()[0].len();
-                    if batch_field.is_some() {
-                        let col = Arc::clone(&batch.columns()[col_idx]);
-                        cols.push(col);
-                    } else {
-                        let null_array_col = array_ref_nulls_for_type(influx_col_type, len);
-                        cols.push(null_array_col);
-                    }
-                }
-
-                let new_arrow_schema = expected_schema.as_arrow();
-                debug!(
-                    ?new_arrow_schema,
-                    ">>> new arrow schema for batch when aligning mismatched schema"
-                );
-                let new_rec_batch = RecordBatch::try_new(new_arrow_schema, cols).expect(
-                    "record batch to be created with new schema after fixing schema mismatch",
-                );
-
-                let _ = std::mem::replace(&mut all_batches[*idx], new_rec_batch);
-            }
-        };
-        Some(())
-    }
 }
 
 impl Iterator for PersistJobGroupedIterator<'_> {
@@ -895,9 +839,7 @@ impl Iterator for PersistJobGroupedIterator<'_> {
         let mut ts_min_max = current_data.timestamp_min_max;
 
         let mut all_batches = Vec::with_capacity(self.chunk_size);
-        let mut all_iox_schemas = Vec::with_capacity(self.chunk_size);
         all_batches.extend_from_slice(&current_data.batches);
-        all_iox_schemas.push(current_data.iox_schema.clone());
 
         let mut min_chunk_time = current_data.chunk_time;
         let mut current_size_bytes = current_data.total_batch_size();
@@ -932,7 +874,6 @@ impl Iterator for PersistJobGroupedIterator<'_> {
                     min_chunk_time = min_chunk_time.min(next.chunk_time);
                     current_size_bytes += next.total_batch_size();
                     all_batches.extend_from_slice(&next.batches);
-                    all_iox_schemas.push(next.iox_schema.clone());
                 } else {
                     break;
                 }
@@ -941,11 +882,20 @@ impl Iterator for PersistJobGroupedIterator<'_> {
             }
         }
 
-        self.check_and_align_schema_mismatches_between_batches(
-            current_data,
-            &mut all_batches,
-            all_iox_schemas,
-        )?;
+        let table_defn = self
+            .catalog
+            .db_schema_by_id(&current_data.database_id)?
+            .table_definition_by_id(&current_data.table_id)?;
+
+        let all_schema_aligned_batches: Vec<RecordBatch> = all_batches
+            .iter()
+            .map(|batch| {
+                ensure_schema(&table_defn.schema.as_arrow(), batch)
+                    // TODO: are there chances this could result in error - what does it mean if it
+                    // did?
+                    .expect("batches should have same schema")
+            })
+            .collect();
 
         Some(PersistJob {
             database_id: current_data.database_id,
@@ -962,43 +912,12 @@ impl Iterator for PersistJobGroupedIterator<'_> {
             ),
             table_name: Arc::clone(&current_data.table_name),
             chunk_time: min_chunk_time,
-            batches: all_batches,
-            iox_schema: current_data.iox_schema.clone(),
+            batches: all_schema_aligned_batches,
+            iox_schema: table_defn.schema.clone(),
             timestamp_min_max: ts_min_max,
-            sort_key: current_data.sort_key.clone(),
+            sort_key: table_defn.sort_key(),
         })
     }
-}
-
-fn find_batches_with_mismatching_schemas(
-    all_batches: &mut [RecordBatch],
-    all_schemas: &[IoxSchema],
-    expected_schema: &IoxSchema,
-) -> Vec<(usize, RecordBatch)> {
-    let batches_with_schema_mismatch: Vec<(usize, RecordBatch)> = all_batches
-        .iter()
-        .cloned()
-        .enumerate()
-        .filter(|(idx, _)| {
-            let schema = &all_schemas[*idx];
-            for field_1 in expected_schema.iter() {
-                let mut found_field = false;
-                for field_2 in schema.iter() {
-                    if field_1.1.name() == field_2.1.name() {
-                        found_field = true;
-                        break;
-                    }
-                }
-
-                if !found_field {
-                    return true;
-                }
-            }
-            false
-        })
-        .collect();
-
-    batches_with_schema_mismatch
 }
 
 pub(crate) struct SortDedupePersistSummary {
@@ -1028,11 +947,13 @@ async fn sort_dedupe_persist(
         .map(|batch| batch.num_rows())
         .sum();
     info!(
-        "Persisting {} rows for db id {} and table id {} and chunk {} to file {}",
+        "Persisting {} rows for db id {} and table id {} and chunk {} and ts min {} max {} to file {}",
         row_count,
         persist_job.database_id,
         persist_job.table_id,
         persist_job.chunk_time,
+        persist_job.timestamp_min_max.min,
+        persist_job.timestamp_min_max.max,
         persist_job.path.to_string()
     );
 

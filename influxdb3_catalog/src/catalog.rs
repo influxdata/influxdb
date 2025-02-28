@@ -18,7 +18,7 @@ use influxdb3_wal::{
 use iox_time::Time;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
-use schema::{Schema, SchemaBuilder};
+use schema::{Schema, SchemaBuilder, sort::SortKey};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -1133,6 +1133,14 @@ impl TableDefinition {
 
     pub fn series_key_names(&self) -> &[Arc<str>] {
         &self.series_key_names
+    }
+
+    pub fn sort_key(&self) -> SortKey {
+        let cols = self
+            .series_key
+            .iter()
+            .map(|c| Arc::clone(&self.column_id_to_name_unchecked(c)));
+        SortKey::from_columns(cols)
     }
 }
 
