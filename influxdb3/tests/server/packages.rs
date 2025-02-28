@@ -1,5 +1,4 @@
 use crate::cli::run_with_confirmation;
-#[cfg(feature = "system-py")]
 use crate::server::{ConfigProvider, TestServer};
 use anyhow::{Result, bail};
 use serde_json::Value;

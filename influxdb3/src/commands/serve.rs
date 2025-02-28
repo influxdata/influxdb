@@ -23,7 +23,6 @@ use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-#[cfg(feature = "system-py")]
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::{
     CommonServerState,
@@ -61,6 +60,7 @@ use trace_http::ctx::TraceHeaderParser;
 use trogging::cli::LoggingConfig;
 
 use crate::commands::common::warn_use_of_deprecated_env_vars;
+use crate::set_pythonhome;
 
 /// The default name of the influxdb data directory
 #[allow(dead_code)]
@@ -615,6 +615,7 @@ pub async fn command(config: Config) -> Result<()> {
         .await
         .map_err(Error::BindAddress)?;
 
+    set_pythonhome();
     let processing_engine = ProcessingEngineManagerImpl::new(
         setup_processing_engine_env_manager(&config.processing_engine_config),
         write_buffer.catalog(),
@@ -664,18 +665,15 @@ pub(crate) fn setup_processing_engine_env_manager(
 
 fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     // Check for pip (highest preference)
-    #[cfg(feature = "system-py")]
-    {
-        let python_exe = find_python();
-        debug!("Running: {} -m pip --version", python_exe.display());
+    let python_exe = find_python();
+    debug!("Running: {} -m pip --version", python_exe.display());
 
-        if let Ok(output) = Command::new(&python_exe)
-            .args(["-m", "pip", "--version"])
-            .output()
-        {
-            if output.status.success() {
-                return Arc::new(PipManager);
-            }
+    if let Ok(output) = Command::new(&python_exe)
+        .args(["-m", "pip", "--version"])
+        .output()
+    {
+        if output.status.success() {
+            return Arc::new(PipManager);
         }
     }
 

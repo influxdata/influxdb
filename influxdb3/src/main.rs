@@ -14,6 +14,11 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 use trogging::{
     TroggingGuard,
     cli::LoggingConfigBuilderExt,
@@ -302,4 +307,39 @@ fn init_logs_and_tracing(
 
     let subscriber = Registry::default().with(layers);
     trogging::install_global(subscriber)
+}
+
+// XXX: this should be somewhere more appropriate
+
+fn set_pythonhome() {
+    // This would ideally be detected by pyo3, but it isn't
+    match env::var("PYTHONHOME") {
+        Ok(_) => {}
+        Err(env::VarError::NotPresent) => {
+            let exe_path = env::current_exe().unwrap();
+            let exe_dir = exe_path.parent().unwrap();
+
+            let pythonhome: PathBuf = if cfg!(target_os = "linux")
+                && (exe_dir == Path::new("/usr/bin") || exe_dir == Path::new("/usr/local/bin"))
+            {
+                // Official Linux builds may be in /usr or /usr/local
+                // XXX: handle this for local build and install (eg DESTDIR)
+                let parent_dir = exe_dir.parent().unwrap();
+                parent_dir.join("lib/influxdb3/python")
+            } else {
+                exe_dir.join("python")
+            };
+
+            if pythonhome.is_dir() {
+                unsafe { env::set_var("PYTHONHOME", pythonhome.to_str().unwrap()) };
+                //println!("Set PYTHONHOME to '{}'", env::var("PYTHONHOME").unwrap());
+            } else {
+                // TODO: use logger
+                eprintln!("Could not find python installation. May need to set PYTHONHOME");
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to retrieve PYTHONHOME: {e}");
+        }
+    };
 }

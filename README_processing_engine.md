@@ -10,12 +10,7 @@ is implemented the way it is.
 ## Implementation
 
 InfluxDB uses the [PYO3 crate](https://crates.io/crates/pyo3) to build InfluxDB
-with an embedded python and the processing engine is enabled during the build
-by specifying the `system-py` feature to `cargo build`. Eg:
-
-```
-$ cargo build --features system-py
-```
+with an embedded python and the processing engine is enabled by default.
 
 PYO3 will then inspect the system to find a python runtime to build and link
 against. The resulting `influxdb3` binary will be dynamically linked to the
@@ -32,7 +27,7 @@ $ sudo apt-get install build-essential pkg-config libssl-dev clang lld \
 $ sudo apt-get install python3 python3-pip python3-venv
 
 # build
-$ cargo build --features system-py
+$ cargo build
 ```
 
 The choice of python can be influenced by setting the `PYTHONHOME` environment
@@ -130,7 +125,7 @@ At a high level, the build process for Official builds consists of:
     sufficient. Defining the build configuration in the `PYO3_CONFIG_FILE`
     correctly worked for all supported environments with our current build
     process
- 4. run `PYO3_CONFIG_FILE=/path/to/pyo3_config_file.txt cargo build --features=system-py` to build InfluxDB
+ 4. run `PYO3_CONFIG_FILE=/path/to/pyo3_config_file.txt cargo build` to build InfluxDB
  5. adjust the library search paths for Linux and Darwin so `libpython` can
     found (see 'Discussion', below)
  6. create official build artifacts:
@@ -219,7 +214,7 @@ Local development with python-build-standalone currently consists of:
 
     ```
     # note: PYO3_CONFIG_FILE must be an absolute path
-    $ PYO3_CONFIG_FILE=${PWD}/pyo3_config_file.txt cargo build --features "aws,gcp,azure,jemalloc_replacing_malloc,system-py"
+    $ PYO3_CONFIG_FILE=${PWD}/pyo3_config_file.txt cargo build --features "aws,gcp,azure,jemalloc_replacing_malloc"
     ```
 
 4. Linux/OSX: patch up the binary to find libpython:

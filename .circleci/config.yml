@@ -287,7 +287,7 @@ jobs:
           name: Cargo build
           command: |
             export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-            target-env cargo build --target=<< parameters.target >> --features="system-py" --workspace
+            target-env cargo build --target=<< parameters.target >> --workspace
       - when:
           condition:
             not:
@@ -351,7 +351,7 @@ jobs:
           name: Cargo release build
           command: |
             export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-            target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
+            target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - when:
@@ -562,7 +562,7 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
               "$PBS_DATE" \
               "$PBS_VERSION" \
