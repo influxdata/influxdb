@@ -696,7 +696,7 @@ impl CompactedDataProducer {
         self.compacted_data.update_detail_with_generations(
             compaction_detail,
             vec![generation_detail],
-            plan.input_generations,
+            &plan.input_generations,
             all_removed_gen_details,
             self.parquet_cache_prefetcher.clone(),
         );

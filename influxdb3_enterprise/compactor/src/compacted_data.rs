@@ -169,7 +169,7 @@ impl CompactedData {
         &self,
         compaction_detail: CompactionDetail,
         generation_details: Vec<GenerationDetail>,
-        removed_generations: Vec<Generation>,
+        removed_generations: &[Generation],
         removed_gen_details: Vec<GenerationDetail>,
         parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     ) {
@@ -190,7 +190,7 @@ impl CompactedData {
             table.add_generation_detail(g);
         }
 
-        // remove metas from file index and files from parquet cache
+        // remove metas from file index
         for removed_gen in removed_gen_details {
             for (col, valfiles) in removed_gen.file_index.index {
                 for (val, path) in valfiles.iter() {
@@ -199,17 +199,8 @@ impl CompactedData {
                         .remove_older_gen_parquet_metas(col, *val, path.iter());
                 }
             }
-
-            if let Some(parquet_cache) = parquet_cache_prefetcher.as_ref() {
-                let files_to_evict = removed_gen
-                    .files
-                    .iter()
-                    .map(|f| f.as_ref().clone())
-                    .collect::<Vec<_>>();
-                parquet_cache.remove_from_cache(&files_to_evict);
-            }
         }
-        table.remove_compacted_generations(removed_generations);
+        table.remove_compacted_generations(removed_generations, parquet_cache_prefetcher.clone());
     }
 
     pub(crate) fn update_compaction_detail(&self, compaction_detail: CompactionDetail) {
@@ -387,11 +378,18 @@ impl CompactedTable {
             .insert(generation_detail.id, generation_detail.files);
     }
 
-    fn remove_compacted_generations(&mut self, generations: Vec<Generation>) {
+    fn remove_compacted_generations(
+        &mut self,
+        generations: &[Generation],
+        parquet_cache: Option<Arc<ParquetCachePreFetcher>>,
+    ) {
         for generation in generations {
             if let Some(files) = self.compacted_generations.remove(&generation.id) {
                 for f in files {
                     self.file_index.remove_file(f.id);
+                    if let Some(parquet_cache) = parquet_cache.as_ref() {
+                        parquet_cache.remove_from_cache(f.path.as_str());
+                    }
                 }
             }
         }

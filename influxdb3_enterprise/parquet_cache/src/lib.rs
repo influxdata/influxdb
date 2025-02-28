@@ -55,12 +55,9 @@ impl ParquetCachePreFetcher {
         self.parquet_cache.register(cache_req);
     }
 
-    pub fn remove_from_cache(&self, files: &[ParquetFile]) {
-        for file in files {
-            let evict_req =
-                CacheRequest::create_evict_from_cache_request(ObjPath::from(file.path.clone()));
-            self.parquet_cache.register(evict_req);
-        }
+    pub fn remove_from_cache(&self, file: &str) {
+        let evict_req = CacheRequest::create_evict_from_cache_request(ObjPath::from(file));
+        self.parquet_cache.register(evict_req);
     }
 
     fn prepare_prefetch_requests(
