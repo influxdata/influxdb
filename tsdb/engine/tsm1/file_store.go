@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/logger"
 	"io"
 	"math"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxdb/pkg/limiter"
