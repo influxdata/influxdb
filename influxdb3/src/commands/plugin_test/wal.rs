@@ -1,4 +1,4 @@
-use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
+use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue};
 use influxdb3_client::plugin_development::WalPluginTestRequest;
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
@@ -25,8 +25,8 @@ pub struct WalPluginTest {
     #[clap(long = "file")]
     pub input_file: Option<String>,
     /// If given pass this map of string key/value pairs as input arguments
-    #[clap(long = "input-arguments")]
-    pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
+    #[clap(long = "input-arguments", value_delimiter = ',')]
+    pub input_arguments: Option<Vec<SeparatedKeyValue<String, String>>>,
 }
 
 impl From<WalPluginTest> for WalPluginTestRequest {

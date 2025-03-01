@@ -1,6 +1,4 @@
-use crate::commands::common::{
-    DataType, InfluxDb3Config, SeparatedKeyValue, SeparatedList, parse_key_val,
-};
+use crate::commands::common::{DataType, InfluxDb3Config, SeparatedKeyValue, parse_key_val};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
@@ -131,14 +129,14 @@ pub struct LastCacheConfig {
     /// Which columns in the table to use as keys in the cache. This is a comma separated list.
     ///
     /// Example: --key-columns "foo,bar,baz"
-    #[clap(long = "key-columns")]
-    key_columns: Option<SeparatedList<String>>,
+    #[clap(long = "key-columns", value_delimiter = ',')]
+    key_columns: Option<Vec<String>>,
 
     /// Which columns in the table to store as values in the cache. This is a comma separated list
     ///
     /// Example: --value-columns "foo,bar,baz"
-    #[clap(long = "value-columns")]
-    value_columns: Option<SeparatedList<String>>,
+    #[clap(long = "value-columns", value_delimiter = ',')]
+    value_columns: Option<Vec<String>>,
 
     /// The number of entries per unique key column combination the cache will store
     #[clap(long = "count")]
@@ -172,8 +170,8 @@ pub struct DistinctCacheConfig {
     /// The cache is a hieararchical structure, with a level for each column specified; the order
     /// specified here will determine the order of the levels from top-to-bottom of the cache
     /// hierarchy.
-    #[clap(long = "columns")]
-    columns: SeparatedList<String>,
+    #[clap(long = "columns", value_delimiter = ',')]
+    columns: Vec<String>,
 
     /// The maximum number of distinct value combinations to hold in the cache
     #[clap(long = "max-cardinality")]
@@ -192,11 +190,11 @@ pub struct DistinctCacheConfig {
 
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
-    #[clap(long = "tags", required = true, num_args=0..)]
+    #[clap(long = "tags", required = true, num_args=0.., value_delimiter = ',')]
     /// The list of tag names to be created for the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
     tags: Vec<String>,
 
-    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, num_args=0..)]
+    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, num_args=0.., value_delimiter = ',')]
     /// The list of field names and their data type to be created for the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
     /// The expected format is a list like so: 'field_name:data_type'. Valid data types are: int64, uint64, float64, utf8, and bool
     fields: Vec<(String, DataType)>,
@@ -224,8 +222,8 @@ pub struct TriggerConfig {
           help = "The plugin file must be for the given trigger type of wal, schedule, or request. Trigger specification format:\nFor wal_rows use: 'table:<TABLE_NAME>' or 'all_tables'\nFor scheduled use: 'cron:<CRON_EXPRESSION>' or 'every:<duration e.g. 10m>'\nFor request use: 'path:<PATH>' e.g. path:foo will be at /api/v3/engine/foo")]
     trigger_specification: TriggerSpecificationDefinition,
     /// Comma separated list of key/value pairs to use as trigger arguments. Example: key1=val1,key2=val2
-    #[clap(long = "trigger-arguments")]
-    trigger_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
+    #[clap(long = "trigger-arguments", value_delimiter = ',')]
+    trigger_arguments: Option<Vec<SeparatedKeyValue<String, String>>>,
     /// Create trigger in disabled state
     #[clap(long)]
     disabled: bool,
@@ -422,8 +420,8 @@ mod tests {
         assert_eq!("bar", database_name);
         assert_eq!("foo", table);
         assert!(cache_name.is_some_and(|n| n == "bar"));
-        assert!(key_columns.is_some_and(|keys| keys.0 == ["tag1", "tag2", "tag3"]));
-        assert!(value_columns.is_some_and(|vals| vals.0 == ["field1", "field2", "field3"]));
+        assert!(key_columns.is_some_and(|keys| keys == ["tag1", "tag2", "tag3"]));
+        assert!(value_columns.is_some_and(|vals| vals == ["field1", "field2", "field3"]));
         assert!(count.is_some_and(|c| c == 5));
         assert!(ttl.is_some_and(|t| t.as_secs() == 3600));
     }
