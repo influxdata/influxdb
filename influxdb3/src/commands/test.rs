@@ -1,4 +1,4 @@
-use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue, SeparatedList};
+use crate::commands::common::{InfluxDb3Config, SeparatedKeyValue};
 use anyhow::Context;
 use hashbrown::HashMap;
 use influxdb3_client::Client;
@@ -64,8 +64,8 @@ pub struct WalPluginConfig {
     #[clap(long = "file")]
     pub input_file: Option<String>,
     /// If given pass this map of string key/value pairs as input arguments
-    #[clap(long = "input-arguments")]
-    pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
+    #[clap(long = "input-arguments", value_delimiter = ',')]
+    pub input_arguments: Option<Vec<SeparatedKeyValue<String, String>>>,
     /// The file name of the plugin, which should exist on the server in `<plugin-dir>/<filename>`.
     /// The plugin-dir is provided on server startup.
     #[clap(required = true)]
@@ -77,8 +77,8 @@ pub struct SchedulePluginConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
     /// If given pass this map of string key/value pairs as input arguments
-    #[clap(long = "input-arguments")]
-    pub input_arguments: Option<SeparatedList<SeparatedKeyValue<String, String>>>,
+    #[clap(long = "input-arguments", value_delimiter = ',')]
+    pub input_arguments: Option<Vec<SeparatedKeyValue<String, String>>>,
     /// The file name of the plugin, which should exist on the server in `<plugin-dir>/<filename>`.
     /// The plugin-dir is provided on server startup.
     #[clap(required = true)]
