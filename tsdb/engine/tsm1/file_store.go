@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/logger"
 	"io"
 	"math"
 	"os"
@@ -822,11 +823,6 @@ func (f *FileStore) Stats() []FileStat {
 	return f.lastFileStats
 }
 
-// ReplaceWithCallback replaces oldFiles with newFiles and calls updatedFn with the files to be added the FileStore.
-func (f *FileStore) ReplaceWithCallback(oldFiles, newFiles []string, updatedFn func(r []TSMFile)) error {
-	return f.replace(oldFiles, newFiles, updatedFn)
-}
-
 // Replace replaces oldFiles with newFiles.
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	return f.replace(oldFiles, newFiles, nil)
@@ -865,7 +861,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			}
 		}
 
-		// Any error after this point should result in the file being bein named
+		// Any error after this point should result in the file being named
 		// back to the original name. The caller then has the opportunity to
 		// remove it.
 		fd, err := os.Open(newName)
@@ -1575,19 +1571,29 @@ func (p *purger) add(files []TSMFile) {
 		p.files[f.Path()] = f
 	}
 	p.mu.Unlock()
-	p.purge()
+	p.purge(len(files))
 }
 
-func (p *purger) purge() {
+func (p *purger) purge(added int) {
+	logger, logEndOp := logger.NewOperation(p.logger, "Purge held files", "filestore_purger")
+
+	logger.Info("Purge started", zap.Int("files", added))
 	p.mu.Lock()
 	if p.running {
 		p.mu.Unlock()
+		logger.Info("Purge already running, files added to previous operation")
+		logEndOp()
 		return
 	}
 	p.running = true
 	p.mu.Unlock()
 
 	go func() {
+		var purgeCount int
+		defer func() {
+			logger.Info("Purge complete", zap.Int("files", purgeCount))
+			logEndOp()
+		}()
 		for {
 			p.mu.Lock()
 			for k, v := range p.files {
@@ -1598,15 +1604,16 @@ func (p *purger) purge() {
 				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
-						p.logger.Info("Purge: close file", zap.Error(err))
+						logger.Info("Purge: close file", zap.String("file", k), zap.Error(err))
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
-						p.logger.Info("Purge: remove file", zap.Error(err))
+						logger.Info("Purge: remove file", zap.String("file", k), zap.Error(err))
 						continue
 					}
 					delete(p.files, k)
+					purgeCount++
 				}
 			}
 
