@@ -11,6 +11,7 @@ use object_store::path::Path;
 use observability_deps::tracing::warn;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use trace::span::{Span, SpanRecorder};
 
 /// Errors
 #[derive(Debug, thiserror::Error)]
@@ -36,7 +37,10 @@ impl CompactionPlanGroup {
         compacted_data: &CompactedData,
         new_files_to_compact: &Gen1FileMap,
         output_level: GenerationLevel,
+        span: Option<&Span>,
     ) -> Result<Option<Self>, String> {
+        let span = span.map(|span| span.child("plans_for_level"));
+        let _recorder = SpanRecorder::new(span.clone());
         let mut next_compaction_plans = Vec::new();
         let mut leftover_plans = Vec::new();
 
@@ -72,15 +76,16 @@ impl CompactionPlanGroup {
                     .table_definition_by_id(&table_id)
                     .ok_or("table definition is missing")?;
 
-                let plan = create_next_plan(
+                let plan = create_next_plan(CreateNextPlanArgs {
                     compacted_data,
                     compaction_config,
-                    Arc::clone(&db_schema),
-                    Arc::clone(&table_definition),
+                    db_schema: Arc::clone(&db_schema),
+                    table_definition: Arc::clone(&table_definition),
                     output_level,
-                    compaction_detail,
-                    gen1_files,
-                );
+                    last_compaction_detail: compaction_detail,
+                    new_gen1_files: gen1_files,
+                    span: span.as_ref(),
+                });
 
                 if let Some(plan) = plan {
                     next_compaction_plans.push(plan);
@@ -105,17 +110,33 @@ impl CompactionPlanGroup {
     }
 }
 
-/// Given a list of generations, returns the next compaction plan of the passed in generation to
-/// run. If there are no compactions to run at that level, it will return None.
-fn create_next_plan(
-    compacted_data: &CompactedData,
-    compaction_config: &CompactionConfig,
+struct CreateNextPlanArgs<'a> {
+    compacted_data: &'a CompactedData,
+    compaction_config: &'a CompactionConfig,
     db_schema: Arc<DatabaseSchema>,
     table_definition: Arc<TableDefinition>,
     output_level: GenerationLevel,
     last_compaction_detail: Option<Arc<CompactionDetail>>,
-    new_gen1_files: Option<&Vec<Gen1File>>,
+    new_gen1_files: Option<&'a Vec<Gen1File>>,
+    span: Option<&'a Span>,
+}
+
+/// Given a list of generations, returns the next compaction plan of the passed in generation to
+/// run. If there are no compactions to run at that level, it will return None.
+fn create_next_plan(
+    CreateNextPlanArgs {
+        compacted_data,
+        compaction_config,
+        db_schema,
+        table_definition,
+        output_level,
+        last_compaction_detail,
+        new_gen1_files,
+        span,
+    }: CreateNextPlanArgs<'_>,
 ) -> Option<NextCompactionPlan> {
+    let span = span.map(|span| span.child("create_next_plan"));
+    let _recorder = SpanRecorder::new(span.clone());
     let mut generations = last_compaction_detail
         .as_ref()
         .map(|d| {
@@ -132,7 +153,7 @@ fn create_next_plan(
     generations.sort();
 
     let (output_generation, input_generations) =
-        compaction_for_level(&generations, output_level, compaction_config)?;
+        compaction_for_level(&generations, output_level, compaction_config, span.as_ref())?;
 
     // combine new gen1 files with those leftover from the last compaction to form the leftover
     // gen1 files for this plan:
@@ -200,7 +221,11 @@ fn compaction_for_level(
     generations: &[Generation],
     output_level: GenerationLevel,
     compaction_config: &CompactionConfig,
+    span: Option<&Span>,
 ) -> Option<(Generation, Vec<Generation>)> {
+    let span = span.map(|span| span.child("compaction_for_level"));
+    let _recorder = SpanRecorder::new(span);
+
     // first, group the generations together into what their start time would be at the
     // chosen output level. Only include generations that are less than the output level.
     let mut new_block_times_to_gens = BTreeMap::new();
@@ -438,6 +463,7 @@ mod tests {
                 &gens,
                 GenerationLevel::new(tc.output_level),
                 &compaction_config,
+                None,
             ) {
                 assert_eq!(
                     output_generation.level,
@@ -554,6 +580,7 @@ mod tests {
                 &gens,
                 GenerationLevel::new(tc.output_level),
                 &compaction_config,
+                None,
             );
 
             assert!(

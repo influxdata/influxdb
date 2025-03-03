@@ -140,6 +140,7 @@ async fn five_files_multiple_series_same_schema() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         table_def,
         compactor_id: "compactor_1".into(),
         paths: vec![path1, path2, path3, path4, path5],
@@ -360,6 +361,7 @@ async fn two_files_two_series_and_same_schema() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         compactor_id: "compactor_1".into(),
         table_def,
         paths: vec![path2, path1],
@@ -523,6 +525,7 @@ async fn two_files_same_series_and_schema() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         compactor_id: "compactor_1".into(),
         table_def,
         paths: vec![path1, path2],
@@ -695,6 +698,7 @@ async fn two_files_similar_series_and_compatible_schema() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         compactor_id: "compactor_1".into(),
         table_def,
         paths: vec![path1, path2],
@@ -859,6 +863,7 @@ async fn deduplication_of_data() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         compactor_id: "compactor_1".into(),
         table_def,
         paths: vec![path2, path1],
@@ -1017,6 +1022,7 @@ async fn compactor_casting() {
     let parquet_cache_prefetcher = build_parquet_cache_prefetcher(&obj_store);
 
     let args = CompactFilesArgs {
+        span: None,
         compactor_id: "compactor_1".into(),
         table_def,
         paths: vec![path1],

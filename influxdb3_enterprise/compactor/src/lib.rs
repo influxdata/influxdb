@@ -72,6 +72,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use trace::span::Span;
+use trace::span::SpanRecorder;
 
 pub mod catalog;
 pub mod compacted_data;
@@ -142,6 +144,7 @@ pub struct CompactFilesArgs {
     pub exec: Arc<Executor>,
     pub parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     pub datafusion_config: Arc<HashMap<String, String>>,
+    pub span: Option<Span>,
 }
 
 /// Compact `paths` together into one or more parquet files
@@ -161,20 +164,24 @@ pub async fn compact_files(
         exec,
         parquet_cache_prefetcher,
         datafusion_config,
+        span,
     }: CompactFilesArgs,
 ) -> Result<CompactorOutput, CompactorError> {
+    let span = span.map(|span| span.child("compact_files"));
+    let _recorder = SpanRecorder::new(span.clone());
     let dedupe_key: Vec<_> = table_def.schema.primary_key();
     let dedupe_key = SortKey::from_columns(dedupe_key);
 
-    let records = record_stream(
-        Arc::clone(&table_def),
-        dedupe_key,
+    let records = record_stream(RecordStreamArgs {
+        table_def: Arc::clone(&table_def),
+        sort_key: dedupe_key,
         paths,
-        Arc::clone(&object_store),
+        object_store: Arc::clone(&object_store),
         object_store_url,
         exec,
         datafusion_config,
-    )
+        span: span.clone(),
+    })
     .await?;
 
     let mut series_writer = SeriesWriter::new(
@@ -188,20 +195,24 @@ pub async fn compact_files(
         parquet_cache_prefetcher.clone(),
     );
 
-    loop {
-        // If there is nothing left exit the loop
-        let Some(batch) = series_writer.next_batch().await? else {
-            break;
-        };
-        series_writer.push_batch(batch).await?;
+    {
+        let span = span
+            .clone()
+            .map(|span| span.child("push_all_batches_to_series_writer"));
+        let _recorder = SpanRecorder::new(span.clone());
+        loop {
+            // If there is nothing left exit the loop
+            let Some(batch) = series_writer.next_batch().await? else {
+                break;
+            };
+            series_writer.push_batch(batch).await?;
+        }
     }
 
-    series_writer.finish().await
+    series_writer.finish(span.as_ref()).await
 }
 
-/// Get a stream of `RecordBatch` formed from a set of input paths that get merged and deduplicated
-/// into a single stream.
-async fn record_stream(
+struct RecordStreamArgs {
     table_def: Arc<TableDefinition>,
     sort_key: SortKey,
     paths: Vec<ObjPath>,
@@ -209,7 +220,25 @@ async fn record_stream(
     object_store_url: ObjectStoreUrl,
     exec: Arc<Executor>,
     datafusion_config: Arc<HashMap<String, String>>,
+    span: Option<Span>,
+}
+
+/// Get a stream of `RecordBatch` formed from a set of input paths that get merged and deduplicated
+/// into a single stream.
+async fn record_stream(
+    RecordStreamArgs {
+        table_def,
+        sort_key,
+        paths,
+        object_store,
+        object_store_url,
+        exec,
+        datafusion_config,
+        span,
+    }: RecordStreamArgs,
 ) -> Result<SendableRecordBatchStream, CompactorError> {
+    let span = span.map(|span| span.child("record_stream"));
+    let _recorder = SpanRecorder::new(span.clone());
     // sort, but to dedupe data. We use the same PartitionKey for every file to accomplish this.
     // This is a concept for IOx and the query planner can be clever about deduping data if data
     // is in separate partitions. Mainly that it won't due to assuming that different partitions
@@ -262,6 +291,7 @@ async fn record_stream(
         for (k, v) in datafusion_config.iter() {
             cfg = cfg.with_config_option(k, v);
         }
+        cfg = cfg.with_span_context(span.map(|span| span.ctx.clone()));
         cfg.build()
     };
     ctx.inner()
@@ -359,7 +389,9 @@ impl SeriesWriter {
     }
 
     /// Close out any leftover writers and return the paths
-    async fn finish(mut self) -> Result<CompactorOutput, CompactorError> {
+    async fn finish(mut self, span: Option<&Span>) -> Result<CompactorOutput, CompactorError> {
+        let span = span.map(|span| span.child("SeriesWriter.finish"));
+        let _recorder = SpanRecorder::new(span.clone());
         // close the remaining writer, if any
         if let Some(writer) = self.writer.take() {
             self.close(writer).await?;

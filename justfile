@@ -2,10 +2,21 @@
 
 test_data := env("LOADTEST_DATA_DIR", "./test-data")
 cargo_run_profile := env("LOADTEST_CARGO_RUN_PROFILE", "quick-release")
+export TRACES_EXPORTER := env("TRACES_EXPORTER", "none")
 
 [doc('Run a compactor, writer, and load generator instance in parallel.')]
 [group('workloads')]
 compaction-workload testid wcount:
+  #!/usr/bin/env bash
+  set -euxo pipefail
+
+  if [ "${TRACES_EXPORTER}x" == "jaegerx" ] ;then
+    just run-jaeger || true
+    # If using Jaeger < 2.0, then use port 14268
+    export TRACES_EXPORTER_JAEGER_AGENT_PORT="${TRACES_EXPORTER_JAEGER_AGENT_PORT:-6831}"
+    export TRACES_EXPORTER_JAEGER_SERVICE_NAME="${TRACES_EXPORTER_JAEGER_SERVICE_NAME:-influxdb3-loadtest}"
+  fi
+
   pueue kill -g {{testid}} || true
   pueue group add {{testid}} --parallel 5 || true
   cargo build --profile {{cargo_run_profile}} \
@@ -22,6 +33,16 @@ compaction-workload testid wcount:
 [doc('Run a compaction workload with periodic compactor restarts.')]
 [group('workloads')]
 restarting-compaction-workload testid wcount:
+  #!/usr/bin/env bash
+  set -euxo pipefail
+
+  if [ "${TRACES_EXPORTER}x" == "jaegerx" ] ;then
+    just run-jaeger || true
+    # If using Jaeger < 2.0, then use port 14268
+    export TRACES_EXPORTER_JAEGER_AGENT_PORT="${TRACES_EXPORTER_JAEGER_AGENT_PORT:-6831}"
+    export TRACES_EXPORTER_JAEGER_SERVICE_NAME="${TRACES_EXPORTER_JAEGER_SERVICE_NAME:-influxdb3-loadtest}"
+  fi
+
   pueue kill -g {{testid}} || true
   pueue group add {{testid}} --parallel 5 || true
   cargo build --profile {{cargo_run_profile}} \
@@ -163,6 +184,16 @@ minio testid:
     --mount type=volume,src=influxdb3-minio-config,dst=/root/.mc \
     quay.io/minio/mc:latest \
       mb -p myminio/influxdb3
+
+[doc('Run Jaeger in a docker container.')]
+[group('utility')]
+run-jaeger:
+  docker run -d \
+    --name jaeger \
+    -p 14268:14268 \
+    -p 6831:6831/udp \
+    -p 16686:16686 \
+    jaegertracing/jaeger:2.3.0 || true
 
 [doc('Kill all running processes.')]
 [group('utility')]
