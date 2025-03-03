@@ -80,7 +80,6 @@ impl TableBuffer {
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
-        // for sc in self.snapshotting_chunks.as_filtered_vec(filter) {
         for sc in self.snapshotting_chunks.iter().filter(|sc| {
             filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
         }) {
@@ -129,10 +128,9 @@ impl TableBuffer {
                     (a_min.min(b_min), a_max.max(b_max))
                 })
         };
-        // self.snapshotting_chunks.find_min_max(min, max)
         let mut timestamp_min_max = TimestampMinMax::new(min, max);
 
-        for sc in self.snapshotting_chunks.iter() {
+        for sc in &self.snapshotting_chunks {
             timestamp_min_max = timestamp_min_max.union(&sc.timestamp_min_max);
         }
 

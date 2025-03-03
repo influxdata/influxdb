@@ -204,14 +204,14 @@ impl QueryableBuffer {
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
                 let db_schema = catalog.db_schema_by_id(database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
-                    info!(db_name = ?db_schema.name, ?table_id, ">>> working on db, table");
+                    debug!(db_name = ?db_schema.name, ?table_id, ">>> working on db, table");
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
                     let sort_key = table_buffer.sort_key.clone();
                     let all_keys_to_remove =
                         table_buffer.get_keys_to_remove(snapshot_details.end_time_marker);
-                    info!(num_keys_to_remove = ?all_keys_to_remove.len(), ">>> num keys to remove");
+                    debug!(num_keys_to_remove = ?all_keys_to_remove.len(), ">>> num keys to remove");
 
                     let chunk_time_to_chunk = &mut table_buffer.chunk_time_to_chunks;
                     let snapshot_chunks = &mut table_buffer.snapshotting_chunks;
@@ -350,7 +350,7 @@ impl QueryableBuffer {
                     wal_file_number,
                     Arc::clone(&catalog),
                     gen1_duration.as_10m() as usize,
-                    Some(max_size_per_parquet_file),
+                    None,
                 );
 
                 sort_dedupe_parallel(
