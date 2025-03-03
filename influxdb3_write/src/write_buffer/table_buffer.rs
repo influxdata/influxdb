@@ -467,9 +467,7 @@ fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef
         }
         InfluxColumnType::Tag => {
             let mut builder: StringDictionaryBuilder<Int32Type> = StringDictionaryBuilder::new();
-            for _ in 0..len {
-                builder.append_value("");
-            }
+            builder.append_nulls(len);
             Arc::new(builder.finish())
         }
         InfluxColumnType::Field(InfluxFieldType::Integer) => {
@@ -619,7 +617,7 @@ mod tests {
             let validator =
                 WriteValidator::initialize(db, Arc::clone(&self.catalog), ingest_time_ns).unwrap();
             validator
-                .v1_parse_lines_and_update_schema(
+                .parse_lines_and_update_schema(
                     lp.as_ref(),
                     false,
                     Time::from_timestamp_nanos(ingest_time_ns),

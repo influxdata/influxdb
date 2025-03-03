@@ -284,7 +284,7 @@ impl WriteBufferImpl {
             self.catalog(),
             ingest_time.timestamp_nanos(),
         )?
-        .v1_parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
+        .parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
         .convert_lines_to_buffer(self.wal_config.gen1_duration);
 
         // if there were catalog updates, ensure they get persisted to the wal, so they're
@@ -962,7 +962,7 @@ mod tests {
     use futures_util::StreamExt;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_id::{DbId, ParquetFileId};
+    use influxdb3_id::{ColumnId, DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext};
@@ -987,7 +987,7 @@ mod tests {
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
         WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
             .unwrap()
-            .v1_parse_lines_and_update_schema(
+            .parse_lines_and_update_schema(
                 lp,
                 false,
                 Time::from_timestamp_nanos(0),
@@ -2547,13 +2547,13 @@ mod tests {
         // now do a write that will only be partially accepted to ensure that
         // the metrics are only calculated for writes that get accepted:
 
-        // the legume will not be accepted, because it contains a new tag,
-        // so should not be included in metric calculations:
+        // the legume will not be accepted, because it is an invalid line and
+        // it should not be included in metric calculations:
         let lp = "\
             produce,type=fruit,name=banana price=1.50\n\
             produce,type=fruit,name=papaya price=5.50\n\
             produce,type=vegetable,name=lettuce price=1.00\n\
-            produce,type=fruit,name=lentils,family=legume price=2.00\n\
+            produce,type=fruit,name=lentils,family=legume price=\n\
             ";
         do_writes_partial(
             db_2,
@@ -3121,6 +3121,50 @@ mod tests {
             expected_req_counts,
             inner_store.total_read_request_count(&path)
         );
+    }
+
+    #[test]
+    fn series_key_updated_on_new_tag() {
+        let node_id = Arc::from("sample-host-id");
+        let instance_id = Arc::from("sample-instance-id");
+        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+        let db_name = NamespaceName::new("foo").unwrap();
+        let lp = "test_table,tag0=foo field0=1";
+        WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog), 0)
+            .unwrap()
+            .parse_lines_and_update_schema(
+                lp,
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Nanosecond,
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
+
+        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+
+        assert_eq!(db.tables.len(), 1);
+        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+
+        let lp = "test_table,tag1=bar field0=1";
+        WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
+            .unwrap()
+            .parse_lines_and_update_schema(
+                lp,
+                false,
+                Time::from_timestamp_nanos(0),
+                Precision::Nanosecond,
+            )
+            .unwrap()
+            .convert_lines_to_buffer(Gen1Duration::new_5m());
+
+        assert_eq!(db.tables.len(), 1);
+        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let table = db.tables.get(&TableId::from(0)).unwrap();
+        assert_eq!(table.num_columns(), 4);
+        assert_eq!(table.series_key.len(), 2);
+        assert_eq!(table.series_key[0], ColumnId::from(0));
+        assert_eq!(table.series_key[1], ColumnId::from(3));
     }
 
     struct TestWrite<LP> {
