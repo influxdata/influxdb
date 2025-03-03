@@ -117,6 +117,7 @@ pub struct DatabaseConfig {
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
 }
+
 #[derive(Debug, clap::Args)]
 pub struct LastCacheConfig {
     #[clap(flatten)]
@@ -190,11 +191,11 @@ pub struct DistinctCacheConfig {
 
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
-    #[clap(long = "tags", required = true, num_args=0.., value_delimiter = ',')]
+    #[clap(long = "tags", required = true, value_delimiter = ',')]
     /// The list of tag names to be created for the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
     tags: Vec<String>,
 
-    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, num_args=0.., value_delimiter = ',')]
+    #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
     /// The list of field names and their data type to be created for the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
     /// The expected format is a list like so: 'field_name:data_type'. Valid data types are: int64, uint64, float64, utf8, and bool
     fields: Vec<(String, DataType)>,
