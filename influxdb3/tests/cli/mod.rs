@@ -1701,7 +1701,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     influxdb3_local.write(line)
 
-    return 200, {"Content-Type": "application/json"}, json.dumps({"status": "ok", "line": line_str})
+    return {"status": "ok", "line": line_str}
 "#;
     let plugin_file = create_plugin_file(plugin_code);
     let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
@@ -1776,7 +1776,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 import json
 
 def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
-    return 200, {"Content-Type": "application/json"}, json.dumps({"status": "updated"})
+    return {"status": "updated"}
 "#;
     // clear all bytes from the plugin file
     plugin_file.reopen().unwrap().set_len(0).unwrap();
@@ -1799,6 +1799,517 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = response.text().await.unwrap();
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
+}
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_string_response() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a simple string (should become HTML with 200 status)
+    return "Hello, World!"
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_string";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "string_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test string response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Hello, World!");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_dict_json_response() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a dictionary (should be converted to JSON)
+    return {"message": "Hello, World!", "status": "success"}
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_dict";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "dict_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test dict/JSON response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "application/json"
+    );
+    let body = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(
+        body,
+        json!({"message": "Hello, World!", "status": "success"})
+    );
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_tuple_response_with_status() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a tuple with content and status code
+    return "Created successfully", 201
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_tuple_status";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "tuple_status_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test tuple with status response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 201);
+    assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Created successfully");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_tuple_response_with_headers() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a tuple with content and headers
+    return "Custom Content-Type", {"Content-Type": "text/plain", "X-Custom-Header": "test-value"}
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_tuple_headers";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "tuple_headers_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test tuple with headers response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "text/plain"
+    );
+    assert_eq!(
+        response.headers().get("x-custom-header").unwrap(),
+        "test-value"
+    );
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Custom Content-Type");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_tuple_response_with_status_and_headers() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a tuple with content, status, and headers
+    return "Not Found", 404, {"Content-Type": "text/plain", "X-Error-Code": "NOT_FOUND"}
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_tuple_status_headers";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "tuple_status_headers_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test tuple with status and headers response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 404);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "text/plain"
+    );
+    assert_eq!(response.headers().get("x-error-code").unwrap(), "NOT_FOUND");
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Not Found");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_list_json_response() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a list (should be converted to JSON array)
+    return ["item1", "item2", "item3"]
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_list";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "list_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test list/JSON response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "application/json"
+    );
+    let body = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body, json!(["item1", "item2", "item3"]));
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_iterator_response() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a generator that yields strings
+    def generate_content():
+        yield "Line 1\n"
+        yield "Line 2\n"
+        yield "Line 3\n"
+    
+    return generate_content()
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_iterator";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "iterator_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test iterator/generator response
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers().get("content-type").unwrap(), "text/html");
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Line 1\nLine 2\nLine 3\n");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_response_object() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Creating a mock Flask Response object
+    class FlaskResponse:
+        def __init__(self, response, status=200, headers=None):
+            self.response = response
+            self.status_code = status
+            self.headers = headers or {}
+            
+        def get_data(self):
+            return self.response
+            
+        def __flask_response__(self):
+            return True
+    
+    # Return a Flask Response object
+    response = FlaskResponse(
+        "Custom Flask Response", 
+        status=202, 
+        headers={"Content-Type": "text/custom", "X-Generated-By": "FlaskResponse"}
+    )
+    return response
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_response_obj";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "response_obj_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test Flask Response object
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 202);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "text/custom"
+    );
+    assert_eq!(
+        response.headers().get("x-generated-by").unwrap(),
+        "FlaskResponse"
+    );
+    let body = response.text().await.unwrap();
+    assert_eq!(body, "Custom Flask Response");
+}
+
+#[cfg(feature = "system-py")]
+#[test_log::test(tokio::test)]
+async fn test_flask_json_dict_with_status_in_tuple() {
+    let plugin_code = r#"
+def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
+    # Return a tuple with a dictionary and status code
+    return {"error": "Not Found", "code": 404}, 404
+"#;
+    let plugin_file = create_plugin_file(plugin_code);
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+    let db_name = "flask_test_json_status";
+
+    // Setup: create database and plugin
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    let trigger_path = "json_status_test";
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        plugin_filename,
+        "--trigger-spec",
+        "request:test_route",
+        trigger_path,
+    ]);
+
+    // Send request to test JSON dict with status
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 404);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "application/json"
+    );
+    let body = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(body, json!({"error": "Not Found", "code": 404}));
 }
 
 #[cfg(feature = "system-py")]
