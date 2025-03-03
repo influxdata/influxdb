@@ -507,7 +507,7 @@ mod tests {
 
         let trigger_arguments = trigger_arguments.expect("args must include trigger arguments");
 
-        assert_eq!(2, trigger_arguments.0.len());
+        assert_eq!(2, trigger_arguments.len());
 
         let query_path = trigger_arguments
             .into_iter()
