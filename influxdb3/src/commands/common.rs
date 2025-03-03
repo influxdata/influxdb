@@ -67,11 +67,12 @@ where
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split(SEPARATOR);
-        let key = parts.next().ok_or_else(|| anyhow::anyhow!("missing key"))?;
-        let value = parts
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("missing value"))?;
+        let (key, value) = s
+            // we only split once because the structure of our input is a SEPARATOR-separated tuple
+            // and we need to allow the SEPARATOR value to be included multiple times in value side
+            // of the tuple
+            .split_once(SEPARATOR)
+            .ok_or_else(|| anyhow::anyhow!("must be formatted as \"key=value\""))?;
 
         Ok(Self((
             key.parse().map_err(Into::into)?,

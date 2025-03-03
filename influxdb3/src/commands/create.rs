@@ -386,10 +386,14 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
 #[cfg(test)]
 mod tests {
+
+    use std::time::Duration;
+
     use clap::Parser;
+    use influxdb3_wal::TriggerSpecificationDefinition;
 
     #[test]
-    fn parse_args() {
+    fn parse_args_create_last_cache() {
         let args = super::Config::parse_from([
             "create",
             "last_cache",
@@ -426,5 +430,56 @@ mod tests {
         assert!(value_columns.is_some_and(|vals| vals.0 == ["field1", "field2", "field3"]));
         assert!(count.is_some_and(|c| c == 5));
         assert!(ttl.is_some_and(|t| t.as_secs() == 3600));
+    }
+
+    #[test]
+    fn parse_args_create_trigger_arguments() {
+        let args = super::Config::parse_from([
+            "create",
+            "trigger",
+            "--trigger-spec",
+            "every:10s",
+            "--plugin-filename",
+            "plugin.py",
+            "--database",
+            "test",
+            "--trigger-arguments",
+            "query_path=/metrics?format=json,whatever=hello",
+            "test-trigger",
+        ]);
+        let super::SubCommand::Trigger(super::TriggerConfig {
+            trigger_name,
+            trigger_arguments,
+            trigger_specification,
+            plugin_filename,
+            disabled,
+            run_asynchronous,
+            influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+        }) = args.cmd
+        else {
+            panic!("Did not parse args correctly: {args:#?}")
+        };
+        assert_eq!("test", database_name);
+        assert_eq!("test-trigger", trigger_name);
+        assert_eq!("plugin.py", plugin_filename);
+        assert_eq!(
+            TriggerSpecificationDefinition::Every {
+                duration: Duration::from_secs(10)
+            },
+            trigger_specification
+        );
+        assert!(!disabled);
+        assert!(!run_asynchronous);
+
+        let trigger_arguments = trigger_arguments.expect("args must include trigger arguments");
+
+        assert_eq!(2, trigger_arguments.0.len());
+
+        let query_path = trigger_arguments
+            .into_iter()
+            .find(|v| v.0.0 == "query_path")
+            .expect("must include query_path trigger argument");
+
+        assert_eq!("/metrics?format=json", query_path.0.1);
     }
 }
