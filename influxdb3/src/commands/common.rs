@@ -67,11 +67,12 @@ where
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split(SEPARATOR);
-        let key = parts.next().ok_or_else(|| anyhow::anyhow!("missing key"))?;
-        let value = parts
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("missing value"))?;
+        let (key, value) = s
+            // we only split once because the structure of our input is a SEPARATOR-separated tuple
+            // and we need to allow the SEPARATOR value to be included multiple times in value side
+            // of the tuple
+            .split_once(SEPARATOR)
+            .ok_or_else(|| anyhow::anyhow!("must be formatted as \"key=value\""))?;
 
         Ok(Self((
             key.parse().map_err(Into::into)?,
@@ -80,34 +81,6 @@ where
     }
 }
 
-/// A clap argument provided as a list of items separated by `SEPARATOR`, which by default is a ','
-#[derive(Debug, Clone)]
-pub struct SeparatedList<T, const SEPARATOR: char = ','>(pub Vec<T>);
-
-impl<T, const SEPARATOR: char> FromStr for SeparatedList<T, SEPARATOR>
-where
-    T: FromStr<Err: Into<anyhow::Error>>,
-{
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(
-            s.split(SEPARATOR)
-                .map(|s| s.parse::<T>().map_err(Into::into))
-                .collect::<Result<Vec<T>, Self::Err>>()?,
-        ))
-    }
-}
-
-impl<T, const SEPARATOR: char> IntoIterator for SeparatedList<T, SEPARATOR> {
-    type Item = T;
-
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum DataType {
     Int64,

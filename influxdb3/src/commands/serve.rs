@@ -45,6 +45,8 @@ use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+#[cfg(feature = "system-py")]
+use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::CommonServerState;
 use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
 use influxdb3_server::{
@@ -74,10 +76,7 @@ use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::process::Command;
 use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::Path, str::FromStr};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -995,31 +994,18 @@ pub(crate) fn setup_processing_engine_env_manager(
 
 fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     // Check for pip (highest preference)
-    // XXX: put this somewhere common
-    let python_exe_bn = if cfg!(windows) {
-        "python.exe"
-    } else {
-        "python3"
-    };
-    let python_exe = if let Ok(v) = env::var("PYTHONHOME") {
-        // honor PYTHONHOME (set earlier for python standalone). python build
-        // standalone has bin/python3 on OSX/Linux and python.exe on Windows
-        let mut path = PathBuf::from(v);
-        if !cfg!(windows) {
-            path.push("bin");
-        }
-        path.push(python_exe_bn);
-        path
-    } else {
-        PathBuf::from(python_exe_bn)
-    };
-
-    if let Ok(output) = Command::new(python_exe)
-        .args(["-m", "pip", "--version"])
-        .output()
+    #[cfg(feature = "system-py")]
     {
-        if output.status.success() {
-            return Arc::new(PipManager);
+        let python_exe = find_python();
+        debug!("Running: {} -m pip --version", python_exe.display());
+
+        if let Ok(output) = Command::new(&python_exe)
+            .args(["-m", "pip", "--version"])
+            .output()
+        {
+            if output.status.success() {
+                return Arc::new(PipManager);
+            }
         }
     }
 

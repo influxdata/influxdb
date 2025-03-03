@@ -243,7 +243,7 @@ jobs:
     # scripts/fetch-python-standalone.bash for details. This should match the
     # 'build-docker' job, below.
     environment:
-      PBS_DATE: "20250106"
+      PBS_DATE: "20250212"
       PBS_VERSION: "3.11.11"
     steps:
       - checkout
@@ -581,7 +581,7 @@ jobs:
     # scripts/fetch-python-standalone.bash for details. This should match
     # the 'fetch-python' job, above.
     environment:
-      PBS_DATE: "20250106"
+      PBS_DATE: "20250212"
       PBS_VERSION: "3.11.11"
     machine:
       image: default
