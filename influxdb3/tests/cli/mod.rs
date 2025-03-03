@@ -413,15 +413,9 @@ async fn test_create_table() {
         "--host",
         &server_addr,
         "--tags",
-        "one",
-        "two",
-        "three",
+        "one,two,three",
         "--fields",
-        "four:utf8",
-        "five:uint64",
-        "six:float64",
-        "seven:int64",
-        "eight:bool",
+        "four:utf8,five:uint64,six:float64,seven:int64,eight:bool",
     ]);
     debug!(result = ?result, "create table");
     assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
@@ -456,6 +450,7 @@ async fn test_create_table() {
         .json::<Value>()
         .await
         .unwrap();
+    debug!(result = ?result, "data written");
     assert_eq!(
         result,
         json!([{
