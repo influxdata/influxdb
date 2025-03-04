@@ -19,7 +19,7 @@ use influxdb3_types::http::{
 use influxdb3_wal::PluginType;
 use influxdb3_wal::{
     CatalogBatch, CatalogOp, DeleteTriggerDefinition, SnapshotDetails, TriggerDefinition,
-    TriggerFlag, TriggerIdentifier, TriggerSpecificationDefinition, Wal, WalContents,
+    TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, Wal, WalContents,
     WalFileNotifier, WalOp,
 };
 use influxdb3_write::WriteBuffer;
@@ -346,7 +346,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         db_name: &str,
         trigger_name: String,
         plugin_filename: String,
-        flags: Vec<TriggerFlag>,
+        trigger_settings: TriggerSettings,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -362,7 +362,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             trigger_name,
             plugin_filename,
             trigger: trigger_specification,
-            flags,
+            trigger_settings,
             trigger_arguments,
             disabled,
             database_name: db_name.to_string(),
@@ -428,6 +428,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
+        processing_engine_manager: Arc<dyn ProcessingEngineManager>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
@@ -451,6 +452,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 write_buffer,
                 query_executor,
                 sys_event_store: Arc::clone(&self.sys_event_store),
+                manager: processing_engine_manager,
             };
             let plugin_code = Arc::new(self.read_plugin_code(&trigger.plugin_filename).await?);
             match trigger.trigger.plugin_type() {
@@ -578,6 +580,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
+        manager: Arc<dyn ProcessingEngineManager>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
@@ -611,17 +614,21 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             self.wal.write_ops(vec![wal_op]).await?;
         }
 
-        self.run_trigger(write_buffer, query_executor, db_name, trigger_name)
+        self.run_trigger(write_buffer, query_executor, manager, db_name, trigger_name)
             .await?;
         Ok(())
     }
 
-    async fn start_triggers(&self) -> Result<(), ProcessingEngineError> {
+    async fn start_triggers(
+        &self,
+        manager: Arc<dyn ProcessingEngineManager>,
+    ) -> Result<(), ProcessingEngineError> {
         let triggers = self.catalog.active_triggers();
         for (db_name, trigger_name) in triggers {
             self.run_trigger(
                 Arc::clone(&self.write_buffer),
                 Arc::clone(&self.query_executor),
+                Arc::clone(&manager),
                 &db_name,
                 &trigger_name,
             )
@@ -803,7 +810,7 @@ mod tests {
     use influxdb3_catalog::catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_sys_events::SysEventStore;
-    use influxdb3_wal::{Gen1Duration, TriggerSpecificationDefinition, WalConfig};
+    use influxdb3_wal::{Gen1Duration, TriggerSettings, TriggerSpecificationDefinition, WalConfig};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};
@@ -840,6 +847,8 @@ mod tests {
 
         // convert to Arc<WriteBuffer>
         let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
+        let query_executor = Arc::clone(&pem.query_executor);
+        let pem: Arc<dyn ProcessingEngineManager> = Arc::new(pem);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -858,7 +867,7 @@ mod tests {
             "foo",
             "test_trigger".to_string(),
             file_name,
-            vec![],
+            TriggerSettings::default(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             false,
@@ -868,7 +877,8 @@ mod tests {
         // Run the trigger
         pem.run_trigger(
             Arc::clone(&write_buffer),
-            Arc::clone(&pem.query_executor),
+            Arc::clone(&query_executor),
+            Arc::clone(&pem),
             "foo",
             "test_trigger",
         )
@@ -891,7 +901,8 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem.query_executor),
+                Arc::clone(&query_executor),
+                Arc::clone(&pem),
                 "foo",
                 "test_trigger",
             )
@@ -944,7 +955,7 @@ mod tests {
             "foo",
             "test_trigger".to_string(),
             file_name,
-            vec![],
+            TriggerSettings::default(),
             TriggerSpecificationDefinition::AllTablesWalWrite,
             None,
             true,
@@ -978,6 +989,8 @@ mod tests {
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
         let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
+        let query_executor = Arc::clone(&pem.query_executor);
+        let pem: Arc<dyn ProcessingEngineManager> = Arc::new(pem);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -994,7 +1007,8 @@ mod tests {
         let result = pem
             .enable_trigger(
                 Arc::clone(&write_buffer),
-                Arc::clone(&pem.query_executor),
+                Arc::clone(&query_executor),
+                Arc::clone(&pem),
                 "foo",
                 "nonexistent_trigger",
             )

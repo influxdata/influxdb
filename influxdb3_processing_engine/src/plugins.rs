@@ -1,6 +1,7 @@
 #[cfg(feature = "system-py")]
 use crate::PluginCode;
 use crate::environment::PythonEnvironmentManager;
+use crate::manager::ProcessingEngineManager;
 #[cfg(feature = "system-py")]
 use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
@@ -172,6 +173,8 @@ pub(crate) struct PluginContext {
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
     // query executor to hand off to the plugin
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
+    // processing engine manager for disabling plugins if they fail.
+    pub(crate) manager: Arc<dyn ProcessingEngineManager>,
     // sys events for writing logs to ring buffers
     pub(crate) sys_event_store: Arc<SysEventStore>,
 }
@@ -184,6 +187,7 @@ struct TriggerPlugin {
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
+    manager: Arc<dyn ProcessingEngineManager>,
     logger: ProcessingEngineLogger,
 }
 
@@ -205,7 +209,7 @@ mod python_plugin {
         PluginReturnState, ProcessingEngineLogger, execute_python_with_batch,
         execute_request_trigger, execute_schedule_trigger,
     };
-    use influxdb3_wal::{TriggerFlag, WalContents, WalOp};
+    use influxdb3_wal::{ErrorBehavior, WalContents, WalOp};
     use influxdb3_write::Precision;
     use iox_time::Time;
     use observability_deps::tracing::{info, warn};
@@ -230,6 +234,7 @@ mod python_plugin {
                 db_name,
                 write_buffer: Arc::clone(&context.write_buffer),
                 query_executor: Arc::clone(&context.query_executor),
+                manager: Arc::clone(&context.manager),
                 logger,
             }
         }
@@ -239,21 +244,41 @@ mod python_plugin {
             mut receiver: Receiver<WalEvent>,
         ) -> Result<(), PluginError> {
             info!(?self.trigger_definition.trigger_name, ?self.trigger_definition.database_name, ?self.trigger_definition.plugin_filename, "starting wal contents plugin");
-            let run_in_dedicated_task = self
-                .trigger_definition
-                .flags
-                .contains(&TriggerFlag::ExecuteAsynchronously);
             let mut futures = FuturesUnordered::new();
             loop {
                 tokio::select! {
                     event = receiver.recv() => {
                         match event {
                             Some(WalEvent::WriteWalContents(wal_contents)) => {
-                                if run_in_dedicated_task {
+                                if self.trigger_definition.trigger_settings.run_async {
                                     let clone = self.clone();
                                     futures.push(async move {clone.process_wal_contents(wal_contents).await});
-                                } else if let Err(e) = self.process_wal_contents(wal_contents).await {
-                                    error!(?self.trigger_definition, "error processing wal contents: {}", e);
+                                } else {
+                                    match self.process_wal_contents(wal_contents).await? {
+
+                                    PluginNextState::SuccessfulRun => {}
+                                    PluginNextState::LogError(error_log) => {
+                                            self.logger.log(LogLevel::Error, error_log);
+                                        }
+                                    PluginNextState::Disable(trigger_definition) => {
+                                            warn!("disabling trigger {}", trigger_definition.trigger_name);
+                                            self.send_disable_trigger();
+                                            while let Some(event) = receiver.recv().await {
+                                                match event {
+                                                    WalEvent::WriteWalContents(_) => {
+                                                        warn!("skipping wal contents because trigger is being disabled")
+                                                    }
+                                                    WalEvent::Shutdown(shutdown) => {
+                                                        if shutdown.send(()).is_err() {
+                                                            error!("failed to send back shutdown for trigger {}", trigger_definition.trigger_name);
+                                                        }
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                 }
                             }
                             Some(WalEvent::Shutdown(sender)) => {
@@ -264,8 +289,35 @@ mod python_plugin {
                         }
                     }
                     Some(result) = futures.next() => {
-                        if let Err(e) = result {
-                            error!(?self.trigger_definition, "error processing wal contents: {}", e);
+                        match result {
+                            Ok(result) => {
+                                match result {
+                                    PluginNextState::SuccessfulRun => {}
+                                    PluginNextState::LogError(error_log) => {
+                                        error!("trigger failed with error {}", error_log);
+                                        self.logger.log(LogLevel::Error, error_log);
+                                    },
+                                    PluginNextState::Disable(_) => {
+                                        self.send_disable_trigger();
+                                        while let Some(event) = receiver.recv().await {
+                                            match event {
+                                                WalEvent::WriteWalContents(_) => {
+                                                    warn!("skipping wal contents because trigger is being disabled")
+                                                }
+                                                WalEvent::Shutdown(shutdown) => {
+                                                    if shutdown.send(()).is_err() {
+                                                        error!("failed to send back shutdown for trigger {}", self.trigger_definition.trigger_name);
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                error!(?self.trigger_definition, "error processing wal contents: {}", err);
+                            }
                         }
                     }
                 }
@@ -274,16 +326,26 @@ mod python_plugin {
             Ok(())
         }
 
+        /// This sends the disable trigger command to the processing engine manager,
+        /// it is done in a separate task so that the caller can send back shutdown.
+        pub(crate) fn send_disable_trigger(&self) {
+            let manager = Arc::clone(&self.manager);
+            let db_name = self.trigger_definition.database_name.clone();
+            let trigger_name = self.trigger_definition.trigger_name.clone();
+            let fut = async move {
+                manager
+                    .disable_trigger(db_name.as_str(), trigger_name.as_str())
+                    .await
+            };
+            // start the disable call, then look for the shutdown message
+            tokio::spawn(fut);
+        }
         pub(crate) async fn run_schedule_plugin(
             &self,
             mut receiver: Receiver<ScheduleEvent>,
             mut runner: ScheduleTriggerRunner,
             time_provider: Arc<dyn TimeProvider>,
         ) -> Result<(), PluginError> {
-            let run_in_dedicated_task = self
-                .trigger_definition
-                .flags
-                .contains(&TriggerFlag::ExecuteAsynchronously);
             let mut futures = FuturesUnordered::new();
             loop {
                 let Some(next_run_instant) = runner.next_run_time() else {
@@ -301,13 +363,40 @@ mod python_plugin {
                         };
 
                         runner.advance_time();
-                        if run_in_dedicated_task {
+                        if self.trigger_definition.trigger_settings.run_async {
                             let trigger =self.clone();
                             let fut = async move {ScheduleTriggerRunner::run_at_time(trigger, trigger_time, schema).await};
                             futures.push(fut);
-                        } else if let Err(err) = ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await {
-                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
-                            error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                        } else {
+                            match ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await {
+                                Ok(plugin_state) => {
+                                    match plugin_state {
+                                        PluginNextState::SuccessfulRun => {}
+                                        PluginNextState::LogError(err) => {
+                                            self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
+                                            error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                                        }
+                                        PluginNextState::Disable(trigger_definition) => {
+                                            warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
+                                            self.send_disable_trigger();
+                                            let Some(ScheduleEvent::Shutdown(sender)) = receiver.recv().await else {
+                                                warn!("didn't receive shutdown notification from receiver");
+                                                break;
+                                            };
+
+                                            if sender.send(()).is_err() {
+                                                error!("failed to send shutdown message back");
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
+                                    error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
+                                }
+                            }
+
                         }
                     }
                     event = receiver.recv() => {
@@ -323,9 +412,34 @@ mod python_plugin {
                         }
                     }
                     Some(result) = futures.next() => {
-                        if let Err(e) = result {
-                            self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
-                            error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
+                        match result {
+                            Err(e) => {
+                                self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
+                                error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
+                            }
+                            Ok(result) => {
+                                match result {
+                                    PluginNextState::SuccessfulRun => {}
+                                    PluginNextState::LogError(err) => {
+                                        self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", err));
+                                        error!(?self.trigger_definition, "error running async scheduled plugin: {}", err);
+                                    }
+                                    PluginNextState::Disable(trigger_definition) => {
+                                        warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
+                                        self.send_disable_trigger();
+
+                                        let Some(ScheduleEvent::Shutdown(sender)) = receiver.recv().await else {
+                                            warn!("didn't receive shutdown notification from receiver");
+                                            break;
+                                        };
+
+                                        if sender.send(()).is_err() {
+                                            error!("failed to send shutdown message back");
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -438,88 +552,118 @@ mod python_plugin {
         async fn process_wal_contents(
             &self,
             wal_contents: Arc<WalContents>,
-        ) -> Result<(), PluginError> {
-            let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
-                return Err(PluginError::MissingDb);
-            };
+        ) -> Result<PluginNextState, PluginError> {
+            // loop for retry case
+            loop {
+                let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str())
+                else {
+                    return Err(PluginError::MissingDb);
+                };
 
-            for (op_index, wal_op) in wal_contents.ops.iter().enumerate() {
-                match wal_op {
-                    WalOp::Write(write_batch) => {
-                        // determine if this write batch is for this database
-                        if write_batch.database_name.as_ref()
-                            != self.trigger_definition.database_name
-                        {
-                            continue;
-                        }
-                        let table_filter = match &self.trigger_definition.trigger {
-                            TriggerSpecificationDefinition::AllTablesWalWrite => {
-                                // no filter
-                                None
+                for (op_index, wal_op) in wal_contents.ops.iter().enumerate() {
+                    match wal_op {
+                        WalOp::Write(write_batch) => {
+                            // determine if this write batch is for this database
+                            if write_batch.database_name.as_ref()
+                                != self.trigger_definition.database_name
+                            {
+                                continue;
                             }
-                            TriggerSpecificationDefinition::SingleTableWalWrite {
-                                table_name,
-                            } => {
-                                let table_id = schema
-                                    .table_name_to_id(table_name.as_ref())
-                                    .context("table not found")?;
-                                Some(table_id)
-                            }
-                            // This should not occur
-                            TriggerSpecificationDefinition::Schedule {
-                                schedule
-                            } => {
-                                return Err(anyhow!("unexpectedly found scheduled trigger specification cron:{} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
-                            }
-                            TriggerSpecificationDefinition::Every {
-                                duration,
-                            } => {
-                                return Err(anyhow!("unexpectedly found every trigger specification every:{} WAL plugin {}", format_duration(*duration), self.trigger_definition.trigger_name).into())
-                            }
-                            TriggerSpecificationDefinition::RequestPath { path } => {
-                                return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
-                            }
-                        };
-
-                        let logger = Some(self.logger.clone());
-                        let plugin_code = Arc::clone(&self.plugin_code.code());
-                        let query_executor = Arc::clone(&self.query_executor);
-                        let schema_clone = Arc::clone(&schema);
-                        let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
-                        let wal_contents_clone = Arc::clone(&wal_contents);
-
-                        let result = tokio::task::spawn_blocking(move || {
-                            let write_batch = match &wal_contents_clone.ops[op_index] {
-                                WalOp::Write(wb) => wb,
-                                _ => unreachable!("Index was checked."),
+                            let table_filter = match &self.trigger_definition.trigger {
+                                TriggerSpecificationDefinition::AllTablesWalWrite => {
+                                    // no filter
+                                    None
+                                }
+                                TriggerSpecificationDefinition::SingleTableWalWrite {
+                                    table_name,
+                                } => {
+                                    let table_id = schema
+                                        .table_name_to_id(table_name.as_ref())
+                                        .context("table not found")?;
+                                    Some(table_id)
+                                }
+                                // This should not occur
+                                TriggerSpecificationDefinition::Schedule {
+                                    schedule
+                                } => {
+                                    return Err(anyhow!("unexpectedly found scheduled trigger specification cron:{} for WAL plugin {}", schedule, self.trigger_definition.trigger_name).into())
+                                }
+                                TriggerSpecificationDefinition::Every {
+                                    duration,
+                                } => {
+                                    return Err(anyhow!("unexpectedly found every trigger specification every:{} WAL plugin {}", format_duration(*duration), self.trigger_definition.trigger_name).into())
+                                }
+                                TriggerSpecificationDefinition::RequestPath { path } => {
+                                    return Err(anyhow!("unexpectedly found request path trigger specification {} for WAL plugin {}", path, self.trigger_definition.trigger_name).into())
+                                }
                             };
-                            execute_python_with_batch(
-                                plugin_code.as_ref(),
-                                write_batch,
-                                schema_clone,
-                                query_executor,
-                                logger,
-                                table_filter,
-                                &trigger_arguments,
-                            )
-                        })
-                        .await??;
 
-                        let errors = self.handle_return_state(result).await;
-                        for error in errors {
-                            self.logger.log(
-                                LogLevel::Error,
-                                format!("error running wal plugin: {}", error),
-                            );
-                            error!(?self.trigger_definition, "error running wal plugin: {}", error);
+                            let logger = Some(self.logger.clone());
+                            let plugin_code = Arc::clone(&self.plugin_code.code());
+                            let query_executor = Arc::clone(&self.query_executor);
+                            let schema_clone = Arc::clone(&schema);
+                            let trigger_arguments =
+                                self.trigger_definition.trigger_arguments.clone();
+                            let wal_contents_clone = Arc::clone(&wal_contents);
+
+                            let result = tokio::task::spawn_blocking(move || {
+                                let write_batch = match &wal_contents_clone.ops[op_index] {
+                                    WalOp::Write(wb) => wb,
+                                    _ => unreachable!("Index was checked."),
+                                };
+                                execute_python_with_batch(
+                                    plugin_code.as_ref(),
+                                    write_batch,
+                                    schema_clone,
+                                    query_executor,
+                                    logger,
+                                    table_filter,
+                                    &trigger_arguments,
+                                )
+                            })
+                            .await?;
+
+                            match result {
+                                Ok(result) => {
+                                    let errors = self.handle_return_state(result).await;
+                                    for error in errors {
+                                        self.logger.log(
+                                            LogLevel::Error,
+                                            format!("error running wal plugin: {}", error),
+                                        );
+                                        error!(?self.trigger_definition, "error running wal plugin: {}", error);
+                                    }
+                                }
+                                Err(err) => {
+                                    match self.trigger_definition.trigger_settings.error_behavior {
+                                        ErrorBehavior::Log => {
+                                            self.logger.log(
+                                                LogLevel::Error,
+                                                format!("error executing against batch {}", err),
+                                            );
+                                            error!(?self.trigger_definition, "error running against batch: {}", err);
+                                        }
+                                        ErrorBehavior::Retry => {
+                                            info!(
+                                                "error running against batch {}, will retry",
+                                                err
+                                            );
+                                            break;
+                                        }
+                                        ErrorBehavior::Disable => {
+                                            return Ok(PluginNextState::Disable(
+                                                self.trigger_definition.clone(),
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
                         }
+                        WalOp::Catalog(_) => {}
+                        WalOp::Noop(_) => {}
                     }
-                    WalOp::Catalog(_) => {}
-                    WalOp::Noop(_) => {}
                 }
             }
-
-            Ok(())
         }
 
         /// Handles the return state from the plugin, writing back lines and handling any errors.
@@ -577,6 +721,12 @@ mod python_plugin {
     enum Schedule {
         Cron(OwnedScheduleIterator<Utc>),
         Every(Duration),
+    }
+
+    enum PluginNextState {
+        SuccessfulRun,
+        LogError(String),
+        Disable(TriggerDefinition),
     }
 
     pub(crate) struct ScheduleTriggerRunner {
@@ -645,29 +795,52 @@ mod python_plugin {
             plugin: TriggerPlugin,
             trigger_time: DateTime<Utc>,
             db_schema: Arc<DatabaseSchema>,
-        ) -> Result<(), PluginError> {
-            let plugin_code = plugin.plugin_code.code();
-            let query_executor = Arc::clone(&plugin.query_executor);
-            let logger = Some(plugin.logger.clone());
-            let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
-            let result = tokio::task::spawn_blocking(move || {
-                execute_schedule_trigger(
-                    plugin_code.as_ref(),
-                    trigger_time,
-                    db_schema,
-                    query_executor,
-                    logger,
-                    &trigger_arguments,
-                )
-            })
-            .await??;
+        ) -> Result<PluginNextState, PluginError> {
+            // This loop is here just for the retry case.
+            loop {
+                let plugin_code = plugin.plugin_code.code();
+                let query_executor = Arc::clone(&plugin.query_executor);
+                let logger = Some(plugin.logger.clone());
+                let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
+                let schema = Arc::clone(&db_schema);
 
-            let errors = plugin.handle_return_state(result).await;
-            // TODO: here is one spot we'll pick up errors to put into the plugin system table
-            for error in errors {
-                error!(?plugin.trigger_definition, "error running schedule plugin: {}", error);
+                let result = tokio::task::spawn_blocking(move || {
+                    execute_schedule_trigger(
+                        plugin_code.as_ref(),
+                        trigger_time,
+                        schema,
+                        query_executor,
+                        logger,
+                        &trigger_arguments,
+                    )
+                })
+                .await?;
+                match result {
+                    Ok(result) => {
+                        let errors = plugin.handle_return_state(result).await;
+                        // TODO: here is one spot we'll pick up errors to put into the plugin system table
+                        for error in errors {
+                            error!(?plugin.trigger_definition, "error running schedule plugin: {}", error);
+                        }
+                        return Ok(PluginNextState::SuccessfulRun);
+                    }
+                    Err(err) => match &plugin.trigger_definition.trigger_settings.error_behavior {
+                        ErrorBehavior::Log => {
+                            return Ok(PluginNextState::LogError(err.to_string()));
+                        }
+                        ErrorBehavior::Retry => {
+                            warn!(
+                                "retrying trigger {} on error",
+                                plugin.trigger_definition.trigger_name
+                            );
+                            continue;
+                        }
+                        ErrorBehavior::Disable => {
+                            return Ok(PluginNextState::Disable(plugin.trigger_definition));
+                        }
+                    },
+                }
             }
-            Ok(())
         }
 
         fn advance_time(&mut self) {

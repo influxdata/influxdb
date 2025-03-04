@@ -64,6 +64,8 @@ pub enum Error {
         trigger_spec: String,
         context: Option<String>,
     },
+    #[error("invalid error behavior {0}")]
+    InvalidErrorBehavior(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -642,15 +644,28 @@ pub struct TriggerDefinition {
     pub plugin_filename: String,
     pub database_name: String,
     pub trigger: TriggerSpecificationDefinition,
-    pub flags: Vec<TriggerFlag>,
+    pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum TriggerFlag {
-    ExecuteAsynchronously,
+pub struct TriggerSettings {
+    pub run_async: bool,
+    pub error_behavior: ErrorBehavior,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorBehavior {
+    #[default]
+    /// Log the error to the service output and system.processing_engine_logs table.
+    Log,
+    /// Rerun the trigger on error.
+    Retry,
+    /// Turn off the plugin until it is manually re-enabled.
+    Disable,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
