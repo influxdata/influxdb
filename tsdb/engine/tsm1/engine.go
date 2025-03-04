@@ -2173,9 +2173,9 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 					if genLen == 1 {
 						// Log TSM files that will have an increased points per block count.
 						for _, f := range level4Groups[0] {
-							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block.", zap.String("path", f), zap.Int("points-per-block", tsdb.DefaultAggressiveMaxPointsPerBlock))
+							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block.", zap.String("path", f), zap.Int("points-per-block", e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()))
 						}
-						e.Compactor.Size = tsdb.DefaultAggressiveMaxPointsPerBlock
+						e.Compactor.Size = e.CompactionPlan.GetAggressiveCompactionPointsPerBlock()
 					} else {
 						e.Compactor.Size = tsdb.DefaultMaxPointsPerBlock
 					}

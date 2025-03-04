@@ -126,6 +126,8 @@ type CompactionPlanner interface {
 	SetFileStore(fs *FileStore)
 
 	SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int)
+
+	GetAggressiveCompactionPointsPerBlock() int
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -237,6 +239,10 @@ func (t *tsmGeneration) hasTombstones() bool {
 
 func (c *DefaultPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
 	c.aggressiveCompactionPointsPerBlock = aggressiveCompactionPointsPerBlock
+}
+
+func (c *DefaultPlanner) GetAggressiveCompactionPointsPerBlock() int {
+	return c.aggressiveCompactionPointsPerBlock
 }
 
 func (c *DefaultPlanner) SetFileStore(fs *FileStore) {
