@@ -34,9 +34,7 @@ function build_windows () {
 
   CGO_ENABLED=1 PKG_CONFIG=$(which pkg-config)  go-test-compile \
         -tags sqlite_foreign_keys,sqlite_json,timetzdata \
-        -ldext "${CC}" \
-        -o "${1}/"
-        ./...
+        -ldext "${CC}" -o "${1}/" ./...
 }
 
 function build_test_tools () {
