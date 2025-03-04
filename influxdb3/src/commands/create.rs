@@ -399,7 +399,7 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
-    use influxdb3_wal::TriggerSpecificationDefinition;
+    use influxdb3_wal::{ErrorBehavior, TriggerSpecificationDefinition};
 
     #[test]
     fn parse_args_create_last_cache() {
@@ -463,6 +463,7 @@ mod tests {
             plugin_filename,
             disabled,
             run_asynchronous,
+            error_behavior,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
         }) = args.cmd
         else {
@@ -479,6 +480,7 @@ mod tests {
         );
         assert!(!disabled);
         assert!(!run_asynchronous);
+        assert_eq!(ErrorBehavior::Log, error_behavior);
 
         let trigger_arguments = trigger_arguments.expect("args must include trigger arguments");
 
