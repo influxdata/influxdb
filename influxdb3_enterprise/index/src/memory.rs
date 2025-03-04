@@ -9,6 +9,7 @@ use datafusion::{
 use hashbrown::HashMap;
 use influxdb3_id::ParquetFileId;
 use influxdb3_write::{ChunkFilter, ParquetFile};
+use observability_deps::tracing::trace;
 use std::{cmp::Ordering, sync::Arc};
 
 use crate::hash_for_index;
@@ -56,6 +57,36 @@ impl FileIndex {
             });
         }
         parquet_file_metas.sort();
+    }
+
+    pub fn remove_older_gen_parquet_metas<'a>(
+        &mut self,
+        column: u64,
+        value: u64,
+        parquet_ids: impl Iterator<Item = &'a ParquetFileId>,
+    ) {
+        let metas = self.index.get_mut(&(column, value));
+        if metas.is_some() {
+            let metas = metas.unwrap();
+            let before_len = metas.len();
+            let parquet_ids_vec: Vec<ParquetFileId> = parquet_ids.cloned().collect();
+            metas.retain(move |meta| {
+                for id in parquet_ids_vec.iter() {
+                    // matches old file id, remove this
+                    if id.as_u64() == meta.id.as_u64() {
+                        return false;
+                    }
+                }
+                true
+            });
+            let after_len = metas.len();
+            trace!(
+                ?before_len,
+                ?after_len,
+                removed = before_len - after_len,
+                ">>> clearing older generation meta"
+            );
+        }
     }
 
     pub fn add_files(&mut self, files: &[Arc<ParquetFile>]) {

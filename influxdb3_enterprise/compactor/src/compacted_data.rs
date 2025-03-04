@@ -9,6 +9,7 @@ use influxdb3_enterprise_data_layout::{
     GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::FileIndex;
+use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_write::{ChunkFilter, ParquetFile};
 use object_store::ObjectStore;
@@ -168,7 +169,9 @@ impl CompactedData {
         &self,
         compaction_detail: CompactionDetail,
         generation_details: Vec<GenerationDetail>,
-        removed_generations: Vec<Generation>,
+        removed_generations: &[Generation],
+        removed_gen_details: Vec<GenerationDetail>,
+        parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     ) {
         let mut d = self.inner_compacted_data.write();
         let db = d.databases.entry(compaction_detail.db_id).or_default();
@@ -186,7 +189,18 @@ impl CompactedData {
         for g in generation_details {
             table.add_generation_detail(g);
         }
-        table.remove_compacted_generations(removed_generations);
+
+        // remove metas from file index
+        for removed_gen in removed_gen_details {
+            for (col, valfiles) in removed_gen.file_index.index {
+                for (val, path) in valfiles.iter() {
+                    table
+                        .file_index
+                        .remove_older_gen_parquet_metas(col, *val, path.iter());
+                }
+            }
+        }
+        table.remove_compacted_generations(removed_generations, parquet_cache_prefetcher.clone());
     }
 
     pub(crate) fn update_compaction_detail(&self, compaction_detail: CompactionDetail) {
@@ -364,11 +378,18 @@ impl CompactedTable {
             .insert(generation_detail.id, generation_detail.files);
     }
 
-    fn remove_compacted_generations(&mut self, generations: Vec<Generation>) {
+    fn remove_compacted_generations(
+        &mut self,
+        generations: &[Generation],
+        parquet_cache: Option<Arc<ParquetCachePreFetcher>>,
+    ) {
         for generation in generations {
             if let Some(files) = self.compacted_generations.remove(&generation.id) {
                 for f in files {
                     self.file_index.remove_file(f.id);
+                    if let Some(parquet_cache) = parquet_cache.as_ref() {
+                        parquet_cache.remove_from_cache(f.path.as_str());
+                    }
                 }
             }
         }

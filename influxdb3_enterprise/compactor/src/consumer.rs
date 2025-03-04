@@ -9,7 +9,9 @@ use crate::{
     sys_events::{CompactionEventStore, compaction_consumed},
 };
 use anyhow::Context;
-use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
+use influxdb3_enterprise_data_layout::{
+    CompactionDetailPath, GenerationDetail, GenerationDetailPath, GenerationId,
+};
 use influxdb3_enterprise_data_layout::{
     Generation,
     persist::{
@@ -22,6 +24,7 @@ use observability_deps::tracing::warn;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt::Debug, time::Instant};
+use tokio::task::JoinSet;
 
 pub struct CompactedDataConsumer {
     pub compactor_id: Arc<str>,
@@ -192,21 +195,37 @@ impl CompactedDataConsumer {
                 None => (compaction_detail.compacted_generations.clone(), vec![]),
             };
 
-            let mut generation_details = Vec::with_capacity(new_generations.len());
             let new_gens_u8 = Generation::to_vec_levels(&new_generations);
             let removed_gens_u8 = Generation::to_vec_levels(&removed_generations);
-            for genr in new_generations {
-                let gen_path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), genr.id);
-                let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
-                    .await
-                    .context("generation detail not found")?;
-                generation_details.push(gen_detail);
-            }
+            // load new generations concurrently
+            let new_gen_ids = to_gen_ids_iter(&new_generations);
+            let generation_details = self
+                .load_generation_details(SizedIter {
+                    iter: new_gen_ids,
+                    size: new_generations.len(),
+                })
+                .await?;
 
+            // load removed generations concurrently
+            let removed_gen_ids = to_gen_ids_iter(&removed_generations);
+            let removed_gen_details = self
+                .load_generation_details(SizedIter {
+                    iter: removed_gen_ids,
+                    size: removed_generations.len(),
+                })
+                .await?;
+
+            // cache all the new gen files
             if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
                 let mut prefetch_files = generation_details
                     .iter()
-                    .flat_map(|gen_detail| gen_detail.files.iter().map(|f| f.as_ref().clone()))
+                    .flat_map(|gen_detail| {
+                        gen_detail
+                            .files
+                            .iter()
+                            .map(|f| f.as_ref().clone())
+                            .collect::<Vec<_>>()
+                    })
                     .collect::<Vec<_>>();
                 let gen_1_files = compaction_detail
                     .leftover_gen1_files
@@ -219,7 +238,9 @@ impl CompactedDataConsumer {
             self.compacted_data.update_detail_with_generations(
                 compaction_detail,
                 generation_details,
-                removed_generations,
+                &removed_generations,
+                removed_gen_details,
+                self.parquet_cache_prefetcher.clone(),
             );
 
             if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
@@ -241,6 +262,57 @@ impl CompactedDataConsumer {
         self.compacted_data.update_compaction_summary(summary);
 
         Ok(())
+    }
+
+    async fn load_generation_details<I: Iterator<Item = GenerationId>>(
+        &self,
+        generation_ids: SizedIter<I>,
+    ) -> Result<Vec<GenerationDetail>, anyhow::Error> {
+        let mut join_set = JoinSet::new();
+        let mut generation_details = Vec::with_capacity(generation_ids.len());
+        for id in generation_ids {
+            let compactor_id = Arc::clone(&self.compactor_id);
+            let object_store = Arc::clone(&self.object_store);
+            // no need to buffer - this is per table, which are expected to not have many
+            // generations to load at this point
+            join_set.spawn(async move {
+                let gen_path = GenerationDetailPath::new(Arc::clone(&compactor_id), id);
+                get_generation_detail(&gen_path, Arc::clone(&object_store))
+                    .await
+                    .context("generation detail not found")
+            });
+        }
+        while let Some(details) = join_set.join_next().await {
+            let detail = details??;
+            generation_details.push(detail);
+        }
+        Ok(generation_details)
+    }
+}
+
+fn to_gen_ids_iter(new_generations: &[Generation]) -> impl Iterator<Item = GenerationId> {
+    new_generations.iter().map(|generation| generation.id)
+}
+
+struct SizedIter<I> {
+    iter: I,
+    size: usize,
+}
+
+impl<I: Iterator> SizedIter<I> {
+    fn len(&self) -> usize {
+        self.size
+    }
+}
+
+impl<I: Iterator> Iterator for SizedIter<I> {
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.size > 0 {
+            return self.iter.next();
+        }
+        None
     }
 }
 
