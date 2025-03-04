@@ -2887,6 +2887,7 @@ func MustParsePointString(buf string) models.Point { return MustParsePointsStrin
 
 type mockPlanner struct{}
 
+func (m *mockPlanner) GetAggressiveCompactionPointsPerBlock() int { return 0 }
 func (m *mockPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
 	return
 }
