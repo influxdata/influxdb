@@ -200,16 +200,20 @@ impl CompactedDataConsumer {
                 let gen_detail = get_generation_detail(&gen_path, Arc::clone(&self.object_store))
                     .await
                     .context("generation detail not found")?;
-                if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
-                    // TODO: convert prefetcher and compaction function to always return Vec<Arc<ParquetFile>> rather than the raw ParquetFile.
-                    let prefetch_files = gen_detail
-                        .files
-                        .iter()
-                        .map(|f| f.as_ref().clone())
-                        .collect::<Vec<_>>();
-                    prefetcher.prefetch_all(&prefetch_files).await;
-                }
                 generation_details.push(gen_detail);
+            }
+
+            if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
+                let mut prefetch_files = generation_details
+                    .iter()
+                    .flat_map(|gen_detail| gen_detail.files.iter().map(|f| f.as_ref().clone()))
+                    .collect::<Vec<_>>();
+                let gen_1_files = compaction_detail
+                    .leftover_gen1_files
+                    .iter()
+                    .map(|f| f.file.as_ref().clone());
+                prefetch_files.extend(gen_1_files);
+                prefetcher.prefetch_all(&prefetch_files).await;
             }
 
             self.compacted_data.update_detail_with_generations(
@@ -218,8 +222,6 @@ impl CompactedDataConsumer {
                 removed_generations,
             );
 
-            // TODO: db id and table id should be in catalog coming this far in the loop? If so
-            //       these can just be unwraps.
             if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
                 let db_name = Arc::clone(&db_schema.name);
                 let table_defn = db_schema.table_definition_by_id(table_id);
