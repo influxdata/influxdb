@@ -84,6 +84,13 @@ commands:
     description: Verify installed components
     steps:
       - run:
+          name: Activate toolchain
+          command: |
+            rustup toolchain install
+            rustup component add clippy
+            rustup component add rustfmt
+
+      - run:
           name: Verify installed components
           command: |
             rustup --version
