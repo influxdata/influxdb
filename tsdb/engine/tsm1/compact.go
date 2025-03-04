@@ -253,7 +253,7 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 			aggressivePointsPerBlockCount := 0
 			filesUnderMaxTsmSizeCount := 0
 			for _, tsmFile := range gens[0].files {
-				if c.FileStore.BlockCount(tsmFile.Path, 1) >= tsdb.AggressiveMaxPointsPerBlock {
+				if c.FileStore.BlockCount(tsmFile.Path, 1) >= tsdb.DefaultAggressiveMaxPointsPerBlock {
 					aggressivePointsPerBlockCount++
 				}
 				if tsmFile.Size < tsdb.MaxTSMFileSize {

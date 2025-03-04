@@ -52,9 +52,9 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
-	// AggressiveMaxPointsPerBlock is used when we want to further compact blocks
+	// DefaultAggressiveMaxPointsPerBlock is used when we want to further compact blocks
 	// it is 100 times the default amount of points we use per block
-	AggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 100
+	DefaultAggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 10
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// This limit only applies to the "inmem" index.
@@ -92,7 +92,7 @@ var SingleGenerationReasonText string = SingleGenerationReason()
 // when checked for full compaction.
 // 1048576000 is a magic number for bytes per gigabyte.
 func SingleGenerationReason() string {
-	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), AggressiveMaxPointsPerBlock)
+	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), DefaultAggressiveMaxPointsPerBlock)
 }
 
 // Config holds the configuration for the tsbd package.
@@ -128,6 +128,7 @@ type Config struct {
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
+	CompactPointsPerBlock          toml.Size     `toml:"compact-points-per-block"`
 
 	// Options for ingress metrics
 	IngressMetricByMeasurement bool `toml:"ingress-metric-by-measurement-enabled"`
@@ -197,6 +198,7 @@ func NewConfig() Config {
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
+		CompactPointsPerBlock:          toml.Size(DefaultAggressiveMaxPointsPerBlock),
 
 		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,

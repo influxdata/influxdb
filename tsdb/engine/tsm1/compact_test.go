@@ -2400,7 +2400,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		// > 2 GB total group size
 		// 50% of files are at aggressive max block size
 		{
-			"Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at AggressiveMaxPointsPerBlock",
+			"Small group size with single generation 50% at DefaultMaxPointsPerBlock and 50% at DefaultAggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-05.tsm1",
@@ -2436,10 +2436,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 				},
 			},
 			[]int{
-				tsdb.AggressiveMaxPointsPerBlock,
-				tsdb.AggressiveMaxPointsPerBlock,
-				tsdb.AggressiveMaxPointsPerBlock,
-				tsdb.AggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
 				tsdb.DefaultMaxPointsPerBlock,
@@ -2464,7 +2464,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 			tsdb.DefaultMaxPointsPerBlock,
 			tsdb.DefaultMaxPointsPerBlock,
 		},
@@ -2582,16 +2582,16 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 400 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 			tsdb.DefaultMaxPointsPerBlock,
 
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 			tsdb.DefaultMaxPointsPerBlock,
 
 			tsdb.DefaultMaxPointsPerBlock,
@@ -2674,7 +2674,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			// This test is added to account for a single generation that has a group size
 			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
 			// It should not compact any further.
-			"TSM files at AggressiveMaxPointsPerBlock",
+			"TSM files at DefaultAggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2685,8 +2685,8 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 		}, "", 0,
 		},
 		{
@@ -2705,7 +2705,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 			tsdb.DefaultMaxPointsPerBlock,
 		},
 			"",
@@ -2714,7 +2714,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		{
 			// This test is added to account for a single generation that has a group size
 			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
-			"Group size over 2 with multiple files under 2GB and at AggressiveMaxPointsPerBlock",
+			"Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock",
 			[]tsm1.FileStat{
 				{
 					Path: "01-13.tsm1",
@@ -2729,9 +2729,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
-			tsdb.AggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 		}, "", 0,
 		},
 	}

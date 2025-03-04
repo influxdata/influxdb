@@ -2167,14 +2167,14 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
-					// This is a heuristic. 100_000 points per block is suitable for when we have a
+					// This is a heuristic. The 10_000 points per block default is suitable for when we have a
 					// single generation with multiple files at max block size under 2 GB.
 					if genLen == 1 {
 						// Log TSM files that will have an increased points per block count.
 						for _, f := range level4Groups[0] {
-							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block to 100_000.", zap.String("path", f))
+							e.logger.Info("TSM optimized compaction on single generation running, increasing total points per block.", zap.String("path", f), zap.Int("points-per-block", tsdb.DefaultAggressiveMaxPointsPerBlock))
 						}
-						e.Compactor.Size = tsdb.AggressiveMaxPointsPerBlock
+						e.Compactor.Size = tsdb.DefaultAggressiveMaxPointsPerBlock
 					} else {
 						e.Compactor.Size = tsdb.DefaultMaxPointsPerBlock
 					}
