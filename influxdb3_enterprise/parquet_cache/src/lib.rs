@@ -34,10 +34,7 @@ impl ParquetCachePreFetcher {
         }
     }
 
-    pub async fn prefetch_all(
-        &self,
-        parquet_infos: &Vec<ParquetFile>,
-    ) -> Vec<Result<(), RecvError>> {
+    pub async fn prefetch_all(&self, parquet_infos: &[ParquetFile]) -> Vec<Result<(), RecvError>> {
         let all_futures = self.prepare_prefetch_requests(parquet_infos);
         // `join_all` uses `FuturesOrdered` internally, might be nicer to have `FuturesUnordered` for this
         // case
@@ -60,7 +57,7 @@ impl ParquetCachePreFetcher {
 
     fn prepare_prefetch_requests(
         &self,
-        parquet_infos: &Vec<ParquetFile>,
+        parquet_infos: &[ParquetFile],
     ) -> Vec<impl Future<Output = Result<(), RecvError>>> {
         let mut futures = Vec::with_capacity(parquet_infos.len());
         for parquet_meta in parquet_infos {
