@@ -128,7 +128,7 @@ type Config struct {
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
-	CompactPointsPerBlock          toml.Size     `toml:"compact-points-per-block"`
+	AggressivePointsPerBlock       toml.Size     `toml:"aggressive-points-per-block"`
 
 	// Options for ingress metrics
 	IngressMetricByMeasurement bool `toml:"ingress-metric-by-measurement-enabled"`
@@ -198,7 +198,7 @@ func NewConfig() Config {
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
-		CompactPointsPerBlock:          toml.Size(DefaultAggressiveMaxPointsPerBlock),
+		AggressivePointsPerBlock:       toml.Size(DefaultAggressiveMaxPointsPerBlock),
 
 		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,
