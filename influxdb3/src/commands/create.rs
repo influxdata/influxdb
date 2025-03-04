@@ -15,7 +15,6 @@ use sha2::Sha512;
 use std::error::Error;
 use std::num::NonZeroUsize;
 use std::str;
-use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
 
@@ -230,12 +229,11 @@ pub struct TriggerConfig {
     /// Create trigger in disabled state
     #[clap(long)]
     disabled: bool,
+    /// Run each instance of the trigger asynchronously, allowing multiple triggers to run simultaneously.
     #[clap(long)]
     run_asynchronous: bool,
-    #[clap(long,
-        value_parser = ErrorBehavior::from_str,
-        default_value = "log",
-    )]
+    /// How you wish the system to respond in the event of an error from the plugin
+    #[clap(long, value_enum, default_value_t = ErrorBehavior::Log)]
     error_behavior: ErrorBehavior,
     /// Name for the new trigger
     trigger_name: String,

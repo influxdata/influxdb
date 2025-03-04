@@ -656,25 +656,16 @@ pub struct TriggerSettings {
     pub error_behavior: ErrorBehavior,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorBehavior {
     #[default]
+    /// Log the error to the service output and system.processing_engine_logs table.
     Log,
+    /// Rerun the trigger on error.
     Retry,
+    /// Turn off the plugin until it is manually re-enabled.
     Disable,
-}
-
-impl FromStr for ErrorBehavior {
-    type Err = Error;
-    fn from_str(error_behavior_string: &str) -> Result<Self, Error> {
-        match error_behavior_string.to_lowercase().as_str() {
-            "log" => Ok(ErrorBehavior::Log),
-            "retry" => Ok(ErrorBehavior::Retry),
-            "disable" => Ok(ErrorBehavior::Disable),
-            other => Err(Error::InvalidErrorBehavior(other.to_owned())),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

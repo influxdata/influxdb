@@ -3223,6 +3223,7 @@ dependencies = [
  "bitcode",
  "byteorder",
  "bytes",
+ "clap",
  "crc32fast",
  "cron 0.14.0",
  "data_types",
