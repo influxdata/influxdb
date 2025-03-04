@@ -42,6 +42,13 @@ RUN \
   --mount=type=cache,id=influxdb3_rustup,sharing=locked,target=/usr/local/rustup \
   --mount=type=cache,id=influxdb3_registry,sharing=locked,target=/usr/local/cargo/registry \
   --mount=type=cache,id=influxdb3_git,sharing=locked,target=/usr/local/cargo/git \
+    du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git && \
+    rustup toolchain install
+
+RUN \
+  --mount=type=cache,id=influxdb3_rustup,sharing=locked,target=/usr/local/rustup \
+  --mount=type=cache,id=influxdb3_registry,sharing=locked,target=/usr/local/cargo/registry \
+  --mount=type=cache,id=influxdb3_git,sharing=locked,target=/usr/local/cargo/git \
   --mount=type=cache,id=influxdb3_target,sharing=locked,target=/influxdb3/target \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb3/target && \
     PYO3_CONFIG_FILE="/influxdb3/python-artifacts/$PBS_TARGET/pyo3_config_file.txt" cargo build --target-dir /influxdb3/target --package="$PACKAGE" --profile="$PROFILE" --no-default-features --features="$FEATURES" && \
