@@ -2786,6 +2786,146 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			expectedFullyCompacted(cp, test.expectedFullyCompactedReasonExp)
 		})
 	}
+
+	type PlanOptimizeMixedTests struct {
+		name                            string
+		fs                              []tsm1.FileStat
+		bc                              []int
+		expectedFullyCompactedReasonExp string
+		expectedgenerationCount         int64
+		fullyCompacted                  bool
+	}
+
+	setUpperAreNotFullyCompacted := []PlanOptimizeMixedTests{
+		{
+			// This test is added to account for halting state after
+			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
+			// will need to ensure that once we have single TSM file under 2 GB we stop
+			"Single TSM file with increase block count",
+			[]tsm1.FileStat{
+				{
+					Path: "01-09.tsm1",
+					Size: 650 * 1024 * 1024,
+				},
+			},
+			[]int{},
+			"", 0, true,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB with 1 file under 2 GB all at max points per block with aggressive compaction.
+			// It should not compact any further.
+			"TSM files at DefaultAggressiveMaxPointsPerBlock with increased block count",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 691 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0, true,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB at max points per block with aggressive compaction, and, 1 file
+			// under 2 GB at default max points per block.
+			// It should not compact any further.
+			"TSM files cannot compact further, single file under 2G and at DefaultMaxPointsPerBlock with increased block count",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 691 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
+			"",
+			0, true,
+		},
+		{
+			// This test is added to account for a single generation that has a group size
+			// over 2 GB and multiple files under 2 GB all at max points per block for aggressive compaction.
+			"Group size over 2 with multiple files under 2GB and at DefaultAggressiveMaxPointsPerBlock with increased block count",
+			[]tsm1.FileStat{
+				{
+					Path: "01-13.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-14.tsm1",
+					Size: 650 * 1024 * 1024,
+				},
+				{
+					Path: "01-15.tsm1",
+					Size: 450 * 1024 * 1024,
+				},
+			}, []int{
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, tsdb.SingleGenerationReasonText, 1, false,
+		},
+	}
+
+	maxBlocksNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, fullyCompacted bool) {
+		compacted, reason := cp.FullyCompacted()
+		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
+		require.Equal(t, compacted, fullyCompacted, "is fully compacted")
+
+		// Ensure that no level planning takes place
+		_, cgLen := cp.PlanLevel(1)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		_, cgLen = cp.PlanLevel(2)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		_, cgLen = cp.PlanLevel(3)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+	}
+
+	// These tests will decrease the max points per block for aggressive compaction.
+	for _, test := range setUpperAreNotFullyCompacted {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
+
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
+
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
+			maxBlocksNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			if len(test.bc) > 0 {
+				slices.Reverse(test.bc)
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting reverse block counts")
+			}
+
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
+			maxBlocksNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+		})
+	}
+}
+
+func TestDefaultPlanner_PointsPerBlockParameter(t *testing.T) {
+
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {

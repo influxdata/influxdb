@@ -233,6 +233,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 	if opt.CompactionPlannerCreator != nil {
 		planner = opt.CompactionPlannerCreator(opt.Config).(CompactionPlanner)
 		planner.SetFileStore(fs)
+		planner.SetAggressiveCompactionPointsPerBlock(int(opt.Config.CompactPointsPerBlock))
 	}
 
 	logger := zap.NewNop()
