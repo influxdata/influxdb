@@ -369,7 +369,7 @@ mod python_plugin {
                             futures.push(fut);
                         } else {
                             match ScheduleTriggerRunner::run_at_time(self.clone(), trigger_time, schema).await {
-                            Ok(plugin_state) => {
+                                Ok(plugin_state) => {
                                     match plugin_state {
                                         PluginNextState::SuccessfulRun => {}
                                         PluginNextState::LogError(err) => {
@@ -394,8 +394,8 @@ mod python_plugin {
                                 Err(err) => {
                                     self.logger.log(LogLevel::Error, format!("error running scheduled plugin: {}", err));
                                     error!(?self.trigger_definition, "error running scheduled plugin: {}", err);
-                                    }
                                 }
+                            }
 
                         }
                     }
@@ -414,30 +414,31 @@ mod python_plugin {
                     Some(result) = futures.next() => {
                         match result {
                             Err(e) => {
-                            self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
-                            error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
+                                self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", e));
+                                error!(?self.trigger_definition, "error running async scheduled plugin: {}", e);
                             }
                             Ok(result) => {
                                 match result {
-                                PluginNextState::SuccessfulRun => {}
-                                PluginNextState::LogError(err) => {
+                                    PluginNextState::SuccessfulRun => {}
+                                    PluginNextState::LogError(err) => {
                                         self.logger.log(LogLevel::Error, format!("error running async scheduled plugin: {}", err));
                                         error!(?self.trigger_definition, "error running async scheduled plugin: {}", err);
                                     }
-                                PluginNextState::Disable(trigger_definition) => {
+                                    PluginNextState::Disable(trigger_definition) => {
                                         warn!("disabling trigger {} due to error", trigger_definition.trigger_name);
                                         self.send_disable_trigger();
 
                                         let Some(ScheduleEvent::Shutdown(sender)) = receiver.recv().await else {
-                                                warn!("didn't receive shutdown notification from receiver");
-                                                break;
+                                            warn!("didn't receive shutdown notification from receiver");
+                                            break;
                                         };
 
                                         if sender.send(()).is_err() {
                                             error!("failed to send shutdown message back");
                                         }
                                         break;
-                                    }}
+                                    }
+                                }
                             }
                         }
                     }
