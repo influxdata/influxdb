@@ -2892,6 +2892,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	}
 
 	// These tests will decrease the max points per block for aggressive compaction.
+	// For SetAggressiveCompactionPointsPerBlock we are using 10x the default to
+	// mock an administrator setting the max points per block to 100_000 and overriding
+	// the default of 10_000.
 	for _, test := range setUpperAreNotFullyCompacted {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
@@ -2922,10 +2925,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			maxBlocksNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
 		})
 	}
-}
-
-func TestDefaultPlanner_PointsPerBlockParameter(t *testing.T) {
-
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {

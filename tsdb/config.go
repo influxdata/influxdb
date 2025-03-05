@@ -53,7 +53,7 @@ const (
 	DefaultMaxPointsPerBlock = 1000
 
 	// DefaultAggressiveMaxPointsPerBlock is used when we want to further compact blocks
-	// it is 100 times the default amount of points we use per block
+	// it is 10 times the default amount of points we use per block
 	DefaultAggressiveMaxPointsPerBlock = DefaultMaxPointsPerBlock * 10
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
@@ -92,7 +92,7 @@ var SingleGenerationReasonText string = SingleGenerationReason()
 // when checked for full compaction.
 // 1048576000 is a magic number for bytes per gigabyte.
 func SingleGenerationReason() string {
-	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (%d points)", int(MaxTSMFileSize/1048576000), DefaultAggressiveMaxPointsPerBlock)
+	return fmt.Sprintf("not fully compacted and not idle because single generation with more than 2 files under %d GB and more than 1 file(s) under aggressive compaction points per block count (default: %d points)", int(MaxTSMFileSize/1048576000), DefaultAggressiveMaxPointsPerBlock)
 }
 
 // Config holds the configuration for the tsbd package.
