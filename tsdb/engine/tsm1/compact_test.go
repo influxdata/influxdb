@@ -2796,7 +2796,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		fullyCompacted                  bool
 	}
 
-	setUpperAreNotFullyCompacted := []PlanOptimizeMixedTests{
+	mixedPlanOptimizeTests := []PlanOptimizeMixedTests{
 		{
 			// This test is added to account for halting state after
 			// TestDefaultPlanner_FullyCompacted_SmallSingleGeneration
@@ -2877,7 +2877,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		},
 	}
 
-	maxBlocksNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, fullyCompacted bool) {
+	mixedPlanOptimizeTestRunner := func(cp *tsm1.DefaultPlanner, reasonExp string, fullyCompacted bool) {
 		compacted, reason := cp.FullyCompacted()
 		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 		require.Equal(t, compacted, fullyCompacted, "is fully compacted")
@@ -2895,7 +2895,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 	// For SetAggressiveCompactionPointsPerBlock we are using 10x the default to
 	// mock an administrator setting the max points per block to 100_000 and overriding
 	// the default of 10_000.
-	for _, test := range setUpperAreNotFullyCompacted {
+	for _, test := range mixedPlanOptimizeTests {
 		t.Run(test.name, func(t *testing.T) {
 			ffs := &fakeFileStore{
 				PathsFn: func() []tsm1.FileStat {
@@ -2910,7 +2910,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
-			maxBlocksNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+			mixedPlanOptimizeTestRunner(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
 
 			// Reverse test files and re-run tests
 			slices.Reverse(test.fs)
@@ -2922,7 +2922,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 			cp.SetAggressiveCompactionPointsPerBlock(tsdb.DefaultAggressiveMaxPointsPerBlock * 10)
-			maxBlocksNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
+			mixedPlanOptimizeTestRunner(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
 		})
 	}
 }
