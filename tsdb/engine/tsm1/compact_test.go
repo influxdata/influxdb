@@ -299,7 +299,7 @@ func TestCompactor_DecodeError(t *testing.T) {
 	_, err = compactor.CompactFull([]string{f1, f2, f3}, zap.NewNop())
 
 	require.ErrorContains(t, err, "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp")
-	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(strings []string, strings2 []string, f func([]tsm1.TSMFile)) error {
+	tsm1.MoveTsmOnReadErr(err, zap.NewNop(), func(strings []string, strings2 []string) error {
 		require.Equal(t, 1, len(strings))
 		require.Equal(t, strings[0], f3)
 		return nil
@@ -1137,11 +1137,10 @@ func TestCompactor_CompactFull_InProgress(t *testing.T) {
 	}()
 	_, err = compactor.CompactFull([]string{f2Name}, zap.NewNop())
 	assert.Errorf(t, err, "expected an error writing snapshot for %s", f2Name)
-	e := errors.Unwrap(err)
-	assert.NotNil(t, e, "expected an error wrapped by errCompactionInProgress")
-	assert.Truef(t, errors.Is(e, fs.ErrExist), "error did not indicate file existence: %v", e)
+	assert.ErrorContainsf(t, err, "file exists", "unexpected error writing snapshot for %s", f2Name)
+	assert.Truef(t, errors.Is(err, fs.ErrExist), "error did not indicate file existence: %v", err)
 	pathErr := &os.PathError{}
-	assert.Truef(t, errors.As(e, &pathErr), "expected path error, got %v", e)
+	assert.Truef(t, errors.As(err, &pathErr), "expected path error, got %v", err)
 	assert.Truef(t, errors.Is(pathErr, fs.ErrExist), "error did not indicate file existence: %v", pathErr)
 }
 
