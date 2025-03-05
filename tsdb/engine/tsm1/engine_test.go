@@ -2887,6 +2887,10 @@ func MustParsePointString(buf string) models.Point { return MustParsePointsStrin
 
 type mockPlanner struct{}
 
+func (m *mockPlanner) GetAggressiveCompactionPointsPerBlock() int { return 0 }
+func (m *mockPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
+	return
+}
 func (m *mockPlanner) Plan(lastWrite time.Time) ([]tsm1.CompactionGroup, int64) { return nil, 0 }
 func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64)      { return nil, 0 }
 func (m *mockPlanner) PlanOptimize() ([]tsm1.CompactionGroup, int64, int64)     { return nil, 0, 0 }

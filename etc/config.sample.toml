@@ -124,6 +124,11 @@
   # will allow TSM compactions to write to disk.
   # compact-throughput-burst = "48m"
 
+  # AggressivePointsPerBlock is the points per block to be used when aggressive
+  # compaction is used. There are certain cases where TSM files do not get
+  # fully compacted. This adjusts an internal parameter that alleviates that.
+  # aggressive-points-per-block = 10000
+
   # If true, then the mmap advise value MADV_WILLNEED will be provided to the kernel with respect to
   # TSM files. This setting has been found to be problematic on some kernels, and defaults to off.
   # It might help users who have slow disks in some cases.

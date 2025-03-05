@@ -124,6 +124,10 @@ type CompactionPlanner interface {
 	ForceFull()
 
 	SetFileStore(fs *FileStore)
+
+	SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int)
+
+	GetAggressiveCompactionPointsPerBlock() int
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -157,6 +161,10 @@ type DefaultPlanner struct {
 	// filesInUse is the set of files that have been returned as part of a plan and might
 	// be being compacted.  Two plans should not return the same file at any given time.
 	filesInUse map[string]struct{}
+
+	// aggressiveCompactionPointsPerBlock is the amount of points that should be
+	// packed in to a TSM file block during aggressive compaction
+	aggressiveCompactionPointsPerBlock int
 }
 
 type fileStore interface {
@@ -168,9 +176,10 @@ type fileStore interface {
 
 func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPlanner {
 	return &DefaultPlanner{
-		FileStore:                    fs,
-		compactFullWriteColdDuration: writeColdDuration,
-		filesInUse:                   make(map[string]struct{}),
+		FileStore:                          fs,
+		compactFullWriteColdDuration:       writeColdDuration,
+		filesInUse:                         make(map[string]struct{}),
+		aggressiveCompactionPointsPerBlock: tsdb.DefaultAggressiveMaxPointsPerBlock,
 	}
 }
 
@@ -228,6 +237,14 @@ func (t *tsmGeneration) hasTombstones() bool {
 	return false
 }
 
+func (c *DefaultPlanner) SetAggressiveCompactionPointsPerBlock(aggressiveCompactionPointsPerBlock int) {
+	c.aggressiveCompactionPointsPerBlock = aggressiveCompactionPointsPerBlock
+}
+
+func (c *DefaultPlanner) GetAggressiveCompactionPointsPerBlock() int {
+	return c.aggressiveCompactionPointsPerBlock
+}
+
 func (c *DefaultPlanner) SetFileStore(fs *FileStore) {
 	c.FileStore = fs
 }
@@ -253,7 +270,7 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 			aggressivePointsPerBlockCount := 0
 			filesUnderMaxTsmSizeCount := 0
 			for _, tsmFile := range gens[0].files {
-				if c.FileStore.BlockCount(tsmFile.Path, 1) >= tsdb.AggressiveMaxPointsPerBlock {
+				if c.FileStore.BlockCount(tsmFile.Path, 1) >= c.aggressiveCompactionPointsPerBlock {
 					aggressivePointsPerBlockCount++
 				}
 				if tsmFile.Size < tsdb.MaxTSMFileSize {
