@@ -13,7 +13,6 @@ use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
 use test_helpers::{assert_contains, assert_not_contains};
 
-#[cfg(feature = "system-py")]
 pub const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     for table_batch in table_batches:
@@ -640,7 +639,6 @@ async fn test_create_delete_distinct_cache() {
     assert_contains!(&result, "[404 Not Found]: cache not found");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_create_trigger_and_run() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
@@ -734,7 +732,6 @@ async fn test_create_trigger_and_run() {
     }
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_triggers_are_started() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
@@ -1231,7 +1228,6 @@ async fn distinct_cache_create_and_delete() {
     insta::assert_yaml_snapshot!(result);
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_test() {
     use crate::server::ConfigProvider;
@@ -1338,7 +1334,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
     assert_eq!(res, expected_result);
 }
-#[cfg(feature = "system-py")]
+
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test() {
     use crate::server::ConfigProvider;
@@ -1412,7 +1408,6 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     assert_eq!(res["errors"], expected_result["errors"]);
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test_with_strftime() {
     use crate::server::ConfigProvider;
@@ -1494,7 +1489,6 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     assert_eq!(res["errors"], serde_json::json!([]));
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_errors() {
     use crate::server::ConfigProvider;
@@ -1617,7 +1611,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     }
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_load_wal_plugin_from_gh() {
     use crate::server::ConfigProvider;
@@ -1678,7 +1671,6 @@ async fn test_load_wal_plugin_from_gh() {
     assert_eq!(res, expected_result);
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_request_plugin_and_trigger() {
     let plugin_code = r#"
@@ -1800,7 +1792,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
 }
-#[cfg(feature = "system-py")]
+
 #[test_log::test(tokio::test)]
 async fn test_flask_string_response() {
     let plugin_code = r#"
@@ -1851,7 +1843,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Hello, World!");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_dict_json_response() {
     let plugin_code = r#"
@@ -1908,7 +1899,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     );
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_tuple_response_with_status() {
     let plugin_code = r#"
@@ -1959,7 +1949,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Created successfully");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_tuple_response_with_headers() {
     let plugin_code = r#"
@@ -2017,7 +2006,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Custom Content-Type");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_tuple_response_with_status_and_headers() {
     let plugin_code = r#"
@@ -2072,7 +2060,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Not Found");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_list_json_response() {
     let plugin_code = r#"
@@ -2126,7 +2113,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, json!(["item1", "item2", "item3"]));
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_iterator_response() {
     let plugin_code = r#"
@@ -2182,7 +2168,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Line 1\nLine 2\nLine 3\n");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_response_object() {
     let plugin_code = r#"
@@ -2258,7 +2243,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, "Custom Flask Response");
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_flask_json_dict_with_status_in_tuple() {
     let plugin_code = r#"
@@ -2312,7 +2296,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_eq!(body, json!({"error": "Not Found", "code": 404}));
 }
 
-#[cfg(feature = "system-py")]
 #[test_log::test(tokio::test)]
 async fn test_trigger_create_validates_file_present() {
     let plugin_dir = TempDir::new().unwrap();
