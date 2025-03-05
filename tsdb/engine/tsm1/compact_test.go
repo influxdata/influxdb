@@ -1137,7 +1137,7 @@ func TestCompactor_CompactFull_InProgress(t *testing.T) {
 	}()
 	_, err = compactor.CompactFull([]string{f2Name}, zap.NewNop())
 	assert.Errorf(t, err, "expected an error writing snapshot for %s", f2Name)
-	assert.ErrorContains(t, err, "file exists", "unexpected error writing snapshot for %s", f2Name)
+	assert.ErrorContainsf(t, err, "file exists", "unexpected error writing snapshot for %s", f2Name)
 	assert.Truef(t, errors.Is(err, fs.ErrExist), "error did not indicate file existence: %v", err)
 	pathErr := &os.PathError{}
 	assert.Truef(t, errors.As(err, &pathErr), "expected path error, got %v", err)
