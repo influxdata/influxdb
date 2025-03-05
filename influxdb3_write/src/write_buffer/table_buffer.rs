@@ -14,10 +14,13 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 use std::mem::size_of;
 use std::sync::Arc;
+use std::{
+    collections::BTreeMap,
+    mem::{self},
+};
+use std::{collections::btree_map::Entry, slice::Iter};
 use thiserror::Error;
 
 use crate::ChunkFilter;
@@ -34,8 +37,8 @@ pub enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
-    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
-    snapshotting_chunks: Vec<SnapshotChunk>,
+    pub(crate) chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    pub(crate) snapshotting_chunks: Vec<SnapshotChunk>,
     pub(crate) sort_key: SortKey,
 }
 
@@ -43,7 +46,7 @@ impl TableBuffer {
     pub fn new(sort_key: SortKey) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
+            snapshotting_chunks: Vec::new(),
             sort_key,
         }
     }
@@ -148,6 +151,14 @@ impl TableBuffer {
         size
     }
 
+    pub fn get_keys_to_remove(&self, older_than_chunk_time: i64) -> Vec<i64> {
+        self.chunk_time_to_chunks
+            .keys()
+            .filter(|k| **k < older_than_chunk_time)
+            .copied()
+            .collect::<Vec<_>>()
+    }
+
     pub fn snapshot(
         &mut self,
         table_def: Arc<TableDefinition>,
@@ -159,6 +170,7 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
+
         self.snapshotting_chunks = keys_to_remove
             .into_iter()
             .map(|chunk_time| {
@@ -179,7 +191,35 @@ impl TableBuffer {
     }
 
     pub fn clear_snapshots(&mut self) {
-        self.snapshotting_chunks.clear();
+        // vec clear still holds the mem (capacity), so use take
+        let _ = mem::take(&mut self.snapshotting_chunks);
+    }
+}
+
+pub(crate) struct SnaphotChunkIter<'a> {
+    pub keys_to_remove: Iter<'a, i64>,
+    pub map: &'a mut BTreeMap<i64, MutableTableChunk>,
+    pub table_def: Arc<TableDefinition>,
+}
+
+impl Iterator for SnaphotChunkIter<'_> {
+    type Item = SnapshotChunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(chunk_time) = self.keys_to_remove.next() {
+            let chunk = self.map.remove(chunk_time).unwrap();
+            let timestamp_min_max = chunk.timestamp_min_max();
+            let (schema, record_batch) =
+                chunk.into_schema_record_batch(Arc::clone(&self.table_def));
+
+            return Some(SnapshotChunk {
+                chunk_time: *chunk_time,
+                timestamp_min_max,
+                record_batch,
+                schema,
+            });
+        }
+        None
     }
 }
 
@@ -213,7 +253,7 @@ impl std::fmt::Debug for TableBuffer {
     }
 }
 
-struct MutableTableChunk {
+pub(crate) struct MutableTableChunk {
     timestamp_min: i64,
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
@@ -453,7 +493,7 @@ impl MutableTableChunk {
     }
 }
 
-fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef {
+pub(crate) fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef {
     match data_type {
         InfluxColumnType::Field(InfluxFieldType::Boolean) => {
             let mut builder = BooleanBuilder::new();

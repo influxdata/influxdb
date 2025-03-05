@@ -785,6 +785,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 snapshotted_wal_files_to_keep: 100,
                 query_file_limit: None,
+                max_memory_for_snapshot_bytes: 100_000_000,
             },
         )
         .await
