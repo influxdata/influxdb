@@ -1064,7 +1064,11 @@ func (c *Compactor) RemoveTmpFiles(files []string) error {
 func (c *Compactor) RemoveTmpFilesOnErr(files []string, originalErrs ...error) error {
 	removeErr := c.RemoveTmpFiles(files)
 	if removeErr == nil {
-		return errors.Join(originalErrs...)
+		if len(originalErrs) == 1 {
+			return originalErrs[0]
+		} else {
+			return errors.Join(originalErrs...)
+		}
 	} else if errJoin, ok := removeErr.(interface{ Unwrap() []error }); ok {
 		return errors.Join(append(originalErrs, errJoin.Unwrap()...)...)
 	} else {
