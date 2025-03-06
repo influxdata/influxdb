@@ -8,7 +8,7 @@ use crate::commands::{query::run_query_load, write::run_write_load};
 use super::{common::InfluxDb3Config, query::QueryConfig, write::WriteConfig};
 
 #[derive(Debug, Parser)]
-pub(crate) struct Config {
+pub struct Config {
     /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     common: InfluxDb3Config,
@@ -22,7 +22,7 @@ pub(crate) struct Config {
     write: WriteConfig,
 }
 
-pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
+pub async fn command(mut config: Config) -> Result<(), anyhow::Error> {
     let (client, mut load_config) = config
         .common
         .initialize_full(

@@ -17,7 +17,7 @@ use super::common::InfluxDb3Config;
 
 #[derive(Debug, Parser)]
 #[clap(visible_alias = "q", trailing_var_arg = true)]
-pub(crate) struct Config {
+pub struct Config {
     /// Common InfluxDB 3 Core config
     #[clap(flatten)]
     common: InfluxDb3Config,
@@ -55,7 +55,7 @@ pub(crate) struct QueryConfig {
     query_response_format: Format,
 }
 
-pub(crate) async fn command(mut config: Config) -> Result<(), anyhow::Error> {
+pub async fn command(mut config: Config) -> Result<(), anyhow::Error> {
     let (client, mut load_config) = config
         .common
         .initialize_query(config.query.querier_spec_path.take())

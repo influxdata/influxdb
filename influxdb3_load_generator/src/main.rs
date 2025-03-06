@@ -9,19 +9,6 @@
     clippy::future_not_send
 )]
 
-pub mod line_protocol_generator;
-pub mod query_generator;
-pub mod report;
-pub mod specification;
-mod specs;
-
-pub mod commands {
-    pub mod common;
-    pub mod full;
-    pub mod query;
-    pub mod write;
-}
-
 use dotenvy::dotenv;
 use observability_deps::tracing::warn;
 use std::sync::{
@@ -29,6 +16,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use tokio::runtime::Runtime;
+
+use influxdb3_load_generator::commands;
 
 enum ReturnCode {
     Failure = 1,
