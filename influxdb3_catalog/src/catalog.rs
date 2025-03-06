@@ -874,11 +874,10 @@ impl TableDefinition {
         let mut column_map = BiHashMap::with_capacity(ordered_columns.len());
         for (name, (col_id, column_type)) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
-            let not_nullable =
-                matches!(column_type, InfluxColumnType::Timestamp) || series_key.contains(col_id);
+            let nullable = !matches!(column_type, InfluxColumnType::Timestamp);
             columns.insert(
                 *col_id,
-                ColumnDefinition::new(*col_id, name, *column_type, !not_nullable),
+                ColumnDefinition::new(*col_id, name, *column_type, nullable),
             );
             column_map.insert(*col_id, name.into());
         }
@@ -933,13 +932,6 @@ impl TableDefinition {
         &self,
         table_definition: &influxdb3_wal::WalTableDefinition,
     ) -> Result<Cow<'_, Self>> {
-        // validate the series key is the same
-        if table_definition.key != self.series_key {
-            return Err(Error::SeriesKeyMismatch {
-                table_name: self.table_name.to_string(),
-                existing: self.schema.series_key().unwrap_or_default().join("/"),
-            });
-        }
         Self::add_fields(Cow::Borrowed(self), &table_definition.field_definitions)
     }
 
@@ -1002,6 +994,11 @@ impl TableDefinition {
                 .is_none(),
                 "attempted to add existing column"
             );
+
+            // Since this is not an existing column we can safely add to the series key
+            if matches!(column_type, InfluxColumnType::Tag) {
+                self.series_key.push(id);
+            }
         }
 
         // ensure we don't go over the column limit
