@@ -29,7 +29,7 @@ use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_query::exec::Executor;
 use iox_query::frontend::reorg::ReorgPlanner;
 use object_store::path::Path;
-use observability_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info, trace};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use parquet::format::FileMetaData;
@@ -204,14 +204,14 @@ impl QueryableBuffer {
             for (database_id, table_map) in buffer.db_to_table.iter_mut() {
                 let db_schema = catalog.db_schema_by_id(database_id).expect("db exists");
                 for (table_id, table_buffer) in table_map.iter_mut() {
-                    debug!(db_name = ?db_schema.name, ?table_id, ">>> working on db, table");
+                    trace!(db_name = ?db_schema.name, ?table_id, ">>> working on db, table");
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
                     let sort_key = table_buffer.sort_key.clone();
                     let all_keys_to_remove =
                         table_buffer.get_keys_to_remove(snapshot_details.end_time_marker);
-                    debug!(num_keys_to_remove = ?all_keys_to_remove.len(), ">>> num keys to remove");
+                    trace!(num_keys_to_remove = ?all_keys_to_remove.len(), ">>> num keys to remove");
 
                     let chunk_time_to_chunk = &mut table_buffer.chunk_time_to_chunks;
                     let snapshot_chunks = &mut table_buffer.snapshotting_chunks;
@@ -222,7 +222,7 @@ impl QueryableBuffer {
                     };
 
                     for chunk in snapshot_chunks_iter {
-                        debug!(">>> starting with new chunk");
+                        trace!(">>> starting with new chunk");
                         let table_name =
                             db_schema.table_id_to_name(table_id).expect("table exists");
 
@@ -249,7 +249,7 @@ impl QueryableBuffer {
                         };
                         persisting_chunks.push(persist_job);
                         snapshot_chunks.push(chunk);
-                        debug!(">>> finished with chunk");
+                        trace!(">>> finished with chunk");
                     }
                 }
             }
@@ -463,10 +463,9 @@ async fn sort_dedupe_parallel<I: Iterator<Item = PersistJob>>(
     persisted_files: Arc<PersistedFiles>,
     persisted_snapshot: Arc<Mutex<PersistedSnapshot>>,
 ) {
-    info!(">>> running sort/dedupe in parallel");
+    info!("running sort/dedupe in parallel");
 
     let mut set = JoinSet::new();
-    // TODO: may be this concurrency level needs to be externalised
     let sempahore = Arc::new(Semaphore::new(5));
     for persist_job in iterator {
         let persister = Arc::clone(persister);
@@ -516,7 +515,7 @@ async fn sort_dedupe_serial<I: Iterator<Item = PersistJob>>(
     persisted_files: Arc<PersistedFiles>,
     persisted_snapshot: &mut PersistedSnapshot,
 ) {
-    info!(">>> running sort/dedupe serially");
+    info!("running sort/dedupe serially");
 
     for persist_job in iterator {
         let persister = Arc::clone(persister);
@@ -792,6 +791,23 @@ impl PersistJob {
     }
 }
 
+/// This iterator groups persist jobs together to create a single persist job out of it with the
+/// combined record batches from all of them. By default it'll try to pick as many as 10 persist
+/// jobs (gen1 defaults to 1m so groups 10 of them to get to 10m) whilst maintaining memory
+/// bound. There are 2 places where it's called from,
+///   - when forcing snapshot due to memory pressure
+///   - normal snapshot (i.e based on snapshot tracker)
+///
+/// In the force snapshot case, explicit memory bound is passed in (defaults to 100M), however a
+/// single record batch may well exceed 100M (for 1m duration), if that happens then it will
+/// naively try to do a sort/dedupe with a bigger chunk and this could very well OOM. There is no
+/// dynamic behaviour to break down a bigger record batch and since this requires allocation to
+/// create smaller record batches, there is a period of time where the bigger batch and the smaller
+/// batches need to be in memory which has so far proven tricky.
+///
+/// In the normal snapshot case, unlimited memory bound is set, but it will still only put together
+/// 10 persist jobs, so in this case the assumption is there is still plenty of room for the
+/// memory as at the point of invocation there is no memory pressure.
 struct PersistJobGroupedIterator<'a> {
     iter: Peekable<Iter<'a, PersistJob>>,
     host_prefix: Arc<str>,
@@ -826,10 +842,6 @@ impl<'a> PersistJobGroupedIterator<'a> {
 }
 
 impl Iterator for PersistJobGroupedIterator<'_> {
-    // This is a grouped persist job, since it includes exactly
-    // same fields with only difference being each job has a vec
-    // of batches, it's been reused for now. For clarity it might
-    // be better to have different types to represent this state
     type Item = PersistJob;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -845,19 +857,6 @@ impl Iterator for PersistJobGroupedIterator<'_> {
         let mut current_size_bytes = current_data.total_batch_size();
         debug!(?current_size_bytes, table_name = ?current_data.table_name, ">>> current_size_bytes for table");
         self.system.refresh_memory();
-        // This is a very naive approach to keep mem bounded, if the first chunk
-        // is >50M we allow it to be processed but this may run into OOM. To
-        // address that, one approach is to break it further down but once a
-        // bigger record batch is built, breaking it down with mem bounds gets
-        // very tricky and fairly inconsistent as building smaller record batches
-        // require allocation. The point when mem was sampled to point when they
-        // are broken down into smaller batches the incoming traffic fills the
-        // buffer to a point the original mem sample isn't right. But mostly
-        // with even higher throughputs (having 1m gen 1 duration as default)
-        // this approach has been faring well, however once you hit very high
-        // throughputs whereby in 10s (force snapshot interval)
-        // it fills in enough mem to go past the allocated query buffer %
-        // (50% default) it will run into OOMs.
         let system_mem_bytes = self.system.free_memory() - 100_000_000;
         let max_size_bytes = self.max_size_bytes.min(system_mem_bytes);
         debug!(
@@ -891,8 +890,6 @@ impl Iterator for PersistJobGroupedIterator<'_> {
             .iter()
             .map(|batch| {
                 ensure_schema(&table_defn.schema.as_arrow(), batch)
-                    // TODO: are there chances this could result in error - what does it mean if it
-                    // did?
                     .expect("batches should have same schema")
             })
             .collect();
