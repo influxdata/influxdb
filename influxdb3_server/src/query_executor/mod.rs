@@ -43,8 +43,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use trace::ctx::SpanContext;
 use trace::span::{Span, SpanExt, SpanRecorder};
+use trace::{ctx::SpanContext, span::MetaValue};
 use trace_http::ctx::RequestLogContext;
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -142,6 +142,12 @@ impl QueryExecutor for QueryExecutorImpl {
     ) -> Result<SendableRecordBatchStream, QueryExecutorError> {
         info!(%database, %query, ?params, "executing sql query");
         let db = self.get_db_namespace(database, &span_ctx).await?;
+        let span_ctxt = span_ctx
+            .clone()
+            .map(|span| span.child("query_database_sql"));
+        let mut recorder = SpanRecorder::new(span_ctxt);
+        recorder.set_metadata("query", MetaValue::String(query.to_string().into()));
+
         query_database_sql(
             db,
             query,

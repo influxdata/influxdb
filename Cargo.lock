@@ -3303,6 +3303,7 @@ dependencies = [
  "test_helpers",
  "thiserror 1.0.69",
  "tokio",
+ "trace",
  "url",
  "uuid",
 ]
