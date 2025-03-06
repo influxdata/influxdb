@@ -5,6 +5,7 @@ pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
 use tokio::sync::{oneshot, watch::Receiver};
+use trace::span::{MetaValue, SpanRecorder};
 pub mod validator;
 
 use crate::persister::Persister;
@@ -41,14 +42,14 @@ use influxdb3_wal::{
 use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
 use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
 use influxdb3_wal::{DeleteDatabaseDefinition, object_store::WalObjectStore};
-use iox_query::QueryChunk;
 use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
+use iox_query::{QueryChunk, exec::SessionContextIOxExt};
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectMeta, ObjectStore};
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, warn};
 use parquet_file::storage::ParquetExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
@@ -331,6 +332,9 @@ impl WriteBufferImpl {
         projection: Option<&Vec<usize>>,
         ctx: &dyn Session,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
+        let span_ctx = ctx.span_ctx().map(|span| span.child("table_chunks"));
+        let mut recorder = SpanRecorder::new(span_ctx);
+
         let mut chunks = self.buffer.get_table_chunks(
             Arc::clone(&db_schema),
             Arc::clone(&table_def),
@@ -338,10 +342,20 @@ impl WriteBufferImpl {
             projection,
             ctx,
         )?;
+        let num_chunks_from_buffer = chunks.len();
+        recorder.set_metadata(
+            "buffer_chunks",
+            MetaValue::Int(num_chunks_from_buffer as i64),
+        );
 
         let parquet_files =
             self.persisted_files
                 .get_files_filtered(db_schema.id, table_def.table_id, filter);
+        let num_parquet_files_needed = parquet_files.len();
+        recorder.set_metadata(
+            "parquet_files",
+            MetaValue::Int(num_parquet_files_needed as i64),
+        );
 
         if parquet_files.len() > self.query_file_limit {
             return Err(DataFusionError::External(
@@ -356,6 +370,30 @@ impl WriteBufferImpl {
                 )
                 .into(),
             ));
+        }
+
+        if let Some(parquet_cache) = &self.parquet_cache {
+            let num_files_already_in_cache = parquet_files
+                .iter()
+                .filter(|f| {
+                    parquet_cache
+                        .in_cache(&ObjPath::parse(&f.path).expect("obj path should be parseable"))
+                })
+                .count();
+
+            recorder.set_metadata(
+                "parquet_files_already_in_cache",
+                MetaValue::Int(num_files_already_in_cache as i64),
+            );
+            debug!(
+                num_chunks_from_buffer,
+                num_parquet_files_needed, num_files_already_in_cache, ">>> query chunks breakdown"
+            );
+        } else {
+            debug!(
+                num_chunks_from_buffer,
+                num_parquet_files_needed, ">>> query chunks breakdown (cache disabled)"
+            );
         }
 
         let mut chunk_order = chunks.len() as i64;
