@@ -137,6 +137,10 @@ mod tests {
         fn prune_notifier(&self) -> tokio::sync::watch::Receiver<usize> {
             unimplemented!()
         }
+
+        fn in_cache(&self, path: &ObjPath) -> bool {
+            &ObjPath::from(PATH) == path
+        }
     }
 
     fn setup_prefetcher_3days(oracle: Arc<dyn ParquetCacheOracle>) -> ParquetCachePreFetcher {
