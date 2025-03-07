@@ -74,16 +74,6 @@ pub enum Error {
         attempted: InfluxColumnType,
     },
 
-    #[error(
-        "Series key mismatch on table {}. Existing table has {}",
-        table_name,
-        existing
-    )]
-    SeriesKeyMismatch {
-        table_name: String,
-        existing: String,
-    },
-
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 
