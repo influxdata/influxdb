@@ -27,7 +27,7 @@ tables:
                 - i32
                 - str
             influx_type: tag
-            nullable: false
+            nullable: true
         - - 1
           - name: t2
             id: 1
@@ -36,7 +36,7 @@ tables:
                 - i32
                 - str
             influx_type: tag
-            nullable: false
+            nullable: true
       deleted: false
 processing_engine_triggers: []
 deleted: false

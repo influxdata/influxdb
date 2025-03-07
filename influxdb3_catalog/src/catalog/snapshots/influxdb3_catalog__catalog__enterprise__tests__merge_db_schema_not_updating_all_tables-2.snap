@@ -38,7 +38,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": false
+              "nullable": true
             }
           ],
           [
@@ -53,7 +53,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": false
+              "nullable": true
             }
           ]
         ],
@@ -102,7 +102,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": false
+              "nullable": true
             }
           ],
           [
@@ -117,7 +117,7 @@ expression: db
                 ]
               },
               "influx_type": "tag",
-              "nullable": false
+              "nullable": true
             }
           ]
         ],

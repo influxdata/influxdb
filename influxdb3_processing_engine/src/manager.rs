@@ -7,7 +7,7 @@ use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
-use influxdb3_wal::{TriggerFlag, TriggerSpecificationDefinition};
+use influxdb3_wal::{TriggerSettings, TriggerSpecificationDefinition};
 use influxdb3_write::WriteBuffer;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -60,7 +60,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         db_name: &str,
         trigger_name: String,
         plugin_filename: String,
-        flags: Vec<TriggerFlag>,
+        trigger_settings: TriggerSettings,
         trigger_specification: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
@@ -78,6 +78,7 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
+        processing_engine_manager: Arc<dyn ProcessingEngineManager>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
@@ -92,11 +93,15 @@ pub trait ProcessingEngineManager: Debug + Send + Sync + 'static {
         &self,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
+        manager: Arc<dyn ProcessingEngineManager>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError>;
 
-    async fn start_triggers(&self) -> Result<(), ProcessingEngineError>;
+    async fn start_triggers(
+        &self,
+        manager: Arc<dyn ProcessingEngineManager>,
+    ) -> Result<(), ProcessingEngineError>;
 
     async fn test_wal_plugin(
         &self,

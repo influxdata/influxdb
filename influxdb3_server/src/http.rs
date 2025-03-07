@@ -1086,7 +1086,7 @@ where
             db,
             plugin_filename,
             trigger_name,
-            flags,
+            trigger_settings,
             trigger_specification,
             trigger_arguments,
             disabled,
@@ -1110,7 +1110,7 @@ where
                 db.as_str(),
                 trigger_name.clone(),
                 plugin_filename,
-                flags,
+                trigger_settings,
                 trigger_spec,
                 trigger_arguments,
                 disabled,
@@ -1121,6 +1121,7 @@ where
                 .run_trigger(
                     Arc::clone(&self.write_buffer),
                     Arc::clone(&self.query_executor),
+                    Arc::clone(&self.processing_engine),
                     db.as_str(),
                     trigger_name.as_str(),
                 )
@@ -1214,6 +1215,7 @@ where
             .enable_trigger(
                 Arc::clone(&self.write_buffer),
                 Arc::clone(&self.query_executor),
+                Arc::clone(&self.processing_engine),
                 delete_req.db.as_str(),
                 delete_req.trigger_name.as_str(),
             )

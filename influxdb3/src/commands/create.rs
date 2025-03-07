@@ -3,7 +3,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use influxdb3_client::Client;
-use influxdb3_wal::TriggerSpecificationDefinition;
+use influxdb3_wal::{ErrorBehavior, TriggerSettings, TriggerSpecificationDefinition};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
@@ -254,8 +254,12 @@ pub struct TriggerConfig {
     /// Create trigger in disabled state
     #[clap(long)]
     disabled: bool,
+    /// Run each instance of the trigger asynchronously, allowing multiple triggers to run simultaneously.
     #[clap(long)]
     run_asynchronous: bool,
+    /// How you wish the system to respond in the event of an error from the plugin
+    #[clap(long, value_enum, default_value_t = ErrorBehavior::Log)]
+    error_behavior: ErrorBehavior,
     /// Name for the new trigger
     trigger_name: String,
 }
@@ -388,12 +392,18 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             trigger_arguments,
             disabled,
             run_asynchronous,
+            error_behavior,
         }) => {
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
                     .map(|SeparatedKeyValue((k, v))| (k, v))
                     .collect::<HashMap<String, String>>()
             });
+
+            let trigger_settings = TriggerSettings {
+                run_async: run_asynchronous,
+                error_behavior,
+            };
 
             match client
                 .api_v3_configure_processing_engine_trigger_create(
@@ -403,7 +413,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                     trigger_specification.string_rep(),
                     trigger_arguments,
                     disabled,
-                    run_asynchronous,
+                    trigger_settings,
                 )
                 .await
             {
@@ -424,7 +434,7 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
-    use influxdb3_wal::TriggerSpecificationDefinition;
+    use influxdb3_wal::{ErrorBehavior, TriggerSpecificationDefinition};
 
     #[test]
     fn parse_args_create_last_cache() {
@@ -488,6 +498,7 @@ mod tests {
             plugin_filename,
             disabled,
             run_asynchronous,
+            error_behavior,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
         }) = args.cmd
         else {
@@ -504,6 +515,7 @@ mod tests {
         );
         assert!(!disabled);
         assert!(!run_asynchronous);
+        assert_eq!(ErrorBehavior::Log, error_behavior);
 
         let trigger_arguments = trigger_arguments.expect("args must include trigger arguments");
 
