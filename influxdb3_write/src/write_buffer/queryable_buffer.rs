@@ -3,7 +3,7 @@ use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
 use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
-use crate::{chunk::BufferChunk, write_buffer::table_buffer::SnaphotChunkIter};
+use crate::{chunk::BufferChunk, write_buffer::table_buffer::SnapshotChunkIter};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
@@ -215,7 +215,7 @@ impl QueryableBuffer {
 
                     let chunk_time_to_chunk = &mut table_buffer.chunk_time_to_chunks;
                     let snapshot_chunks = &mut table_buffer.snapshotting_chunks;
-                    let snapshot_chunks_iter = SnaphotChunkIter {
+                    let snapshot_chunks_iter = SnapshotChunkIter {
                         keys_to_remove: all_keys_to_remove.iter(),
                         map: chunk_time_to_chunk,
                         table_def,
@@ -453,7 +453,6 @@ impl QueryableBuffer {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn sort_dedupe_parallel<I: Iterator<Item = PersistJob>>(
     iterator: I,
     persister: &Arc<Persister>,
@@ -505,7 +504,6 @@ async fn sort_dedupe_parallel<I: Iterator<Item = PersistJob>>(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn sort_dedupe_serial<I: Iterator<Item = PersistJob>>(
     iterator: I,
     persister: &Arc<Persister>,
@@ -839,6 +837,19 @@ impl<'a> PersistJobGroupedIterator<'a> {
             ),
         }
     }
+
+    fn free_mem_hint(&mut self) -> (u64, u64) {
+        self.system.refresh_memory();
+        let system_mem_bytes = self.system.free_memory() - 100_000_000;
+        let cgroup_free_mem_bytes = self
+            .system
+            .cgroup_limits()
+            .map(|limit| limit.free_memory)
+            .unwrap_or(u64::MAX);
+        let system_mem_bytes = system_mem_bytes.min(cgroup_free_mem_bytes);
+        let max_size_bytes = self.max_size_bytes.min(system_mem_bytes);
+        (system_mem_bytes, max_size_bytes)
+    }
 }
 
 impl Iterator for PersistJobGroupedIterator<'_> {
@@ -856,18 +867,18 @@ impl Iterator for PersistJobGroupedIterator<'_> {
         let mut min_chunk_time = current_data.chunk_time;
         let mut current_size_bytes = current_data.total_batch_size();
         debug!(?current_size_bytes, table_name = ?current_data.table_name, ">>> current_size_bytes for table");
-        self.system.refresh_memory();
-        let system_mem_bytes = self.system.free_memory() - 100_000_000;
-        let max_size_bytes = self.max_size_bytes.min(system_mem_bytes);
+        let (system_mem_bytes, max_size_bytes) = self.free_mem_hint();
         debug!(
             max_size_bytes,
             system_mem_bytes, ">>> max size bytes/system mem bytes"
         );
 
         while all_batches.len() < self.chunk_size && current_size_bytes < max_size_bytes {
-            debug!(?current_size_bytes, ">>> current_size_bytes");
+            trace!(?current_size_bytes, ">>> current_size_bytes");
             if let Some(next_data) = self.iter.peek() {
-                if next_data.table_id == *current_table_id {
+                if next_data.table_id == *current_table_id
+                    && (current_size_bytes + next_data.total_batch_size()) < max_size_bytes
+                {
                     let next = self.iter.next().unwrap();
                     ts_min_max = ts_min_max.union(&next.timestamp_min_max);
                     min_chunk_time = min_chunk_time.min(next.chunk_time);
@@ -880,18 +891,17 @@ impl Iterator for PersistJobGroupedIterator<'_> {
                 break;
             }
         }
+        debug!(?current_size_bytes, ">>> final batch size in bytes");
 
         let table_defn = self
             .catalog
             .db_schema_by_id(&current_data.database_id)?
             .table_definition_by_id(&current_data.table_id)?;
 
+        let arrow = table_defn.schema.as_arrow();
         let all_schema_aligned_batches: Vec<RecordBatch> = all_batches
             .iter()
-            .map(|batch| {
-                ensure_schema(&table_defn.schema.as_arrow(), batch)
-                    .expect("batches should have same schema")
-            })
+            .map(|batch| ensure_schema(&arrow, batch).expect("batches should have same schema"))
             .collect();
 
         Some(PersistJob {
@@ -918,8 +928,8 @@ impl Iterator for PersistJobGroupedIterator<'_> {
 }
 
 pub(crate) struct SortDedupePersistSummary {
-    pub file_size_bytes: u64,
-    pub file_meta_data: FileMetaData,
+    pub(crate) file_size_bytes: u64,
+    pub(crate) file_meta_data: FileMetaData,
 }
 
 impl SortDedupePersistSummary {
@@ -1264,12 +1274,7 @@ mod tests {
         );
 
         let lines = val
-            .v1_parse_lines_and_update_schema(
-                &lp,
-                false,
-                time_provider.now(),
-                Precision::Nanosecond,
-            )
+            .parse_lines_and_update_schema(&lp, false, time_provider.now(), Precision::Nanosecond)
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
@@ -1290,7 +1295,7 @@ mod tests {
         let val = WriteValidator::initialize(db, Arc::clone(&catalog), 0).unwrap();
 
         let lines = val
-            .v1_parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
@@ -1398,12 +1403,7 @@ mod tests {
         );
 
         let lines = val
-            .v1_parse_lines_and_update_schema(
-                &lp,
-                false,
-                time_provider.now(),
-                Precision::Nanosecond,
-            )
+            .parse_lines_and_update_schema(&lp, false, time_provider.now(), Precision::Nanosecond)
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
@@ -1424,7 +1424,7 @@ mod tests {
         let val = WriteValidator::initialize(db, Arc::clone(&catalog), 0).unwrap();
 
         let lines = val
-            .v1_parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
             .unwrap()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
@@ -1523,7 +1523,7 @@ mod tests {
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,
             gen1_duration: Gen1Duration::new_1m(),
-            max_size_per_parquet_file_bytes: 100_000,
+            max_size_per_parquet_file_bytes: 150_000,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
 
@@ -1532,12 +1532,14 @@ mod tests {
         for i in 0..2 {
             // create another write, this time with two tags, in a different gen1 block
             let ts = Gen1Duration::new_1m().as_duration().as_nanos() as i64 + (i * 240_000_000_000);
-            let lp = format!("foo,t1=a,t2=b f1=3i,f2=3 {}", ts);
+            // keep these tags different to bar so that it's easier to spot the byte differences
+            // in the logs, otherwise foo and bar report exact same usage in bytes
+            let lp = format!("foo,t1=foo_a f1={}i,f2={} {}", i, i, ts);
             debug!(?lp, ">>> writing line");
             let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog), 0).unwrap();
 
             let lines = val
-                .v1_parse_lines_and_update_schema(
+                .parse_lines_and_update_schema(
                     lp.as_str(),
                     false,
                     time_provider.now(),
@@ -1561,16 +1563,15 @@ mod tests {
         for i in 0..10 {
             // create another write, this time with two tags, in a different gen1 block
             let ts = Gen1Duration::new_1m().as_duration().as_nanos() as i64 + (i * 240_000_000_000);
-            // let line = format!("bar,t1=a,t2=b f1=3i,f2=3 {}", ts);
             let lp = format!(
-                "bar,t1=a,t2=b f1=3i,f2=3 {}\nbar,t1=a,t2=c f1=4i,f2=3 {}\nbar,t1=ab,t2=b f1=5i,f2=3 {}",
+                "bar,t1=br_a,t2=br_b f1=3i,f2=3 {}\nbar,t1=br_a,t2=br_c f1=4i,f2=3 {}\nbar,t1=ab,t2=bb f1=5i,f2=3 {}",
                 ts, ts, ts
             );
             debug!(?lp, ">>> writing line");
             let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog), 0).unwrap();
 
             let lines = val
-                .v1_parse_lines_and_update_schema(
+                .parse_lines_and_update_schema(
                     lp.as_str(),
                     false,
                     time_provider.now(),
@@ -1632,12 +1633,27 @@ mod tests {
             assert_eq!(2, foo_file.row_count);
         }
 
-        // bar had 10 writes with 3 lines, should write 4 files each with 9 rows or 3 row in them
+        // bar had 10 writes (each in separate chunk) with 3 lines in each write,
+        // so these are grouped but because of the larger writes and max memory
+        // is set to 150_000 bytes at the top, we end up with 4 files.
         let table = db.table_definition("bar").unwrap();
         let files = queryable_buffer
             .persisted_files
             .get_files(db.id, table.table_id);
         debug!(?files, ">>> test: queryable buffer persisted files");
+
+        // Below is the growth in memory (bytes) as reported by arrow record batches
+        //
+        // >>> current_size_bytes for table current_size_bytes=43952 table_name="bar"
+        // >>> final batch size in bytes current_size_bytes=131856
+        // >>> current_size_bytes for table current_size_bytes=43952 table_name="bar"
+        // >>> final batch size in bytes current_size_bytes=131856
+        // >>> current_size_bytes for table current_size_bytes=43952 table_name="bar"
+        // >>> final batch size in bytes current_size_bytes=131856
+        // >>> current_size_bytes for table current_size_bytes=43952 table_name="bar"
+        // >>> final batch size in bytes current_size_bytes=43952
+        // >>> current_size_bytes for table current_size_bytes=34408 table_name="foo"
+        // >>> final batch size in bytes current_size_bytes=68816
         assert_eq!(4, files.len());
         for bar_file in files {
             debug!(?bar_file, ">>> test: bar_file");
