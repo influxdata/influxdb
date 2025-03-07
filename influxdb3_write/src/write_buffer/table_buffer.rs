@@ -14,12 +14,9 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
+use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
-use std::{
-    collections::BTreeMap,
-    mem::{self},
-};
 use std::{collections::btree_map::Entry, slice::Iter};
 use thiserror::Error;
 
@@ -191,18 +188,17 @@ impl TableBuffer {
     }
 
     pub fn clear_snapshots(&mut self) {
-        // vec clear still holds the mem (capacity), so use take
-        let _ = mem::take(&mut self.snapshotting_chunks);
+        self.snapshotting_chunks.clear();
     }
 }
 
-pub(crate) struct SnaphotChunkIter<'a> {
-    pub keys_to_remove: Iter<'a, i64>,
-    pub map: &'a mut BTreeMap<i64, MutableTableChunk>,
-    pub table_def: Arc<TableDefinition>,
+pub(crate) struct SnapshotChunkIter<'a> {
+    pub(crate) keys_to_remove: Iter<'a, i64>,
+    pub(crate) map: &'a mut BTreeMap<i64, MutableTableChunk>,
+    pub(crate) table_def: Arc<TableDefinition>,
 }
 
-impl Iterator for SnaphotChunkIter<'_> {
+impl Iterator for SnapshotChunkIter<'_> {
     type Item = SnapshotChunk;
 
     fn next(&mut self) -> Option<Self::Item> {
