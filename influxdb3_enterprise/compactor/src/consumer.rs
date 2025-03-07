@@ -20,7 +20,7 @@ use influxdb3_enterprise_data_layout::{
     },
 };
 use object_store::ObjectStore;
-use observability_deps::tracing::warn;
+use observability_deps::tracing::{debug, warn};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt::Debug, time::Instant};
@@ -216,6 +216,7 @@ impl CompactedDataConsumer {
                 .await?;
 
             // cache all the new gen files
+            let cache_prefetch_timer = Instant::now();
             if let Some(prefetcher) = self.parquet_cache_prefetcher.as_ref() {
                 let mut prefetch_files = generation_details
                     .iter()
@@ -232,9 +233,12 @@ impl CompactedDataConsumer {
                     .iter()
                     .map(|f| f.file.as_ref().clone());
                 prefetch_files.extend(gen_1_files);
+                debug!(num_files = ?prefetch_files.len(), ">>> prefetching files into the cache");
                 prefetcher.prefetch_all(&prefetch_files).await;
             }
+            debug!(time_taken = ?cache_prefetch_timer.elapsed(), ">>> time taken for prefetching new generation files");
 
+            let gen_update_timer = Instant::now();
             self.compacted_data.update_detail_with_generations(
                 compaction_detail,
                 generation_details,
@@ -242,6 +246,7 @@ impl CompactedDataConsumer {
                 removed_gen_details,
                 self.parquet_cache_prefetcher.clone(),
             );
+            debug!(time_taken = ?gen_update_timer.elapsed(), ">>> time taken for updating detail with generations");
 
             if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
                 let db_name = Arc::clone(&db_schema.name);

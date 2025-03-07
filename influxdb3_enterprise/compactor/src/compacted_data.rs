@@ -13,9 +13,10 @@ use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_write::{ChunkFilter, ParquetFile};
 use object_store::ObjectStore;
+use observability_deps::tracing::debug;
 use parking_lot::RwLock;
-use std::fmt::Debug;
 use std::sync::Arc;
+use std::{fmt::Debug, time::Instant};
 use thiserror::Error;
 use tokio::task::JoinSet;
 
@@ -190,6 +191,7 @@ impl CompactedData {
             table.add_generation_detail(g);
         }
 
+        let file_index_timer = Instant::now();
         // remove metas from file index
         for removed_gen in removed_gen_details {
             for (col, valfiles) in removed_gen.file_index.index {
@@ -200,6 +202,7 @@ impl CompactedData {
                 }
             }
         }
+        debug!(time_taken = ?file_index_timer.elapsed(), ">>> total time taken to update file index");
         table.remove_compacted_generations(removed_generations, parquet_cache_prefetcher.clone());
     }
 
