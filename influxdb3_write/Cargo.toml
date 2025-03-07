@@ -25,6 +25,7 @@ metric.workspace = true
 parquet_file.workspace = true
 observability_deps.workspace = true
 schema.workspace = true
+trace.workspace = true
 
 # Local deps
 influxdb3_cache = { path = "../influxdb3_cache" }

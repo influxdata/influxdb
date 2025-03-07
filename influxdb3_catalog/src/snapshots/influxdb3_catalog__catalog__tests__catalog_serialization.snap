@@ -74,7 +74,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [
@@ -89,7 +89,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [
@@ -104,7 +104,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [
@@ -199,7 +199,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [
@@ -214,7 +214,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [
@@ -229,7 +229,7 @@ expression: catalog
                       ]
                     },
                     "influx_type": "tag",
-                    "nullable": false
+                    "nullable": true
                   }
                 ],
                 [

@@ -3,7 +3,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::ExecutePluginError;
 use crate::logging::{LogLevel, ProcessingEngineLog};
-use anyhow::Context;
+use anyhow::{Context, bail};
 use arrow_array::types::Int32Type;
 use arrow_array::{
     BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
@@ -729,33 +729,8 @@ pub fn execute_request_trigger(
             .call1((local_api, query_params, request_params, request_body, args))
             .map_err(|e| anyhow::anyhow!("Python function call failed: {}", e))?;
 
-        // the return from the process_request function should be a tuple of (status_code, response_headers, body)
-        let response_code: i64 = result.get_item(0).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?.extract().context("unable to convert first tuple element from Python request function return to integer")?;
-        let headers_binding = result.get_item(1).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?;
-        let py_headers_dict = headers_binding
-            .downcast::<PyDict>()
-            .map_err(|e| anyhow::anyhow!("Failed to downcast to PyDict: {}", e))?;
-        let body_binding = result.get_item(2).context("Python request function didn't return a tuple of (status_code, response_headers, body)")?;
-        let response_body: &str = body_binding.extract().context(
-            "unable to convert the third tuple element from Python request function to a string",
-        )?;
-
-        // Then convert the dict to HashMap
-        let response_headers: std::collections::HashMap<String, String> = py_headers_dict
-            .extract()
-            .map_err(|e| anyhow::anyhow!("error converting response headers into hashmap {}", e))?;
-
-        // convert the returned i64 to a u16 or it's a 500
-        let response_code: u16 = response_code.try_into().unwrap_or_else(|_| {
-            warn!(
-                "Invalid response code from Python request trigger: {}",
-                response_code
-            );
-
-            500
-        });
-
-        let response_headers: HashMap<String, String> = response_headers.into_iter().collect();
+        // Process the result according to Flask conventions
+        let (response_code, response_headers, response_body) = process_flask_response(py, result)?;
 
         // swap with an empty return state to avoid cloning
         let empty_return_state = PluginReturnState::default();
@@ -776,13 +751,152 @@ pub fn execute_request_trigger(
             )
         }
 
-        Ok((
-            response_code,
-            response_headers,
-            response_body.to_string(),
-            ret,
-        ))
+        Ok((response_code, response_headers, response_body, ret))
     })
+}
+
+fn process_flask_response(
+    py: Python<'_>,
+    result: Bound<'_, PyAny>,
+) -> Result<(u16, HashMap<String, String>, String), anyhow::Error> {
+    let default_status: u16 = 200;
+    let default_headers: HashMap<String, String> = HashMap::new();
+    let default_mimetype = "text/html";
+
+    // Check if it's a Flask Response object
+    if let Ok(true) = result
+        .call_method0("__flask_response__")
+        .and_then(|r| r.extract::<bool>())
+    {
+        // It's a Flask Response object, extract status, headers, and body
+        let status: u16 = result.getattr("status_code")?.extract()?;
+        let body: String = result.call_method0("get_data")?.extract()?;
+
+        // Extract headers
+        let headers_dict = result.getattr("headers")?;
+        let headers: std::collections::HashMap<String, String> = headers_dict.extract()?;
+
+        return Ok((status, headers.into_iter().collect(), body));
+    }
+
+    // Check if it's a tuple
+    if let Ok(tuple) = result.downcast::<PyTuple>() {
+        let tuple_len = tuple.len()?;
+        if tuple_len > 0 && tuple_len <= 3 {
+            // Extract response part (first element)
+            let response = tuple.get_item(0)?;
+            let (response_body, mut headers) = process_response_part(py, response)?;
+
+            let mut status = default_status;
+
+            // Handle status and/or headers if provided
+            if tuple_len >= 2 {
+                let second = tuple.get_item(1)?;
+
+                // Check if the second item is a status code or headers
+                if let Ok(status_code) = second.extract::<i64>() {
+                    status = status_code.try_into().unwrap_or(500);
+                } else if let Ok(header_dict) = second.downcast::<PyDict>() {
+                    // It's headers
+                    let additional_headers: std::collections::HashMap<String, String> =
+                        header_dict.extract()?;
+                    headers.extend(additional_headers);
+                }
+
+                // If there's a third item, it must be headers
+                if tuple_len == 3 {
+                    let header_item = tuple.get_item(2)?;
+                    let Ok(header_dict) = header_item.downcast::<PyDict>() else {
+                        bail!("expected a dictionary in header item");
+                    };
+                    let additional_headers: std::collections::HashMap<String, String> =
+                        header_dict.extract()?;
+                    headers.extend(additional_headers);
+                }
+            }
+
+            return Ok((status, headers, response_body));
+        }
+    }
+
+    // Check if it's a string
+    if let Ok(string_val) = result.extract::<String>() {
+        let mut headers = default_headers.clone();
+        headers.insert("Content-Type".to_string(), default_mimetype.to_string());
+        return Ok((default_status, headers, string_val));
+    }
+
+    // Check if it's a dict or list for JSON response
+    if result.is_instance_of::<PyDict>() || result.is_instance_of::<PyList>() {
+        // We need to jsonify this
+        let json_module = py.import("json")?;
+        let json_string = json_module.call_method1("dumps", (result,))?;
+        let response_body: String = json_string.extract()?;
+
+        let mut headers = default_headers.clone();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+        return Ok((default_status, headers, response_body));
+    }
+
+    // Check if it's an iterator or generator returning strings or bytes
+    if let Ok(true) = result.hasattr("__iter__") {
+        // Handling streaming response would require adapting the return type
+        // For now, we'll convert it to a concatenated string
+        let mut stream_content = String::new();
+
+        let iter = result.try_iter()?;
+        for item in iter {
+            let item = item?;
+            if let Ok(s) = item.extract::<String>() {
+                stream_content.push_str(&s);
+            } else if let Ok(b) = item.extract::<&[u8]>() {
+                // Convert bytes to string - might need better UTF-8 handling
+                if let Ok(s) = std::str::from_utf8(b) {
+                    stream_content.push_str(s);
+                }
+            }
+        }
+
+        let mut headers = default_headers.clone();
+        headers.insert("Content-Type".to_string(), default_mimetype.to_string());
+
+        return Ok((default_status, headers, stream_content));
+    }
+
+    // If we can't identify the response type, return an error
+    Err(anyhow::anyhow!(
+        "Unsupported return type from Python function"
+    ))
+}
+
+fn process_response_part(
+    py: Python<'_>,
+    response: Bound<'_, PyAny>,
+) -> Result<(String, HashMap<String, String>), anyhow::Error> {
+    let mut headers = HashMap::new();
+
+    // If it's a string, return it directly
+    if let Ok(string_val) = response.extract::<String>() {
+        headers.insert("Content-Type".to_string(), "text/html".to_string());
+        return Ok((string_val, headers));
+    }
+
+    // If it's a dict or list, convert to JSON
+    if response.is_instance_of::<PyDict>() || response.is_instance_of::<PyList>() {
+        let json_module = py.import("json")?;
+        let json_string = json_module.call_method1("dumps", (response,))?;
+        let response_body: String = json_string.extract()?;
+
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        return Ok((response_body, headers));
+    }
+
+    // Default fallback
+    let response_str = response.str()?.extract::<String>()?;
+    headers.insert("Content-Type".to_string(), "text/plain".to_string());
+
+    Ok((response_str, headers))
 }
 
 // Module initialization

@@ -163,6 +163,9 @@ pub trait ParquetCacheOracle: Send + Sync + Debug {
 
     // Get a receiver that is notified when a prune takes place and how much memory was freed
     fn prune_notifier(&self) -> watch::Receiver<usize>;
+
+    // check in cache already
+    fn in_cache(&self, path: &Path) -> bool;
 }
 
 /// Concrete implementation of the [`ParquetCacheOracle`]
@@ -250,6 +253,10 @@ impl ParquetCacheOracle for MemCacheOracle {
 
     fn prune_notifier(&self) -> watch::Receiver<usize> {
         self.prune_notifier_tx.subscribe()
+    }
+
+    fn in_cache(&self, path: &Path) -> bool {
+        self.mem_store.cache.path_already_fetched(path)
     }
 }
 

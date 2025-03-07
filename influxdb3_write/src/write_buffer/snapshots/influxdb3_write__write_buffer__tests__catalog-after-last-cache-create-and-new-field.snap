@@ -42,7 +42,7 @@ expression: catalog_json
                     "id": 0,
                     "influx_type": "tag",
                     "name": "t1",
-                    "nullable": false,
+                    "nullable": true,
                     "type": {
                       "dict": [
                         "i32",
