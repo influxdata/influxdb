@@ -1,10 +1,14 @@
 use crate::server::{ConfigProvider, TestServer};
+use arrow_array::RecordBatch;
+use arrow_util::assert_batches_eq;
 use assert_cmd::cargo::CommandCargoExt;
 use assert_cmd::Command as AssertCmd;
 use observability_deps::tracing::debug;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
 use std::{
+    fs::File,
     io::Write,
     process::{Command, Stdio},
     thread,
@@ -333,6 +337,45 @@ async fn test_show_databases() {
     ]);
     // don't assert on actual output since it contains a time stamp which would be flaky
     assert_contains!(output, "foo-");
+
+    let expected_output = [
+        "+---------------+",
+        "| iox::database |",
+        "+---------------+",
+        "| bar           |",
+        "+---------------+",
+    ];
+    let temp_file = NamedTempFile::new().unwrap();
+    let file_path = temp_file.path().to_str().unwrap();
+
+    // Success test cases for show commands output to be copied in a file
+    let _ = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "parquet",
+        "--output",
+        file_path,
+    ]);
+    let file = File::open(file_path).unwrap();
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    let actual: Vec<RecordBatch> = builder.build().unwrap().map(|r| r.unwrap()).collect();
+    assert_batches_eq!(expected_output, &actual);
+
+    // Failure test case for show command when the format is parquet and output not provided
+    let test_name = "fail without output-file when format is parquet for show databases";
+    let output = run_and_err(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "parquet",
+    ]);
+    let snap_name = test_name.replace(' ', "_");
+    insta::assert_snapshot!(snap_name, output);
 }
 
 #[test_log::test(tokio::test)]
@@ -1136,18 +1179,15 @@ async fn test_show_system() {
             ],
         },
     ];
-
     for case in cases {
         let output = run(&case.args);
         let snap_name = case.name.replace(' ', "_");
         insta::assert_snapshot!(snap_name, output);
     }
-
     struct FailTestCase<'a> {
         name: &'static str,
         args: Vec<&'a str>,
     }
-
     let cases = vec![
         FailTestCase {
             name: "fail without database name",
@@ -1163,7 +1203,7 @@ async fn test_show_system() {
         },
         FailTestCase {
             name: "fail without output-file when format is parquet for table",
-            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "--format", "parquet","distinct_caches"]
+            args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "table", "--format", "parquet", "distinct_caches"]
         },
         FailTestCase {
             name: "fail without output-file when format is parquet for table-list",
@@ -1172,7 +1212,7 @@ async fn test_show_system() {
         FailTestCase {
             name: "fail without output-file when format is parquet for summary",
             args: vec!["show", "system", "--host", server_addr.as_str(), "--database", db_name, "summary", "--format", "parquet"]
-        },
+        }
     ];
 
     for case in cases {
@@ -1180,6 +1220,77 @@ async fn test_show_system() {
         let snap_name = case.name.replace(' ', "_");
         insta::assert_snapshot!(snap_name, output);
     }
+    let temp_file = NamedTempFile::new().unwrap();
+    let file_path = temp_file.path().to_str().unwrap();
+
+    let expected_output = vec![ "+----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+                                "| table_name                 | column_names                                                                                                                                                                                                        |",
+                                "+----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",
+                                "| distinct_caches            | [table, name, column_ids, column_names, max_cardinality, max_age_seconds]                                                                                                                                           |",
+                                "| last_caches                | [table, name, key_column_ids, key_column_names, value_column_ids, value_column_names, count, ttl]                                                                                                                   |",
+                                "| parquet_files              | [table_name, path, size_bytes, row_count, min_time, max_time]                                                                                                                                                       |",
+                                "| processing_engine_triggers | [trigger_name, plugin_filename, trigger_specification, disabled]                                                                                                                                                    |",
+                                "| queries                    | [id, phase, issue_time, query_type, query_text, partitions, parquet_files, plan_duration, permit_duration, execute_duration, end2end_duration, compute_duration, max_memory, success, running, cancelled, trace_id] |",
+                                "+----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+",];
+    let args = vec![
+        "show",
+        "system",
+        "--host",
+        server_addr.as_str(),
+        "--database",
+        db_name,
+        "table-list",
+        "--format",
+        "parquet",
+        "--output",
+        file_path,
+    ];
+    run(&args);
+    let file = File::open(file_path).unwrap();
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    let actual: Vec<RecordBatch> = builder.build().unwrap().map(|r| r.unwrap()).collect();
+    assert_batches_eq!(expected_output, &actual);
+
+    let expected_output = vec!["++", "++"];
+    let args = vec![
+        "show",
+        "system",
+        "--host",
+        server_addr.as_str(),
+        "--database",
+        db_name,
+        "table",
+        "--format",
+        "parquet",
+        "distinct_caches",
+        "--output",
+        file_path,
+    ];
+    run(&args);
+    let file = File::open(file_path).unwrap();
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    let actual: Vec<RecordBatch> = builder.build().unwrap().map(|r| r.unwrap()).collect();
+    assert_batches_eq!(expected_output, &actual);
+
+    let expected_output = vec!["++", "++"];
+    let args = vec![
+        "show",
+        "system",
+        "--host",
+        server_addr.as_str(),
+        "--database",
+        db_name,
+        "summary",
+        "--format",
+        "parquet",
+        "--output",
+        file_path,
+    ];
+    run(&args);
+    let file = File::open(file_path).unwrap();
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+    let actual: Vec<RecordBatch> = builder.build().unwrap().map(|r| r.unwrap()).collect();
+    assert_batches_eq!(expected_output, &actual);
 }
 
 #[tokio::test]
@@ -1424,7 +1535,7 @@ async fn test_wal_plugin_errors() {
         expected_error: &'static str,
     }
 
-    let  tests = vec![
+    let tests = vec![
         Test {
             name: "invalid_python",
             plugin_code: r#"

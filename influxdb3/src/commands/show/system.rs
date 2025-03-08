@@ -1,4 +1,5 @@
 use super::super::common::{Format, InfluxDb3Config};
+use bytes::Bytes;
 use clap::Parser;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
@@ -127,20 +128,7 @@ impl SystemCommandRunner {
             .send()
             .await?;
 
-        if let Some(path) = output_file_path {
-            let mut f = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(path)
-                .await?;
-            f.write_all_buf(&mut bs).await?;
-        } else {
-            if output_format.is_parquet() {
-                Err(Error::NoOutputFileForParquet)?
-            }
-            println!("{}", String::from_utf8(bs.as_ref().to_vec()).unwrap());
-        }
+        write_to_std_out_or_file(output_file_path, output_format, &mut bs).await?;
 
         Ok(())
     }
@@ -242,23 +230,31 @@ impl SystemCommandRunner {
                 return Err(e.into());
             }
         };
-
-        if let Some(path) = output_file_path {
-            let mut f = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(path)
-                .await?;
-            f.write_all_buf(&mut bs).await?;
-        } else {
-            if output_format.is_parquet() {
-                Err(Error::NoOutputFileForParquet)?
-            }
-            println!("{}", String::from_utf8(bs.as_ref().to_vec()).unwrap());
-        }
+        write_to_std_out_or_file(output_file_path, output_format, &mut bs).await?;
         Ok(())
     }
+}
+
+async fn write_to_std_out_or_file(
+    output_file_path: &Option<String>,
+    output_format: &Format,
+    bytes: &mut Bytes,
+) -> Result<()> {
+    if let Some(path) = output_file_path {
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .await?;
+        f.write_all_buf(bytes).await?;
+    } else {
+        if output_format.is_parquet() {
+            Err(Error::NoOutputFileForParquet)?
+        }
+        println!("{}", String::from_utf8(bytes.as_ref().to_vec()).unwrap());
+    }
+    Ok(())
 }
 
 #[derive(Debug, Parser)]
@@ -336,7 +332,7 @@ impl SystemCommandRunner {
             let mut f = OpenOptions::new()
                 .write(true)
                 .create(true)
-                .truncate(true)
+                .append(true)
                 .open(path)
                 .await?;
             f.write_all_buf(&mut bs).await?;

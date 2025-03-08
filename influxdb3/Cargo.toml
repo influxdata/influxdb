@@ -40,6 +40,7 @@ influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 anyhow.workspace = true
 backtrace.workspace = true
 base64.workspace = true
+bytes.workspace = true
 clap.workspace = true
 dotenvy.workspace = true
 hashbrown.workspace = true
@@ -92,6 +93,7 @@ assert_cmd.workspace = true
 futures.workspace = true
 hyper.workspace = true
 insta.workspace = true
+parquet.workspace = true
 pretty_assertions.workspace = true
 reqwest.workspace = true
 serde.workspace = true
