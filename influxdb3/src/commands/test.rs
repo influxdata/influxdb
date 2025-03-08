@@ -113,6 +113,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 input_lp,
+                cache_name: None,
                 input_arguments,
             };
 
@@ -134,6 +135,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 schedule: plugin_config.schedule,
+                cache_name: None,
                 input_arguments,
             };
             let response = client

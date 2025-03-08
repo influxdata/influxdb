@@ -10,6 +10,8 @@ use influxdb3_catalog::catalog::Catalog;
 #[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
 #[cfg(feature = "system-py")]
+use influxdb3_py_api::system_py::CacheType;
+#[cfg(feature = "system-py")]
 use influxdb3_py_api::system_py::ProcessingEngineLogger;
 #[cfg(feature = "system-py")]
 use influxdb3_sys_events::SysEventStore;
@@ -471,6 +473,10 @@ mod python_plugin {
                         let query_executor = Arc::clone(&self.query_executor);
                         let logger = Some(self.logger.clone());
                         let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
+                        let cache_type = CacheType::Trigger {
+                            database: self.trigger_definition.database_name.clone(),
+                            trigger_name: self.trigger_definition.trigger_name.clone(),
+                        };
 
                         let result = tokio::task::spawn_blocking(move || {
                             execute_request_trigger(
@@ -482,6 +488,7 @@ mod python_plugin {
                                 request.query_params,
                                 request.headers,
                                 request.body,
+                                cache_type,
                             )
                         })
                         .await?;
@@ -604,6 +611,10 @@ mod python_plugin {
                             let trigger_arguments =
                                 self.trigger_definition.trigger_arguments.clone();
                             let wal_contents_clone = Arc::clone(&wal_contents);
+                            let cache_type = CacheType::Trigger {
+                                database: self.trigger_definition.database_name.clone(),
+                                trigger_name: self.trigger_definition.trigger_name.clone(),
+                            };
 
                             let result = tokio::task::spawn_blocking(move || {
                                 let write_batch = match &wal_contents_clone.ops[op_index] {
@@ -618,6 +629,7 @@ mod python_plugin {
                                     logger,
                                     table_filter,
                                     &trigger_arguments,
+                                    cache_type,
                                 )
                             })
                             .await?;
@@ -803,6 +815,10 @@ mod python_plugin {
                 let logger = Some(plugin.logger.clone());
                 let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
                 let schema = Arc::clone(&db_schema);
+                let cache_type = CacheType::Trigger {
+                    database: plugin.trigger_definition.database_name.clone(),
+                    trigger_name: plugin.trigger_definition.trigger_name.clone(),
+                };
 
                 let result = tokio::task::spawn_blocking(move || {
                     execute_schedule_trigger(
@@ -812,6 +828,7 @@ mod python_plugin {
                         query_executor,
                         logger,
                         &trigger_arguments,
+                        cache_type,
                     )
                 })
                 .await?;
@@ -896,6 +913,11 @@ pub(crate) fn run_test_wal_plugin(
         None,
         None,
         &request.input_arguments,
+        CacheType::TestCache(
+            request
+                .cache_name
+                .unwrap_or_else(|| "_shared_test".to_string()),
+        ),
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -1023,6 +1045,11 @@ pub(crate) fn run_test_schedule_plugin(
         query_executor,
         None,
         &request.input_arguments,
+        CacheType::TestCache(
+            request
+                .schedule
+                .unwrap_or_else(|| "_shared_test".to_string()),
+        ),
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -1101,6 +1128,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             filename: "test".into(),
             database: "_testdb".into(),
             input_lp: lp,
+            cache_name: None,
             input_arguments: Some(HashMap::from([(
                 String::from("arg1"),
                 String::from("val1"),
@@ -1192,6 +1220,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             filename: "test".into(),
             database: "_testdb".into(),
             input_lp: lp,
+            cache_name: None,
             input_arguments: None,
         };
 
