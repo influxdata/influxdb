@@ -1,4 +1,5 @@
 use crate::catalog::CatalogSequenceNumber;
+use crate::catalog::CatalogVersion;
 use crate::catalog::ColumnDefinition;
 use crate::catalog::DatabaseSchema;
 use crate::catalog::InnerCatalog;
@@ -41,6 +42,7 @@ impl<'de> Deserialize<'de> for InnerCatalog {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CatalogSnapshot {
+    version: CatalogVersion,
     databases: SerdeVecMap<DbId, DatabaseSnapshot>,
     sequence: CatalogSequenceNumber,
     #[serde(alias = "writer_id")]
@@ -51,6 +53,7 @@ struct CatalogSnapshot {
 impl From<&InnerCatalog> for CatalogSnapshot {
     fn from(catalog: &InnerCatalog) -> Self {
         Self {
+            version: catalog.version,
             databases: catalog
                 .databases
                 .iter()
@@ -71,6 +74,7 @@ impl From<CatalogSnapshot> for InnerCatalog {
             .map(|(id, db)| (*id, Arc::clone(&db.name)))
             .collect();
         Self {
+            version: snap.version,
             databases: snap
                 .databases
                 .into_iter()

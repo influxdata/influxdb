@@ -160,6 +160,19 @@ impl CatalogSequenceNumber {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum CatalogVersion {
+    #[serde(rename = "1")]
+    V1,
+}
+
+impl Default for CatalogVersion {
+    fn default() -> Self {
+        Self::V1
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Catalog {
     #[serde(flatten)]
@@ -347,6 +360,7 @@ impl Catalog {
 
 #[derive(Debug, Clone, Default)]
 pub struct InnerCatalog {
+    pub(crate) version: CatalogVersion,
     /// The catalog is a map of databases with their table schemas
     pub(crate) databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
     pub(crate) sequence: CatalogSequenceNumber,
@@ -363,6 +377,7 @@ pub struct InnerCatalog {
 impl InnerCatalog {
     pub(crate) fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
         Self {
+            version: CatalogVersion::V1,
             databases: SerdeVecMap::new(),
             sequence: CatalogSequenceNumber::new(0),
             node_id,

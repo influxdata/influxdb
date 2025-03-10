@@ -104,5 +104,6 @@ expression: catalog
   ],
   "instance_id": "instance-id",
   "node_id": "sample-host-id",
-  "sequence": 0
+  "sequence": 0,
+  "version": "1"
 }

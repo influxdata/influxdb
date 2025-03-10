@@ -84,5 +84,6 @@ expression: catalog_json
   ],
   "instance_id": "[uuid]",
   "node_id": "test_host",
-  "sequence": 2
+  "sequence": 2,
+  "version": "1"
 }

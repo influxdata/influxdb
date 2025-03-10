@@ -1002,6 +1002,7 @@ mod tests {
         // write raw json to catalog
         let catalog_json = r#"
             {
+              "version": "1",
               "databases": [],
               "sequence": 0,
               "node_id": "test_host",
