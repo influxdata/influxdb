@@ -1606,11 +1606,11 @@ func (p *purger) purge(fileNames []string) {
 				// https://github.com/influxdata/influxdb/issues/26110
 				// Blocks new readers so there is not a potential time of check/time of use
 				// bug below when tsmfile.InUse() is called -> tsmfile.Close() is called
-				err := p.fileStore.SetNewReadersBlocked(true)
-				if err != nil {
-					logger.Error("failed to block new readers", zap.Strings("files", fileNames), zap.Error(err))
-					continue
-				}
+				//err := p.fileStore.SetNewReadersBlocked(true)
+				//if err != nil {
+				//	logger.Error("failed to block new readers", zap.Strings("files", fileNames), zap.Error(err))
+				//	continue
+				//}
 
 				// In order to ensure that there are no races with this (file held externally calls Ref
 				// after we check InUse), we need to maintain the invariant that every handle to a file
@@ -1620,21 +1620,21 @@ func (p *purger) purge(fileNames []string) {
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						logger.Error("close file failed", zap.String("file", k), zap.Error(err))
-						err = p.fileStore.SetNewReadersBlocked(false)
-						if err != nil {
-							logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
-							continue
-						}
+						//err = p.fileStore.SetNewReadersBlocked(false)
+						//if err != nil {
+						//	logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
+						//	continue
+						//}
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
 						logger.Error("remove file failed", zap.String("file", k), zap.Error(err))
-						err = p.fileStore.SetNewReadersBlocked(false)
-						if err != nil {
-							logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
-							continue
-						}
+						//err = p.fileStore.SetNewReadersBlocked(false)
+						//if err != nil {
+						//	logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
+						//	continue
+						//}
 						continue
 					}
 					logger.Debug("successfully removed", zap.String("file", k))
@@ -1642,11 +1642,11 @@ func (p *purger) purge(fileNames []string) {
 					purgeCount++
 				}
 
-				err = p.fileStore.SetNewReadersBlocked(false)
-				if err != nil {
-					logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
-					continue
-				}
+				//err = p.fileStore.SetNewReadersBlocked(false)
+				//if err != nil {
+				//	logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
+				//	continue
+				//}
 			}
 
 			if len(p.files) == 0 {
