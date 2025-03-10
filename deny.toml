@@ -8,6 +8,10 @@ ignore = [
     # dependent on datafusion-common moving away from instant
     # https://github.com/apache/datafusion/pull/13355
     "RUSTSEC-2024-0384",
+    # paste crate is no longer maintained, but it is past 1.0
+    # Keep this here until our transisent dependencies no longer
+    # need it
+    "RUSTSEC-2024-0436",
 ]
 git-fetch-with-cli = true
 
@@ -18,7 +22,6 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "BSD-4-Clause",
     "CC0-1.0",
     "ISC",
     "MIT",
@@ -28,7 +31,6 @@ allow = [
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
-    { allow = ["OpenSSL"], name = "ring" },
 ]
 
 [[licenses.clarify]]
