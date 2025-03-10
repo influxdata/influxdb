@@ -452,7 +452,7 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DatabaseTables, ParquetFile, ParquetFileId};
+    use crate::{DatabaseTables, ParquetFile, ParquetFileId, PersistedSnapshotVersion};
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{
@@ -645,6 +645,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
@@ -670,6 +671,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
@@ -685,6 +687,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_2 = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
             next_db_id: DbId::from(1),
@@ -700,6 +703,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         let info_file_3 = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
             next_db_id: DbId::from(1),
@@ -737,6 +741,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         let info_file = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
@@ -767,6 +772,7 @@ mod tests {
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         for id in 0..1001 {
             let info_file = PersistedSnapshot {
+                version: PersistedSnapshotVersion::V1,
                 node_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
                 next_db_id: DbId::from(1),
@@ -896,6 +902,7 @@ mod tests {
         ]
         .into();
         let snapshot = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: "host".to_string(),
             next_file_id: ParquetFileId::new(),
             next_db_id: DbId::new(),

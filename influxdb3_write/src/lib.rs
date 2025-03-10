@@ -210,9 +210,17 @@ pub struct BufferedWriteRequest {
     pub index_count: usize,
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[non_exhaustive]
+pub enum PersistedSnapshotVersion {
+    #[serde(rename = "1")]
+    V1,
+}
+
 /// The collection of Parquet files that were persisted in a snapshot
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct PersistedSnapshot {
+    pub version: PersistedSnapshotVersion,
     /// The node identifier that persisted this snapshot
     // TODO: deprecate this alias
     #[serde(alias = "writer_id")]
@@ -252,6 +260,7 @@ impl PersistedSnapshot {
         catalog_sequence_number: CatalogSequenceNumber,
     ) -> Self {
         Self {
+            version: PersistedSnapshotVersion::V1,
             node_id,
             next_file_id: ParquetFileId::next_id(),
             next_db_id: DbId::next_id(),
@@ -594,7 +603,7 @@ mod tests {
     use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 
-    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion};
 
     #[test]
     fn test_overall_counts() {
@@ -629,6 +638,7 @@ mod tests {
 
         // add dbs_1 to snapshot
         let persisted_snapshot_1 = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: host.to_string(),
             next_file_id: ParquetFileId::from(0),
             next_db_id: DbId::from(1),
@@ -674,6 +684,7 @@ mod tests {
 
         // add dbs_2 to snapshot
         let persisted_snapshot_2 = PersistedSnapshot {
+            version: PersistedSnapshotVersion::V1,
             node_id: host.to_string(),
             next_file_id: ParquetFileId::from(5),
             next_db_id: DbId::from(2),
