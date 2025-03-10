@@ -2,7 +2,7 @@
 
 use crate::{
     CompactionDetailPath, CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary,
-    CompactionSummaryPath, CompactionSummaryVersion, GenerationDetail, GenerationDetailPath,
+    CompactionSummaryPath, CompactionSummaryVersion, GenerationDetailPath, GenerationDetailVersion,
     GenerationId,
 };
 use bytes::Bytes;
@@ -89,7 +89,7 @@ pub async fn get_compaction_detail(
 pub async fn persist_generation_detail(
     compactor_id: Arc<str>,
     generation_id: GenerationId,
-    generation_detail: &GenerationDetail,
+    generation_detail: &GenerationDetailVersion,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<()> {
     let path = GenerationDetailPath::new(compactor_id, generation_id);
@@ -118,7 +118,7 @@ pub async fn persist_generation_detail(
 pub async fn get_generation_detail(
     generation_detail_path: &GenerationDetailPath,
     object_store: Arc<dyn ObjectStore>,
-) -> Option<GenerationDetail> {
+) -> Option<GenerationDetailVersion> {
     let bytes = get_bytes_at_path(&generation_detail_path.0, object_store).await?;
     match serde_json::from_slice(&bytes) {
         Ok(detail) => {

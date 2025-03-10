@@ -1,0 +1,5 @@
+---
+source: influxdb3_enterprise/data_layout/src/lib.rs
+expression: serialized
+---
+"{\"version\":\"1\",\"id\":0,\"level\":1,\"start_time_s\":0,\"max_time_ns\":1,\"files\":[],\"file_index\":{\"index\":[]}}"

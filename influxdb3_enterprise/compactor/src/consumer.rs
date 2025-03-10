@@ -9,7 +9,7 @@ use anyhow::Context;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::{
     CompactionDetailPath, CompactionDetailVersion, CompactionSummaryVersion, GenerationDetail,
-    GenerationDetailPath, GenerationId,
+    GenerationDetailPath, GenerationDetailVersion, GenerationId,
 };
 use influxdb3_enterprise_data_layout::{
     Generation,
@@ -305,7 +305,9 @@ impl CompactedDataConsumer {
         }
         while let Some(details) = join_set.join_next().await {
             let detail = details??;
-            generation_details.push(detail);
+            match detail {
+                GenerationDetailVersion::V1(gd) => generation_details.push(gd),
+            }
         }
         debug!(time_taken = ?start.elapsed(), ">>> time taken to load generation details");
         Ok(generation_details)
@@ -361,7 +363,7 @@ mod tests {
         Arc<Catalog>,
         CompactionSummaryVersion,
         CompactionDetailVersion,
-        GenerationDetail,
+        GenerationDetailVersion,
     ) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let cluster_id = Arc::<str>::from("test_cluster");
@@ -428,7 +430,7 @@ mod tests {
             start_time_secs: 0,
             max_time: 0,
         };
-        let generation_detail = GenerationDetail {
+        let generation_detail = GenerationDetailVersion::V1(GenerationDetail {
             id: generation.id,
             level: GenerationLevel::two(),
             start_time_s: 0,
@@ -443,7 +445,7 @@ mod tests {
                 max_time: 0,
             })],
             file_index: Default::default(),
-        };
+        });
 
         let detail = CompactionDetailVersion::V1(CompactionDetail {
             db_name: "db1".into(),
@@ -491,6 +493,7 @@ mod tests {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
         let CompactionDetailVersion::V1(detail) = detail;
         let CompactionSummaryVersion::V1(summary) = summary;
+        let GenerationDetailVersion::V1(generation) = generation;
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));

@@ -18,8 +18,8 @@ use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
     CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary,
-    CompactionSummaryVersion, Gen1File, GenerationDetail, GenerationId, GenerationLevel,
-    NodeSnapshotMarker,
+    CompactionSummaryVersion, Gen1File, GenerationDetail, GenerationDetailVersion, GenerationId,
+    GenerationLevel, NodeSnapshotMarker,
 };
 use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use influxdb3_enterprise_data_layout::{CompactionDetailVersion, CompactionSummaryPath};
@@ -603,7 +603,7 @@ impl CompactedDataProducer {
             .unwrap_or(0);
 
         // write the generation detail to object store
-        let generation_detail = GenerationDetail {
+        let generation_detail = GenerationDetailVersion::V1(GenerationDetail {
             id: plan.output_generation.id,
             level: plan.output_generation.level,
             start_time_s: plan.output_generation.start_time_secs,
@@ -614,7 +614,7 @@ impl CompactedDataProducer {
                 .map(Arc::new)
                 .collect(),
             file_index: compactor_output.file_index,
-        };
+        });
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_generation_detail(
@@ -674,11 +674,12 @@ impl CompactedDataProducer {
                 continue;
             }
             let path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), generation.id);
-            let Some(gen_detail) =
-                get_generation_detail(&path, Arc::clone(&self.object_store)).await
-            else {
-                continue;
-            };
+            let gen_detail =
+                match get_generation_detail(&path, Arc::clone(&self.object_store)).await {
+                    Some(GenerationDetailVersion::V1(gen_detail)) => gen_detail,
+
+                    None => continue,
+                };
             let mut lock = self.to_delete.lock();
             for file in &gen_detail.files {
                 lock.push(Path::from(file.path.clone()));
@@ -699,7 +700,7 @@ impl CompactedDataProducer {
             .into_inner(),
         );
 
-        let gen_details = vec![generation_detail];
+        let gen_details = vec![generation_detail.v1()];
         let file_index_with_new_parquet_gen_files = self
             .compacted_data
             .build_new_parquet_files_in_gen_and_file_index(
@@ -1270,7 +1271,7 @@ mod tests {
         // ensure the generation detail was persisted
         let generation_detail_path =
             GenerationDetailPath::new("compactor-1".into(), output_generation.id);
-        let generation_detail =
+        let GenerationDetailVersion::V1(generation_detail) =
             get_generation_detail(&generation_detail_path, Arc::clone(&object_store))
                 .await
                 .unwrap();

@@ -6,7 +6,8 @@ use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_gener
 use influxdb3_enterprise_data_layout::{
     CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
     CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary, CompactionSummaryVersion,
-    GenerationDetail, GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
+    GenerationDetail, GenerationDetailPath, GenerationDetailVersion, GenerationId,
+    NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::{InMemoryFileIndex, ParquetFileMeta, ParquetMetaIndex};
 use influxdb3_id::{DbId, TableId};
@@ -284,7 +285,9 @@ impl CompactedData {
                 }
 
                 while let Some(gen_detail) = gen_details.join_next().await {
-                    table.add_generation_detail(gen_detail??);
+                    match gen_detail?? {
+                        GenerationDetailVersion::V1(gd) => table.add_generation_detail(gd),
+                    }
                 }
 
                 Ok((compaction_detail_db_id, table))

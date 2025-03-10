@@ -541,6 +541,21 @@ impl CompactionDetailPath {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "version")]
+pub enum GenerationDetailVersion {
+    #[serde(rename = "1")]
+    V1(GenerationDetail),
+}
+
+impl GenerationDetailVersion {
+    pub fn v1(self) -> GenerationDetail {
+        match self {
+            Self::V1(gd) => gd,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GenerationDetail {
     pub id: GenerationId,
     pub level: GenerationLevel,
@@ -788,7 +803,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&cdv).unwrap();
         insta::assert_json_snapshot!(serialized);
-        let deserialized: CompactionDetailVersion = serde_json::from_str(&serialized).unwrap();
+        let deserialized = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(cdv, deserialized);
     }
@@ -806,8 +821,26 @@ mod tests {
 
         let serialized = serde_json::to_string(&cdv).unwrap();
         insta::assert_json_snapshot!(serialized);
-        let deserialized: CompactionSummaryVersion = serde_json::from_str(&serialized).unwrap();
+        let deserialized = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(cdv, deserialized);
+    }
+
+    #[test]
+    fn generation_detail_v1_serializes_and_deserializes_properly() {
+        let gdv = GenerationDetailVersion::V1(GenerationDetail {
+            id: GenerationId::from(0),
+            level: GenerationLevel::one(),
+            start_time_s: 0,
+            max_time_ns: 1,
+            files: Vec::new(),
+            file_index: FileIndex::new(),
+        });
+
+        let serialized = serde_json::to_string(&gdv).unwrap();
+        insta::assert_json_snapshot!(serialized);
+        let deserialized = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(gdv, deserialized);
     }
 }
