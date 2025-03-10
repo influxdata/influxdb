@@ -1,7 +1,7 @@
 //! The Distinct Value Cache holds the distinct values for a column or set of columns on a table
 
 mod cache;
-pub use cache::{CacheError, CreateDistinctCacheArgs, MaxAge, MaxCardinality};
+pub use cache::{CacheError, CreateDistinctCacheArgs};
 mod provider;
 pub use provider::{DistinctCacheProvider, ProviderError};
 mod table_function;
@@ -13,25 +13,28 @@ mod tests {
     use arrow::array::AsArray;
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, prelude::SessionContext};
     use indexmap::IndexMap;
+    use influxdb3_catalog::log::{MaxAge, MaxCardinality};
     use influxdb3_id::ColumnId;
     use iox_time::{MockProvider, Time, TimeProvider};
+    use observability_deps::tracing::debug;
     use std::{sync::Arc, time::Duration};
 
     use crate::{
         distinct_cache::{
             DISTINCT_CACHE_UDTF_NAME, DistinctCacheFunction, DistinctCacheProvider,
-            cache::{CreateDistinctCacheArgs, DistinctCache, MaxAge, MaxCardinality, Predicate},
+            cache::{CreateDistinctCacheArgs, DistinctCache, Predicate},
         },
         test_helpers::TestWriter,
     };
 
-    #[test]
-    fn evaluate_predicates() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn evaluate_predicates() {
+        let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // write some data to get a set of rows destined for the WAL, and an updated catalog:
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
             cpu,region=us-east,host=a usage=100\n\
             cpu,region=us-east,host=b usage=100\n\
             cpu,region=us-west,host=c usage=100\n\
@@ -45,8 +48,9 @@ mod tests {
             cpu,region=eu-cent,host=k usage=100\n\
             cpu,region=eu-cent,host=l usage=100\n\
             ",
-            0,
-        );
+                0,
+            )
+            .await;
         // grab the table definition for the table written to:
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         // use the two tags, in order, to create the cache:
@@ -191,17 +195,19 @@ mod tests {
         }
     }
 
-    #[test]
-    fn cache_pruning() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn cache_pruning() {
+        let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // write some data to update the catalog:
-        let _ = writer.write_lp_to_rows(
-            "\
+        let _ = writer
+            .write_lp_to_rows(
+                "\
             cpu,region=us-east,host=a usage=100\n\
             ",
-            time_provider.now().timestamp_nanos(),
-        );
+                time_provider.now().timestamp_nanos(),
+            )
+            .await;
         // grab the table definition for the table written to:
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         // use the two tags, in order, to create the cache:
@@ -221,23 +227,25 @@ mod tests {
         )
         .expect("create cache");
         // push a bunch of rows with incrementing times and varying tag values:
-        (0..10).for_each(|mult| {
+        for mult in 0..10 {
             time_provider.set(Time::from_timestamp_nanos(mult * 20));
-            let rows = writer.write_lp_to_rows(
-                format!(
-                    "\
+            let rows = writer
+                .write_lp_to_rows(
+                    format!(
+                        "\
                     cpu,region=us-east-{mult},host=a-{mult} usage=100\n\
                     cpu,region=us-west-{mult},host=b-{mult} usage=100\n\
                     cpu,region=us-cent-{mult},host=c-{mult} usage=100\n\
                     "
-                ),
-                time_provider.now().timestamp_nanos(),
-            );
+                    ),
+                    time_provider.now().timestamp_nanos(),
+                )
+                .await;
             // push the initial row data into the cache:
             for row in rows {
                 cache.push(&row);
             }
-        });
+        }
         // check the cache before prune:
         // NOTE: this does not include entries that have surpassed the max_age of the cache, though,
         // there are still more than the cache's max cardinality, as it has not yet been pruned.
@@ -292,12 +300,13 @@ mod tests {
         );
     }
 
-    #[test]
-    fn distinct_cache_limit() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn distinct_cache_limit() {
+        let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        let rows = writer.write_lp_to_rows(
-            "\
+        let rows = writer
+            .write_lp_to_rows(
+                "\
             cpu,region=us-east,host=a usage=100\n\
             cpu,region=us-east,host=b usage=100\n\
             cpu,region=us-west,host=c usage=100\n\
@@ -311,8 +320,9 @@ mod tests {
             cpu,region=eu-cent,host=k usage=100\n\
             cpu,region=eu-cent,host=l usage=100\n\
             ",
-            0,
-        );
+                0,
+            )
+            .await;
         let table_def = writer.db_schema().table_definition("cpu").unwrap();
         let column_ids: Vec<ColumnId> = ["region", "host"]
             .into_iter()
@@ -395,15 +405,18 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_datafusion_distinct_cache_udtf() {
         // create a test writer and do a write in to populate the catalog with a db/table:
-        let writer = TestWriter::new();
-        let _ = writer.write_lp_to_write_batch(
-            "\
+        let writer = TestWriter::new().await;
+        let _ = writer
+            .write_lp_to_write_batch(
+                "\
             cpu,region=us-east,host=a usage=100\n\
             ",
-            0,
-        );
+                0,
+            )
+            .await;
 
         // create a distinct provider and a cache on tag columns 'region' and 'host':
+        debug!(catlog = ?writer.catalog(), ">>> writer catalog");
         let db_schema = writer.db_schema();
         let table_def = db_schema.table_definition("cpu").unwrap();
         let column_ids: Vec<ColumnId> = ["region", "host"]
@@ -427,8 +440,9 @@ mod tests {
             .unwrap();
 
         // do some writes to generate a write batch and send it into the cache:
-        let write_batch = writer.write_lp_to_write_batch(
-            "\
+        let write_batch = writer
+            .write_lp_to_write_batch(
+                "\
             cpu,region=us-east,host=a usage=100\n\
             cpu,region=us-east,host=b usage=100\n\
             cpu,region=us-west,host=c usage=100\n\
@@ -442,8 +456,9 @@ mod tests {
             cpu,region=eu-west,host=k usage=100\n\
             cpu,region=eu-west,host=l usage=100\n\
             ",
-            0,
-        );
+                0,
+            )
+            .await;
         let wal_contents = influxdb3_wal::create::wal_contents(
             (0, 1, 0),
             [influxdb3_wal::create::write_batch_op(write_batch)],
@@ -841,14 +856,14 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_projection_pushdown_indexing() {
-        let writer = TestWriter::new();
+        let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let _ = writer.write_lp_to_rows(
             "\
             wind_data,city=Berlin,country=Germany,county=Berlin wind_speed=14.63,wind_direction=270i\n\
             ",
             0,
-        );
+        ).await;
         let table_def = writer.db_schema().table_definition("wind_data").unwrap();
         let column_ids: Vec<ColumnId> = ["country", "county", "city"]
             .into_iter()
@@ -885,7 +900,7 @@ mod tests {
             wind_data,city=Toulouse,country=France,county=Occitanie wind_speed=20.34,wind_direction=157i\n\
             wind_data,city=Madrid,country=Spain,county=Community\\ of\\ Madrid wind_speed=9.36,wind_direction=348i\n\
             wind_data,city=Barcelona,country=Spain,county=Catalonia wind_speed=16.52,wind_direction=14i\n\
-            ", 100);
+            ", 100).await;
         let wal_contents = influxdb3_wal::create::wal_contents(
             (0, 100, 1),
             [influxdb3_wal::create::write_batch_op(write_batch)],

@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet, VecDeque},
-    ops::Deref,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -18,14 +17,14 @@ use arrow::{
     error::ArrowError,
 };
 use indexmap::{IndexMap, IndexSet};
-use influxdb3_catalog::catalog::{ColumnDefinition, TIME_COLUMN_NAME, TableDefinition};
-use influxdb3_id::{ColumnId, TableId};
-use influxdb3_wal::{
-    Field, FieldData, LastCacheDefinition, LastCacheSize, LastCacheValueColumnsDef, Row,
+use influxdb3_catalog::{
+    catalog::{ColumnDefinition, TIME_COLUMN_NAME, TableDefinition},
+    log::{CreateLastCacheLog, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef},
 };
+use influxdb3_id::{ColumnId, TableId};
+use influxdb3_wal::{Field, FieldData, Row};
 use iox_time::Time;
 use schema::{InfluxColumnType, InfluxFieldType};
-use serde::Deserialize;
 
 use super::Error;
 
@@ -74,39 +73,6 @@ pub struct CreateLastCacheArgs {
     pub key_columns: LastCacheKeyColumnsArg,
     /// The value columns to use in the cache
     pub value_columns: LastCacheValueColumnsArg,
-}
-
-/// The default cache time-to-live (TTL) is 4 hours
-pub(crate) const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(60 * 60 * 4);
-
-/// The time to live (TTL) for entries in the cache
-#[derive(Debug, Clone, Copy, Deserialize)]
-pub struct LastCacheTtl(Duration);
-
-impl Deref for LastCacheTtl {
-    type Target = Duration;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<Duration> for LastCacheTtl {
-    fn from(duration: Duration) -> Self {
-        Self(duration)
-    }
-}
-
-impl From<LastCacheTtl> for Duration {
-    fn from(ttl: LastCacheTtl) -> Self {
-        ttl.0
-    }
-}
-
-impl Default for LastCacheTtl {
-    fn default() -> Self {
-        Self(DEFAULT_CACHE_TTL)
-    }
 }
 
 /// Specifies the key column configuration for a new [`LastCache`]
@@ -474,8 +440,8 @@ impl LastCache {
         table_id: TableId,
         table: impl Into<Arc<str>>,
         name: impl Into<Arc<str>>,
-    ) -> LastCacheDefinition {
-        LastCacheDefinition {
+    ) -> CreateLastCacheLog {
+        CreateLastCacheLog {
             table_id,
             table: table.into(),
             name: name.into(),
@@ -487,7 +453,7 @@ impl LastCache {
                 },
             },
             count: self.count,
-            ttl: self.ttl.as_secs(),
+            ttl: self.ttl.into(),
         }
     }
 }

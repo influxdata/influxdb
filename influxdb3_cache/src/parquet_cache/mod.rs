@@ -135,6 +135,11 @@ impl CacheRequest {
         )
     }
 
+    // Create a cache eviction request
+    pub fn create_evict_from_cache_request(path: Path) -> Self {
+        Self::Evict(EvictionCacheRequest { path })
+    }
+
     pub fn get_path(&self) -> &Path {
         match self {
             CacheRequest::Immediate(ImmediateCacheRequest {
