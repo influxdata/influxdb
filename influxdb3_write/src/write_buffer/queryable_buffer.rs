@@ -35,8 +35,8 @@ use parking_lot::RwLock;
 use parquet::format::FileMetaData;
 use schema::Schema as IoxSchema;
 use schema::sort::SortKey;
-use std::any::Any;
 use std::time::Duration;
+use std::{any::Any, time::Instant};
 use std::{iter::Peekable, slice::Iter, sync::Arc};
 use sysinfo::{MemoryRefreshKind, RefreshKind};
 use tokio::sync::{
@@ -192,6 +192,7 @@ impl QueryableBuffer {
 
         let persist_jobs = {
             let mut buffer = self.buffer.write();
+            let start = Instant::now();
             // need to buffer first before snapshotting
             buffer.buffer_ops(
                 &write.ops,
@@ -253,6 +254,7 @@ impl QueryableBuffer {
                     }
                 }
             }
+            debug!(time_taken = ?start.elapsed(), ">>> time taken to build persist jobs");
             persisting_chunks
         };
 
@@ -731,12 +733,15 @@ impl BufferState {
     }
 
     fn add_write_batch(&mut self, write_batch: &WriteBatch) {
+        let start = Instant::now();
         let db_schema = self
             .catalog
             .db_schema_by_id(&write_batch.database_id)
             .expect("database should exist");
 
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
+        // keep internal query buffer chunks divided by 1m
+        let one_min_ns = Duration::from_secs(60).as_nanos() as i64;
 
         for (table_id, table_chunks) in &write_batch.table_chunks {
             let table_buffer = database_buffer.entry(*table_id).or_insert_with(|| {
@@ -745,10 +750,27 @@ impl BufferState {
                     .expect("table should exist");
                 TableBuffer::new(table_def.sort_key())
             });
-            for (chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
-                table_buffer.buffer_chunk(*chunk_time, &chunk.rows);
+
+            let mut one_min_groups = HashMap::new();
+            for (_chunk_time, chunk) in &table_chunks.chunk_time_to_chunk {
+                for row in &chunk.rows {
+                    let one_min_chunk_time = row.time - (row.time % one_min_ns);
+                    let rows_vec = one_min_groups
+                        .entry(one_min_chunk_time)
+                        .or_insert_with(Vec::new);
+                    rows_vec.push(row);
+                }
             }
+
+            let all_keys = one_min_groups.keys();
+            let mut total_rows = 0;
+            for (chunk_time, rows) in &one_min_groups {
+                total_rows += rows.len();
+                table_buffer.buffer_chunk(*chunk_time, rows);
+            }
+            trace!(num_chunks = ?one_min_groups.len(), ?total_rows, ?all_keys, "number of 1m chunks");
         }
+        debug!(time_taken = ?start.elapsed(), ">>> time taken to add write batch");
     }
 
     pub fn find_overall_buffer_size_bytes(&self) -> usize {

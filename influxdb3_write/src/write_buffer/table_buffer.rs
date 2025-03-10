@@ -48,7 +48,7 @@ impl TableBuffer {
         }
     }
 
-    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
+    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[impl AsRef<Row>]) {
         let buffer_chunk = self
             .chunk_time_to_chunks
             .entry(chunk_time)
@@ -257,10 +257,11 @@ pub(crate) struct MutableTableChunk {
 }
 
 impl MutableTableChunk {
-    fn add_rows(&mut self, rows: &[Row]) {
+    fn add_rows(&mut self, rows: &[impl AsRef<Row>]) {
         let new_row_count = rows.len();
 
         for (row_index, r) in rows.iter().enumerate() {
+            let r = r.as_ref();
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in &r.fields {

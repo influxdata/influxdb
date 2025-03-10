@@ -912,6 +912,12 @@ pub struct Row {
     pub fields: Vec<Field>,
 }
 
+impl AsRef<Row> for Row {
+    fn as_ref(&self) -> &Row {
+        self
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FieldData {
     Timestamp(i64),

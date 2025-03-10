@@ -178,7 +178,7 @@ pub struct Config {
     #[clap(
         long = "gen1-duration",
         env = "INFLUXDB3_GEN1_DURATION",
-        default_value = "1m",
+        default_value = "10m",
         action
     )]
     pub gen1_duration: Gen1Duration,
