@@ -101,7 +101,7 @@ async fn api_v3_configure_distinct_cache_create() {
             db: Some("foo"),
             table: Some("bar"),
             columns: &["t1", "t2"],
-            expected: StatusCode::NO_CONTENT,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
@@ -110,7 +110,7 @@ async fn api_v3_configure_distinct_cache_create() {
             table: Some("bar"),
             columns: &["t1", "t2"],
             max_cardinality: Some(1),
-            expected: StatusCode::BAD_REQUEST,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
@@ -119,7 +119,7 @@ async fn api_v3_configure_distinct_cache_create() {
             table: Some("bar"),
             columns: &["t1", "t2"],
             max_age: Some(1),
-            expected: StatusCode::BAD_REQUEST,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
@@ -137,20 +137,24 @@ async fn api_v3_configure_distinct_cache_create() {
             table: Some("bar"),
             columns: &["t1", "t2"],
             cache_name: Some("my_cache"),
-            expected: StatusCode::BAD_REQUEST,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
     ];
 
     for tc in test_cases {
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "db": tc.db,
             "table": tc.table,
             "name": tc.cache_name,
             "columns": tc.columns,
-            "max_cardinality": tc.max_cardinality,
-            "max_age": tc.max_age
         });
+        if let Some(mc) = tc.max_cardinality {
+            body["max_cardinality"] = mc.into();
+        }
+        if let Some(ma) = tc.max_age {
+            body["max_age"] = ma.into();
+        }
         let resp = client
             .post(&url)
             .json(&body)
@@ -443,10 +447,10 @@ async fn api_v3_configure_last_cache_create() {
             ..Default::default()
         },
         TestCase {
-            description: "Same as before, will be successful, but with 204",
+            description: "Same as before, will fail with 409",
             db: Some(db_name),
             table: Some(tbl_name),
-            expected: StatusCode::NO_CONTENT,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         // NOTE: this will only differ from the previous cache in name, should this actually
@@ -460,22 +464,22 @@ async fn api_v3_configure_last_cache_create() {
             ..Default::default()
         },
         TestCase {
-            description: "Same as previous, but will get 204 because it does nothing",
+            description: "Same as previous, but will get 409 because it conflicts",
             db: Some(db_name),
             table: Some(tbl_name),
             cache_name: Some("my_cache"),
-            expected: StatusCode::NO_CONTENT,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
             description: "Same as previous, but this time try to use different parameters, this \
-            will result in a bad request",
+            will result in a conflict",
             db: Some(db_name),
             table: Some(tbl_name),
             cache_name: Some("my_cache"),
             // The default TTL that would have been used is 4 * 60 * 60 seconds (4 hours)
             ttl: Some(666),
-            expected: StatusCode::BAD_REQUEST,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
@@ -487,15 +491,15 @@ async fn api_v3_configure_last_cache_create() {
             ..Default::default()
         },
         TestCase {
-            description: "Same as previous, but will get 204 because nothing happens",
+            description: "Same as previous, but will get 409 because of conflict",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["t1", "t2"]),
-            expected: StatusCode::NO_CONTENT,
+            expected: StatusCode::CONFLICT,
             ..Default::default()
         },
         TestCase {
-            description: "Use an invalid key column (by name) is a bad request",
+            description: "Use an invalid key column (by name) is a not found",
             db: Some(db_name),
             table: Some(tbl_name),
             key_cols: Some(&["not_a_key_column"]),
@@ -523,6 +527,7 @@ async fn api_v3_configure_last_cache_create() {
             description: "Use an invalid cache size is a bad request",
             db: Some(db_name),
             table: Some(tbl_name),
+            cache_name: Some("too_big"),
             count: Some(11),
             expected: StatusCode::BAD_REQUEST,
             ..Default::default()
@@ -530,15 +535,19 @@ async fn api_v3_configure_last_cache_create() {
     ];
 
     for (i, t) in test_cases.into_iter().enumerate() {
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "db": t.db,
             "table": t.table,
             "name": t.cache_name,
             "key_columns": t.key_cols,
             "value_columns": t.val_cols,
-            "count": t.count,
-            "ttl": t.ttl,
         });
+        if let Some(c) = t.count {
+            body["count"] = c.into();
+        }
+        if let Some(t) = t.ttl {
+            body["ttl"] = t.into();
+        }
         let resp = client
             .post(&url)
             .json(&body)
@@ -926,8 +935,8 @@ async fn api_v3_configure_db_create_db_with_same_name() {
         .json(&json!({ "db": "foo" }))
         .send()
         .await
-        .expect("delete database call succeed");
-    assert_eq!(StatusCode::BAD_REQUEST, resp.status());
+        .expect("create database call should succeed");
+    assert_eq!(StatusCode::CONFLICT, resp.status());
 }
 
 #[test_log::test(tokio::test)]

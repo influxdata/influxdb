@@ -1,6 +1,5 @@
 //! Implementation of an in-memory buffer for writes that persists data into a wal if it is configured.
 
-mod enterprise;
 mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;

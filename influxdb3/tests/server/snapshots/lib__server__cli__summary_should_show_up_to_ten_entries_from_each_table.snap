@@ -1,0 +1,4 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: output
+---

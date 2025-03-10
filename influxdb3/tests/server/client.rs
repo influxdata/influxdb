@@ -3,7 +3,7 @@
 //! This is useful for verifying that the client can parse API responses from the server
 
 use influxdb3_client::Precision;
-use influxdb3_types::http::{LastCacheCreatedResponse, QueryFormat as Format};
+use influxdb3_types::http::QueryFormat as Format;
 
 use crate::server::TestServer;
 
@@ -49,7 +49,7 @@ async fn configure_last_caches() {
         .send()
         .await
         .expect("make write_lp request");
-    let Some(LastCacheCreatedResponse { name, .. }) = client
+    let Some(batch) = client
         .api_v3_configure_last_cache_create(db_name, tbl_name)
         .send()
         .await
@@ -57,11 +57,18 @@ async fn configure_last_caches() {
     else {
         panic!("should have created the cache");
     };
+    let name = batch
+        .into_batch()
+        .to_database()
+        .and_then(|mut db| db.ops.pop())
+        .and_then(|op| op.to_create_last_cache())
+        .map(|r| r.name.to_string())
+        .unwrap();
     client
         .api_v3_configure_last_cache_delete(db_name, tbl_name, name)
         .await
         .expect("deletes the cache");
-    let Some(LastCacheCreatedResponse { name, .. }) = client
+    let Some(batch) = client
         .api_v3_configure_last_cache_create(db_name, tbl_name)
         .value_columns(["f1"])
         .send()
@@ -70,6 +77,13 @@ async fn configure_last_caches() {
     else {
         panic!("should have created the cache");
     };
+    let name = batch
+        .into_batch()
+        .to_database()
+        .and_then(|mut db| db.ops.pop())
+        .and_then(|op| op.to_create_last_cache())
+        .map(|r| r.name.to_string())
+        .unwrap();
     client
         .api_v3_configure_last_cache_delete(db_name, tbl_name, name)
         .await

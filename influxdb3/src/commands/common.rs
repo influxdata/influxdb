@@ -1,4 +1,5 @@
 use clap::{Parser, ValueEnum};
+use influxdb3_types::http::FieldType;
 use observability_deps::tracing::warn;
 use secrecy::Secret;
 use std::fmt::Display;
@@ -123,6 +124,18 @@ impl Display for DataType {
 impl From<DataType> for String {
     fn from(data: DataType) -> Self {
         data.to_string()
+    }
+}
+
+impl From<DataType> for FieldType {
+    fn from(value: DataType) -> Self {
+        match value {
+            DataType::Int64 => Self::Int64,
+            DataType::Uint64 => Self::UInt64,
+            DataType::Float64 => Self::Float64,
+            DataType::Utf8 => Self::Utf8,
+            DataType::Bool => Self::Bool,
+        }
     }
 }
 

@@ -2,8 +2,13 @@ use crate::commands::common::{DataType, InfluxDb3Config, SeparatedKeyValue, pars
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
+use humantime::Duration;
+use influxdb3_catalog::log::ErrorBehavior;
+use influxdb3_catalog::log::TriggerSettings;
+use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
-use influxdb3_wal::{ErrorBehavior, TriggerSettings, TriggerSpecificationDefinition};
+use influxdb3_types::http::LastCacheSize;
+use influxdb3_types::http::LastCacheTtl;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
@@ -13,7 +18,6 @@ use sha2::Sha512;
 use std::error::Error;
 use std::num::NonZeroUsize;
 use std::str;
-use std::time::Duration;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -28,6 +32,15 @@ impl Config {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
+                ..
+            })
+            | SubCommand::FileIndex(FileIndexConfig {
+                influxdb3_config:
+                    InfluxDb3Config {
+                        host_url,
+                        auth_token,
+                        ..
+                    },
                 ..
             })
             | SubCommand::LastCache(LastCacheConfig {
@@ -141,14 +154,14 @@ pub struct LastCacheConfig {
 
     /// The number of entries per unique key column combination the cache will store
     #[clap(long = "count")]
-    count: Option<usize>,
+    count: Option<LastCacheSize>,
 
     /// The time-to-live (TTL) for entries in a cache. This uses a humantime form for example: --ttl "10s",
     /// --ttl "1min 30sec", --ttl "3 hours"
     ///
     /// See the parse_duration docs for more details about acceptable forms:
     /// <https://docs.rs/humantime/2.1.0/humantime/fn.parse_duration.html>
-    #[clap(long = "ttl", value_parser = humantime::parse_duration)]
+    #[clap(long = "ttl")]
     ttl: Option<Duration>,
 
     /// Give a name for the cache.
@@ -271,7 +284,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 b = b.count(count);
             }
             if let Some(ttl) = ttl {
-                b = b.ttl(ttl.as_secs());
+                b = b.ttl(LastCacheTtl::from_secs(ttl.as_secs()));
             }
 
             // Make the request:
@@ -399,7 +412,7 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
-    use influxdb3_wal::{ErrorBehavior, TriggerSpecificationDefinition};
+    use influxdb3_catalog::log::{ErrorBehavior, TriggerSpecificationDefinition};
 
     #[test]
     fn parse_args_create_last_cache() {

@@ -1,0 +1,16 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: output
+---
++----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| table_name                 | column_names                                                                                                                                                                                                        |
++----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| compacted_data             | [table_name, generation_id, generation_level, generation_time, parquet_id, parquet_path, parquet_size_bytes, parquet_row_count, parquet_chunk_time, parquet_min_time, parquet_max_time]                             |
+| compaction_events          | [event_time, event_type, event_duration, event_status, event_data]                                                                                                                                                  |
+| distinct_caches            | [table, name, column_ids, column_names, max_cardinality, max_age_seconds]                                                                                                                                           |
+| file_index                 | [database_name, table_name, index_columns, index_column_ids]                                                                                                                                                        |
+| last_caches                | [table, name, key_column_ids, key_column_names, value_column_ids, value_column_names, count, ttl]                                                                                                                   |
+| parquet_files              | [table_name, path, size_bytes, row_count, min_time, max_time]                                                                                                                                                       |
+| processing_engine_triggers | [trigger_name, plugin_filename, trigger_specification, disabled]                                                                                                                                                    |
+| queries                    | [id, phase, issue_time, query_type, query_text, partitions, parquet_files, plan_duration, permit_duration, execute_duration, end2end_duration, compute_duration, max_memory, success, running, cancelled, trace_id] |
++----------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+

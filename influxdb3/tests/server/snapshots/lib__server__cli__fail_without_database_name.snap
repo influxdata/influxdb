@@ -1,0 +1,10 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: output
+---
+error: the following required arguments were not provided:
+  --database <DATABASE_NAME>
+
+Usage: influxdb3 show system --database <DATABASE_NAME> <COMMAND>
+
+For more information, try '--help'.

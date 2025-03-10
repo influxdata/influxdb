@@ -594,7 +594,7 @@ async fn test_create_delete_distinct_cache() {
     ]);
     assert_contains!(&result, "new cache created");
     // doing the same thing over again will be a no-op
-    let result = run(&[
+    let result = run_and_err(&[
         "create",
         "distinct_cache",
         "--host",
@@ -607,10 +607,7 @@ async fn test_create_delete_distinct_cache() {
         "t1,t2",
         cache_name,
     ]);
-    assert_contains!(
-        &result,
-        "a cache already exists for the provided parameters"
-    );
+    assert_contains!(&result, "[409 Conflict]");
     // now delete it:
     let result = run(&[
         "delete",
@@ -636,7 +633,7 @@ async fn test_create_delete_distinct_cache() {
         table_name,
         cache_name,
     ]);
-    assert_contains!(&result, "[404 Not Found]: cache not found");
+    assert_contains!(&result, "[404 Not Found]");
 }
 
 #[test_log::test(tokio::test)]
@@ -1211,7 +1208,7 @@ async fn distinct_cache_create_and_delete() {
         "cache_money",
     ]);
 
-    insta::assert_yaml_snapshot!(result);
+    assert_contains!(result, "new cache created");
 
     let result = run_with_confirmation(&[
         "delete",
@@ -1225,7 +1222,7 @@ async fn distinct_cache_create_and_delete() {
         "cache_money",
     ]);
 
-    insta::assert_yaml_snapshot!(result);
+    assert_contains!(result, "distinct cache deleted successfully");
 }
 
 #[test_log::test(tokio::test)]

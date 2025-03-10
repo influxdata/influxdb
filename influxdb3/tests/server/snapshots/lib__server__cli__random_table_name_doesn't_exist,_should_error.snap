@@ -1,0 +1,5 @@
+---
+source: influxdb3/tests/server/cli.rs
+expression: output
+---
+Show command failed: system table 'meow' not found: please use a valid system table name: ["compacted_data", "compaction_events", "distinct_caches", "file_index", "last_caches", "parquet_files", "processing_engine_triggers", "queries"]
