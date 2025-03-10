@@ -1,4 +1,4 @@
-//! InfluxDB 3 Enterprise server implementation
+//! InfluxDB 3 Core server implementation
 //!
 //! The server is responsible for handling the HTTP API
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
@@ -30,7 +30,6 @@ use hyper::service::service_fn;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_time::TimeProvider;
-use object_store::ObjectStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use service::hybrid;

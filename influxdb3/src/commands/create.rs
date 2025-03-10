@@ -34,15 +34,6 @@ impl Config {
                 auth_token,
                 ..
             })
-            | SubCommand::FileIndex(FileIndexConfig {
-                influxdb3_config:
-                    InfluxDb3Config {
-                        host_url,
-                        auth_token,
-                        ..
-                    },
-                ..
-            })
             | SubCommand::LastCache(LastCacheConfig {
                 influxdb3_config:
                     InfluxDb3Config {

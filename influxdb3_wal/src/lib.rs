@@ -1,4 +1,4 @@
-//! This crate provides a Write Ahead Log (WAL) for InfluxDB 3 Enterprise. The WAL is used to buffer writes
+//! This crate provides a Write Ahead Log (WAL) for InfluxDB 3 Core. The WAL is used to buffer writes
 //! in memory and persist them as individual files in an object store. The WAL is used to make
 //! writes durable until they can be written in larger batches as Parquet files and other snapshot and
 //! index files in object storage.

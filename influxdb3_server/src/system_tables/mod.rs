@@ -69,8 +69,6 @@ impl SchemaProvider for SystemSchemaProvider {
 }
 
 pub(crate) struct AllSystemSchemaTablesProvider {
-    buffer: Arc<dyn WriteBuffer>,
-    db_schema: Arc<DatabaseSchema>,
     tables: HashMap<&'static str, Arc<dyn TableProvider>>,
 }
 
@@ -126,11 +124,7 @@ impl AllSystemSchemaTablesProvider {
             ProcessingEngineLogsTable::new(sys_events_store),
         )));
         tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
-        Self {
-            buffer,
-            db_schema,
-            tables,
-        }
+        Self { tables }
     }
 }
 

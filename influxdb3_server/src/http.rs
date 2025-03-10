@@ -42,7 +42,6 @@ use iox_query_influxql_rewrite as rewrite;
 use iox_query_params::StatementParams;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, info};
-use schema::InfluxColumnType;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;

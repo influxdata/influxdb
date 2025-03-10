@@ -3207,10 +3207,11 @@ dependencies = [
 name = "influxdb3_types"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "hashbrown 0.15.2",
  "hyper 0.14.32",
  "influxdb3_cache",
- "influxdb3_wal",
+ "influxdb3_catalog",
  "iox_http",
  "iox_query_params",
  "serde",
