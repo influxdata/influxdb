@@ -1,0 +1,131 @@
+---
+source: influxdb3_catalog/src/catalog/pro.rs
+expression: db
+---
+{
+  "id": 0,
+  "name": "foo",
+  "tables": [
+    [
+      0,
+      {
+        "table_id": 0,
+        "table_name": "bar",
+        "key": [
+          0,
+          1
+        ],
+        "cols": [
+          [
+            2,
+            {
+              "name": "f1",
+              "id": 2,
+              "type": "bool",
+              "influx_type": "field",
+              "nullable": true
+            }
+          ],
+          [
+            0,
+            {
+              "name": "t1",
+              "id": 0,
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": false
+            }
+          ],
+          [
+            1,
+            {
+              "name": "t2",
+              "id": 1,
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": false
+            }
+          ]
+        ],
+        "deleted": false
+      }
+    ],
+    [
+      2,
+      {
+        "table_id": 2,
+        "table_name": "doh",
+        "key": [
+          10,
+          20
+        ],
+        "cols": [
+          [
+            30,
+            {
+              "name": "f2",
+              "id": 30,
+              "type": "bool",
+              "influx_type": "field",
+              "nullable": true
+            }
+          ],
+          [
+            6,
+            {
+              "name": "f3",
+              "id": 6,
+              "type": "str",
+              "influx_type": "field",
+              "nullable": true
+            }
+          ],
+          [
+            10,
+            {
+              "name": "t1",
+              "id": 10,
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": false
+            }
+          ],
+          [
+            20,
+            {
+              "name": "t2",
+              "id": 20,
+              "type": {
+                "dict": [
+                  "i32",
+                  "str"
+                ]
+              },
+              "influx_type": "tag",
+              "nullable": false
+            }
+          ]
+        ],
+        "deleted": false
+      }
+    ]
+  ],
+  "processing_engine_plugins": [],
+  "processing_engine_triggers": [],
+  "deleted": false
+}

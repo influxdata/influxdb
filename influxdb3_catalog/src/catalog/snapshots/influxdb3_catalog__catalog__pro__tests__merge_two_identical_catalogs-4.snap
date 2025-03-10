@@ -1,0 +1,12 @@
+---
+source: influxdb3_catalog/src/catalog/pro.rs
+expression: a_to_b_map
+---
+dbs:
+  0: 0
+tables:
+  0: 0
+columns:
+  0: 0
+  1: 1
+  2: 2
