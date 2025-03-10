@@ -38,6 +38,26 @@ pub struct CompactedDataSystemTableQueryResult {
     pub parquet_files: Vec<Arc<ParquetFile>>,
 }
 
+/// Which version of the compaction summary we serialize/deserialize with
+/// to/from object storage so that we can handle breaking changes and multiple
+/// different versions of a file when transitioning from one version to the next
+/// when upgrading InfluxDB 3 Enterprise
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "version")]
+pub enum CompactionSummaryVersion {
+    #[serde(rename = "1")]
+    V1(CompactionSummary),
+}
+
+impl CompactionSummaryVersion {
+    /// Consume the `CompactionSummaryVersion` and turn into a v1 CompactionSummary
+    /// without checking if if is or not
+    pub fn v1(self) -> CompactionSummary {
+        let Self::V1(cs) = self;
+        cs
+    }
+}
+
 /// The `CompactionSummary` keeps track of the last snapshot from each writer that has been compacted.
 /// Every table will have its own `CompactionDetail` and the summary contains a pointer to
 /// whatever the latest compaction detail is for each table.
@@ -769,6 +789,24 @@ mod tests {
         let serialized = serde_json::to_string(&cdv).unwrap();
         insta::assert_json_snapshot!(serialized);
         let deserialized: CompactionDetailVersion = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(cdv, deserialized);
+    }
+
+    #[test]
+    fn compaction_summary_v1_serializes_and_deserializes_properly() {
+        let cdv = CompactionSummaryVersion::V1(CompactionSummary {
+            compaction_sequence_number: CompactionSequenceNumber(0),
+            catalog_sequence_number: CatalogSequenceNumber::new(0),
+            last_file_id: ParquetFileId::from(0),
+            last_generation_id: GenerationId(0),
+            snapshot_markers: Vec::new(),
+            compaction_details: SerdeVecMap::new(),
+        });
+
+        let serialized = serde_json::to_string(&cdv).unwrap();
+        insta::assert_json_snapshot!(serialized);
+        let deserialized: CompactionSummaryVersion = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(cdv, deserialized);
     }

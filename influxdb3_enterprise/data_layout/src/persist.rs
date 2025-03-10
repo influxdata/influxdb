@@ -2,7 +2,8 @@
 
 use crate::{
     CompactionDetailPath, CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary,
-    CompactionSummaryPath, GenerationDetail, GenerationDetailPath, GenerationId,
+    CompactionSummaryPath, CompactionSummaryVersion, GenerationDetail, GenerationDetailPath,
+    GenerationId,
 };
 use bytes::Bytes;
 use futures_util::{TryFutureExt, stream::StreamExt};
@@ -139,11 +140,14 @@ pub async fn get_generation_detail(
 
 pub async fn persist_compaction_summary(
     compactor_id: Arc<str>,
-    compaction_summary: &CompactionSummary,
+    compaction_summary: &CompactionSummaryVersion,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<()> {
-    let path =
-        CompactionSummaryPath::new(compactor_id, compaction_summary.compaction_sequence_number);
+    let path = match compaction_summary {
+        CompactionSummaryVersion::V1(cs) => {
+            CompactionSummaryPath::new(compactor_id, cs.compaction_sequence_number)
+        }
+    };
     let data = serde_json::to_vec(compaction_summary)?;
 
     // loop until we persist it
@@ -171,7 +175,7 @@ pub async fn persist_compaction_summary(
 pub async fn load_compaction_summary(
     compactor_id: Arc<str>,
     object_store: Arc<dyn ObjectStore>,
-) -> Result<Option<CompactionSummary>> {
+) -> Result<Option<CompactionSummaryVersion>> {
     // do a list to find the latest compaction summary
     let compaction_summary_dir = ObjPath::from(format!("{compactor_id}/cs"));
     let Some(first_entry) = object_store
@@ -186,11 +190,13 @@ pub async fn load_compaction_summary(
     let bytes = get_bytes_at_path(&first_entry.location, object_store)
         .await
         .expect("compaction summary in list should always be present");
-    let compaction_summary: CompactionSummary = serde_json::from_slice(&bytes)?;
+    let compaction_summary: CompactionSummaryVersion = serde_json::from_slice(&bytes)?;
 
     // must initialize the currently-running process' global shared NEXT_GENERATION_ID as soon as
     // we've loaded the last generation id from storage
-    GenerationId::initialize(compaction_summary.last_generation_id);
+    GenerationId::initialize(match compaction_summary {
+        CompactionSummaryVersion::V1(ref cs) => cs.last_generation_id,
+    });
 
     Ok(Some(compaction_summary))
 }

@@ -5,8 +5,8 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_enterprise_data_layout::{
     CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
-    CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary, GenerationDetail,
-    GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
+    CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary, CompactionSummaryVersion,
+    GenerationDetail, GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::{InMemoryFileIndex, ParquetFileMeta, ParquetMetaIndex};
 use influxdb3_id::{DbId, TableId};
@@ -74,8 +74,12 @@ impl CompactedData {
             })
     }
 
-    pub(crate) fn update_compaction_summary(&self, compaction_summary: CompactionSummary) {
-        self.inner_compacted_data.write().compaction_summary = Arc::new(compaction_summary);
+    pub(crate) fn update_compaction_summary(&self, compaction_summary: CompactionSummaryVersion) {
+        match compaction_summary {
+            CompactionSummaryVersion::V1(cs) => {
+                self.inner_compacted_data.write().compaction_summary = Arc::new(cs)
+            }
+        }
     }
 
     pub(crate) fn current_compaction_sequence_number(&self) -> CompactionSequenceNumber {

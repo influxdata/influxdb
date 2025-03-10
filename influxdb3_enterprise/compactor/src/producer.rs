@@ -17,8 +17,9 @@ use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
-    CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
-    GenerationDetail, GenerationId, GenerationLevel, NodeSnapshotMarker,
+    CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary,
+    CompactionSummaryVersion, Gen1File, GenerationDetail, GenerationId, GenerationLevel,
+    NodeSnapshotMarker,
 };
 use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
 use influxdb3_enterprise_data_layout::{CompactionDetailVersion, CompactionSummaryPath};
@@ -480,14 +481,14 @@ impl CompactedDataProducer {
             }
         }
 
-        let compaction_summary = CompactionSummary {
+        let compaction_summary = CompactionSummaryVersion::V1(CompactionSummary {
             compaction_sequence_number: next_sequence_number,
             catalog_sequence_number: self.compacted_data.catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
             snapshot_markers,
             compaction_details,
-        };
+        });
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_compaction_summary(
@@ -808,7 +809,7 @@ impl CompactionState {
                 match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&obj_store))
                     .await?
                 {
-                    Some(summary) => summary,
+                    Some(CompactionSummaryVersion::V1(summary)) => summary,
                     None => {
                         // if there's no compaction summary, we initialize a new one with writers that have
                         // snapshot sequence numbers of zero, so that compaction can pick up all snapshots
@@ -824,19 +825,21 @@ impl CompactionState {
                             })
                             .collect::<Vec<_>>();
 
-                        let summary = CompactionSummary {
+                        let summary = CompactionSummaryVersion::V1(CompactionSummary {
                             compaction_sequence_number: CompactionSequenceNumber::new(0),
                             catalog_sequence_number: CatalogSequenceNumber::new(0),
                             last_file_id: ParquetFileId::from(0),
                             last_generation_id: GenerationId::from(0),
                             snapshot_markers,
                             compaction_details: SerdeVecMap::new(),
-                        };
+                        });
 
                         persist_compaction_summary(compactor_id, &summary, Arc::clone(&obj_store))
                             .await?;
 
-                        summary
+                        // We know this is a v1 summary so we can directly turn
+                        // it back into the right type
+                        summary.v1()
                     }
                 };
 

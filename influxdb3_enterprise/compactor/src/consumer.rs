@@ -8,8 +8,8 @@ use crate::sys_events::{CompactionEventStore, compaction_consumed};
 use anyhow::Context;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::{
-    CompactionDetailPath, CompactionDetailVersion, GenerationDetail, GenerationDetailPath,
-    GenerationId,
+    CompactionDetailPath, CompactionDetailVersion, CompactionSummaryVersion, GenerationDetail,
+    GenerationDetailPath, GenerationId,
 };
 use influxdb3_enterprise_data_layout::{
     Generation,
@@ -61,7 +61,7 @@ impl CompactedDataConsumer {
                     .await
                     .context("error decoding comapction summary json")?
                 {
-                    Some(summary) => summary,
+                    Some(CompactionSummaryVersion::V1(summary)) => summary,
                     None => {
                         warn!(
                             "No compaction summary found for compactor id {}, retrying in 1 second",
@@ -278,7 +278,8 @@ impl CompactedDataConsumer {
             }
         }
 
-        self.compacted_data.update_compaction_summary(summary);
+        self.compacted_data
+            .update_compaction_summary(CompactionSummaryVersion::V1(summary));
 
         Ok(())
     }
@@ -358,7 +359,7 @@ mod tests {
     async fn setup_compacted_data() -> (
         Arc<dyn ObjectStore>,
         Arc<Catalog>,
-        CompactionSummary,
+        CompactionSummaryVersion,
         CompactionDetailVersion,
         GenerationDetail,
     ) {
@@ -410,7 +411,7 @@ mod tests {
                 next_file_id: ParquetFileId::next_id(),
             }),
         ];
-        let summary = CompactionSummary {
+        let summary = CompactionSummaryVersion::V1(CompactionSummary {
             compaction_sequence_number,
             catalog_sequence_number: catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
@@ -419,7 +420,7 @@ mod tests {
             compaction_details: vec![((db.id, table1.table_id), compaction_sequence_number)]
                 .into_iter()
                 .collect(),
-        };
+        });
 
         let generation = Generation {
             id: GenerationId::new(),
@@ -489,6 +490,7 @@ mod tests {
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
         let CompactionDetailVersion::V1(detail) = detail;
+        let CompactionSummaryVersion::V1(summary) = summary;
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
