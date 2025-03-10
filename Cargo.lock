@@ -2920,6 +2920,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "hashbrown 0.15.2",
+ "influxdb3_catalog",
  "influxdb3_types",
  "influxdb3_wal",
  "iox_query_params",
