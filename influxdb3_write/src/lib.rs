@@ -92,7 +92,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
-    fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
+    fn watch_persisted_snapshots(
+        &self,
+    ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshotVersion>>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
@@ -140,6 +142,22 @@ pub struct BufferedWriteRequest {
     pub line_count: usize,
     pub field_count: usize,
     pub index_count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "version")]
+pub enum PersistedSnapshotVersion {
+    #[serde(rename = "1")]
+    V1(PersistedSnapshot),
+}
+
+impl PersistedSnapshotVersion {
+    #[cfg(test)]
+    fn v1_ref(&self) -> &PersistedSnapshot {
+        match self {
+            Self::V1(ps) => ps,
+        }
+    }
 }
 
 /// The collection of Parquet files that were persisted in a snapshot
