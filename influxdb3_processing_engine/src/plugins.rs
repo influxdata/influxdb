@@ -1,11 +1,12 @@
 use crate::PluginCode;
+use crate::ProcessingEngineManagerImpl;
 use crate::environment::PythonEnvironmentManager;
-use crate::manager::ProcessingEngineManager;
 use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
-
+use influxdb3_catalog::log::CreateTriggerLog;
+use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 
 use influxdb3_py_api::system_py::ProcessingEngineLogger;
@@ -14,10 +15,6 @@ use influxdb3_sys_events::SysEventStore;
 
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::Gen1Duration;
-
-use influxdb3_wal::TriggerDefinition;
-
-use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::Precision;
 
 use influxdb3_write::WriteBuffer;
@@ -91,7 +88,7 @@ pub enum PluginError {
 pub(crate) fn run_wal_contents_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: TriggerDefinition,
+    trigger_definition: CreateTriggerLog,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
@@ -115,14 +112,14 @@ pub struct ProcessingEngineEnvironmentManager {
 pub(crate) fn run_schedule_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: TriggerDefinition,
+    trigger_definition: CreateTriggerLog,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<ScheduleEvent>,
 ) -> Result<(), PluginError> {
     // Ensure that the plugin is a schedule plugin
     let plugin_type = trigger_definition.trigger.plugin_type();
-    if !matches!(plugin_type, influxdb3_wal::PluginType::Schedule) {
+    if !matches!(plugin_type, influxdb3_catalog::log::PluginType::Schedule) {
         return Err(PluginError::NonSchedulePluginWithScheduleTrigger(format!(
             "{:?}",
             trigger_definition
@@ -148,7 +145,7 @@ pub(crate) fn run_schedule_plugin(
 pub(crate) fn run_request_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: TriggerDefinition,
+    trigger_definition: CreateTriggerLog,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
@@ -167,19 +164,19 @@ pub(crate) struct PluginContext {
     // query executor to hand off to the plugin
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     // processing engine manager for disabling plugins if they fail.
-    pub(crate) manager: Arc<dyn ProcessingEngineManager>,
+    pub(crate) manager: Arc<ProcessingEngineManagerImpl>,
     // sys events for writing logs to ring buffers
     pub(crate) sys_event_store: Arc<SysEventStore>,
 }
 
 #[derive(Debug, Clone)]
 struct TriggerPlugin {
-    trigger_definition: TriggerDefinition,
+    trigger_definition: CreateTriggerLog,
     plugin_code: Arc<PluginCode>,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
-    manager: Arc<dyn ProcessingEngineManager>,
+    manager: Arc<ProcessingEngineManagerImpl>,
     logger: ProcessingEngineLogger,
 }
 
@@ -195,12 +192,13 @@ mod python_plugin {
     use hyper::http::HeaderValue;
     use hyper::{Body, Response, StatusCode};
     use influxdb3_catalog::catalog::DatabaseSchema;
+    use influxdb3_catalog::log::ErrorBehavior;
     use influxdb3_py_api::logging::LogLevel;
     use influxdb3_py_api::system_py::{
         PluginReturnState, ProcessingEngineLogger, execute_python_with_batch,
         execute_request_trigger, execute_schedule_trigger,
     };
-    use influxdb3_wal::{ErrorBehavior, WalContents, WalOp};
+    use influxdb3_wal::{WalContents, WalOp};
     use influxdb3_write::Precision;
     use iox_time::Time;
     use observability_deps::tracing::{info, warn};
@@ -212,7 +210,7 @@ mod python_plugin {
         pub(crate) fn new(
             db_name: String,
             plugin_code: Arc<PluginCode>,
-            trigger_definition: TriggerDefinition,
+            trigger_definition: CreateTriggerLog,
             context: PluginContext,
         ) -> Self {
             let logger = ProcessingEngineLogger::new(
@@ -321,16 +319,13 @@ mod python_plugin {
         /// it is done in a separate task so that the caller can send back shutdown.
         pub(crate) fn send_disable_trigger(&self) {
             let manager = Arc::clone(&self.manager);
-            let db_name = self.trigger_definition.database_name.clone();
+            let db_name = Arc::clone(&self.trigger_definition.database_name);
             let trigger_name = self.trigger_definition.trigger_name.clone();
-            let fut = async move {
-                manager
-                    .disable_trigger(db_name.as_str(), trigger_name.as_str())
-                    .await
-            };
+            let fut = async move { manager.stop_trigger(&db_name, &trigger_name).await };
             // start the disable call, then look for the shutdown message
             tokio::spawn(fut);
         }
+
         pub(crate) async fn run_schedule_plugin(
             &self,
             mut receiver: Receiver<ScheduleEvent>,
@@ -552,9 +547,7 @@ mod python_plugin {
                 match wal_op {
                     WalOp::Write(write_batch) => {
                         // determine if this write batch is for this database
-                        if write_batch.database_name.as_ref()
-                            != self.trigger_definition.database_name
-                        {
+                        if write_batch.database_name != self.trigger_definition.database_name {
                             continue;
                         }
                         let table_filter = match &self.trigger_definition.trigger {
@@ -650,7 +643,6 @@ mod python_plugin {
                             }
                         }
                     }
-                    WalOp::Catalog(_) => {}
                     WalOp::Noop(_) => {}
                 }
             }
@@ -717,7 +709,7 @@ mod python_plugin {
     enum PluginNextState {
         SuccessfulRun,
         LogError(String),
-        Disable(TriggerDefinition),
+        Disable(CreateTriggerLog),
     }
 
     pub(crate) struct ScheduleTriggerRunner {
@@ -864,19 +856,15 @@ pub(crate) fn run_test_wal_plugin(
     let namespace = NamespaceName::new(database.clone())
         .map_err(|_e| PluginError::InvalidDatabase(database.clone()))?;
     // parse the lp into a write batch
-    let validator = WriteValidator::initialize(
-        namespace.clone(),
-        Arc::clone(&catalog),
-        now_time.timestamp_nanos(),
-    )?;
-    let data = validator.parse_lines_and_update_schema(
+    let validator = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?;
+    let parsed = validator.v1_parse_lines_and_catalog_updates(
         &request.input_lp,
         false,
         now_time,
         Precision::Nanosecond,
     )?;
-    let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
-    let db = catalog.db_schema(&database).ok_or(PluginError::MissingDb)?;
+    let db = parsed.inner().txn().db_schema_cloned();
+    let data = parsed.ignore_catalog_changes_and_convert_lines_to_buffer(Gen1Duration::new_1m());
 
     let plugin_return_state = influxdb3_py_api::system_py::execute_python_with_batch(
         &code,
@@ -924,30 +912,28 @@ impl TestWriteHandler {
 
         let db_name = namespace.as_str();
 
-        let validator = match WriteValidator::initialize(
-            namespace.clone(),
-            Arc::clone(&self.catalog),
-            self.now_time.timestamp_nanos(),
-        ) {
-            Ok(v) => v,
-            Err(e) => {
-                errors.push(format!(
-                    "Failed to initialize validator for db {}: {}",
-                    db_name, e
-                ));
-                return errors;
-            }
-        };
+        let validator =
+            match WriteValidator::initialize(namespace.clone(), Arc::clone(&self.catalog)) {
+                Ok(v) => v,
+                Err(e) => {
+                    errors.push(format!(
+                        "Failed to initialize validator for db {}: {}",
+                        db_name, e
+                    ));
+                    return errors;
+                }
+            };
 
         let lp = lines.join("\n");
-        match validator.parse_lines_and_update_schema(
+        match validator.v1_parse_lines_and_catalog_updates(
             &lp,
             false,
             self.now_time,
             Precision::Nanosecond,
         ) {
             Ok(data) => {
-                let data = data.convert_lines_to_buffer(Gen1Duration::new_1m());
+                let data =
+                    data.ignore_catalog_changes_and_convert_lines_to_buffer(Gen1Duration::new_1m());
                 for err in data.errors {
                     errors.push(format!("{:?}", err));
                 }
@@ -967,6 +953,7 @@ impl TestWriteHandler {
         }
         errors
     }
+
     pub fn validate_all_writes(&self, writes: &HashMap<String, Vec<String>>) -> Vec<String> {
         let mut all_errors = Vec::new();
         for (db_name, lines) in writes {
@@ -1041,17 +1028,21 @@ mod tests {
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_write::Precision;
     use influxdb3_write::write_buffer::validator::WriteValidator;
-    use iox_time::Time;
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
 
     fn ensure_pyo3() {
         pyo3::prepare_freethreaded_python();
     }
 
-    #[test]
-    fn test_wal_plugin() {
+    #[tokio::test]
+    async fn test_wal_plugin() {
         ensure_pyo3();
         let now = Time::from_timestamp_nanos(1);
-        let catalog = Catalog::new("foo".into(), "bar".into());
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
+            .await
+            .unwrap();
         let code = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
@@ -1130,21 +1121,22 @@ def process_writes(influxdb3_local, table_batches, args=None):
         );
     }
 
-    #[test]
-    fn test_wal_plugin_invalid_lines() {
+    #[tokio::test]
+    async fn test_wal_plugin_invalid_lines() {
         ensure_pyo3();
         // set up a catalog and write some data into it to create a schema
         let now = Time::from_timestamp_nanos(1);
-        let catalog = Arc::new(Catalog::new("foo".into(), "bar".into()));
+        let time_provider = Arc::new(MockProvider::new(now));
+        let catalog = Arc::new(
+            Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
+                .await
+                .unwrap(),
+        );
         let namespace = NamespaceName::new("foodb").unwrap();
-        let validator = WriteValidator::initialize(
-            namespace.clone(),
-            Arc::clone(&catalog),
-            now.timestamp_nanos(),
-        )
-        .unwrap();
+        let validator =
+            WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog)).unwrap();
         let _data = validator
-            .parse_lines_and_update_schema(
+            .v1_parse_lines_and_catalog_updates(
                 "cpu,host=A f1=10i 100",
                 false,
                 now,
@@ -1185,7 +1177,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
         let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
 
-        let reesponse = run_test_wal_plugin(
+        let response = run_test_wal_plugin(
             now,
             Arc::clone(&catalog),
             executor,
@@ -1199,7 +1191,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 .to_string(),
         ];
         assert_eq!(
-            reesponse.database_writes.get("_testdb").unwrap(),
+            response.database_writes.get("_testdb").unwrap(),
             &expected_testdb_lines
         );
 
@@ -1209,13 +1201,13 @@ def process_writes(influxdb3_local, table_batches, args=None):
             "cpu,host=A f1=\"not_an_int\"".to_string(),
         ];
         assert_eq!(
-            reesponse.database_writes.get("foodb").unwrap(),
+            response.database_writes.get("foodb").unwrap(),
             &expected_foodb_lines
         );
 
         // there should be an error for the invalid line
-        assert_eq!(reesponse.errors.len(), 1);
-        let expected_error = "line protocol parse error on write to db foodb: WriteLineError { original_line: \"cpu,host=A f1=not_an_int\", line_number: 2, error_message: \"invalid field value in line protocol for field 'f1' on line 1: expected type iox::column_type::field::integer, but got iox::column_type::field::string\" }";
-        assert_eq!(reesponse.errors[0], expected_error);
+        assert_eq!(response.errors.len(), 1);
+        let expected_error = "line protocol parse error on write to db foodb: WriteLineError { original_line: \"cpu,host=A f1=not_an_int\", line_number: 2, error_message: \"invalid column type for column 'f1', expected iox::column_type::field::integer, got iox::column_type::field::string\" }";
+        assert_eq!(response.errors[0], expected_error);
     }
 }
