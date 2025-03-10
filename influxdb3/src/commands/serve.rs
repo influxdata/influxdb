@@ -361,15 +361,17 @@ pub struct Config {
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
 
-    /// Threshold for internal buffer, can be either percentage or absolute value in MB.
-    /// eg: 70% or 1000 MB
+    /// Max memory for snapshot in bytes, as this determines how many bytes are
+    /// allowed per parquet file it is set in bytes to allow tests to be ran with
+    /// few kb or mb
     #[clap(
-        long = "max-memory-for-snapshot",
-        env = "INFLUXDB3_MAX_MEMORY_FOR_SNAPSHOT",
-        default_value = "100",
+        long = "max-memory-for-snapshot-bytes",
+        env = "INFLUXDB3_MAX_MEMORY_FOR_SNAPSHOT_BYTES",
+        // 100 MB by default
+        default_value = "100000000",
         action
     )]
-    pub max_memory_for_snapshot: MemorySizeMb,
+    pub max_memory_for_snapshot_bytes: u64,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -578,7 +580,7 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
-        max_memory_for_snapshot_bytes: config.max_memory_for_snapshot.as_num_bytes() as u64,
+        max_memory_for_snapshot_bytes: config.max_memory_for_snapshot_bytes,
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
