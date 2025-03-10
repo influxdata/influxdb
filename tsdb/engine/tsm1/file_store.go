@@ -1600,6 +1600,21 @@ func (p *purger) purge(fileNames []string) {
 			logger.Info("removed", zap.Int("files", purgeCount))
 			logEndOp()
 		}()
+
+		// https://github.com/influxdata/influxdb/issues/26110
+		// Blocks new readers so there is not a potential time of check/time of use
+		// bug below when tsmfile.InUse() is called -> tsmfile.Close() is called
+		err := p.fileStore.SetNewReadersBlocked(true)
+		if err != nil {
+			logger.Error("failed to block new readers", zap.Strings("files", fileNames), zap.Error(err))
+		}
+		defer func() {
+			err = p.fileStore.SetNewReadersBlocked(false)
+			if err != nil {
+				logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
+			}
+		}()
+
 		for {
 			p.mu.Lock()
 			for k, v := range p.files {
@@ -1608,6 +1623,7 @@ func (p *purger) purge(fileNames []string) {
 				// is handed out in use (Ref'd), and handlers only ever relinquish the file once (call Unref
 				// exactly once, and never use it again). InUse is only valid during a write lock, since
 				// we allow calls to Ref and Unref under the read lock and no lock at all respectively.
+
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
 						logger.Error("close file failed", zap.String("file", k), zap.Error(err))
@@ -1622,6 +1638,7 @@ func (p *purger) purge(fileNames []string) {
 					delete(p.files, k)
 					purgeCount++
 				}
+
 			}
 
 			if len(p.files) == 0 {
