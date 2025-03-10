@@ -1,7 +1,7 @@
 //! Functions for persisting and loading data from the comapcted data layout.
 
 use crate::{
-    CompactionDetail, CompactionDetailPath, CompactionSequenceNumber, CompactionSummary,
+    CompactionDetailPath, CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary,
     CompactionSummaryPath, GenerationDetail, GenerationDetailPath, GenerationId,
 };
 use bytes::Bytes;
@@ -29,14 +29,16 @@ pub async fn persist_compaction_detail(
     compactor_id: Arc<str>,
     db_id: DbId,
     table_id: TableId,
-    compaction_detail: &CompactionDetail,
+    compaction_detail: &CompactionDetailVersion,
     object_store: Arc<dyn ObjectStore>,
 ) -> Result<CompactionDetailPath> {
     let path = CompactionDetailPath::new(
         compactor_id,
         db_id,
         table_id,
-        compaction_detail.sequence_number,
+        match compaction_detail {
+            CompactionDetailVersion::V1(cd) => cd.sequence_number,
+        },
     );
     let data = serde_json::to_vec(compaction_detail)?;
 
@@ -63,7 +65,7 @@ pub async fn persist_compaction_detail(
 pub async fn get_compaction_detail(
     compaction_detail_path: &CompactionDetailPath,
     object_store: Arc<dyn ObjectStore>,
-) -> Option<CompactionDetail> {
+) -> Option<CompactionDetailVersion> {
     let bytes = get_bytes_at_path(&compaction_detail_path.0, object_store).await?;
     match serde_json::from_slice(&bytes) {
         Ok(detail) => {

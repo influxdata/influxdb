@@ -8,7 +8,8 @@ use crate::sys_events::{CompactionEventStore, compaction_consumed};
 use anyhow::Context;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::{
-    CompactionDetailPath, GenerationDetail, GenerationDetailPath, GenerationId,
+    CompactionDetailPath, CompactionDetailVersion, GenerationDetail, GenerationDetailPath,
+    GenerationId,
 };
 use influxdb3_enterprise_data_layout::{
     Generation,
@@ -163,9 +164,10 @@ impl CompactedDataConsumer {
                 *table_id,
                 *sequence_number,
             );
-            let compaction_detail = get_compaction_detail(&path, Arc::clone(&self.object_store))
-                .await
-                .context("compaction detail not found")?;
+            let CompactionDetailVersion::V1(compaction_detail) =
+                get_compaction_detail(&path, Arc::clone(&self.object_store))
+                    .await
+                    .context("compaction detail not found")?;
             let last_compaction_detail = self.compacted_data.compaction_detail(*db_id, *table_id);
 
             let (new_generations, removed_generations) = match last_compaction_detail {
@@ -357,7 +359,7 @@ mod tests {
         Arc<dyn ObjectStore>,
         Arc<Catalog>,
         CompactionSummary,
-        CompactionDetail,
+        CompactionDetailVersion,
         GenerationDetail,
     ) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -442,7 +444,7 @@ mod tests {
             file_index: Default::default(),
         };
 
-        let detail = CompactionDetail {
+        let detail = CompactionDetailVersion::V1(CompactionDetail {
             db_name: "db1".into(),
             db_id: db.id,
             table_name: "table1".into(),
@@ -451,7 +453,7 @@ mod tests {
             snapshot_markers,
             compacted_generations: vec![generation],
             leftover_gen1_files: vec![],
-        };
+        });
 
         persist_generation_detail(
             Arc::clone(&cluster_id),
@@ -486,6 +488,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
+        let CompactionDetailVersion::V1(detail) = detail;
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));

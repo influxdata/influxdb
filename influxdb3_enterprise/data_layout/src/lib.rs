@@ -73,6 +73,13 @@ pub struct NodeSnapshotMarker {
     pub next_file_id: ParquetFileId,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "version")]
+pub enum CompactionDetailVersion {
+    #[serde(rename = "1")]
+    V1(CompactionDetail),
+}
+
 /// The `CompactionDetail` contains all the information for the current state of compaction
 /// for the given table. A new detail will be generated each time a compaction is run for a table,
 /// but only the most recent one is needed. The detail contains the information for any
@@ -744,5 +751,25 @@ mod tests {
             config.number_of_previous_generations_to_compact(GenerationLevel::new(7)),
             0
         );
+    }
+
+    #[test]
+    fn compaction_detail_v1_serializes_and_deserializes_properly() {
+        let cdv = CompactionDetailVersion::V1(CompactionDetail {
+            db_name: "foo".into(),
+            db_id: 0.into(),
+            table_name: "bar".into(),
+            table_id: 0.into(),
+            sequence_number: CompactionSequenceNumber(0),
+            snapshot_markers: Vec::new(),
+            compacted_generations: Vec::new(),
+            leftover_gen1_files: Vec::new(),
+        });
+
+        let serialized = serde_json::to_string(&cdv).unwrap();
+        insta::assert_json_snapshot!(serialized);
+        let deserialized: CompactionDetailVersion = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(cdv, deserialized);
     }
 }
