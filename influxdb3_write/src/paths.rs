@@ -5,7 +5,10 @@ use object_store::path::Path as ObjPath;
 use std::ops::Deref;
 
 /// File extension for catalog files
-pub const CATALOG_FILE_EXTENSION: &str = "json";
+pub const CATALOG_LOG_FILE_EXTENSION: &str = "catalog";
+
+/// File extension for catalog files
+pub const CATALOG_SNAPSHOT_FILE_EXTENSION: &str = "catalog.snapshot";
 
 /// File extension for parquet files
 pub const PARQUET_FILE_EXTENSION: &str = "parquet";
@@ -21,11 +24,18 @@ fn object_store_file_stem(n: u64) -> u64 {
 pub struct CatalogFilePath(ObjPath);
 
 impl CatalogFilePath {
-    pub fn new(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
-        let num = u64::MAX - catalog_sequence_number.as_u32() as u64;
+    pub fn log(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
+        let num = u64::MAX - catalog_sequence_number.get();
         let path = ObjPath::from(format!(
-            "{host_prefix}/catalogs/{:020}.{}",
-            num, CATALOG_FILE_EXTENSION
+            "{host_prefix}/catalogs/{num:020}.{CATALOG_LOG_FILE_EXTENSION}",
+        ));
+        Self(path)
+    }
+
+    pub fn snapshot(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
+        let num = u64::MAX - catalog_sequence_number.get();
+        let path = ObjPath::from(format!(
+            "{host_prefix}/catalogs/{num:020}.{CATALOG_SNAPSHOT_FILE_EXTENSION}",
         ));
         Self(path)
     }
@@ -124,8 +134,8 @@ impl AsRef<ObjPath> for SnapshotInfoFilePath {
 #[test]
 fn catalog_file_path_new() {
     assert_eq!(
-        *CatalogFilePath::new("my_host", CatalogSequenceNumber::new(0)),
-        ObjPath::from("my_host/catalogs/18446744073709551615.json")
+        *CatalogFilePath::log("my_host", CatalogSequenceNumber::new(0)),
+        ObjPath::from("my_host/catalogs/18446744073709551615.catalog")
     );
 }
 

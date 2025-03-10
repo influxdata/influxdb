@@ -19,7 +19,7 @@ use influxdb3_cache::parquet_cache::{CacheRequest, ParquetCacheOracle};
 use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
-use influxdb3_wal::{CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
+use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier, WalOp, WriteBatch};
 use iox_query::QueryChunk;
 use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
 use iox_query::exec::Executor;
@@ -151,19 +151,15 @@ impl QueryableBuffer {
 
     /// Called when the wal has persisted a new file. Buffer the contents in memory and update the
     /// last cache so the data is queryable.
-    fn buffer_contents(&self, write: Arc<WalContents>) {
+    fn buffer_wal_contents(&self, write: Arc<WalContents>) {
         self.write_wal_contents_to_caches(&write);
         let mut buffer = self.buffer.write();
-        buffer.buffer_ops(
-            &write.ops,
-            &self.last_cache_provider,
-            &self.distinct_cache_provider,
-        );
+        buffer.buffer_write_ops(&write.ops);
     }
 
     /// Called when the wal has written a new file and is attempting to snapshot. Kicks off persistence of
     /// data that can be snapshot in the background after putting the data in the buffer.
-    async fn buffer_contents_and_persist_snapshotted_data(
+    async fn buffer_wal_contents_and_persist_snapshotted_data(
         &self,
         write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
@@ -177,11 +173,7 @@ impl QueryableBuffer {
         let persist_jobs = {
             let mut buffer = self.buffer.write();
             // need to buffer first before snapshotting
-            buffer.buffer_ops(
-                &write.ops,
-                &self.last_cache_provider,
-                &self.distinct_cache_provider,
-            );
+            buffer.buffer_write_ops(&write.ops);
 
             let mut persisting_chunks = vec![];
             let catalog = Arc::clone(&buffer.catalog);
@@ -205,9 +197,9 @@ impl QueryableBuffer {
                             path: ParquetFilePath::new(
                                 self.persister.node_identifier_prefix(),
                                 db_schema.name.as_ref(),
-                                database_id.as_u32(),
+                                database_id.get(),
                                 table_name.as_ref(),
-                                table_id.as_u32(),
+                                table_id.get(),
                                 chunk.chunk_time,
                                 snapshot_details.last_wal_sequence_number,
                             ),
@@ -237,33 +229,6 @@ impl QueryableBuffer {
         let parquet_cache = self.parquet_cache.clone();
 
         tokio::spawn(async move {
-            // persist the catalog if it has been updated
-            loop {
-                if !catalog.is_updated() {
-                    break;
-                }
-                info!(
-                    "persisting catalog for wal file {}",
-                    wal_file_number.as_u64()
-                );
-                let inner_catalog = catalog.clone_inner();
-                let sequence_number = inner_catalog.sequence_number();
-
-                match persister
-                    .persist_catalog(&Catalog::from_inner(inner_catalog))
-                    .await
-                {
-                    Ok(_) => {
-                        catalog.set_updated_false_if_sequence_matches(sequence_number);
-                        break;
-                    }
-                    Err(e) => {
-                        error!(%e, "Error persisting catalog, sleeping and retrying...");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
-
             info!(
                 "persisting {} chunks for wal number {}",
                 persist_jobs.len(),
@@ -438,7 +403,7 @@ impl QueryableBuffer {
 #[async_trait]
 impl WalFileNotifier for QueryableBuffer {
     async fn notify(&self, write: Arc<WalContents>) {
-        self.buffer_contents(write)
+        self.buffer_wal_contents(write)
     }
 
     async fn notify_and_snapshot(
@@ -446,7 +411,7 @@ impl WalFileNotifier for QueryableBuffer {
         write: Arc<WalContents>,
         snapshot_details: SnapshotDetails,
     ) -> Receiver<SnapshotDetails> {
-        self.buffer_contents_and_persist_snapshotted_data(write, snapshot_details)
+        self.buffer_wal_contents_and_persist_snapshotted_data(write, snapshot_details)
             .await
     }
 
@@ -471,103 +436,10 @@ impl BufferState {
         }
     }
 
-    pub fn buffer_ops(
-        &mut self,
-        ops: &[WalOp],
-        last_cache_provider: &LastCacheProvider,
-        distinct_cache_provider: &DistinctCacheProvider,
-    ) {
+    pub fn buffer_write_ops(&mut self, ops: &[WalOp]) {
         for op in ops {
-            match op {
-                WalOp::Write(write_batch) => self.add_write_batch(write_batch),
-                WalOp::Catalog(catalog_batch) => {
-                    let Some(catalog_batch) = self
-                        .catalog
-                        .apply_ordered_catalog_batch(catalog_batch)
-                        .expect("should be able to reapply")
-                    else {
-                        continue;
-                    };
-                    let db_schema = self
-                        .catalog
-                        .db_schema_by_id(&catalog_batch.database_id)
-                        .expect("database should exist");
-
-                    // catalog changes that has external actions are applied here
-                    // eg. creating or deleting last cache itself
-                    for op in catalog_batch.ops {
-                        match op {
-                            CatalogOp::CreateDistinctCache(definition) => {
-                                let table_def = db_schema
-                                    .table_definition_by_id(&definition.table_id)
-                                    .expect("table should exist");
-                                distinct_cache_provider.create_from_definition(
-                                    db_schema.id,
-                                    table_def,
-                                    &definition,
-                                );
-                            }
-                            CatalogOp::DeleteDistinctCache(cache) => {
-                                // this only fails if the db/table/cache do not exist, so we ignore
-                                // the error if it happens.
-                                let _ = distinct_cache_provider.delete_cache(
-                                    &db_schema.id,
-                                    &cache.table_id,
-                                    &cache.cache_name,
-                                );
-                            }
-                            CatalogOp::CreateLastCache(definition) => {
-                                let table_def = db_schema
-                                    .table_definition_by_id(&definition.table_id)
-                                    .expect("table should exist");
-                                last_cache_provider.create_cache_from_definition(
-                                    db_schema.id,
-                                    table_def,
-                                    &definition,
-                                );
-                            }
-                            CatalogOp::DeleteLastCache(cache) => {
-                                // this only fails if the db/table/cache do not exist, so we ignore
-                                // the error if it happens.
-                                let _ = last_cache_provider.delete_cache(
-                                    db_schema.id,
-                                    cache.table_id,
-                                    &cache.name,
-                                );
-                            }
-                            CatalogOp::AddFields(_) => (),
-                            CatalogOp::CreateTable(_) => (),
-                            CatalogOp::CreateDatabase(_) => (),
-                            CatalogOp::DeleteDatabase(db_definition) => {
-                                self.db_to_table.remove(&db_definition.database_id);
-                                last_cache_provider
-                                    .delete_caches_for_db(&db_definition.database_id);
-                                distinct_cache_provider
-                                    .delete_caches_for_db(&db_definition.database_id);
-                            }
-                            CatalogOp::DeleteTable(table_definition) => {
-                                last_cache_provider.delete_caches_for_table(
-                                    &table_definition.database_id,
-                                    &table_definition.table_id,
-                                );
-                                distinct_cache_provider.delete_caches_for_db_and_table(
-                                    &table_definition.database_id,
-                                    &table_definition.table_id,
-                                );
-                                if let Some(table_buffer_map) =
-                                    self.db_to_table.get_mut(&table_definition.database_id)
-                                {
-                                    table_buffer_map.remove(&table_definition.table_id);
-                                }
-                            }
-                            CatalogOp::CreateTrigger(_) => {}
-                            CatalogOp::DeleteTrigger(_) => {}
-                            CatalogOp::EnableTrigger(_) => {}
-                            CatalogOp::DisableTrigger(_) => {}
-                        }
-                    }
-                }
-                WalOp::Noop(_) => {}
+            if let WalOp::Write(write_batch) = op {
+                self.add_write_batch(write_batch);
             }
         }
     }
@@ -771,8 +643,16 @@ mod tests {
         register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
         register_current_runtime_for_io();
 
-        let catalog = Arc::new(Catalog::new("hosta".into(), "foo".into()));
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let catalog = Arc::new(
+            Catalog::new(
+                "hosta",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             "hosta",
@@ -799,15 +679,24 @@ mod tests {
         let db = data_types::NamespaceName::new("testdb").unwrap();
 
         // create the initial write with two tags
-        let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog), 0).unwrap();
+        let val = WriteValidator::initialize(db.clone(), Arc::clone(&catalog)).unwrap();
         let lp = format!(
             "foo,t1=a,t2=b f1=1i {}",
             time_provider.now().timestamp_nanos()
         );
 
         let lines = val
-            .parse_lines_and_update_schema(&lp, false, time_provider.now(), Precision::Nanosecond)
+            .v1_parse_lines_and_catalog_updates(
+                &lp,
+                false,
+                time_provider.now(),
+                Precision::Nanosecond,
+            )
             .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
         let wal_contents = WalContents {
@@ -836,11 +725,20 @@ mod tests {
 
         // create another write, this time with only one tag, in a different gen1 block
         let lp = "foo,t2=b f1=1i 240000000000";
-        let val = WriteValidator::initialize(db, Arc::clone(&catalog), 0).unwrap();
+        let val = WriteValidator::initialize(db, Arc::clone(&catalog)).unwrap();
 
         let lines = val
-            .parse_lines_and_update_schema(lp, false, time_provider.now(), Precision::Nanosecond)
+            .v1_parse_lines_and_catalog_updates(
+                lp,
+                false,
+                time_provider.now(),
+                Precision::Nanosecond,
+            )
             .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_1m());
         let batch: WriteBatch = lines.into();
         let wal_contents = WalContents {
