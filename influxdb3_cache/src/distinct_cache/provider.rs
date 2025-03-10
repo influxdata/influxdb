@@ -2,13 +2,19 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use arrow::datatypes::SchemaRef;
-use influxdb3_catalog::catalog::{Catalog, TableDefinition};
+use influxdb3_catalog::{
+    catalog::{Catalog, CatalogBroadcastReceiver},
+    log::{
+        CatalogBatch, CreateDistinctCacheLog, DatabaseCatalogOp, DeleteDistinctCacheLog,
+        SoftDeleteTableLog,
+    },
+};
 use influxdb3_id::{DbId, TableId};
-use influxdb3_wal::{DistinctCacheDefinition, WalContents, WalOp};
+use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
+use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-
-use crate::distinct_cache::cache::{MaxAge, MaxCardinality};
+use tokio::sync::broadcast::error::RecvError;
 
 use super::{
     CacheError,
@@ -60,12 +66,8 @@ impl DistinctCacheProvider {
                                 Some(cache_name),
                                 CreateDistinctCacheArgs {
                                     table_def: Arc::clone(&table_def),
-                                    max_cardinality: MaxCardinality::try_from(
-                                        cache_def.max_cardinality
-                                    )?,
-                                    max_age: MaxAge::from(Duration::from_secs(
-                                        cache_def.max_age_seconds
-                                    )),
+                                    max_cardinality: cache_def.max_cardinality,
+                                    max_age: cache_def.max_age_seconds,
                                     column_ids: cache_def.column_ids.to_vec()
                                 }
                             )?
@@ -75,6 +77,9 @@ impl DistinctCacheProvider {
                 }
             }
         }
+
+        background_catalog_update(Arc::clone(&provider), catalog.subscribe_to_updates());
+
         Ok(provider)
     }
 
@@ -126,37 +131,9 @@ impl DistinctCacheProvider {
             })
     }
 
-    /// Get a list of [`DistinctCacheDefinition`]s for the given database
-    pub fn get_cache_definitions_for_db(&self, db_id: &DbId) -> Vec<DistinctCacheDefinition> {
-        let db_schema = self
-            .catalog
-            .db_schema_by_id(db_id)
-            .expect("database should exist");
-        let read = self.cache_map.read();
-        read.get(db_id)
-            .map(|table| {
-                table
-                    .iter()
-                    .flat_map(|(table_id, table_map)| {
-                        let table_name = db_schema
-                            .table_id_to_name(table_id)
-                            .expect("table should exist");
-                        table_map.iter().map(move |(cache_name, cache)| {
-                            cache.to_definition(
-                                *table_id,
-                                Arc::clone(&table_name),
-                                Arc::clone(cache_name),
-                            )
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
     /// Create a new entry in the distinct cache for a given database and parameters.
     ///
-    /// If a new cache is created, this will return the [`DistinctCacheDefinition`] for the created
+    /// If a new cache is created, this will return the [`CreateDistinctCacheLog`] for the created
     /// cache; otherwise, if the provided arguments are identical to an existing cache, along with
     /// any defaults, then `None` will be returned. It is an error to attempt to create a cache that
     /// overwite an existing one with different parameters.
@@ -173,10 +150,10 @@ impl DistinctCacheProvider {
         CreateDistinctCacheArgs {
             table_def,
             max_cardinality,
-            max_age,
+            max_age: max_age_seconds,
             column_ids,
         }: CreateDistinctCacheArgs,
-    ) -> Result<Option<DistinctCacheDefinition>, ProviderError> {
+    ) -> Result<Option<CreateDistinctCacheLog>, ProviderError> {
         let cache_name = if let Some(cache_name) = cache_name {
             cache_name
         } else {
@@ -201,7 +178,7 @@ impl DistinctCacheProvider {
             CreateDistinctCacheArgs {
                 table_def: Arc::clone(&table_def),
                 max_cardinality,
-                max_age,
+                max_age: max_age_seconds,
                 column_ids: column_ids.clone(),
             },
         )?;
@@ -224,33 +201,30 @@ impl DistinctCacheProvider {
             .or_default()
             .insert(Arc::clone(&cache_name), new_cache);
 
-        Ok(Some(DistinctCacheDefinition {
+        Ok(Some(CreateDistinctCacheLog {
             table_id: table_def.table_id,
             table_name: Arc::clone(&table_def.table_name),
             cache_name,
             column_ids,
-            max_cardinality: max_cardinality.into(),
-            max_age_seconds: max_age.as_seconds(),
+            max_cardinality,
+            max_age_seconds,
         }))
     }
 
     /// Create a new cache given the database schema and WAL definition. This is useful during WAL
     /// replay.
-    pub fn create_from_definition(
-        &self,
-        db_id: DbId,
-        table_def: Arc<TableDefinition>,
-        definition: &DistinctCacheDefinition,
-    ) {
+    pub fn create_from_catalog(&self, db_id: DbId, definition: &CreateDistinctCacheLog) {
+        let table_def = self
+            .catalog
+            .db_schema_by_id(&db_id)
+            .and_then(|db| db.table_definition_by_id(&definition.table_id))
+            .expect("db and table id should be valid in distinct cache log");
         let distinct_cache = DistinctCache::new(
             Arc::clone(&self.time_provider),
             CreateDistinctCacheArgs {
                 table_def,
-                max_cardinality: definition
-                    .max_cardinality
-                    .try_into()
-                    .expect("definition should have a valid max_cardinality"),
-                max_age: MaxAge::from(Duration::from_secs(definition.max_age_seconds)),
+                max_cardinality: definition.max_cardinality,
+                max_age: definition.max_age_seconds,
                 column_ids: definition.column_ids.to_vec(),
             },
         )
@@ -268,7 +242,7 @@ impl DistinctCacheProvider {
     ///
     /// This also cleans up the provider hierarchy, so if the delete leaves a branch for a given
     /// table or its parent database empty, this will remove that branch.
-    pub fn delete_cache(
+    pub(crate) fn delete_cache(
         &self,
         db_id: &DbId,
         table_id: &TableId,
@@ -290,12 +264,12 @@ impl DistinctCacheProvider {
     }
 
     /// Delete all caches for a given database
-    pub fn delete_caches_for_db(&self, db_id: &DbId) {
+    pub(crate) fn delete_caches_for_db(&self, db_id: &DbId) {
         self.cache_map.write().remove(db_id);
     }
 
     /// Delete all caches for a given database and table
-    pub fn delete_caches_for_db_and_table(&self, db_id: &DbId, table_id: &TableId) {
+    pub(crate) fn delete_caches_for_db_and_table(&self, db_id: &DbId, table_id: &TableId) {
         let mut lock = self.cache_map.write();
         let Some(db) = lock.get_mut(db_id) else {
             return;
@@ -347,6 +321,67 @@ impl DistinctCacheProvider {
             })
         });
     }
+}
+
+fn background_catalog_update(
+    provider: Arc<DistinctCacheProvider>,
+    mut subscription: CatalogBroadcastReceiver,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            match subscription.recv().await {
+                Ok(catalog_update) => {
+                    for batch in catalog_update
+                        .batches()
+                        .filter_map(CatalogBatch::as_database)
+                    {
+                        for op in batch.ops.iter() {
+                            match op {
+                                DatabaseCatalogOp::SoftDeleteDatabase(_) => {
+                                    provider.delete_caches_for_db(&batch.database_id);
+                                }
+                                DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
+                                    database_id,
+                                    table_id,
+                                    ..
+                                }) => {
+                                    provider.delete_caches_for_db_and_table(database_id, table_id);
+                                }
+                                DatabaseCatalogOp::CreateDistinctCache(log) => {
+                                    provider.create_from_catalog(batch.database_id, log);
+                                }
+                                DatabaseCatalogOp::DeleteDistinctCache(
+                                    DeleteDistinctCacheLog {
+                                        table_id,
+                                        cache_name,
+                                        ..
+                                    },
+                                ) => {
+                                    // This only errors when the cache isn't there, so we ignore the
+                                    // error...
+                                    let _ = provider.delete_cache(
+                                        &batch.database_id,
+                                        table_id,
+                                        cache_name,
+                                    );
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+                Err(RecvError::Closed) => break,
+                Err(RecvError::Lagged(num_messages_skipped)) => {
+                    // TODO: in this case, we would need to re-initialize the distinct cache provider
+                    // from the catalog, if possible.
+                    warn!(
+                        num_messages_skipped,
+                        "distinct cache provider catalog subscription is lagging"
+                    );
+                }
+            }
+        }
+    })
 }
 
 fn background_eviction_process(

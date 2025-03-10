@@ -4,11 +4,9 @@
 
 use crate::ParquetCachePreFetcher;
 use crate::compacted_data::CompactedData;
-use crate::{
-    catalog::CompactedCatalog,
-    sys_events::{CompactionEventStore, compaction_consumed},
-};
+use crate::sys_events::{CompactionEventStore, compaction_consumed};
 use anyhow::Context;
+use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::{
     CompactionDetailPath, GenerationDetail, GenerationDetailPath, GenerationId,
 };
@@ -50,6 +48,7 @@ impl CompactedDataConsumer {
     pub async fn new(
         compactor_id: Arc<str>,
         object_store: Arc<dyn ObjectStore>,
+        catalog: Arc<Catalog>,
         parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
         sys_events_store: Arc<dyn CompactionEventStore>,
     ) -> anyhow::Result<Self> {
@@ -71,11 +70,6 @@ impl CompactedDataConsumer {
                         continue;
                     }
                 };
-            let catalog =
-                CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&object_store))
-                    .await
-                    .context("error loading compacted catalog")?
-                    .context("compacted catalog not found")?;
             let compacted_data = CompactedData::load_compacted_data(
                 Arc::clone(&compactor_id),
                 summary,
@@ -137,11 +131,8 @@ impl CompactedDataConsumer {
         };
 
         self.compacted_data
-            .compacted_catalog
-            .reload_if_needed(
-                summary.catalog_sequence_number,
-                Arc::clone(&self.object_store),
-            )
+            .catalog
+            .update_to_sequence_number(summary.catalog_sequence_number)
             .await
             .inspect_err(|err| {
                 let event = compaction_consumed::FailedInfo {
@@ -151,7 +142,8 @@ impl CompactedDataConsumer {
                 };
                 self.sys_events_store
                     .record_compaction_consumed_failed(event);
-            })?;
+            })
+            .context("failed to update catalog to sequence found in compaction summary")?;
 
         // load new compaction details, new generations and remove old generations
         for ((db_id, table_id), sequence_number) in &summary.compaction_details {
@@ -248,7 +240,7 @@ impl CompactedDataConsumer {
             );
             debug!(time_taken = ?gen_update_timer.elapsed(), ">>> time taken for updating detail with generations");
 
-            if let Some(db_schema) = self.compacted_data.compacted_catalog.db_schema_by_id(db_id) {
+            if let Some(db_schema) = self.compacted_data.catalog.db_schema_by_id(db_id) {
                 let db_name = Arc::clone(&db_schema.name);
                 let table_defn = db_schema.table_definition_by_id(table_id);
                 let event = compaction_consumed::SuccessInfo {
@@ -323,9 +315,8 @@ impl<I: Iterator> Iterator for SizedIter<I> {
 
 #[cfg(test)]
 mod tests {
-    use crate::catalog::test_helpers::create_node_catalog_with_table;
-
     use super::*;
+    use influxdb3_catalog::log::FieldDataType;
     use influxdb3_enterprise_data_layout::persist::{
         persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
     };
@@ -335,54 +326,50 @@ mod tests {
     };
     use influxdb3_id::ParquetFileId;
     use influxdb3_sys_events::SysEventStore;
-    use influxdb3_wal::{FieldDataType, SnapshotSequenceNumber};
+    use influxdb3_wal::SnapshotSequenceNumber;
     use influxdb3_write::ParquetFile;
     use iox_time::{MockProvider, Time, TimeProvider};
     use object_store::memory::InMemory;
 
     async fn setup_compacted_data() -> (
         Arc<dyn ObjectStore>,
-        CompactedCatalog,
+        Arc<Catalog>,
         CompactionSummary,
         CompactionDetail,
         GenerationDetail,
     ) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let compactor_id = "compactor_id".into();
+        let cluster_id = Arc::<str>::from("test_cluster");
         let host1 = "host1";
         let host2 = "host2";
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-
-        let _catalog1 = create_node_catalog_with_table(
-            host1,
-            "db1",
-            "table1",
-            FieldDataType::Tag,
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider),
-        )
-        .await;
-        let _catalog2 = create_node_catalog_with_table(
-            host2,
-            "db1",
-            "table2",
-            FieldDataType::Tag,
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider),
-        )
-        .await;
-
-        let catalog = CompactedCatalog::load_merged_from_node_ids(
-            Arc::clone(&compactor_id),
-            vec![host1.into(), host2.into()],
+        let catalog = Catalog::new(
+            Arc::clone(&cluster_id),
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
         )
         .await
-        .expect("failed to load merged catalog");
+        .unwrap();
+        catalog
+            .create_table(
+                "db1",
+                "table1",
+                &["tag1"],
+                &[("field1", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "db1",
+                "table2",
+                &["tag1"],
+                &[("field1", FieldDataType::Integer)],
+            )
+            .await
+            .unwrap();
 
-        catalog.persist(Arc::clone(&object_store)).await.unwrap();
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
 
@@ -445,7 +432,7 @@ mod tests {
         };
 
         persist_generation_detail(
-            Arc::clone(&compactor_id),
+            Arc::clone(&cluster_id),
             generation.id,
             &generation_detail,
             Arc::clone(&object_store),
@@ -453,7 +440,7 @@ mod tests {
         .await
         .unwrap();
         persist_compaction_detail(
-            Arc::clone(&compactor_id),
+            Arc::clone(&cluster_id),
             db.id,
             table1.table_id,
             &detail,
@@ -461,21 +448,22 @@ mod tests {
         )
         .await
         .unwrap();
-        persist_compaction_summary(
-            Arc::clone(&compactor_id),
-            &summary,
-            Arc::clone(&object_store),
-        )
-        .await
-        .unwrap();
+        persist_compaction_summary(Arc::clone(&cluster_id), &summary, Arc::clone(&object_store))
+            .await
+            .unwrap();
 
-        (object_store, catalog, summary, detail, generation_detail)
+        (
+            object_store,
+            Arc::new(catalog),
+            summary,
+            detail,
+            generation_detail,
+        )
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
-        let compactor_id = "compactor_id".into();
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -485,8 +473,9 @@ mod tests {
             )));
 
         let consumer = CompactedDataConsumer::new(
-            compactor_id,
+            catalog.object_store_prefix(),
             Arc::clone(&object_store),
+            Arc::clone(&catalog),
             None,
             sys_events_store,
         )
@@ -495,11 +484,7 @@ mod tests {
         let consumer_summary = consumer.compacted_data.compaction_summary();
         assert_eq!(&summary, consumer_summary.as_ref());
 
-        let consumer_db = consumer
-            .compacted_data
-            .compacted_catalog
-            .db_schema("db1")
-            .unwrap();
+        let consumer_db = consumer.compacted_data.catalog.db_schema("db1").unwrap();
         let consumer_table = consumer_db.table_definition("table1").unwrap();
 
         let consumer_detail = consumer

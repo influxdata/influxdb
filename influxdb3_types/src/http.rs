@@ -1,13 +1,15 @@
 mod enterprise;
 pub use enterprise::*;
+use influxdb3_catalog::log::TriggerSettings;
 
 use crate::write::Precision;
 use hashbrown::HashMap;
 use hyper::HeaderMap;
 use hyper::header::ACCEPT;
 use hyper::http::HeaderValue;
-use influxdb3_cache::distinct_cache::MaxCardinality;
-use influxdb3_wal::TriggerSettings;
+pub use influxdb3_catalog::log::{
+    FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality,
+};
 use iox_query_params::StatementParams;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +20,9 @@ pub enum Error {
 
     #[error("the mime type specified was not valid UTF8: {0}")]
     NonUtf8MimeType(#[from] std::string::FromUtf8Error),
+
+    #[error(transparent)]
+    Unexpected(#[from] anyhow::Error),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -38,33 +43,6 @@ impl PingResponse {
     }
 }
 
-/// A last cache will either store values for an explicit set of columns, or will accept all
-/// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum LastCacheValueColumnsDef {
-    /// Explicit list of column names
-    Explicit { columns: Vec<u32> },
-    /// Stores all non-key columns
-    AllNonKeyColumns,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct LastCacheCreatedResponse {
-    /// The table name the cache is associated with
-    pub table: String,
-    /// Given name of the cache
-    pub name: String,
-    /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<u32>,
-    /// Columns that store values in the cache
-    pub value_columns: LastCacheValueColumnsDef,
-    /// The number of last values to hold in the cache
-    pub count: usize,
-    /// The time-to-live (TTL) in seconds for entries in the cache
-    pub ttl: u64,
-}
-
 /// Request definition for the `POST /api/v3/configure/distinct_cache` API
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DistinctCacheCreateRequest {
@@ -82,11 +60,11 @@ pub struct DistinctCacheCreateRequest {
     // https://github.com/influxdata/influxdb/issues/25585
     pub columns: Vec<String>,
     /// The maximumn number of distinct value combinations to hold in the cache
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_cardinality: Option<MaxCardinality>,
+    #[serde(default)]
+    pub max_cardinality: MaxCardinality,
     /// The duration in seconds that entries will be kept in the cache before being evicted
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_age: Option<u64>,
+    #[serde(default)]
+    pub max_age: MaxAge,
 }
 
 /// Resposne definition for the `POST /api/v3/configure/distinct_cache` API
@@ -125,10 +103,10 @@ pub struct LastCacheCreateRequest {
     pub key_columns: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_columns: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub count: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ttl: Option<u64>,
+    #[serde(default)]
+    pub count: LastCacheSize,
+    #[serde(default)]
+    pub ttl: LastCacheTtl,
 }
 
 /// Request definition for the `DELETE /api/v3/configure/last_cache` API
@@ -261,7 +239,29 @@ pub struct CreateTableRequest {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateTableField {
     pub name: String,
-    pub r#type: String,
+    pub r#type: FieldType,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum FieldType {
+    Utf8,
+    Int64,
+    UInt64,
+    Float64,
+    Bool,
+}
+
+impl From<FieldType> for FieldDataType {
+    fn from(f: FieldType) -> Self {
+        match f {
+            FieldType::Utf8 => Self::String,
+            FieldType::Int64 => Self::Integer,
+            FieldType::UInt64 => Self::UInteger,
+            FieldType::Float64 => Self::Float,
+            FieldType::Bool => Self::Boolean,
+        }
+    }
 }
 
 /// Request definition for the `DELETE /api/v3/configure/table` API

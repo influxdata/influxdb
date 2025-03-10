@@ -355,7 +355,7 @@ mod tests {
         // Create a table def, this is used when the index analyzes filter expressions:
         let table_def = Arc::new(
             TableDefinition::new(
-                TableId::new(),
+                TableId::new(0),
                 "test-table".into(),
                 vec![
                     (ColumnId::from(0), "host".into(), InfluxColumnType::Tag),

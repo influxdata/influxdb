@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::replica::{CreateReplicasArgs, Replicas, ReplicationConfig};
 use async_trait::async_trait;
@@ -7,17 +7,16 @@ use datafusion::{
     catalog::Session, error::DataFusionError, execution::object_store::ObjectStoreUrl,
 };
 use influxdb3_cache::{
-    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
-    last_cache::LastCacheProvider,
+    distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
     parquet_cache::ParquetCacheOracle,
 };
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
-use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, Wal, WalConfig};
+use influxdb3_id::{DbId, TableId};
+use influxdb3_wal::{Wal, WalConfig};
 use influxdb3_write::{
-    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DatabaseManager,
-    DistinctCacheManager, LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
+    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
     persister::{DEFAULT_OBJECT_STORE_URL, Persister},
     write_buffer::{
         self, WriteBufferImpl, WriteBufferImplArgs, cache_parquet_files, parquet_chunk_from_file,
@@ -113,7 +112,6 @@ impl ReadWriteMode {
                     parquet_cache: parquet_cache.clone(),
                     catalog,
                     time_provider,
-                    wal: Some(primary.wal()),
                 })
                 .await?,
             )
@@ -305,98 +303,12 @@ impl LastCacheManager for ReadWriteMode {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         self.primary.last_cache_provider()
     }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn create_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<ColumnId>>,
-        value_columns: Option<Vec<ColumnId>>,
-    ) -> write_buffer::Result<Option<LastCacheDefinition>> {
-        self.primary
-            .create_last_cache(
-                db_id,
-                tbl_id,
-                cache_name,
-                count,
-                ttl,
-                key_columns,
-                value_columns,
-            )
-            .await
-    }
-
-    async fn delete_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: &str,
-    ) -> write_buffer::Result<()> {
-        self.primary
-            .delete_last_cache(db_id, tbl_id, cache_name)
-            .await
-    }
 }
 
 #[async_trait]
 impl DistinctCacheManager for ReadWriteMode {
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
         self.primary.distinct_cache_provider()
-    }
-
-    async fn create_distinct_cache(
-        &self,
-        db_schema: Arc<DatabaseSchema>,
-        cache_name: Option<String>,
-        args: CreateDistinctCacheArgs,
-    ) -> write_buffer::Result<Option<DistinctCacheDefinition>> {
-        self.primary
-            .create_distinct_cache(db_schema, cache_name, args)
-            .await
-    }
-
-    async fn delete_distinct_cache(
-        &self,
-        db_id: &DbId,
-        tbl_id: &TableId,
-        cache_name: &str,
-    ) -> write_buffer::Result<()> {
-        self.primary
-            .delete_distinct_cache(db_id, tbl_id, cache_name)
-            .await
-    }
-}
-
-#[async_trait]
-impl DatabaseManager for ReadWriteMode {
-    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error> {
-        self.primary.create_database(name).await
-    }
-
-    async fn soft_delete_database(&self, name: String) -> write_buffer::Result<()> {
-        self.primary.soft_delete_database(name).await
-    }
-
-    async fn create_table(
-        &self,
-        db: String,
-        table: String,
-        tags: Vec<String>,
-        fields: Vec<(String, String)>,
-    ) -> Result<(), write_buffer::Error> {
-        self.primary.create_table(db, table, tags, fields).await
-    }
-
-    async fn soft_delete_table(
-        &self,
-        db_name: String,
-        table_name: String,
-    ) -> write_buffer::Result<()> {
-        self.primary.soft_delete_table(db_name, table_name).await
     }
 }
 

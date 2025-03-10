@@ -126,6 +126,7 @@ mod tests {
             max_timestamp_ns: 10,
             wal_file_number: WalFileSequenceNumber::new(1),
             ops: vec![WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "foo".into(),
                 table_chunks,

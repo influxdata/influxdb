@@ -12,6 +12,7 @@ mod replicas;
 #[derive(Debug, Default)]
 pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
+    cluster_id: Option<String>,
     node_id: Option<String>,
     read_from_node_ids: Vec<String>,
     compact_from_node_ids: Vec<String>,
@@ -26,6 +27,12 @@ impl ConfigProvider for TestConfigEnterprise {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
             args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        }
+        args.push("--cluster-id".to_string());
+        if let Some(cluster_id) = &self.cluster_id {
+            args.push(cluster_id.to_owned());
+        } else {
+            args.push("test-cluster".to_string());
         }
         args.push("--node-id".to_string());
         if let Some(node_id) = &self.node_id {
@@ -88,6 +95,11 @@ impl TestConfigEnterprise {
         self
     }
 
+    pub fn with_cluster_id<S: Into<String>>(mut self, cluster_id: S) -> Self {
+        self.cluster_id = Some(cluster_id.into());
+        self
+    }
+
     /// Set a node identifier prefix on the spawned [`TestServer`]
     pub fn with_node_id<S: Into<String>>(mut self, node_id: S) -> Self {
         self.node_id = Some(node_id.into());
@@ -138,7 +150,7 @@ impl TestConfigEnterprise {
 }
 
 impl TestServer {
-    pub fn configure_pro() -> TestConfigEnterprise {
+    pub fn configure_enterprise() -> TestConfigEnterprise {
         TestConfigEnterprise::default()
     }
 

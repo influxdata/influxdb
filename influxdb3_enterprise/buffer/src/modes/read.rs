@@ -5,20 +5,20 @@ use anyhow::Context;
 use async_trait::async_trait;
 use data_types::NamespaceName;
 use datafusion::{catalog::Session, error::DataFusionError};
-use influxdb3_cache::distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider};
+use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_cache::parquet_cache::ParquetCacheOracle;
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_enterprise_compactor::compacted_data::CompactedData;
-use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::{DistinctCacheDefinition, LastCacheDefinition, NoopWal, Wal};
-use influxdb3_write::write_buffer::{self, cache_parquet_files, parquet_chunk_from_file};
+use influxdb3_id::{DbId, TableId};
+use influxdb3_wal::{NoopWal, Wal};
+use influxdb3_write::write_buffer::{cache_parquet_files, parquet_chunk_from_file};
 use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, LastCacheManager, ParquetFile,
     PersistedSnapshot, Precision, WriteBuffer,
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
 };
-use influxdb3_write::{ChunkFilter, DatabaseManager, DistinctCacheManager};
+use influxdb3_write::{ChunkFilter, DistinctCacheManager};
 use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
@@ -73,7 +73,6 @@ impl ReadMode {
                 parquet_cache: parquet_cache.clone(),
                 catalog,
                 time_provider,
-                wal: None,
             })
             .await
             .context("failed to initialize replicas")?,
@@ -191,82 +190,12 @@ impl LastCacheManager for ReadMode {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         self.replicas.last_cache()
     }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn create_last_cache(
-        &self,
-        _db_id: DbId,
-        _tbl_id: TableId,
-        _cache_name: Option<&str>,
-        _count: Option<usize>,
-        _ttl: Option<Duration>,
-        _key_columns: Option<Vec<ColumnId>>,
-        _value_columns: Option<Vec<ColumnId>>,
-    ) -> WriteBufferResult<Option<LastCacheDefinition>> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn delete_last_cache(
-        &self,
-        _db_id: DbId,
-        _tbl_id: TableId,
-        _cache_name: &str,
-    ) -> WriteBufferResult<()> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
 }
 
 #[async_trait]
 impl DistinctCacheManager for ReadMode {
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
         self.replicas.distinct_cache()
-    }
-
-    async fn create_distinct_cache(
-        &self,
-        _db_schema: Arc<DatabaseSchema>,
-        _cache_name: Option<String>,
-        _args: CreateDistinctCacheArgs,
-    ) -> Result<Option<DistinctCacheDefinition>, WriteBufferError> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn delete_distinct_cache(
-        &self,
-        _db_id: &DbId,
-        _tbl_id: &TableId,
-        _cache_name: &str,
-    ) -> Result<(), WriteBufferError> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-}
-
-#[async_trait]
-impl DatabaseManager for ReadMode {
-    async fn create_database(&self, _name: String) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn soft_delete_database(&self, _name: String) -> Result<(), WriteBufferError> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn create_table(
-        &self,
-        _db: String,
-        _table: String,
-        _tags: Vec<String>,
-        _fields: Vec<(String, String)>,
-    ) -> Result<(), write_buffer::Error> {
-        Err(WriteBufferError::NoWriteInReadOnly)
-    }
-
-    async fn soft_delete_table(
-        &self,
-        _db_name: String,
-        _table_name: String,
-    ) -> Result<(), WriteBufferError> {
-        Err(WriteBufferError::NoWriteInReadOnly)
     }
 }
 

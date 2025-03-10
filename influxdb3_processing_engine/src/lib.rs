@@ -1,5 +1,5 @@
 use crate::environment::PythonEnvironmentManager;
-use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
+use crate::manager::ProcessingEngineError;
 #[cfg(feature = "system-py")]
 use crate::plugins::PluginContext;
 use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
@@ -7,21 +7,21 @@ use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
-use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
+use influxdb3_catalog::CatalogError;
+use influxdb3_catalog::catalog::{Catalog, CatalogBroadcastReceiver};
+#[cfg(feature = "system-py")]
+use influxdb3_catalog::log::PluginType;
+use influxdb3_catalog::log::{
+    CatalogBatch, CreateTriggerLog, DatabaseCatalogOp, DeleteTriggerLog, TriggerIdentifier,
+    TriggerSpecificationDefinition, ValidPluginFilename,
+};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
     WalPluginTestResponse,
 };
-#[cfg(feature = "system-py")]
-use influxdb3_wal::PluginType;
-use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DeleteTriggerDefinition, SnapshotDetails, TriggerDefinition,
-    TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, Wal, WalContents,
-    WalFileNotifier, WalOp,
-};
+use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
@@ -29,6 +29,7 @@ use std::any::Any;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
 
@@ -46,9 +47,7 @@ pub struct ProcessingEngineManagerImpl {
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
-    #[allow(unused)]
     sys_event_store: Arc<SysEventStore>,
-    wal: Arc<dyn Wal>,
     plugin_event_tx: RwLock<PluginChannels>,
 }
 
@@ -215,9 +214,8 @@ impl ProcessingEngineManagerImpl {
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
-        wal: Arc<dyn Wal>,
         sys_event_store: Arc<SysEventStore>,
-    ) -> Self {
+    ) -> Arc<Self> {
         // if given a plugin dir, try to initialize the virtualenv.
         #[cfg(feature = "system-py")]
         if let Some(plugin_dir) = &environment.plugin_dir {
@@ -229,16 +227,30 @@ impl ProcessingEngineManagerImpl {
                 virtualenv::init_pyo3();
             }
         }
-        Self {
+
+        let catalog_sub = catalog.subscribe_to_updates();
+
+        let pem = Arc::new(Self {
             environment_manager: environment,
             catalog,
             write_buffer,
             query_executor,
             sys_event_store,
             time_provider,
-            wal,
             plugin_event_tx: Default::default(),
-        }
+        });
+
+        background_catalog_update(Arc::clone(&pem), catalog_sub);
+
+        pem
+    }
+
+    pub async fn validate_plugin_filename<'a>(
+        &self,
+        name: &'a str,
+    ) -> Result<ValidPluginFilename<'a>, plugins::PluginError> {
+        let _ = self.read_plugin_code(name).await?;
+        Ok(ValidPluginFilename::from_validated_name(name))
     }
 
     pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::PluginError> {
@@ -339,96 +351,10 @@ impl LocalPlugin {
     }
 }
 
-#[async_trait::async_trait]
-impl ProcessingEngineManager for ProcessingEngineManagerImpl {
-    async fn insert_trigger(
-        &self,
-        db_name: &str,
-        trigger_name: String,
-        plugin_filename: String,
-        trigger_settings: TriggerSettings,
-        trigger_specification: TriggerSpecificationDefinition,
-        trigger_arguments: Option<HashMap<String, String>>,
-        disabled: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        let Some((db_id, db_schema)) = self.catalog.db_id_and_schema(db_name) else {
-            return Err(ProcessingEngineError::DatabaseNotFound(db_name.to_string()));
-        };
-
-        // validate that we can actually read the plugin file
-        self.read_plugin_code(&plugin_filename).await?;
-
-        let catalog_op = CatalogOp::CreateTrigger(TriggerDefinition {
-            trigger_name,
-            plugin_filename,
-            trigger: trigger_specification,
-            trigger_settings,
-            trigger_arguments,
-            disabled,
-            database_name: db_name.to_string(),
-        });
-        let creation_time = self.time_provider.now();
-        let catalog_batch = CatalogBatch {
-            time_ns: creation_time.timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![catalog_op],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            let wal_op = WalOp::Catalog(catalog_batch);
-            self.wal.write_ops(vec![wal_op]).await?;
-        }
-        Ok(())
-    }
-
-    async fn delete_trigger(
-        &self,
-        db: &str,
-        trigger_name: &str,
-        force: bool,
-    ) -> Result<(), ProcessingEngineError> {
-        let (db_id, db_schema) = self
-            .catalog
-            .db_id_and_schema(db)
-            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db.to_string()))?;
-        let catalog_op = CatalogOp::DeleteTrigger(DeleteTriggerDefinition {
-            trigger_name: trigger_name.to_string(),
-            force,
-        });
-        let catalog_batch = CatalogBatch {
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![catalog_op],
-        };
-
-        // Do this first to avoid a dangling running plugin.
-        // Potential edge-case of a plugin being stopped but not deleted,
-        // but should be okay given desire to force delete.
-        let needs_disable = force
-            && db_schema
-                .processing_engine_triggers
-                .get(trigger_name)
-                .is_some_and(|trigger| !trigger.disabled);
-
-        if needs_disable {
-            self.disable_trigger(db, trigger_name).await?;
-        }
-
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-        Ok(())
-    }
-
+impl ProcessingEngineManagerImpl {
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn run_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        processing_engine_manager: Arc<dyn ProcessingEngineManager>,
+        self: Arc<Self>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
@@ -442,17 +368,17 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             let trigger = db_schema
                 .processing_engine_triggers
                 .get(trigger_name)
-                .ok_or_else(|| ProcessingEngineTriggerNotFound {
+                .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
                     database_name: db_name.to_string(),
                     trigger_name: trigger_name.to_string(),
                 })?
                 .clone();
 
             let plugin_context = PluginContext {
-                write_buffer,
-                query_executor,
+                write_buffer: Arc::clone(&self.write_buffer),
+                query_executor: Arc::clone(&self.query_executor),
                 sys_event_store: Arc::clone(&self.sys_event_store),
-                manager: processing_engine_manager,
+                manager: Arc::clone(&self),
             };
             let plugin_code = Arc::new(self.read_plugin_code(&trigger.plugin_filename).await?);
             match trigger.trigger.plugin_type() {
@@ -512,19 +438,19 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn disable_trigger(
+    async fn stop_trigger(
         &self,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
-        let (db_id, db_schema) = self
+        let db_schema = self
             .catalog
-            .db_id_and_schema(db_name)
+            .db_schema(db_name)
             .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
         let trigger = db_schema
             .processing_engine_triggers
             .get(trigger_name)
-            .ok_or_else(|| ProcessingEngineTriggerNotFound {
+            .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: db_name.to_string(),
                 trigger_name: trigger_name.to_string(),
             })?;
@@ -532,20 +458,6 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         if trigger.disabled {
             return Ok(());
         };
-
-        let catalog_op = CatalogOp::DisableTrigger(TriggerIdentifier {
-            db_name: db_name.to_string(),
-            trigger_name: trigger_name.to_string(),
-        });
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&CatalogBatch {
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            ops: vec![catalog_op],
-        })? {
-            let wal_op = WalOp::Catalog(catalog_batch);
-            self.wal.write_ops(vec![wal_op]).await?;
-        }
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
@@ -576,77 +488,25 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    async fn enable_trigger(
-        &self,
-        write_buffer: Arc<dyn WriteBuffer>,
-        query_executor: Arc<dyn QueryExecutor>,
-        manager: Arc<dyn ProcessingEngineManager>,
-        db_name: &str,
-        trigger_name: &str,
-    ) -> Result<(), ProcessingEngineError> {
-        let (db_id, db_schema) = self
-            .catalog
-            .db_id_and_schema(db_name)
-            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
-        let trigger = db_schema
-            .processing_engine_triggers
-            .get(trigger_name)
-            .ok_or_else(|| ProcessingEngineTriggerNotFound {
-                database_name: db_name.to_string(),
-                trigger_name: trigger_name.to_string(),
-            })?;
-        // Already enabled, so this is a no-op
-        if !trigger.disabled {
-            return Ok(());
-        };
-
-        let catalog_op = CatalogOp::EnableTrigger(TriggerIdentifier {
-            db_name: db_name.to_string(),
-            trigger_name: trigger_name.to_string(),
-        });
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&CatalogBatch {
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            ops: vec![catalog_op],
-        })? {
-            let wal_op = WalOp::Catalog(catalog_batch);
-            self.wal.write_ops(vec![wal_op]).await?;
-        }
-
-        self.run_trigger(write_buffer, query_executor, manager, db_name, trigger_name)
-            .await?;
-        Ok(())
-    }
-
-    async fn start_triggers(
-        &self,
-        manager: Arc<dyn ProcessingEngineManager>,
-    ) -> Result<(), ProcessingEngineError> {
+    pub async fn start_triggers(self: Arc<Self>) -> Result<(), ProcessingEngineError> {
         let triggers = self.catalog.active_triggers();
         for (db_name, trigger_name) in triggers {
-            self.run_trigger(
-                Arc::clone(&self.write_buffer),
-                Arc::clone(&self.query_executor),
-                Arc::clone(&manager),
-                &db_name,
-                &trigger_name,
-            )
-            .await?;
+            Arc::clone(&self)
+                .run_trigger(&db_name, &trigger_name)
+                .await?;
         }
         Ok(())
     }
 
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
-    async fn test_wal_plugin(
+    pub async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<WalPluginTestResponse, plugins::PluginError> {
         #[cfg(feature = "system-py")]
         {
-            // create a copy of the catalog so we don't modify the original
-            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let catalog = Arc::clone(&self.catalog);
             let now = self.time_provider.now();
 
             let code = self.read_plugin_code(&request.filename).await?;
@@ -662,7 +522,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             })
             .await?;
 
-            return Ok(res);
+            Ok(res)
         }
 
         #[cfg(not(feature = "system-py"))]
@@ -672,15 +532,14 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
     }
 
     #[cfg_attr(not(feature = "system-py"), allow(unused))]
-    async fn test_schedule_plugin(
+    pub async fn test_schedule_plugin(
         &self,
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<SchedulePluginTestResponse, PluginError> {
         #[cfg(feature = "system-py")]
         {
-            // create a copy of the catalog so we don't modify the original
-            let catalog = Arc::new(Catalog::from_inner(self.catalog.clone_inner()));
+            let catalog = Arc::clone(&self.catalog);
             let now = self.time_provider.now();
 
             let code = self.read_plugin_code(&request.filename).await?;
@@ -703,7 +562,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
                 trigger_time: None,
             });
 
-            return Ok(res);
+            Ok(res)
         }
 
         #[cfg(not(feature = "system-py"))]
@@ -712,7 +571,7 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
         )))
     }
 
-    async fn request_trigger(
+    pub async fn request_trigger(
         &self,
         trigger_path: &str,
         query_params: HashMap<String, String>,
@@ -734,13 +593,13 @@ impl ProcessingEngineManager for ProcessingEngineManagerImpl {
             .send_request(trigger_path, request)
             .await?;
 
-        Ok(rx.await.map_err(|e| {
+        rx.await.map_err(|e| {
             error!(%e, "error receiving response from plugin");
             ProcessingEngineError::RequestHandlerDown
-        })?)
+        })
     }
 
-    fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
+    pub fn get_environment_manager(&self) -> Arc<dyn PythonEnvironmentManager> {
         Arc::clone(&self.environment_manager.package_manager)
     }
 }
@@ -797,20 +656,108 @@ pub(crate) struct Request {
     pub response_tx: oneshot::Sender<Response<Body>>,
 }
 
+fn background_catalog_update(
+    processing_engine_manager: Arc<ProcessingEngineManagerImpl>,
+    mut subscription: CatalogBroadcastReceiver,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        loop {
+            match subscription.recv().await {
+                Ok(catalog_update) => {
+                    for batch in catalog_update
+                        .batches()
+                        .filter_map(CatalogBatch::as_database)
+                    {
+                        for op in batch.ops.iter() {
+                            let processing_engine_manager = Arc::clone(&processing_engine_manager);
+                            match op {
+                                DatabaseCatalogOp::CreateTrigger(CreateTriggerLog {
+                                    trigger_name,
+                                    database_name,
+                                    disabled,
+                                    ..
+                                }) => {
+                                    if !disabled {
+                                        if let Err(error) = processing_engine_manager
+                                            .run_trigger(database_name, trigger_name)
+                                            .await
+                                        {
+                                            error!(?error, "failed to run the created trigger");
+                                        }
+                                    }
+                                }
+                                DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
+                                    db_name,
+                                    trigger_name,
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .run_trigger(db_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to run the trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
+                                    trigger_name,
+                                    force: true,
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .stop_trigger(&batch.database_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to disable the trigger");
+                                    }
+                                }
+                                DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
+                                    db_name,
+                                    trigger_name,
+                                }) => {
+                                    if let Err(error) = processing_engine_manager
+                                        .stop_trigger(db_name, trigger_name)
+                                        .await
+                                    {
+                                        error!(?error, "failed to disable the trigger");
+                                    }
+                                }
+                                // NOTE(trevor/catalog-refactor): it is not clear that any other operation needs to be
+                                // handled, based on the existing code, but we could potentially
+                                // handle database deletion, trigger creation/deletion/enable here
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+                Err(RecvError::Closed) => break,
+                Err(RecvError::Lagged(num_messages_skipped)) => {
+                    // NOTE(trevor/catalog-refactor): in this case, we would need to re-initialize the proc eng manager
+                    // from the catalog, if possible; but, it may be more desireable to not have this
+                    // situation be possible at all.. The use of a broadcast channel should only
+                    // be temporary, so this particular error variant should go away in future
+                    warn!(
+                        num_messages_skipped,
+                        "processing engine manager catalog subscription is lagging"
+                    );
+                }
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ProcessingEngineManagerImpl;
     use crate::environment::DisabledManager;
-    use crate::manager::{ProcessingEngineError, ProcessingEngineManager};
     use crate::plugins::ProcessingEngineEnvironmentManager;
     use data_types::NamespaceName;
     use datafusion_util::config::register_iox_object_store;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
-    use influxdb3_catalog::catalog;
+    use influxdb3_catalog::CatalogError;
+    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::log::{TriggerSettings, TriggerSpecificationDefinition};
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_sys_events::SysEventStore;
-    use influxdb3_wal::{Gen1Duration, TriggerSettings, TriggerSpecificationDefinition, WalConfig};
+    use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::persister::Persister;
     use influxdb3_write::write_buffer::{WriteBufferImpl, WriteBufferImplArgs};
     use influxdb3_write::{Precision, WriteBuffer};
@@ -847,8 +794,6 @@ mod tests {
 
         // convert to Arc<WriteBuffer>
         let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
-        let query_executor = Arc::clone(&pem.query_executor);
-        let pem: Arc<dyn ProcessingEngineManager> = Arc::new(pem);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -863,31 +808,31 @@ mod tests {
             .await?;
 
         // Create an enabled trigger
-        pem.insert_trigger(
-            "foo",
-            "test_trigger".to_string(),
-            file_name,
-            TriggerSettings::default(),
-            TriggerSpecificationDefinition::AllTablesWalWrite,
-            None,
-            false,
-        )
-        .await
-        .unwrap();
-        // Run the trigger
-        pem.run_trigger(
-            Arc::clone(&write_buffer),
-            Arc::clone(&query_executor),
-            Arc::clone(&pem),
-            "foo",
-            "test_trigger",
-        )
-        .await
-        .unwrap();
+        let file_name = pem
+            .validate_plugin_filename(file_name.as_str())
+            .await
+            .unwrap();
+
+        write_buffer
+            .catalog()
+            .create_processing_engine_trigger(
+                "foo",
+                "test_trigger",
+                file_name,
+                &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
+                TriggerSettings::default(),
+                &None,
+                false,
+            )
+            .await
+            .unwrap();
 
         // Disable the trigger
-        let result = pem.disable_trigger("foo", "test_trigger").await;
-        assert!(result.is_ok());
+        write_buffer
+            .catalog()
+            .disable_processing_engine_trigger("foo", "test_trigger")
+            .await
+            .unwrap();
 
         // Verify trigger is disabled in schema
         let schema = write_buffer.catalog().db_schema("foo").unwrap();
@@ -898,16 +843,11 @@ mod tests {
         assert!(trigger.disabled);
 
         // Enable the trigger
-        let result = pem
-            .enable_trigger(
-                Arc::clone(&write_buffer),
-                Arc::clone(&query_executor),
-                Arc::clone(&pem),
-                "foo",
-                "test_trigger",
-            )
-            .await;
-        assert!(result.is_ok());
+        write_buffer
+            .catalog()
+            .enable_processing_engine_trigger("foo", "test_trigger")
+            .await
+            .unwrap();
 
         // Verify trigger is enabled and running
         let schema = write_buffer.catalog().db_schema("foo").unwrap();
@@ -950,18 +890,20 @@ mod tests {
             )
             .await?;
 
+        let file_name = pem.validate_plugin_filename(&file_name).await.unwrap();
         // Create a disabled trigger
-        pem.insert_trigger(
-            "foo",
-            "test_trigger".to_string(),
-            file_name,
-            TriggerSettings::default(),
-            TriggerSpecificationDefinition::AllTablesWalWrite,
-            None,
-            true,
-        )
-        .await
-        .unwrap();
+        pem.catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "test_trigger",
+                file_name,
+                &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
+                TriggerSettings::default(),
+                &None,
+                true,
+            )
+            .await
+            .unwrap();
 
         // Verify trigger is created but disabled
         let schema = pem.catalog.db_schema("foo").unwrap();
@@ -989,8 +931,6 @@ mod tests {
         let (pem, _file_name) = setup(start_time, test_store, wal_config).await;
 
         let write_buffer: Arc<dyn WriteBuffer> = Arc::clone(&pem.write_buffer);
-        let query_executor = Arc::clone(&pem.query_executor);
-        let pem: Arc<dyn ProcessingEngineManager> = Arc::new(pem);
 
         // Create the DB by inserting a line.
         write_buffer
@@ -1004,23 +944,14 @@ mod tests {
             )
             .await?;
 
-        let result = pem
-            .enable_trigger(
-                Arc::clone(&write_buffer),
-                Arc::clone(&query_executor),
-                Arc::clone(&pem),
-                "foo",
-                "nonexistent_trigger",
-            )
-            .await;
+        let Err(CatalogError::NotFound) = pem
+            .catalog
+            .enable_processing_engine_trigger("foo", "nonexistent_trigger")
+            .await
+        else {
+            panic!("should receive not found error for non existent trigger on enable");
+        };
 
-        assert!(matches!(
-            result,
-            Err(ProcessingEngineError::CatalogUpdateError(catalog::Error::ProcessingEngineTriggerNotFound {
-                database_name,
-                trigger_name,
-            })) if database_name == "foo" && trigger_name == "nonexistent_trigger"
-        ));
         Ok(())
     }
 
@@ -1028,7 +959,7 @@ mod tests {
         start: Time,
         object_store: Arc<dyn ObjectStore>,
         wal_config: WalConfig,
-    ) -> (ProcessingEngineManagerImpl, NamedTempFile) {
+    ) -> (Arc<ProcessingEngineManagerImpl>, NamedTempFile) {
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(start));
         let metric_registry = Arc::new(Registry::new());
         let persister = Arc::new(Persister::new(
@@ -1036,7 +967,15 @@ mod tests {
             "test_host",
             Arc::clone(&time_provider) as _,
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -1063,7 +1002,6 @@ mod tests {
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&object_store));
 
         let qe = Arc::new(UnimplementedQueryExecutor);
-        let wal = wbuf.wal();
 
         let mut file = NamedTempFile::new().unwrap();
         let code = r#"
@@ -1086,7 +1024,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 wbuf,
                 qe,
                 time_provider,
-                wal,
                 sys_event_store,
             ),
             file,

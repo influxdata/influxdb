@@ -21,15 +21,16 @@ use hyper::http::HeaderValue;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use influxdb_influxql_parser::select::GroupByClause;
 use influxdb_influxql_parser::statement::Statement;
-use influxdb3_cache::distinct_cache::{self, CreateDistinctCacheArgs, MaxAge};
+use influxdb3_cache::distinct_cache;
 use influxdb3_cache::last_cache;
-use influxdb3_catalog::catalog::Error as CatalogError;
+use influxdb3_catalog::CatalogError;
+use influxdb3_catalog::log::FieldDataType;
 use influxdb3_config::EnterpriseConfigError;
 use influxdb3_internal_api::query_executor::{QueryExecutor, QueryExecutorError};
 use influxdb3_process::{INFLUXDB3_GIT_HASH_SHORT, INFLUXDB3_VERSION};
-use influxdb3_processing_engine::manager::{ProcessingEngineError, ProcessingEngineManager};
+use influxdb3_processing_engine::ProcessingEngineManagerImpl;
+use influxdb3_processing_engine::manager::ProcessingEngineError;
 use influxdb3_types::http::*;
-use influxdb3_wal::TriggerSpecificationDefinition;
 use influxdb3_write::BufferedWriteRequest;
 use influxdb3_write::Precision;
 use influxdb3_write::WriteBuffer;
@@ -54,7 +55,6 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 use std::task::Poll;
-use std::time::Duration;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 use unicode_segmentation::UnicodeSegmentation;
@@ -169,7 +169,7 @@ pub enum Error {
 
     /// Persister error
     #[error("persister error: {0}")]
-    Persister(#[from] influxdb3_write::persister::Error),
+    Persister(#[from] influxdb3_write::persister::PersisterError),
 
     // ToStrError
     #[error("to str error: {0}")]
@@ -280,11 +280,59 @@ struct ErrorMessage<T: Serialize> {
     data: Option<T>,
 }
 
-impl Error {
+trait IntoResponse {
+    fn into_response(self) -> Response<Body>;
+}
+
+impl IntoResponse for CatalogError {
+    fn into_response(self) -> Response<Body> {
+        match self {
+            Self::NotFound => Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::AlreadyExists | Self::AlreadyDeleted => Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::InvalidConfiguration { .. }
+            | Self::InvalidDistinctCacheColumnType
+            | Self::InvalidLastCacheKeyColumnType
+            | Self::InvalidColumnType { .. } => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(self.to_string()))
+                .unwrap(),
+            Self::TooManyColumns | Self::TooManyTables | Self::TooManyDbs => {
+                let err: ErrorMessage<()> = ErrorMessage {
+                    error: self.to_string(),
+                    data: None,
+                };
+                let serialized = serde_json::to_string(&err).unwrap();
+                let body = Body::from(serialized);
+                Response::builder()
+                    .status(StatusCode::UNPROCESSABLE_ENTITY)
+                    .body(body)
+                    .unwrap()
+            }
+            _ => {
+                let body = Body::from(self.to_string());
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body(body)
+                    .unwrap()
+            }
+        }
+    }
+}
+
+impl IntoResponse for Error {
     /// Convert this error into an HTTP [`Response`]
     fn into_response(self) -> Response<Body> {
         debug!(error = ?self, "API error");
         match self {
+            Self::Catalog(err) | Self::WriteBuffer(WriteBufferError::CatalogUpdateError(err)) => {
+                err.into_response()
+            }
             Self::Query(err @ QueryExecutorError::MethodNotImplemented(_)) => Response::builder()
                 .status(StatusCode::METHOD_NOT_ALLOWED)
                 .body(Body::from(err.to_string()))
@@ -308,22 +356,6 @@ impl Error {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(err.to_string()))
                 .unwrap(),
-            Self::WriteBuffer(WriteBufferError::CatalogUpdateError(
-                err @ (CatalogError::TooManyDbs
-                | CatalogError::TooManyColumns
-                | CatalogError::TooManyTables),
-            )) => {
-                let err: ErrorMessage<()> = ErrorMessage {
-                    error: err.to_string(),
-                    data: None,
-                };
-                let serialized = serde_json::to_string(&err).unwrap();
-                let body = Body::from(serialized);
-                Response::builder()
-                    .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(body)
-                    .unwrap()
-            }
             Self::WriteBuffer(WriteBufferError::ParseError(err)) => {
                 let err = ErrorMessage {
                     error: "parsing failed for write_lp endpoint".into(),
@@ -389,15 +421,6 @@ impl Error {
                     .body(Body::from(mc_err.to_string()))
                     .unwrap(),
             },
-            Self::WriteBuffer(
-                err @ WriteBufferError::CatalogUpdateError(CatalogError::CatalogUpdatedElsewhere {
-                    ..
-                })
-                | err @ WriteBufferError::TableAlreadyExists { .. },
-            ) => Response::builder()
-                .status(StatusCode::CONFLICT)
-                .body(Body::from(err.to_string()))
-                .unwrap(),
             Self::DbName(e) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: e.to_string(),
@@ -517,7 +540,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 pub(crate) struct HttpApi<T> {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
-    processing_engine: Arc<dyn ProcessingEngineManager>,
+    processing_engine: Arc<ProcessingEngineManagerImpl>,
     time_provider: Arc<T>,
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
@@ -531,7 +554,7 @@ impl<T> HttpApi<T> {
         time_provider: Arc<T>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
-        processing_engine: Arc<dyn ProcessingEngineManager>,
+        processing_engine: Arc<ProcessingEngineManagerImpl>,
         max_request_bytes: usize,
         authorizer: Arc<dyn Authorizer>,
     ) -> Self {
@@ -890,51 +913,28 @@ where
             max_cardinality,
             max_age,
         } = args;
-
-        let db_schema = self.write_buffer.catalog().db_schema(&db).ok_or_else(|| {
-            WriteBufferError::DatabaseNotFound {
-                db_name: db.to_string(),
-            }
-        })?;
-        let table_def = db_schema.table_definition(table.as_str()).ok_or_else(|| {
-            WriteBufferError::TableNotFound {
-                db_name: db,
-                table_name: table,
-            }
-        })?;
-        let column_ids = columns
-            .into_iter()
-            .map(|name| {
-                table_def
-                    .column_name_to_id(name.as_str())
-                    .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
-            })
-            .collect::<Result<Vec<_>, WriteBufferError>>()?;
-        let max_age = max_age.map(MaxAge::from).unwrap_or_default();
-        let max_cardinality = max_cardinality.unwrap_or_default();
         match self
             .write_buffer
+            .catalog()
             .create_distinct_cache(
-                db_schema,
-                name,
-                CreateDistinctCacheArgs {
-                    table_def,
-                    max_cardinality,
-                    max_age,
-                    column_ids,
-                },
+                &db,
+                &table,
+                name.as_deref(),
+                &columns,
+                max_cardinality,
+                max_age,
             )
-            .await?
+            .await
         {
-            Some(def) => Response::builder()
+            Ok(Some(batch)) => Response::builder()
                 .status(StatusCode::CREATED)
-                .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(serde_json::to_string(&def).unwrap()))
+                .body(Body::from(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
-            None => Response::builder()
+            Ok(None) => Response::builder()
                 .status(StatusCode::NO_CONTENT)
                 .body(Body::empty())
                 .map_err(Into::into),
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -949,26 +949,15 @@ where
             self.read_body_json(req).await?
         };
 
-        let (db_id, db_schema) = self
-            .write_buffer
-            .catalog()
-            .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
-                db_name: db.to_string(),
-            })?;
-        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
-            WriteBufferError::TableNotFound {
-                db_name: db,
-                table_name: table,
-            }
-        })?;
         self.write_buffer
-            .delete_distinct_cache(&db_id, &table_id, &name)
+            .catalog()
+            .delete_distinct_cache(&db, &table, &name)
             .await?;
-        Ok(Response::builder()
+
+        Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())
-            .unwrap())
+            .map_err(Into::into)
     }
 
     async fn configure_last_cache_create(&self, req: Request<Body>) -> Result<Response<Body>> {
@@ -981,67 +970,29 @@ where
             count,
             ttl,
         } = self.read_body_json(req).await?;
-
-        let (db_id, db_schema) = self
-            .write_buffer
-            .catalog()
-            .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
-                db_name: db.to_string(),
-            })?;
-        let (table_id, table_def) = db_schema
-            .table_id_and_definition(table.as_str())
-            .ok_or_else(|| WriteBufferError::TableNotFound {
-                db_name: db,
-                table_name: table,
-            })?;
-        let key_columns = key_columns
-            .map(|names| {
-                names
-                    .into_iter()
-                    .map(|name| {
-                        table_def
-                            .column_name_to_id(name.as_str())
-                            .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
-                    })
-                    .collect::<Result<Vec<_>, WriteBufferError>>()
-            })
-            .transpose()?;
-        let value_columns = value_columns
-            .map(|names| {
-                names
-                    .into_iter()
-                    .map(|name| {
-                        table_def
-                            .column_name_to_id(name.as_str())
-                            .ok_or_else(|| WriteBufferError::ColumnDoesNotExist(name))
-                    })
-                    .collect::<Result<Vec<_>, WriteBufferError>>()
-            })
-            .transpose()?;
-
         match self
             .write_buffer
+            .catalog()
             .create_last_cache(
-                db_id,
-                table_id,
+                &db,
+                &table,
                 name.as_deref(),
+                key_columns.as_deref(),
+                value_columns.as_deref(),
                 count,
-                ttl.map(Duration::from_secs),
-                key_columns,
-                value_columns,
+                ttl,
             )
-            .await?
+            .await
         {
-            Some(def) => Response::builder()
+            Ok(Some(batch)) => Response::builder()
                 .status(StatusCode::CREATED)
-                .header(CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
-                .body(Body::from(serde_json::to_string(&def).unwrap()))
+                .body(Body::from(serde_json::to_vec(&batch)?))
                 .map_err(Into::into),
-            None => Response::builder()
+            Ok(None) => Response::builder()
                 .status(StatusCode::NO_CONTENT)
                 .body(Body::empty())
                 .map_err(Into::into),
+            Err(error) => Err(error.into()),
         }
     }
 
@@ -1056,26 +1007,15 @@ where
             self.read_body_json(req).await?
         };
 
-        let (db_id, db_schema) = self
-            .write_buffer
-            .catalog()
-            .db_id_and_schema(&db)
-            .ok_or_else(|| WriteBufferError::DatabaseNotFound {
-                db_name: db.to_string(),
-            })?;
-        let table_id = db_schema.table_name_to_id(table.as_str()).ok_or_else(|| {
-            WriteBufferError::TableNotFound {
-                db_name: db.to_string(),
-                table_name: table.to_string(),
-            }
-        })?;
         self.write_buffer
-            .delete_last_cache(db_id, table_id, &name)
+            .catalog()
+            .delete_last_cache(&db, &table, &name)
             .await?;
 
-        Ok(Response::builder()
+        Response::builder()
             .status(StatusCode::OK)
-            .body(Body::empty())?)
+            .body(Body::empty())
+            .map_err(Into::into)
     }
 
     async fn configure_processing_engine_trigger(
@@ -1096,37 +1036,22 @@ where
             self.read_body_json(req).await?
         };
         debug!(%db, %plugin_filename, %trigger_name, %trigger_specification, %disabled, "configure_processing_engine_trigger");
-        let Ok(trigger_spec) =
-            TriggerSpecificationDefinition::from_string_rep(&trigger_specification)
-        else {
-            return Err(Error::Catalog(
-                CatalogError::ProcessingEngineTriggerSpecParseError {
-                    trigger_spec: trigger_specification,
-                },
-            ));
-        };
-        self.processing_engine
-            .insert_trigger(
-                db.as_str(),
-                trigger_name.clone(),
+        let plugin_filename = self
+            .processing_engine
+            .validate_plugin_filename(&plugin_filename)
+            .await?;
+        self.write_buffer
+            .catalog()
+            .create_processing_engine_trigger(
+                &db,
+                &trigger_name,
                 plugin_filename,
+                &trigger_specification,
                 trigger_settings,
-                trigger_spec,
-                trigger_arguments,
+                &trigger_arguments,
                 disabled,
             )
             .await?;
-        if !disabled {
-            self.processing_engine
-                .run_trigger(
-                    Arc::clone(&self.write_buffer),
-                    Arc::clone(&self.query_executor),
-                    Arc::clone(&self.processing_engine),
-                    db.as_str(),
-                    trigger_name.as_str(),
-                )
-                .await?;
-        }
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
@@ -1142,12 +1067,50 @@ where
         } else {
             self.read_body_json(req).await?
         };
-        self.processing_engine
-            .delete_trigger(&db, &trigger_name, force)
+        self.write_buffer
+            .catalog()
+            .delete_processing_engine_trigger(&db, &trigger_name, force)
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())?)
+    }
+
+    async fn disable_processing_engine_trigger(
+        &self,
+        req: Request<Body>,
+    ) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let ProcessingEngineTriggerIdentifier { db, trigger_name } =
+            serde_urlencoded::from_str(query)?;
+        match self
+            .write_buffer
+            .catalog()
+            .disable_processing_engine_trigger(&db, &trigger_name)
+            .await
+        {
+            Ok(_) | Err(CatalogError::TriggerAlreadyDisabled) => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(Body::empty())?),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    async fn enable_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let ProcessingEngineTriggerIdentifier { db, trigger_name } =
+            serde_urlencoded::from_str(query)?;
+        match self
+            .write_buffer
+            .catalog()
+            .enable_processing_engine_trigger(&db, &trigger_name)
+            .await
+        {
+            Ok(_) | Err(CatalogError::TriggerAlreadyEnabled) => Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(Body::empty())?),
+            Err(error) => Err(error.into()),
+        }
     }
 
     async fn install_plugin_environment_packages(
@@ -1195,36 +1158,6 @@ where
             .body(Body::empty())?)
     }
 
-    async fn disable_processing_engine_trigger(
-        &self,
-        req: Request<Body>,
-    ) -> Result<Response<Body>> {
-        let query = req.uri().query().unwrap_or("");
-        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.processing_engine
-            .disable_trigger(delete_req.db.as_str(), delete_req.trigger_name.as_str())
-            .await?;
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-    async fn enable_processing_engine_trigger(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let query = req.uri().query().unwrap_or("");
-        let delete_req = serde_urlencoded::from_str::<ProcessingEngineTriggerIdentifier>(query)?;
-        self.processing_engine
-            .enable_trigger(
-                Arc::clone(&self.write_buffer),
-                Arc::clone(&self.query_executor),
-                Arc::clone(&self.processing_engine),
-                delete_req.db.as_str(),
-                delete_req.trigger_name.as_str(),
-            )
-            .await?;
-        Ok(Response::builder()
-            .status(StatusCode::OK)
-            .body(Body::empty())?)
-    }
-
     async fn show_databases(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().unwrap_or("");
         let ShowDatabasesRequest {
@@ -1241,7 +1174,7 @@ where
 
     async fn create_database(&self, req: Request<Body>) -> Result<Response<Body>> {
         let CreateDatabaseRequest { db } = self.read_body_json(req).await?;
-        self.write_buffer.create_database(db).await?;
+        self.write_buffer.catalog().create_database(&db).await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
             .body(Body::empty())
@@ -1362,7 +1295,8 @@ where
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteDatabaseRequest>(query)?;
         self.write_buffer
-            .soft_delete_database(delete_req.db)
+            .catalog()
+            .soft_delete_database(&delete_req.db)
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)
@@ -1378,14 +1312,15 @@ where
             fields,
         } = self.read_body_json(req).await?;
         self.write_buffer
+            .catalog()
             .create_table(
-                db,
-                table,
-                tags,
-                fields
+                &db,
+                &table,
+                &tags,
+                &fields
                     .into_iter()
-                    .map(|field| (field.name, field.r#type))
-                    .collect(),
+                    .map(|field| (field.name, field.r#type.into()))
+                    .collect::<Vec<(String, FieldDataType)>>(),
             )
             .await?;
         Ok(Response::builder()
@@ -1398,7 +1333,8 @@ where
         let query = req.uri().query().unwrap_or("");
         let delete_req = serde_urlencoded::from_str::<DeleteTableRequest>(query)?;
         self.write_buffer
-            .soft_delete_table(delete_req.db, delete_req.table)
+            .catalog()
+            .soft_delete_table(&delete_req.db, &delete_req.table)
             .await?;
         Ok(Response::builder()
             .status(StatusCode::OK)

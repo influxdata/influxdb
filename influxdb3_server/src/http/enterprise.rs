@@ -81,7 +81,7 @@ where
         self.common_state
             .enterprise_config
             .persist(
-                self.write_buffer.catalog().node_id(),
+                self.write_buffer.catalog().catalog_id(),
                 &self.common_state.object_store,
             )
             .await?;
@@ -121,7 +121,7 @@ where
         self.common_state
             .enterprise_config
             .persist(
-                self.write_buffer.catalog().node_id(),
+                self.write_buffer.catalog().catalog_id(),
                 &self.common_state.object_store,
             )
             .await?;

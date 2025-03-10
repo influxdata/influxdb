@@ -1,136 +1,45 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
-use crate::catalog::Error::{
-    CatalogUpdatedElsewhere, ProcessingEngineTriggerExists, ProcessingEngineTriggerRunning,
-    TableNotFound,
-};
-use bimap::{BiHashMap, Overwritten};
+use bimap::BiHashMap;
 use hashbrown::HashMap;
 use indexmap::IndexMap;
-use influxdb_line_protocol::FieldValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
-use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DeleteDatabaseDefinition, DeleteTableDefinition,
-    DeleteTriggerDefinition, DistinctCacheDefinition, DistinctCacheDelete, FieldAdditions,
-    FieldDefinition, LastCacheDefinition, LastCacheDelete, OrderedCatalogBatch, TriggerDefinition,
-    TriggerIdentifier,
-};
-use iox_time::Time;
+use iox_time::{Time, TimeProvider};
+use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use thiserror::Error;
+use std::{borrow::Cow, ops::Deref};
+use tokio::sync::{Mutex, MutexGuard, broadcast};
+use update::CatalogUpdate;
+use uuid::Uuid;
 
-pub mod enterprise;
+mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
+pub use update::{DatabaseCatalogTransaction, Prompt};
+
+use crate::id::IdProvider;
+use crate::log::{
+    CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
+    RegisterNodeLog,
+};
+use crate::object_store::ObjectStoreCatalog;
+use crate::{
+    CatalogError, Result,
+    log::{
+        AddFieldsLog, CatalogBatch, CreateDistinctCacheLog, CreateLastCacheLog, CreateTableLog,
+        CreateTriggerLog, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog,
+        FieldDefinition, OrderedCatalogBatch, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+        TriggerIdentifier,
+    },
+    snapshot::CatalogSnapshot,
+};
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("table '{table_name}' already exists")]
-    CatalogUpdatedElsewhere { table_name: Arc<str> },
-
-    #[error(
-        "Update to schema would exceed number of columns per table limit of {} columns",
-        Catalog::NUM_COLUMNS_PER_TABLE_LIMIT - 1
-    )]
-    TooManyColumns,
-
-    #[error(
-        "Update to schema would exceed number of tables limit of {} tables",
-        Catalog::NUM_TABLES_LIMIT
-    )]
-    TooManyTables,
-
-    #[error(
-        "Adding a new database would exceed limit of {} databases",
-        Catalog::NUM_DBS_LIMIT
-    )]
-    TooManyDbs,
-
-    #[error("Table {} not in DB schema for {}", table_name, db_name)]
-    TableNotFound {
-        db_name: Arc<str>,
-        table_name: Arc<str>,
-    },
-
-    #[error(
-        "Field type mismatch on table {} column {}. Existing column is {} but attempted to add {}",
-        table_name,
-        column_name,
-        existing,
-        attempted
-    )]
-    FieldTypeMismatch {
-        table_name: String,
-        column_name: String,
-        existing: InfluxColumnType,
-        attempted: InfluxColumnType,
-    },
-
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
-
-    #[error(
-        "Cannot overwrite Processing Engine Trigger {} in Database {}",
-        trigger_name,
-        database_name
-    )]
-    ProcessingEngineTriggerExists {
-        database_name: String,
-        trigger_name: String,
-    },
-
-    #[error(
-        "Cannot delete running plugin {}. Disable it first or use --force.",
-        trigger_name
-    )]
-    ProcessingEngineTriggerRunning { trigger_name: String },
-
-    #[error(
-        "Cannot delete plugin {} in database {} because it is used by trigger {}",
-        plugin_name,
-        database_name,
-        trigger_name
-    )]
-    ProcessingEnginePluginInUse {
-        database_name: String,
-        plugin_name: String,
-        trigger_name: String,
-    },
-
-    #[error(
-        "Processing Engine Plugin {} not in DB schema for {}",
-        plugin_name,
-        database_name
-    )]
-    ProcessingEnginePluginNotFound {
-        plugin_name: String,
-        database_name: String,
-    },
-    #[error("Processing Engine Unimplemented: {}", feature_description)]
-    ProcessingEngineUnimplemented { feature_description: String },
-
-    #[error(
-        "Processing Engine Trigger {} not in DB {}",
-        trigger_name,
-        database_name
-    )]
-    ProcessingEngineTriggerNotFound {
-        database_name: String,
-        trigger_name: String,
-    },
-    #[error("failed to parse trigger from {}", trigger_spec)]
-    ProcessingEngineTriggerSpecParseError { trigger_spec: String },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub const TIME_COLUMN_NAME: &str = "time";
 
@@ -138,10 +47,10 @@ pub const TIME_COLUMN_NAME: &str = "time";
 #[derive(
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
-pub struct CatalogSequenceNumber(u32);
+pub struct CatalogSequenceNumber(u64);
 
 impl CatalogSequenceNumber {
-    pub fn new(id: u32) -> Self {
+    pub const fn new(id: u64) -> Self {
         Self(id)
     }
 
@@ -149,15 +58,54 @@ impl CatalogSequenceNumber {
         Self(self.0 + 1)
     }
 
-    pub fn as_u32(&self) -> u32 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+impl From<u64> for CatalogSequenceNumber {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
+    Mutex::const_new(CatalogSequenceNumber::new(0));
+
+/// Convenience type alias for the write permit on the catalog
+///
+/// This is a mutex that, when a lock is acquired, holds the next catalog sequence number at the
+/// time that the permit was acquired.
+pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
+
+const CATALOG_BROADCAST_CHANNEL_CAPACITY: usize = 1_000;
+
+pub type CatalogBroadcastSender = broadcast::Sender<Arc<CatalogUpdate>>;
+pub type CatalogBroadcastReceiver = broadcast::Receiver<Arc<CatalogUpdate>>;
+
 pub struct Catalog {
-    #[serde(flatten)]
+    /// Channel for broadcasting updates to other components that must handle `CatalogOp`s
+    ///
+    /// # Implementation Note
+    ///
+    /// This currently uses a `tokio::broadcast` channel, which can lead to dropped messages if
+    /// the channel fills up. If that is a concern a more durable form of broadcasting single
+    /// producer to multiple consumer messages would need to be implemented.
+    channel: CatalogBroadcastSender,
+    time_provider: Arc<dyn TimeProvider>,
+    /// Connection to the object store for managing persistence and updates to the catalog
+    store: ObjectStoreCatalog,
+    /// In-memory representation of the catalog
     inner: RwLock<InnerCatalog>,
+}
+
+/// Custom implementation of `Debug` for the `Catalog` type to avoid serializing the object store
+impl std::fmt::Debug for Catalog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Catalog")
+            .field("inner", &self.inner)
+            .finish()
+    }
 }
 
 impl Catalog {
@@ -168,61 +116,155 @@ impl Catalog {
     /// Limit for the number of tables across all DBs that InfluxDB 3 Enterprise can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 4000;
 
-    pub fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
-        Self {
-            inner: RwLock::new(InnerCatalog::new(node_id, instance_id)),
-        }
+    pub async fn new(
+        catalog_id: impl Into<Arc<str>>,
+        store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Result<Self> {
+        let node_id = catalog_id.into();
+        let store = ObjectStoreCatalog::new(Arc::clone(&node_id), store);
+        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+        store
+            .load_or_create_catalog()
+            .await
+            .map_err(Into::into)
+            .map(RwLock::new)
+            .map(|inner| Self {
+                channel,
+                time_provider,
+                store,
+                inner,
+            })
     }
 
-    pub fn from_inner(inner: InnerCatalog) -> Self {
-        Self {
-            inner: RwLock::new(inner),
-        }
+    pub fn object_store_prefix(&self) -> Arc<str> {
+        Arc::clone(&self.store.prefix)
     }
 
-    pub fn apply_catalog_batch(
+    pub fn catalog_uuid(&self) -> Uuid {
+        self.inner.read().catalog_uuid
+    }
+
+    pub fn subscribe_to_updates(&self) -> broadcast::Receiver<Arc<CatalogUpdate>> {
+        self.channel.subscribe()
+    }
+
+    /// Create new `Catalog` that uses an in-memory object store.
+    ///
+    /// # Note
+    ///
+    /// This is intended as a convenience constructor for testing
+    pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Self> {
+        use iox_time::MockProvider;
+        use object_store::memory::InMemory;
+
+        let store = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        Self::new(catalog_id.into(), store, time_provider).await
+    }
+
+    pub fn object_store(&self) -> Arc<dyn ObjectStore> {
+        self.store.object_store()
+    }
+
+    pub fn snapshot(&self) -> CatalogSnapshot {
+        self.inner.read().deref().into()
+    }
+
+    pub fn update_from_snapshot(&self, snapshot: CatalogSnapshot) {
+        let mut inner = self.inner.write();
+        *inner = snapshot.into();
+    }
+
+    pub async fn get_permit_and_verify_catalog_batch(
         &self,
         catalog_batch: &CatalogBatch,
-    ) -> Result<Option<OrderedCatalogBatch>> {
-        self.inner.write().apply_catalog_batch(catalog_batch)
+    ) -> Result<Option<(OrderedCatalogBatch, CatalogWritePermit)>> {
+        // Get the write permit, and update its contents with the next catalog sequence number. If
+        // the `catalog_batch` provided results in an update, i.e., changes the catalog, then this
+        // will be the sequence number that the catalog is updated to.
+        let mut permit = CATALOG_WRITE_PERMIT.lock().await;
+        *permit = self.sequence_number().next();
+        debug!(
+            next_sequence = permit.get(),
+            "got permit to write to catalog"
+        );
+        Ok(self
+            .inner
+            .write()
+            .verify_catalog_batch(catalog_batch, *permit)?
+            .map(|batch| (batch, permit)))
     }
 
-    // Checks the sequence number to see if it needs to be applied.
+    /// Apply an `OrderedCatalogBatch` to this catalog
+    ///
+    /// # Implementation note
+    ///
+    /// This accepts a `_permit`, which is not used, and is just a way to ensure that the caller
+    /// has a handle on the write permit at the time of invocation.
     pub fn apply_ordered_catalog_batch(
         &self,
         batch: &OrderedCatalogBatch,
-    ) -> Result<Option<CatalogBatch>> {
-        if batch.sequence_number() >= self.sequence_number().as_u32() {
-            if let Some(catalog_batch) = self.apply_catalog_batch(batch.batch())? {
-                return Ok(Some(catalog_batch.batch().clone()));
-            }
-        }
-        Ok(None)
+        _permit: &CatalogWritePermit,
+    ) -> CatalogBatch {
+        let batch_sequence = batch.sequence_number().get();
+        let current_sequence = self.sequence_number().get();
+        debug!(
+            batch_sequence,
+            current_sequence, "apply ordered catalog batch"
+        );
+        assert_eq!(
+            batch_sequence,
+            current_sequence + 1,
+            "catalog batch received out of order"
+        );
+        let catalog_batch = self
+            .inner
+            .write()
+            .apply_catalog_batch(batch.batch(), batch.sequence_number())
+            .expect("ordered catalog batch should succeed when applied")
+            .expect("ordered catalog batch should contain changes");
+        catalog_batch.into_batch()
     }
 
-    pub fn db_or_create(&self, db_name: &str) -> Result<Arc<DatabaseSchema>> {
-        let db = match self.db_schema(db_name) {
-            Some(db) => db,
+    pub fn node(&self, node_id: &str) -> Option<Arc<NodeDefinition>> {
+        self.inner.read().nodes.get(node_id).cloned()
+    }
+
+    pub fn next_db_id(&self) -> DbId {
+        self.inner.read().get_next_id()
+    }
+
+    pub fn db_or_create(
+        &self,
+        db_name: &str,
+        now_time_ns: i64,
+    ) -> Result<(Arc<DatabaseSchema>, Option<CatalogBatch>)> {
+        match self.db_schema(db_name) {
+            Some(db) => Ok((db, None)),
             None => {
                 let mut inner = self.inner.write();
 
                 if inner.database_count() >= Self::NUM_DBS_LIMIT {
-                    return Err(Error::TooManyDbs);
+                    return Err(CatalogError::TooManyDbs);
                 }
 
-                info!("return new db {}", db_name);
-                let db_id = DbId::new();
+                info!(database_name = db_name, "creating new database");
+                let db_id = inner.get_and_increment_next_id();
                 let db_name = db_name.into();
                 let db = Arc::new(DatabaseSchema::new(db_id, Arc::clone(&db_name)));
-                inner.databases.insert(db.id, Arc::clone(&db));
-                inner.sequence = inner.sequence.next();
-                inner.updated = true;
-                inner.db_map.insert(db_id, db_name);
-                db
+                let batch = CatalogBatch::database(
+                    now_time_ns,
+                    db.id,
+                    db.name(),
+                    vec![DatabaseCatalogOp::CreateDatabase(CreateDatabaseLog {
+                        database_id: db.id,
+                        database_name: Arc::clone(&db.name),
+                    })],
+                );
+                Ok((db, Some(batch)))
             }
-        };
-
-        Ok(db)
+        }
     }
 
     pub fn db_name_to_id(&self, db_name: &str) -> Option<DbId> {
@@ -273,36 +315,12 @@ impl Catalog {
         self.inner.read().clone()
     }
 
-    pub fn instance_id(&self) -> Arc<str> {
-        Arc::clone(&self.inner.read().instance_id)
+    pub fn catalog_id(&self) -> Arc<str> {
+        Arc::clone(&self.inner.read().catalog_id)
     }
 
-    pub fn node_id(&self) -> Arc<str> {
-        Arc::clone(&self.inner.read().node_id)
-    }
-
-    #[cfg(test)]
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.inner.read().db_exists(db_id)
-    }
-
-    pub fn insert_database(&self, db: DatabaseSchema) {
-        let mut inner = self.inner.write();
-        inner.upsert_db(db);
-    }
-
-    pub fn is_updated(&self) -> bool {
-        self.inner.read().updated
-    }
-
-    /// After the catalog has been persisted, mark it as not updated, if the sequence number
-    /// matches. If it doesn't then the catalog was updated while persistence was running and
-    /// will need to be persisted on the next snapshot.
-    pub fn set_updated_false_if_sequence_matches(&self, sequence_number: CatalogSequenceNumber) {
-        let mut inner = self.inner.write();
-        if inner.sequence == sequence_number {
-            inner.updated = false;
-        }
     }
 
     pub fn active_triggers(&self) -> Vec<(String, String)> {
@@ -325,44 +343,33 @@ impl Catalog {
             .collect();
         result
     }
-
-    pub fn inner(&self) -> &RwLock<InnerCatalog> {
-        &self.inner
-    }
-
-    pub fn table_id(&self, db_id: &DbId, table_name: Arc<str>) -> Option<TableId> {
-        let inner = self.inner.read();
-        inner
-            .databases
-            .get(db_id)
-            .and_then(|db| db.table_name_to_id(table_name))
-    }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct InnerCatalog {
+    pub(crate) sequence: CatalogSequenceNumber,
+    /// The `catalog_id` is the user-provided value used to prefix catalog paths on the object store
+    pub(crate) catalog_id: Arc<str>,
+    /// The `catalog_uuid` is a unique identifier to distinguish catalog instantiations
+    pub(crate) catalog_uuid: Uuid,
+    pub(crate) nodes: SerdeVecMap<Arc<str>, Arc<NodeDefinition>>,
     /// The catalog is a map of databases with their table schemas
     pub(crate) databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
-    pub(crate) sequence: CatalogSequenceNumber,
-    /// The `node_id` is the prefix that is passed in when starting up
-    /// (`node_identifier_prefix`)
-    pub(crate) node_id: Arc<str>,
-    /// The instance_id uniquely identifies the instance that generated the catalog
-    pub(crate) instance_id: Arc<str>,
-    /// If true, the catalog has been updated since the last time it was serialized
-    pub(crate) updated: bool,
+    /// A bidirectional map for fast lookups of database name via ID, or vice versa
     pub(crate) db_map: BiHashMap<DbId, Arc<str>>,
+    pub(crate) next_db_id: DbId,
 }
 
 impl InnerCatalog {
-    pub(crate) fn new(node_id: Arc<str>, instance_id: Arc<str>) -> Self {
+    pub(crate) fn new(catalog_id: Arc<str>, catalog_uuid: Uuid) -> Self {
         Self {
+            nodes: SerdeVecMap::new(),
             databases: SerdeVecMap::new(),
             sequence: CatalogSequenceNumber::new(0),
-            node_id,
-            instance_id,
-            updated: false,
+            catalog_id,
+            catalog_uuid,
             db_map: BiHashMap::new(),
+            next_db_id: DbId::default(),
         }
     }
 
@@ -378,50 +385,147 @@ impl InnerCatalog {
         self.databases.values().map(|db| db.table_count()).sum()
     }
 
-    /// Applies the `CatalogBatch` while validating that all updates are compatible. If updates
-    /// have already been applied, the sequence number and updated tracker are not updated.
-    pub fn apply_catalog_batch(
+    /// Verifies the `CatalogBatch` by validating that all updates are compatible, and returns an
+    /// `OrderedCatalogBatch` if the updates result in a change to the catalog, or `None` otherwise.
+    pub(crate) fn verify_catalog_batch(
         &mut self,
         catalog_batch: &CatalogBatch,
+        sequence: CatalogSequenceNumber,
     ) -> Result<Option<OrderedCatalogBatch>> {
-        let table_count = self.table_count();
+        debug!(
+            ?catalog_batch,
+            current_sequence = self.sequence_number().get(),
+            verified_sequence = sequence.get(),
+            "verify catalog batch"
+        );
 
-        if let Some(db) = self.databases.get(&catalog_batch.database_id) {
-            if let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, catalog_batch)? {
-                check_overall_table_count(Some(db), &new_db, table_count)?;
-                self.upsert_db(new_db);
-            } else {
-                return Ok(None);
+        self.verify_or_apply_catalog_batch(catalog_batch, sequence, false)
+    }
+
+    /// Verifies _and_ applies the `CatalogBatch` to the catalog.
+    pub(crate) fn apply_catalog_batch(
+        &mut self,
+        catalog_batch: &CatalogBatch,
+        sequence: CatalogSequenceNumber,
+    ) -> Result<Option<OrderedCatalogBatch>> {
+        debug!(
+            ?catalog_batch,
+            current_sequence = self.sequence_number().get(),
+            applied_sequence = sequence.get(),
+            "apply catalog batch"
+        );
+
+        self.verify_or_apply_catalog_batch(catalog_batch, sequence, true)
+    }
+
+    /// Inner method for shared logic between `verify_catalog_batch` and `apply_catalog_batch`
+    fn verify_or_apply_catalog_batch(
+        &mut self,
+        catalog_batch: &CatalogBatch,
+        sequence: CatalogSequenceNumber,
+        apply_changes: bool,
+    ) -> Result<Option<OrderedCatalogBatch>> {
+        let updated = match catalog_batch {
+            CatalogBatch::Node(root_batch) => {
+                self.verify_or_apply_node_batch(root_batch, apply_changes)?
             }
+            CatalogBatch::Database(database_batch) => {
+                self.verify_or_apply_database_batch(database_batch, apply_changes)?
+            }
+        };
+
+        Ok(updated.then(|| {
+            if apply_changes {
+                debug!(
+                    sequence = sequence.get(),
+                    "catalog batch applied, updating sequence"
+                );
+                self.sequence = sequence;
+            } else {
+                debug!(
+                    sequence = sequence.get(),
+                    "catalog batch verified, will update sequence"
+                );
+            }
+            OrderedCatalogBatch::new(catalog_batch.clone(), sequence)
+        }))
+    }
+
+    fn verify_or_apply_node_batch(
+        &mut self,
+        node_batch: &NodeBatch,
+        apply_changes: bool,
+    ) -> Result<bool> {
+        let mut updated = false;
+        for op in &node_batch.ops {
+            updated |= match op {
+                NodeCatalogOp::RegisterNode(RegisterNodeLog {
+                    node_id,
+                    instance_id,
+                    registered_time_ns,
+                    core_count,
+                    mode,
+                }) => {
+                    let new_node = Arc::new(NodeDefinition {
+                        node_id: Arc::clone(node_id),
+                        instance_id: Arc::clone(instance_id),
+                        mode: *mode,
+                        core_count: *core_count,
+                        state: NodeState::Running {
+                            registered_time_ns: *registered_time_ns,
+                        },
+                    });
+                    if let Some(node) = self.nodes.get(node_id) {
+                        if &node.instance_id != instance_id {
+                            return Err(CatalogError::InvalidNodeRegistration);
+                        }
+                        if *node == new_node {
+                            continue;
+                        }
+                    }
+                    if apply_changes {
+                        self.nodes.insert(Arc::clone(node_id), new_node);
+                    }
+                    true
+                }
+            };
+        }
+        Ok(updated)
+    }
+
+    fn verify_or_apply_database_batch(
+        &mut self,
+        database_batch: &DatabaseBatch,
+        apply_changes: bool,
+    ) -> Result<bool> {
+        let table_count = self.table_count();
+        let db = if let Some(db) = self.databases.get(&database_batch.database_id) {
+            let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, database_batch)?
+            else {
+                return Ok(false);
+            };
+            check_overall_table_count(Some(db), &new_db, table_count)?;
+            new_db
         } else {
             if self.database_count() >= Catalog::NUM_DBS_LIMIT {
-                return Err(Error::TooManyDbs);
+                return Err(CatalogError::TooManyDbs);
             }
-            let new_db = DatabaseSchema::new_from_batch(catalog_batch)?;
+            let new_db = DatabaseSchema::new_from_batch(database_batch)?;
             check_overall_table_count(None, &new_db, table_count)?;
-            self.upsert_db(new_db);
+            new_db
+        };
+        if apply_changes {
+            let name = Arc::clone(&db.name);
+            let id = db.id;
+            self.next_db_id = self.next_db_id.max(id.next());
+            self.databases.insert(id, Arc::new(db));
+            self.db_map.insert(id, name);
         }
-        Ok(Some(OrderedCatalogBatch::new(
-            catalog_batch.clone(),
-            self.sequence.0,
-        )))
+        Ok(true)
     }
 
     pub fn db_exists(&self, db_id: DbId) -> bool {
         self.databases.contains_key(&db_id)
-    }
-
-    pub fn upsert_db(&mut self, db: DatabaseSchema) {
-        let name = Arc::clone(&db.name);
-        let id = db.id;
-        self.databases.insert(id, Arc::new(db));
-        self.set_updated_and_increment_sequence();
-        self.db_map.insert(id, name);
-    }
-
-    fn set_updated_and_increment_sequence(&mut self) {
-        self.sequence = self.sequence.next();
-        self.updated = true;
     }
 }
 
@@ -441,7 +545,7 @@ fn check_overall_table_count(
         Ordering::Greater => {
             let newly_added_table_count = new_db.table_count() - existing_table_count;
             if current_table_count + newly_added_table_count > Catalog::NUM_TABLES_LIMIT {
-                Err(Error::TooManyTables)
+                Err(CatalogError::TooManyTables)
             } else {
                 Ok(())
             }
@@ -450,14 +554,35 @@ fn check_overall_table_count(
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
+pub struct NodeDefinition {
+    pub(crate) node_id: Arc<str>,
+    pub(crate) instance_id: Arc<str>,
+    pub(crate) mode: NodeMode,
+    pub(crate) core_count: u64,
+    pub(crate) state: NodeState,
+}
+
+impl NodeDefinition {
+    pub fn instance_id(&self) -> Arc<str> {
+        Arc::clone(&self.instance_id)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]
+pub enum NodeState {
+    Running { registered_time_ns: i64 },
+    Stopped { stopped_time_ns: i64 },
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
-    /// The database is a map of tables
     pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
     pub table_map: BiHashMap<TableId, Arc<str>>,
-    pub processing_engine_triggers: HashMap<String, TriggerDefinition>,
+    pub processing_engine_triggers: HashMap<String, CreateTriggerLog>,
     pub deleted: bool,
+    pub(crate) next_table_id: TableId,
 }
 
 impl DatabaseSchema {
@@ -469,7 +594,12 @@ impl DatabaseSchema {
             table_map: BiHashMap::new(),
             processing_engine_triggers: HashMap::new(),
             deleted: false,
+            next_table_id: TableId::default(),
         }
+    }
+
+    pub fn name(&self) -> Arc<str> {
+        Arc::clone(&self.name)
     }
 
     pub fn table_count(&self) -> usize {
@@ -481,13 +611,18 @@ impl DatabaseSchema {
     /// returned, otherwise a new `DatabaseSchema` will be returned with the updates applied.
     pub fn new_if_updated_from_batch(
         db_schema: &DatabaseSchema,
-        catalog_batch: &CatalogBatch,
+        database_batch: &DatabaseBatch,
     ) -> Result<Option<Self>> {
-        debug!(name = ?db_schema.name, deleted = ?db_schema.deleted, full_batch = ?catalog_batch, "Updating / adding to catalog");
+        debug!(
+            name = ?db_schema.name,
+            deleted = ?db_schema.deleted,
+            full_batch = ?database_batch,
+            "updating / adding to catalog"
+        );
 
         let mut schema = Cow::Borrowed(db_schema);
 
-        for catalog_op in &catalog_batch.ops {
+        for catalog_op in &database_batch.ops {
             schema = catalog_op.update_schema(schema)?;
         }
         // If there were updates then it will have become owned, so we should return the new schema.
@@ -498,38 +633,96 @@ impl DatabaseSchema {
         }
     }
 
-    pub fn new_from_batch(catalog_batch: &CatalogBatch) -> Result<Self> {
+    pub fn new_from_batch(database_batch: &DatabaseBatch) -> Result<Self> {
         let db_schema = Self::new(
-            catalog_batch.database_id,
-            Arc::clone(&catalog_batch.database_name),
+            database_batch.database_id,
+            Arc::clone(&database_batch.database_name),
         );
-        let new_db = DatabaseSchema::new_if_updated_from_batch(&db_schema, catalog_batch)?
+        let new_db = DatabaseSchema::new_if_updated_from_batch(&db_schema, database_batch)?
             .expect("database must be new");
         Ok(new_db)
     }
 
-    /// Insert a [`TableDefinition`] to the `tables` map and also update the `table_map`
-    pub fn insert_table(
+    /// Create a new empty table definition with the given `table_name` in the database.
+    ///
+    /// # Panics
+    ///
+    /// This panics if either the `tables` map or `table_map` contain the table already.
+    pub(crate) fn create_new_empty_table(
+        &mut self,
+        table_name: impl Into<Arc<str>>,
+    ) -> Result<Arc<TableDefinition>> {
+        let table_id = self.get_next_id();
+        let table_def = Arc::new(TableDefinition::new_empty(table_id, table_name.into()));
+        if self.table_map.contains_right(&table_def.table_name)
+            || self.table_map.contains_left(&table_id)
+        {
+            return Err(CatalogError::AlreadyExists);
+        }
+        assert!(
+            !self
+                .table_map
+                .insert(table_id, Arc::clone(&table_def.table_name))
+                .did_overwrite(),
+            "table is in an unexpected state"
+        );
+        assert!(
+            self.tables
+                .insert(table_id, Arc::clone(&table_def))
+                .is_none(),
+            "table map and table name/id map are in inconsistent state"
+        );
+        self.next_table_id = self.next_table_id.next();
+        Ok(table_def)
+    }
+
+    /// Update a table in the database. This fails if the table doesn't exist.
+    ///
+    /// # Panics
+    ///
+    /// This panics if the `tables` map and `table_map` are in an inconsistent state.
+    pub(crate) fn update_table(
         &mut self,
         table_id: TableId,
         table_def: Arc<TableDefinition>,
-    ) -> Result<Option<Arc<TableDefinition>>> {
-        match self
-            .table_map
-            .insert(table_id, Arc::clone(&table_def.table_name))
-        {
-            Overwritten::Left(_, _) | Overwritten::Right(_, _) | Overwritten::Both(_, _) => {
-                // This will happen if another table was inserted with the same name between checking
-                // for existence and insertion.
-                // We'd like this to be automatically handled by the system,
-                // but for now it is better to error than get into an inconsistent state.
-                return Err(CatalogUpdatedElsewhere {
-                    table_name: Arc::clone(&table_def.table_name),
-                });
-            }
-            Overwritten::Neither | Overwritten::Pair(_, _) => {}
+    ) -> Result<Arc<TableDefinition>> {
+        let in_table_map = self.table_map.contains_left(&table_id);
+        let in_tables = self.tables.contains_key(&table_id);
+        assert_eq!(
+            in_table_map, in_tables,
+            "tables map and table id/name maps are in inconsistent state"
+        );
+        if !in_tables {
+            return Err(CatalogError::NotFound);
         }
-        Ok(self.tables.insert(table_id, table_def))
+        self.table_map
+            .insert(table_id, Arc::clone(&table_def.table_name));
+        self.tables
+            .insert(table_id, table_def)
+            .ok_or_else(|| CatalogError::NotFound)
+    }
+
+    /// Insert a [`TableDefinition`] to the `tables` map and also update the `table_map` and
+    /// increment the database next id.
+    ///
+    /// # Implementation Note
+    ///
+    /// This method is intended for table definitions being inserted from a log, where the `TableId`
+    /// is known, but the table does not yet exist in this instance of the `DatabaseSchema`, i.e.,
+    /// on catalog initialization/replay.
+    pub fn insert_table_from_log(&mut self, table_id: TableId, table_def: Arc<TableDefinition>) {
+        debug!(table_id = table_id.get(), "insert table from log");
+        let in_table_map = self.table_map.contains_left(&table_id)
+            || self.table_map.contains_right(&table_def.table_name);
+        let in_tables = self.tables.contains_key(&table_id);
+        assert!(
+            !in_tables && !in_table_map,
+            "table created from log should not exist already"
+        );
+        self.table_map
+            .insert(table_id, Arc::clone(&table_def.table_name));
+        self.next_table_id = self.next_table_id.max(table_id.next());
+        self.tables.insert(table_id, table_def);
     }
 
     pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
@@ -606,6 +799,24 @@ impl DatabaseSchema {
     pub fn table_id_to_name(&self, table_id: &TableId) -> Option<Arc<str>> {
         self.table_map.get_by_left(table_id).map(Arc::clone)
     }
+
+    pub fn list_distinct_caches(&self) -> Vec<&CreateDistinctCacheLog> {
+        self.tables
+            .values()
+            .filter(|t| !t.deleted)
+            .flat_map(|t| t.distinct_caches())
+            .map(|(_, def)| def)
+            .collect()
+    }
+
+    pub fn list_last_caches(&self) -> Vec<&CreateLastCacheLog> {
+        self.tables
+            .values()
+            .filter(|t| !t.deleted)
+            .flat_map(|t| t.last_caches())
+            .map(|(_, def)| def)
+            .collect()
+    }
 }
 
 trait UpdateDatabaseSchema {
@@ -613,13 +824,13 @@ trait UpdateDatabaseSchema {
     -> Result<Cow<'a, DatabaseSchema>>;
 }
 
-impl UpdateDatabaseSchema for CatalogOp {
+impl UpdateDatabaseSchema for DatabaseCatalogOp {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         match &self {
-            CatalogOp::CreateDatabase(create_database) => {
+            DatabaseCatalogOp::CreateDatabase(create_database) => {
                 if create_database.database_id != schema.id
                     || create_database.database_name != schema.name
                 {
@@ -627,62 +838,74 @@ impl UpdateDatabaseSchema for CatalogOp {
                         "Create database call received by a mismatched DatabaseSchema. This should not be possible."
                     )
                 }
+                // NOTE(trevor/catalog-refactor): if the database is already there, shouldn't this
+                // be a no-op, and not to_mut the cow?
                 schema.to_mut();
                 Ok(schema)
             }
-            CatalogOp::CreateTable(create_table) => create_table.update_schema(schema),
-            CatalogOp::AddFields(field_additions) => field_additions.update_schema(schema),
-            CatalogOp::CreateDistinctCache(distinct_cache_definition) => {
+            DatabaseCatalogOp::CreateTable(create_table) => create_table.update_schema(schema),
+            DatabaseCatalogOp::AddFields(field_additions) => field_additions.update_schema(schema),
+            DatabaseCatalogOp::CreateDistinctCache(distinct_cache_definition) => {
                 distinct_cache_definition.update_schema(schema)
             }
-            CatalogOp::DeleteDistinctCache(delete_distinct_cache) => {
+            DatabaseCatalogOp::DeleteDistinctCache(delete_distinct_cache) => {
                 delete_distinct_cache.update_schema(schema)
             }
-            CatalogOp::CreateLastCache(create_last_cache) => {
+            DatabaseCatalogOp::CreateLastCache(create_last_cache) => {
                 create_last_cache.update_schema(schema)
             }
-            CatalogOp::DeleteLastCache(delete_last_cache) => {
+            DatabaseCatalogOp::DeleteLastCache(delete_last_cache) => {
                 delete_last_cache.update_schema(schema)
             }
-            CatalogOp::DeleteDatabase(delete_database) => delete_database.update_schema(schema),
-            CatalogOp::DeleteTable(delete_table) => delete_table.update_schema(schema),
-            CatalogOp::CreateTrigger(create_trigger) => create_trigger.update_schema(schema),
-            CatalogOp::DeleteTrigger(delete_trigger) => delete_trigger.update_schema(schema),
-            CatalogOp::EnableTrigger(trigger_identifier) => {
+            DatabaseCatalogOp::SoftDeleteDatabase(delete_database) => {
+                delete_database.update_schema(schema)
+            }
+            DatabaseCatalogOp::SoftDeleteTable(delete_table) => delete_table.update_schema(schema),
+            DatabaseCatalogOp::CreateTrigger(create_trigger) => {
+                create_trigger.update_schema(schema)
+            }
+            DatabaseCatalogOp::DeleteTrigger(delete_trigger) => {
+                delete_trigger.update_schema(schema)
+            }
+            DatabaseCatalogOp::EnableTrigger(trigger_identifier) => {
                 EnableTrigger(trigger_identifier.clone()).update_schema(schema)
             }
-            CatalogOp::DisableTrigger(trigger_identifier) => {
+            DatabaseCatalogOp::DisableTrigger(trigger_identifier) => {
                 DisableTrigger(trigger_identifier.clone()).update_schema(schema)
             }
         }
     }
 }
 
-impl UpdateDatabaseSchema for influxdb3_wal::WalTableDefinition {
+impl UpdateDatabaseSchema for CreateTableLog {
     fn update_schema<'a>(
         &self,
         mut database_schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         match database_schema.tables.get(&self.table_id) {
             Some(existing_table) => {
+                debug!("creating existing table");
                 if let Cow::Owned(updated_table) = existing_table.check_and_add_new_fields(self)? {
                     database_schema
                         .to_mut()
-                        .insert_table(self.table_id, Arc::new(updated_table))?;
+                        .update_table(self.table_id, Arc::new(updated_table))?;
                 }
             }
             None => {
+                debug!(log = ?self, "creating new table from log");
                 let new_table = TableDefinition::new_from_op(self);
                 database_schema
                     .to_mut()
-                    .insert_table(new_table.table_id, Arc::new(new_table))?;
+                    .insert_table_from_log(new_table.table_id, Arc::new(new_table));
             }
         }
+
+        debug!("updated schema for create table");
         Ok(database_schema)
     }
 }
 
-impl UpdateDatabaseSchema for DeleteDatabaseDefinition {
+impl UpdateDatabaseSchema for SoftDeleteDatabaseLog {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
@@ -695,7 +918,7 @@ impl UpdateDatabaseSchema for DeleteDatabaseDefinition {
     }
 }
 
-impl UpdateDatabaseSchema for DeleteTableDefinition {
+impl UpdateDatabaseSchema for SoftDeleteTableLog {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
@@ -729,7 +952,7 @@ impl UpdateDatabaseSchema for EnableTrigger {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
-            return Err(Error::ProcessingEngineTriggerNotFound {
+            return Err(CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: self.0.db_name.to_string(),
                 trigger_name: self.0.trigger_name.to_string(),
             });
@@ -753,7 +976,7 @@ impl UpdateDatabaseSchema for DisableTrigger {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
-            return Err(Error::ProcessingEngineTriggerNotFound {
+            return Err(CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: self.0.db_name.to_string(),
                 trigger_name: self.0.trigger_name.to_string(),
             });
@@ -771,7 +994,7 @@ impl UpdateDatabaseSchema for DisableTrigger {
     }
 }
 
-impl UpdateDatabaseSchema for TriggerDefinition {
+impl UpdateDatabaseSchema for CreateTriggerLog {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
@@ -780,7 +1003,7 @@ impl UpdateDatabaseSchema for TriggerDefinition {
             if current == self {
                 return Ok(schema);
             }
-            return Err(ProcessingEngineTriggerExists {
+            return Err(CatalogError::ProcessingEngineTriggerExists {
                 database_name: schema.name.to_string(),
                 trigger_name: self.trigger_name.to_string(),
             });
@@ -793,7 +1016,7 @@ impl UpdateDatabaseSchema for TriggerDefinition {
     }
 }
 
-impl UpdateDatabaseSchema for DeleteTriggerDefinition {
+impl UpdateDatabaseSchema for DeleteTriggerLog {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
@@ -806,7 +1029,7 @@ impl UpdateDatabaseSchema for DeleteTriggerDefinition {
             if self.force {
                 warn!("deleting running trigger {}", self.trigger_name);
             } else {
-                return Err(ProcessingEngineTriggerRunning {
+                return Err(CatalogError::ProcessingEngineTriggerRunning {
                     trigger_name: self.trigger_name.to_string(),
                 });
             }
@@ -837,12 +1060,19 @@ pub struct TableDefinition {
     pub column_map: BiHashMap<ColumnId, Arc<str>>,
     pub series_key: Vec<ColumnId>,
     pub series_key_names: Vec<Arc<str>>,
-    pub last_caches: HashMap<Arc<str>, LastCacheDefinition>,
-    pub distinct_caches: HashMap<Arc<str>, DistinctCacheDefinition>,
+    pub last_caches: HashMap<Arc<str>, CreateLastCacheLog>,
+    pub distinct_caches: HashMap<Arc<str>, CreateDistinctCacheLog>,
     pub deleted: bool,
+    pub(crate) next_column_id: ColumnId,
 }
 
 impl TableDefinition {
+    /// Create new empty `TableDefinition`
+    pub fn new_empty(table_id: TableId, table_name: Arc<str>) -> Self {
+        Self::new(table_id, table_name, vec![], vec![])
+            .expect("empty table should create without error")
+    }
+
     /// Create a new [`TableDefinition`]
     ///
     /// Ensures the provided columns will be ordered before constructing the schema.
@@ -854,7 +1084,7 @@ impl TableDefinition {
     ) -> Result<Self> {
         // ensure we're under the column limit
         if columns.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
-            return Err(Error::TooManyColumns);
+            return Err(CatalogError::TooManyColumns);
         }
 
         // Use a BTree to ensure that the columns are ordered:
@@ -864,14 +1094,29 @@ impl TableDefinition {
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         schema_builder.measurement(table_name.as_ref());
+        let next_column_id = if columns.is_empty() {
+            ColumnId::default()
+        } else {
+            columns
+                .iter()
+                .map(|c| c.0)
+                .max()
+                .expect("there should be max column id when columns provided")
+                .next()
+        };
         let mut columns = IndexMap::with_capacity(ordered_columns.len());
         let mut column_map = BiHashMap::with_capacity(ordered_columns.len());
         for (name, (col_id, column_type)) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
-            let nullable = !matches!(column_type, InfluxColumnType::Timestamp);
-            columns.insert(
-                *col_id,
-                ColumnDefinition::new(*col_id, name, *column_type, nullable),
+            let not_nullable = matches!(column_type, InfluxColumnType::Timestamp);
+            assert!(
+                columns
+                    .insert(
+                        *col_id,
+                        ColumnDefinition::new(*col_id, name, *column_type, !not_nullable),
+                    )
+                    .is_none(),
+                "table definition initialized with duplicate column ids"
             );
             column_map.insert(*col_id, name.into());
         }
@@ -900,11 +1145,12 @@ impl TableDefinition {
             last_caches: HashMap::new(),
             distinct_caches: HashMap::new(),
             deleted: false,
+            next_column_id,
         })
     }
 
     /// Create a new table definition from a catalog op
-    pub fn new_from_op(table_definition: &influxdb3_wal::WalTableDefinition) -> Self {
+    pub fn new_from_op(table_definition: &CreateTableLog) -> Self {
         let mut columns = Vec::with_capacity(table_definition.field_definitions.len());
         for field_def in &table_definition.field_definitions {
             columns.push((
@@ -924,7 +1170,7 @@ impl TableDefinition {
 
     pub(crate) fn check_and_add_new_fields(
         &self,
-        table_definition: &influxdb3_wal::WalTableDefinition,
+        table_definition: &CreateTableLog,
     ) -> Result<Cow<'_, Self>> {
         Self::add_fields(Cow::Borrowed(self), &table_definition.field_definitions)
     }
@@ -938,7 +1184,7 @@ impl TableDefinition {
         for field_def in fields {
             if let Some(existing_type) = table.columns.get(&field_def.id).map(|def| def.data_type) {
                 if existing_type != field_def.data_type.into() {
-                    return Err(Error::FieldTypeMismatch {
+                    return Err(CatalogError::FieldTypeMismatch {
                         table_name: table.table_name.to_string(),
                         column_name: field_def.name.to_string(),
                         existing: existing_type,
@@ -955,7 +1201,13 @@ impl TableDefinition {
         }
 
         if !new_fields.is_empty() {
-            table.to_mut().add_columns(new_fields)?;
+            let table = table.to_mut();
+            table.next_column_id = new_fields
+                .iter()
+                .map(|f| f.0.next())
+                .max()
+                .unwrap_or(table.next_column_id);
+            table.add_columns(new_fields)?;
         }
         Ok(table)
     }
@@ -963,6 +1215,16 @@ impl TableDefinition {
     /// Check if the column exists in the [`TableDefinition`]
     pub fn column_exists(&self, column: impl Into<Arc<str>>) -> bool {
         self.column_map.get_by_right(&column.into()).is_some()
+    }
+
+    pub(crate) fn add_column(
+        &mut self,
+        column_name: Arc<str>,
+        column_type: InfluxColumnType,
+    ) -> Result<ColumnId> {
+        let col_id = self.get_and_increment_next_id();
+        self.add_columns(vec![(col_id, column_name, column_type)])?;
+        Ok(col_id)
     }
 
     /// Add the columns to this [`TableDefinition`]
@@ -979,25 +1241,24 @@ impl TableDefinition {
             cols.insert(Arc::clone(&col_def.name), col_def);
         }
         for (id, name, column_type) in columns {
+            let nullable = name.as_ref() != TIME_COLUMN_NAME;
             assert!(
                 cols.insert(
                     Arc::clone(&name),
-                    // any new column added by this function must be nullable:
-                    ColumnDefinition::new(id, name, column_type, true)
+                    ColumnDefinition::new(id, name, column_type, nullable)
                 )
                 .is_none(),
                 "attempted to add existing column"
             );
-
-            // Since this is not an existing column we can safely add to the series key
-            if matches!(column_type, InfluxColumnType::Tag) {
+            // add new tags to the series key in the order provided
+            if matches!(column_type, InfluxColumnType::Tag) && !self.series_key.contains(&id) {
                 self.series_key.push(id);
             }
         }
 
         // ensure we don't go over the column limit
         if cols.len() > Catalog::NUM_COLUMNS_PER_TABLE_LIMIT {
-            return Err(Error::TooManyColumns);
+            return Err(CatalogError::TooManyColumns);
         }
 
         let mut schema_builder = SchemaBuilder::with_capacity(cols.len());
@@ -1045,8 +1306,8 @@ impl TableDefinition {
             .map(|def| def.data_type)
     }
 
-    /// Add the given [`DistinctCacheDefinition`] to this table
-    pub fn add_distinct_cache(&mut self, distinct_cache: DistinctCacheDefinition) {
+    /// Add the `distinct_cache` to this table
+    pub fn add_distinct_cache(&mut self, distinct_cache: CreateDistinctCacheLog) {
         self.distinct_caches
             .insert(Arc::clone(&distinct_cache.cache_name), distinct_cache);
     }
@@ -1057,7 +1318,7 @@ impl TableDefinition {
     }
 
     /// Add a new last cache to this table definition
-    pub fn add_last_cache(&mut self, last_cache: LastCacheDefinition) {
+    pub fn add_last_cache(&mut self, last_cache: CreateLastCacheLog) {
         self.last_caches
             .insert(Arc::clone(&last_cache.name), last_cache);
     }
@@ -1067,13 +1328,13 @@ impl TableDefinition {
         self.last_caches.remove(cache_name);
     }
 
-    pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &LastCacheDefinition)> {
+    pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &CreateLastCacheLog)> {
         self.last_caches
             .iter()
             .map(|(name, def)| (Arc::clone(name), def))
     }
 
-    pub fn distinct_caches(&self) -> impl Iterator<Item = (Arc<str>, &DistinctCacheDefinition)> {
+    pub fn distinct_caches(&self) -> impl Iterator<Item = (Arc<str>, &CreateDistinctCacheLog)> {
         self.distinct_caches
             .iter()
             .map(|(name, def)| (Arc::clone(name), def))
@@ -1143,7 +1404,7 @@ impl<T: TableUpdate> UpdateDatabaseSchema for T {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         let Some(table) = schema.tables.get(&self.table_id()) else {
-            return Err(TableNotFound {
+            return Err(CatalogError::TableNotFound {
                 db_name: Arc::clone(&schema.name),
                 table_name: Arc::clone(&self.table_name()),
             });
@@ -1151,13 +1412,13 @@ impl<T: TableUpdate> UpdateDatabaseSchema for T {
         if let Cow::Owned(new_table) = self.update_table(Cow::Borrowed(table.as_ref()))? {
             schema
                 .to_mut()
-                .insert_table(new_table.table_id, Arc::new(new_table))?;
+                .update_table(new_table.table_id, Arc::new(new_table))?;
         }
         Ok(schema)
     }
 }
 
-impl TableUpdate for FieldAdditions {
+impl TableUpdate for AddFieldsLog {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1172,7 +1433,7 @@ impl TableUpdate for FieldAdditions {
     }
 }
 
-impl TableUpdate for DistinctCacheDefinition {
+impl TableUpdate for CreateDistinctCacheLog {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1190,7 +1451,7 @@ impl TableUpdate for DistinctCacheDefinition {
     }
 }
 
-impl TableUpdate for DistinctCacheDelete {
+impl TableUpdate for DeleteDistinctCacheLog {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1208,7 +1469,7 @@ impl TableUpdate for DistinctCacheDelete {
     }
 }
 
-impl TableUpdate for LastCacheDefinition {
+impl TableUpdate for CreateLastCacheLog {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1228,7 +1489,7 @@ impl TableUpdate for LastCacheDefinition {
     }
 }
 
-impl TableUpdate for LastCacheDelete {
+impl TableUpdate for DeleteLastCacheLog {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1271,106 +1532,72 @@ impl ColumnDefinition {
     }
 }
 
-pub fn influx_column_type_from_field_value(fv: &FieldValue<'_>) -> InfluxColumnType {
-    match fv {
-        FieldValue::I64(_) => InfluxColumnType::Field(InfluxFieldType::Integer),
-        FieldValue::U64(_) => InfluxColumnType::Field(InfluxFieldType::UInteger),
-        FieldValue::F64(_) => InfluxColumnType::Field(InfluxFieldType::Float),
-        FieldValue::String(_) => InfluxColumnType::Field(InfluxFieldType::String),
-        FieldValue::Boolean(_) => InfluxColumnType::Field(InfluxFieldType::Boolean),
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use core::panic;
+
+    use crate::{
+        log::{FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create},
+        serialize::{CatalogFile, serialize_catalog_snapshot, verify_and_deserialize_catalog},
+    };
+
     use super::*;
-    use influxdb3_wal::CatalogOp::CreateTable;
-    use influxdb3_wal::{DatabaseDefinition, FieldDataType, WalOp, create};
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
-    #[test]
-    fn catalog_serialization() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(node_id, cloned_instance_id);
-        let mut database = DatabaseSchema {
-            id: DbId::from(0),
-            name: "test_db".into(),
-            tables: SerdeVecMap::new(),
-            table_map: {
-                let mut map = BiHashMap::new();
-                map.insert(TableId::from(1), "test_table_1".into());
-                map.insert(TableId::from(2), "test_table_2".into());
-                map
-            },
-            processing_engine_triggers: Default::default(),
-            deleted: false,
-        };
-        use InfluxColumnType::*;
-        use InfluxFieldType::*;
-        database.tables.insert(
-            TableId::from(1),
-            Arc::new(
-                TableDefinition::new(
-                    TableId::from(1),
-                    "test_table_1".into(),
-                    vec![
-                        (ColumnId::new(), "tag_1".into(), Tag),
-                        (ColumnId::new(), "tag_2".into(), Tag),
-                        (ColumnId::new(), "tag_3".into(), Tag),
-                        (ColumnId::new(), "time".into(), Timestamp),
-                        (ColumnId::new(), "string_field".into(), Field(String)),
-                        (ColumnId::new(), "bool_field".into(), Field(Boolean)),
-                        (ColumnId::new(), "i64_field".into(), Field(Integer)),
-                        (ColumnId::new(), "u64_field".into(), Field(UInteger)),
-                        (ColumnId::new(), "f64_field".into(), Field(Float)),
-                    ],
-                    vec![0.into(), 1.into(), 2.into()],
-                )
-                .unwrap(),
-            ),
-        );
-        database.tables.insert(
-            TableId::from(2),
-            Arc::new(
-                TableDefinition::new(
-                    TableId::from(2),
-                    "test_table_2".into(),
-                    vec![
-                        (ColumnId::new(), "tag_1".into(), Tag),
-                        (ColumnId::new(), "tag_2".into(), Tag),
-                        (ColumnId::new(), "tag_3".into(), Tag),
-                        (ColumnId::new(), "time".into(), Timestamp),
-                        (ColumnId::new(), "string_field".into(), Field(String)),
-                        (ColumnId::new(), "bool_field".into(), Field(Boolean)),
-                        (ColumnId::new(), "i64_field".into(), Field(Integer)),
-                        (ColumnId::new(), "u64_field".into(), Field(UInteger)),
-                        (ColumnId::new(), "f64_field".into(), Field(Float)),
-                    ],
-                    vec![9.into(), 10.into(), 11.into()],
-                )
-                .unwrap(),
-            ),
-        );
+    #[test_log::test(tokio::test)]
+    async fn catalog_serialization() {
+        let catalog = Catalog::new_in_memory("sample-host-id").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
         catalog
-            .inner
-            .write()
-            .databases
-            .insert(database.id, Arc::new(database));
+            .create_table(
+                "test_db",
+                "test_table_1",
+                &["tag_1", "tag_2", "tag_3"],
+                &[
+                    ("string_field", FieldDataType::String),
+                    ("bool_field", FieldDataType::Boolean),
+                    ("i64_field", FieldDataType::Integer),
+                    ("u64_field", FieldDataType::UInteger),
+                    ("float_field", FieldDataType::Float),
+                ],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table_2",
+                &["tag_1", "tag_2", "tag_3"],
+                &[
+                    ("string_field", FieldDataType::String),
+                    ("bool_field", FieldDataType::Boolean),
+                    ("i64_field", FieldDataType::Integer),
+                    ("u64_field", FieldDataType::UInteger),
+                    ("float_field", FieldDataType::Float),
+                ],
+            )
+            .await
+            .unwrap();
 
         insta::allow_duplicates! {
             insta::with_settings!({
                 sort_maps => true,
                 description => "catalog serialization to help catch breaking changes"
             }, {
-                insta::assert_json_snapshot!(catalog);
-                // Serialize/deserialize to ensure roundtrip to/from JSON
-                let serialized = serde_json::to_string(&catalog).unwrap();
-                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
-                insta::assert_json_snapshot!(catalog);
-                assert_eq!(instance_id, catalog.instance_id());
+                let snapshot = catalog.snapshot();
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                // Serialize/deserialize to ensure roundtrip
+                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
+                    panic!("wrong catalog file type");
+                };
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                catalog.update_from_snapshot(snapshot);
                 assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
             });
         }
@@ -1389,7 +1616,8 @@ mod tests {
                             "name": "db1",
                             "tables": [],
                             "table_map": [],
-                            "deleted": false
+                            "deleted": false,
+                            "next_table_id": 0
                         }
                     ],
                     [
@@ -1399,13 +1627,15 @@ mod tests {
                             "name": "db1",
                             "tables": [],
                             "table_map": [],
-                            "deleted": false
+                            "deleted": false,
+                            "next_table_id": 0
                         }
                     ]
                 ],
                 "sequence": 0,
-                "node_id": "test",
-                "instance_id": "test"
+                "catalog_id": "test",
+                "catalog_uuid": "test",
+                "next_db_id": 1
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "duplicate key found");
@@ -1449,8 +1679,9 @@ mod tests {
                     ]
                 ],
                 "sequence": 0,
-                "node_id": "test",
-                "instance_id": "test"
+                "catalog_id": "test",
+                "catalog_uuid": "test",
+                "next_db_id": 1
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "duplicate key found");
@@ -1500,7 +1731,10 @@ mod tests {
                             "deleted": false
                         }
                     ]
-                ]
+                ],
+                "catalog_id": "test",
+                "catalog_uuid": "test",
+                "next_db_id": 1
             }"#;
             let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
             assert_contains!(err.to_string(), "duplicate key found");
@@ -1516,6 +1750,7 @@ mod tests {
             table_map: BiHashMap::new(),
             processing_engine_triggers: Default::default(),
             deleted: false,
+            next_table_id: Default::default(),
         };
         database.tables.insert(
             TableId::from(0),
@@ -1558,199 +1793,151 @@ mod tests {
         assert_eq!(table.column_name_to_id_unchecked("test2"), 1.into());
     }
 
-    #[test]
-    fn serialize_series_keys() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(node_id, instance_id);
-        let mut database = DatabaseSchema {
-            id: DbId::from(0),
-            name: "test_db".into(),
-            tables: SerdeVecMap::new(),
-            table_map: {
-                let mut map = BiHashMap::new();
-                map.insert(TableId::from(1), "test_table_1".into());
-                map
-            },
-            processing_engine_triggers: Default::default(),
-            deleted: false,
-        };
-        use InfluxColumnType::*;
-        use InfluxFieldType::*;
-        database.tables.insert(
-            TableId::from(1),
-            Arc::new(
-                TableDefinition::new(
-                    TableId::from(1),
-                    "test_table_1".into(),
-                    vec![
-                        (ColumnId::from(0), "tag_1".into(), Tag),
-                        (ColumnId::from(1), "tag_2".into(), Tag),
-                        (ColumnId::from(2), "tag_3".into(), Tag),
-                        (ColumnId::from(3), "time".into(), Timestamp),
-                        (ColumnId::from(4), "field".into(), Field(String)),
-                    ],
-                    vec![ColumnId::from(0), ColumnId::from(1), ColumnId::from(2)],
-                )
-                .unwrap(),
-            ),
-        );
+    #[tokio::test]
+    async fn serialize_series_keys() {
+        let catalog = Catalog::new_in_memory("sample-host-id").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
         catalog
-            .inner
-            .write()
-            .databases
-            .insert(database.id, Arc::new(database));
-
-        insta::allow_duplicates! {
-            insta::with_settings!({
-                sort_maps => true,
-                description => "catalog serialization to help catch breaking changes"
-            }, {
-                insta::assert_json_snapshot!(catalog);
-                let serialized = serde_json::to_string(&catalog).unwrap();
-                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
-                insta::assert_json_snapshot!(catalog);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
-            });
-        }
-    }
-
-    #[test]
-    fn serialize_last_cache() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(node_id, instance_id);
-        let mut database = DatabaseSchema {
-            id: DbId::from(0),
-            name: "test_db".into(),
-            tables: SerdeVecMap::new(),
-            table_map: {
-                let mut map = BiHashMap::new();
-                map.insert(TableId::from(0), "test".into());
-                map
-            },
-            processing_engine_triggers: Default::default(),
-            deleted: false,
-        };
-        use InfluxColumnType::*;
-        use InfluxFieldType::*;
-        let mut table_def = TableDefinition::new(
-            TableId::from(0),
-            "test".into(),
-            vec![
-                (ColumnId::from(0), "tag_1".into(), Tag),
-                (ColumnId::from(1), "tag_2".into(), Tag),
-                (ColumnId::from(2), "tag_3".into(), Tag),
-                (ColumnId::from(3), "time".into(), Timestamp),
-                (ColumnId::from(4), "field".into(), Field(String)),
-            ],
-            vec![0.into(), 1.into(), 2.into()],
-        )
-        .unwrap();
-        table_def.add_last_cache(
-            LastCacheDefinition::new_with_explicit_value_columns(
-                TableId::from(0),
-                "test",
-                "test_table_last_cache",
-                vec![ColumnId::from(1), ColumnId::from(2)],
-                vec![ColumnId::from(4)],
-                1,
-                600,
+            .create_table(
+                "test_db",
+                "test_table_1",
+                &["tag_1", "tag_2", "tag_3"],
+                &[("field", FieldDataType::String)],
             )
-            .unwrap(),
-        );
-        database
-            .tables
-            .insert(TableId::from(0), Arc::new(table_def));
-        catalog
-            .inner
-            .write()
-            .databases
-            .insert(database.id, Arc::new(database));
-
-        insta::allow_duplicates! {
-            insta::with_settings!({
-                sort_maps => true,
-                description => "catalog serialization to help catch breaking changes"
-            }, {
-                insta::assert_json_snapshot!(catalog);
-                let serialized = serde_json::to_string(&catalog).unwrap();
-                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
-                insta::assert_json_snapshot!(catalog);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
-            });
-        }
-    }
-
-    #[test]
-    fn test_serialize_distinct_cache() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let catalog = Catalog::new(node_id, instance_id);
-        let mut database = catalog.db_or_create("test_db").unwrap().as_ref().clone();
-        use InfluxColumnType::*;
-        use InfluxFieldType::*;
-        let table_id = TableId::new();
-        let table_name = Arc::<str>::from("test_table");
-        let tag_1_id = ColumnId::new();
-        let tag_2_id = ColumnId::new();
-        let tag_3_id = ColumnId::new();
-        let mut table_def = TableDefinition::new(
-            table_id,
-            Arc::clone(&table_name),
-            vec![
-                (tag_1_id, "tag_1".into(), Tag),
-                (tag_2_id, "tag_2".into(), Tag),
-                (tag_3_id, "tag_3".into(), Tag),
-                (ColumnId::new(), "time".into(), Timestamp),
-                (ColumnId::new(), "field".into(), Field(String)),
-            ],
-            vec![tag_1_id, tag_2_id, tag_3_id],
-        )
-        .unwrap();
-        table_def.add_distinct_cache(DistinctCacheDefinition {
-            table_id,
-            table_name,
-            cache_name: Arc::<str>::from("test_cache"),
-            column_ids: vec![tag_1_id, tag_2_id],
-            max_cardinality: 100,
-            max_age_seconds: 10,
-        });
-        database
-            .insert_table(table_id, Arc::new(table_def))
+            .await
             .unwrap();
-        catalog.inner.write().upsert_db(database);
 
         insta::allow_duplicates! {
             insta::with_settings!({
                 sort_maps => true,
                 description => "catalog serialization to help catch breaking changes"
             }, {
-                insta::assert_json_snapshot!(catalog);
-                let serialized = serde_json::to_string(&catalog).unwrap();
-                let catalog: Catalog = serde_json::from_str(&serialized).unwrap();
-                insta::assert_json_snapshot!(catalog);
+                let snapshot = catalog.snapshot();
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                // Serialize/deserialize to ensure roundtrip
+                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
+                    panic!("wrong catalog file type");
+                };
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                catalog.update_from_snapshot(snapshot);
                 assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
             });
         }
     }
 
-    #[test]
-    fn catalog_instance_and_node_ids() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let cloned_node_id = Arc::clone(&node_id);
-        let cloned_instance_id = Arc::clone(&instance_id);
-        let catalog = Catalog::new(cloned_node_id, cloned_instance_id);
-        assert_eq!(instance_id, catalog.instance_id());
-        assert_eq!(node_id, catalog.node_id());
+    #[tokio::test]
+    async fn serialize_last_cache() {
+        let catalog = Catalog::new_in_memory("sample-host-id").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test",
+                &["tag_1", "tag_2", "tag_3"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_last_cache(
+                "test_db",
+                "test",
+                Some("test_table_last_cache"),
+                Some(&["tag_1", "tag_3"]),
+                Some(&["field"]),
+                LastCacheSize::new(1).unwrap(),
+                LastCacheTtl::from_secs(600),
+            )
+            .await
+            .unwrap();
+
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                let snapshot = catalog.snapshot();
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                // Serialize/deserialize to ensure roundtrip
+                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
+                    panic!("wrong catalog file type");
+                };
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                catalog.update_from_snapshot(snapshot);
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_serialize_distinct_cache() {
+        let catalog = Catalog::new_in_memory("sample-host-id").await.unwrap();
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_table",
+                &["tag_1", "tag_2", "tag_3"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        catalog
+            .create_distinct_cache(
+                "test_db",
+                "test_table",
+                Some("test_cache"),
+                &["tag_1", "tag_2"],
+                MaxCardinality::from_usize_unchecked(100),
+                MaxAge::from_secs(10),
+            )
+            .await
+            .unwrap();
+
+        insta::allow_duplicates! {
+            insta::with_settings!({
+                sort_maps => true,
+                description => "catalog serialization to help catch breaking changes"
+            }, {
+                let snapshot = catalog.snapshot();
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                // Serialize/deserialize to ensure roundtrip
+                let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
+                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
+                    panic!("wrong catalog file type");
+                };
+                insta::assert_json_snapshot!(snapshot, {
+                    ".catalog_uuid" => "[uuid]"
+                });
+                catalog.update_from_snapshot(snapshot);
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+            });
+        }
+    }
+
+    #[tokio::test]
+    async fn test_catalog_id() {
+        let catalog = Catalog::new_in_memory("sample-host-id").await.unwrap();
+        assert_eq!("sample-host-id", catalog.catalog_id().as_ref());
     }
 
     /// See: https://github.com/influxdata/influxdb/issues/25524
-    #[test]
-    fn apply_catalog_batch_fails_for_add_fields_on_nonexist_table() {
-        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
-        catalog.insert_database(DatabaseSchema::new(DbId::new(), Arc::from("foo")));
+    #[test_log::test(tokio::test)]
+    async fn apply_catalog_batch_fails_for_add_fields_on_nonexist_table() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
         let db_id = catalog.db_name_to_id("foo").unwrap();
         let catalog_batch = create::catalog_batch(
             db_id,
@@ -1759,102 +1946,75 @@ mod tests {
             [create::add_fields_op(
                 db_id,
                 "foo",
-                TableId::new(),
+                TableId::new(0),
                 "banana",
                 [create::field_def(
-                    ColumnId::new(),
+                    ColumnId::new(0),
                     "papaya",
                     FieldDataType::String,
                 )],
             )],
         );
         let err = catalog
-            .apply_catalog_batch(&catalog_batch)
+            .get_permit_and_verify_catalog_batch(&catalog_batch)
+            .await
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }
 
-    #[test]
-    fn test_check_and_mark_table_as_deleted() {
-        let db_id = DbId::from(0);
-
-        let mut database = DatabaseSchema {
-            id: db_id,
-            name: "test".into(),
-            tables: SerdeVecMap::new(),
-            table_map: BiHashMap::new(),
-            processing_engine_triggers: Default::default(),
-            deleted: false,
-        };
-        let deleted_table_id = TableId::new();
-        let table_name = Arc::from("boo");
-        let deleted_table_defn = DeleteTableDefinition {
-            database_id: db_id,
-            database_name: Arc::from("foo"),
-            table_id: deleted_table_id,
-            table_name: Arc::clone(&table_name),
-            deletion_time: 0,
-        };
-        let table_defn = Arc::new(
-            TableDefinition::new(
-                deleted_table_id,
-                Arc::clone(&table_name),
-                vec![
-                    (ColumnId::from(0), "tag_1".into(), InfluxColumnType::Tag),
-                    (ColumnId::from(1), "tag_2".into(), InfluxColumnType::Tag),
-                    (ColumnId::from(2), "tag_3".into(), InfluxColumnType::Tag),
-                    (
-                        ColumnId::from(3),
-                        "time".into(),
-                        InfluxColumnType::Timestamp,
-                    ),
-                    (
-                        ColumnId::from(4),
-                        "field".into(),
-                        InfluxColumnType::Field(InfluxFieldType::String),
-                    ),
-                ],
-                vec![ColumnId::from(0), ColumnId::from(1), ColumnId::from(2)],
+    #[tokio::test]
+    async fn test_check_and_mark_table_as_deleted() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("test").await.unwrap();
+        catalog
+            .create_table(
+                "test",
+                "boo",
+                &["tag_1", "tag_2", "tag_3"],
+                &[("field", FieldDataType::String)],
             )
-            .unwrap(),
+            .await
+            .unwrap();
+
+        assert!(
+            !catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo")
+                .unwrap()
+                .deleted
         );
 
-        database
-            .insert_table(deleted_table_id, table_defn)
-            .expect("should be able to insert");
-        let new_db = DatabaseSchema::new_if_updated_from_batch(
-            &database,
-            &CatalogBatch {
-                database_id: database.id,
-                database_name: Arc::clone(&database.name),
-                time_ns: 0,
-                ops: vec![CatalogOp::DeleteTable(deleted_table_defn)],
-            },
-        )
-        .unwrap()
-        .expect("should mutate db");
+        catalog.soft_delete_table("test", "boo").await.unwrap();
 
-        // check that table is not under the old name
-        assert!(new_db.table_definition(table_name).is_none());
-
-        let deleted_table = new_db.table_definition("boo-19700101T000000").unwrap();
-
-        assert_eq!(deleted_table.table_id, deleted_table_id);
-        assert_eq!(&*deleted_table.table_name, "boo-19700101T000000");
-        assert!(deleted_table.deleted);
-        assert!(!deleted_table.series_key.is_empty());
+        assert!(
+            catalog
+                .db_schema("test")
+                .unwrap()
+                .table_definition("boo-19700101T000000")
+                .unwrap()
+                .deleted
+        );
     }
 
-    // tests that sorting catalog ops by the sequence number returned from apply_catalog_batch
-    // fixes potential ordering issues.
-    #[test]
-    fn test_out_of_order_ops() -> Result<()> {
-        let catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
-        let db_id = DbId::new();
+    // NOTE(trevor/catalog-refactor): this test predates the object-store based catalog, where
+    // ordering is still enforced, but it is different. This test mainly verifies that when
+    // `OrderedCatalogBatch`s are sorted, they are sorted into the correct order of application.
+    // This may still be relevant, but for now am ignoring this test I'm not sure where exactly this
+    // is needed; this test is the only piece of code currently that relies on the `PartialOrd`/`Ord`
+    // implementations on the `OrderedCatalogBatch` type.
+    //
+    // Original comment: tests that sorting catalog ops by the sequence number returned from
+    // apply_catalog_batch fixes potential ordering issues.
+    #[test_log::test(tokio::test)]
+    #[ignore]
+    async fn test_out_of_order_ops() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        let db_id = DbId::new(0);
         let db_name = Arc::from("foo");
-        let table_id = TableId::new();
+        let table_id = TableId::new(0);
         let table_name = Arc::from("bar");
-        let table_definition = influxdb3_wal::WalTableDefinition {
+        let table_definition = CreateTableLog {
             database_id: db_id,
             database_name: Arc::clone(&db_name),
             table_name: Arc::clone(&table_name),
@@ -1866,17 +2026,17 @@ mod tests {
             ],
             key: vec![ColumnId::from(0)],
         };
-        let create_op = CatalogBatch {
-            database_id: db_id,
-            database_name: Arc::clone(&db_name),
-            time_ns: 0,
-            ops: vec![CreateTable(table_definition.clone())],
-        };
-        let add_column_op = CatalogBatch {
-            database_id: db_id,
-            database_name: Arc::clone(&db_name),
-            time_ns: 0,
-            ops: vec![CatalogOp::AddFields(FieldAdditions {
+        let create_op = CatalogBatch::database(
+            0,
+            db_id,
+            Arc::clone(&db_name),
+            vec![DatabaseCatalogOp::CreateTable(table_definition.clone())],
+        );
+        let add_column_op = CatalogBatch::database(
+            0,
+            db_id,
+            Arc::clone(&db_name),
+            vec![DatabaseCatalogOp::AddFields(AddFieldsLog {
                 database_name: Arc::clone(&db_name),
                 database_id: db_id,
                 table_name,
@@ -1887,25 +2047,26 @@ mod tests {
                     FieldDataType::Tag,
                 )],
             })],
-        };
-        let create_ordered_op = catalog
-            .apply_catalog_batch(&create_op)?
+        );
+        debug!("apply create op");
+        let (create_ordered_op, _) = catalog
+            .get_permit_and_verify_catalog_batch(&create_op)
+            .await
+            .expect("get permit and verify create op")
             .expect("should be able to create");
-        let add_column_op = catalog
-            .apply_catalog_batch(&add_column_op)?
+        debug!("apply add column op");
+        let (add_column_op, permit) = catalog
+            .get_permit_and_verify_catalog_batch(&add_column_op)
+            .await
+            .expect("verify and permit add column op")
             .expect("should produce operation");
-        let mut ops = vec![
-            WalOp::Catalog(add_column_op),
-            WalOp::Catalog(create_ordered_op),
-        ];
-        ops.sort();
+        let mut ordered_batches = vec![add_column_op, create_ordered_op];
+        ordered_batches.sort();
 
-        let replayed_catalog = Catalog::new(Arc::from("host"), Arc::from("instance"));
-        for op in ops {
-            let WalOp::Catalog(catalog_batch) = op else {
-                panic!("should produce operation");
-            };
-            replayed_catalog.apply_catalog_batch(catalog_batch.batch())?;
+        let replayed_catalog = Catalog::new_in_memory("host").await.unwrap();
+        debug!(?ordered_batches, "apply sorted ops");
+        for ordered_batch in ordered_batches {
+            replayed_catalog.apply_ordered_catalog_batch(&ordered_batch, &permit);
         }
         let original_table = catalog
             .db_schema_by_id(&db_id)
@@ -1919,249 +2080,114 @@ mod tests {
             .unwrap();
 
         assert_eq!(original_table, replayed_table);
-        Ok(())
     }
 
-    #[test]
-    fn deleted_dbs_dont_count() {
-        let catalog = Catalog::new(Arc::from("test"), Arc::from("test-instance"));
+    #[test_log::test(tokio::test)]
+    async fn deleted_dbs_dont_count() {
+        let catalog = Catalog::new_in_memory("test").await.unwrap();
 
-        let mut dbs: Vec<(DbId, String)> = vec![];
-        for _ in 0..Catalog::NUM_DBS_LIMIT {
-            let db_id = DbId::new();
-            let db_name = format!("test-db-{db_id}");
-            catalog
-                .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                    db_id,
-                    db_name.as_str(),
-                    0,
-                    [influxdb3_wal::create::create_table_op(
-                        db_id,
-                        db_name.as_str(),
-                        TableId::new(),
-                        "test-table",
-                        [
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "field",
-                                FieldDataType::String,
-                            ),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "time",
-                                FieldDataType::Timestamp,
-                            ),
-                        ],
-                        [],
-                    )],
-                ))
-                .unwrap();
-            dbs.push((db_id, db_name));
+        for i in 0..Catalog::NUM_DBS_LIMIT {
+            let db_name = format!("test-db-{i}");
+            catalog.create_database(&db_name).await.unwrap();
         }
+
         // check the count of databases:
-        assert_eq!(100, catalog.inner.read().database_count());
+        assert_eq!(
+            Catalog::NUM_DBS_LIMIT,
+            catalog.inner.read().database_count()
+        );
+
         // now create another database, this should NOT be allowed:
-        let db_id = DbId::new();
         let db_name = "a-database-too-far";
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    db_name,
-                    TableId::new(),
-                    "test-table",
-                    [
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "field",
-                            FieldDataType::String,
-                        ),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "time",
-                            FieldDataType::Timestamp,
-                        ),
-                    ],
-                    [],
-                )],
-            ))
-            .expect_err("should not be able to create more than 5 databases");
+            .create_database(db_name)
+            .await
+            .expect_err("should not be able to create more than permitted number of databases");
+
         // now delete a database:
-        let (db_id, db_name) = dbs.pop().unwrap();
-        catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name.as_str(),
-                1,
-                [CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
-                    database_id: db_id,
-                    database_name: db_name.as_str().into(),
-                    deletion_time: 1,
-                })],
-            ))
-            .unwrap();
+        let db_name = format!("test-db-{}", Catalog::NUM_DBS_LIMIT - 1);
+        catalog.soft_delete_database(&db_name).await.unwrap();
+
         // check again, count should have gone down:
-        assert_eq!(99, catalog.inner.read().database_count());
+        assert_eq!(
+            Catalog::NUM_DBS_LIMIT - 1,
+            catalog.inner.read().database_count()
+        );
+
         // now create another database (using same name as the deleted one), this should be allowed:
-        let db_id = DbId::new();
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name.as_str(),
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    db_name.as_str(),
-                    TableId::new(),
-                    "test-table",
-                    [
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "field",
-                            FieldDataType::String,
-                        ),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "time",
-                            FieldDataType::Timestamp,
-                        ),
-                    ],
-                    [],
-                )],
-            ))
+            .create_database(&db_name)
+            .await
             .expect("can create a database again");
+
         // check new count:
-        assert_eq!(100, catalog.inner.read().database_count());
+        assert_eq!(
+            Catalog::NUM_DBS_LIMIT,
+            catalog.inner.read().database_count()
+        );
     }
 
-    #[test]
-    fn deleted_tables_dont_count() {
-        let catalog = Catalog::new(Arc::from("test"), Arc::from("test-instance"));
-        // create a database:
-        let db_id = DbId::new();
-        let db_name = "test-db";
-        catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                [CatalogOp::CreateDatabase(DatabaseDefinition {
-                    database_id: db_id,
-                    database_name: db_name.into(),
-                })],
-            ))
-            .unwrap();
-        let mut tables: Vec<(TableId, Arc<str>)> = vec![];
+    #[test_log::test(tokio::test)]
+    async fn deleted_tables_dont_count() {
+        let catalog = Catalog::new_in_memory("test").await.unwrap();
 
-        catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                (0..Catalog::NUM_TABLES_LIMIT).map(|i| {
-                    let table_id = TableId::new();
-                    let table_name = Arc::<str>::from(format!("test-table-{i}").as_str());
-                    tables.push((table_id, Arc::clone(&table_name)));
-                    influxdb3_wal::create::create_table_op(
-                        db_id,
-                        db_name,
-                        table_id,
-                        table_name,
-                        [
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "field",
-                                FieldDataType::String,
-                            ),
-                            influxdb3_wal::create::field_def(
-                                ColumnId::new(),
-                                "time",
-                                FieldDataType::Timestamp,
-                            ),
-                        ],
-                        [],
-                    )
-                }),
-            ))
-            .unwrap();
+        let mut txn = catalog.begin("test-db").unwrap();
 
-        assert_eq!(4_000, catalog.inner.read().table_count());
+        // create as many tables as are allowed:
+        for i in 0..Catalog::NUM_TABLES_LIMIT {
+            let table_name = format!("test-table-{i}");
+            txn.table_or_create(&table_name).unwrap();
+            txn.column_or_create(&table_name, "field", FieldDataType::String)
+                .unwrap();
+            txn.column_or_create(&table_name, "time", FieldDataType::Timestamp)
+                .unwrap();
+        }
+        catalog.commit(txn).await.unwrap();
+
+        assert_eq!(
+            Catalog::NUM_TABLES_LIMIT,
+            catalog.inner.read().table_count()
+        );
+
         // should not be able to create another table:
-        let table_id = TableId::new();
-        let table_name = Arc::<str>::from("a-table-too-far");
+        let table_name = "a-table-too-far";
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    db_name,
-                    table_id,
-                    Arc::clone(&table_name),
-                    [
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "field",
-                            FieldDataType::String,
-                        ),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "time",
-                            FieldDataType::Timestamp,
-                        ),
-                    ],
-                    [],
-                )],
-            ))
+            .create_table(
+                "test-db",
+                table_name,
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
             .expect_err("should not be able to exceed table limit");
-        // delete a table
-        let (table_id, table_name) = tables.pop().unwrap();
+
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                [CatalogOp::DeleteTable(DeleteTableDefinition {
-                    database_id: db_id,
-                    database_name: db_name.into(),
-                    table_id,
-                    table_name: Arc::clone(&table_name),
-                    deletion_time: 0,
-                })],
-            ))
+            .soft_delete_table(
+                "test-db",
+                format!("test-table-{}", Catalog::NUM_TABLES_LIMIT - 1).as_str(),
+            )
+            .await
             .unwrap();
-        assert_eq!(3_999, catalog.inner.read().table_count());
+
+        assert_eq!(
+            Catalog::NUM_TABLES_LIMIT - 1,
+            catalog.inner.read().table_count()
+        );
+
         // now create it again, this should be allowed:
         catalog
-            .apply_catalog_batch(&influxdb3_wal::create::catalog_batch(
-                db_id,
-                db_name,
-                0,
-                [influxdb3_wal::create::create_table_op(
-                    db_id,
-                    db_name,
-                    TableId::new(),
-                    Arc::clone(&table_name),
-                    [
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "field",
-                            FieldDataType::String,
-                        ),
-                        influxdb3_wal::create::field_def(
-                            ColumnId::new(),
-                            "time",
-                            FieldDataType::Timestamp,
-                        ),
-                    ],
-                    [],
-                )],
-            ))
-            .unwrap();
-        assert_eq!(4_000, catalog.inner.read().table_count());
+            .create_table(
+                "test-db",
+                table_name,
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .expect("should be created");
+
+        assert_eq!(
+            Catalog::NUM_TABLES_LIMIT,
+            catalog.inner.read().table_count()
+        );
     }
 }

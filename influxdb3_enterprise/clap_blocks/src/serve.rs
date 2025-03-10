@@ -3,8 +3,13 @@
 use std::{ops::Deref, str::FromStr, sync::Arc};
 
 use anyhow::bail;
+use influxdb3_catalog::log::NodeMode;
 #[derive(Debug, clap::Parser)]
 pub struct EnterpriseServeConfig {
+    /// The cluster id
+    #[clap(long = "cluster-id", env = "INFLUXDB3_ENTERPRISE_CLUSTER_ID", action)]
+    pub cluster_identifier_prefix: Option<String>,
+
     /// The mode to start the server in
     #[clap(long = "mode", value_enum, default_value_t = BufferMode::ReadWrite, env = "INFLUXDB3_ENTERPRISE_MODE", action)]
     pub mode: BufferMode,
@@ -176,6 +181,16 @@ impl std::fmt::Display for BufferMode {
             BufferMode::Read => write!(f, "read"),
             BufferMode::ReadWrite => write!(f, "read_write"),
             BufferMode::Compactor => write!(f, "compactor"),
+        }
+    }
+}
+
+impl From<BufferMode> for NodeMode {
+    fn from(mode: BufferMode) -> Self {
+        match mode {
+            BufferMode::Read => Self::Read,
+            BufferMode::ReadWrite => Self::ReadWrite,
+            BufferMode::Compactor => Self::Compactor,
         }
     }
 }

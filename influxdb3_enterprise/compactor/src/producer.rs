@@ -3,19 +3,17 @@
 
 use crate::compacted_data::CompactedData;
 use crate::planner::{CompactionPlanGroup, NextCompactionPlan};
-use crate::{CompactFilesArgs, ParquetCachePreFetcher, compact_files};
-use crate::{
-    catalog::{CatalogSnapshotMarker, CompactedCatalog},
-    sys_events::{
-        CompactionEventStore,
-        compaction_completed::{self, PlanIdentifier},
-        compaction_planned,
-        snapshot_fetched::{FailedInfo, SuccessInfo},
-    },
+use crate::sys_events::{
+    CompactionEventStore,
+    compaction_completed::{self, PlanIdentifier},
+    compaction_planned,
+    snapshot_fetched::{FailedInfo, SuccessInfo},
 };
+use crate::{CompactFilesArgs, compact_files};
 use datafusion::{common::instant::Instant, datasource::object_store::ObjectStoreUrl};
 use hashbrown::HashMap;
-use influxdb3_catalog::catalog::CatalogSequenceNumber;
+use influxdb3_catalog::CatalogError;
+use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_data_layout::CompactionSummaryPath;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
@@ -31,6 +29,7 @@ use influxdb3_enterprise_data_layout::{
         persist_compaction_detail, persist_compaction_summary, persist_generation_detail,
     },
 };
+use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::SnapshotSequenceNumber;
 use influxdb3_write::PersistedSnapshot;
@@ -52,18 +51,18 @@ use trace::span::{MetaValue, Span, SpanRecorder};
 
 #[derive(Debug, Error)]
 pub enum CompactedDataProducerError {
-    #[error("Error loading compacted catalog: {0}")]
-    LoadError(#[from] crate::catalog::Error),
     #[error("Error loading compacted data from object store: {0}")]
     CompactedDataLoadError(#[from] crate::compacted_data::Error),
     #[error("Error loading compaction summary: {0}")]
     CompactionSummaryLoadError(#[from] CompactedDataPersistenceError),
     #[error("Error loading snapshots: {0}")]
-    SnapshotLoadError(#[from] influxdb3_write::persister::Error),
+    SnapshotLoadError(#[from] influxdb3_write::persister::PersisterError),
     #[error("Error deserializeing snapshot: {0}")]
     SnapshotDeserializeError(#[from] serde_json::Error),
     #[error("Error joining spawned task: {0}")]
     TokioJoinError(#[from] tokio::task::JoinError),
+    #[error("failed to update the catalog based on recent snapshots: {0:?}")]
+    CatalogUpdate(#[source] CatalogError),
 }
 
 /// Result type for functions in this module.
@@ -118,6 +117,7 @@ pub struct CompactedDataProducerArgs {
     pub sys_events_store: Arc<dyn CompactionEventStore>,
     pub time_provider: Arc<dyn TimeProvider>,
     pub span_ctx: Option<SpanContext>,
+    pub catalog: Arc<Catalog>,
 }
 
 impl CompactedDataProducer {
@@ -135,6 +135,7 @@ impl CompactedDataProducer {
             sys_events_store,
             time_provider,
             span_ctx,
+            catalog,
         }: CompactedDataProducerArgs,
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
@@ -142,6 +143,7 @@ impl CompactedDataProducer {
             node_ids,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
+            catalog,
         )
         .await?;
         let span = span_ctx
@@ -478,7 +480,7 @@ impl CompactedDataProducer {
 
         let compaction_summary = CompactionSummary {
             compaction_sequence_number: next_sequence_number,
-            catalog_sequence_number: self.compacted_data.compacted_catalog.sequence_number(),
+            catalog_sequence_number: self.compacted_data.catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
             snapshot_markers,
@@ -783,32 +785,8 @@ impl CompactionState {
         node_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        catalog: Arc<Catalog>,
     ) -> Result<(Self, CompactedData)> {
-        // load or initialize and persist a compacted catalog
-        async fn compacted_catalog(
-            compactor_id: Arc<str>,
-            node_ids: Vec<String>,
-            obj_store: Arc<dyn ObjectStore>,
-            time_provider: Arc<dyn TimeProvider>,
-        ) -> Result<CompactedCatalog> {
-            match CompactedCatalog::load(Arc::clone(&compactor_id), Arc::clone(&obj_store)).await? {
-                Some(catalog) => Ok(catalog),
-                None => {
-                    let catalog = CompactedCatalog::load_merged_from_node_ids(
-                        compactor_id,
-                        node_ids.clone(),
-                        Arc::clone(&obj_store),
-                        time_provider,
-                    )
-                    .await?;
-
-                    catalog.persist(obj_store).await?;
-
-                    Ok(catalog)
-                }
-            }
-        }
-
         // load or initialize and persist the first compaction summary
         async fn summary(
             compactor_id: Arc<str>,
@@ -872,29 +850,18 @@ impl CompactionState {
             Ok((compaction_summary, node_id_to_last_marker))
         }
 
-        // Spawn tasks so they can run in parallel
-        let task_1 = tokio::spawn(compacted_catalog(
-            Arc::clone(&compactor_id),
-            node_ids.clone(),
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider),
-        ));
-        let task_2 = tokio::spawn(summary(
+        let (compaction_summary, node_id_to_last_marker) = summary(
             Arc::clone(&compactor_id),
             node_ids,
             Arc::clone(&object_store),
-        ));
-
-        // Await both futures concurrently
-        let (compacted_catalog, summary_tuple) = tokio::try_join!(task_1, task_2)?;
-        let compacted_catalog = compacted_catalog?;
-        let (compaction_summary, node_id_to_last_marker) = summary_tuple?;
+        )
+        .await?;
 
         // now load the compacted data
         let compacted_data = CompactedData::load_compacted_data(
             compactor_id,
             compaction_summary,
-            compacted_catalog,
+            catalog,
             Arc::clone(&object_store),
         )
         .await?;
@@ -967,60 +934,19 @@ impl CompactionState {
             }
         }
 
-        // create writer catalog markers with the max catalog_sequence_number from each writer
-        let mut writer_catalog_markers: HashMap<&String, CatalogSnapshotMarker> = HashMap::new();
-        for snapshot in &snapshots {
-            let marker = writer_catalog_markers
-                .entry(&snapshot.node_id)
-                .or_insert_with(|| CatalogSnapshotMarker {
-                    snapshot_sequence_number: snapshot.snapshot_sequence_number,
-                    catalog_sequence_number: snapshot.catalog_sequence_number,
-                    node_id: snapshot.node_id.clone(),
-                });
+        let Some(latest_catalog_sequence_number) =
+            snapshots.iter().map(|s| s.catalog_sequence_number).max()
+        else {
+            return Ok(());
+        };
 
-            if snapshot.catalog_sequence_number > marker.catalog_sequence_number {
-                marker.catalog_sequence_number = snapshot.catalog_sequence_number;
-            }
-        }
-        let writer_catalog_markers = writer_catalog_markers.into_values().collect::<Vec<_>>();
+        compacted_data
+            .catalog
+            .update_to_sequence_number(latest_catalog_sequence_number)
+            .await
+            .map_err(CompactedDataProducerError::CatalogUpdate)?;
 
-        // if we have any catalog markers, we need to see if we need to update the catalog
-        if !writer_catalog_markers.is_empty() {
-            if let Err(e) = compacted_data
-                .compacted_catalog
-                .update_from_markers(
-                    writer_catalog_markers,
-                    Arc::clone(&object_store),
-                    Arc::clone(&sys_events_store),
-                )
-                .await
-            {
-                warn!(error = %e, "error updating compacted catalog from markers");
-            };
-        }
-
-        // now map all the snapshot ids before adding them in
-        let mut mapped_snapshots = Vec::with_capacity(snapshots.len());
-        let start = Instant::now();
-        for snapshot in snapshots {
-            let node_id = snapshot.node_id.to_owned();
-            let sequence_num = snapshot.snapshot_sequence_number;
-            let s = compacted_data
-                .compacted_catalog
-                .map_persisted_snapshot_contents(snapshot)
-                .inspect_err(|err| {
-                    let event = FailedInfo {
-                        node_id: Arc::from(node_id.as_str()),
-                        duration: start.elapsed(),
-                        sequence_number: sequence_num.as_u64(),
-                        error: err.to_string(),
-                    };
-                    sys_events_store.record_snapshot_failed(event);
-                })?;
-            mapped_snapshots.push(s);
-        }
-
-        self.add_snapshots(mapped_snapshots);
+        self.add_snapshots(snapshots);
 
         Ok(())
     }
@@ -1192,7 +1118,7 @@ mod tests {
 
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
-    use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_id::{ParquetFileId, SerdeVecMap};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
     use influxdb3_write::{PersistedSnapshot, persister::Persister};
@@ -1220,14 +1146,14 @@ mod tests {
     async fn test_run_compaction() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
 
         let lp = r#"
             cpu,host=foo usage=1 1
             cpu,host=foo usage=2 2
             cpu,host=foo usage=3 3
         "#;
-        let snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
+        let snapshot = writer.persist_lp_and_snapshot(lp).await;
         assert_eq!(
             snapshot.snapshot_sequence_number,
             SnapshotSequenceNumber::new(1)
@@ -1235,7 +1161,7 @@ mod tests {
         assert_eq!(writer.get_files("cpu").len(), 1);
 
         let snapshot = writer
-            .persist_lp_and_snapshot("cpu,host=foo usage=4 60000000000", 0)
+            .persist_lp_and_snapshot("cpu,host=foo usage=4 60000000000")
             .await;
         assert_eq!(
             snapshot.snapshot_sequence_number,
@@ -1244,7 +1170,7 @@ mod tests {
         assert_eq!(writer.get_files("cpu").len(), 2);
 
         let snapshot = writer
-            .persist_lp_and_snapshot("cpu,host=foo usage=5 120000000000", 0)
+            .persist_lp_and_snapshot("cpu,host=foo usage=5 120000000000")
             .await;
         assert_eq!(
             snapshot.snapshot_sequence_number,
@@ -1269,13 +1195,14 @@ mod tests {
             parquet_cache_prefetcher: None,
             sys_events_store,
             time_provider,
+            catalog: writer.catalog(),
         })
         .await
         .unwrap();
 
         let compactor_db_schema = compactor
             .compacted_data
-            .compacted_catalog
+            .catalog
             .db_schema("testdb")
             .unwrap();
         let table_definition = compactor_db_schema.table_definition("cpu").unwrap();
@@ -1367,12 +1294,12 @@ mod tests {
     async fn load_snapshots_persists_compacted_catalog() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
 
         let lp = r#"
             cpu,host=asdf usage=1 1
         "#;
-        let _snapshot = writer.persist_lp_and_snapshot(lp, 0).await;
+        let _snapshot = writer.persist_lp_and_snapshot(lp).await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
 
         let (mut state, compacted_data) = CompactionState::load_or_initialize(
@@ -1380,37 +1307,21 @@ mod tests {
             vec![node_id.into()],
             Arc::clone(&object_store),
             time_provider,
+            writer.catalog(),
         )
         .await
         .unwrap();
-        let db_schema = compacted_data
-            .compacted_catalog
-            .db_schema("testdb")
-            .unwrap();
-        let table_definition = db_schema.table_definition("cpu").unwrap();
-
-        let loaded_compacted_catalog =
-            CompactedCatalog::load("compactor-1".into(), Arc::clone(&object_store))
-                .await
-                .unwrap()
-                .unwrap();
-        let loaded_db_schema = loaded_compacted_catalog.db_schema("testdb").unwrap();
-        let loaded_table_definition = loaded_db_schema.table_definition("cpu").unwrap();
+        let db_schema = compacted_data.catalog.db_schema("testdb").unwrap();
+        let _table_definition = db_schema.table_definition("cpu").unwrap();
 
         assert_eq!(
-            compacted_data.compacted_catalog.sequence_number(),
+            compacted_data.catalog.sequence_number(),
             CatalogSequenceNumber::new(1)
         );
-        assert_eq!(
-            loaded_compacted_catalog.sequence_number(),
-            CatalogSequenceNumber::new(1)
-        );
-        assert_eq!(db_schema, loaded_db_schema);
-        assert_eq!(table_definition, loaded_table_definition);
 
         // now write a new snapshot, load snapshots, and reload the compacted catalog to ensure it's updated
         let snapshot = writer
-            .persist_lp_and_snapshot("mem,host=foo usage=4 60000000000", 0)
+            .persist_lp_and_snapshot("mem,host=foo usage=4 60000000000")
             .await;
         assert_eq!(
             snapshot.snapshot_sequence_number,
@@ -1433,43 +1344,26 @@ mod tests {
             .unwrap();
 
         // ensure the in-memory and a newly loaded compacted catalog have the new mem table
-        let db_schema = compacted_data
-            .compacted_catalog
-            .db_schema("testdb")
-            .unwrap();
-        let table_definition = db_schema.table_definition("mem").unwrap();
-        let loaded_compacted_catalog = CompactedCatalog::load_from_id(
-            "compactor-1",
-            CatalogSequenceNumber::new(2),
-            Arc::clone(&object_store),
-        )
-        .await
-        .unwrap()
-        .unwrap();
-        let loaded_db_schema = loaded_compacted_catalog.db_schema("testdb").unwrap();
-        let loaded_table_definition = loaded_db_schema.table_definition("mem").unwrap();
-
-        assert_eq!(db_schema, loaded_db_schema);
-        assert_eq!(table_definition, loaded_table_definition);
+        let db_schema = compacted_data.catalog.db_schema("testdb").unwrap();
+        let _table_definition = db_schema.table_definition("mem").unwrap();
 
         // and make sure the cpu table is there
         assert!(db_schema.table_definition("cpu").is_some());
-        assert!(loaded_db_schema.table_definition("cpu").is_some());
     }
 
     #[tokio::test]
     async fn producer_updates_compacted_catalog_and_consumer_picks_up() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store));
+        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
 
         // create 3 snapshots so we have enough to compact
-        let _snapshot = writer.persist_lp_and_snapshot("cpu,t=a usage=1 1", 0).await;
+        let _snapshot = writer.persist_lp_and_snapshot("cpu,t=a usage=1 1").await;
         let _snapshot = writer
-            .persist_lp_and_snapshot("cpu,t=a usage=6 60000000000", 0)
+            .persist_lp_and_snapshot("cpu,t=a usage=6 60000000000")
             .await;
         let _snapshot = writer
-            .persist_lp_and_snapshot("cpu,t=a usage=12 120000000000", 0)
+            .persist_lp_and_snapshot("cpu,t=a usage=12 120000000000")
             .await;
 
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -1494,6 +1388,7 @@ mod tests {
             parquet_cache_prefetcher: None,
             sys_events_store: Arc::clone(&sys_events_store),
             time_provider,
+            catalog: writer.catalog(),
         })
         .await
         .unwrap();
@@ -1508,16 +1403,13 @@ mod tests {
         let consumer = CompactedDataConsumer::new(
             Arc::from("compactor-1"),
             Arc::clone(&object_store),
+            writer.catalog(),
             None,
             Arc::clone(&sys_events_store),
         )
         .await
         .unwrap();
-        let consumer_db = consumer
-            .compacted_data
-            .compacted_catalog
-            .db_schema("testdb")
-            .unwrap();
+        let consumer_db = consumer.compacted_data.catalog.db_schema("testdb").unwrap();
         let consumer_table = consumer_db.table_definition("cpu").unwrap();
         let parquet_files = consumer.compacted_data.parquet_files(
             consumer_db.id,
@@ -1528,13 +1420,13 @@ mod tests {
 
         // write 2 new snapshots with write to a new table to have a catalog update
         let _snapshot = writer
-            .persist_lp_and_snapshot("mem,t=a usage=24 240000000000", 0)
+            .persist_lp_and_snapshot("mem,t=a usage=24 240000000000")
             .await;
         let _snapshot = writer
-            .persist_lp_and_snapshot("mem,t=a usage=30 300000000000", 0)
+            .persist_lp_and_snapshot("mem,t=a usage=30 300000000000")
             .await;
         let _snapshot = writer
-            .persist_lp_and_snapshot("mem,t=a usage=36 360000000000", 0)
+            .persist_lp_and_snapshot("mem,t=a usage=36 360000000000")
             .await;
 
         // run the compaction plan 3 times to pick up the 3 snapshots. On the last one it will run
@@ -1554,11 +1446,7 @@ mod tests {
 
         // refresh the consumer and verify that it has the updated catalog and the new compacted data
         consumer.refresh().await.unwrap();
-        let consumer_db = consumer
-            .compacted_data
-            .compacted_catalog
-            .db_schema("testdb")
-            .unwrap();
+        let consumer_db = consumer.compacted_data.catalog.db_schema("testdb").unwrap();
         let consumer_table = consumer_db.table_definition("cpu").unwrap();
         let parquet_files = consumer.compacted_data.parquet_files(
             consumer_db.id,
@@ -1590,9 +1478,6 @@ mod tests {
         let persisted_snapshot = PersistedSnapshot {
             node_id: node_id.to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(124),
             wal_file_sequence_number: WalFileSequenceNumber::new(100),
             catalog_sequence_number: CatalogSequenceNumber::new(100),
@@ -1646,9 +1531,6 @@ mod tests {
         let persisted_snapshot = PersistedSnapshot {
             node_id: node_id.to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(124),
             wal_file_sequence_number: WalFileSequenceNumber::new(100),
             catalog_sequence_number: CatalogSequenceNumber::new(100),

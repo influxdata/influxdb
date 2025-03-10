@@ -597,7 +597,8 @@ mod tests {
     use data_types::NamespaceName;
     use datafusion::prelude::{Expr, col, lit_timestamp_nano};
     use influxdb3_catalog::catalog::{Catalog, DatabaseSchema};
-    use iox_time::Time;
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
 
     struct TestWriter {
         catalog: Arc<Catalog>,
@@ -606,25 +607,35 @@ mod tests {
     impl TestWriter {
         const DB_NAME: &str = "test-db";
 
-        fn new() -> Self {
-            let catalog = Arc::new(Catalog::new("test-node".into(), "test-instance".into()));
+        async fn new() -> Self {
+            let obj_store = Arc::new(InMemory::new());
+            let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let catalog = Arc::new(
+                Catalog::new("test-node", obj_store, time_provider)
+                    .await
+                    .expect("should initialize catalog"),
+            );
             Self { catalog }
         }
 
-        fn write_to_rows(&self, lp: impl AsRef<str>, ingest_time_sec: i64) -> Vec<Row> {
+        async fn write_to_rows(&self, lp: impl AsRef<str>, ingest_time_sec: i64) -> Vec<Row> {
             let db = NamespaceName::try_from(Self::DB_NAME).unwrap();
             let ingest_time_ns = ingest_time_sec * 1_000_000_000;
-            let validator =
-                WriteValidator::initialize(db, Arc::clone(&self.catalog), ingest_time_ns).unwrap();
+            let validator = WriteValidator::initialize(db, Arc::clone(&self.catalog)).unwrap();
             validator
-                .parse_lines_and_update_schema(
+                .v1_parse_lines_and_catalog_updates(
                     lp.as_ref(),
                     false,
                     Time::from_timestamp_nanos(ingest_time_ns),
                     Precision::Nanosecond,
                 )
-                .map(|r| r.into_inner().to_rows())
                 .unwrap()
+                .commit_catalog_changes()
+                .await
+                .map(|r| r.unwrap_success())
+                .unwrap()
+                .into_inner()
+                .to_rows()
         }
 
         fn db_schema(&self) -> Arc<DatabaseSchema> {
@@ -632,24 +643,26 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_partitioned_table_buffer_batches() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn test_partitioned_table_buffer_batches() {
+        let writer = TestWriter::new().await;
 
         let mut row_batches = Vec::new();
         for t in 0..10 {
             let offset = t * 10;
-            let rows = writer.write_to_rows(
-                format!(
-                    "\
+            let rows = writer
+                .write_to_rows(
+                    format!(
+                        "\
             tbl,tag=a val=\"thing {t}-1\" {o1}\n\
             tbl,tag=b val=\"thing {t}-2\" {o2}\n\
             ",
-                    o1 = offset + 1,
-                    o2 = offset + 2,
-                ),
-                offset,
-            );
+                        o1 = offset + 1,
+                        o2 = offset + 2,
+                    ),
+                    offset,
+                )
+                .await;
             row_batches.push((rows, offset));
         }
 
@@ -692,24 +705,26 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_computed_size_of_buffer() {
-        let writer = TestWriter::new();
+    #[tokio::test]
+    async fn test_computed_size_of_buffer() {
+        let writer = TestWriter::new().await;
 
-        let rows = writer.write_to_rows(
-            "\
+        let rows = writer
+            .write_to_rows(
+                "\
             tbl,tag=a value=1i 1\n\
             tbl,tag=b value=2i 2\n\
             tbl,tag=this\\ is\\ a\\ long\\ tag\\ value\\ to\\ store value=3i 3\n\
             ",
-            0,
-        );
+                0,
+            )
+            .await;
 
         let mut table_buffer = TableBuffer::new(SortKey::empty());
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17769);
+        assert_eq!(size, 17763);
     }
 
     #[test]
@@ -720,23 +735,25 @@ mod tests {
         assert_eq!(timestamp_min_max.max, 0);
     }
 
-    #[test_log::test]
-    fn test_time_filters() {
-        let writer = TestWriter::new();
+    #[test_log::test(tokio::test)]
+    async fn test_time_filters() {
+        let writer = TestWriter::new().await;
 
         let mut row_batches = Vec::new();
         for offset in 0..100 {
-            let rows = writer.write_to_rows(
-                format!(
-                    "\
+            let rows = writer
+                .write_to_rows(
+                    format!(
+                        "\
                 tbl,tag=a val={}\n\
                 tbl,tag=b val={}\n\
                 ",
-                    offset + 1,
-                    offset + 2
-                ),
-                offset,
-            );
+                        offset + 1,
+                        offset + 2
+                    ),
+                    offset,
+                )
+                .await;
             row_batches.push((offset, rows));
         }
         let table_def = writer.db_schema().table_definition("tbl").unwrap();

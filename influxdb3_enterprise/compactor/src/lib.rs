@@ -75,7 +75,6 @@ use std::task::Poll;
 use trace::span::Span;
 use trace::span::SpanRecorder;
 
-pub mod catalog;
 pub mod compacted_data;
 pub mod consumer;
 pub mod planner;
@@ -896,7 +895,7 @@ mod test_helpers {
     }
 
     impl TestWriter {
-        pub(crate) fn new(node_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
+        pub(crate) async fn new(node_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
             let metrics = Arc::new(metric::Registry::default());
 
             let parquet_store =
@@ -918,9 +917,17 @@ mod test_helpers {
             register_iox_object_store(runtime_env, parquet_store.id(), Arc::clone(&object_store));
             register_current_runtime_for_io();
 
-            let catalog = Arc::new(Catalog::new(node_id.into(), "foo".into()));
             let time_provider: Arc<dyn TimeProvider> =
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let catalog = Arc::new(
+                Catalog::new(
+                    node_id,
+                    Arc::clone(&object_store),
+                    Arc::clone(&time_provider),
+                )
+                .await
+                .unwrap(),
+            );
             let persister = Arc::new(Persister::new(
                 Arc::clone(&object_store),
                 node_id,
@@ -938,28 +945,31 @@ mod test_helpers {
             }
         }
 
+        pub(crate) fn catalog(&self) -> Arc<Catalog> {
+            Arc::clone(&self.catalog)
+        }
+
         pub(crate) fn get_files(&self, table_name: &str) -> Vec<ParquetFile> {
             let db = self.catalog.db_schema("testdb").unwrap();
             let table = db.table_definition(table_name).unwrap();
             self.persisted_files.get_files(db.id, table.table_id)
         }
 
-        pub(crate) async fn persist_lp_and_snapshot(
-            &mut self,
-            lp: &str,
-            default_time: i64,
-        ) -> PersistedSnapshot {
+        pub(crate) async fn persist_lp_and_snapshot(&mut self, lp: &str) -> PersistedSnapshot {
             let db = data_types::NamespaceName::new("testdb").unwrap();
-            let val =
-                WriteValidator::initialize(db, Arc::clone(&self.catalog), default_time).unwrap();
+            let val = WriteValidator::initialize(db, Arc::clone(&self.catalog)).unwrap();
             let lines = val
-                .parse_lines_and_update_schema(
+                .v1_parse_lines_and_catalog_updates(
                     lp,
                     false,
                     self.time_provider.now(),
                     Precision::Nanosecond,
                 )
                 .unwrap()
+                .commit_catalog_changes()
+                .await
+                .unwrap()
+                .unwrap_success()
                 .convert_lines_to_buffer(Gen1Duration::new_1m());
             let batch: WriteBatch = lines.into();
             let wal_contents = WalContents {

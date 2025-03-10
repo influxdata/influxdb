@@ -175,6 +175,7 @@ mod tests {
         logical_expr::{BinaryExpr, Operator},
         scalar::ScalarValue,
     };
+    use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::{DbId, ParquetFileId, TableId};
     use influxdb3_write::ParquetFile;
     use observability_deps::tracing::info;
@@ -222,7 +223,7 @@ mod tests {
             }])
         }
 
-        fn catalog(&self) -> &influxdb3_enterprise_compactor::catalog::CompactedCatalog {
+        fn catalog(&self) -> Arc<Catalog> {
             unimplemented!()
         }
     }
@@ -230,8 +231,8 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table() {
         let db_name = Arc::from("foo");
-        let db_id = DbId::new();
-        let table_id = TableId::new();
+        let db_id = DbId::new(0);
+        let table_id = TableId::new(0);
         let table_name = "bar_table";
 
         let mut db_schema = DatabaseSchema::new(db_id, db_name);
@@ -263,8 +264,8 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table_no_compaction() {
         let db_name = Arc::from("foo");
-        let db_id = DbId::new();
-        let table_id = TableId::new();
+        let db_id = DbId::new(0);
+        let table_id = TableId::new(0);
         let table_name = "bar_table";
 
         let mut db_schema = DatabaseSchema::new(db_id, db_name);
@@ -289,7 +290,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table_missing_table_id() {
         let db_name = Arc::from("foo");
-        let db_id = DbId::new();
+        let db_id = DbId::new(0);
         let table_name = "bar_table";
 
         // schema has no table populated so table id translation should fail
@@ -323,8 +324,8 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table_missing_table() {
         let db_name = Arc::from("foo");
-        let db_id = DbId::new();
-        let table_id = TableId::new();
+        let db_id = DbId::new(0);
+        let table_id = TableId::new(0);
         let table_name = "bar_table";
 
         let mut db_schema = DatabaseSchema::new(db_id, db_name);

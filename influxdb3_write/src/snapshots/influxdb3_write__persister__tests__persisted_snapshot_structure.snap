@@ -5,9 +5,6 @@ expression: snapshot
 {
   "node_id": "host",
   "next_file_id": 8,
-  "next_db_id": 2,
-  "next_table_id": 4,
-  "next_column_id": 0,
   "snapshot_sequence_number": 0,
   "wal_file_sequence_number": 0,
   "catalog_sequence_number": 0,
@@ -74,7 +71,7 @@ expression: snapshot
       {
         "tables": [
           [
-            2,
+            0,
             [
               {
                 "id": 4,
@@ -97,7 +94,7 @@ expression: snapshot
             ]
           ],
           [
-            3,
+            1,
             [
               {
                 "id": 6,

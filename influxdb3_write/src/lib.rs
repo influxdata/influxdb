@@ -22,23 +22,17 @@ use datafusion::{
     prelude::Expr,
     scalar::ScalarValue,
 };
-use influxdb3_cache::{
-    distinct_cache::{CreateDistinctCacheArgs, DistinctCacheProvider},
-    last_cache::LastCacheProvider,
-};
+use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
-use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 pub use influxdb3_types::write::Precision;
-use influxdb3_wal::{
-    DistinctCacheDefinition, LastCacheDefinition, SnapshotSequenceNumber, Wal,
-    WalFileSequenceNumber,
-};
+use influxdb3_wal::{SnapshotSequenceNumber, Wal, WalFileSequenceNumber};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use observability_deps::tracing::debug;
 use schema::TIME_COLUMN_NAME;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -50,7 +44,7 @@ pub enum Error {
     WriteBuffer(#[from] write_buffer::Error),
 
     #[error("persister error: {0}")]
-    Persister(#[from] persister::Error),
+    Persister(#[from] persister::PersisterError),
 
     #[error("queries not supported in compactor only mode")]
     CompactorOnly,
@@ -61,29 +55,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-pub trait WriteBuffer:
-    Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager + DatabaseManager
-{
-}
-
-/// Database manager - supports only delete operation
-#[async_trait::async_trait]
-pub trait DatabaseManager: Debug + Send + Sync + 'static {
-    async fn create_database(&self, name: String) -> Result<(), write_buffer::Error>;
-    async fn soft_delete_database(&self, name: String) -> Result<(), write_buffer::Error>;
-    async fn create_table(
-        &self,
-        db: String,
-        table: String,
-        tags: Vec<String>,
-        fields: Vec<(String, String)>,
-    ) -> Result<(), write_buffer::Error>;
-    async fn soft_delete_table(
-        &self,
-        db_name: String,
-        table_name: String,
-    ) -> Result<(), write_buffer::Error>;
-}
+pub trait WriteBuffer: Bufferer + ChunkContainer + DistinctCacheManager + LastCacheManager {}
 
 /// The buffer is for buffering data in memory and in the wal before it is persisted as parquet files in storage.
 #[async_trait]
@@ -136,61 +108,18 @@ pub trait ChunkContainer: Debug + Send + Sync + 'static {
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 }
 
-/// [`DistinctCacheManager`] is used to manage interaction with a [`DistinctCacheProvider`]. This enables
-/// cache creation, deletion, and getting access to existing
+/// [`DistinctCacheManager`] is used to manage interaction with a [`DistinctCacheProvider`].
 #[async_trait::async_trait]
 pub trait DistinctCacheManager: Debug + Send + Sync + 'static {
     /// Get a reference to the distinct value cache provider
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider>;
-
-    /// Create a new distinct value cache
-    async fn create_distinct_cache(
-        &self,
-        db_schema: Arc<DatabaseSchema>,
-        cache_name: Option<String>,
-        args: CreateDistinctCacheArgs,
-    ) -> Result<Option<DistinctCacheDefinition>, write_buffer::Error>;
-
-    /// Delete a distinct value cache
-    async fn delete_distinct_cache(
-        &self,
-        db_id: &DbId,
-        tbl_id: &TableId,
-        cache_name: &str,
-    ) -> Result<(), write_buffer::Error>;
 }
 
-/// [`LastCacheManager`] is used to manage interaction with a last-n-value cache provider. This enables
-/// cache creation, deletion, and getting access to existing caches in underlying [`LastCacheProvider`].
-/// It is important that the state of the cache is also maintained in the catalog.
+/// [`LastCacheManager`] is used to manage interaction with a last-n-value cache provider.
 #[async_trait::async_trait]
 pub trait LastCacheManager: Debug + Send + Sync + 'static {
     /// Get a reference to the last cache provider
     fn last_cache_provider(&self) -> Arc<LastCacheProvider>;
-    /// Create a new last-n-value cache
-    ///
-    /// This should handle updating the catalog with the cache information, so that it will be
-    /// preserved on server restarts.
-    #[allow(clippy::too_many_arguments)]
-    async fn create_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<ColumnId>>,
-        value_columns: Option<Vec<ColumnId>>,
-    ) -> Result<Option<LastCacheDefinition>, write_buffer::Error>;
-    /// Delete a last-n-value cache
-    ///
-    /// This should handle removal of the cache's information from the catalog as well
-    async fn delete_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: &str,
-    ) -> Result<(), write_buffer::Error>;
 }
 
 /// A single write request can have many lines in it. A writer can request to accept all lines that are valid, while
@@ -222,12 +151,6 @@ pub struct PersistedSnapshot {
     pub node_id: String,
     /// The next file id to be used with `ParquetFile`s when the snapshot is loaded
     pub next_file_id: ParquetFileId,
-    /// The next db id to be used for databases when the snapshot is loaded
-    pub next_db_id: DbId,
-    /// The next table id to be used for tables when the snapshot is loaded
-    pub next_table_id: TableId,
-    /// The next column id to be used for columns when the snapshot is loaded
-    pub next_column_id: ColumnId,
     /// The snapshot sequence number associated with this snapshot
     pub snapshot_sequence_number: SnapshotSequenceNumber,
     /// The wal file sequence number that triggered this snapshot
@@ -257,9 +180,6 @@ impl PersistedSnapshot {
         Self {
             node_id,
             next_file_id: ParquetFileId::next_id(),
-            next_db_id: DbId::next_id(),
-            next_table_id: TableId::next_id(),
-            next_column_id: ColumnId::next_id(),
             snapshot_sequence_number,
             wal_file_sequence_number,
             catalog_sequence_number,
@@ -594,7 +514,7 @@ pub mod test_helpers {
 #[cfg(test)]
 mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_id::{ColumnId, DbId, ParquetFileId, SerdeVecMap, TableId};
+    use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 
     use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
@@ -634,9 +554,6 @@ mod tests {
         let persisted_snapshot_1 = PersistedSnapshot {
             node_id: host.to_string(),
             next_file_id: ParquetFileId::from(0),
-            next_db_id: DbId::from(1),
-            next_table_id: TableId::from(1),
-            next_column_id: ColumnId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(124),
             wal_file_sequence_number: WalFileSequenceNumber::new(100),
             catalog_sequence_number: CatalogSequenceNumber::new(100),
@@ -679,9 +596,6 @@ mod tests {
         let persisted_snapshot_2 = PersistedSnapshot {
             node_id: host.to_string(),
             next_file_id: ParquetFileId::from(5),
-            next_db_id: DbId::from(2),
-            next_table_id: TableId::from(22),
-            next_column_id: ColumnId::from(22),
             snapshot_sequence_number: SnapshotSequenceNumber::new(124),
             wal_file_sequence_number: WalFileSequenceNumber::new(100),
             catalog_sequence_number: CatalogSequenceNumber::new(100),

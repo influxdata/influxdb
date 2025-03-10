@@ -1,30 +1,23 @@
 use std::sync::Arc;
 
-use arrow::array::{GenericListBuilder, StringViewBuilder, UInt32Builder, UInt64Builder};
+use arrow::array::{GenericListBuilder, StringViewBuilder, UInt16Builder, UInt64Builder};
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use influxdb3_cache::distinct_cache::DistinctCacheProvider;
-use influxdb3_catalog::catalog::DatabaseSchema;
-use influxdb3_wal::DistinctCacheDefinition;
+use influxdb3_catalog::{catalog::DatabaseSchema, log::CreateDistinctCacheLog};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
 pub(super) struct DistinctCachesTable {
     db_schema: Arc<DatabaseSchema>,
     schema: SchemaRef,
-    provider: Arc<DistinctCacheProvider>,
 }
 
 impl DistinctCachesTable {
-    pub(super) fn new(
-        db_schema: Arc<DatabaseSchema>,
-        provider: Arc<DistinctCacheProvider>,
-    ) -> Self {
+    pub(super) fn new(db_schema: Arc<DatabaseSchema>) -> Self {
         Self {
             db_schema,
             schema: distinct_caches_schema(),
-            provider,
         }
     }
 }
@@ -35,7 +28,7 @@ fn distinct_caches_schema() -> SchemaRef {
         Field::new("name", DataType::Utf8View, false),
         Field::new(
             "column_ids",
-            DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::UInt16, true))),
             false,
         ),
         Field::new(
@@ -60,23 +53,21 @@ impl IoxSystemTable for DistinctCachesTable {
         _filters: Option<Vec<Expr>>,
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
-        let caches = self
-            .provider
-            .get_cache_definitions_for_db(&self.db_schema.id);
-        from_distinct_cache_definitions(&self.db_schema, self.schema(), &caches)
+        let caches = self.db_schema.list_distinct_caches();
+        from_distinct_cache_definitions(&self.db_schema, self.schema(), caches)
     }
 }
 
 fn from_distinct_cache_definitions(
     db_schema: &DatabaseSchema,
     sys_table_schema: SchemaRef,
-    cache_definitions: &[DistinctCacheDefinition],
+    cache_definitions: Vec<&CreateDistinctCacheLog>,
 ) -> Result<RecordBatch, DataFusionError> {
     let mut table_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());
     let mut cache_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());
 
-    let col_id_builder = UInt32Builder::new();
-    let mut col_id_arr = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+    let col_id_builder = UInt16Builder::new();
+    let mut col_id_arr = GenericListBuilder::<i32, UInt16Builder>::with_capacity(
         col_id_builder,
         cache_definitions.len(),
     );
@@ -100,7 +91,7 @@ fn from_distinct_cache_definitions(
 
         // loop to create the list of column id and name values for their respective columns
         for col in &cache.column_ids {
-            col_id_arr.values().append_value(col.as_u32());
+            col_id_arr.values().append_value(col.get());
             let col_name = table_def
                 .column_id_to_name(col)
                 .expect("column id should have associated name");
@@ -110,8 +101,8 @@ fn from_distinct_cache_definitions(
         col_id_arr.append(true);
         col_name_arr.append(true);
 
-        max_cardinality_arr.append_value(cache.max_cardinality as u64);
-        max_age_arr.append_value(cache.max_age_seconds);
+        max_cardinality_arr.append_value(cache.max_cardinality.to_u64());
+        max_age_arr.append_value(cache.max_age_seconds.as_secs());
     }
 
     let columns: Vec<ArrayRef> = vec![
