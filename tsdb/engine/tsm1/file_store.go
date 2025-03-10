@@ -1600,11 +1600,6 @@ func (p *purger) purge(fileNames []string) {
 			logger.Info("removed", zap.Int("files", purgeCount))
 			logEndOp()
 		}()
-
-		defer func() {
-
-		}()
-
 		for {
 			p.mu.Lock()
 			for k, v := range p.files {
@@ -1645,7 +1640,6 @@ func (p *purger) purge(fileNames []string) {
 					logger.Debug("successfully removed", zap.String("file", k))
 					delete(p.files, k)
 					purgeCount++
-
 				}
 
 				err = p.fileStore.SetNewReadersBlocked(false)
@@ -1653,7 +1647,6 @@ func (p *purger) purge(fileNames []string) {
 					logger.Error("failed to block new readers", zap.Strings("file", fileNames), zap.Error(err))
 					continue
 				}
-
 			}
 
 			if len(p.files) == 0 {
