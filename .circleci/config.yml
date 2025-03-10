@@ -855,7 +855,7 @@ workflows:
           platform: arm64
           resource_class: arm.2xlarge
       - publish-docker:
-          <<: *docker_filter
+          <<: *release_filter
           requires:
             - build-docker-amd64
             - build-docker-arm64
