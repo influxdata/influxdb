@@ -1175,17 +1175,6 @@ dependencies = [
 
 [[package]]
 name = "cron"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbe58904b68d95ad2c69a2e9607ffc70ce196c1910f83a340029c1448e06ed65"
-dependencies = [
- "chrono",
- "once_cell",
- "winnow",
-]
-
-[[package]]
-name = "cron"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5877d3fbf742507b66bc2a1945106bd30dd8504019d596901ddd012a4dd01740"
@@ -2867,7 +2856,7 @@ dependencies = [
  "chrono",
  "clap",
  "crc32fast",
- "cron 0.15.0",
+ "cron",
  "futures",
  "hashbrown 0.15.2",
  "humantime",
@@ -3018,7 +3007,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "cron 0.15.0",
+ "cron",
  "data_types",
  "datafusion_util",
  "futures-util",
@@ -3237,7 +3226,6 @@ dependencies = [
  "bytes",
  "clap",
  "crc32fast",
- "cron 0.14.0",
  "data_types",
  "futures-util",
  "hashbrown 0.15.2",
