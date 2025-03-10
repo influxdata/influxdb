@@ -49,6 +49,9 @@ where
     /// or 10,000. For InfluxQL queries that select from multiple measurements, chunks
     /// will be split on the `chunk_size`, or series, whichever comes first.
     pub(super) async fn v1_query(&self, req: Request<Body>) -> Result<Response<Body>> {
+        if let Some(res) = super::expired_license() {
+            return Ok(res);
+        }
         // extract params first from URI:
         let uri_params = QueryParams::from_request_uri(&req)?;
         // determine the format from the request headers now because we need to consume req to get

@@ -30,6 +30,7 @@ use hyper::service::service_fn;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use iox_time::TimeProvider;
+use object_store::ObjectStore;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use service::hybrid;
@@ -216,7 +217,6 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_id::{DbId, TableId};
     use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
@@ -616,9 +616,7 @@ mod tests {
         let start_time = 0;
         let (url, shutdown, wbuf) = setup_server(start_time).await;
         let db_name = "foo";
-        let db_id = DbId::from(0);
         let tbl_name = "cpu";
-        let tbl_id = TableId::from(0);
 
         // Write to generate a db/table in the catalog:
         let resp = write_lp(
@@ -633,9 +631,18 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
 
         // Create the last cache:
-        wbuf.create_last_cache(db_id, tbl_id, None, None, None, None, None)
+        wbuf.catalog()
+            .create_last_cache(
+                db_name,
+                tbl_name,
+                None,
+                None as Option<&[&str]>,
+                None as Option<&[&str]>,
+                Default::default(),
+                Default::default(),
+            )
             .await
-            .expect("create last cache");
+            .unwrap();
 
         // Write to put something in the last cache:
         let resp = write_lp(
@@ -766,8 +773,15 @@ mod tests {
             Arc::clone(&time_provider) as _,
         ));
         let sample_node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(sample_node_id, instance_id));
+        let catalog = Arc::new(
+            Catalog::new(
+                sample_node_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
@@ -831,7 +845,6 @@ mod tests {
             Arc::clone(&write_buffer),
             Arc::clone(&query_executor) as _,
             Arc::clone(&time_provider) as _,
-            write_buffer.wal(),
             sys_events_store,
         );
 

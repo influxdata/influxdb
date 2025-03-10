@@ -620,7 +620,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
-        write_buffer.wal(),
         sys_events_store,
     );
 
