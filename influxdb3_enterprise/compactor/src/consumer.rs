@@ -230,12 +230,19 @@ impl CompactedDataConsumer {
             }
             debug!(time_taken = ?cache_prefetch_timer.elapsed(), ">>> time taken for prefetching new generation files");
 
+            let meta_index = self.compacted_data.build_new_meta_index(
+                db_id,
+                table_id,
+                &generation_details,
+                removed_gen_details,
+            );
+
             let gen_update_timer = Instant::now();
             self.compacted_data.update_detail_with_generations(
                 compaction_detail,
                 generation_details,
                 &removed_generations,
-                removed_gen_details,
+                meta_index,
                 self.parquet_cache_prefetcher.clone(),
             );
             debug!(time_taken = ?gen_update_timer.elapsed(), ">>> time taken for updating detail with generations");
@@ -265,6 +272,7 @@ impl CompactedDataConsumer {
         &self,
         generation_ids: SizedIter<I>,
     ) -> Result<Vec<GenerationDetail>, anyhow::Error> {
+        let start = Instant::now();
         let mut join_set = JoinSet::new();
         let mut generation_details = Vec::with_capacity(generation_ids.len());
         for id in generation_ids {
@@ -283,6 +291,7 @@ impl CompactedDataConsumer {
             let detail = details??;
             generation_details.push(detail);
         }
+        debug!(time_taken = ?start.elapsed(), ">>> time taken to load generation details");
         Ok(generation_details)
     }
 }

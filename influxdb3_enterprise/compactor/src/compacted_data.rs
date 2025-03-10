@@ -8,7 +8,7 @@ use influxdb3_enterprise_data_layout::{
     CompactionSequenceNumber, CompactionSummary, Generation, GenerationDetail,
     GenerationDetailPath, GenerationId, NodeSnapshotMarker, gen_time_string,
 };
-use influxdb3_enterprise_index::memory::FileIndex;
+use influxdb3_enterprise_index::memory::{InMemoryFileIndex, MetaIndex, ParquetFileMeta};
 use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, TableId};
 use influxdb3_write::{ChunkFilter, ParquetFile};
@@ -166,12 +166,25 @@ impl CompactedData {
         table.get_parquet_files_and_host_markers(filter)
     }
 
+    pub(crate) fn get_file_index(&self, db_id: &DbId, table_id: &TableId) -> Option<MetaIndex> {
+        let res = self
+            .inner_compacted_data
+            .read()
+            .databases
+            .get(db_id)?
+            .tables
+            .get(table_id)?
+            .file_index
+            .clone_meta_index();
+        Some(res)
+    }
+
     pub(crate) fn update_detail_with_generations(
         &self,
         compaction_detail: CompactionDetail,
         generation_details: Vec<GenerationDetail>,
         removed_generations: &[Generation],
-        removed_gen_details: Vec<GenerationDetail>,
+        new_meta_index: MetaIndex,
         parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
     ) {
         let mut d = self.inner_compacted_data.write();
@@ -183,27 +196,17 @@ impl CompactedData {
             .or_insert_with(|| CompactedTable {
                 compaction_detail: Arc::clone(&compaction_detail),
                 compacted_generations: HashMap::new(),
-                file_index: FileIndex::default(),
+                file_index: InMemoryFileIndex::default(),
             });
 
         table.compaction_detail = compaction_detail;
         for g in generation_details {
             table.add_generation_detail(g);
         }
-
-        let file_index_timer = Instant::now();
-        // remove metas from file index
-        for removed_gen in removed_gen_details {
-            for (col, valfiles) in removed_gen.file_index.index {
-                for (val, path) in valfiles.iter() {
-                    table
-                        .file_index
-                        .remove_older_gen_parquet_metas(col, *val, path.iter());
-                }
-            }
-        }
-        debug!(time_taken = ?file_index_timer.elapsed(), ">>> total time taken to update file index");
+        let _ = std::mem::replace(&mut table.file_index.index, new_meta_index);
+        let removing_compacted_gen_timer = Instant::now();
         table.remove_compacted_generations(removed_generations, parquet_cache_prefetcher.clone());
+        debug!(time_taken = ?removing_compacted_gen_timer.elapsed(), ">>> total time taken to remove compacted generations");
     }
 
     pub(crate) fn update_compaction_detail(&self, compaction_detail: CompactionDetail) {
@@ -216,7 +219,7 @@ impl CompactedData {
             .or_insert_with(|| CompactedTable {
                 compaction_detail: Arc::clone(&compaction_detail),
                 compacted_generations: HashMap::new(),
-                file_index: FileIndex::default(),
+                file_index: InMemoryFileIndex::default(),
             });
         table.compaction_detail = compaction_detail;
     }
@@ -255,7 +258,7 @@ impl CompactedData {
                 let mut table = CompactedTable {
                     compaction_detail: Arc::new(compaction_detail),
                     compacted_generations: HashMap::new(),
-                    file_index: FileIndex::default(),
+                    file_index: InMemoryFileIndex::default(),
                 };
 
                 // load all the generation details
@@ -296,6 +299,51 @@ impl CompactedData {
                 compaction_summary: Arc::new(compaction_summary),
             }),
         })
+    }
+
+    pub fn build_new_meta_index(
+        &self,
+        db_id: &influxdb3_id::DbId,
+        table_id: &influxdb3_id::TableId,
+        generation_details: &Vec<GenerationDetail>,
+        removed_gen_details: Vec<GenerationDetail>,
+    ) -> MetaIndex {
+        let mut meta_index = self.get_file_index(db_id, table_id).unwrap_or_default();
+
+        for generation_detail in generation_details {
+            let min_time = generation_detail.start_time_s * 1_000_000_000;
+            let max_time = generation_detail.max_time_ns;
+            for (col, valfiles) in &generation_detail.file_index.index {
+                for (val, file_ids) in valfiles {
+                    let parquet_file_metas = meta_index.entry((*col, *val)).or_default();
+                    for id in file_ids {
+                        parquet_file_metas.push(ParquetFileMeta::new(*id, min_time, max_time));
+                    }
+                    parquet_file_metas.sort();
+                }
+            }
+        }
+
+        for generation_detail in &removed_gen_details {
+            for (col, valfiles) in &generation_detail.file_index.index {
+                for (val, file_ids) in valfiles {
+                    let metas = meta_index
+                        .entry((*col, *val))
+                        .or_insert_with(Default::default);
+                    metas.retain(move |meta| {
+                        for parquet_file in file_ids {
+                            // matches old file id, remove this
+                            if meta.eq_id(*parquet_file) {
+                                return false;
+                            }
+                        }
+                        true
+                    });
+                    metas.sort();
+                }
+            }
+        }
+        meta_index
     }
 }
 
@@ -358,27 +406,16 @@ struct CompactedDatabase {
 struct CompactedTable {
     compaction_detail: Arc<CompactionDetail>,
     compacted_generations: HashMap<GenerationId, Vec<Arc<ParquetFile>>>,
-    file_index: FileIndex,
+    file_index: InMemoryFileIndex,
 }
 
 impl CompactedTable {
     fn add_generation_detail(&mut self, generation_detail: GenerationDetail) {
+        let add_file_index_timer = Instant::now();
         self.file_index.add_files(&generation_detail.files);
-
-        for (col, valfiles) in generation_detail.file_index.index {
-            for (val, file_ids) in valfiles {
-                self.file_index.append_with_hashed_values(
-                    col,
-                    val,
-                    generation_detail.start_time_s * 1_000_000_000,
-                    generation_detail.max_time_ns,
-                    &file_ids,
-                );
-            }
-        }
-
         self.compacted_generations
             .insert(generation_detail.id, generation_detail.files);
+        debug!(time_taken = ?add_file_index_timer.elapsed(), ">>> time taken for adding file index");
     }
 
     fn remove_compacted_generations(
@@ -386,6 +423,7 @@ impl CompactedTable {
         generations: &[Generation],
         parquet_cache: Option<Arc<ParquetCachePreFetcher>>,
     ) {
+        let start = Instant::now();
         for generation in generations {
             if let Some(files) = self.compacted_generations.remove(&generation.id) {
                 for f in files {
@@ -396,6 +434,7 @@ impl CompactedTable {
                 }
             }
         }
+        debug!(time_taken = ?start.elapsed(), ">>> time taken to remove compaction gens");
     }
 
     fn get_parquet_files_and_host_markers(
