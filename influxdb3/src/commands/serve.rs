@@ -47,7 +47,6 @@ use influxdb3_processing_engine::environment::{
     DisabledManager, PipManager, PythonEnvironmentManager, UVManager,
 };
 use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
-#[cfg(feature = "system-py")]
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::CommonServerState;
 use influxdb3_server::query_executor::enterprise::QueryExecutorEnterprise;
@@ -1017,18 +1016,15 @@ pub(crate) fn setup_processing_engine_env_manager(
 
 fn determine_package_manager() -> Arc<dyn PythonEnvironmentManager> {
     // Check for pip (highest preference)
-    #[cfg(feature = "system-py")]
-    {
-        let python_exe = find_python();
-        debug!("Running: {} -m pip --version", python_exe.display());
+    let python_exe = find_python();
+    debug!("Running: {} -m pip --version", python_exe.display());
 
-        if let Ok(output) = Command::new(&python_exe)
-            .args(["-m", "pip", "--version"])
-            .output()
-        {
-            if output.status.success() {
-                return Arc::new(PipManager);
-            }
+    if let Ok(output) = Command::new(&python_exe)
+        .args(["-m", "pip", "--version"])
+        .output()
+    {
+        if output.status.success() {
+            return Arc::new(PipManager);
         }
     }
 

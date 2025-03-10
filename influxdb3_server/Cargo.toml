@@ -94,10 +94,6 @@ url.workspace = true
 
 [dependencies.pyo3]
 version = "0.23.3"
-optional = true
-
-[features]
-system-py = ["pyo3", "influxdb3_processing_engine/system-py"]
 
 [dev-dependencies]
 # Core Crates

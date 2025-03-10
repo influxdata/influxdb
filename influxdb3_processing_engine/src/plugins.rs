@@ -1,40 +1,35 @@
-#[cfg(feature = "system-py")]
 use crate::PluginCode;
 use crate::ProcessingEngineManagerImpl;
 use crate::environment::PythonEnvironmentManager;
-#[cfg(feature = "system-py")]
 use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
-#[cfg(feature = "system-py")]
 use influxdb3_catalog::log::CreateTriggerLog;
-#[cfg(feature = "system-py")]
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
-#[cfg(feature = "system-py")]
 use influxdb3_internal_api::query_executor::QueryExecutor;
-#[cfg(feature = "system-py")]
+
 use influxdb3_py_api::system_py::ProcessingEngineLogger;
-#[cfg(feature = "system-py")]
+
 use influxdb3_sys_events::SysEventStore;
-#[cfg(feature = "system-py")]
+
 use influxdb3_types::http::{WalPluginTestRequest, WalPluginTestResponse};
 use influxdb3_wal::Gen1Duration;
 use influxdb3_write::Precision;
-#[cfg(feature = "system-py")]
+
 use influxdb3_write::WriteBuffer;
 use influxdb3_write::write_buffer;
 use influxdb3_write::write_buffer::validator::WriteValidator;
-#[cfg(feature = "system-py")]
+
 use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use std::fmt::Debug;
 use std::path::PathBuf;
-#[cfg(feature = "system-py")]
+
 use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
-#[cfg(feature = "system-py")]
+
 use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
@@ -45,7 +40,6 @@ pub enum PluginError {
     #[error("couldn't find db")]
     MissingDb,
 
-    #[cfg(feature = "system-py")]
     #[error(transparent)]
     PyError(#[from] pyo3::PyErr),
 
@@ -91,7 +85,6 @@ pub enum PluginError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_wal_contents_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
@@ -116,7 +109,6 @@ pub struct ProcessingEngineEnvironmentManager {
     pub package_manager: Arc<dyn PythonEnvironmentManager>,
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_schedule_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
@@ -150,7 +142,6 @@ pub(crate) fn run_schedule_plugin(
     Ok(())
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_request_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
@@ -167,7 +158,6 @@ pub(crate) fn run_request_plugin(
     });
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) struct PluginContext {
     // handler to write data back to the DB.
     pub(crate) write_buffer: Arc<dyn WriteBuffer>,
@@ -179,7 +169,6 @@ pub(crate) struct PluginContext {
     pub(crate) sys_event_store: Arc<SysEventStore>,
 }
 
-#[cfg(feature = "system-py")]
 #[derive(Debug, Clone)]
 struct TriggerPlugin {
     trigger_definition: CreateTriggerLog,
@@ -191,7 +180,6 @@ struct TriggerPlugin {
     logger: ProcessingEngineLogger,
 }
 
-#[cfg(feature = "system-py")]
 mod python_plugin {
     use super::*;
     use anyhow::{Context, anyhow};
@@ -852,7 +840,6 @@ mod python_plugin {
     }
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_test_wal_plugin(
     now_time: iox_time::Time,
     catalog: Arc<influxdb3_catalog::catalog::Catalog>,
@@ -986,7 +973,6 @@ impl TestWriteHandler {
     }
 }
 
-#[cfg(feature = "system-py")]
 pub(crate) fn run_test_schedule_plugin(
     now_time: iox_time::Time,
     catalog: Arc<Catalog>,
@@ -1034,7 +1020,6 @@ pub(crate) fn run_test_schedule_plugin(
     })
 }
 
-#[cfg(feature = "system-py")]
 #[cfg(test)]
 mod tests {
     use super::*;

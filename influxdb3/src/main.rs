@@ -14,6 +14,7 @@ use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+
 use trogging::{
     TroggingGuard,
     cli::LoggingConfigBuilderExt,

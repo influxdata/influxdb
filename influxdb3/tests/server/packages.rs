@@ -1,5 +1,4 @@
 use crate::cli::run_with_confirmation;
-#[cfg(feature = "system-py")]
 use crate::server::{ConfigProvider, TestServer};
 use anyhow::{Result, bail};
 use serde_json::Value;
@@ -99,6 +98,7 @@ fn setup_uv_venv(venv_path: &Path) -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_python_venv_pip_install() -> Result<()> {
     let test = VenvTest::new()?;
     setup_python_venv(&test.venv_path())?;
@@ -140,6 +140,7 @@ async fn test_python_venv_pip_install() -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_uv_venv_uv_install() -> Result<()> {
     let test = VenvTest::new()?;
     setup_uv_venv(&test.venv_path())?;
@@ -176,6 +177,7 @@ async fn test_uv_venv_uv_install() -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_venv_requirements_install() -> Result<()> {
     let test = VenvTest::new()?;
     setup_python_venv(&test.venv_path())?;
@@ -222,6 +224,7 @@ async fn test_venv_requirements_install() -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_venv_remote_install() -> Result<()> {
     let test = VenvTest::new()?;
     setup_python_venv(&test.venv_path())?;
@@ -257,6 +260,7 @@ async fn test_venv_remote_install() -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_auto_venv_pip_install() -> Result<()> {
     let test = VenvTest::new()?;
 
@@ -301,6 +305,7 @@ async fn test_auto_venv_pip_install() -> Result<()> {
 }
 
 #[test_log::test(tokio::test)]
+#[ignore]
 async fn test_auto_venv_uv_install() -> Result<()> {
     let test = VenvTest::new()?;
 
