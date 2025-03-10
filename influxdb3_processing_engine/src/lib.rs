@@ -10,6 +10,8 @@ use hyper::{Body, Response};
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::catalog::Error::ProcessingEngineTriggerNotFound;
 use influxdb3_internal_api::query_executor::QueryExecutor;
+#[cfg(feature = "system-py")]
+use influxdb3_py_api::system_py::initialize_cache;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
@@ -28,7 +30,7 @@ use observability_deps::tracing::{debug, error, warn};
 use std::any::Any;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
 
@@ -228,7 +230,9 @@ impl ProcessingEngineManagerImpl {
                     .expect("unable to initialize python environment");
                 virtualenv::init_pyo3();
             }
+            initialize_cache(Arc::clone(&time_provider), Duration::from_secs(10));
         }
+
         Self {
             environment_manager: environment,
             catalog,
