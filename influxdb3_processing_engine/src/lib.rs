@@ -1,6 +1,6 @@
 use crate::environment::PythonEnvironmentManager;
 use crate::manager::ProcessingEngineError;
-#[cfg(feature = "system-py")]
+
 use crate::plugins::PluginContext;
 use crate::plugins::{PluginError, ProcessingEngineEnvironmentManager};
 use anyhow::Context;
@@ -9,11 +9,9 @@ use hashbrown::HashMap;
 use hyper::{Body, Response};
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{Catalog, CatalogBroadcastReceiver};
-#[cfg(feature = "system-py")]
-use influxdb3_catalog::log::PluginType;
 use influxdb3_catalog::log::{
-    CatalogBatch, CreateTriggerLog, DatabaseCatalogOp, DeleteTriggerLog, TriggerIdentifier,
-    TriggerSpecificationDefinition, ValidPluginFilename,
+    CatalogBatch, CreateTriggerLog, DatabaseCatalogOp, DeleteTriggerLog, PluginType,
+    TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_sys_events::SysEventStore;
@@ -37,7 +35,6 @@ pub mod environment;
 pub mod manager;
 pub mod plugins;
 
-#[cfg(feature = "system-py")]
 pub mod virtualenv;
 
 #[derive(Debug)]
@@ -61,7 +58,6 @@ struct PluginChannels {
     request_triggers: HashMap<String, mpsc::Sender<RequestEvent>>,
 }
 
-#[cfg(feature = "system-py")]
 const PLUGIN_EVENT_BUFFER_SIZE: usize = 60;
 
 impl PluginChannels {
@@ -148,14 +144,12 @@ impl PluginChannels {
         }
     }
 
-    #[cfg(feature = "system-py")]
     fn add_wal_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<WalEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.wal_triggers.entry(db).or_default().insert(trigger, tx);
         rx
     }
 
-    #[cfg(feature = "system-py")]
     fn add_schedule_trigger(
         &mut self,
         db: String,
@@ -169,7 +163,6 @@ impl PluginChannels {
         rx
     }
 
-    #[cfg(feature = "system-py")]
     fn add_request_trigger(&mut self, path: String) -> mpsc::Receiver<RequestEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
         self.request_triggers.insert(path, tx);
@@ -217,7 +210,7 @@ impl ProcessingEngineManagerImpl {
         sys_event_store: Arc<SysEventStore>,
     ) -> Arc<Self> {
         // if given a plugin dir, try to initialize the virtualenv.
-        #[cfg(feature = "system-py")]
+
         if let Some(plugin_dir) = &environment.plugin_dir {
             {
                 environment
@@ -303,7 +296,6 @@ pub enum PluginCode {
 }
 
 impl PluginCode {
-    #[cfg(feature = "system-py")]
     pub(crate) fn code(&self) -> Arc<str> {
         match self {
             PluginCode::Github(code) => Arc::clone(code),
@@ -320,7 +312,6 @@ pub struct LocalPlugin {
 }
 
 impl LocalPlugin {
-    #[cfg(feature = "system-py")]
     fn read_if_modified(&self) -> Arc<str> {
         let metadata = std::fs::metadata(&self.plugin_path);
 
@@ -352,14 +343,13 @@ impl LocalPlugin {
 }
 
 impl ProcessingEngineManagerImpl {
-    #[cfg_attr(not(feature = "system-py"), allow(unused))]
     async fn run_trigger(
         self: Arc<Self>,
         db_name: &str,
         trigger_name: &str,
     ) -> Result<(), ProcessingEngineError> {
         debug!(db_name, trigger_name, "starting trigger");
-        #[cfg(feature = "system-py")]
+
         {
             let db_schema = self
                 .catalog
@@ -498,13 +488,11 @@ impl ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    #[cfg_attr(not(feature = "system-py"), allow(unused))]
     pub async fn test_wal_plugin(
         &self,
         request: WalPluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<WalPluginTestResponse, plugins::PluginError> {
-        #[cfg(feature = "system-py")]
         {
             let catalog = Arc::clone(&self.catalog);
             let now = self.time_provider.now();
@@ -524,20 +512,13 @@ impl ProcessingEngineManagerImpl {
 
             Ok(res)
         }
-
-        #[cfg(not(feature = "system-py"))]
-        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
-            "system-py feature not enabled"
-        )))
     }
 
-    #[cfg_attr(not(feature = "system-py"), allow(unused))]
     pub async fn test_schedule_plugin(
         &self,
         request: SchedulePluginTestRequest,
         query_executor: Arc<dyn QueryExecutor>,
     ) -> Result<SchedulePluginTestResponse, PluginError> {
-        #[cfg(feature = "system-py")]
         {
             let catalog = Arc::clone(&self.catalog);
             let now = self.time_provider.now();
@@ -564,11 +545,6 @@ impl ProcessingEngineManagerImpl {
 
             Ok(res)
         }
-
-        #[cfg(not(feature = "system-py"))]
-        Err(plugins::PluginError::AnyhowError(anyhow::anyhow!(
-            "system-py feature not enabled"
-        )))
     }
 
     pub async fn request_trigger(

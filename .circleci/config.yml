@@ -32,7 +32,6 @@
 #   $ curl -XPOST -H "Content-Type: application/json" -H "Circle-Token: <your personal circleCI token>" \
 #       -d '{"parameters": {"release_branch": true}, "branch": "chore/ci-tidy-up"}' \
 #       https://circleci.com/api/v2/project/github/influxdata/influxdb/pipeline
-
 version: 2.1
 
 orbs:
@@ -79,6 +78,24 @@ go_image: &go_image
   image: cimg/go:1.23
 
 
+# Consistent environment setup for Python Build Standalone
+pbs_config: &pbs_config
+  PBS_DATE: "20250212"
+  PBS_VERSION: "3.11.11"
+
+# Consistent Cargo environment configuration
+cargo_env: &cargo_env
+  # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
+  CARGO_INCREMENTAL: "0"
+  # Disable full debug symbol generation to speed up CI build
+  # "1" means line tables only, which is useful for panic tracebacks.
+  CARGO_PROFILE_DEV_DEBUG: "1"
+  # https://github.com/rust-lang/cargo/issues/10280
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
+  # average. At peak this is a bit tight, so lower the CPU count for cargo a bit.
+  CARGO_BUILD_JOBS: "12"
+
 commands:
   rust_components:
     description: Verify installed components
@@ -97,6 +114,7 @@ commands:
             rustup show
             cargo fmt --version
             cargo clippy --version
+
   gcloud-docker-login:
     steps:
       - run:
@@ -104,24 +122,41 @@ commands:
           command: |
             gcloud auth activate-service-account "${GCLOUD_SERVICE_ACCOUNT_EMAIL}" --key-file <(echo "${GCLOUD_SERVICE_ACCOUNT_KEY}")
             gcloud auth configure-docker us-docker.pkg.dev
+
   quay-docker-login:
     steps:
       - run:
           name: Login to Quay.io
           command: echo "${QUAY_INFLUXDB3_PASSWORD}" |docker login --username="${QUAY_INFLUXDB3_USERNAME}" --password-stdin quay.io
 
+  setup_pyo3_env:
+    description: Setup Python PYO3 environment for the specified target
+    parameters:
+      target:
+        type: string
+    steps:
+      - run:
+          name: Extract python for this target
+          command: |
+            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
+      - run:
+          name: Show PYO3_CONFIG_FILE
+          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
+      - run:
+          name: Install Target
+          command: rustup target add << parameters.target >>
+      - run:
+          name: Set PYO3 environment variables
+          command: |
+            echo "export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt" >> $BASH_ENV
+            echo "export PYO3_CROSS_PYTHON_VERSION=3.11" >> $BASH_ENV
+
 jobs:
   fmt:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      <<: *cargo_env
     steps:
       - add_ssh_keys:
           fingerprints:
@@ -131,17 +166,12 @@ jobs:
       - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
+
   lint:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      <<: *cargo_env
     steps:
       - add_ssh_keys:
           fingerprints:
@@ -154,6 +184,7 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
+
   inclusivity:
     docker:
       - image: cimg/go:1.23
@@ -164,17 +195,12 @@ jobs:
           command: |
             go install github.com/jdstrand/language-checker@latest
             language-checker --exit-1-on-failure .
+
   cargo-audit:
     docker:
       - image: quay.io/influxdb/rust:ci
     environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      <<: *cargo_env
     steps:
       - add_ssh_keys:
           fingerprints:
@@ -187,18 +213,13 @@ jobs:
       - run:
           name: cargo-deny Checks
           command: cargo deny check -s
+
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci
     resource_class: large # use of a smaller executor runs out of memory
     environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      <<: *cargo_env
       # Turn warnings into errors
       RUSTDOCFLAGS: "-D warnings -A rustdoc::private-intra-doc-links"
     steps:
@@ -222,36 +243,39 @@ jobs:
       - image: quay.io/influxdb/rust:ci
     resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
     environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      <<: *cargo_env
       RUST_BACKTRACE: "1"
+      TARGET: "x86_64-unknown-linux-gnu"  # Define target for PYO3 setup
     steps:
       - add_ssh_keys:
           fingerprints:
             - "SHA256:Rem9EKUciSVa9FsVRkJvaExJTUhjoPikY8SthXf8NiE"
       - checkout
+      - attach_workspace:
+          at: /tmp/workspace
       - rust_components
+      - setup_pyo3_env:
+          target: "x86_64-unknown-linux-gnu"
+      - run:
+          name: Setup LD_LIBRARY_PATH for Python
+          command: |
+            # Add Python lib directory to LD_LIBRARY_PATH
+            echo "export LD_LIBRARY_PATH=/tmp/workspace/python-artifacts/x86_64-unknown-linux-gnu/python/lib:$LD_LIBRARY_PATH" >> $BASH_ENV
+            source $BASH_ENV
+            # Verify the Python shared library is accessible
+            ls -la /tmp/workspace/python-artifacts/x86_64-unknown-linux-gnu/python/lib/
       - run:
           name: cargo nextest
-          command: TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast -F no_license
+          command: |
+            TEST_LOG= RUST_LOG=info RUST_LOG_SPAN_EVENTS=full RUST_BACKTRACE=1 cargo nextest run --workspace --failure-output immediate-final --no-fail-fast -F no_license
 
   # Fetch python-build-standalone for official builds
   fetch-python:
     machine:
       image: ubuntu-2204:current
       resource_class: medium
-    # environment variables for python-build-standalone. Should correspond to
-    # https://github.com/astral-sh/python-build-standalone/releases. See
-    # scripts/fetch-python-standalone.bash for details. This should match the
-    # 'build-docker' job, below.
     environment:
-      PBS_DATE: "20250212"
-      PBS_VERSION: "3.11.11"
+      <<: *pbs_config
     steps:
       - checkout
       - run:
@@ -269,11 +293,7 @@ jobs:
           paths:
             - python-artifacts
 
-  # Build a dev binary.
-  #
-  # Compiles a binary with the default ("dev") cargo profile from the influxdb3 source
-  # using the latest ci_image (influxdb/rust) and ensures various targets compile successfully
-  # Build a dev binary.
+  # Build a dev binary with the default cargo profile
   build-dev:
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
@@ -282,17 +302,8 @@ jobs:
           password: $CISUPPORT_GCS_AUTHORIZATION
     resource_class: 2xlarge+ # use of a smaller executor tends crashes on link
     environment:
+      <<: *cargo_env
       TARGET: << parameters.target >>
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
-      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
-      CARGO_BUILD_JOBS: "12"
     parameters:
       target:
         type: string
@@ -304,43 +315,37 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run:
-          name: Extract python for this target
-          command: |
-            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
-      - run:
-          name: Show PYO3_CONFIG_FILE
-          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-      - run:
           name: Add ssh client
           command: |
             apt-get -y update
             apt-get -y install openssh-client
-      - run:
-          name: Install Target
-          command: rustup target add << parameters.target >>
+      - setup_pyo3_env:
+          target: << parameters.target >>
       - run:
           name: Cargo build
           command: |
-            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-            target-env cargo build --target=<< parameters.target >> --features="system-py" --workspace
+            target-env cargo build --target=<< parameters.target >> --workspace
       - when:
           condition:
             not:
               equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
           steps:
-          - run:
-              name: Check benches compile
-              command: target-env cargo check --target=<< parameters.target >> --workspace --benches
-          - run:
-              name: Check extra features (like prod image)
-              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
+            - run:
+                name: Check benches compile
+                command: |
+                  target-env cargo check --target=<< parameters.target >> --workspace --benches
+            - run:
+                name: Check extra features (like prod image)
+                command: |
+                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
       - when:
           condition:
             equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
           steps:
-          - run:
-              name: Check extra features (like prod image)
-              command: target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
+            - run:
+                name: Check extra features (like prod image)
+                command: |
+                  target-env cargo check --target=<< parameters.target >> --no-default-features --features="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console"
 
   # Compile cargo "release" profile binaries for influxdb3 pro releases
   build-release:
@@ -351,16 +356,8 @@ jobs:
           password: $CISUPPORT_GCS_AUTHORIZATION
     resource_class: 2xlarge+
     environment:
+      <<: *cargo_env
       TARGET: << parameters.target >>
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Disable full debug symbol generation to speed up CI build
-      # "1" means line tables only, which is useful for panic tracebacks.
-      CARGO_PROFILE_DEV_DEBUG: "1"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-      # avarage. At peak this is a bit tight, so lower the CPU count for cargo a bit.
-      CARGO_BUILD_JOBS: "12"
     parameters:
       target:
         type: string
@@ -375,25 +372,16 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - run:
-          name: Extract python for this target
-          command: |
-            tar -C /tmp/workspace/python-artifacts -zxvf /tmp/workspace/python-artifacts/all.tar.gz ./<< parameters.target >>
-      - run:
-          name: Show PYO3_CONFIG_FILE
-          command: cat /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-      - run:
           name: Add ssh client
           command: |
             apt-get -y update
             apt-get -y install openssh-client
-      - run:
-          name: Install Target
-          command: rustup target add << parameters.target >>
+      - setup_pyo3_env:
+          target: << parameters.target >>
       - run:
           name: Cargo release build
           command: |
-            export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt
-            target-env cargo build --target=<< parameters.target >> --features="system-py" --profile=<< parameters.profile >> --workspace
+            target-env cargo build --target=<< parameters.target >> --profile=<< parameters.profile >> --workspace
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 30m
       - when:
@@ -402,27 +390,27 @@ jobs:
               - equal: [ << parameters.target >>, aarch64-unknown-linux-gnu ]
               - equal: [ << parameters.target >>, x86_64-unknown-linux-gnu ]
           steps:
-          - run:
-              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python/lib'
-              name: adjust RPATH for linux
-              command: |
-                # tarballs need $ORIGIN/python/lib, deb/rpm need $ORIGIN/../lib/influxdb3/python/lib
-                echo "Running: patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+            - run:
+                # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN/python/lib'
+                name: adjust RPATH for linux
+                command: |
+                  # tarballs need $ORIGIN/python/lib, deb/rpm need $ORIGIN/../lib/influxdb3/python/lib
+                  echo "Running: patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   patchelf --set-rpath '$ORIGIN/python/lib:$ORIGIN/../lib/influxdb3/python/lib' "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - when:
           condition:
             equal: [ << parameters.target >>, aarch64-apple-darwin ]
           steps:
-          - run:
-              # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
-              name: adjust LC_LOAD_DYLIB path for darwin
-              command: |
-                export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
-                echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change '/install/lib/lib${PBS_LIBPYTHON}.dylib' '@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
-                /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change "/install/lib/lib${PBS_LIBPYTHON}.dylib" "@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib" "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
-                # re-sign after install_name_tool since osxcross won't do it
-                echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
-                /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+            - run:
+                # XXX: better to use 'cargo:rustc-link-arg=-Wl,-rpath,@executable_path/python/lib'
+                name: adjust LC_LOAD_DYLIB path for darwin
+                command: |
+                  export PBS_LIBPYTHON=$(grep '^lib_name=' /tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt | cut -d = -f 2)
+                  echo "Running: /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change '/install/lib/lib${PBS_LIBPYTHON}.dylib' '@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib' '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                  /osxcross/bin/aarch64-apple-darwin22.2-install_name_tool -change "/install/lib/lib${PBS_LIBPYTHON}.dylib" "@executable_path/python/lib/lib${PBS_LIBPYTHON}.dylib" "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+                  # re-sign after install_name_tool since osxcross won't do it
+                  echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
+                  /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - run:
           name: tar and gzip build artifacts
           command: |
@@ -436,6 +424,7 @@ jobs:
           root: .
           paths:
             - artifacts
+
   build-packages:
     docker:
       - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:db0cd91a5445c4287154cea1d4d5566735cb0d3b7b9e2a95724a83f9d979d497
@@ -456,6 +445,7 @@ jobs:
             - artifacts
       - store_artifacts:
           path: artifacts/
+
   check_package_deb_amd64:
     machine:
       image: ubuntu-2204:current
@@ -469,6 +459,7 @@ jobs:
           command: |
             sudo .circleci/scripts/package-validation/debian \
               /tmp/workspace/artifacts/influxdb3*amd64.deb
+
   check_package_deb_arm64:
     machine:
       image: ubuntu-2204:current
@@ -482,6 +473,7 @@ jobs:
           command: |
             sudo .circleci/scripts/package-validation/debian \
               /tmp/workspace/artifacts/influxdb3*arm64.deb
+
   check_package_rpm:
     machine:
       image: ubuntu-2204:current
@@ -501,6 +493,7 @@ jobs:
           AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
           AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
           .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb3*.<< parameters.arch >>.rpm
+
   sign-packages:
     circleci_ip_ranges: true
     docker:
@@ -548,6 +541,7 @@ jobs:
             - artifacts
       - store_artifacts:
           path: /tmp/workspace/artifacts
+
   publish-packages:
     docker:
       - image: cimg/python:3.12.2
@@ -574,6 +568,7 @@ jobs:
             export AWS_ACCESS_KEY_ID="${RELEASE_AWS_ACCESS_KEY_ID}"
             export AWS_SECRET_ACCESS_KEY="${RELEASE_AWS_SECRET_ACCESS_KEY}"
             aws cloudfront create-invalidation --distribution-id "${RELEASE_ARTIFACTS_CLOUDFRONT}" --paths '/influxdb/<< parameters.destination >>/*'
+
   build-docker:
     parameters:
       platform:
@@ -588,8 +583,7 @@ jobs:
     # scripts/fetch-python-standalone.bash for details. This should match
     # the 'fetch-python' job, above.
     environment:
-      PBS_DATE: "20250212"
-      PBS_VERSION: "3.11.11"
+      <<: *pbs_config
     machine:
       image: default
     resource_class: << parameters.resource_class >>
@@ -611,13 +605,12 @@ jobs:
           command: |
             .circleci/scripts/docker_build_release.bash \
               "influxdb3" \
-              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,system-py" \
+              "aws,gcp,azure,jemalloc_replacing_malloc,tokio_console" \
               "<< parameters.image_name >>:latest-<< parameters.platform >>" \
               "$PBS_DATE" \
               "$PBS_VERSION" \
               "<< parameters.platform >>" \
               "$DOCKER_PROFILE"
-
           # linking might take a while and doesn't produce CLI output
           no_output_timeout: 60m
       - run: |
@@ -626,6 +619,7 @@ jobs:
           root: .
           paths:
             - << parameters.image_name >>-<< parameters.platform >>.tar
+
   publish-docker:
     docker:
       - image: cimg/gcp:2023.02
@@ -772,6 +766,8 @@ workflows:
           <<: *any_filter
       - test:
           <<: *any_filter
+          requires:
+            - fetch-python
       - build-dev:
           # This workflow requires secrets stored in the environment.
           # These are not passed to workflows executed on forked
@@ -859,6 +855,7 @@ workflows:
           requires:
             - build-docker-amd64
             - build-docker-arm64
+
   go-ci:
     jobs:
       - go-fmt
