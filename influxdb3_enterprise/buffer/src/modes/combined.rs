@@ -36,15 +36,26 @@ struct IngestComponents {
 }
 
 #[derive(Debug)]
-struct QueryComponents {}
+pub struct IngestArgs {
+    pub node_id: Arc<str>,
+    pub persister: Arc<Persister>,
+    pub wal_config: WalConfig,
+    pub executor: Arc<iox_query::exec::Executor>,
+    pub snapshotted_wal_files_to_keep: u64,
+}
 
 #[derive(Debug)]
-pub struct Combined {
+pub struct QueryArgs {
+    pub replication_config: ReplicationConfig,
+}
+
+#[derive(Debug)]
+pub struct IngestQueryMode {
     ingest: Option<IngestComponents>,
+    replicas: Option<Replicas>,
+
     object_store: Arc<dyn ObjectStore>,
     object_store_url: ObjectStoreUrl,
-
-    replicas: Option<Replicas>,
 
     compacted_data: Option<Arc<CompactedData>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
@@ -52,86 +63,99 @@ pub struct Combined {
 }
 
 #[derive(Debug)]
-pub struct CreateCombinedModeArgs {
-    pub node_id: Arc<str>,
-    pub persister: Arc<Persister>,
-    pub object_store: Arc<dyn ObjectStore>,
-    pub catalog: Arc<Catalog>,
+pub struct CreateIngestQueryModeArgs {
+    pub ingest_args: Option<IngestArgs>,
+    pub query_args: Option<QueryArgs>,
+
+    // common between ingest and query modes
     pub last_cache: Arc<LastCacheProvider>,
     pub distinct_cache: Arc<DistinctCacheProvider>,
-    pub time_provider: Arc<dyn TimeProvider>,
-    pub executor: Arc<iox_query::exec::Executor>,
-    pub wal_config: WalConfig,
+    pub object_store: Arc<dyn ObjectStore>,
+    pub catalog: Arc<Catalog>,
     pub metric_registry: Arc<Registry>,
-    pub replication_config: Option<ReplicationConfig>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub compacted_data: Option<Arc<CompactedData>>,
-    pub snapshotted_wal_files_to_keep: u64,
+    pub time_provider: Arc<dyn TimeProvider>,
 }
 
-impl Combined {
+impl IngestQueryMode {
     pub(crate) async fn new(
-        CreateCombinedModeArgs {
-            node_id,
-            persister,
+        CreateIngestQueryModeArgs {
             object_store,
             catalog,
             last_cache,
             distinct_cache,
             time_provider,
-            executor,
-            wal_config,
             metric_registry,
-            replication_config,
             parquet_cache,
             compacted_data,
-            snapshotted_wal_files_to_keep,
-        }: CreateCombinedModeArgs,
+            ingest_args,
+            query_args,
+        }: CreateIngestQueryModeArgs,
     ) -> Result<Self, anyhow::Error> {
-        let primary = WriteBufferImpl::new(WriteBufferImplArgs {
+        let node_id = ingest_args.as_ref().map(|i| Arc::clone(&i.node_id));
+        let ingest = if let Some(IngestArgs {
+            node_id,
             persister,
-            catalog: Arc::clone(&catalog),
-            last_cache: Arc::clone(&last_cache),
-            distinct_cache: Arc::clone(&distinct_cache),
-            time_provider: Arc::clone(&time_provider),
-            executor,
             wal_config,
-            parquet_cache: parquet_cache.clone(),
-            metric_registry: Arc::clone(&metric_registry),
+            executor,
             snapshotted_wal_files_to_keep,
-            // NOTE: this is a core only limit
-            query_file_limit: None,
-        })
-        .await?;
-
-        let replicas = if let Some(ReplicationConfig {
-            interval: replication_interval,
-            node_ids,
-        }) = replication_config.and_then(|mut config| {
-            // remove this writer from the list of replicas if it was provided to prevent from
-            // replicating the local primary buffer.
-            config.node_ids.retain(|h| h != node_id.as_ref());
-            (!config.node_ids.is_empty()).then_some(config)
-        }) {
-            Some(
-                Replicas::new(CreateReplicasArgs {
-                    last_cache,
-                    distinct_cache,
-                    object_store: Arc::clone(&object_store),
-                    metric_registry,
-                    replication_interval,
-                    node_ids,
-                    parquet_cache: parquet_cache.clone(),
-                    catalog: Arc::clone(&catalog),
-                    time_provider,
-                })
-                .await?,
-            )
+        }) = ingest_args
+        {
+            let primary = WriteBufferImpl::new(WriteBufferImplArgs {
+                persister,
+                catalog: Arc::clone(&catalog),
+                last_cache: Arc::clone(&last_cache),
+                distinct_cache: Arc::clone(&distinct_cache),
+                time_provider: Arc::clone(&time_provider),
+                executor,
+                wal_config,
+                parquet_cache: parquet_cache.clone(),
+                metric_registry: Arc::clone(&metric_registry),
+                snapshotted_wal_files_to_keep,
+                // NOTE: this is a core only limit
+                query_file_limit: None,
+            })
+            .await?;
+            Some(IngestComponents { primary, node_id })
         } else {
             None
         };
+
+        let replicas = if let Some(QueryArgs { replication_config }) = query_args {
+            let ReplicationConfig {
+                interval: replication_interval,
+                mut node_ids,
+            } = replication_config;
+            // remove this writer from the list of replicas if it was provided to prevent from
+            // replicating the local primary buffer.
+            if let Some(node_id) = node_id {
+                node_ids.retain(|h| h != node_id.as_ref());
+            }
+            if !node_ids.is_empty() {
+                Some(
+                    Replicas::new(CreateReplicasArgs {
+                        last_cache,
+                        distinct_cache,
+                        object_store: Arc::clone(&object_store),
+                        metric_registry,
+                        replication_interval,
+                        node_ids,
+                        parquet_cache: parquet_cache.clone(),
+                        catalog: Arc::clone(&catalog),
+                        time_provider,
+                    })
+                    .await?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(Self {
-            ingest: Some(IngestComponents { node_id, primary }),
+            ingest,
             replicas,
             catalog,
             compacted_data,
@@ -141,16 +165,17 @@ impl Combined {
         })
     }
 
-    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
-        self.ingest
-            .as_ref()
-            .map(|i| i.primary.persisted_files())
-            .expect("watch_persisted_snapshots only implemented when ingest mode is enabled")
+    pub fn persisted_files(&self) -> Option<Arc<PersistedFiles>> {
+        self.ingest.as_ref().map(|i| i.primary.persisted_files())
+    }
+
+    pub fn write_buffer_impl(&self) -> Option<Arc<WriteBufferImpl>> {
+        self.ingest.as_ref().map(|i| Arc::clone(&i.primary))
     }
 }
 
 #[async_trait]
-impl Bufferer for Combined {
+impl Bufferer for IngestQueryMode {
     async fn write_lp(
         &self,
         database: NamespaceName<'static>,
@@ -209,7 +234,7 @@ impl Bufferer for Combined {
     }
 
     fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
-        unimplemented!("watch_persisted_snapshots not implemented for ReadWriteMode")
+        unimplemented!("watch_persisted_snapshots not implemented")
     }
 
     fn wal(&self) -> Arc<dyn Wal> {
@@ -220,7 +245,7 @@ impl Bufferer for Combined {
     }
 }
 
-impl ChunkContainer for Combined {
+impl ChunkContainer for IngestQueryMode {
     fn get_table_chunks(
         &self,
         db_schema: Arc<DatabaseSchema>,
@@ -332,7 +357,7 @@ impl ChunkContainer for Combined {
 }
 
 #[async_trait::async_trait]
-impl LastCacheManager for Combined {
+impl LastCacheManager for IngestQueryMode {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         let replicas = self.replicas.as_ref();
         self.ingest
@@ -344,7 +369,7 @@ impl LastCacheManager for Combined {
 }
 
 #[async_trait]
-impl DistinctCacheManager for Combined {
+impl DistinctCacheManager for IngestQueryMode {
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
         let replicas = self.replicas.as_ref();
         self.ingest
@@ -355,4 +380,4 @@ impl DistinctCacheManager for Combined {
     }
 }
 
-impl WriteBuffer for Combined {}
+impl WriteBuffer for IngestQueryMode {}

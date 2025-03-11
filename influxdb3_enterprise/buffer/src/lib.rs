@@ -15,9 +15,8 @@ use influxdb3_write::{
 use iox_query::QueryChunk;
 use iox_time::Time;
 use modes::{
+    combined::{CreateIngestQueryModeArgs, IngestQueryMode},
     compactor::CompactorMode,
-    read::{CreateReadModeArgs, ReadMode},
-    read_write::{CreateReadWriteModeArgs, ReadWriteMode},
 };
 use tokio::sync::watch::Receiver;
 
@@ -34,32 +33,25 @@ pub struct WriteBufferEnterprise<Mode> {
 pub struct NoMode;
 
 impl WriteBufferEnterprise<NoMode> {
-    pub async fn read(
-        args: CreateReadModeArgs,
-    ) -> Result<WriteBufferEnterprise<ReadMode>, anyhow::Error> {
-        let mode = ReadMode::new(args).await?;
-        Ok(WriteBufferEnterprise { mode })
-    }
-
-    pub async fn read_write(
-        args: CreateReadWriteModeArgs,
-    ) -> Result<WriteBufferEnterprise<ReadWriteMode>, anyhow::Error> {
-        let mode = ReadWriteMode::new(args).await?;
-        Ok(WriteBufferEnterprise { mode })
-    }
-
     pub fn compactor(catalog: Arc<Catalog>) -> WriteBufferEnterprise<CompactorMode> {
         let mode = CompactorMode::new(catalog);
         WriteBufferEnterprise { mode }
     }
+
+    pub async fn combined_ingest_query(
+        args: CreateIngestQueryModeArgs,
+    ) -> Result<WriteBufferEnterprise<IngestQueryMode>, anyhow::Error> {
+        let mode = IngestQueryMode::new(args).await?;
+        Ok(WriteBufferEnterprise { mode })
+    }
 }
 
-impl WriteBufferEnterprise<ReadWriteMode> {
-    pub fn persisted_files(&self) -> Arc<PersistedFiles> {
+impl WriteBufferEnterprise<IngestQueryMode> {
+    pub fn persisted_files(&self) -> Option<Arc<PersistedFiles>> {
         self.mode.persisted_files()
     }
 
-    pub fn write_buffer_impl(&self) -> Arc<WriteBufferImpl> {
+    pub fn write_buffer_impl(&self) -> Option<Arc<WriteBufferImpl>> {
         self.mode.write_buffer_impl()
     }
 }

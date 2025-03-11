@@ -21,11 +21,10 @@ use influxdb3_clap_blocks::{
 };
 use influxdb3_config::Config as ConfigTrait;
 use influxdb3_config::EnterpriseConfig;
-use influxdb3_enterprise_buffer::{
-    WriteBufferEnterprise,
-    modes::{read::CreateReadModeArgs, read_write::CreateReadWriteModeArgs},
-    replica::ReplicationConfig,
-};
+use influxdb3_enterprise_buffer::modes::combined::CreateIngestQueryModeArgs;
+use influxdb3_enterprise_buffer::modes::combined::IngestArgs;
+use influxdb3_enterprise_buffer::modes::combined::QueryArgs;
+use influxdb3_enterprise_buffer::{WriteBufferEnterprise, replica::ReplicationConfig};
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use influxdb3_enterprise_compactor::producer::CompactedDataProducer;
 use influxdb3_enterprise_compactor::{
@@ -526,7 +525,7 @@ pub async fn command(config: Config) -> Result<()> {
     let build_malloc_conf = build_malloc_conf();
     info!(
         node_id = %config.node_identifier_prefix,
-        mode = %config.enterprise_config.mode,
+        mode = ?config.enterprise_config.mode,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
         uuid = %PROCESS_UUID.as_ref() as &str,
@@ -656,7 +655,8 @@ pub async fn command(config: Config) -> Result<()> {
         .register_node(
             &config.node_identifier_prefix,
             num_cpus as u64,
-            config.enterprise_config.mode.into(),
+            // TODO: fix node mode representation in catalog logs
+            NodeMode::All,
         )
         .await?;
     let node_def = catalog
@@ -719,7 +719,7 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let node_ids = if matches!(config.enterprise_config.mode, BufferMode::Compactor) {
+            let node_ids = if config.enterprise_config.mode.contains(&BufferMode::Compact) {
                 if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
                     compact_from_node_ids.to_vec()
@@ -743,7 +743,11 @@ pub async fn command(config: Config) -> Result<()> {
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
-                parquet_cache_prefetcher: if config.enterprise_config.mode.is_compactor() {
+                parquet_cache_prefetcher: if config
+                    .enterprise_config
+                    .mode
+                    .contains(&BufferMode::Compact)
+                {
                     None
                 } else {
                     parquet_cache_prefetcher
@@ -801,70 +805,56 @@ pub async fn command(config: Config) -> Result<()> {
         )
     });
 
-    type CreateBufferModeResult = (
-        Arc<dyn WriteBuffer>,
-        Option<Arc<PersistedFiles>>,
-        Option<Arc<WriteBufferImpl>>,
-    );
-
-    let (write_buffer, persisted_files, write_buffer_impl): CreateBufferModeResult = match config
+    let query_args = config
         .enterprise_config
         .mode
-    {
-        BufferMode::Read => {
-            let ReplicationConfig { interval, node_ids } = replica_config
-                .context("must supply a read-from-node-ids list when starting in read-only mode")
-                .map_err(Error::WriteBufferInit)?;
-            (
-                Arc::new(
-                    WriteBufferEnterprise::read(CreateReadModeArgs {
-                        last_cache,
-                        distinct_cache,
-                        object_store: Arc::clone(&object_store),
-                        catalog: Arc::clone(&catalog),
-                        metric_registry: Arc::clone(&metrics),
-                        replication_interval: interval,
-                        node_ids,
-                        parquet_cache: parquet_cache.clone(),
-                        compacted_data: compacted_data.clone(),
-                        time_provider: Arc::<SystemProvider>::clone(&time_provider),
-                    })
-                    .await
-                    .map_err(Error::WriteBufferInit)?,
-                ),
-                None,
-                None,
-            )
-        }
-        BufferMode::ReadWrite => {
+        .contains(&BufferMode::Query)
+        .then(|| replica_config)
+        .flatten()
+        .map(|rc| QueryArgs {
+            replication_config: rc,
+        });
+
+    let ingest_args = config
+        .enterprise_config
+        .mode
+        .contains(&BufferMode::Ingest)
+        .then(|| IngestArgs {
+            node_id: persister.node_identifier_prefix().into(),
+            persister: Arc::clone(&persister),
+            executor: Arc::clone(&exec),
+            wal_config,
+            snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+        });
+
+    let (write_buffer, persisted_files, write_buffer_impl): (Arc<dyn WriteBuffer>, _, _) =
+        if query_args.is_some() || ingest_args.is_some() {
             let buf = Arc::new(
-                WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-                    node_id: persister.node_identifier_prefix().into(),
-                    persister: Arc::clone(&persister),
-                    catalog: Arc::clone(&catalog),
+                WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+                    query_args,
+                    ingest_args,
                     last_cache,
                     distinct_cache,
-                    time_provider: Arc::<SystemProvider>::clone(&time_provider),
-                    executor: Arc::clone(&exec),
-                    wal_config,
+                    object_store: Arc::clone(&object_store),
+                    catalog: Arc::clone(&catalog),
                     metric_registry: Arc::clone(&metrics),
-                    replication_config: replica_config,
                     parquet_cache: parquet_cache.clone(),
                     compacted_data: compacted_data.clone(),
-                    snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+                    time_provider: Arc::<SystemProvider>::clone(&time_provider),
                 })
                 .await
                 .map_err(Error::WriteBufferInit)?,
             );
             let persisted_files = buf.persisted_files();
             let write_buffer_impl = buf.write_buffer_impl();
-            (buf, Some(persisted_files), Some(write_buffer_impl))
-        }
-        BufferMode::Compactor => {
+            (buf, persisted_files, write_buffer_impl)
+        } else if config.enterprise_config.mode.contains(&BufferMode::Compact) {
             let buf = Arc::new(WriteBufferEnterprise::compactor(Arc::clone(&catalog)));
             (buf, None, None)
-        }
-    };
+        } else {
+            // TODO: clean up error handling here
+            return Err(Error::WriteBufferInit(anyhow::Error::msg("TODO")));
+        };
 
     if let Some(write_buffer_impl) = write_buffer_impl {
         info!("setting up background mem check for query buffer");
@@ -902,8 +892,11 @@ pub async fn command(config: Config) -> Result<()> {
             None
         };
 
-    let query_executor: Arc<dyn QueryExecutor> = match config.enterprise_config.mode {
-        BufferMode::Compactor => Arc::new(CompactionSysTableQueryExecutorImpl::new(
+    let compactor_only = config.enterprise_config.mode.len() == 1
+        && config.enterprise_config.mode.contains(&BufferMode::Compact);
+
+    let query_executor: Arc<dyn QueryExecutor> = if compactor_only {
+        Arc::new(CompactionSysTableQueryExecutorImpl::new(
             CompactionSysTableQueryExecutorArgs {
                 exec: Arc::clone(&exec),
                 metrics: Arc::clone(&metrics),
@@ -913,8 +906,9 @@ pub async fn command(config: Config) -> Result<()> {
                 sys_events_store: Arc::clone(&sys_events_store),
                 compacted_data: sys_table_compacted_data,
             },
-        )),
-        _ => Arc::new(QueryExecutorEnterprise::new(
+        ))
+    } else {
+        Arc::new(QueryExecutorEnterprise::new(
             CreateQueryExecutorArgs {
                 catalog: write_buffer.catalog(),
                 write_buffer: Arc::clone(&write_buffer),
@@ -927,7 +921,7 @@ pub async fn command(config: Config) -> Result<()> {
             },
             sys_table_compacted_data,
             Arc::clone(&enterprise_config),
-        )),
+        ))
     };
 
     let listener = TcpListener::bind(*config.http_bind_address)

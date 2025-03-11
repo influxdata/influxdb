@@ -165,9 +165,11 @@ pub struct RegisterNodeLog {
 pub enum NodeMode {
     Core,
     // Enterprise Only:
-    ReadWrite,
-    Read,
-    Compactor,
+    Query,
+    Ingest,
+    Compact,
+    Process,
+    All,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
