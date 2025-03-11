@@ -91,7 +91,7 @@ impl Catalog {
         &self,
         node_id: &str,
         core_count: u64,
-        mode: NodeMode,
+        mode: Vec<NodeMode>,
     ) -> Result<Option<OrderedCatalogBatch>> {
         self.catalog_update_with_retry(|| {
             let instance_id = if let Some(node) = self.node(node_id) {
@@ -129,7 +129,7 @@ impl Catalog {
                     instance_id,
                     registered_time_ns: time_ns,
                     core_count,
-                    mode,
+                    mode: mode.clone(),
                 })],
             ))
         })

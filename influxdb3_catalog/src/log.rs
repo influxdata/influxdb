@@ -158,7 +158,7 @@ pub struct RegisterNodeLog {
     pub instance_id: Arc<str>,
     pub registered_time_ns: i64,
     pub core_count: u64,
-    pub mode: NodeMode,
+    pub mode: Vec<NodeMode>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]

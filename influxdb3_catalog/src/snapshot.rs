@@ -116,7 +116,7 @@ impl From<CatalogSnapshot> for InnerCatalog {
 struct NodeSnapshot {
     node_id: Arc<str>,
     instance_id: Arc<str>,
-    mode: NodeMode,
+    mode: Vec<NodeMode>,
     state: NodeState,
     core_count: u64,
 }
@@ -126,7 +126,7 @@ impl From<&NodeDefinition> for NodeSnapshot {
         Self {
             node_id: Arc::clone(&node.node_id),
             instance_id: Arc::clone(&node.instance_id),
-            mode: node.mode,
+            mode: node.mode.clone(),
             state: node.state,
             core_count: node.core_count,
         }

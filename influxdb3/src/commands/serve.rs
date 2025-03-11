@@ -655,8 +655,13 @@ pub async fn command(config: Config) -> Result<()> {
         .register_node(
             &config.node_identifier_prefix,
             num_cpus as u64,
-            // TODO: fix node mode representation in catalog logs
-            NodeMode::All,
+            config
+                .enterprise_config
+                .mode
+                .clone()
+                .into_iter()
+                .map(|e| e.into())
+                .collect(),
         )
         .await?;
     let node_def = catalog
