@@ -198,6 +198,35 @@ impl From<BufferMode> for NodeMode {
     }
 }
 
+#[derive(Debug)]
+pub struct BufferModes(HashSet<BufferMode>);
+
+impl From<Vec<BufferMode>> for BufferModes {
+    fn from(bs: Vec<BufferMode>) -> Self {
+        let mut s = HashSet::new();
+
+        for b in bs {
+            s.insert(b);
+        }
+
+        BufferModes(s)
+    }
+}
+
+impl BufferModes {
+    pub fn is_compactor(&self) -> bool {
+        self.0.contains(&BufferMode::Compact) || self.0.contains(&BufferMode::All)
+    }
+
+    pub fn is_ingest(&self) -> bool {
+        self.0.contains(&BufferMode::Ingest) || self.0.contains(&BufferMode::All)
+    }
+
+    pub fn is_query(&self) -> bool {
+        self.0.contains(&BufferMode::Query) || self.0.contains(&BufferMode::All)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NodeIdList(Vec<String>);
 

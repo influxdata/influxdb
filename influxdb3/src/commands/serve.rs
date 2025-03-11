@@ -26,6 +26,7 @@ use influxdb3_enterprise_buffer::modes::combined::IngestArgs;
 use influxdb3_enterprise_buffer::modes::combined::QueryArgs;
 use influxdb3_enterprise_buffer::{WriteBufferEnterprise, replica::ReplicationConfig};
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
+use influxdb3_enterprise_clap_blocks::serve::BufferModes;
 use influxdb3_enterprise_compactor::producer::CompactedDataProducer;
 use influxdb3_enterprise_compactor::{
     compacted_data::{CompactedData, CompactedDataSystemTableView},
@@ -810,27 +811,23 @@ pub async fn command(config: Config) -> Result<()> {
         )
     });
 
-    let query_args = config
-        .enterprise_config
-        .mode
-        .contains(&BufferMode::Query)
+    let buffer_modes: BufferModes = config.enterprise_config.mode.clone().into();
+
+    let query_args = buffer_modes
+        .is_query()
         .then(|| replica_config)
         .flatten()
         .map(|rc| QueryArgs {
             replication_config: rc,
         });
 
-    let ingest_args = config
-        .enterprise_config
-        .mode
-        .contains(&BufferMode::Ingest)
-        .then(|| IngestArgs {
-            node_id: persister.node_identifier_prefix().into(),
-            persister: Arc::clone(&persister),
-            executor: Arc::clone(&exec),
-            wal_config,
-            snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
-        });
+    let ingest_args = buffer_modes.is_ingest().then(|| IngestArgs {
+        node_id: persister.node_identifier_prefix().into(),
+        persister: Arc::clone(&persister),
+        executor: Arc::clone(&exec),
+        wal_config,
+        snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
+    });
 
     let (write_buffer, persisted_files, write_buffer_impl): (Arc<dyn WriteBuffer>, _, _) =
         if query_args.is_some() || ingest_args.is_some() {
