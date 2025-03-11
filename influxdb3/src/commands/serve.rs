@@ -815,7 +815,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let query_args = buffer_modes
         .is_query()
-        .then(|| replica_config)
+        .then_some(replica_config)
         .flatten()
         .map(|rc| QueryArgs {
             replication_config: rc,
