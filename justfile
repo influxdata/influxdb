@@ -56,9 +56,7 @@ restarting-compaction-workload testid wcount:
   pueue add -g {{testid}} just with-restarts 1200 run-compactor writer {{test_data}}/{{testid}}
   pueue add -g {{testid}} just with-retries run-load-generator {{wcount}}
 
-# NOTE: after https://github.com/influxdata/influxdb_pro/issues/299 is
-# implemented, we should chane this to be `--mode=write`
-[doc('Run a single influxdb3 instance in read_write mode.')]
+[doc('Run a single influxdb3 instance in "ingest" mode.')]
 [group('components')]
 run-writer node_id data_dir:
   #!/usr/bin/env bash
@@ -90,10 +88,10 @@ run-writer node_id data_dir:
     -- serve \
       --http-bind 127.0.0.1:8756 \
       --disable-telemetry-upload \
-      --mode read_write \
+      --mode ingest \
       2>&1 > {{test_data}}/logs/writer.log
 
-[doc('Run a single influxdb3 instance in compactor mode.')]
+[doc('Run a single influxdb3 instance in "compact" mode.')]
 [group('components')]
 run-compactor node_id data_dir:
   #!/usr/bin/env bash
@@ -127,7 +125,7 @@ run-compactor node_id data_dir:
     -- serve \
       --http-bind 127.0.0.1:8757 \
       --disable-telemetry-upload \
-      --mode compactor \
+      --mode compact \
       --compact-from-node-ids {{node_id}} \
       --compactor-id {{node_id}}-compactor-id \
       --run-compactions \

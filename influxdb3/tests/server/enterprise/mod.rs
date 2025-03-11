@@ -17,7 +17,7 @@ pub struct TestConfigEnterprise {
     read_from_node_ids: Vec<String>,
     compact_from_node_ids: Vec<String>,
     replication_interval: Option<String>,
-    mode: Option<BufferMode>,
+    mode: Option<Vec<BufferMode>>,
     object_store_path: Option<String>,
     compactor_id: Option<String>,
 }
@@ -40,8 +40,14 @@ impl ConfigProvider for TestConfigEnterprise {
         } else {
             args.push("test-server".to_string());
         }
-        if let Some(mode) = self.mode {
-            args.append(&mut vec!["--mode".to_string(), mode.to_string()]);
+        if let Some(mode) = &self.mode {
+            args.append(&mut vec![
+                "--mode".to_string(),
+                mode.iter()
+                    .map(|bm| bm.to_string())
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ]);
         }
         if !self.read_from_node_ids.is_empty() {
             args.append(&mut vec![
@@ -118,7 +124,7 @@ impl TestConfigEnterprise {
     }
 
     /// Set the buffer mode for the spawned server
-    pub fn with_mode(mut self, mode: BufferMode) -> Self {
+    pub fn with_mode(mut self, mode: Vec<BufferMode>) -> Self {
         self.mode = Some(mode);
         self
     }

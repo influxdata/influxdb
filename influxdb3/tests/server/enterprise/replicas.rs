@@ -24,7 +24,7 @@ async fn two_primaries_one_replica() {
     // create a replica that replicates both:
     let replica = TestServer::configure_enterprise()
         .with_node_id("replica")
-        .with_mode(BufferMode::Read)
+        .with_mode(vec![BufferMode::Query])
         .with_read_from_node_ids(["spock", "tuvok"])
         .with_replication_interval("10ms")
         .with_object_store(obj_store_path)
@@ -119,7 +119,7 @@ async fn replicate_last_cache() {
     // create a replica that replicates both:
     let replica = TestServer::configure_enterprise()
         .with_node_id("replica")
-        .with_mode(BufferMode::Read)
+        .with_mode(vec![BufferMode::Query])
         .with_read_from_node_ids(["spock", "tuvok"])
         .with_replication_interval("10ms")
         .with_object_store(obj_store_path)

@@ -69,8 +69,6 @@ impl ReplicationConfig {
 
 #[derive(Debug)]
 pub(crate) struct Replicas {
-    object_store: Arc<dyn ObjectStore>,
-    object_store_url: ObjectStoreUrl,
     last_cache: Arc<LastCacheProvider>,
     distinct_cache: Arc<DistinctCacheProvider>,
     replicated_buffers: Vec<Arc<ReplicatedBuffer>>,
@@ -132,24 +130,10 @@ impl Replicas {
             )
         }
         Ok(Self {
-            object_store,
-            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
             last_cache,
             distinct_cache,
             replicated_buffers,
         })
-    }
-
-    pub(crate) fn object_store_url(&self) -> ObjectStoreUrl {
-        self.object_store_url.clone()
-    }
-
-    pub(crate) fn object_store(&self) -> Arc<dyn ObjectStore> {
-        Arc::clone(&self.object_store)
-    }
-
-    pub(crate) fn catalog(&self) -> Arc<Catalog> {
-        self.replicated_buffers[0].catalog()
     }
 
     pub(crate) fn last_cache(&self) -> Arc<LastCacheProvider> {
@@ -235,6 +219,11 @@ impl Replicas {
             chunk_order_offset += chunks.len() as i64;
         }
         chunks
+    }
+
+    #[cfg(test)]
+    pub(crate) fn catalog(&self) -> Arc<Catalog> {
+        self.replicated_buffers[0].catalog()
     }
 }
 
@@ -929,7 +918,7 @@ mod tests {
         distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider,
         parquet_cache::test_cached_obj_store_and_oracle,
     };
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::{catalog::Catalog, log::NodeMode};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
     use influxdb3_write::{
@@ -2003,7 +1992,7 @@ mod tests {
             .unwrap(),
         );
         catalog
-            .register_node(node_id, 1, influxdb3_catalog::log::NodeMode::ReadWrite)
+            .register_node(node_id, 1, vec![NodeMode::Ingest])
             .await
             .unwrap();
         let persister = Arc::new(Persister::new(

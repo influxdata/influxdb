@@ -1,6 +1,11 @@
 //! Extend the `influxdb3 serve` command for InfluxDB Enterprise
 
-use std::{ops::Deref, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeSet, btree_set},
+    ops::Deref,
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::bail;
 use influxdb3_catalog::log::NodeMode;
@@ -11,8 +16,8 @@ pub struct EnterpriseServeConfig {
     pub cluster_identifier_prefix: Option<String>,
 
     /// The mode to start the server in
-    #[clap(long = "mode", value_enum, default_value_t = BufferMode::ReadWrite, env = "INFLUXDB3_ENTERPRISE_MODE", action)]
-    pub mode: BufferMode,
+    #[clap(long = "mode", value_enum, default_values = vec!["all"], env = "INFLUXDB3_ENTERPRISE_MODE", value_delimiter=',')]
+    pub mode: Vec<BufferMode>,
 
     /// Comma-separated list of node identifier prefixes, i.e., `node-id`s to read WAL files from
     ///
@@ -157,30 +162,31 @@ pub struct EnterpriseServeConfig {
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[clap(rename_all = "snake_case")]
 pub enum BufferMode {
     /// Will act as a read-replica and only accept queries
-    Read,
-    /// Can accept writes and serve queries, also with the capability to replicate other buffers
+    Query,
+    /// Will only accept writes and serve system table queries.
+    Ingest,
+    /// Will act as a compactor only, pulling snapshots from the host list and compacting them.
+    /// Only one node in a cluster may run in this mode.
+    Compact,
+    /// Similar to 'query' but called out separately for use serving processing engine requests.
+    Process,
+    /// Run ingestion, query, compaction, and processing. If there are other ingest nodes, this
+    /// node will pick up WAL and persisted snapshots from those for query and compaction.
     #[default]
-    ReadWrite,
-    /// Will act as a compactor only, pulling snapshots from the host list and compacting them
-    Compactor,
+    All,
 }
-
-impl BufferMode {
-    pub fn is_compactor(&self) -> bool {
-        matches!(self, Self::Compactor)
-    }
-}
-
 impl std::fmt::Display for BufferMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BufferMode::Read => write!(f, "read"),
-            BufferMode::ReadWrite => write!(f, "read_write"),
-            BufferMode::Compactor => write!(f, "compactor"),
+            BufferMode::Query => write!(f, "query"),
+            BufferMode::Ingest => write!(f, "ingest"),
+            BufferMode::Compact => write!(f, "compact"),
+            BufferMode::Process => write!(f, "process"),
+            BufferMode::All => write!(f, "all"),
         }
     }
 }
@@ -188,10 +194,55 @@ impl std::fmt::Display for BufferMode {
 impl From<BufferMode> for NodeMode {
     fn from(mode: BufferMode) -> Self {
         match mode {
-            BufferMode::Read => Self::Read,
-            BufferMode::ReadWrite => Self::ReadWrite,
-            BufferMode::Compactor => Self::Compactor,
+            BufferMode::Query => Self::Query,
+            BufferMode::Ingest => Self::Ingest,
+            BufferMode::Compact => Self::Compact,
+            BufferMode::Process => Self::Process,
+            BufferMode::All => Self::All,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BufferModes(BTreeSet<BufferMode>);
+
+impl From<Vec<BufferMode>> for BufferModes {
+    fn from(bs: Vec<BufferMode>) -> Self {
+        let mut s = BTreeSet::new();
+
+        for b in bs {
+            s.insert(b);
+        }
+
+        BufferModes(s)
+    }
+}
+
+impl BufferModes {
+    pub fn is_compactor(&self) -> bool {
+        self.0.contains(&BufferMode::Compact) || self.0.contains(&BufferMode::All)
+    }
+
+    pub fn is_ingester(&self) -> bool {
+        self.0.contains(&BufferMode::Ingest) || self.0.contains(&BufferMode::All)
+    }
+
+    pub fn is_querier(&self) -> bool {
+        self.0.contains(&BufferMode::Query)
+            || self.0.contains(&BufferMode::All)
+            || self.0.contains(&BufferMode::Process)
+    }
+
+    pub fn contains(&self, mode: &BufferMode) -> bool {
+        self.0.contains(mode)
+    }
+
+    pub fn contains_only(&self, mode: &BufferMode) -> bool {
+        self.0.len() == 1 && self.0.contains(mode)
+    }
+
+    pub fn into_iter(&self) -> btree_set::IntoIter<BufferMode> {
+        self.0.clone().into_iter()
     }
 }
 

@@ -469,7 +469,7 @@ impl InnerCatalog {
                     let new_node = Arc::new(NodeDefinition {
                         node_id: Arc::clone(node_id),
                         instance_id: Arc::clone(instance_id),
-                        mode: *mode,
+                        mode: mode.clone(),
                         core_count: *core_count,
                         state: NodeState::Running {
                             registered_time_ns: *registered_time_ns,
@@ -557,7 +557,7 @@ fn check_overall_table_count(
 pub struct NodeDefinition {
     pub(crate) node_id: Arc<str>,
     pub(crate) instance_id: Arc<str>,
-    pub(crate) mode: NodeMode,
+    pub(crate) mode: Vec<NodeMode>,
     pub(crate) core_count: u64,
     pub(crate) state: NodeState,
 }
