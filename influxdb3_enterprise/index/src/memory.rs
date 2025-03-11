@@ -14,12 +14,13 @@ use std::{cmp::Ordering, sync::Arc};
 
 use crate::hash_for_index;
 
-pub type MetaIndex = HashMap<(u64, u64), Vec<ParquetFileMeta>>;
+pub type ParquetMetaIndex = HashMap<(u64, u64), Vec<ParquetFileMeta>>;
+pub type ParquetFileIndex = HashMap<ParquetFileId, Arc<ParquetFile>>;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct InMemoryFileIndex {
-    pub index: MetaIndex,
-    parquet_files: HashMap<ParquetFileId, Arc<ParquetFile>>,
+    pub index: ParquetMetaIndex,
+    pub parquet_files: ParquetFileIndex,
 }
 
 impl InMemoryFileIndex {
@@ -61,7 +62,7 @@ impl InMemoryFileIndex {
         parquet_file_metas.sort();
     }
 
-    pub fn clone_meta_index(&self) -> MetaIndex {
+    pub fn clone_meta_index(&self) -> ParquetMetaIndex {
         self.index.clone()
     }
 

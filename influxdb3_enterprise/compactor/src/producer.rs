@@ -697,19 +697,18 @@ impl CompactedDataProducer {
         );
 
         let gen_details = vec![generation_detail];
-        let meta_index = self.compacted_data.build_new_meta_index(
-            &plan.db_schema.id,
-            &plan.table_definition.table_id,
-            &gen_details,
-            all_removed_gen_details,
-        );
+        let file_index_with_new_parquet_gen_files = self
+            .compacted_data
+            .build_new_parquet_files_in_gen_and_file_index(
+                &plan.db_schema.id,
+                &plan.table_definition.table_id,
+                gen_details,
+                &all_removed_gen_details,
+            );
 
-        self.compacted_data.update_detail_with_generations(
+        let _ = self.compacted_data.update_detail_with_generations(
             compaction_detail,
-            gen_details,
-            &plan.input_generations,
-            meta_index,
-            self.parquet_cache_prefetcher.clone(),
+            file_index_with_new_parquet_gen_files,
         );
 
         Ok(())

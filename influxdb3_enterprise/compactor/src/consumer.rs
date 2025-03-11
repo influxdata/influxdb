@@ -230,22 +230,35 @@ impl CompactedDataConsumer {
             }
             debug!(time_taken = ?cache_prefetch_timer.elapsed(), ">>> time taken for prefetching new generation files");
 
-            let meta_index = self.compacted_data.build_new_meta_index(
-                db_id,
-                table_id,
-                &generation_details,
-                removed_gen_details,
-            );
+            let file_index_with_new_parquet_gen_files = self
+                .compacted_data
+                .build_new_parquet_files_in_gen_and_file_index(
+                    db_id,
+                    table_id,
+                    generation_details,
+                    &removed_gen_details,
+                );
 
             let gen_update_timer = Instant::now();
-            self.compacted_data.update_detail_with_generations(
+            let old_data = self.compacted_data.update_detail_with_generations(
                 compaction_detail,
-                generation_details,
-                &removed_generations,
-                meta_index,
-                self.parquet_cache_prefetcher.clone(),
+                file_index_with_new_parquet_gen_files,
             );
             debug!(time_taken = ?gen_update_timer.elapsed(), ">>> time taken for updating detail with generations");
+            // This explicit drop shouldn't be necessary but without it there seems to be a
+            // significant delay at times (maybe there's some optimization) in line with dropping
+            // data when holding the lock, whereas with this explicit drop on the old data here
+            // the timings are consistently <1ms with jemalloc and occassional spikes with
+            // system allocator
+            drop(old_data);
+
+            if let Some(cache_prefetcher) = &self.parquet_cache_prefetcher {
+                for gen_detail in removed_gen_details {
+                    for file in gen_detail.files {
+                        cache_prefetcher.remove_from_cache(&file.path);
+                    }
+                }
+            }
 
             if let Some(db_schema) = self.compacted_data.catalog.db_schema_by_id(db_id) {
                 let db_name = Arc::clone(&db_schema.name);
