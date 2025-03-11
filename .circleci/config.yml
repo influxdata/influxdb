@@ -605,9 +605,9 @@ workflows:
   snapshot:
     jobs:
       - fetch-python:
-          <<: *main_filter
+          <<: *release_filter
       - build-release:
-          <<: *main_filter
+          <<: *release_filter
           name: build-snapshot-<< matrix.target >>
           matrix:
             parameters:
@@ -621,15 +621,15 @@ workflows:
           requires:
             - fetch-python
       - build-packages:
-          <<: *main_filter
+          <<: *release_filter
           requires:
             - build-release
       - sign-packages:
-          <<: *main_filter
+          <<: *release_filter
           requires:
             - build-packages
       - publish-packages:
-          <<: *main_filter
+          <<: *release_filter
           matrix:
             parameters:
               destination: [ snapshots ]
@@ -735,7 +735,7 @@ workflows:
           platform: arm64
           resource_class: arm.2xlarge
       - publish-docker:
-          <<: *docker_filter
+          <<: *release_filter
           requires:
             - build-docker-amd64
             - build-docker-arm64
