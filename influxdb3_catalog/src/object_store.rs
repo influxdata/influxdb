@@ -6,16 +6,16 @@ use bytes::Bytes;
 use futures::{StreamExt, stream::FuturesOrdered};
 use object_store::ObjectStore;
 use object_store::{PutOptions, path::Path as ObjPath};
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::catalog::InnerCatalog;
+use crate::serialize::verify_and_deserialize_catalog_checkpoint_file;
 use crate::{
     catalog::CatalogSequenceNumber,
     log::OrderedCatalogBatch,
     serialize::{
-        CatalogFile, serialize_catalog_log, serialize_catalog_snapshot,
-        verify_and_deserialize_catalog,
+        serialize_catalog_log, serialize_catalog_snapshot, verify_and_deserialize_catalog_file,
     },
     snapshot::CatalogSnapshot,
 };
@@ -34,13 +34,20 @@ type Result<T, E = ObjectStoreCatalogError> = std::result::Result<T, E>;
 #[derive(Debug, Clone)]
 pub struct ObjectStoreCatalog {
     pub(crate) prefix: Arc<str>,
+    /// PUT a checkpoint file to the object store every `checkpoint_interval` sequenced log files
+    pub(crate) checkpoint_interval: u64,
     store: Arc<dyn ObjectStore>,
 }
 
 impl ObjectStoreCatalog {
-    pub fn new(prefix: impl Into<Arc<str>>, store: Arc<dyn ObjectStore>) -> Self {
+    pub(crate) fn new(
+        prefix: impl Into<Arc<str>>,
+        checkpoint_interval: u64,
+        store: Arc<dyn ObjectStore>,
+    ) -> Self {
         Self {
             prefix: prefix.into(),
+            checkpoint_interval,
             store,
         }
     }
@@ -58,7 +65,7 @@ impl ObjectStoreCatalog {
                 let catalog_uuid = Uuid::new_v4();
                 info!(catalog_uuid = ?catalog_uuid, "catalog not found, creating a new one");
                 let new_catalog = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-                self.persist_catalog_sequenced_snapshot(&CatalogSnapshot::from(&new_catalog))
+                self.persist_catalog_checkpoint(&CatalogSnapshot::from(&new_catalog))
                     .await?;
                 Ok(new_catalog)
             }
@@ -67,36 +74,51 @@ impl ObjectStoreCatalog {
 
     /// Loads all catalog files from object store to build the catalog
     pub async fn load_catalog(&self) -> Result<Option<InnerCatalog>> {
-        let mut paths = Vec::new();
-        let mut offset: Option<ObjPath> = None;
+        // get the checkpoint to initialize the catalog:
+        let mut inner_catalog = match self
+            .store
+            .get(&CatalogFilePath::checkpoint(&self.prefix))
+            .await
+        {
+            Ok(get_result) => {
+                let bytes = get_result.bytes().await?;
+                let snapshot = verify_and_deserialize_catalog_checkpoint_file(bytes).context(
+                    "there was a catalog checkpoint file on object store, but it \
+                        could not be verified and deserialized",
+                )?;
+                InnerCatalog::from(snapshot)
+            }
+            // there should always be a checkpoint if the server and catalog was successfully
+            // initialized:
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
 
-        'outer: loop {
-            let mut list_items = if let Some(ref offset) = offset {
-                self.store
-                    .list_with_offset(Some(&CatalogFilePath::dir(&self.prefix)), offset)
-            } else {
-                self.store.list(Some(&CatalogFilePath::dir(&self.prefix)))
-            };
+        // fetch catalog files after the checkpoint
+        //
+        // catalog files are listed with offset and sorted for every group of listed items that
+        // are added in the loop iteration; ideally, only one iteration would be needed if the
+        // catalog is checkpointed frequently enough.
+        let sequence_start = inner_catalog.sequence_number();
+        let mut offset = CatalogFilePath::log(&self.prefix, sequence_start).into();
+        let mut catalog_file_metas = Vec::new();
+        loop {
+            let mut list_items = self
+                .store
+                .list_with_offset(Some(&CatalogFilePath::dir(&self.prefix)), &offset);
 
             let mut objects = Vec::new();
             while let Some(item) = list_items.next().await {
                 objects.push(item?);
             }
-            objects.sort_unstable_by(|a, b| a.location.cmp(&b.location));
-            for object in &objects {
-                paths.push(object.location.clone());
-                debug!(?object, "added object to list of catalog files to get");
-                if object
-                    .location
-                    .as_ref()
-                    .ends_with(CATALOG_SNAPSHOT_FILE_EXTENSION)
-                {
-                    break 'outer;
-                }
+            if objects.is_empty() {
+                break;
             }
+            catalog_file_metas.append(&mut objects);
+            catalog_file_metas.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
-            if let Some(last) = objects.last() {
-                offset.replace(last.location.clone());
+            if let Some(last) = catalog_file_metas.last() {
+                offset = last.location.clone();
             } else {
                 break;
             }
@@ -106,15 +128,15 @@ impl ObjectStoreCatalog {
         async fn get_file(
             location: ObjPath,
             object_store: Arc<dyn ObjectStore>,
-        ) -> Result<CatalogFile> {
+        ) -> Result<OrderedCatalogBatch> {
             let bytes = object_store.get(&location).await?.bytes().await?;
-            verify_and_deserialize_catalog(bytes)
+            verify_and_deserialize_catalog_file(bytes)
                 .context("failed to deserialize catalog file")
                 .map_err(Into::into)
         }
 
-        for path in paths {
-            futures.push_back(get_file(path, Arc::clone(&self.store)));
+        for meta in catalog_file_metas {
+            futures.push_back(get_file(meta.location, Arc::clone(&self.store)));
         }
 
         let mut catalog_files = Vec::new();
@@ -122,34 +144,28 @@ impl ObjectStoreCatalog {
             catalog_files.push(result?);
         }
 
-        let mut result = Option::<InnerCatalog>::None;
-        for catalog_file in catalog_files.into_iter().rev() {
-            debug!(?catalog_file, "processing catalog file");
-            match catalog_file {
-                CatalogFile::Snapshot(snapshot) => {
-                    result.replace(snapshot.into());
-                }
-                // NOTE(trevor/catalog-refactor): the first catalog file should always be a snapshot,
-                // so we fail here if result is None, that would imply a catalog batch before a
-                // snapshot. In future, snapshots are planned to be moved to a separate checkpoint
-                // like file, as in the Delta protocol, so this will not be possible.
-                CatalogFile::Log(batch) => {
-                    result
-                        .as_mut()
-                        .context("did not find a catalog snapshot on object store")?
-                        .apply_catalog_batch(batch.batch(), batch.sequence_number())
-                        .context("failed to apply persisted catalog batch")?;
-                }
-            }
+        debug!(
+            n_catalog_files = catalog_files.len(),
+            "loaded catalog files since last checkpoint"
+        );
+
+        for ordered_catalog_batch in catalog_files {
+            debug!(?ordered_catalog_batch, "processing catalog file");
+            inner_catalog
+                .apply_catalog_batch(
+                    ordered_catalog_batch.batch(),
+                    ordered_catalog_batch.sequence_number(),
+                )
+                .context("failed to apply persisted catalog batch")?;
         }
-        debug!(loaded_catalog = ?result, "loaded the catalog");
-        Ok(result)
+        debug!(loaded_catalog = ?inner_catalog, "loaded the catalog");
+        Ok(Some(inner_catalog))
     }
 
     pub async fn load_catalog_sequenced_log(
         &self,
         sequence_number: CatalogSequenceNumber,
-    ) -> Result<Option<CatalogFile>> {
+    ) -> Result<Option<OrderedCatalogBatch>> {
         debug!(
             sequence_number = sequence_number.get(),
             "load sequenced catalog file",
@@ -158,7 +174,7 @@ impl ObjectStoreCatalog {
         match self.store.get(&catalog_path).await {
             Ok(get_result) => {
                 let bytes = get_result.bytes().await?;
-                Ok(Some(verify_and_deserialize_catalog(bytes).context(
+                Ok(Some(verify_and_deserialize_catalog_file(bytes).context(
                     "failed to verify and deserialize next catalog file",
                 )?))
             }
@@ -173,7 +189,7 @@ impl ObjectStoreCatalog {
         }
     }
 
-    pub async fn persist_catalog_sequenced_log(
+    pub(crate) async fn persist_catalog_sequenced_log(
         &self,
         batch: &OrderedCatalogBatch,
     ) -> Result<PersistCatalogResult> {
@@ -185,17 +201,64 @@ impl ObjectStoreCatalog {
             .await
     }
 
-    pub async fn persist_catalog_sequenced_snapshot(
+    /// Persist the `CatalogSnapshot` as a checkpoint and ensure that the operation succeeds
+    pub(crate) async fn persist_catalog_checkpoint(
         &self,
         snapshot: &CatalogSnapshot,
-    ) -> Result<PersistCatalogResult> {
-        let catalog_path = CatalogFilePath::snapshot(&self.prefix, snapshot.sequence_number());
+    ) -> Result<()> {
+        let sequence = snapshot.sequence_number().get();
+        let catalog_path = CatalogFilePath::checkpoint(&self.prefix);
 
         let content =
             serialize_catalog_snapshot(snapshot).context("failed to serialize catalog snapshot")?;
 
-        self.catalog_update_if_not_exists(catalog_path, content)
-            .await
+        // NOTE: not sure if this should be done in a loop, i.e., what error variants from
+        // the object store would warrant a retry.
+        match self.store.put(&catalog_path, content.clone().into()).await {
+            Ok(put_result) => {
+                info!(sequence, "persisted catalog checkpoint file");
+                debug!(put_result = ?put_result, "object store PUT result");
+                Ok(())
+            }
+            Err(object_store::Error::NotModified { .. }) => Ok(()),
+            Err(err) => {
+                error!(error = ?err, "failed to persist catalog checkpoint file");
+                Err(err.into())
+            }
+        }
+    }
+
+    /// Persist the `CatalogSnapshot` as a checkpoint in the background but don't check that the
+    /// operation succeeds.
+    pub(crate) fn background_persist_catalog_checkpoint(
+        &self,
+        snapshot: &CatalogSnapshot,
+    ) -> Result<()> {
+        let sequence = snapshot.sequence_number().get();
+        debug!(sequence, "background persist of catalog checkpoint");
+        let catalog_path = CatalogFilePath::checkpoint(&self.prefix);
+
+        let content =
+            serialize_catalog_snapshot(snapshot).context("failed to serialize catalog snapshot")?;
+
+        let store = Arc::clone(&self.store);
+
+        tokio::spawn(async move {
+            // NOTE: not sure if this should be done in a loop, i.e., what error variants from
+            // the object store would warrant a retry.
+            match store.put(&catalog_path, content.clone().into()).await {
+                Ok(put_result) => {
+                    info!(sequence, "persisted catalog checkpoint file");
+                    debug!(put_result = ?put_result, "object store PUT result");
+                }
+                Err(object_store::Error::NotModified { .. }) => {}
+                Err(err) => {
+                    error!(error = ?err, "failed to persist catalog checkpoint file");
+                }
+            }
+        });
+
+        Ok(())
     }
 
     async fn catalog_update_if_not_exists(
@@ -252,19 +315,20 @@ pub const CATALOG_SNAPSHOT_FILE_EXTENSION: &str = "catalog.snapshot";
 pub struct CatalogFilePath(ObjPath);
 
 impl CatalogFilePath {
-    pub fn log(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
-        let num = u64::MAX - catalog_sequence_number.get();
+    /// Catalog files are persisted as a monotonically increasing sequence of files, whose name
+    /// is `<sequence>.catalog`; `<sequence>` is zero-padded to 20 characters to fit a `u64::MAX`
+    pub fn log(catalog_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
+        let num = catalog_sequence_number.get();
         let path = ObjPath::from(format!(
-            "{host_prefix}/catalogs/{num:020}.{CATALOG_LOG_FILE_EXTENSION}",
+            "{catalog_prefix}/catalogs/{num:020}.{CATALOG_LOG_FILE_EXTENSION}",
         ));
         Self(path)
     }
 
-    pub fn snapshot(host_prefix: &str, catalog_sequence_number: CatalogSequenceNumber) -> Self {
-        let num = u64::MAX - catalog_sequence_number.get();
-        let path = ObjPath::from(format!(
-            "{host_prefix}/catalogs/{num:020}.{CATALOG_SNAPSHOT_FILE_EXTENSION}",
-        ));
+    /// The Catalog checkpoint file is periodically persisted to object store at the same
+    /// location
+    pub fn checkpoint(catalog_prefix: &str) -> Self {
+        let path = ObjPath::from(format!("{catalog_prefix}/_catalog_checkpoint",));
         Self(path)
     }
 
@@ -287,6 +351,12 @@ impl AsRef<ObjPath> for CatalogFilePath {
     }
 }
 
+impl From<CatalogFilePath> for ObjPath {
+    fn from(path: CatalogFilePath) -> Self {
+        path.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -299,7 +369,7 @@ mod tests {
     async fn load_or_create_catalog_new_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let store = ObjectStoreCatalog::new("test_host", Arc::new(local_disk));
+        let store = ObjectStoreCatalog::new("test_host", 10, Arc::new(local_disk));
         let _ = store.load_or_create_catalog().await.unwrap();
         assert!(store.load_catalog().await.unwrap().is_some());
     }
@@ -308,7 +378,7 @@ mod tests {
     async fn load_or_create_catalog_existing_catalog() {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
-        let store = ObjectStoreCatalog::new("test_host", Arc::new(local_disk));
+        let store = ObjectStoreCatalog::new("test_host", 10, Arc::new(local_disk));
         let expected = store.load_or_create_catalog().await.unwrap().catalog_id;
 
         // initialize again to ensure it uses the same as above

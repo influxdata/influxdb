@@ -635,7 +635,7 @@ mod tests {
 
     use super::*;
     use crate::PersistedSnapshot;
-    use crate::paths::{CatalogFilePath, SnapshotInfoFilePath};
+    use crate::paths::SnapshotInfoFilePath;
     use crate::persister::Persister;
     use crate::test_helpers::WriteBufferTester;
     use arrow::record_batch::RecordBatch;
@@ -700,7 +700,7 @@ mod tests {
         assert_eq!(db.tables.get(&TableId::from(1)).unwrap().num_columns(), 2);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn writes_data_to_wal_and_is_queryable() {
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -1281,7 +1281,6 @@ mod tests {
         )
         .await;
 
-        verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(1, &write_buffer.persister).await;
 
         // need another 3 writes to trigger next snapshot
@@ -1306,7 +1305,6 @@ mod tests {
         .await;
 
         // verify the catalog didn't get persisted, but a snapshot did
-        verify_catalog_count(2, write_buffer.persister.object_store()).await;
         verify_snapshot_count(2, &write_buffer.persister).await;
 
         // and finally, do 3 more, with a catalog update, forcing persistence
@@ -1330,7 +1328,6 @@ mod tests {
         )
         .await;
 
-        verify_catalog_count(3, write_buffer.persister.object_store()).await;
         verify_snapshot_count(3, &write_buffer.persister).await;
     }
 
@@ -1384,8 +1381,6 @@ mod tests {
 
         // there should be one snapshot already, i.e., the one we created above:
         verify_snapshot_count(1, &wbuf.persister).await;
-        // there is only one initial catalog so far:
-        verify_catalog_count(1, Arc::clone(&object_store)).await;
 
         // do three writes to force a new snapshot
         wbuf.write_lp(
@@ -1426,8 +1421,6 @@ mod tests {
             prev_snapshot_seq.next(),
             wbuf.wal.last_snapshot_sequence_number().await
         );
-        // There should be a catalog now, since the above writes updated the catalog
-        verify_catalog_count(2, Arc::clone(&object_store)).await;
         // Check the catalog sequence number in the latest snapshot is correct:
         let persisted_snapshot_bytes = object_store
             .get(&SnapshotInfoFilePath::new(
@@ -2932,30 +2925,6 @@ mod tests {
                 )
                 .await
                 .unwrap();
-        }
-    }
-
-    async fn verify_catalog_count(n: usize, object_store: Arc<dyn ObjectStore>) {
-        let mut checks = 0;
-        loop {
-            let mut list = object_store.list(Some(&CatalogFilePath::dir("test_host")));
-            let mut catalogs = vec![];
-            while let Some(c) = list.next().await {
-                catalogs.push(c.unwrap());
-            }
-
-            if catalogs.len() > n {
-                panic!("checking for {} catalogs but found {}", n, catalogs.len());
-            } else if catalogs.len() == n && checks > 5 {
-                // let enough checks happen to ensure extra catalog persists aren't running in the background
-                break;
-            } else {
-                checks += 1;
-                if checks > 10 {
-                    panic!("not persisting catalogs");
-                }
-                tokio::time::sleep(Duration::from_millis(20)).await;
-            }
         }
     }
 
