@@ -723,7 +723,9 @@ pub async fn command(config: Config) -> Result<()> {
 
             // TODO: the following should use buffer_modes.is_compactor() instead of just checking
             // for the BufferMode::Compact variant since we want to be able to run the compactor
-            // even when using BufferMode::All
+            // even when using BufferMode::All; but that depends on future work to remove the
+            // --compact-from-node-ids flag in favor of getting node IDs to compact from the
+            // catalog
             let node_ids = if buffer_modes.contains(&BufferMode::Compact) {
                 if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
@@ -847,8 +849,10 @@ pub async fn command(config: Config) -> Result<()> {
             let buf = Arc::new(WriteBufferEnterprise::compactor(Arc::clone(&catalog)));
             (buf, None, None)
         } else {
-            // TODO: clean up error handling here
-            return Err(Error::WriteBufferInit(anyhow::Error::msg("TODO")));
+            return Err(Error::WriteBufferInit(anyhow::Error::msg(format!(
+                "invalid buffer modes: {:?}",
+                buffer_modes
+            ))));
         };
 
     if let Some(write_buffer_impl) = write_buffer_impl {
@@ -887,7 +891,8 @@ pub async fn command(config: Config) -> Result<()> {
             None
         };
 
-    let query_executor: Arc<dyn QueryExecutor> = if buffer_modes.contains_only(&BufferMode::Compact) {
+    let query_executor: Arc<dyn QueryExecutor> = if buffer_modes.contains_only(&BufferMode::Compact)
+    {
         Arc::new(CompactionSysTableQueryExecutorImpl::new(
             CompactionSysTableQueryExecutorArgs {
                 exec: Arc::clone(&exec),

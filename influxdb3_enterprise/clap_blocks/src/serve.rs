@@ -228,7 +228,9 @@ impl BufferModes {
     }
 
     pub fn is_querier(&self) -> bool {
-        self.0.contains(&BufferMode::Query) || self.0.contains(&BufferMode::All)
+        self.0.contains(&BufferMode::Query)
+            || self.0.contains(&BufferMode::All)
+            || self.0.contains(&BufferMode::Process)
     }
 
     pub fn contains(&self, mode: &BufferMode) -> bool {
