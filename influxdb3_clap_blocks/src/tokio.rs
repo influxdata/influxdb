@@ -222,6 +222,7 @@ macro_rules! tokio_rt_config {
                         builder.thread_keep_alive(x);
                     }
 
+                    #[allow(unused)]
                     if let Some(x) = self.thread_priority {
                         #[cfg(unix)]
                         {

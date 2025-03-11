@@ -3057,6 +3057,7 @@ dependencies = [
  "influxdb3_wal",
  "iox_query_params",
  "iox_time",
+ "lazy_static",
  "observability_deps",
  "parking_lot",
  "pyo3",

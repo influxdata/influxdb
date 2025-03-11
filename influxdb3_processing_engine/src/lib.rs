@@ -14,6 +14,7 @@ use influxdb3_catalog::log::{
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_py_api::system_py::{drop_trigger_cache, initialize_cache};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
@@ -26,7 +27,7 @@ use observability_deps::tracing::{debug, error, warn};
 use std::any::Any;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
@@ -210,7 +211,6 @@ impl ProcessingEngineManagerImpl {
         sys_event_store: Arc<SysEventStore>,
     ) -> Arc<Self> {
         // if given a plugin dir, try to initialize the virtualenv.
-
         if let Some(plugin_dir) = &environment.plugin_dir {
             {
                 environment
@@ -219,6 +219,7 @@ impl ProcessingEngineManagerImpl {
                     .expect("unable to initialize python environment");
                 virtualenv::init_pyo3();
             }
+            initialize_cache(Arc::clone(&time_provider), Duration::from_secs(10));
         }
 
         let catalog_sub = catalog.subscribe_to_updates();
@@ -444,10 +445,6 @@ impl ProcessingEngineManagerImpl {
                 database_name: db_name.to_string(),
                 trigger_name: trigger_name.to_string(),
             })?;
-        // Already disabled, so this is a no-op
-        if trigger.disabled {
-            return Ok(());
-        };
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
@@ -474,6 +471,7 @@ impl ProcessingEngineManagerImpl {
                 &trigger.trigger,
             );
         }
+        drop_trigger_cache(db_name.to_string(), trigger_name.to_string());
 
         Ok(())
     }
