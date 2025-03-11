@@ -93,6 +93,9 @@ impl IngestQueryMode {
             query_args,
         }: CreateIngestQueryModeArgs,
     ) -> Result<Self, anyhow::Error> {
+        if ingest_args.is_none() && query_args.is_none() {
+            return Err(anyhow::Error::msg("must provide ingest or query args"));
+        }
         let node_id = ingest_args.as_ref().map(|i| Arc::clone(&i.node_id));
         let ingest = if let Some(IngestArgs {
             node_id,
