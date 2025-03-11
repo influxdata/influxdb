@@ -14,10 +14,10 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
 use std::mem::size_of;
 use std::sync::Arc;
+use std::{collections::BTreeMap, time::Duration};
+use std::{collections::btree_map::Entry, slice::Iter};
 use thiserror::Error;
 
 use crate::ChunkFilter;
@@ -34,21 +34,23 @@ pub enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
-    chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
-    snapshotting_chunks: Vec<SnapshotChunk>,
+    pub(crate) chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
+    pub(crate) snapshotting_chunks: Vec<SnapshotChunk>,
     pub(crate) sort_key: SortKey,
+    pub(crate) _chunk_interval: Duration,
 }
 
 impl TableBuffer {
-    pub fn new(sort_key: SortKey) -> Self {
+    pub fn new(sort_key: SortKey, chunk_interval: Duration) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
+            snapshotting_chunks: Vec::new(),
             sort_key,
+            _chunk_interval: chunk_interval,
         }
     }
 
-    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[Row]) {
+    pub fn buffer_chunk(&mut self, chunk_time: i64, rows: &[impl AsRef<Row>]) {
         let buffer_chunk = self
             .chunk_time_to_chunks
             .entry(chunk_time)
@@ -148,6 +150,14 @@ impl TableBuffer {
         size
     }
 
+    pub fn get_keys_to_remove(&self, older_than_chunk_time: i64) -> Vec<i64> {
+        self.chunk_time_to_chunks
+            .keys()
+            .filter(|k| **k < older_than_chunk_time)
+            .copied()
+            .collect::<Vec<_>>()
+    }
+
     pub fn snapshot(
         &mut self,
         table_def: Arc<TableDefinition>,
@@ -159,6 +169,7 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
+
         self.snapshotting_chunks = keys_to_remove
             .into_iter()
             .map(|chunk_time| {
@@ -180,6 +191,33 @@ impl TableBuffer {
 
     pub fn clear_snapshots(&mut self) {
         self.snapshotting_chunks.clear();
+    }
+}
+
+pub(crate) struct SnapshotChunkIter<'a> {
+    pub(crate) keys_to_remove: Iter<'a, i64>,
+    pub(crate) map: &'a mut BTreeMap<i64, MutableTableChunk>,
+    pub(crate) table_def: Arc<TableDefinition>,
+}
+
+impl Iterator for SnapshotChunkIter<'_> {
+    type Item = SnapshotChunk;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(chunk_time) = self.keys_to_remove.next() {
+            let chunk = self.map.remove(chunk_time).unwrap();
+            let timestamp_min_max = chunk.timestamp_min_max();
+            let (schema, record_batch) =
+                chunk.into_schema_record_batch(Arc::clone(&self.table_def));
+
+            return Some(SnapshotChunk {
+                chunk_time: *chunk_time,
+                timestamp_min_max,
+                record_batch,
+                schema,
+            });
+        }
+        None
     }
 }
 
@@ -213,7 +251,7 @@ impl std::fmt::Debug for TableBuffer {
     }
 }
 
-struct MutableTableChunk {
+pub(crate) struct MutableTableChunk {
     timestamp_min: i64,
     timestamp_max: i64,
     data: BTreeMap<ColumnId, Builder>,
@@ -221,10 +259,11 @@ struct MutableTableChunk {
 }
 
 impl MutableTableChunk {
-    fn add_rows(&mut self, rows: &[Row]) {
+    fn add_rows(&mut self, rows: &[impl AsRef<Row>]) {
         let new_row_count = rows.len();
 
         for (row_index, r) in rows.iter().enumerate() {
+            let r = r.as_ref();
             let mut value_added = HashSet::with_capacity(r.fields.len());
 
             for f in &r.fields {
@@ -453,7 +492,7 @@ impl MutableTableChunk {
     }
 }
 
-fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef {
+pub(crate) fn array_ref_nulls_for_type(data_type: InfluxColumnType, len: usize) -> ArrayRef {
     match data_type {
         InfluxColumnType::Field(InfluxFieldType::Boolean) => {
             let mut builder = BooleanBuilder::new();
@@ -655,7 +694,7 @@ mod tests {
 
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         for (rows, offset) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
         }
@@ -705,16 +744,16 @@ mod tests {
             0,
         );
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17769);
+        assert_eq!(size, 17785);
     }
 
     #[test]
     fn timestamp_min_max_works_when_empty() {
-        let table_buffer = TableBuffer::new(SortKey::empty());
+        let table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);
@@ -740,7 +779,7 @@ mod tests {
             row_batches.push((offset, rows));
         }
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
 
         for (offset, rows) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);

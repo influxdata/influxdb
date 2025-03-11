@@ -175,6 +175,7 @@ pub struct WriteBufferImplArgs {
     pub metric_registry: Arc<Registry>,
     pub snapshotted_wal_files_to_keep: u64,
     pub query_file_limit: Option<usize>,
+    pub max_memory_for_snapshot_bytes: u64,
 }
 
 impl WriteBufferImpl {
@@ -191,6 +192,7 @@ impl WriteBufferImpl {
             metric_registry,
             snapshotted_wal_files_to_keep,
             query_file_limit,
+            max_memory_for_snapshot_bytes,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -222,6 +224,7 @@ impl WriteBufferImpl {
             distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
             parquet_cache: parquet_cache.clone(),
+            max_size_per_parquet_file_bytes: max_memory_for_snapshot_bytes,
         }));
 
         // create the wal instance, which will replay into the queryable buffer and start
@@ -1077,6 +1080,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            max_memory_for_snapshot_bytes: 100_000_000,
         })
         .await
         .unwrap();
@@ -1172,6 +1176,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            max_memory_for_snapshot_bytes: 100_000_000,
         })
         .await
         .unwrap();
@@ -1245,6 +1250,7 @@ mod tests {
                 metric_registry: Default::default(),
                 snapshotted_wal_files_to_keep: 10,
                 query_file_limit: None,
+                max_memory_for_snapshot_bytes: 100_000_000,
             })
             .await
             .unwrap()
@@ -1492,6 +1498,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            max_memory_for_snapshot_bytes: 100_000_000,
         })
         .await
         .unwrap();
@@ -2089,7 +2096,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn notifies_watchers_of_snapshot() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _, _) = setup(
@@ -2759,10 +2766,7 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn test_out_of_order_data() {
         let tmp_dir = test_helpers::tmp_dir().unwrap();
-        debug!(
-            ?tmp_dir,
-            ">>> using tmp dir for test_check_mem_and_force_snapshot"
-        );
+        debug!(?tmp_dir, ">>> using tmp dir");
         let obj_store: Arc<dyn ObjectStore> =
             Arc::new(LocalFileSystem::new_with_prefix(tmp_dir).unwrap());
         let (write_buffer, _, _) = setup(
@@ -2833,6 +2837,9 @@ mod tests {
                 "| a    | us     | 1970-01-01T00:00:28Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:00:29Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:00:30Z | 10.0  |",
+                "| a    | us     | 1970-01-01T00:00:20Z | 10.0  |",
+                "| a    | us     | 1970-01-01T00:00:21Z | 10.0  |",
+                "| a    | us     | 1970-01-01T00:00:22Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:01:40Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:01:41Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:01:42Z | 10.0  |",
@@ -2845,9 +2852,6 @@ mod tests {
                 "| a    | us     | 1970-01-01T00:01:49Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:01:50Z | 10.0  |",
                 "| a    | us     | 1970-01-01T00:01:51Z | 10.0  |",
-                "| a    | us     | 1970-01-01T00:00:20Z | 10.0  |",
-                "| a    | us     | 1970-01-01T00:00:21Z | 10.0  |",
-                "| a    | us     | 1970-01-01T00:00:22Z | 10.0  |",
                 "+------+--------+----------------------+-------+",
             ],
             &actual
@@ -3388,6 +3392,7 @@ mod tests {
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            max_memory_for_snapshot_bytes: 100_000_000,
         })
         .await
         .unwrap();
