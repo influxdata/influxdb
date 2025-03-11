@@ -1,6 +1,11 @@
 //! Extend the `influxdb3 serve` command for InfluxDB Enterprise
 
-use std::{collections::HashSet, ops::Deref, str::FromStr, sync::Arc};
+use std::{
+    collections::{BTreeSet, btree_set},
+    ops::Deref,
+    str::FromStr,
+    sync::Arc,
+};
 
 use anyhow::bail;
 use influxdb3_catalog::log::NodeMode;
@@ -157,7 +162,7 @@ pub struct EnterpriseServeConfig {
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[clap(rename_all = "snake_case")]
 pub enum BufferMode {
     /// Will act as a read-replica and only accept queries
@@ -198,12 +203,12 @@ impl From<BufferMode> for NodeMode {
     }
 }
 
-#[derive(Debug)]
-pub struct BufferModes(HashSet<BufferMode>);
+#[derive(Clone, Debug)]
+pub struct BufferModes(BTreeSet<BufferMode>);
 
 impl From<Vec<BufferMode>> for BufferModes {
     fn from(bs: Vec<BufferMode>) -> Self {
-        let mut s = HashSet::new();
+        let mut s = BTreeSet::new();
 
         for b in bs {
             s.insert(b);
@@ -218,12 +223,24 @@ impl BufferModes {
         self.0.contains(&BufferMode::Compact) || self.0.contains(&BufferMode::All)
     }
 
-    pub fn is_ingest(&self) -> bool {
+    pub fn is_ingester(&self) -> bool {
         self.0.contains(&BufferMode::Ingest) || self.0.contains(&BufferMode::All)
     }
 
-    pub fn is_query(&self) -> bool {
+    pub fn is_querier(&self) -> bool {
         self.0.contains(&BufferMode::Query) || self.0.contains(&BufferMode::All)
+    }
+
+    pub fn contains(&self, mode: &BufferMode) -> bool {
+        self.0.contains(mode)
+    }
+
+    pub fn contains_only(&self, mode: &BufferMode) -> bool {
+        self.0.len() == 1 && self.0.contains(mode)
+    }
+
+    pub fn into_iter(&self) -> btree_set::IntoIter<BufferMode> {
+        self.0.clone().into_iter()
     }
 }
 

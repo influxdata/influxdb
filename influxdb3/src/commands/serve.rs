@@ -652,17 +652,13 @@ pub async fn command(config: Config) -> Result<()> {
     );
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
+    let buffer_modes: BufferModes = config.enterprise_config.mode.clone().into();
+
     let _ = catalog
         .register_node(
             &config.node_identifier_prefix,
             num_cpus as u64,
-            config
-                .enterprise_config
-                .mode
-                .clone()
-                .into_iter()
-                .map(|e| e.into())
-                .collect(),
+            buffer_modes.into_iter().map(|e| e.into()).collect(),
         )
         .await?;
     let node_def = catalog
@@ -725,7 +721,10 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let node_ids = if buffer_modes.is_compactor() {
+            // TODO: the following should use buffer_modes.is_compactor() instead of just checking
+            // for the BufferMode::Compact variant since we want to be able to run the compactor
+            // even when using BufferMode::All
+            let node_ids = if buffer_modes.contains(&BufferMode::Compact) {
                 if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
                     compact_from_node_ids.to_vec()
@@ -749,7 +748,7 @@ pub async fn command(config: Config) -> Result<()> {
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
-                parquet_cache_prefetcher: if buffer_modes.is_query() {
+                parquet_cache_prefetcher: if buffer_modes.is_querier() {
                     parquet_cache_prefetcher
                 } else {
                     None
@@ -807,17 +806,15 @@ pub async fn command(config: Config) -> Result<()> {
         )
     });
 
-    let buffer_modes: BufferModes = config.enterprise_config.mode.clone().into();
-
     let query_args = buffer_modes
-        .is_query()
+        .is_querier()
         .then_some(replica_config)
         .flatten()
         .map(|rc| QueryArgs {
             replication_config: rc,
         });
 
-    let ingest_args = buffer_modes.is_ingest().then(|| IngestArgs {
+    let ingest_args = buffer_modes.is_ingester().then(|| IngestArgs {
         node_id: persister.node_identifier_prefix().into(),
         persister: Arc::clone(&persister),
         executor: Arc::clone(&exec),
@@ -890,10 +887,7 @@ pub async fn command(config: Config) -> Result<()> {
             None
         };
 
-    let compactor_only = config.enterprise_config.mode.len() == 1
-        && config.enterprise_config.mode.contains(&BufferMode::Compact);
-
-    let query_executor: Arc<dyn QueryExecutor> = if compactor_only {
+    let query_executor: Arc<dyn QueryExecutor> = if buffer_modes.contains_only(&BufferMode::Compact) {
         Arc::new(CompactionSysTableQueryExecutorImpl::new(
             CompactionSysTableQueryExecutorArgs {
                 exec: Arc::clone(&exec),
