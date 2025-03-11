@@ -1,0 +1,30 @@
+---
+source: influxdb3/tests/cli/mod.rs
+assertion_line: 1212
+expression: result
+---
+new cache created: {
+  "catalog_batch": {
+    "Database": {
+      "time_ns": 1741121638778557000,
+      "database_id": 0,
+      "database_name": "foo",
+      "ops": [
+        {
+          "CreateDistinctCache": {
+            "table_id": 0,
+            "table_name": "cpu",
+            "cache_name": "cache_money",
+            "column_ids": [
+              0,
+              1
+            ],
+            "max_cardinality": 20000,
+            "max_age_seconds": 200
+          }
+        }
+      ]
+    }
+  },
+  "sequence_number": 3
+}

@@ -1,44 +1,68 @@
-use std::{borrow::Cow, sync::Arc};
+use std::sync::Arc;
 
 use crate::{Precision, WriteLineError, write_buffer::Result};
 use data_types::{NamespaceName, Timestamp};
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::{
-    Catalog, DatabaseSchema, TableDefinition, influx_column_type_from_field_value,
+    Catalog, CatalogSequenceNumber, DatabaseCatalogTransaction, Prompt,
 };
 
 use influxdb_line_protocol::{ParsedLine, parse_lines};
-use influxdb3_id::{ColumnId, TableId};
-use influxdb3_wal::{
-    CatalogBatch, CatalogOp, Field, FieldAdditions, FieldData, FieldDefinition, Gen1Duration,
-    OrderedCatalogBatch, Row, TableChunks, WriteBatch,
-};
+use influxdb3_id::{DbId, TableId};
+use influxdb3_types::http::FieldDataType;
+use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
-use schema::{InfluxColumnType, TIME_COLUMN_NAME};
+use observability_deps::tracing::debug;
+use schema::TIME_COLUMN_NAME;
 
 use super::Error;
 
 /// Type state for the [`WriteValidator`] after it has been initialized
 /// with the catalog.
 #[derive(Debug)]
-pub struct WithCatalog {
+pub struct Initialized {
     catalog: Arc<Catalog>,
-    db_schema: Arc<DatabaseSchema>,
-    time_now_ns: i64,
+    txn: DatabaseCatalogTransaction,
 }
 
 /// Type state for the [`WriteValidator`] after it has parsed v1 or v3
 /// line protocol.
 #[derive(Debug)]
 pub struct LinesParsed {
-    catalog: WithCatalog,
+    catalog: Arc<Catalog>,
+    txn: DatabaseCatalogTransaction,
     lines: Vec<QualifiedLine>,
     bytes: u64,
-    catalog_batch: Option<OrderedCatalogBatch>,
     errors: Vec<WriteLineError>,
 }
 
 impl LinesParsed {
+    /// Convert this set of parsed and qualified lines into a set of rows
+    ///
+    /// This is useful for testing when you need to use the write validator to parse line protocol
+    /// and get the raw row data for the WAL.
+    pub fn to_rows(self) -> Vec<Row> {
+        self.lines.into_iter().map(|line| line.row).collect()
+    }
+
+    pub fn txn(&self) -> &DatabaseCatalogTransaction {
+        &self.txn
+    }
+}
+
+/// Type state for [`WriteValidator`] after any catalog changes have been committed successfully
+/// to the object store.
+#[derive(Debug)]
+pub struct CatalogChangesCommitted {
+    catalog_sequence: CatalogSequenceNumber,
+    db_id: DbId,
+    db_name: Arc<str>,
+    lines: Vec<QualifiedLine>,
+    bytes: u64,
+    errors: Vec<WriteLineError>,
+}
+
+impl CatalogChangesCommitted {
     /// Convert this set of parsed and qualified lines into a set of rows
     ///
     /// This is useful for testing when you need to use the write validator to parse line protocol
@@ -55,36 +79,42 @@ pub struct WriteValidator<State> {
     state: State,
 }
 
-impl WriteValidator<WithCatalog> {
-    /// Initialize the [`WriteValidator`] by getting a handle to, or creating
-    /// a handle to the [`DatabaseSchema`] for the given namespace name `db_name`.
-    pub fn initialize(
-        db_name: NamespaceName<'static>,
-        catalog: Arc<Catalog>,
-        time_now_ns: i64,
-    ) -> Result<WriteValidator<WithCatalog>> {
-        let db_schema = catalog.db_or_create(db_name.as_str())?;
+impl<T> WriteValidator<T> {
+    /// Convert this into the inner [`LinesParsed`]
+    ///
+    /// This is mainly used for testing
+    pub fn into_inner(self) -> T {
+        self.state
+    }
+
+    pub fn inner(&self) -> &T {
+        &self.state
+    }
+}
+
+impl WriteValidator<Initialized> {
+    /// Initialize the [`WriteValidator`] by starting a catalog transaction on the given database
+    /// with name `db_name`. This initializes the database if it does not already exist.
+    pub fn initialize(db_name: NamespaceName<'static>, catalog: Arc<Catalog>) -> Result<Self> {
+        let txn = catalog.begin(db_name.as_str())?;
+        debug!(transaction = ?txn, ">>> initialize write validator");
         Ok(WriteValidator {
-            state: WithCatalog {
-                catalog,
-                db_schema,
-                time_now_ns,
-            },
+            state: Initialized { catalog, txn },
         })
     }
 
-    /// Parse the incoming lines of line protocol and update the
-    /// [`DatabaseSchema`] if:
+    /// Parse the incoming lines of line protocol using the v1 parser and update the transaction
+    /// to the catalog if:
     ///
     /// * A new table is being added
     /// * New fields or tags are being added to an existing table
     ///
     /// # Implementation Note
     ///
-    /// If this function succeeds, then the catalog will receive an update, so
-    /// steps following this should be infallible.
-    pub fn parse_lines_and_update_schema(
-        self,
+    /// This does not apply the changes to the catalog, it only modifies the database copy that
+    /// is held on the catalog transaction.
+    pub fn v1_parse_lines_and_catalog_updates(
+        mut self,
         lp: &str,
         accept_partial: bool,
         ingest_time: Time,
@@ -94,11 +124,9 @@ impl WriteValidator<WithCatalog> {
         let mut lp_lines = lp.lines();
         let mut lines = vec![];
         let mut bytes = 0;
-        let mut catalog_updates = vec![];
-        let mut schema = Cow::Borrowed(self.state.db_schema.as_ref());
 
         for (line_idx, maybe_line) in parse_lines(lp).enumerate() {
-            let (qualified_line, catalog_op) = match maybe_line
+            let qualified_line = match maybe_line
                 .map_err(|e| WriteLineError {
                     // This unwrap is fine because we're moving line by line
                     // alongside the output from parse_lines
@@ -108,10 +136,16 @@ impl WriteValidator<WithCatalog> {
                 })
                 .and_then(|l| {
                     let raw_line = lp_lines.next().unwrap();
-                    validate_and_qualify_line(&mut schema, line_idx, l, ingest_time, precision)
-                        .inspect(|_| bytes += raw_line.len() as u64)
+                    validate_and_qualify_v1_line(
+                        &mut self.state.txn,
+                        line_idx,
+                        l,
+                        ingest_time,
+                        precision,
+                    )
+                    .inspect(|_| bytes += raw_line.len() as u64)
                 }) {
-                Ok((qualified_line, catalog_op)) => (qualified_line, catalog_op),
+                Ok(qualified_line) => qualified_line,
                 Err(e) => {
                     if !accept_partial {
                         return Err(Error::ParseError(e));
@@ -121,265 +155,138 @@ impl WriteValidator<WithCatalog> {
                     continue;
                 }
             };
-            if let Some(op) = catalog_op {
-                catalog_updates.push(op);
-            }
             // This unwrap is fine because we're moving line by line
             // alongside the output from parse_lines
             lines.push(qualified_line);
         }
 
-        // All lines are parsed and validated, so all steps after this
-        // are infallible, therefore, update the catalog if changes were
-        // made to the schema:
-        let catalog_batch = if catalog_updates.is_empty() {
-            None
-        } else {
-            let catalog_batch = CatalogBatch {
-                database_id: self.state.db_schema.id,
-                time_ns: self.state.time_now_ns,
-                database_name: Arc::clone(&self.state.db_schema.name),
-                ops: catalog_updates,
-            };
-            self.state.catalog.apply_catalog_batch(&catalog_batch)?
-        };
-
         Ok(WriteValidator {
             state: LinesParsed {
-                catalog: self.state,
+                catalog: self.state.catalog,
+                txn: self.state.txn,
                 lines,
                 errors,
                 bytes,
-                catalog_batch,
             },
         })
     }
 }
 
-/// Type alias for storing new columns added by a write
-type ColumnTracker = Vec<(ColumnId, Arc<str>, InfluxColumnType)>;
-
 /// Validate a line of line protocol against the given schema definition
 ///
 /// This is for scenarios where a write comes in for a table that exists, but may have
 /// invalid field types, based on the pre-existing schema.
-fn validate_and_qualify_line(
-    db_schema: &mut Cow<'_, DatabaseSchema>,
+///
+/// An error will also be produced if the write, which is for the v1 data model, is targetting
+/// a v3 table.
+fn validate_and_qualify_v1_line(
+    txn: &mut DatabaseCatalogTransaction,
     line_number: usize,
     line: ParsedLine<'_>,
     ingest_time: Time,
     precision: Precision,
-) -> Result<(QualifiedLine, Option<CatalogOp>), WriteLineError> {
-    let mut catalog_op = None;
+) -> Result<QualifiedLine, WriteLineError> {
     let table_name = line.series.measurement.as_str();
     let mut fields = Vec::with_capacity(line.column_count());
     let mut index_count = 0;
     let mut field_count = 0;
-    let qualified = if let Some(table_def) = db_schema.table_definition(table_name) {
-        // This table already exists, so update with any new columns if present:
-        let mut columns = ColumnTracker::with_capacity(line.column_count() + 1);
-        if let Some(tag_set) = &line.series.tag_set {
-            for (tag_key, tag_val) in tag_set {
-                if let Some(col_id) = table_def.column_name_to_id(tag_key.as_str()) {
-                    fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
-                } else {
-                    let col_id = ColumnId::new();
-                    fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
-                    columns.push((col_id, tag_key.as_str().into(), InfluxColumnType::Tag));
-                }
-                index_count += 1;
-            }
-        }
-        for (field_name, field_val) in line.field_set.iter() {
-            // This field already exists, so check the incoming type matches existing type:
-            if let Some((col_id, col_def)) = table_def.column_id_and_definition(field_name.as_str())
-            {
-                let field_col_type = influx_column_type_from_field_value(field_val);
-                let existing_col_type = col_def.data_type;
-                if field_col_type != existing_col_type {
-                    let field_name = field_name.to_string();
-                    return Err(WriteLineError {
-                        original_line: line.to_string(),
-                        line_number: line_number + 1,
-                        error_message: format!(
-                            "invalid field value in line protocol for field '{field_name}' on line \
-                            {line_number}: expected type {expected}, but got {got}",
-                            expected = existing_col_type,
-                            got = field_col_type,
-                        ),
-                    });
-                }
-                fields.push(Field::new(col_id, field_val));
-            } else {
-                let col_id = ColumnId::new();
-                columns.push((
-                    col_id,
-                    Arc::from(field_name.as_str()),
-                    influx_column_type_from_field_value(field_val),
-                ));
-                fields.push(Field::new(col_id, field_val));
-            }
-            field_count += 1;
-        }
+    let table_def = txn
+        .table_or_create(table_name)
+        .map_err(|error| WriteLineError {
+            original_line: line.to_string(),
+            line_number: line_number + 1,
+            error_message: error.to_string(),
+        })?;
 
-        let time_col_id = table_def
-            .column_name_to_id(TIME_COLUMN_NAME)
-            .unwrap_or_else(|| {
-                let col_id = ColumnId::new();
-                columns.push((
-                    col_id,
-                    Arc::from(TIME_COLUMN_NAME),
-                    InfluxColumnType::Timestamp,
-                ));
-                col_id
-            });
-        let timestamp_ns = line
-            .timestamp
-            .map(|ts| apply_precision_to_timestamp(precision, ts))
-            .unwrap_or(ingest_time.timestamp_nanos());
-
-        fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
-
-        // if we have new columns defined, add them to the db_schema table so that subsequent lines
-        // won't try to add the same definitions. Collect these additions into a catalog op, which
-        // will be applied to the catalog with any other ops after all lines in the write request
-        // have been parsed and validated.
-        if !columns.is_empty() {
-            let database_name = Arc::clone(&db_schema.name);
-            let database_id = db_schema.id;
-            let table_name: Arc<str> = Arc::clone(&table_def.table_name);
-            let table_id = table_def.table_id;
-
-            let mut field_definitions = Vec::with_capacity(columns.len());
-            for (id, name, influx_type) in &columns {
-                field_definitions.push(FieldDefinition::new(*id, Arc::clone(name), influx_type));
-            }
-
-            let db_schema = db_schema.to_mut();
-            let mut new_table_def = db_schema
-                .tables
-                .get_mut(&table_id)
-                // unwrap is safe due to the surrounding if let condition:
-                .unwrap()
-                .as_ref()
-                .clone();
-            new_table_def
-                .add_columns(columns)
-                .map_err(|e| WriteLineError {
+    if let Some(tag_set) = &line.series.tag_set {
+        for (tag_key, tag_val) in tag_set {
+            let col_id = txn
+                .column_or_create(table_name, tag_key.as_str(), FieldDataType::Tag)
+                .map_err(|error| WriteLineError {
                     original_line: line.to_string(),
                     line_number: line_number + 1,
-                    error_message: e.to_string(),
+                    error_message: error.to_string(),
                 })?;
-            db_schema
-                .insert_table(table_id, Arc::new(new_table_def))
-                .map_err(|e| WriteLineError {
-                    original_line: line.to_string(),
-                    line_number: line_number + 1,
-                    error_message: e.to_string(),
-                })?;
-
-            catalog_op = Some(CatalogOp::AddFields(FieldAdditions {
-                database_name,
-                database_id,
-                table_id,
-                table_name,
-                field_definitions,
-            }));
+            fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
+            index_count += 1;
         }
-        QualifiedLine {
-            table_id: table_def.table_id,
-            row: Row {
-                time: timestamp_ns,
-                fields,
-            },
-            index_count,
-            field_count,
-        }
-    } else {
-        let table_id = TableId::new();
-        // This is a new table, so build up its columns:
-        let mut columns = Vec::new();
-        let mut key = Vec::new();
-        if let Some(tag_set) = &line.series.tag_set {
-            for (tag_key, tag_val) in tag_set {
-                let col_id = ColumnId::new();
-                fields.push(Field::new(col_id, FieldData::Tag(tag_val.to_string())));
-                columns.push((col_id, Arc::from(tag_key.as_str()), InfluxColumnType::Tag));
-                // Build up the series key from the tags
-                key.push(col_id);
-                index_count += 1;
-            }
-        }
-        for (field_name, field_val) in &line.field_set {
-            let col_id = ColumnId::new();
-            columns.push((
-                col_id,
-                Arc::from(field_name.as_str()),
-                influx_column_type_from_field_value(field_val),
-            ));
-            fields.push(Field::new(col_id, field_val));
-            field_count += 1;
-        }
-        // Always add time last on new table:
-        let time_col_id = ColumnId::new();
-        columns.push((
-            time_col_id,
-            Arc::from(TIME_COLUMN_NAME),
-            InfluxColumnType::Timestamp,
-        ));
-        let timestamp_ns = line
-            .timestamp
-            .map(|ts| apply_precision_to_timestamp(precision, ts))
-            .unwrap_or(ingest_time.timestamp_nanos());
-        fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
+    }
 
-        let table_name = table_name.into();
-        let mut field_definitions = Vec::with_capacity(columns.len());
-
-        for (id, name, influx_type) in &columns {
-            field_definitions.push(FieldDefinition::new(*id, Arc::clone(name), influx_type));
-        }
-        catalog_op = Some(CatalogOp::CreateTable(influxdb3_wal::WalTableDefinition {
-            table_id,
-            database_id: db_schema.id,
-            database_name: Arc::clone(&db_schema.name),
-            table_name: Arc::clone(&table_name),
-            field_definitions,
-            key: key.clone(),
-        }));
-
-        let table = TableDefinition::new(table_id, Arc::clone(&table_name), columns, key).unwrap();
-
-        let db_schema = db_schema.to_mut();
-        db_schema
-            .insert_table(table_id, Arc::new(table))
-            .map_err(|e| WriteLineError {
+    for (field_name, field_val) in line.field_set.iter() {
+        let col_id = txn
+            .column_or_create(table_name, field_name, field_val.into())
+            .map_err(|error| WriteLineError {
                 original_line: line.to_string(),
                 line_number: line_number + 1,
-                error_message: e.to_string(),
-            })?
-            .map_or_else(
-                || Ok(()),
-                |_| {
-                    Err(WriteLineError {
-                        original_line: line.to_string(),
-                        line_number: line_number + 1,
-                        error_message: "unexpected overwrite of existing table".to_string(),
-                    })
-                },
-            )?;
-        QualifiedLine {
-            table_id,
-            row: Row {
-                time: timestamp_ns,
-                fields,
-            },
-            index_count,
-            field_count,
-        }
-    };
+                error_message: error.to_string(),
+            })?;
+        fields.push(Field::new(col_id, field_val));
+        field_count += 1;
+    }
 
-    Ok((qualified, catalog_op))
+    let time_col_id = txn
+        .column_or_create(table_name, TIME_COLUMN_NAME, FieldDataType::Timestamp)
+        .map_err(|error| WriteLineError {
+            original_line: line.to_string(),
+            line_number: line_number + 1,
+            error_message: error.to_string(),
+        })?;
+    let timestamp_ns = line
+        .timestamp
+        .map(|ts| apply_precision_to_timestamp(precision, ts))
+        .unwrap_or(ingest_time.timestamp_nanos());
+    fields.push(Field::new(time_col_id, FieldData::Timestamp(timestamp_ns)));
+
+    Ok(QualifiedLine {
+        table_id: table_def.table_id,
+        row: Row {
+            time: timestamp_ns,
+            fields,
+        },
+        index_count,
+        field_count,
+    })
+}
+
+impl WriteValidator<LinesParsed> {
+    pub async fn commit_catalog_changes(
+        self,
+    ) -> Result<Prompt<WriteValidator<CatalogChangesCommitted>>> {
+        let db_schema = self.state.txn.db_schema();
+        let db_id = db_schema.id;
+        let db_name = Arc::clone(&db_schema.name);
+        match self.state.catalog.commit(self.state.txn).await? {
+            Prompt::Success(catalog_sequence) => Ok(Prompt::Success(WriteValidator {
+                state: CatalogChangesCommitted {
+                    catalog_sequence,
+                    db_id,
+                    db_name,
+                    lines: self.state.lines,
+                    bytes: self.state.bytes,
+                    errors: self.state.errors,
+                },
+            })),
+            Prompt::Retry(_) => Ok(Prompt::Retry(())),
+        }
+    }
+
+    pub fn ignore_catalog_changes_and_convert_lines_to_buffer(
+        self,
+        gen1_duration: Gen1Duration,
+    ) -> ValidatedLines {
+        let db_schema = self.state.txn.db_schema();
+        let ignored = WriteValidator {
+            state: CatalogChangesCommitted {
+                catalog_sequence: self.state.txn.sequence_number(),
+                db_id: db_schema.id,
+                db_name: Arc::clone(&db_schema.name),
+                lines: self.state.lines,
+                bytes: self.state.bytes,
+                errors: self.state.errors,
+            },
+        };
+        ignored.convert_lines_to_buffer(gen1_duration)
+    }
 }
 
 /// Result of conversion from line protocol to valid chunked data
@@ -398,8 +305,6 @@ pub struct ValidatedLines {
     pub errors: Vec<WriteLineError>,
     /// Only valid lines will be converted into a WriteBatch
     pub valid_data: WriteBatch,
-    /// If any catalog updates were made, they will be included here
-    pub(crate) catalog_updates: Option<OrderedCatalogBatch>,
 }
 
 impl From<ValidatedLines> for WriteBatch {
@@ -408,15 +313,8 @@ impl From<ValidatedLines> for WriteBatch {
     }
 }
 
-impl WriteValidator<LinesParsed> {
-    /// Convert this into the inner [`LinesParsed`]
-    ///
-    /// This is mainly used for testing
-    pub fn into_inner(self) -> LinesParsed {
-        self.state
-    }
-
-    /// Convert a set of valid parsed lines to a [`ValidatedLines`] which will
+impl WriteValidator<CatalogChangesCommitted> {
+    /// Convert a set of valid parsed `v3` lines to a [`ValidatedLines`] which will
     /// be buffered and written to the WAL, if configured.
     ///
     /// This involves splitting out the writes into different batches for each chunk, which will
@@ -436,8 +334,9 @@ impl WriteValidator<LinesParsed> {
         }
 
         let write_batch = WriteBatch::new(
-            self.state.catalog.db_schema.id,
-            Arc::clone(&self.state.catalog.db_schema.name),
+            self.state.catalog_sequence.get(),
+            self.state.db_id,
+            self.state.db_name,
             table_chunks,
         );
 
@@ -448,7 +347,6 @@ impl WriteValidator<LinesParsed> {
             index_count,
             errors: self.state.errors,
             valid_data: write_batch,
-            catalog_updates: self.state.catalog_batch,
         }
     }
 }
@@ -502,30 +400,39 @@ mod tests {
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_id::TableId;
     use influxdb3_wal::Gen1Duration;
-    use iox_time::Time;
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
 
-    #[test]
-    fn write_validator() -> Result<(), Error> {
+    #[tokio::test]
+    async fn write_validator_v1() -> Result<(), Error> {
         let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
+        let obj_store = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let namespace = NamespaceName::new("test").unwrap();
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
-        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
-            .unwrap()
-            .parse_lines_and_update_schema(
+        let catalog = Arc::new(
+            Catalog::new(node_id, obj_store, time_provider)
+                .await
+                .unwrap(),
+        );
+        let expected_sequence = catalog.sequence_number().next();
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
+            .v1_parse_lines_and_catalog_updates(
                 "cpu,tag1=foo val1=\"bar\" 1234",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )
-            .unwrap()
+            )?
+            .commit_catalog_changes()
+            .await?
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
+        println!("result: {result:?}");
         assert_eq!(result.line_count, 1);
         assert_eq!(result.field_count, 1);
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
-
+        assert_eq!(expected_sequence, catalog.sequence_number());
         assert_eq!(result.valid_data.database_name.as_ref(), namespace.as_str());
         // cpu table
         let batch = result
@@ -537,33 +444,38 @@ mod tests {
 
         // Validate another write, the result should be very similar, but now the catalog
         // has the table/columns added, so it will excercise a different code path:
-        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
-            .unwrap()
-            .parse_lines_and_update_schema(
+        let expected_sequence = catalog.sequence_number();
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
+            .v1_parse_lines_and_catalog_updates(
                 "cpu,tag1=foo val1=\"bar\" 1235",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )
-            .unwrap()
+            )?
+            .commit_catalog_changes()
+            .await?
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         println!("result: {result:?}");
         assert_eq!(result.line_count, 1);
         assert_eq!(result.field_count, 1);
         assert_eq!(result.index_count, 1);
+        assert_eq!(expected_sequence, catalog.sequence_number());
         assert!(result.errors.is_empty());
 
         // Validate another write, this time adding a new field:
-        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog), 0)
-            .unwrap()
-            .parse_lines_and_update_schema(
+        let expected_sequence = catalog.sequence_number().next();
+        let result = WriteValidator::initialize(namespace.clone(), Arc::clone(&catalog))?
+            .v1_parse_lines_and_catalog_updates(
                 "cpu,tag1=foo val1=\"bar\",val2=false 1236",
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Auto,
-            )
-            .unwrap()
+            )?
+            .commit_catalog_changes()
+            .await?
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         println!("result: {result:?}");
@@ -571,6 +483,7 @@ mod tests {
         assert_eq!(result.field_count, 2);
         assert_eq!(result.index_count, 1);
         assert!(result.errors.is_empty());
+        assert_eq!(expected_sequence, catalog.sequence_number());
 
         Ok(())
     }

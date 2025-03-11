@@ -1,9 +1,10 @@
 ---
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
-expression: catalog
+expression: snapshot
 ---
 {
+  "nodes": [],
   "databases": [
     [
       0,
@@ -12,9 +13,9 @@ expression: catalog
         "name": "test_db",
         "tables": [
           [
-            1,
+            0,
             {
-              "table_id": 1,
+              "table_id": 0,
               "table_name": "test_table_1",
               "key": [
                 0,
@@ -23,10 +24,10 @@ expression: catalog
               ],
               "cols": [
                 [
-                  4,
+                  3,
                   {
                     "name": "field",
-                    "id": 4,
+                    "id": 3,
                     "type": "str",
                     "influx_type": "field",
                     "nullable": true
@@ -78,10 +79,10 @@ expression: catalog
                   }
                 ],
                 [
-                  3,
+                  4,
                   {
                     "name": "time",
-                    "id": 3,
+                    "id": 4,
                     "type": {
                       "time": [
                         "ns",
@@ -93,16 +94,21 @@ expression: catalog
                   }
                 ]
               ],
-              "deleted": false
+              "last_caches": [],
+              "distinct_caches": [],
+              "deleted": false,
+              "next_column_id": 5
             }
           ]
         ],
         "processing_engine_triggers": [],
-        "deleted": false
+        "deleted": false,
+        "next_table_id": 1
       }
     ]
   ],
-  "instance_id": "instance-id",
-  "node_id": "sample-host-id",
-  "sequence": 0
+  "sequence": 2,
+  "catalog_id": "sample-host-id",
+  "catalog_uuid": "[uuid]",
+  "next_db_id": 1
 }

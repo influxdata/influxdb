@@ -186,6 +186,7 @@ impl TestServer {
             // bind to port 0 to get a random port assigned:
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
+            .args(["--wal-snapshot-size", "1"])
             .args(config.as_args())
             .stdout(Stdio::piped());
 

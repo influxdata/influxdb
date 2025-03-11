@@ -2,4 +2,4 @@
 source: influxdb3/tests/cli/mod.rs
 expression: result
 ---
-Create command failed: server responded with error [409 Conflict]: table 'foo.bar' already exists
+Create command failed: server responded with error [409 Conflict]: attempted to create a resource that already exists

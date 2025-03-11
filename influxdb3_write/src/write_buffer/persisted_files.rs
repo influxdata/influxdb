@@ -413,7 +413,7 @@ mod tests {
         parquet_files: Vec<ParquetFile>,
         snapshot_id: u64,
         wal_id: u64,
-        catalog_id: u32,
+        catalog_id: u64,
     ) -> PersistedSnapshot {
         let snap1 = SnapshotSequenceNumber::new(snapshot_id);
         let wal1 = WalFileSequenceNumber::new(wal_id);

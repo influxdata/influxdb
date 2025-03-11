@@ -731,6 +731,7 @@ macro_rules! object_store_config_inner {
                 #[cfg(feature = "aws")]
                 pub fn s3_builder(&self) -> object_store::aws::AmazonS3Builder {
                     use object_store::aws::AmazonS3Builder;
+                    use object_store::aws::S3ConditionalPut;
 
                     let mut builder = AmazonS3Builder::from_env()
                         .with_client_options(self.client_options())
@@ -738,7 +739,10 @@ macro_rules! object_store_config_inner {
                         .with_region(&self.aws_default_region)
                         .with_retry(self.retry_config())
                         .with_skip_signature(self.aws_skip_signature)
-                        .with_imdsv1_fallback();
+                        .with_imdsv1_fallback()
+                        // Enable conditional PUT requests, so that the cluster-wide catalog
+                        // can leverage PUT IF NOT EXISTS semantics when writing new catalog files
+                        .with_conditional_put(S3ConditionalPut::ETagMatch);
 
                     if let Some(bucket) = &self.bucket {
                         builder = builder.with_bucket_name(bucket);

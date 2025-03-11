@@ -9,20 +9,17 @@ pub mod serialize;
 mod snapshot_tracker;
 
 use async_trait::async_trait;
-use cron::Schedule;
 use data_types::Timestamp;
 use hashbrown::HashMap;
-use humantime::{format_duration, parse_duration};
 use indexmap::IndexMap;
 use influxdb_line_protocol::FieldValue;
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use iox_time::Time;
-use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::cmp::Ordering;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -53,19 +50,8 @@ pub enum Error {
     #[error("invalid gen1 duration {0}. Must be one of 1m, 5m, 10m")]
     InvalidGen1Duration(String),
 
-    #[error("last cache size must be from 1 to 10")]
-    InvalidLastCacheSize,
-
     #[error("invalid WAL file path")]
     InvalidWalFilePath,
-
-    #[error("failed to parse trigger from {trigger_spec}{}", .context.as_ref().map(|context| format!(": {context}")).unwrap_or_default())]
-    TriggerSpecificationParseError {
-        trigger_spec: String,
-        context: Option<String>,
-    },
-    #[error("invalid error behavior {0}")]
-    InvalidErrorBehavior(String),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -245,7 +231,6 @@ pub struct NoopDetails {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WalOp {
     Write(WriteBatch),
-    Catalog(OrderedCatalogBatch),
     Noop(NoopDetails),
 }
 
@@ -258,15 +243,6 @@ impl PartialOrd for WalOp {
 impl Ord for WalOp {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            // Catalog ops come before Write ops
-            (WalOp::Catalog(_), WalOp::Write(_)) => Ordering::Less,
-            (WalOp::Write(_), WalOp::Catalog(_)) => Ordering::Greater,
-
-            // For two Catalog ops, compare by database_sequence_number
-            (WalOp::Catalog(a), WalOp::Catalog(b)) => {
-                a.database_sequence_number.cmp(&b.database_sequence_number)
-            }
-
             // For two Write ops, consider them equal
             (WalOp::Write(_), WalOp::Write(_)) => Ordering::Equal,
             // all noops should stay where they are no need to reorder them
@@ -282,504 +258,7 @@ impl WalOp {
     pub fn as_write(&self) -> Option<&WriteBatch> {
         match self {
             WalOp::Write(w) => Some(w),
-            WalOp::Catalog(_) => None,
             WalOp::Noop(_) => None,
-        }
-    }
-
-    pub fn as_catalog(&self) -> Option<&CatalogBatch> {
-        match self {
-            WalOp::Write(_) => None,
-            WalOp::Catalog(c) => Some(&c.catalog),
-            WalOp::Noop(_) => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CatalogBatch {
-    pub database_id: DbId,
-    pub database_name: Arc<str>,
-    pub time_ns: i64,
-    pub ops: Vec<CatalogOp>,
-}
-
-/// A catalog batch that has been processed by the catalog and given a sequence number.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct OrderedCatalogBatch {
-    catalog: CatalogBatch,
-    database_sequence_number: u32,
-}
-
-impl OrderedCatalogBatch {
-    pub fn new(catalog: CatalogBatch, database_sequence_number: u32) -> Self {
-        Self {
-            catalog,
-            database_sequence_number,
-        }
-    }
-
-    pub fn sequence_number(&self) -> u32 {
-        self.database_sequence_number
-    }
-
-    pub fn batch(&self) -> &CatalogBatch {
-        &self.catalog
-    }
-
-    pub fn into_batch(self) -> CatalogBatch {
-        self.catalog
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum CatalogOp {
-    CreateDatabase(DatabaseDefinition),
-    CreateTable(WalTableDefinition),
-    AddFields(FieldAdditions),
-    CreateDistinctCache(DistinctCacheDefinition),
-    DeleteDistinctCache(DistinctCacheDelete),
-    CreateLastCache(LastCacheDefinition),
-    DeleteLastCache(LastCacheDelete),
-    DeleteDatabase(DeleteDatabaseDefinition),
-    DeleteTable(DeleteTableDefinition),
-    CreateTrigger(TriggerDefinition),
-    DeleteTrigger(DeleteTriggerDefinition),
-    EnableTrigger(TriggerIdentifier),
-    DisableTrigger(TriggerIdentifier),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DatabaseDefinition {
-    pub database_id: DbId,
-    pub database_name: Arc<str>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DeleteDatabaseDefinition {
-    pub database_id: DbId,
-    pub database_name: Arc<str>,
-    pub deletion_time: i64,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DeleteTableDefinition {
-    pub database_id: DbId,
-    pub database_name: Arc<str>,
-    pub table_id: TableId,
-    pub table_name: Arc<str>,
-    pub deletion_time: i64,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct WalTableDefinition {
-    pub database_id: DbId,
-    pub database_name: Arc<str>,
-    pub table_name: Arc<str>,
-    pub table_id: TableId,
-    pub field_definitions: Vec<FieldDefinition>,
-    pub key: Vec<ColumnId>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FieldAdditions {
-    pub database_name: Arc<str>,
-    pub database_id: DbId,
-    pub table_name: Arc<str>,
-    pub table_id: TableId,
-    pub field_definitions: Vec<FieldDefinition>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct FieldDefinition {
-    pub name: Arc<str>,
-    pub id: ColumnId,
-    pub data_type: FieldDataType,
-}
-
-impl FieldDefinition {
-    pub fn new(
-        id: ColumnId,
-        name: impl Into<Arc<str>>,
-        data_type: impl Into<FieldDataType>,
-    ) -> Self {
-        Self {
-            id,
-            name: name.into(),
-            data_type: data_type.into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-pub enum FieldDataType {
-    String,
-    Integer,
-    UInteger,
-    Float,
-    Boolean,
-    Timestamp,
-    Tag,
-    Key,
-}
-
-// FieldDataType from an InfluxColumnType
-impl From<&InfluxColumnType> for FieldDataType {
-    fn from(influx_column_type: &InfluxColumnType) -> Self {
-        match influx_column_type {
-            InfluxColumnType::Tag => FieldDataType::Tag,
-            InfluxColumnType::Timestamp => FieldDataType::Timestamp,
-            InfluxColumnType::Field(InfluxFieldType::String) => FieldDataType::String,
-            InfluxColumnType::Field(InfluxFieldType::Integer) => FieldDataType::Integer,
-            InfluxColumnType::Field(InfluxFieldType::UInteger) => FieldDataType::UInteger,
-            InfluxColumnType::Field(InfluxFieldType::Float) => FieldDataType::Float,
-            InfluxColumnType::Field(InfluxFieldType::Boolean) => FieldDataType::Boolean,
-        }
-    }
-}
-
-impl From<FieldDataType> for InfluxColumnType {
-    fn from(field_data_type: FieldDataType) -> Self {
-        match field_data_type {
-            FieldDataType::Tag => InfluxColumnType::Tag,
-            FieldDataType::Timestamp => InfluxColumnType::Timestamp,
-            FieldDataType::String => InfluxColumnType::Field(InfluxFieldType::String),
-            FieldDataType::Integer => InfluxColumnType::Field(InfluxFieldType::Integer),
-            FieldDataType::UInteger => InfluxColumnType::Field(InfluxFieldType::UInteger),
-            FieldDataType::Float => InfluxColumnType::Field(InfluxFieldType::Float),
-            FieldDataType::Boolean => InfluxColumnType::Field(InfluxFieldType::Boolean),
-            FieldDataType::Key => panic!("Key is not a valid InfluxDB column type"),
-        }
-    }
-}
-
-/// Defines a last cache in a given table and database
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct LastCacheDefinition {
-    /// The table id the cache is associated with
-    pub table_id: TableId,
-    /// The table name the cache is associated with
-    pub table: Arc<str>,
-    /// Given name of the cache
-    pub name: Arc<str>,
-    /// Columns intended to be used as predicates in the cache
-    pub key_columns: Vec<ColumnId>,
-    /// Columns that store values in the cache
-    pub value_columns: LastCacheValueColumnsDef,
-    /// The number of last values to hold in the cache
-    pub count: LastCacheSize,
-    /// The time-to-live (TTL) in seconds for entries in the cache
-    pub ttl: u64,
-}
-
-impl LastCacheDefinition {
-    /// Create a new [`LastCacheDefinition`] with explicit value columns
-    ///
-    /// This is intended for tests and expects that the column id for the time
-    /// column is included in the value columns argument.
-    pub fn new_with_explicit_value_columns(
-        table_id: TableId,
-        table: impl Into<Arc<str>>,
-        name: impl Into<Arc<str>>,
-        key_columns: Vec<ColumnId>,
-        value_columns: Vec<ColumnId>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            table_id,
-            table: table.into(),
-            name: name.into(),
-            key_columns,
-            value_columns: LastCacheValueColumnsDef::Explicit {
-                columns: value_columns,
-            },
-            count: count.try_into()?,
-            ttl,
-        })
-    }
-
-    /// Create a new [`LastCacheDefinition`] with explicit value columns
-    ///
-    /// This is intended for tests.
-    pub fn new_all_non_key_value_columns(
-        table_id: TableId,
-        table: impl Into<Arc<str>>,
-        name: impl Into<Arc<str>>,
-        key_columns: Vec<ColumnId>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self, Error> {
-        Ok(Self {
-            table_id,
-            table: table.into(),
-            name: name.into(),
-            key_columns,
-            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
-            count: count.try_into()?,
-            ttl,
-        })
-    }
-}
-
-/// A last cache will either store values for an explicit set of columns, or will accept all
-/// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum LastCacheValueColumnsDef {
-    /// Explicit list of column names
-    Explicit { columns: Vec<ColumnId> },
-    /// Stores all non-key columns
-    AllNonKeyColumns,
-}
-
-/// The maximum allowed size for a last cache
-pub const LAST_CACHE_MAX_SIZE: usize = 10;
-
-/// The size of the last cache
-///
-/// Must be between 1 and [`LAST_CACHE_MAX_SIZE`]
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
-pub struct LastCacheSize(usize);
-
-impl LastCacheSize {
-    pub fn new(size: usize) -> Result<Self, Error> {
-        if size == 0 || size > LAST_CACHE_MAX_SIZE {
-            Err(Error::InvalidLastCacheSize)
-        } else {
-            Ok(Self(size))
-        }
-    }
-}
-
-impl Default for LastCacheSize {
-    fn default() -> Self {
-        Self(1)
-    }
-}
-
-impl TryFrom<usize> for LastCacheSize {
-    type Error = Error;
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<LastCacheSize> for usize {
-    fn from(value: LastCacheSize) -> Self {
-        value.0
-    }
-}
-
-impl From<LastCacheSize> for u64 {
-    fn from(value: LastCacheSize) -> Self {
-        value
-            .0
-            .try_into()
-            .expect("usize fits into a 64 bit unsigned integer")
-    }
-}
-
-impl PartialEq<usize> for LastCacheSize {
-    fn eq(&self, other: &usize) -> bool {
-        self.0.eq(other)
-    }
-}
-
-impl PartialEq<LastCacheSize> for usize {
-    fn eq(&self, other: &LastCacheSize) -> bool {
-        self.eq(&other.0)
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct LastCacheDelete {
-    pub table_name: Arc<str>,
-    pub table_id: TableId,
-    pub name: Arc<str>,
-}
-
-/// Defines a distinct value cache in a given table and database
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DistinctCacheDefinition {
-    /// The id of the associated table
-    pub table_id: TableId,
-    /// The name of the associated table
-    pub table_name: Arc<str>,
-    /// The name of the cache, is unique within the associated table
-    pub cache_name: Arc<str>,
-    /// The ids of columns tracked by this distinct value cache, in the defined order
-    pub column_ids: Vec<ColumnId>,
-    /// The maximum number of distinct value combintions the cache will hold
-    pub max_cardinality: usize,
-    /// The maximum age in seconds, similar to a time-to-live (TTL), for entries in the cache
-    pub max_age_seconds: u64,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DistinctCacheDelete {
-    pub table_name: Arc<str>,
-    pub table_id: TableId,
-    pub cache_name: Arc<str>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum PluginType {
-    WalRows,
-    Schedule,
-    Request,
-}
-
-impl Display for PluginType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(self, f)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct TriggerDefinition {
-    pub trigger_name: String,
-    pub plugin_filename: String,
-    pub database_name: String,
-    pub trigger: TriggerSpecificationDefinition,
-    pub trigger_settings: TriggerSettings,
-    pub trigger_arguments: Option<HashMap<String, String>>,
-    pub disabled: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default)]
-#[serde(rename_all = "snake_case")]
-pub struct TriggerSettings {
-    pub run_async: bool,
-    pub error_behavior: ErrorBehavior,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Default, clap::ValueEnum)]
-#[serde(rename_all = "snake_case")]
-pub enum ErrorBehavior {
-    #[default]
-    /// Log the error to the service output and system.processing_engine_logs table.
-    Log,
-    /// Rerun the trigger on error.
-    Retry,
-    /// Turn off the plugin until it is manually re-enabled.
-    Disable,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct DeleteTriggerDefinition {
-    pub trigger_name: String,
-    #[serde(default)]
-    pub force: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct TriggerIdentifier {
-    pub db_name: String,
-    pub trigger_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum TriggerSpecificationDefinition {
-    SingleTableWalWrite { table_name: String },
-    AllTablesWalWrite,
-    Schedule { schedule: String },
-    RequestPath { path: String },
-    Every { duration: Duration },
-}
-
-impl TriggerSpecificationDefinition {
-    pub fn from_string_rep(spec_str: &str) -> Result<TriggerSpecificationDefinition, Error> {
-        let spec_str = spec_str.trim();
-        match spec_str {
-            s if s.starts_with("table:") => {
-                let table_name = s.trim_start_matches("table:").trim();
-                if table_name.is_empty() {
-                    return Err(Error::TriggerSpecificationParseError {
-                        trigger_spec: spec_str.to_string(),
-                        context: Some("table name is empty".to_string()),
-                    });
-                }
-                Ok(TriggerSpecificationDefinition::SingleTableWalWrite {
-                    table_name: table_name.to_string(),
-                })
-            }
-            "all_tables" => Ok(TriggerSpecificationDefinition::AllTablesWalWrite),
-            s if s.starts_with("cron:") => {
-                let cron_schedule = s.trim_start_matches("cron:").trim();
-                if cron_schedule.is_empty() || Schedule::from_str(cron_schedule).is_err() {
-                    return Err(Error::TriggerSpecificationParseError {
-                        trigger_spec: spec_str.to_string(),
-                        context: None,
-                    });
-                }
-                Ok(TriggerSpecificationDefinition::Schedule {
-                    schedule: cron_schedule.to_string(),
-                })
-            }
-            s if s.starts_with("every:") => {
-                let duration_str = s.trim_start_matches("every:").trim();
-                let Ok(duration) = parse_duration(duration_str) else {
-                    return Err(Error::TriggerSpecificationParseError {
-                        trigger_spec: spec_str.to_string(),
-                        context: Some("couldn't parse to duration".to_string()),
-                    });
-                };
-                if duration > parse_duration("1 year").unwrap() {
-                    return Err(Error::TriggerSpecificationParseError {
-                        trigger_spec: spec_str.to_string(),
-                        context: Some("don't support every schedules of over 1 year".to_string()),
-                    });
-                }
-                Ok(TriggerSpecificationDefinition::Every { duration })
-            }
-            s if s.starts_with("request:") => {
-                let path = s.trim_start_matches("request:").trim();
-                if path.is_empty() {
-                    return Err(Error::TriggerSpecificationParseError {
-                        trigger_spec: spec_str.to_string(),
-                        context: None,
-                    });
-                }
-                Ok(TriggerSpecificationDefinition::RequestPath {
-                    path: path.to_string(),
-                })
-            }
-            _ => Err(Error::TriggerSpecificationParseError {
-                trigger_spec: spec_str.to_string(),
-                context: Some("expect one of the following prefixes: 'table:', 'all_tables:', 'cron:', 'every:', or 'request:'".to_string()),
-            }),
-        }
-    }
-
-    pub fn string_rep(&self) -> String {
-        match self {
-            TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
-                format!("table:{}", table_name)
-            }
-            TriggerSpecificationDefinition::AllTablesWalWrite => "all_tables".to_string(),
-            TriggerSpecificationDefinition::Schedule { schedule } => {
-                format!("cron:{}", schedule)
-            }
-            TriggerSpecificationDefinition::Every { duration } => {
-                format!("every:{}", format_duration(*duration))
-            }
-            TriggerSpecificationDefinition::RequestPath { path } => {
-                format!("request:{}", path)
-            }
-        }
-    }
-
-    pub fn plugin_type(&self) -> PluginType {
-        match self {
-            TriggerSpecificationDefinition::SingleTableWalWrite { .. }
-            | TriggerSpecificationDefinition::AllTablesWalWrite => PluginType::WalRows,
-            TriggerSpecificationDefinition::Schedule { .. }
-            | TriggerSpecificationDefinition::Every { .. } => PluginType::Schedule,
-            TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
     }
 }
@@ -787,6 +266,7 @@ impl TriggerSpecificationDefinition {
 #[serde_as]
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct WriteBatch {
+    pub catalog_sequence: u64,
     pub database_id: DbId,
     pub database_name: Arc<str>,
     pub table_chunks: SerdeVecMap<TableId, TableChunks>,
@@ -796,6 +276,7 @@ pub struct WriteBatch {
 
 impl WriteBatch {
     pub fn new(
+        catalog_sequence: u64,
         database_id: DbId,
         database_name: Arc<str>,
         table_chunks: IndexMap<TableId, TableChunks>,
@@ -812,6 +293,7 @@ impl WriteBatch {
         );
 
         Self {
+            catalog_sequence,
             database_id,
             database_name,
             table_chunks: table_chunks.into(),

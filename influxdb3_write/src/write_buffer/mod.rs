@@ -8,53 +8,52 @@ use tokio::sync::{oneshot, watch::Receiver};
 use trace::span::{MetaValue, SpanRecorder};
 pub mod validator;
 
-use crate::persister::Persister;
-use crate::write_buffer::persisted_files::PersistedFiles;
-use crate::write_buffer::queryable_buffer::QueryableBuffer;
-use crate::write_buffer::validator::WriteValidator;
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
     LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
+    chunk::ParquetChunk,
+    persister::{Persister, PersisterError},
+    write_buffer::{
+        persisted_files::PersistedFiles, queryable_buffer::QueryableBuffer,
+        validator::WriteValidator,
+    },
 };
-use crate::{DatabaseManager, chunk::ParquetChunk};
 use async_trait::async_trait;
 use data_types::{
     ChunkId, ChunkOrder, ColumnType, NamespaceName, NamespaceNameError, PartitionHashId,
     PartitionId,
 };
-use datafusion::catalog::Session;
-use datafusion::common::DataFusionError;
-use datafusion::datasource::object_store::ObjectStoreUrl;
-use influxdb3_cache::last_cache::{self, LastCacheProvider};
-use influxdb3_cache::parquet_cache::ParquetCacheOracle;
+use datafusion::{
+    catalog::Session, common::DataFusionError, datasource::object_store::ObjectStoreUrl,
+};
 use influxdb3_cache::{
-    distinct_cache::{self, CreateDistinctCacheArgs, DistinctCacheProvider},
+    distinct_cache::{self, DistinctCacheProvider},
     parquet_cache::CacheRequest,
 };
-use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
-use influxdb3_id::{ColumnId, DbId, TableId};
-use influxdb3_wal::FieldDataType;
-use influxdb3_wal::WalTableDefinition;
-use influxdb3_wal::{
-    CatalogBatch, CatalogOp, DistinctCacheDefinition, DistinctCacheDelete, LastCacheDefinition,
-    LastCacheDelete, LastCacheSize, Wal, WalConfig, WalFileNotifier, WalOp,
+use influxdb3_cache::{
+    last_cache::{self, LastCacheProvider},
+    parquet_cache::ParquetCacheOracle,
 };
-use influxdb3_wal::{CatalogOp::CreateLastCache, DeleteTableDefinition};
-use influxdb3_wal::{DatabaseDefinition, FieldDefinition};
-use influxdb3_wal::{DeleteDatabaseDefinition, object_store::WalObjectStore};
-use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
-use iox_query::{QueryChunk, exec::SessionContextIOxExt};
+use influxdb3_catalog::{
+    CatalogError,
+    catalog::{Catalog, DatabaseSchema, Prompt, TableDefinition},
+};
+use influxdb3_id::{DbId, TableId};
+use influxdb3_wal::{Wal, WalConfig, WalFileNotifier, WalOp, object_store::WalObjectStore};
+use iox_query::{
+    QueryChunk,
+    chunk_statistics::{NoColumnRanges, create_chunk_statistics},
+    exec::SessionContextIOxExt,
+};
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use metrics::WriteMetrics;
-use object_store::path::Path as ObjPath;
-use object_store::{ObjectMeta, ObjectStore};
-use observability_deps::tracing::{debug, warn};
+use object_store::{ObjectMeta, ObjectStore, path::Path as ObjPath};
+use observability_deps::tracing::{debug, error, warn};
 use parquet_file::storage::ParquetExecInput;
 use queryable_buffer::QueryableBufferArgs;
 use schema::Schema;
-use std::time::Duration;
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, sync::Arc, time::Duration};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -70,10 +69,10 @@ pub enum Error {
     },
 
     #[error("catalog update error: {0}")]
-    CatalogUpdateError(#[from] influxdb3_catalog::catalog::Error),
+    CatalogUpdateError(#[from] CatalogError),
 
     #[error("error from persister: {0}")]
-    PersisterError(#[from] crate::persister::Error),
+    PersisterError(#[from] PersisterError),
 
     #[error("corrupt load state: {0}")]
     CorruptLoadState(String),
@@ -115,7 +114,7 @@ pub enum Error {
         "updating catalog on delete of last cache failed, you will need to delete the cache \
         again on server restart"
     )]
-    DeleteLastCache(#[source] influxdb3_catalog::catalog::Error),
+    DeleteLastCache(#[source] CatalogError),
 
     #[error("error from wal: {0}")]
     WalError(#[from] influxdb3_wal::Error),
@@ -125,6 +124,9 @@ pub enum Error {
 
     #[error("error in distinct value cache: {0}")]
     DistinctCacheError(#[from] distinct_cache::ProviderError),
+
+    #[error("cannot write to a compactor-only server")]
+    NoWriteInCompactorOnly,
 
     #[error("error: {0}")]
     AnyhowError(#[from] anyhow::Error),
@@ -151,7 +153,6 @@ pub struct WriteBufferImpl {
     buffer: Arc<QueryableBuffer>,
     wal_config: WalConfig,
     wal: Arc<dyn Wal>,
-    time_provider: Arc<dyn TimeProvider>,
     metrics: WriteMetrics,
     distinct_cache: Arc<DistinctCacheProvider>,
     last_cache: Arc<LastCacheProvider>,
@@ -205,9 +206,6 @@ impl WriteBufferImpl {
             .map(|s| s.snapshot_sequence_number);
         // If we have any snapshots, set sequential IDs from the newest one.
         if let Some(first_snapshot) = persisted_snapshots.first() {
-            first_snapshot.next_db_id.set_next_id();
-            first_snapshot.next_table_id.set_next_id();
-            first_snapshot.next_column_id.set_next_id();
             first_snapshot.next_file_id.set_next_id();
         }
 
@@ -244,7 +242,6 @@ impl WriteBufferImpl {
             persister,
             wal_config,
             wal,
-            time_provider,
             distinct_cache,
             last_cache,
             persisted_files,
@@ -253,10 +250,6 @@ impl WriteBufferImpl {
             query_file_limit: query_file_limit.unwrap_or(432),
         });
         Ok(result)
-    }
-
-    pub fn catalog(&self) -> Arc<Catalog> {
-        Arc::clone(&self.catalog)
     }
 
     pub fn wal(&self) -> Arc<dyn Wal> {
@@ -278,50 +271,51 @@ impl WriteBufferImpl {
     ) -> Result<BufferedWriteRequest> {
         debug!("write_lp to {} in writebuffer", db_name);
 
-        // validated lines will update the in-memory catalog, ensuring that all write operations
-        // past this point will be infallible
-        let result = WriteValidator::initialize(
-            db_name.clone(),
-            self.catalog(),
-            ingest_time.timestamp_nanos(),
-        )?
-        .parse_lines_and_update_schema(lp, accept_partial, ingest_time, precision)?
-        .convert_lines_to_buffer(self.wal_config.gen1_duration);
+        // NOTE(trevor/catalog-refactor): should there be some retry limit or timeout?
+        loop {
+            // validated lines will update the in-memory catalog, ensuring that all write operations
+            // past this point will be infallible
+            let result = match WriteValidator::initialize(db_name.clone(), self.catalog())?
+                .v1_parse_lines_and_catalog_updates(lp, accept_partial, ingest_time, precision)?
+                .commit_catalog_changes()
+                .await?
+            {
+                Prompt::Success(r) => r.convert_lines_to_buffer(self.wal_config.gen1_duration),
+                Prompt::Retry(_) => {
+                    debug!("retrying write_lp after attempted commit");
+                    continue;
+                }
+            };
 
-        // if there were catalog updates, ensure they get persisted to the wal, so they're
-        // replayed on restart
-        let mut ops = Vec::with_capacity(2);
-        if let Some(catalog_batch) = result.catalog_updates {
-            ops.push(WalOp::Catalog(catalog_batch));
+            let ops = vec![WalOp::Write(result.valid_data)];
+
+            if no_sync {
+                self.wal.write_ops_unconfirmed(ops).await?;
+            } else {
+                // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
+                // whatever the configured wal flush interval is set to) the buffer is flushed and all the
+                // data is persisted into a single wal file in the configured object store. Then the
+                // contents are sent to the configured notifier, which in this case is the queryable buffer.
+                // Thus, after this returns, the data is both durable and queryable.
+                self.wal.write_ops(ops).await?;
+            }
+
+            // record metrics for lines written, rejected, and bytes written
+            self.metrics
+                .record_lines(&db_name, result.line_count as u64);
+            self.metrics
+                .record_lines_rejected(&db_name, result.errors.len() as u64);
+            self.metrics
+                .record_bytes(&db_name, result.valid_bytes_count);
+
+            break Ok(BufferedWriteRequest {
+                db_name,
+                invalid_lines: result.errors,
+                line_count: result.line_count,
+                field_count: result.field_count,
+                index_count: result.index_count,
+            });
         }
-        ops.push(WalOp::Write(result.valid_data));
-
-        if no_sync {
-            self.wal.write_ops_unconfirmed(ops).await?;
-        } else {
-            // write to the wal. Behind the scenes the ops get buffered in memory and once a second (or
-            // whatever the configured wal flush interval is set to) the buffer is flushed and all the
-            // data is persisted into a single wal file in the configured object store. Then the
-            // contents are sent to the configured notifier, which in this case is the queryable buffer.
-            // Thus, after this returns, the data is both durable and queryable.
-            self.wal.write_ops(ops).await?;
-        }
-
-        // record metrics for lines written, rejected, and bytes written
-        self.metrics
-            .record_lines(&db_name, result.line_count as u64);
-        self.metrics
-            .record_lines_rejected(&db_name, result.errors.len() as u64);
-        self.metrics
-            .record_bytes(&db_name, result.valid_bytes_count);
-
-        Ok(BufferedWriteRequest {
-            db_name,
-            invalid_lines: result.errors,
-            line_count: result.line_count,
-            field_count: result.field_count,
-            index_count: result.index_count,
-        })
     }
 
     fn get_table_chunks(
@@ -534,7 +528,7 @@ impl Bufferer for WriteBufferImpl {
     }
 
     fn catalog(&self) -> Arc<Catalog> {
-        self.catalog()
+        Arc::clone(&self.catalog)
     }
 
     fn wal(&self) -> Arc<dyn Wal> {
@@ -573,360 +567,12 @@ impl DistinctCacheManager for WriteBufferImpl {
     fn distinct_cache_provider(&self) -> Arc<DistinctCacheProvider> {
         Arc::clone(&self.distinct_cache)
     }
-
-    async fn create_distinct_cache(
-        &self,
-        db_schema: Arc<DatabaseSchema>,
-        cache_name: Option<String>,
-        args: CreateDistinctCacheArgs,
-    ) -> Result<Option<DistinctCacheDefinition>, Error> {
-        if let Some(new_cache_definition) = self
-            .distinct_cache
-            .create_cache(db_schema.id, cache_name.map(Into::into), args)
-            .map_err(Error::DistinctCacheError)?
-        {
-            let catalog_op = CatalogOp::CreateDistinctCache(new_cache_definition.clone());
-            let catalog_batch = CatalogBatch {
-                database_id: db_schema.id,
-                database_name: Arc::clone(&db_schema.name),
-                time_ns: self.time_provider.now().timestamp_nanos(),
-                ops: vec![catalog_op],
-            };
-            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-                self.wal
-                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                    .await?;
-            }
-            Ok(Some(new_cache_definition))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn delete_distinct_cache(
-        &self,
-        db_id: &DbId,
-        tbl_id: &TableId,
-        cache_name: &str,
-    ) -> Result<(), Error> {
-        let catalog = self.catalog();
-        let db_schema = catalog.db_schema_by_id(db_id).expect("db should exist");
-        self.distinct_cache
-            .delete_cache(db_id, tbl_id, cache_name)?;
-        let catalog_batch = CatalogBatch {
-            database_id: *db_id,
-            database_name: Arc::clone(&db_schema.name),
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            ops: vec![CatalogOp::DeleteDistinctCache(DistinctCacheDelete {
-                table_name: db_schema.table_id_to_name(tbl_id).expect("table exists"),
-                table_id: *tbl_id,
-                cache_name: cache_name.into(),
-            })],
-        };
-        if let Some(catalog_batch) = catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
 impl LastCacheManager for WriteBufferImpl {
     fn last_cache_provider(&self) -> Arc<LastCacheProvider> {
         Arc::clone(&self.last_cache)
-    }
-
-    /// Create a new last-N-value cache in the specified database and table, along with the given
-    /// parameters.
-    ///
-    /// Returns the name of the newly created cache, or `None` if a cache was not created, but the
-    /// provided parameters match those of an existing cache.
-    #[allow(clippy::too_many_arguments)]
-    async fn create_last_cache(
-        &self,
-        db_id: DbId,
-        table_id: TableId,
-        cache_name: Option<&str>,
-        count: Option<usize>,
-        ttl: Option<Duration>,
-        key_columns: Option<Vec<ColumnId>>,
-        value_columns: Option<Vec<ColumnId>>,
-    ) -> Result<Option<LastCacheDefinition>, Error> {
-        let catalog = self.catalog();
-        let db_schema = catalog
-            .db_schema_by_id(&db_id)
-            .ok_or(Error::DbDoesNotExist)?;
-        let table_def = db_schema
-            .table_definition_by_id(&table_id)
-            .ok_or(Error::TableDoesNotExist)?;
-        let count = count
-            .map(LastCacheSize::new)
-            .transpose()
-            .map_err(|_| last_cache::Error::InvalidCacheSize)?
-            .unwrap_or_default();
-        let ttl = ttl.map(Into::into).unwrap_or_default();
-        let key_columns = key_columns.into();
-        let value_columns = value_columns.into();
-
-        if let Some(info) = self.last_cache.create_cache(
-            db_id,
-            cache_name,
-            last_cache::CreateLastCacheArgs {
-                table_def,
-                count,
-                ttl,
-                key_columns,
-                value_columns,
-            },
-        )? {
-            let catalog_batch = CatalogBatch {
-                time_ns: self.time_provider.now().timestamp_nanos(),
-                database_id: db_schema.id,
-                database_name: Arc::clone(&db_schema.name),
-                ops: vec![CreateLastCache(info.clone())],
-            };
-            if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-                self.wal
-                    .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                    .await?;
-            }
-
-            Ok(Some(info))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn delete_last_cache(
-        &self,
-        db_id: DbId,
-        tbl_id: TableId,
-        cache_name: &str,
-    ) -> crate::Result<(), Error> {
-        let catalog = self.catalog();
-        let db_schema = catalog.db_schema_by_id(&db_id).expect("db should exist");
-        self.last_cache.delete_cache(db_id, tbl_id, cache_name)?;
-
-        let catalog_batch = CatalogBatch {
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![CatalogOp::DeleteLastCache(LastCacheDelete {
-                table_id: tbl_id,
-                table_name: db_schema.table_id_to_name(&tbl_id).expect("table exists"),
-                name: cache_name.into(),
-            })],
-        };
-
-        // NOTE: if this fails then the cache will be gone from the running server, but will be
-        // resurrected on server restart.
-        if let Some(catalog_batch) = catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl DatabaseManager for WriteBufferImpl {
-    async fn create_database(&self, name: String) -> crate::Result<(), self::Error> {
-        if self.catalog.db_name_to_id(&name).is_some() {
-            return Err(self::Error::DatabaseExists(name.clone()));
-        }
-        // Create the Database
-        let db_schema = self.catalog.db_or_create(&name)?;
-        let db_id = db_schema.id;
-
-        let catalog_batch = CatalogBatch {
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![CatalogOp::CreateDatabase(DatabaseDefinition {
-                database_id: db_id,
-                database_name: Arc::clone(&db_schema.name),
-            })],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-        debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully created database");
-        Ok(())
-    }
-
-    async fn soft_delete_database(&self, name: String) -> crate::Result<(), self::Error> {
-        let (db_id, db_schema) =
-            self.catalog
-                .db_id_and_schema(&name)
-                .ok_or_else(|| self::Error::DatabaseNotFound {
-                    db_name: name.to_owned(),
-                })?;
-
-        let deletion_time = self.time_provider.now();
-        let catalog_batch = CatalogBatch {
-            time_ns: deletion_time.timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![CatalogOp::DeleteDatabase(DeleteDatabaseDefinition {
-                database_id: db_id,
-                database_name: Arc::clone(&db_schema.name),
-                deletion_time: deletion_time.timestamp_nanos(),
-            })],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            let wal_op = WalOp::Catalog(catalog_batch);
-            self.wal.write_ops(vec![wal_op]).await?;
-            debug!(db_id = ?db_id, name = ?&db_schema.name, "successfully deleted database");
-        }
-        Ok(())
-    }
-
-    async fn create_table(
-        &self,
-        db: String,
-        table: String,
-        tags: Vec<String>,
-        fields: Vec<(String, String)>,
-    ) -> Result<(), self::Error> {
-        // get the database schema or create it if it does not yet exist:
-        let (db_id, db_schema) = match self.catalog.db_id_and_schema(&db) {
-            Some((db_id, db_schema)) => (db_id, db_schema),
-            None => {
-                let db_schema = self.catalog.db_or_create(&db)?;
-                let db_id = db_schema.id;
-                (db_id, db_schema)
-            }
-        };
-
-        let table_id = TableId::new();
-        let table_name: Arc<str> = table.into();
-
-        if db_schema.table_map.contains_right(&table_name) {
-            return Err(Error::TableAlreadyExists {
-                db_name: Arc::clone(&db_schema.name),
-                table_name: Arc::clone(&table_name),
-            });
-        }
-
-        let mut key = Vec::new();
-        let field_definitions = {
-            let mut field_definitions = Vec::new();
-            for tag in tags {
-                let id = ColumnId::new();
-                key.push(id);
-                field_definitions.push(FieldDefinition {
-                    name: tag.into(),
-                    id,
-                    data_type: FieldDataType::Tag,
-                });
-            }
-
-            for (name, ty) in fields {
-                field_definitions.push(FieldDefinition {
-                    name: name.into(),
-                    id: ColumnId::new(),
-                    data_type: match ty.as_str() {
-                        "uint64" => FieldDataType::UInteger,
-                        "float64" => FieldDataType::Float,
-                        "int64" => FieldDataType::Integer,
-                        "bool" => FieldDataType::Boolean,
-                        "utf8" => FieldDataType::String,
-                        _ => unreachable!(),
-                    },
-                });
-            }
-
-            field_definitions.push(FieldDefinition {
-                name: "time".into(),
-                id: ColumnId::new(),
-                data_type: FieldDataType::Timestamp,
-            });
-
-            field_definitions
-        };
-
-        let catalog_table_def = WalTableDefinition {
-            database_id: db_schema.id,
-            database_name: Arc::clone(&db_schema.name),
-            table_name: Arc::clone(&table_name),
-            table_id,
-            field_definitions,
-            key,
-        };
-
-        let catalog_batch = CatalogBatch {
-            time_ns: self.time_provider.now().timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![CatalogOp::CreateTable(catalog_table_def)],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-
-        debug!(
-            db_name = ?db_schema.name,
-            db_id = ?db_id,
-            table_id = ?table_id,
-            name = ?table_name,
-            "successfully created table"
-        );
-
-        Ok(())
-    }
-
-    async fn soft_delete_table(
-        &self,
-        db_name: String,
-        table_name: String,
-    ) -> crate::Result<(), self::Error> {
-        let (db_id, db_schema) = self.catalog.db_id_and_schema(&db_name).ok_or_else(|| {
-            self::Error::DatabaseNotFound {
-                db_name: db_name.to_owned(),
-            }
-        })?;
-
-        let (table_id, table_defn) = db_schema
-            .table_id_and_definition(table_name.as_str())
-            .ok_or_else(|| self::Error::TableNotFound {
-                db_name: db_name.to_owned(),
-                table_name: table_name.to_owned(),
-            })?;
-        let deletion_time = self.time_provider.now();
-        let catalog_batch = CatalogBatch {
-            time_ns: deletion_time.timestamp_nanos(),
-            database_id: db_id,
-            database_name: Arc::clone(&db_schema.name),
-            ops: vec![CatalogOp::DeleteTable(DeleteTableDefinition {
-                database_id: db_id,
-                database_name: Arc::clone(&db_schema.name),
-                deletion_time: deletion_time.timestamp_nanos(),
-                table_id,
-                table_name: Arc::clone(&table_defn.table_name),
-            })],
-        };
-        if let Some(catalog_batch) = self.catalog.apply_catalog_batch(&catalog_batch)? {
-            self.wal
-                .write_ops(vec![WalOp::Catalog(catalog_batch)])
-                .await?;
-        }
-        debug!(
-            db_id = ?db_id,
-            db_name = ?&db_schema.name,
-            table_id = ?table_id,
-            table_name = ?table_defn.table_name,
-            "successfully deleted table"
-        );
-        Ok(())
     }
 }
 
@@ -1000,8 +646,10 @@ mod tests {
     use futures_util::StreamExt;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
+    use influxdb3_catalog::log::FieldDataType;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
+    use influxdb3_types::http::LastCacheSize;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
     use iox_query::exec::{Executor, ExecutorConfig, IOxSessionContext};
     use iox_time::{MockProvider, Time};
@@ -1016,22 +664,31 @@ mod tests {
     use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 
-    #[test]
-    fn parse_lp_into_buffer() {
+    #[tokio::test]
+    async fn parse_lp_into_buffer() {
         let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+        let obj_store = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let catalog = Arc::new(
+            Catalog::new(node_id, obj_store, time_provider)
+                .await
+                .unwrap(),
+        );
         let db_name = NamespaceName::new("foo").unwrap();
         let lp = "cpu,region=west user=23.2 100\nfoo f1=1i";
-        WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
+        WriteValidator::initialize(db_name, Arc::clone(&catalog))
             .unwrap()
-            .parse_lines_and_update_schema(
+            .v1_parse_lines_and_catalog_updates(
                 lp,
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Nanosecond,
             )
             .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
@@ -1045,20 +702,25 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn writes_data_to_wal_and_is_queryable() {
-        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let obj_store = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let catalog = Arc::new(
+            Catalog::new("test_host", obj_store, time_provider)
+                .await
+                .unwrap(),
+        );
         let time_provider: Arc<dyn TimeProvider> =
             Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let (object_store, parquet_cache) = test_cached_obj_store_and_oracle(
-            object_store,
+            catalog.object_store(),
             Arc::clone(&time_provider),
             Default::default(),
         );
         let persister = Arc::new(Persister::new(
-            Arc::clone(&object_store),
+            catalog.object_store(),
             "test_host",
             Arc::clone(&time_provider),
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -1067,7 +729,7 @@ mod tests {
         .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
-            catalog,
+            catalog: Arc::clone(&catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider),
@@ -1148,7 +810,15 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
 
         // now load a new buffer from object storage
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                catalog.object_store(),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
@@ -1182,7 +852,7 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn last_cache_create_and_delete_is_durable() {
         let obj_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let (wbuf, _ctx, time_provider) = setup(
@@ -1197,9 +867,7 @@ mod tests {
         )
         .await;
         let db_name = "db";
-        let db_id = DbId::from(0);
         let tbl_name = "table";
-        let tbl_id = TableId::from(0);
         let cache_name = "cache";
         // Write some data to the current segment and update the catalog:
         wbuf.write_lp(
@@ -1213,14 +881,31 @@ mod tests {
         .await
         .unwrap();
         // Create a last cache:
-        wbuf.create_last_cache(db_id, tbl_id, Some(cache_name), None, None, None, None)
+        wbuf.catalog()
+            .create_last_cache(
+                db_name,
+                tbl_name,
+                Some(cache_name),
+                None as Option<&[&str]>,
+                None as Option<&[&str]>,
+                Default::default(),
+                Default::default(),
+            )
             .await
             .unwrap();
 
         let reload = || async {
-            let persister = Arc::clone(&wbuf.persister);
+            debug!("reloading the write buffer");
             let time_provider = Arc::clone(&time_provider);
-            let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+            let catalog = Arc::new(
+                Catalog::new(
+                    "test_host",
+                    Arc::clone(&obj_store),
+                    Arc::clone(&time_provider),
+                )
+                .await
+                .unwrap(),
+            );
             let last_cache =
                 LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
             let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1253,10 +938,11 @@ mod tests {
         // load a new write buffer to ensure its durable
         let wbuf = reload().await;
 
-        let catalog_json = catalog_to_json(&wbuf.catalog);
+        let catalog_json = wbuf.catalog.snapshot();
+        debug!(?catalog_json, ">>> reloaded catalog");
         insta::assert_json_snapshot!("catalog-immediately-after-last-cache-create",
             catalog_json,
-            { ".instance_id" => "[uuid]" }
+            { ".catalog_uuid" => "[uuid]" }
         );
 
         // Do another write that will update the state of the catalog, specifically, the table
@@ -1275,11 +961,11 @@ mod tests {
         // and do another replay and verification
         let wbuf = reload().await;
 
-        let catalog_json = catalog_to_json(&wbuf.catalog);
+        let catalog_json = wbuf.catalog.snapshot();
         insta::assert_json_snapshot!(
            "catalog-after-last-cache-create-and-new-field",
            catalog_json,
-           { ".instance_id" => "[uuid]" }
+           { ".catalog_uuid" => "[uuid]" }
         );
 
         // write a new data point to fill the cache
@@ -1302,32 +988,36 @@ mod tests {
             "| a  | true | 53 | 1970-01-01T00:00:40Z |",
             "+----+------+----+----------------------+",
         ];
+        let db_schema = wbuf.catalog().db_schema(db_name).unwrap();
+        let tbl_id = db_schema.table_name_to_id(tbl_name).unwrap();
         let actual = wbuf
             .last_cache_provider()
-            .get_cache_record_batches(db_id, tbl_id, None)
+            .get_cache_record_batches(db_schema.id, tbl_id, None)
             .unwrap()
             .unwrap();
         assert_batches_eq!(&expected, &actual);
         // Delete the last cache:
-        wbuf.delete_last_cache(db_id, tbl_id, cache_name)
+        wbuf.catalog()
+            .delete_last_cache(db_name, tbl_name, cache_name)
             .await
             .unwrap();
 
         // do another reload and verify it's gone
         reload().await;
 
-        let catalog_json = catalog_to_json(&wbuf.catalog);
+        let catalog_json = wbuf.catalog.snapshot();
         insta::assert_json_snapshot!("catalog-immediately-after-last-cache-delete",
             catalog_json,
-            { ".instance_id" => "[uuid]" }
+            { ".catalog_uuid" => "[uuid]" }
         );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn returns_chunks_across_parquet_and_buffered_data() {
+        let obj_store = Arc::new(InMemory::new());
         let (write_buffer, session_context, time_provider) = setup(
             Time::from_timestamp_nanos(0),
-            Arc::new(InMemory::new()),
+            Arc::clone(&obj_store) as _,
             WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
                 max_write_buffer_size: 100,
@@ -1463,11 +1153,13 @@ mod tests {
         assert_batches_sorted_eq!(&expected, &actual);
         // and now replay in a new write buffer and attempt to write
         let catalog = Arc::new(
-            write_buffer
-                .persister
-                .load_or_create_catalog()
-                .await
-                .unwrap(),
+            Catalog::new(
+                "test_host",
+                Arc::clone(&obj_store) as _,
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
         );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
@@ -1480,7 +1172,7 @@ mod tests {
             catalog,
             last_cache,
             distinct_cache,
-            time_provider: Arc::clone(&write_buffer.time_provider),
+            time_provider: Arc::clone(&time_provider),
             executor: Arc::clone(&write_buffer.buffer.executor),
             wal_config: WalConfig {
                 gen1_duration: Gen1Duration::new_1m(),
@@ -1749,13 +1441,8 @@ mod tests {
             .unwrap();
         let persisted_snapshot =
             serde_json::from_slice::<PersistedSnapshot>(&persisted_snapshot_bytes).unwrap();
-        // NOTE: it appears that writes which create a new db increment the catalog sequence twice.
-        // This is likely due to the catalog sequence being incremented first for the db creation and
-        // then again for the updates to the table written to. Hence the sequence number is 2 here.
-        // If we manage to make it so that scenario only increments the catalog sequence once, then
-        // this assertion may fail:
         assert_eq!(
-            CatalogSequenceNumber::new(2),
+            CatalogSequenceNumber::new(1),
             persisted_snapshot.catalog_sequence_number
         );
     }
@@ -1775,8 +1462,6 @@ mod tests {
         );
 
         assert_eq!(prev_snapshot.next_file_id.as_u64(), 0);
-        assert_eq!(prev_snapshot.next_table_id.as_u32(), 0);
-        assert_eq!(prev_snapshot.next_db_id.as_u32(), 0);
 
         for _ in 0..=5 {
             prev_snapshot.add_parquet_file(
@@ -2152,46 +1837,41 @@ mod tests {
             },
         )
         .await;
-        let db_name = "coffee_shop";
-        let tbl_name = "menu";
 
         // do some writes to get a snapshot:
         do_writes(
-            db_name,
+            "coffee_shop",
             wbuf.as_ref(),
             &[
                 TestWrite {
-                    lp: format!("{tbl_name},name=espresso price=2.50"),
+                    lp: "menu,name=espresso price=2.50",
                     time_seconds: 1,
                 },
                 // This write is way out in the future, so as to be outside the normal
                 // range for a snapshot:
                 TestWrite {
-                    lp: format!("{tbl_name},name=americano price=3.00"),
+                    lp: "menu,name=americano price=3.00",
                     time_seconds: 20_000,
                 },
                 // This write will trigger the snapshot:
                 TestWrite {
-                    lp: format!("{tbl_name},name=latte price=4.50"),
+                    lp: "menu,name=latte price=4.50",
                     time_seconds: 3,
                 },
             ],
         )
         .await;
 
-        // Wait for snapshot to be created:
-        verify_snapshot_count(1, &wbuf.persister).await;
+        // this persists the catalog immediately, so we don't wait for anything, just assert that
+        // the next db id is 1, since the above would have used 0
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
 
-        // Now drop the write buffer, and create a new one that replays:
+        // drop the write buffer, and create a new one that replays and re-loads the catalog:
         drop(wbuf);
 
         // Set DbId to a large number to make sure it is properly set on replay
         // and assert that it's what we expect it to be before we replay
-        debug!(db_id = ?DbId::next_id());
-        DbId::from(10_000).set_next_id();
-        assert_eq!(DbId::next_id().as_u32(), 10_000);
-        debug!(db_id = ?DbId::next_id());
-        let (_wbuf, _, _) = setup(
+        let (wbuf, _, _) = setup(
             Time::from_timestamp_nanos(0),
             Arc::clone(&obj_store),
             WalConfig {
@@ -2202,9 +1882,9 @@ mod tests {
             },
         )
         .await;
-        debug!(db_id = ?DbId::next_id());
 
-        assert_eq!(DbId::next_id().as_u32(), 1);
+        // check that the next db id is still 1
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
     }
 
     #[test_log::test(tokio::test)]
@@ -2424,7 +2104,7 @@ mod tests {
         assert_eq!(0, test_store.head_request_count(&path));
     }
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_delete_database() {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
@@ -2448,7 +2128,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = write_buffer.soft_delete_database("foo".to_string()).await;
+        let result = write_buffer.catalog().soft_delete_database("foo").await;
 
         assert!(result.is_ok());
     }
@@ -2477,9 +2157,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = write_buffer
-            .soft_delete_table("foo".to_string(), "cpu".to_string())
-            .await;
+        let result = write_buffer.catalog().soft_delete_table("foo", "cpu").await;
 
         assert!(result.is_ok());
     }
@@ -2585,13 +2263,13 @@ mod tests {
         // now do a write that will only be partially accepted to ensure that
         // the metrics are only calculated for writes that get accepted:
 
-        // the legume will not be accepted, because it is an invalid line and
-        // it should not be included in metric calculations:
+        // the legume will not be accepted, because it contains an invalid field type
+        // so should not be included in metric calculations:
         let lp = "\
             produce,type=fruit,name=banana price=1.50\n\
             produce,type=fruit,name=papaya price=5.50\n\
             produce,type=vegetable,name=lettuce price=1.00\n\
-            produce,type=fruit,name=lentils,family=legume price=\n\
+            produce,type=fruit,name=lentils,family=legume price=2i\n\
             ";
         do_writes_partial(
             db_2,
@@ -2903,35 +2581,36 @@ mod tests {
 
         // create db, table and last cache
         write_buffer
-            .create_database("sample".to_string())
+            .catalog()
+            .create_database("sample")
             .await
             .unwrap();
 
         write_buffer
+            .catalog()
             .create_table(
-                "sample".to_string(),
-                "cpu".to_string(),
-                vec!["region".to_string(), "host".to_string()],
-                vec![("usage".to_string(), "float64".to_string())],
+                "sample",
+                "cpu",
+                &["region", "host"],
+                &[("usage", FieldDataType::Float)],
             )
             .await
             .unwrap();
 
-        let db_id = write_buffer.catalog().db_name_to_id("sample").unwrap();
-        let table_id = write_buffer
-            .catalog()
-            .table_id(&db_id, Arc::from("cpu"))
-            .unwrap();
+        let db_schema = write_buffer.catalog().db_schema("sample").unwrap();
+        let table_id = db_schema.table_name_to_id("cpu").unwrap();
+        let db_id = db_schema.id;
 
         write_buffer
+            .catalog()
             .create_last_cache(
-                db_id,
-                table_id,
+                "sample",
+                "cpu",
                 Some("sample_cpu_usage"),
-                Some(2),
-                None,
-                None,
-                None,
+                None as Option<&[&str]>,
+                None as Option<&[&str]>,
+                LastCacheSize::new(2).unwrap(),
+                Default::default(),
             )
             .await
             .unwrap();
@@ -3161,22 +2840,24 @@ mod tests {
         );
     }
 
-    #[test]
-    fn series_key_updated_on_new_tag() {
-        let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("sample-instance-id");
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+    #[tokio::test]
+    async fn series_key_updated_on_new_tag() {
+        let catalog = Arc::new(Catalog::new_in_memory("test-catalog").await.unwrap());
         let db_name = NamespaceName::new("foo").unwrap();
         let lp = "test_table,tag0=foo field0=1";
-        WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog), 0)
+        WriteValidator::initialize(db_name.clone(), Arc::clone(&catalog))
             .unwrap()
-            .parse_lines_and_update_schema(
+            .v1_parse_lines_and_catalog_updates(
                 lp,
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Nanosecond,
             )
             .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
@@ -3185,15 +2866,19 @@ mod tests {
         assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
 
         let lp = "test_table,tag1=bar field0=1";
-        WriteValidator::initialize(db_name, Arc::clone(&catalog), 0)
+        WriteValidator::initialize(db_name, Arc::clone(&catalog))
             .unwrap()
-            .parse_lines_and_update_schema(
+            .v1_parse_lines_and_catalog_updates(
                 lp,
                 false,
                 Time::from_timestamp_nanos(0),
                 Precision::Nanosecond,
             )
             .unwrap()
+            .commit_catalog_changes()
+            .await
+            .unwrap()
+            .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         assert_eq!(db.tables.len(), 1);
@@ -3297,11 +2982,6 @@ mod tests {
         }
     }
 
-    fn catalog_to_json(catalog: &Catalog) -> serde_json::Value {
-        let bytes = serde_json::to_vec_pretty(catalog).unwrap();
-        serde_json::from_slice::<serde_json::Value>(&bytes).expect("parse bytes as JSON")
-    }
-
     async fn setup(
         start: Time,
         object_store: Arc<dyn ObjectStore>,
@@ -3369,7 +3049,15 @@ mod tests {
             "test_host",
             Arc::clone(&time_provider) as _,
         ));
-        let catalog = Arc::new(persister.load_or_create_catalog().await.unwrap());
+        let catalog = Arc::new(
+            Catalog::new(
+                "test_host",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider),
+            )
+            .await
+            .unwrap(),
+        );
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),

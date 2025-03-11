@@ -1,8 +1,8 @@
 use crate::snapshot_tracker::{SnapshotTracker, WalPeriod};
 use crate::{NoopDetails, serialize::verify_file_type_and_deserialize};
 use crate::{
-    OrderedCatalogBatch, SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig, WalContents,
-    WalFileNotifier, WalFileSequenceNumber, WalOp, WriteBatch, background_wal_flush,
+    SnapshotDetails, SnapshotSequenceNumber, Wal, WalConfig, WalContents, WalFileNotifier,
+    WalFileSequenceNumber, WalOp, WriteBatch, background_wal_flush,
 };
 use bytes::Bytes;
 use data_types::Timestamp;
@@ -97,7 +97,6 @@ impl WalObjectStore {
                     op_limit: config.max_write_buffer_size,
                     op_count: 0,
                     database_to_write_batch: Default::default(),
-                    catalog_batches: vec![],
                     write_op_responses: vec![],
                     no_op: None,
                 },
@@ -668,7 +667,6 @@ impl FlushBuffer {
             op_count: 0,
             database_to_write_batch: Default::default(),
             write_op_responses: vec![],
-            catalog_batches: vec![],
             no_op: None,
         };
         std::mem::swap(&mut self.wal_buffer, &mut new_buffer);
@@ -692,16 +690,13 @@ struct WalBuffer {
     op_limit: usize,
     op_count: usize,
     database_to_write_batch: HashMap<Arc<str>, WriteBatch>,
-    catalog_batches: Vec<OrderedCatalogBatch>,
     write_op_responses: Vec<oneshot::Sender<WriteResult>>,
     no_op: Option<i64>,
 }
 
 impl WalBuffer {
     fn is_empty(&self) -> bool {
-        self.database_to_write_batch.is_empty()
-            && self.catalog_batches.is_empty()
-            && self.no_op.is_none()
+        self.database_to_write_batch.is_empty() && self.no_op.is_none()
     }
 
     fn add_no_op(&mut self) {
@@ -734,6 +729,7 @@ impl WalBuffer {
                         self.database_to_write_batch
                             .entry(db_name)
                             .or_insert_with(|| WriteBatch {
+                                catalog_sequence: new_write_batch.catalog_sequence,
                                 database_id: new_write_batch.database_id,
                                 database_name: new_write_batch.database_name,
                                 table_chunks: Default::default(),
@@ -745,9 +741,6 @@ impl WalBuffer {
                         new_write_batch.min_time_ns,
                         new_write_batch.max_time_ns,
                     );
-                }
-                WalOp::Catalog(catalog_batch) => {
-                    self.catalog_batches.push(catalog_batch);
                 }
                 WalOp::Noop(_) => {}
             }
@@ -780,18 +773,8 @@ impl WalBuffer {
             max_timestamp_ns = max_timestamp_ns.max(write_batch.max_time_ns);
         }
 
-        for catalog_batch in &self.catalog_batches {
-            min_timestamp_ns = min_timestamp_ns.min(catalog_batch.catalog.time_ns);
-            max_timestamp_ns = max_timestamp_ns.max(catalog_batch.catalog.time_ns);
-        }
-
-        // have the catalog ops come before any writes in ordering
-        let mut ops =
-            Vec::with_capacity(self.database_to_write_batch.len() + self.catalog_batches.len());
-
-        ops.extend(self.catalog_batches.into_iter().map(WalOp::Catalog));
+        let mut ops = Vec::with_capacity(self.database_to_write_batch.len());
         ops.extend(self.database_to_write_batch.into_values().map(WalOp::Write));
-
         ops.sort();
 
         // We are writing a noop so that wal buffer which is empty can still trigger a forced
@@ -933,6 +916,7 @@ mod tests {
         let db_name: Arc<str> = "db1".into();
 
         let op1 = WalOp::Write(WriteBatch {
+            catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: IndexMap::from([(
@@ -982,6 +966,7 @@ mod tests {
         wal.write_ops_unconfirmed(vec![op1.clone()]).await.unwrap();
 
         let op2 = WalOp::Write(WriteBatch {
+            catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: IndexMap::from([(
@@ -1021,6 +1006,7 @@ mod tests {
         let file_1_contents = create::wal_contents(
             (1, 62_000_000_000, 1),
             [WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1089,6 +1075,7 @@ mod tests {
         let file_2_contents = create::wal_contents(
             (62_000_000_000, 62_000_000_000, 2),
             [WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1176,6 +1163,7 @@ mod tests {
 
         // create wal file 3, which should trigger a snapshot
         let op3 = WalOp::Write(WriteBatch {
+            catalog_sequence: 0,
             database_id: DbId::from(0),
             database_name: Arc::clone(&db_name),
             table_chunks: IndexMap::from([(
@@ -1224,6 +1212,7 @@ mod tests {
         let file_3_contents = create::wal_contents_with_snapshot(
             (128_000_000_000, 128_000_000_000, 3),
             [WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1361,7 +1350,6 @@ mod tests {
             op_limit: 10,
             op_count: 0,
             database_to_write_batch: Default::default(),
-            catalog_batches: vec![],
             write_op_responses: vec![],
             no_op: None,
         };
@@ -1385,7 +1373,6 @@ mod tests {
                 op_limit: 10,
                 op_count: 0,
                 database_to_write_batch: Default::default(),
-                catalog_batches: vec![],
                 write_op_responses: vec![],
                 no_op: None,
             },
@@ -1395,6 +1382,7 @@ mod tests {
         flush_buffer
             .wal_buffer
             .write_ops_unconfirmed(vec![WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(
@@ -1453,6 +1441,7 @@ mod tests {
         flush_buffer
             .wal_buffer
             .write_ops_unconfirmed(vec![WalOp::Write(WriteBatch {
+                catalog_sequence: 0,
                 database_id: DbId::from(0),
                 database_name: "db1".into(),
                 table_chunks: IndexMap::from([(

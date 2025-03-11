@@ -7,6 +7,7 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
@@ -96,8 +97,8 @@ pub enum Error {
     #[error("failed to initialized write buffer: {0}")]
     WriteBufferInit(#[source] anyhow::Error),
 
-    #[error("failed to initialize from persisted catalog: {0}")]
-    InitializePersistedCatalog(#[source] influxdb3_write::persister::Error),
+    #[error("failed to initialize catalog: {0}")]
+    InitializeCatalog(#[from] CatalogError),
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] last_cache::Error),
@@ -525,7 +526,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.node_identifier_prefix,
+        config.node_identifier_prefix.as_str(),
         Arc::clone(&time_provider) as _,
     ));
     let wal_config = WalConfig {
@@ -536,12 +537,26 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let catalog = Arc::new(
-        persister
-            .load_or_create_catalog()
-            .await
-            .map_err(Error::InitializePersistedCatalog)?,
+        Catalog::new(
+            config.node_identifier_prefix.as_str(),
+            Arc::clone(&object_store),
+            Arc::<SystemProvider>::clone(&time_provider),
+        )
+        .await?,
     );
-    info!(instance_id = ?catalog.instance_id(), "catalog initialized");
+    info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
+
+    let _ = catalog
+        .register_node(
+            &config.node_identifier_prefix,
+            num_cpus as u64,
+            influxdb3_catalog::log::NodeMode::Core,
+        )
+        .await?;
+    let node_def = catalog
+        .node(&config.node_identifier_prefix)
+        .expect("node should be registered in catalog");
+    info!(instance_id = ?node_def.instance_id(), "catalog initialized");
 
     let last_cache = LastCacheProvider::new_from_catalog_with_background_eviction(
         Arc::clone(&catalog) as _,
@@ -582,7 +597,7 @@ pub async fn command(config: Config) -> Result<()> {
     info!("setting up telemetry store");
     let telemetry_store = setup_telemetry_store(
         &config.object_store_config,
-        catalog.instance_id(),
+        node_def.instance_id(),
         num_cpus,
         Some(Arc::clone(&write_buffer_impl.persisted_files())),
         config.telemetry_endpoint.as_str(),
@@ -620,7 +635,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
-        write_buffer.wal(),
         sys_events_store,
     );
 

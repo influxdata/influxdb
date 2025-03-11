@@ -109,25 +109,6 @@ impl QueryExecutorImpl {
             sys_events_store,
         }
     }
-
-    async fn get_db_namespace(
-        &self,
-        database_name: &str,
-        span_ctx: &Option<SpanContext>,
-    ) -> Result<Arc<dyn QueryNamespace>, QueryExecutorError> {
-        self.namespace(
-            database_name,
-            span_ctx.child_span("get_db_namespace"),
-            false,
-        )
-        .await
-        .map_err(|_| QueryExecutorError::DatabaseNotFound {
-            db_name: database_name.to_string(),
-        })?
-        .ok_or_else(|| QueryExecutorError::DatabaseNotFound {
-            db_name: database_name.to_string(),
-        })
-    }
 }
 
 #[async_trait]
@@ -786,7 +767,7 @@ mod tests {
 
     use super::CreateQueryExecutorArgs;
 
-    fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
+    pub(crate) fn make_exec(object_store: Arc<dyn ObjectStore>) -> Arc<Executor> {
         let metrics = Arc::new(metric::Registry::default());
 
         let parquet_store = ParquetStorage::new(
@@ -832,8 +813,15 @@ mod tests {
         ));
         let exec = make_exec(Arc::clone(&object_store));
         let node_id = Arc::from("sample-host-id");
-        let instance_id = Arc::from("instance-id");
-        let catalog = Arc::new(Catalog::new(node_id, instance_id));
+        let catalog = Arc::new(
+            Catalog::new(
+                node_id,
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),

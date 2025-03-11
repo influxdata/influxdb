@@ -2,4 +2,28 @@
 source: influxdb3/tests/cli/mod.rs
 expression: result
 ---
-"new cache created: {\n  \"table_id\": 0,\n  \"table_name\": \"cpu\",\n  \"cache_name\": \"cache_money\",\n  \"column_ids\": [\n    0,\n    1\n  ],\n  \"max_cardinality\": 20000,\n  \"max_age_seconds\": 200\n}"
+new cache created: {
+  "catalog_batch": {
+    "Database": {
+      "time_ns": 1741121586981639000,
+      "database_id": 0,
+      "database_name": "foo",
+      "ops": [
+        {
+          "CreateDistinctCache": {
+            "table_id": 0,
+            "table_name": "cpu",
+            "cache_name": "cache_money",
+            "column_ids": [
+              0,
+              1
+            ],
+            "max_cardinality": 20000,
+            "max_age_seconds": 200
+          }
+        }
+      ]
+    }
+  },
+  "sequence_number": 3
+}

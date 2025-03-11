@@ -4,7 +4,6 @@ use crate::{CommonServerState, Server, auth::DefaultAuthorizer, http::HttpApi};
 use authz::Authorizer;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
-use influxdb3_processing_engine::manager::ProcessingEngineManager;
 use influxdb3_write::{WriteBuffer, persister::Persister};
 use iox_time::TimeProvider;
 use tokio::net::TcpListener;
@@ -83,7 +82,7 @@ pub struct WithListener(TcpListener);
 #[derive(Clone, Copy, Debug)]
 pub struct NoProcessingEngine;
 #[derive(Debug)]
-pub struct WithProcessingEngine(ProcessingEngineManagerImpl);
+pub struct WithProcessingEngine(Arc<ProcessingEngineManagerImpl>);
 
 impl<Q, P, T, L, E> ServerBuilder<NoWriteBuf, Q, P, T, L, E> {
     pub fn write_buffer(
@@ -174,7 +173,7 @@ impl<W, Q, P, T, E> ServerBuilder<W, Q, P, T, NoListener, E> {
 impl<W, Q, P, T, L> ServerBuilder<W, Q, P, T, L, NoProcessingEngine> {
     pub fn processing_engine(
         self,
-        processing_engine: ProcessingEngineManagerImpl,
+        processing_engine: Arc<ProcessingEngineManagerImpl>,
     ) -> ServerBuilder<W, Q, P, T, L, WithProcessingEngine> {
         ServerBuilder {
             common_state: self.common_state,
@@ -203,10 +202,10 @@ impl<T: TimeProvider>
     pub async fn build(self) -> Server<T> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
-        let processing_engine = Arc::new(self.processing_engine.0);
+        let processing_engine = Arc::clone(&self.processing_engine.0);
 
-        processing_engine
-            .start_triggers(Arc::clone(&processing_engine) as _)
+        Arc::clone(&processing_engine)
+            .start_triggers()
             .await
             .expect("failed to start processing engine triggers");
 
