@@ -8,8 +8,8 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::log::CreateTriggerLog;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_internal_api::query_executor::QueryExecutor;
-
 use influxdb3_py_api::system_py::ProcessingEngineLogger;
+use influxdb3_py_api::system_py::{CacheStore, PyCache};
 
 use influxdb3_sys_events::SysEventStore;
 
@@ -26,6 +26,7 @@ use observability_deps::tracing::error;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
+use parking_lot::Mutex;
 use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
@@ -195,7 +196,7 @@ mod python_plugin {
     use influxdb3_catalog::log::ErrorBehavior;
     use influxdb3_py_api::logging::LogLevel;
     use influxdb3_py_api::system_py::{
-        PluginReturnState, ProcessingEngineLogger, execute_python_with_batch,
+        PluginReturnState, ProcessingEngineLogger, PyCache, execute_python_with_batch,
         execute_request_trigger, execute_schedule_trigger,
     };
     use influxdb3_wal::{WalContents, WalOp};
@@ -457,6 +458,11 @@ mod python_plugin {
                         let query_executor = Arc::clone(&self.query_executor);
                         let logger = Some(self.logger.clone());
                         let trigger_arguments = self.trigger_definition.trigger_arguments.clone();
+                        let py_cache = PyCache::new_trigger_cache(
+                            Arc::clone(&self.manager.cache),
+                            self.trigger_definition.database_name.to_string(),
+                            self.trigger_definition.trigger_name.clone(),
+                        );
 
                         let result = tokio::task::spawn_blocking(move || {
                             execute_request_trigger(
@@ -468,6 +474,7 @@ mod python_plugin {
                                 request.query_params,
                                 request.headers,
                                 request.body,
+                                py_cache,
                             )
                         })
                         .await?;
@@ -588,6 +595,11 @@ mod python_plugin {
                             let trigger_arguments =
                                 self.trigger_definition.trigger_arguments.clone();
                             let wal_contents_clone = Arc::clone(&wal_contents);
+                            let py_cache = PyCache::new_trigger_cache(
+                                Arc::clone(&self.manager.cache),
+                                self.trigger_definition.database_name.to_string(),
+                                self.trigger_definition.trigger_name.clone(),
+                            );
 
                             let result = tokio::task::spawn_blocking(move || {
                                 let write_batch = match &wal_contents_clone.ops[op_index] {
@@ -602,6 +614,7 @@ mod python_plugin {
                                     logger,
                                     table_filter,
                                     &trigger_arguments,
+                                    py_cache,
                                 )
                             })
                             .await?;
@@ -786,6 +799,11 @@ mod python_plugin {
                 let logger = Some(plugin.logger.clone());
                 let trigger_arguments = plugin.trigger_definition.trigger_arguments.clone();
                 let schema = Arc::clone(&db_schema);
+                let py_cache = PyCache::new_trigger_cache(
+                    Arc::clone(&plugin.manager.cache),
+                    plugin.trigger_definition.database_name.to_string(),
+                    plugin.trigger_definition.trigger_name.clone(),
+                );
 
                 let result = tokio::task::spawn_blocking(move || {
                     execute_schedule_trigger(
@@ -795,6 +813,7 @@ mod python_plugin {
                         query_executor,
                         logger,
                         &trigger_arguments,
+                        py_cache,
                     )
                 })
                 .await?;
@@ -842,9 +861,10 @@ mod python_plugin {
 
 pub(crate) fn run_test_wal_plugin(
     now_time: iox_time::Time,
-    catalog: Arc<influxdb3_catalog::catalog::Catalog>,
+    catalog: Arc<Catalog>,
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
+    cache: Arc<Mutex<CacheStore>>,
     request: WalPluginTestRequest,
 ) -> Result<WalPluginTestResponse, PluginError> {
     use data_types::NamespaceName;
@@ -874,6 +894,12 @@ pub(crate) fn run_test_wal_plugin(
         None,
         None,
         &request.input_arguments,
+        PyCache::new_test_cache(
+            cache,
+            request
+                .cache_name
+                .unwrap_or_else(|| "_shared_test".to_string()),
+        ),
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -978,6 +1004,7 @@ pub(crate) fn run_test_schedule_plugin(
     catalog: Arc<Catalog>,
     query_executor: Arc<dyn QueryExecutor>,
     code: String,
+    cache: Arc<Mutex<CacheStore>>,
     request: influxdb3_types::http::SchedulePluginTestRequest,
 ) -> Result<influxdb3_types::http::SchedulePluginTestResponse, PluginError> {
     let database = request.database;
@@ -999,6 +1026,12 @@ pub(crate) fn run_test_schedule_plugin(
         query_executor,
         None,
         &request.input_arguments,
+        PyCache::new_test_cache(
+            cache,
+            request
+                .cache_name
+                .unwrap_or_else(|| "_shared_test".to_string()),
+        ),
     )?;
 
     let log_lines = plugin_return_state.log();
@@ -1030,6 +1063,7 @@ mod tests {
     use influxdb3_write::write_buffer::validator::WriteValidator;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
+    use std::time::Duration;
 
     fn ensure_pyo3() {
         pyo3::prepare_freethreaded_python();
@@ -1039,7 +1073,11 @@ mod tests {
     async fn test_wal_plugin() {
         ensure_pyo3();
         let now = Time::from_timestamp_nanos(1);
-        let time_provider = Arc::new(MockProvider::new(now));
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(now));
+        let cache = Arc::new(Mutex::new(CacheStore::new(
+            Arc::clone(&time_provider),
+            Duration::from_secs(10),
+        )));
         let catalog = Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
             .await
             .unwrap();
@@ -1080,6 +1118,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             filename: "test".into(),
             database: "_testdb".into(),
             input_lp: lp,
+            cache_name: None,
             input_arguments: Some(HashMap::from([(
                 String::from("arg1"),
                 String::from("val1"),
@@ -1088,9 +1127,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
         let executor: Arc<dyn QueryExecutor> = Arc::new(UnimplementedQueryExecutor);
 
-        let response =
-            run_test_wal_plugin(now, Arc::new(catalog), executor, code.to_string(), request)
-                .unwrap();
+        let response = run_test_wal_plugin(
+            now,
+            Arc::new(catalog),
+            executor,
+            code.to_string(),
+            cache,
+            request,
+        )
+        .unwrap();
 
         let expected_log_lines = vec![
             "INFO: arg1: val1",
@@ -1126,7 +1171,11 @@ def process_writes(influxdb3_local, table_batches, args=None):
         ensure_pyo3();
         // set up a catalog and write some data into it to create a schema
         let now = Time::from_timestamp_nanos(1);
-        let time_provider = Arc::new(MockProvider::new(now));
+        let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(now));
+        let cache = Arc::new(Mutex::new(CacheStore::new(
+            Arc::clone(&time_provider),
+            Duration::from_secs(10),
+        )));
         let catalog = Arc::new(
             Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
                 .await
@@ -1172,6 +1221,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             filename: "test".into(),
             database: "_testdb".into(),
             input_lp: lp,
+            cache_name: None,
             input_arguments: None,
         };
 
@@ -1182,6 +1232,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             Arc::clone(&catalog),
             executor,
             code.to_string(),
+            cache,
             request,
         )
         .unwrap();

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use schema::{InfluxColumnType, InfluxFieldType};
 use uuid::Uuid;
 
@@ -22,7 +22,6 @@ use crate::{
         TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
-    serialize::CatalogFile,
 };
 
 impl Catalog {
@@ -78,6 +77,7 @@ impl Catalog {
                 UpdatePrompt::Retry => Ok(Prompt::Retry(())),
                 UpdatePrompt::Applied => {
                     self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                    self.background_checkpoint(&ordered_batch);
                     self.broadcast_update(ordered_batch.into_batch());
                     Ok(Prompt::Success(self.sequence_number()))
                 }
@@ -619,6 +619,7 @@ impl Catalog {
                     UpdatePrompt::Applied => {
                         debug!("catalog persist attempt was applied");
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                        self.background_checkpoint(&ordered_batch);
                         self.broadcast_update(ordered_batch.clone().into_batch());
                         return Ok(Some(ordered_batch));
                     }
@@ -655,6 +656,7 @@ impl Catalog {
             **permit,
             "tried to update catalog with invalid sequence"
         );
+
         match self
             .store
             .persist_catalog_sequenced_log(ordered_batch)
@@ -683,21 +685,14 @@ impl Catalog {
         update_until: Option<CatalogSequenceNumber>,
         permit: &CatalogWritePermit,
     ) -> Result<()> {
-        while let Some(next_file) = self
+        while let Some(ordered_catalog_batch) = self
             .store
             .load_catalog_sequenced_log(sequence_number)
             .await
             .inspect_err(|error| debug!(?error, "failed to fetch next catalog sequence"))?
         {
-            match next_file {
-                CatalogFile::Log(ordered_catalog_batch) => {
-                    let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
-                    self.broadcast_update(batch);
-                }
-                CatalogFile::Snapshot(catalog_snapshot) => {
-                    self.update_from_snapshot(catalog_snapshot);
-                }
-            }
+            let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
+            self.broadcast_update(batch);
             sequence_number = sequence_number.next();
             if update_until.is_some_and(|max_sequence| sequence_number >= max_sequence) {
                 break;
@@ -706,10 +701,29 @@ impl Catalog {
         Ok(())
     }
 
+    /// Broadcast a `CatalogUpdate` to all subscribed components in the system.
     fn broadcast_update(&self, update: impl Into<CatalogUpdate>) {
         if let Err(send_error) = self.channel.send(Arc::new(update.into())) {
             warn!(?send_error, "nothing listening for catalog updates");
         }
+    }
+
+    /// Persist the catalog as a checkpoint in the background if we are at the _n_th sequence
+    /// number.
+    fn background_checkpoint(&self, ordered_batch: &OrderedCatalogBatch) {
+        debug!("background checkpoint");
+        if ordered_batch.sequence_number().get() % self.store.checkpoint_interval != 0 {
+            return;
+        }
+        let snapshot = self.snapshot();
+        let Err(error) = self.store.background_persist_catalog_checkpoint(&snapshot) else {
+            return;
+        };
+        error!(
+            ?error,
+            "failed to serialize the catalog to a checkpoint and persist it to \
+            object store in the background"
+        );
     }
 }
 
