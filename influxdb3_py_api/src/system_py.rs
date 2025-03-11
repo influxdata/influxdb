@@ -47,7 +47,7 @@ struct PyPluginCallApi {
     query_executor: Arc<dyn QueryExecutor>,
     return_state: Arc<Mutex<PluginReturnState>>,
     logger: Option<ProcessingEngineLogger>,
-    cache_type: CacheType,
+    py_cache: PyCache,
 }
 
 #[derive(Debug)]
@@ -306,21 +306,8 @@ impl PyPluginCallApi {
 
     #[getter]
     fn cache(&self) -> PyResult<PyCache> {
-        GLOBAL_CACHE_STORE
-            .lock()
-            .as_mut()
-            .ok_or_else(|| PyException::new_err("Cache not intialized"))?
-            .cleanup();
-        match &self.cache_type {
-            CacheType::TestCache(cache_name) => Ok(PyCache::new_test_cache(cache_name.clone())),
-            CacheType::Trigger {
-                database,
-                trigger_name,
-            } => Ok(PyCache::new_trigger_cache(
-                database.clone(),
-                trigger_name.clone(),
-            )),
-        }
+        self.py_cache.cache_store.lock().cleanup();
+        Ok(self.py_cache.clone())
     }
 }
 
@@ -476,7 +463,7 @@ pub fn execute_python_with_batch(
     logger: Option<ProcessingEngineLogger>,
     table_filter: Option<TableId>,
     args: &Option<HashMap<String, String>>,
-    cache_type: CacheType,
+    py_cache: PyCache,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -582,7 +569,7 @@ pub fn execute_python_with_batch(
             query_executor,
             logger: logger.clone(),
             return_state: Default::default(),
-            cache_type,
+            py_cache,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
@@ -631,7 +618,7 @@ pub fn execute_schedule_trigger(
     query_executor: Arc<dyn QueryExecutor>,
     logger: Option<ProcessingEngineLogger>,
     args: &Option<HashMap<String, String>>,
-    cache_type: CacheType,
+    py_cache: PyCache,
 ) -> Result<PluginReturnState, ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -660,7 +647,7 @@ pub fn execute_schedule_trigger(
             query_executor,
             logger: logger.clone(),
             return_state: Default::default(),
-            cache_type,
+            py_cache,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
@@ -715,7 +702,7 @@ pub fn execute_request_trigger(
     query_params: HashMap<String, String>,
     request_headers: HashMap<String, String>,
     request_body: Bytes,
-    cache_type: CacheType,
+    py_cache: PyCache,
 ) -> Result<(u16, HashMap<String, String>, String, PluginReturnState), ExecutePluginError> {
     let start_time = if let Some(logger) = &logger {
         logger.log(
@@ -738,7 +725,7 @@ pub fn execute_request_trigger(
             query_executor,
             logger: logger.clone(),
             return_state: Default::default(),
-            cache_type,
+            py_cache,
         };
         let return_state = Arc::clone(&api.return_state);
         let local_api = api.into_pyobject(py).map_err(anyhow::Error::from)?;
@@ -940,7 +927,8 @@ fn process_response_part(
 }
 
 // Cache entry with optional expiration
-struct CacheEntry {
+#[derive(Debug)]
+pub struct CacheEntry {
     value: Py<PyAny>,         // Python object reference with proper reference counting
     expires_at: Option<Time>, // Expiration time if any
 }
@@ -953,7 +941,8 @@ impl CacheEntry {
 }
 
 // Cache store that manages namespaced caches
-struct CacheStore {
+#[derive(Debug)]
+pub struct CacheStore {
     // Map of namespace -> (key -> cache entry)
     namespaces: HashMap<CacheId, ExpiringCache>,
     time_provider: Arc<dyn TimeProvider>,
@@ -961,7 +950,8 @@ struct CacheStore {
     cleanup_interval: Duration,
 }
 
-struct ExpiringCache {
+#[derive(Debug)]
+pub struct ExpiringCache {
     entries: HashMap<String, CacheEntry>,
     expirations: BTreeMap<Time, HashSet<String>>,
     default_ttl: Option<Duration>,
@@ -1060,22 +1050,9 @@ impl CacheId {
         }
     }
 }
-pub fn drop_trigger_cache(database: String, trigger_name: String) -> bool {
-    let mut cache = GLOBAL_CACHE_STORE.lock();
-    let Some(cache) = cache.as_mut() else {
-        return false;
-    };
-    cache
-        .namespaces
-        .remove(&Trigger {
-            database,
-            trigger_name,
-        })
-        .is_some()
-}
 
 impl CacheStore {
-    fn new(time_provider: Arc<dyn TimeProvider>, cleanup_interval: Duration) -> Self {
+    pub fn new(time_provider: Arc<dyn TimeProvider>, cleanup_interval: Duration) -> Self {
         let last_cleanup = time_provider.now();
         Self {
             namespaces: HashMap::new(),
@@ -1134,26 +1111,23 @@ impl CacheStore {
             false
         }
     }
-}
-
-// Thread-local cache store to safely manage Python objects
-lazy_static::lazy_static! {
-    static ref GLOBAL_CACHE_STORE: Mutex<Option<CacheStore>> = Mutex::new(None);
-}
-
-pub fn initialize_cache(time_provider: Arc<dyn TimeProvider>, cleanup_interval: Duration) {
-    let mut store = GLOBAL_CACHE_STORE.lock();
-    if store.is_none() {
-        *store = Some(CacheStore::new(time_provider, cleanup_interval));
+    pub fn drop_trigger_cache(&mut self, database: String, trigger_name: String) -> bool {
+        self.namespaces
+            .remove(&Trigger {
+                database,
+                trigger_name,
+            })
+            .is_some()
     }
 }
 
 // Python class for Cache
 #[pyclass]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PyCache {
     global_cache_id: CacheId,
     local_cache_id: CacheId,
+    cache_store: Arc<Mutex<CacheStore>>,
 }
 
 impl PyCache {
@@ -1164,20 +1138,26 @@ impl PyCache {
             &self.local_cache_id
         }
     }
-    fn new_test_cache(test_name: String) -> Self {
+    pub fn new_test_cache(cache_store: Arc<Mutex<CacheStore>>, test_name: String) -> Self {
         Self {
             global_cache_id: GlobalTest(test_name.clone()),
             local_cache_id: TriggerTest(test_name),
+            cache_store,
         }
     }
 
-    fn new_trigger_cache(database: String, trigger_name: String) -> Self {
+    pub fn new_trigger_cache(
+        cache_store: Arc<Mutex<CacheStore>>,
+        database: String,
+        trigger_name: String,
+    ) -> Self {
         Self {
             global_cache_id: Global(),
             local_cache_id: Trigger {
                 database,
                 trigger_name,
             },
+            cache_store,
         }
     }
 }
@@ -1193,13 +1173,7 @@ impl PyCache {
         use_global: Option<bool>,
     ) -> PyResult<()> {
         let cache_id = self.cache_id(use_global);
-        GLOBAL_CACHE_STORE
-            .lock()
-            .as_mut()
-            .ok_or_else(|| {
-                PyException::new_err("Cache store not initialized. Call initialize_cache() first.")
-            })?
-            .put(cache_id, &key, value, ttl);
+        self.cache_store.lock().put(cache_id, &key, value, ttl);
 
         Ok(())
     }
@@ -1213,15 +1187,7 @@ impl PyCache {
     ) -> PyResult<PyObject> {
         Python::with_gil(|py| {
             let cache_id = self.cache_id(use_global);
-            let result = GLOBAL_CACHE_STORE
-                .lock()
-                .as_mut()
-                .ok_or_else(|| {
-                    PyException::new_err(
-                        "Cache store not initialized. Call initialize_cache() first.",
-                    )
-                })?
-                .get(cache_id, py, &key);
+            let result = self.cache_store.lock().get(cache_id, py, &key);
 
             match result {
                 Some(value) => {
@@ -1245,13 +1211,7 @@ impl PyCache {
     #[pyo3(signature = (key, use_global=None))]
     fn delete(&self, key: String, use_global: Option<bool>) -> PyResult<bool> {
         let cache_id = self.cache_id(use_global);
-        let result = GLOBAL_CACHE_STORE
-            .lock()
-            .as_mut()
-            .ok_or_else(|| {
-                PyException::new_err("Cache store not initialized. Call initialize_cache() first.")
-            })?
-            .delete(cache_id, &key);
+        let result = self.cache_store.lock().delete(cache_id, &key);
 
         Ok(result)
     }
