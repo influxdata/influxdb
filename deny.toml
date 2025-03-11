@@ -11,7 +11,12 @@ ignore = [
     # paste crate is no longer maintained, but it is past 1.0
     # Keep this here until our transisent dependencies no longer
     # need it
-    "RUSTSEC-2024-0436"
+    "RUSTSEC-2024-0436",
+    # humantime is no longer maintained, we plan to replace it with
+    # something that is, e.g., jiff, but are ignoring this advisory
+    # until such a replacement has been adopted. See
+    # https://github.com/influxdata/influxdb/issues/26120
+    "RUSTSEC-2025-0014",
 ]
 git-fetch-with-cli = true
 

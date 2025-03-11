@@ -72,12 +72,13 @@ impl Catalog {
             self.get_permit_and_verify_catalog_batch(&batch).await?
         {
             match self
-                .persist_ordered_batch_to_object_store(ordered_batch.clone(), &permit)
+                .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                 .await?
             {
                 UpdatePrompt::Retry => Ok(Prompt::Retry(())),
                 UpdatePrompt::Applied => {
                     self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                    self.broadcast_update(ordered_batch.into_batch());
                     Ok(Prompt::Success(self.sequence_number()))
                 }
             }
@@ -608,7 +609,7 @@ impl Catalog {
             {
                 debug!(?ordered_batch, "applied batch and got permit");
                 match self
-                    .persist_ordered_batch_to_object_store(ordered_batch.clone(), &permit)
+                    .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                     .await?
                 {
                     UpdatePrompt::Retry => {
@@ -618,6 +619,7 @@ impl Catalog {
                     UpdatePrompt::Applied => {
                         debug!("catalog persist attempt was applied");
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                        self.broadcast_update(ordered_batch.clone().into_batch());
                         return Ok(Some(ordered_batch));
                     }
                 }
@@ -643,7 +645,7 @@ impl Catalog {
     /// operation, as well as the update applied by the ordered batch itself, if successful.
     async fn persist_ordered_batch_to_object_store(
         &self,
-        ordered_batch: OrderedCatalogBatch,
+        ordered_batch: &OrderedCatalogBatch,
         permit: &CatalogWritePermit,
     ) -> Result<UpdatePrompt> {
         debug!(?ordered_batch, "persisting ordered batch to store");
@@ -655,14 +657,11 @@ impl Catalog {
         );
         match self
             .store
-            .persist_catalog_sequenced_log(&ordered_batch)
+            .persist_catalog_sequenced_log(ordered_batch)
             .await
             .inspect_err(|error| debug!(?error, "failed on persist of next catalog sequence"))?
         {
-            PersistCatalogResult::Success => {
-                self.broadcast_update(ordered_batch.into_batch());
-                Ok(UpdatePrompt::Applied)
-            }
+            PersistCatalogResult::Success => Ok(UpdatePrompt::Applied),
             PersistCatalogResult::AlreadyExists => {
                 self.load_and_update_from_object_store(
                     ordered_batch.sequence_number(),
