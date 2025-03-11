@@ -218,14 +218,14 @@ impl ObjectStoreCatalog {
             Ok(put_result) => {
                 info!(sequence, "persisted catalog checkpoint file");
                 debug!(put_result = ?put_result, "object store PUT result");
-                return Ok(());
+                Ok(())
             }
             Err(object_store::Error::NotModified { .. }) => {
-                return Ok(());
+                Ok(())
             }
             Err(err) => {
                 error!(error = ?err, "failed to persist catalog checkpoint file");
-                return Err(err.into());
+                Err(err.into())
             }
         }
     }
