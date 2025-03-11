@@ -41,6 +41,10 @@ tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+# local deps
+influxdb3_test_helpers = { path = "../influxdb3_test_helpers" }
+
+# crates.io deps
 insta.workspace = true
 pretty_assertions.workspace = true
 test_helpers.workspace = true

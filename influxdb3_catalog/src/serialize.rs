@@ -4,29 +4,11 @@ use anyhow::Context;
 use byteorder::{BigEndian, ReadBytesExt};
 use bytes::{Bytes, BytesMut};
 
-use crate::{
-    CatalogError, Result, catalog::CatalogSequenceNumber, log::OrderedCatalogBatch,
-    snapshot::CatalogSnapshot,
-};
-
-#[derive(Debug)]
-pub enum CatalogFile {
-    Log(OrderedCatalogBatch),
-    Snapshot(CatalogSnapshot),
-}
-
-impl CatalogFile {
-    pub fn sequence(&self) -> CatalogSequenceNumber {
-        match self {
-            CatalogFile::Log(batch) => batch.sequence_number(),
-            CatalogFile::Snapshot(snap) => snap.sequence_number(),
-        }
-    }
-}
+use crate::{CatalogError, Result, log::OrderedCatalogBatch, snapshot::CatalogSnapshot};
 
 const CHECKSUM_LEN: usize = size_of::<u32>();
 
-pub fn verify_and_deserialize_catalog(bytes: Bytes) -> Result<CatalogFile> {
+pub fn verify_and_deserialize_catalog_file(bytes: Bytes) -> Result<OrderedCatalogBatch> {
     if bytes.starts_with(LOG_FILE_TYPE_IDENTIFIER) {
         let id_len = LOG_FILE_TYPE_IDENTIFIER.len();
         let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
@@ -34,17 +16,25 @@ pub fn verify_and_deserialize_catalog(bytes: Bytes) -> Result<CatalogFile> {
         verify_checksum(&checksum, &data)?;
         let log = bitcode::deserialize(&data)
             .context("failed to deserialize catalog log file contents")?;
-        Ok(CatalogFile::Log(log))
-    } else if bytes.starts_with(SNAPSHOT_FILE_TYPE_IDENTIFIER) {
+        Ok(log)
+    } else {
+        Err(CatalogError::unexpected("unrecognized catalog file format"))
+    }
+}
+
+pub fn verify_and_deserialize_catalog_checkpoint_file(bytes: Bytes) -> Result<CatalogSnapshot> {
+    if bytes.starts_with(SNAPSHOT_FILE_TYPE_IDENTIFIER) {
         let id_len = SNAPSHOT_FILE_TYPE_IDENTIFIER.len();
         let checksum = bytes.slice(id_len..id_len + CHECKSUM_LEN);
         let data = bytes.slice(id_len + CHECKSUM_LEN..);
         verify_checksum(&checksum, &data)?;
         let snapshot = bitcode::deserialize(&data)
             .context("failed to deserialize catalog snapshot file contents")?;
-        Ok(CatalogFile::Snapshot(snapshot))
+        Ok(snapshot)
     } else {
-        Err(CatalogError::unexpected("unrecognized catalog file format"))
+        Err(CatalogError::unexpected(
+            "unrecognized catalog checkpoint file format",
+        ))
     }
 }
 

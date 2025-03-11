@@ -78,7 +78,7 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 /// time that the permit was acquired.
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
 
-const CATALOG_BROADCAST_CHANNEL_CAPACITY: usize = 1_000;
+const CATALOG_BROADCAST_CHANNEL_CAPACITY: usize = 10_000;
 
 pub type CatalogBroadcastSender = broadcast::Sender<Arc<CatalogUpdate>>;
 pub type CatalogBroadcastReceiver = broadcast::Receiver<Arc<CatalogUpdate>>;
@@ -108,6 +108,8 @@ impl std::fmt::Debug for Catalog {
     }
 }
 
+const CATALOG_CHECKPOINT_INTERVAL: u64 = 100;
+
 impl Catalog {
     /// Limit for the number of Databases that InfluxDB 3 Core can have
     pub(crate) const NUM_DBS_LIMIT: usize = 5;
@@ -122,7 +124,8 @@ impl Catalog {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self> {
         let node_id = catalog_id.into();
-        let store = ObjectStoreCatalog::new(Arc::clone(&node_id), store);
+        let store =
+            ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
         store
             .load_or_create_catalog()
@@ -147,20 +150,6 @@ impl Catalog {
 
     pub fn subscribe_to_updates(&self) -> broadcast::Receiver<Arc<CatalogUpdate>> {
         self.channel.subscribe()
-    }
-
-    /// Create new `Catalog` that uses an in-memory object store.
-    ///
-    /// # Note
-    ///
-    /// This is intended as a convenience constructor for testing
-    pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Self> {
-        use iox_time::MockProvider;
-        use object_store::memory::InMemory;
-
-        let store = Arc::new(InMemory::new());
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        Self::new(catalog_id.into(), store, time_provider).await
     }
 
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
@@ -202,7 +191,7 @@ impl Catalog {
     ///
     /// This accepts a `_permit`, which is not used, and is just a way to ensure that the caller
     /// has a handle on the write permit at the time of invocation.
-    pub fn apply_ordered_catalog_batch(
+    pub(crate) fn apply_ordered_catalog_batch(
         &self,
         batch: &OrderedCatalogBatch,
         _permit: &CatalogWritePermit,
@@ -342,6 +331,45 @@ impl Catalog {
             })
             .collect();
         result
+    }
+}
+
+impl Catalog {
+    /// Create new `Catalog` that uses an in-memory object store.
+    ///
+    /// # Note
+    ///
+    /// This is intended as a convenience constructor for testing
+    pub async fn new_in_memory(catalog_id: impl Into<Arc<str>>) -> Result<Self> {
+        use iox_time::MockProvider;
+        use object_store::memory::InMemory;
+
+        let store = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        Self::new(catalog_id.into(), store, time_provider).await
+    }
+
+    /// Create a new `Catalog` with the specified checkpoint interval
+    ///
+    /// # Note
+    ///
+    /// This is intended for testing purposes.
+    pub async fn new_with_checkpoint_interval(
+        catalog_id: impl Into<Arc<str>>,
+        store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+        checkpoint_interval: u64,
+    ) -> Result<Self> {
+        let store = ObjectStoreCatalog::new(catalog_id, checkpoint_interval, store);
+        let inner = store.load_or_create_catalog().await?;
+        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+
+        Ok(Self {
+            channel,
+            time_provider,
+            store,
+            inner: RwLock::new(inner),
+        })
     }
 }
 
@@ -1534,14 +1562,17 @@ impl ColumnDefinition {
 
 #[cfg(test)]
 mod tests {
-    use core::panic;
 
     use crate::{
         log::{FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create},
-        serialize::{CatalogFile, serialize_catalog_snapshot, verify_and_deserialize_catalog},
+        object_store::CatalogFilePath,
+        serialize::{serialize_catalog_snapshot, verify_and_deserialize_catalog_checkpoint_file},
     };
 
     use super::*;
+    use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
+    use iox_time::MockProvider;
+    use object_store::local::LocalFileSystem;
     use pretty_assertions::assert_eq;
     use test_helpers::assert_contains;
 
@@ -1591,9 +1622,7 @@ mod tests {
                 });
                 // Serialize/deserialize to ensure roundtrip
                 let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
-                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
-                    panic!("wrong catalog file type");
-                };
+                let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
                 });
@@ -1818,9 +1847,7 @@ mod tests {
                 });
                 // Serialize/deserialize to ensure roundtrip
                 let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
-                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
-                    panic!("wrong catalog file type");
-                };
+                let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
                 });
@@ -1867,9 +1894,7 @@ mod tests {
                 });
                 // Serialize/deserialize to ensure roundtrip
                 let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
-                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
-                    panic!("wrong catalog file type");
-                };
+                let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
                 });
@@ -1915,9 +1940,7 @@ mod tests {
                 });
                 // Serialize/deserialize to ensure roundtrip
                 let serialized = serialize_catalog_snapshot(&snapshot).unwrap();
-                let CatalogFile::Snapshot(snapshot) = verify_and_deserialize_catalog(serialized).unwrap() else {
-                    panic!("wrong catalog file type");
-                };
+                let snapshot = verify_and_deserialize_catalog_checkpoint_file(serialized).unwrap() ;
                 insta::assert_json_snapshot!(snapshot, {
                     ".catalog_uuid" => "[uuid]"
                 });
@@ -2189,5 +2212,201 @@ mod tests {
             Catalog::NUM_TABLES_LIMIT,
             catalog.inner.read().table_count()
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_catalog_file_ordering() {
+        let local_disk =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        let init = async || {
+            Catalog::new(
+                "test",
+                Arc::clone(&local_disk) as _,
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap()
+        };
+
+        let catalog = init().await;
+
+        // create a database, then a table, then add fields to that table
+        // on reload, the add fields would fail if it was applied before the creation of the
+        // table...
+        catalog.create_database("test_db").await.unwrap();
+        catalog
+            .create_table(
+                "test_db",
+                "test_tbl",
+                &["t1"],
+                &[("f1", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let mut txn = catalog.begin("test_db").unwrap();
+        txn.column_or_create("test_tbl", "f2", FieldDataType::Integer)
+            .unwrap();
+        catalog.commit(txn).await.unwrap();
+
+        drop(catalog);
+
+        let catalog = init().await;
+
+        insta::assert_json_snapshot!(catalog.snapshot(), {
+            ".catalog_uuid" => "[uuid]"
+        });
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_load_from_catalog_checkpoint() {
+        let obj_store =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        let init = async || {
+            // create a catalog that checkpoints every 10 sequences
+            Catalog::new_with_checkpoint_interval(
+                "test",
+                Arc::clone(&obj_store) as _,
+                Arc::clone(&time_provider) as _,
+                10,
+            )
+            .await
+            .unwrap()
+        };
+
+        let catalog = init().await;
+
+        // make changes to create catalog operations that get persisted to the log:
+        catalog.create_database("test_db").await.unwrap();
+        for i in 0..10 {
+            catalog
+                .create_table(
+                    "test_db",
+                    format!("table_{i}").as_str(),
+                    &["t1"],
+                    &[("f1", FieldDataType::String)],
+                )
+                .await
+                .unwrap();
+        }
+
+        let prefix = catalog.object_store_prefix();
+        drop(catalog);
+
+        // delete up to the 10th catalog file so that when we re-init, we know it is loading
+        // from the checkpoint:
+        for i in 1..=10 {
+            obj_store
+                .delete(
+                    CatalogFilePath::log(prefix.as_ref(), CatalogSequenceNumber::new(i)).as_ref(),
+                )
+                .await
+                .unwrap();
+        }
+
+        // catalog should load successfully:
+        let catalog = init().await;
+
+        // we created 10 tables so the catalog should have 10:
+        assert_eq!(10, catalog.db_schema("test_db").unwrap().tables.len());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_load_many_files_with_default_checkpoint_interval() {
+        let obj_store =
+            Arc::new(LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap());
+        let obj_store = Arc::new(RequestCountedObjectStore::new(obj_store as _));
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+
+        let init = async || {
+            // create a catalog that checkpoints every 10 sequences
+            Catalog::new(
+                "test",
+                Arc::clone(&obj_store) as _,
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap()
+        };
+
+        let catalog = init().await;
+        catalog.create_database("foo").await.unwrap();
+        for i in 0..100 {
+            let table_name = format!("table_{i}");
+            catalog
+                .create_table(
+                    "foo",
+                    &table_name,
+                    &["t1"],
+                    &[("f1", FieldDataType::String)],
+                )
+                .await
+                .unwrap();
+            let mut txn = catalog.begin("foo").unwrap();
+            txn.column_or_create(&table_name, "f2", FieldDataType::String)
+                .unwrap();
+            catalog.commit(txn).await.unwrap();
+        }
+
+        let checkpoint_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref()).as_ref(),
+        );
+        // checkpoint would have been attempted to be read on initialization, hence it is 1:
+        assert_eq!(1, checkpoint_read_count);
+
+        let first_log_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                CatalogSequenceNumber::new(1),
+            )
+            .as_ref(),
+        );
+        // this file should never have been read:
+        assert_eq!(0, first_log_read_count);
+
+        let last_log_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                catalog.sequence_number(),
+            )
+            .as_ref(),
+        );
+        // this file should never have been read:
+        assert_eq!(0, last_log_read_count);
+
+        // drop the catalog and re-initialize:
+        drop(catalog);
+        let catalog = init().await;
+
+        let checkpoint_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::checkpoint(catalog.object_store_prefix().as_ref()).as_ref(),
+        );
+        // re-init will read the checkpoint again:
+        assert_eq!(2, checkpoint_read_count);
+
+        let first_log_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                CatalogSequenceNumber::new(1),
+            )
+            .as_ref(),
+        );
+        // this file should still not have been read, since it would have been covered by a
+        // recent checkpoint:
+        assert_eq!(0, first_log_read_count);
+
+        let last_log_read_count = obj_store.total_read_request_count(
+            CatalogFilePath::log(
+                catalog.object_store_prefix().as_ref(),
+                catalog.sequence_number(),
+            )
+            .as_ref(),
+        );
+        // this file should have been read on re-init, as it would not be covered by a
+        // checkpoint:
+        assert_eq!(1, last_log_read_count);
     }
 }
