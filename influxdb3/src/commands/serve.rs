@@ -10,8 +10,7 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_catalog::CatalogError;
-use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
     datafusion::IoxQueryDatafusionConfig,
@@ -140,11 +139,11 @@ pub enum Error {
     #[error("failed to initialized write buffer: {0:?}")]
     WriteBufferInit(#[source] anyhow::Error),
 
-    #[error("failed to initialize catalog: {0}")]
-    InitializeCatalog(#[from] CatalogError),
-
     #[error("Failed to execute job: {0}")]
     Job(#[source] executor::JobError),
+
+    #[error("failed to initialize catalog: {0}")]
+    InitializeCatalog(#[from] CatalogError),
 
     #[error("failed to initialize last cache: {0}")]
     InitializeLastCache(#[source] last_cache::Error),
@@ -630,7 +629,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
-        config.node_identifier_prefix.clone(),
+        config.node_identifier_prefix.as_str(),
         Arc::clone(&time_provider) as _,
     ));
     let wal_config = WalConfig {
@@ -663,6 +662,7 @@ pub async fn command(config: Config) -> Result<()> {
     let node_def = catalog
         .node(&config.node_identifier_prefix)
         .expect("node should be registered in catalog");
+    info!(instance_id = ?node_def.instance_id(), "node registered");
 
     #[cfg(not(feature = "no_license"))]
     {

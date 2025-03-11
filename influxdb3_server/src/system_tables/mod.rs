@@ -143,9 +143,9 @@ impl AllSystemSchemaTablesProvider {
         )));
         tables.insert(PROCESSING_ENGINE_LOGS_TABLE_NAME, logs_table);
         Self {
+            tables,
             buffer,
             db_schema,
-            tables,
         }
     }
 }
