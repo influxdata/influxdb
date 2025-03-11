@@ -419,7 +419,9 @@ mod tests {
         debug!(catlog = ?writer.catalog(), "writer catalog");
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let distinct_provider =
-            DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
+            DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog())
+                .await
+                .unwrap();
         writer
             .catalog()
             .create_distinct_cache(
@@ -865,7 +867,9 @@ mod tests {
         ).await;
 
         let distinct_provider =
-            DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
+            DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog())
+                .await
+                .unwrap();
         writer
             .catalog()
             .create_distinct_cache(

@@ -1243,6 +1243,7 @@ mod tests {
 
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
         let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
             .expect("create last cache provider from catalog");
         // There should be a total of 3 caches:
         assert_eq!(3, provider.size());
@@ -1271,7 +1272,9 @@ mod tests {
             .await;
 
         // create a last cache provider so we can use it to create our UDTF provider:
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog())
+            .await
+            .unwrap();
         writer
             .catalog()
             .create_last_cache(
@@ -1526,7 +1529,9 @@ mod tests {
         let _ = writer
             .write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0)
             .await;
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog())
+            .await
+            .unwrap();
         writer
             .catalog()
             .create_last_cache(
