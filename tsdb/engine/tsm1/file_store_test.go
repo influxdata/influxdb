@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -3049,7 +3048,6 @@ func TestFileStore_PurgerContention(t *testing.T) {
 	t.Helper()
 
 	dir := MustTempDir()
-	defer os.RemoveAll(dir)
 
 	// Create some TSM files...
 	data := make([]keyValues, 0, 10)
@@ -3068,20 +3066,25 @@ func TestFileStore_PurgerContention(t *testing.T) {
 
 	done := make(chan struct{})
 
+	// Simulate a query that will call filestore.Apply to modify TSM files
 	go func() {
-		var overlapsTimeRangeMinMaxLock sync.Mutex
 		fs.Apply(func(r tsm1.TSMFile) error {
-			overlapsTimeRangeMinMaxLock.Lock()
 			time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
-			overlapsTimeRangeMinMaxLock.Unlock()
 			return nil
 		})
 		done <- struct{}{}
 	}()
-
 	go func() {
 		err := fs.Replace(regFiles, tmpFiles)
 		require.NoError(t, err)
+		done <- struct{}{}
+	}()
+	// Simulate a query
+	go func() {
+		fs.Apply(func(r tsm1.TSMFile) error {
+			time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+			return nil
+		})
 		done <- struct{}{}
 	}()
 
