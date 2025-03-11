@@ -154,7 +154,7 @@ mod tests {
 
     use crate::{
         WriteBufferEnterprise,
-        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
+        modes::combined::{CreateIngestQueryModeArgs, IngestArgs, IngestQueryMode},
         test_helpers::{TestWrite, do_writes, make_exec, setup_read_write, verify_snapshot_count},
     };
 
@@ -191,29 +191,32 @@ mod tests {
         register_iox_object_store(rt, "influxdb3", Arc::clone(&non_cached_obj_store) as _);
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         // create a buffer that does not use a parquet cache:
-        let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            node_id: "picard".into(),
-            persister,
+        let buffer = WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+            query_args: None,
+            ingest_args: Some(IngestArgs {
+                node_id: "picard".into(),
+                persister,
+                executor: make_exec(
+                    Arc::clone(&non_cached_obj_store) as _,
+                    Arc::clone(&metric_registry),
+                ),
+                wal_config: WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    // small snapshot to trigger persistence asap
+                    snapshot_size: 1,
+                },
+                snapshotted_wal_files_to_keep: 10,
+            }),
+            object_store: Arc::clone(&non_cached_obj_store) as _,
             catalog,
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider) as _,
-            executor: make_exec(
-                Arc::clone(&non_cached_obj_store) as _,
-                Arc::clone(&metric_registry),
-            ),
-            wal_config: WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                // small snapshot to trigger persistence asap
-                snapshot_size: 1,
-            },
             metric_registry,
-            replication_config: None,
             parquet_cache: None,
             compacted_data: None,
-            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -246,7 +249,9 @@ mod tests {
         )
         .await;
 
-        let persisted_files = buffer.persisted_files();
+        let persisted_files = buffer
+            .persisted_files()
+            .expect("persisted files must exist");
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
         let parquet_files = persisted_files.get_files(db_id, table_id);
@@ -319,29 +324,32 @@ mod tests {
         let rt = ctx.inner().runtime_env();
         register_iox_object_store(rt, "influxdb3", Arc::clone(&cached_obj_store) as _);
         // create a buffer that does not use a parquet cache:
-        let buffer = WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            node_id: "picard".into(),
-            persister,
+        let buffer = WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+            query_args: None,
+            ingest_args: Some(IngestArgs {
+                node_id: "picard".into(),
+                persister,
+                executor: make_exec(
+                    Arc::clone(&cached_obj_store) as _,
+                    Arc::clone(&metric_registry),
+                ),
+                wal_config: WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 100,
+                    flush_interval: Duration::from_millis(10),
+                    // small snapshot to trigger persistence asap
+                    snapshot_size: 1,
+                },
+                snapshotted_wal_files_to_keep: 10,
+            }),
+            object_store: Arc::clone(&cached_obj_store),
             catalog,
             last_cache,
             distinct_cache,
             time_provider: Arc::clone(&time_provider) as _,
-            executor: make_exec(
-                Arc::clone(&cached_obj_store) as _,
-                Arc::clone(&metric_registry),
-            ),
-            wal_config: WalConfig {
-                gen1_duration: Gen1Duration::new_1m(),
-                max_write_buffer_size: 100,
-                flush_interval: Duration::from_millis(10),
-                // small snapshot to trigger persistence asap
-                snapshot_size: 1,
-            },
             metric_registry,
-            replication_config: None,
             parquet_cache: Some(parquet_cache),
             compacted_data: None,
-            snapshotted_wal_files_to_keep: 10,
         })
         .await
         .expect("create a read_write buffer with no parquet cache");
@@ -374,7 +382,9 @@ mod tests {
         )
         .await;
 
-        let persisted_files = buffer.persisted_files();
+        let persisted_files = buffer
+            .persisted_files()
+            .expect("persisted_files must be available");
         let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
         let parquet_files = persisted_files.get_files(db_id, table_id);
@@ -446,7 +456,7 @@ mod tests {
             ));
             handles.push(h);
         }
-        let workers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
+        let workers: Vec<Arc<WriteBufferEnterprise<IngestQueryMode>>> = try_join_all(handles)
             .await
             .unwrap()
             .into_iter()
@@ -645,12 +655,13 @@ mod tests {
             ));
             handles.push(h);
         }
-        let writer_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(Arc::new)
-            .collect();
+        let writer_buffers: Vec<Arc<WriteBufferEnterprise<IngestQueryMode>>> =
+            try_join_all(handles)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(Arc::new)
+                .collect();
 
         // create the db on the first writer:
         writer_buffers[0]
@@ -765,7 +776,7 @@ mod tests {
             ));
             handles.push(h);
         }
-        let write_buffers: Vec<Arc<WriteBufferEnterprise<ReadWriteMode>>> = try_join_all(handles)
+        let write_buffers: Vec<Arc<WriteBufferEnterprise<IngestQueryMode>>> = try_join_all(handles)
             .await
             .unwrap()
             .into_iter()
@@ -874,7 +885,7 @@ mod test_helpers {
     use data_types::NamespaceName;
     use datafusion::{arrow::array::RecordBatch, execution::context::SessionContext};
     use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCacheProvider};
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::{catalog::Catalog, log::NodeMode};
     use influxdb3_wal::WalConfig;
     use influxdb3_write::{Precision, WriteBuffer, persister::Persister};
     use iox_query::{
@@ -888,7 +899,7 @@ mod test_helpers {
 
     use crate::{
         WriteBufferEnterprise,
-        modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode},
+        modes::combined::{CreateIngestQueryModeArgs, IngestArgs, IngestQueryMode, QueryArgs},
         replica::ReplicationConfig,
     };
 
@@ -988,7 +999,7 @@ mod test_helpers {
         // NOTE(trevor/catalog-refactor): cluster-wide catalog should eventually make this unnecessary
         // as nodes can be read from based on their registration in the catalog
         read_from_node_ids: Vec<&str>,
-    ) -> WriteBufferEnterprise<ReadWriteMode> {
+    ) -> WriteBufferEnterprise<IngestQueryMode> {
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
             node_id,
@@ -1004,7 +1015,7 @@ mod test_helpers {
             .unwrap(),
         );
         catalog
-            .register_node(node_id, 1, influxdb3_catalog::log::NodeMode::ReadWrite)
+            .register_node(node_id, 1, vec![NodeMode::Query, NodeMode::Ingest])
             .await
             .unwrap();
         let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
@@ -1015,24 +1026,27 @@ mod test_helpers {
         .unwrap();
         let metric_registry = Arc::new(metric::Registry::new());
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
-        let replication_config = Some(ReplicationConfig {
+        let replication_config = ReplicationConfig {
             interval: Duration::from_millis(250),
             node_ids: read_from_node_ids.iter().map(|s| s.to_string()).collect(),
-        });
-        WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            node_id: node_id.into(),
-            persister,
+        };
+        WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+            query_args: Some(QueryArgs { replication_config }),
+            ingest_args: Some(IngestArgs {
+                node_id: node_id.into(),
+                persister,
+                executor,
+                wal_config: WalConfig::test_config(),
+                snapshotted_wal_files_to_keep: 10,
+            }),
             catalog,
             last_cache,
             distinct_cache,
             time_provider,
-            executor,
-            wal_config: WalConfig::test_config(),
             metric_registry,
-            replication_config,
             parquet_cache: None,
             compacted_data: None,
-            snapshotted_wal_files_to_keep: 10,
+            object_store,
         })
         .await
         .unwrap()
