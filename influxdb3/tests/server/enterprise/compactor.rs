@@ -15,7 +15,7 @@ async fn compactor_only_node_should_respond_to_compaction_events_query() {
     let write_node = TestServer::configure_enterprise()
         .with_cluster_id("cluster")
         .with_node_id("writer")
-        .with_mode(BufferMode::ReadWrite)
+        .with_mode(vec![BufferMode::Query, BufferMode::Ingest])
         .with_object_store(&obj_store_path)
         .spawn()
         .await;
@@ -23,7 +23,7 @@ async fn compactor_only_node_should_respond_to_compaction_events_query() {
     let compactor_node = TestServer::configure_enterprise()
         .with_cluster_id("cluster")
         .with_node_id("compactor")
-        .with_mode(BufferMode::Compactor)
+        .with_mode(vec![BufferMode::Compact])
         .with_object_store(&obj_store_path)
         .with_compactor_id("1")
         .with_compact_from_node_ids(vec!["writer"])

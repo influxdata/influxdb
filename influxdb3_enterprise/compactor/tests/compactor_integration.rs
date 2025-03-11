@@ -12,7 +12,10 @@ use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_buffer::WriteBufferEnterprise;
-use influxdb3_enterprise_buffer::modes::read_write::{CreateReadWriteModeArgs, ReadWriteMode};
+use influxdb3_enterprise_buffer::modes::combined::CreateIngestQueryModeArgs;
+use influxdb3_enterprise_buffer::modes::combined::IngestArgs;
+use influxdb3_enterprise_buffer::modes::combined::IngestQueryMode;
+use influxdb3_enterprise_buffer::modes::combined::QueryArgs;
 use influxdb3_enterprise_buffer::replica::ReplicationConfig;
 use influxdb3_enterprise_compactor::producer::CompactionCleaner;
 use influxdb3_enterprise_compactor::producer::{CompactedDataProducer, CompactedDataProducerArgs};
@@ -116,7 +119,7 @@ async fn two_writers_gen1_compaction() {
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
-        object_store,
+        object_store: Arc::clone(&object_store),
         object_store_url: node1_persister.object_store_url().clone(),
         executor: Arc::clone(&exec),
         parquet_cache_prefetcher,
@@ -128,23 +131,28 @@ async fn two_writers_gen1_compaction() {
     .unwrap();
 
     let read_write_mode = Arc::new(
-        WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            node_id: node1_id.into(),
-            persister: Arc::clone(&node1_persister),
+        WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+            query_args: Some(QueryArgs {
+                replication_config: ReplicationConfig::new(
+                    Duration::from_millis(10),
+                    vec![node2_id.to_string()],
+                ),
+            }),
+            ingest_args: Some(IngestArgs {
+                node_id: node1_id.into(),
+                persister: Arc::clone(&node1_persister),
+                executor: Arc::clone(&exec),
+                wal_config,
+                snapshotted_wal_files_to_keep: 10,
+            }),
             catalog: Arc::clone(&catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
-            executor: Arc::clone(&exec),
-            wal_config,
             metric_registry: Arc::clone(&metrics),
-            replication_config: Some(ReplicationConfig::new(
-                Duration::from_millis(10),
-                vec![node2_id.to_string()],
-            )),
             parquet_cache: None,
             compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
-            snapshotted_wal_files_to_keep: 10,
+            object_store: Arc::clone(&object_store),
         })
         .await
         .unwrap(),
@@ -478,20 +486,23 @@ async fn compaction_cleanup() {
     ));
 
     let read_write_mode = Arc::new(
-        WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-            node_id: node_id.into(),
-            persister: Arc::clone(&writer_persister),
+        WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+            query_args: None,
+            ingest_args: Some(IngestArgs {
+                node_id: node_id.into(),
+                persister: Arc::clone(&writer_persister),
+                executor: Arc::clone(&exec),
+                wal_config,
+                snapshotted_wal_files_to_keep: 0,
+            }),
             catalog: Arc::clone(&catalog),
             last_cache,
             distinct_cache,
             time_provider: Arc::new(SystemProvider::new()),
-            executor: Arc::clone(&exec),
-            wal_config,
             metric_registry: Arc::clone(&metrics),
-            replication_config: None,
             parquet_cache: None,
             compacted_data: Some(Arc::clone(&compaction_producer.compacted_data)),
-            snapshotted_wal_files_to_keep: 0,
+            object_store: Arc::clone(&object_store),
         })
         .await
         .unwrap(),
@@ -684,7 +695,7 @@ async fn setup_write_buffer(
     catalog: Arc<Catalog>,
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
-) -> WriteBufferEnterprise<ReadWriteMode> {
+) -> WriteBufferEnterprise<IngestQueryMode> {
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         node_id,
@@ -701,20 +712,23 @@ async fn setup_write_buffer(
         // small snapshot size will have parquet written out after 3 WAL periods:
         snapshot_size: 1,
     };
-    WriteBufferEnterprise::read_write(CreateReadWriteModeArgs {
-        node_id: node_id.into(),
-        persister,
+    WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
+        query_args: None,
+        ingest_args: Some(IngestArgs {
+            node_id: node_id.into(),
+            persister,
+            executor,
+            wal_config,
+            snapshotted_wal_files_to_keep: 10,
+        }),
         catalog,
         last_cache,
         distinct_cache,
         time_provider,
-        executor,
-        wal_config,
         metric_registry,
-        replication_config: None,
         parquet_cache: None,
         compacted_data: None,
-        snapshotted_wal_files_to_keep: 10,
+        object_store,
     })
     .await
     .unwrap()

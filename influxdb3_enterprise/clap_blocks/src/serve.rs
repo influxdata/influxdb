@@ -1,6 +1,6 @@
 //! Extend the `influxdb3 serve` command for InfluxDB Enterprise
 
-use std::{ops::Deref, str::FromStr, sync::Arc};
+use std::{collections::HashSet, ops::Deref, str::FromStr, sync::Arc};
 
 use anyhow::bail;
 use influxdb3_catalog::log::NodeMode;
@@ -157,7 +157,7 @@ pub struct EnterpriseServeConfig {
 }
 
 /// Mode of operation for the InfluxDB Pro write buffer
-#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum, PartialEq, Eq, Hash)]
 #[clap(rename_all = "snake_case")]
 pub enum BufferMode {
     /// Will act as a read-replica and only accept queries
@@ -174,13 +174,6 @@ pub enum BufferMode {
     #[default]
     All,
 }
-
-impl BufferMode {
-    pub fn is_compactor(&self) -> bool {
-        matches!(self, Self::Compact)
-    }
-}
-
 impl std::fmt::Display for BufferMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
