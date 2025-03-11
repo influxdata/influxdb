@@ -176,6 +176,7 @@ pub struct WalPluginTestRequest {
     pub filename: String,
     pub database: String,
     pub input_lp: String,
+    pub cache_name: Option<String>,
     pub input_arguments: Option<HashMap<String, String>>,
 }
 
@@ -193,6 +194,7 @@ pub struct SchedulePluginTestRequest {
     pub filename: String,
     pub database: String,
     pub schedule: Option<String>,
+    pub cache_name: Option<String>,
     pub input_arguments: Option<HashMap<String, String>>,
 }
 

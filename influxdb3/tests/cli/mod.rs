@@ -2328,6 +2328,677 @@ async fn test_trigger_create_validates_file_present() {
     assert_contains!(&result, "error reading file from Github: 404 Not Found");
 }
 
+fn check_logs(response: &Value, expected_logs: &[&str]) {
+    assert!(
+        response["errors"].as_array().unwrap().is_empty(),
+        "Unexpected errors in response {:#?}, expected logs {:#?}",
+        response,
+        expected_logs
+    );
+    let logs = response["log_lines"].as_array().unwrap();
+    assert_eq!(
+        expected_logs, logs,
+        "mismatched log lines, expected {:#?}, got {:#?}, errors are {:#?}",
+        expected_logs, logs, response["errors"]
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_basic_cache_functionality() {
+    // Create plugin file that uses the cache
+    let plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Store a value in the cache
+    influxdb3_local.cache.put("test_key", "test_value")
+
+    # Retrieve the value
+    value = influxdb3_local.cache.get("test_key")
+    influxdb3_local.info(f"Retrieved value: {value}")
+
+    # Verify the value matches what we stored
+    assert value == "test_value", f"Expected 'test_value', got {value}"
+    influxdb3_local.info("Cache test passed")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+
+    // Setup: create database
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        "test_basic_cache",
+        plugin_name,
+    ]);
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // Check that the cache operations were successful
+    let expected_logs = [
+        "INFO: Retrieved value: test_value",
+        "INFO: Cache test passed",
+    ];
+
+    check_logs(&res, &expected_logs);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_cache_ttl() {
+    // Create plugin file that tests cache TTL
+    let plugin_file = create_plugin_file(
+        r#"
+import time
+
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Store a value with 1 second TTL
+    influxdb3_local.cache.put("ttl_key", "expires_soon", ttl=1.0)
+
+    # Immediately check - should exist
+    value = influxdb3_local.cache.get("ttl_key")
+    influxdb3_local.info(f"Immediate retrieval: {value}")
+
+    # Wait for TTL to expire
+    influxdb3_local.info("Waiting for TTL to expire...")
+    time.sleep(1.5)
+
+    # Check again - should be gone
+    expired_value = influxdb3_local.cache.get("ttl_key")
+    influxdb3_local.info(f"After expiration: {expired_value}")
+
+    # Verify the value is None after TTL expiration
+    assert expired_value is None, f"Expected None after TTL expiration, got {expired_value}"
+    influxdb3_local.info("TTL test passed")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        "ttl_test_cache",
+        plugin_name,
+    ]);
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // Check logs to verify TTL functionality
+    let expected_logs = [
+        "INFO: Immediate retrieval: expires_soon",
+        "INFO: Waiting for TTL to expire...",
+        "INFO: After expiration: None",
+        "INFO: TTL test passed",
+    ];
+
+    check_logs(&res, &expected_logs);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_cache_namespaces() {
+    // Create plugin file that tests different cache namespaces
+    let plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Store value in local (trigger) cache
+    influxdb3_local.cache.put("namespace_key", "trigger_value", use_global=False)
+
+    # Store different value in global cache with same key
+    influxdb3_local.cache.put("namespace_key", "global_value", use_global=True)
+
+    # Retrieve from both caches
+    trigger_value = influxdb3_local.cache.get("namespace_key", use_global=False)
+    global_value = influxdb3_local.cache.get("namespace_key", use_global=True)
+
+    influxdb3_local.info(f"Trigger cache value: {trigger_value}")
+    influxdb3_local.info(f"Global cache value: {global_value}")
+
+    # Verify namespace isolation
+    assert trigger_value == "trigger_value", f"Expected 'trigger_value', got {trigger_value}"
+    assert global_value == "global_value", f"Expected 'global_value', got {global_value}"
+    influxdb3_local.info("Cache namespace test passed")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        "test_cache_namespaces",
+        plugin_name,
+    ]);
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // Check logs to verify namespace isolation
+    let expected_logs = [
+        "INFO: Trigger cache value: trigger_value",
+        "INFO: Global cache value: global_value",
+        "INFO: Cache namespace test passed",
+    ];
+
+    check_logs(&res, &expected_logs);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_cache_persistence_across_runs() {
+    // Create plugin file that stores a value in the cache
+    let first_plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Store a value that should persist across test runs with the same cache name
+    influxdb3_local.cache.put("persistent_key", "I should persist")
+    influxdb3_local.info("Stored value in shared test cache")"#,
+    );
+
+    // Create second plugin file that retrieves the value
+    let second_plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Retrieve the value from the previous run
+    value = influxdb3_local.cache.get("persistent_key")
+    influxdb3_local.info(f"Retrieved value from previous run: {value}")
+
+    # Verify the value persisted
+    assert value == "I should persist", f"Expected 'I should persist', got {value}"
+    influxdb3_local.info("Cache persistence test passed")"#,
+    );
+
+    let plugin_dir = first_plugin_file.path().parent().unwrap().to_str().unwrap();
+    let first_plugin_name = first_plugin_file
+        .path()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let second_plugin_name = second_plugin_file
+        .path()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+    let cache_name = "shared_test_cache";
+
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // First run - store the value
+    let first_result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        cache_name,
+        first_plugin_name,
+    ]);
+
+    let first_res = serde_json::from_str::<Value>(&first_result).unwrap();
+
+    let expected_logs = vec!["INFO: Stored value in shared test cache"];
+    check_logs(&first_res, &expected_logs);
+
+    // Second run - retrieve the value
+    let second_result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "*/5 * * * * *",
+        "--cache-name",
+        cache_name,
+        second_plugin_name,
+    ]);
+
+    let second_res = serde_json::from_str::<Value>(&second_result).unwrap();
+
+    // Check logs to verify persistence
+    let expected_logs = [
+        "INFO: Retrieved value from previous run: I should persist",
+        "INFO: Cache persistence test passed",
+    ];
+
+    check_logs(&second_res, &expected_logs);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_cache_deletion() {
+    // Create plugin file that tests cache deletion
+    let plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Store some values
+    influxdb3_local.cache.put("delete_key", "delete me")
+
+    # Verify the value exists
+    before_delete = influxdb3_local.cache.get("delete_key")
+    influxdb3_local.info(f"Before deletion: {before_delete}")
+
+    # Delete the value
+    deleted = influxdb3_local.cache.delete("delete_key")
+    influxdb3_local.info(f"Deletion result: {deleted}")
+
+    # Try to retrieve the deleted value
+    after_delete = influxdb3_local.cache.get("delete_key")
+    influxdb3_local.info(f"After deletion: {after_delete}")
+
+    # Verify deletion was successful
+    assert deleted is True, f"Expected True for successful deletion, got {deleted}"
+    assert after_delete is None, f"Expected None after deletion, got {after_delete}"
+
+    # Test deleting non-existent key
+    non_existent = influxdb3_local.cache.delete("non_existent_key")
+    influxdb3_local.info(f"Deleting non-existent key: {non_existent}")
+    assert non_existent is False, f"Expected False for non-existent key, got {non_existent}"
+
+    influxdb3_local.info("Cache deletion test passed")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        "test_cache_deletion",
+        plugin_name,
+    ]);
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // Check logs to verify deletion functionality
+    let expected_logs = [
+        "INFO: Before deletion: delete me",
+        "INFO: Deletion result: True",
+        "INFO: After deletion: None",
+        "INFO: Deleting non-existent key: False",
+        "INFO: Cache deletion test passed",
+    ];
+
+    check_logs(&res, &expected_logs);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_cache_with_wal_plugin() {
+    // Create plugin file that uses cache in a WAL plugin
+    let plugin_file = create_plugin_file(
+        r#"
+def process_writes(influxdb3_local, table_batches, args=None):
+    # Count the number of records processed
+    record_count = sum(len(batch['rows']) for batch in table_batches)
+
+    # Get previous count from cache or default to 0
+    previous_count = influxdb3_local.cache.get("processed_records") or 0
+    if previous_count == 0:
+        influxdb3_local.info("First run, initializing count")
+    else:
+        influxdb3_local.info(f"Previous count: {previous_count}")
+
+    # Update the count in cache
+    new_count = previous_count + record_count
+    influxdb3_local.cache.put("processed_records", new_count)
+    influxdb3_local.info(f"Updated count: {new_count}")
+
+    # We're not modifying any records for this test
+    return table_batches"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    // Make sure each test creates its own database
+    let db_name = "foo";
+    let cache_name = "test_cache";
+
+    // Setup: create database
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // First run with 3 data points
+    let first_lp =
+        "cpu,host=host1 usage=0.75\ncpu,host=host2 usage=0.82\ncpu,host=host3 usage=0.91";
+
+    // First test run
+    let first_result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        first_lp,
+        "--cache-name",
+        cache_name,
+        plugin_name,
+    ]);
+
+    let first_res = serde_json::from_str::<Value>(&first_result).unwrap();
+
+    // Check first run logs
+    let init_log = "INFO: First run, initializing count";
+    let update_log = "INFO: Updated count: 3";
+
+    check_logs(&first_res, &[init_log, update_log]);
+
+    // Second run with 2 more data points
+    let second_lp = "cpu,host=host4 usage=0.65\ncpu,host=host5 usage=0.72";
+
+    // Second test run
+    let second_result = run_with_confirmation(&[
+        "test",
+        "wal_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--lp",
+        second_lp,
+        "--cache-name",
+        cache_name,
+        plugin_name,
+    ]);
+
+    let second_res = serde_json::from_str::<Value>(&second_result).unwrap();
+
+    // Check second run logs
+    let prev_log = "INFO: Previous count: 3";
+    let update_log = "INFO: Updated count: 5";
+    check_logs(&second_res, &[prev_log, update_log]);
+}
+
+#[test_log::test(tokio::test)]
+async fn test_trigger_cache_cleanup() {
+    // Create a scheduled trigger script that writes different data based on whether it has cache data
+    let trigger_script = r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Check if we've run before by looking for a cache value
+    run_count = influxdb3_local.cache.get("run_counter")
+
+    influxdb3_local.info(f"run count {run_count}")
+
+    if run_count is None:
+        line = LineBuilder("cache_test").tag("test", "cleanup").int64_field("count", 1)
+        influxdb3_local.write(line)
+        influxdb3_local.cache.put("run_counter", 1)
+    else:
+        influxdb3_local.cache.put("run_counter", run_count + 1)"#;
+
+    let trigger_file = create_plugin_file(trigger_script);
+    let plugin_dir = trigger_file.path().parent().unwrap().to_str().unwrap();
+    let trigger_filename = trigger_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+    let trigger_name = "cache_cleanup_trigger";
+
+    // Setup: create database
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Create scheduled trigger
+    run_with_confirmation(&[
+        "create",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--plugin-filename",
+        trigger_filename,
+        "--trigger-spec",
+        "cron:* * * * * *", // Run every second
+        trigger_name,
+    ]);
+
+    // Wait for trigger to run several times
+    tokio::time::sleep(std::time::Duration::from_millis(3100)).await;
+
+    // Query to see what values were written before disabling
+    let first_query = run_with_confirmation(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "SELECT count(*) FROM cache_test",
+    ]);
+
+    // There should be a single row.
+    assert_eq!(
+        r#"+----------+
+| count(*) |
++----------+
+| 1        |
++----------+"#,
+        first_query
+    );
+
+    // Disable trigger (which should clear its cache)
+    run_with_confirmation(&[
+        "disable",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        trigger_name,
+    ]);
+
+    // Re-enable trigger
+    run_with_confirmation(&[
+        "enable",
+        "trigger",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        trigger_name,
+    ]);
+
+    // Wait for trigger to run again
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+    // Query results after re-enabling
+    let second_query = run_with_confirmation(&[
+        "query",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "SELECT count(*) FROM cache_test",
+    ]);
+
+    // If cache was cleared, we should see a second row
+    assert_eq!(
+        r#"+----------+
+| count(*) |
++----------+
+| 2        |
++----------+"#,
+        second_query
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_complex_object_caching() {
+    // Create plugin file that tests caching of complex Python objects
+    let plugin_file = create_plugin_file(
+        r#"
+def process_scheduled_call(influxdb3_local, schedule_time, args=None):
+    # Create a complex object (nested dictionaries and lists)
+    complex_obj = {
+        "string_key": "value",
+        "int_key": 42,
+        "float_key": 3.14,
+        "bool_key": True,
+        "list_key": [1, 2, 3, "four", 5.0],
+        "nested_dict": {
+            "inner_key": "inner_value",
+            "inner_list": [{"a": 1}, {"b": 2}]
+        }
+    }
+
+    # Store in cache
+    influxdb3_local.cache.put("complex_obj", complex_obj)
+    influxdb3_local.info("Stored complex object in cache")
+
+    # Retrieve from cache
+    retrieved_obj = influxdb3_local.cache.get("complex_obj")
+
+    # Verify structure was preserved
+    influxdb3_local.info(f"Retrieved object type: {type(retrieved_obj).__name__}")
+    influxdb3_local.info(f"Retrieved nested_dict type: {type(retrieved_obj['nested_dict']).__name__}")
+    influxdb3_local.info(f"Retrieved list_key type: {type(retrieved_obj['list_key']).__name__}")
+
+    # Test with some assertions
+    assert retrieved_obj["string_key"] == "value", "String value mismatch"
+    assert retrieved_obj["int_key"] == 42, "Integer value mismatch"
+    assert retrieved_obj["nested_dict"]["inner_key"] == "inner_value", "Nested value mismatch"
+    assert retrieved_obj["list_key"][3] == "four", "List value mismatch"
+    assert retrieved_obj["nested_dict"]["inner_list"][1]["b"] == 2, "Deeply nested value mismatch"
+
+    influxdb3_local.info("Complex object verification passed")"#,
+    );
+
+    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
+    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let server = TestServer::configure()
+        .with_plugin_dir(plugin_dir)
+        .spawn()
+        .await;
+    let server_addr = server.client_addr();
+
+    let db_name = "foo";
+
+    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+
+    // Run the schedule plugin test
+    let result = run_with_confirmation(&[
+        "test",
+        "schedule_plugin",
+        "--database",
+        db_name,
+        "--host",
+        &server_addr,
+        "--schedule",
+        "* * * * * *",
+        "--cache-name",
+        "test_complex_objects",
+        plugin_name,
+    ]);
+
+    let res = serde_json::from_str::<Value>(&result).unwrap();
+
+    // Check logs to verify complex object preservation
+    let expected_logs = [
+        "INFO: Stored complex object in cache",
+        "INFO: Retrieved object type: dict",
+        "INFO: Retrieved nested_dict type: dict",
+        "INFO: Retrieved list_key type: list",
+        "INFO: Complex object verification passed",
+    ];
+
+    check_logs(&res, &expected_logs);
+}
+
 #[test_log::test(tokio::test)]
 async fn write_and_query_via_stdin() {
     let server = TestServer::spawn().await;

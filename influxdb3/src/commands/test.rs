@@ -70,6 +70,8 @@ pub struct WalPluginConfig {
     /// The plugin-dir is provided on server startup.
     #[clap(required = true)]
     pub filename: String,
+    #[clap(long = "cache-name")]
+    pub cache_name: Option<String>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -86,6 +88,8 @@ pub struct SchedulePluginConfig {
     /// Cron schedule to test against. If not given will use * * * * *
     #[clap(long = "schedule")]
     pub schedule: Option<String>,
+    #[clap(long = "cache-name")]
+    pub cache_name: Option<String>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -113,6 +117,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 input_lp,
+                cache_name: plugin_config.cache_name,
                 input_arguments,
             };
 
@@ -134,6 +139,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 filename: plugin_config.filename,
                 database: plugin_config.influxdb3_config.database_name,
                 schedule: plugin_config.schedule,
+                cache_name: plugin_config.cache_name,
                 input_arguments,
             };
             let response = client
