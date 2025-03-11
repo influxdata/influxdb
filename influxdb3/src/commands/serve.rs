@@ -725,7 +725,7 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            let node_ids = if config.enterprise_config.mode.contains(&BufferMode::Compact) {
+            let node_ids = if buffer_modes.is_compactor() {
                 if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
                 {
                     compact_from_node_ids.to_vec()
@@ -749,14 +749,10 @@ pub async fn command(config: Config) -> Result<()> {
                 object_store: Arc::clone(&object_store),
                 object_store_url: persister.object_store_url().clone(),
                 executor: Arc::clone(&exec),
-                parquet_cache_prefetcher: if config
-                    .enterprise_config
-                    .mode
-                    .contains(&BufferMode::Compact)
-                {
-                    None
-                } else {
+                parquet_cache_prefetcher: if buffer_modes.is_query() {
                     parquet_cache_prefetcher
+                } else {
+                    None
                 },
                 sys_events_store: Arc::clone(&compaction_event_store),
                 time_provider: Arc::clone(&time_provider),
@@ -850,7 +846,7 @@ pub async fn command(config: Config) -> Result<()> {
             let persisted_files = buf.persisted_files();
             let write_buffer_impl = buf.write_buffer_impl();
             (buf, persisted_files, write_buffer_impl)
-        } else if config.enterprise_config.mode.contains(&BufferMode::Compact) {
+        } else if buffer_modes.is_compactor() {
             let buf = Arc::new(WriteBufferEnterprise::compactor(Arc::clone(&catalog)));
             (buf, None, None)
         } else {
