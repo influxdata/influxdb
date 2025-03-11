@@ -224,7 +224,6 @@ impl WriteBufferImpl {
             distinct_cache_provider: Arc::clone(&distinct_cache),
             persisted_files: Arc::clone(&persisted_files),
             parquet_cache: parquet_cache.clone(),
-            gen1_duration: wal_config.gen1_duration,
             max_size_per_parquet_file_bytes: max_memory_for_snapshot_bytes,
         }));
 

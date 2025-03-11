@@ -14,9 +14,9 @@ use influxdb3_wal::{FieldData, Row};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
-use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::sync::Arc;
+use std::{collections::BTreeMap, time::Duration};
 use std::{collections::btree_map::Entry, slice::Iter};
 use thiserror::Error;
 
@@ -37,14 +37,16 @@ pub struct TableBuffer {
     pub(crate) chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
     pub(crate) snapshotting_chunks: Vec<SnapshotChunk>,
     pub(crate) sort_key: SortKey,
+    pub(crate) _chunk_interval: Duration,
 }
 
 impl TableBuffer {
-    pub fn new(sort_key: SortKey) -> Self {
+    pub fn new(sort_key: SortKey, chunk_interval: Duration) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
             snapshotting_chunks: Vec::new(),
             sort_key,
+            _chunk_interval: chunk_interval,
         }
     }
 
@@ -692,7 +694,7 @@ mod tests {
 
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         for (rows, offset) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);
         }
@@ -742,16 +744,16 @@ mod tests {
             0,
         );
 
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17769);
+        assert_eq!(size, 17785);
     }
 
     #[test]
     fn timestamp_min_max_works_when_empty() {
-        let table_buffer = TableBuffer::new(SortKey::empty());
+        let table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
         let timestamp_min_max = table_buffer.timestamp_min_max();
         assert_eq!(timestamp_min_max.min, 0);
         assert_eq!(timestamp_min_max.max, 0);
@@ -777,7 +779,7 @@ mod tests {
             row_batches.push((offset, rows));
         }
         let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let mut table_buffer = TableBuffer::new(SortKey::empty());
+        let mut table_buffer = TableBuffer::new(SortKey::empty(), Duration::from_secs(60));
 
         for (offset, rows) in row_batches {
             table_buffer.buffer_chunk(offset, &rows);

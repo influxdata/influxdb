@@ -21,8 +21,8 @@ use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCac
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{
-    CatalogOp, Gen1Duration, SnapshotDetails, WalContents, WalFileNotifier, WalFileSequenceNumber,
-    WalOp, WriteBatch,
+    CatalogOp, SnapshotDetails, WalContents, WalFileNotifier, WalFileSequenceNumber, WalOp,
+    WriteBatch,
 };
 use iox_query::QueryChunk;
 use iox_query::chunk_statistics::{NoColumnRanges, create_chunk_statistics};
@@ -58,7 +58,7 @@ pub struct QueryableBuffer {
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
     persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
     persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
-    gen1_duration: Gen1Duration,
+    buffer_chunk_interval: Duration,
     max_size_per_parquet_file_bytes: u64,
 }
 
@@ -71,7 +71,6 @@ pub struct QueryableBufferArgs {
     pub distinct_cache_provider: Arc<DistinctCacheProvider>,
     pub persisted_files: Arc<PersistedFiles>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
-    pub gen1_duration: Gen1Duration,
     pub max_size_per_parquet_file_bytes: u64,
 }
 
@@ -85,11 +84,14 @@ impl QueryableBuffer {
             distinct_cache_provider,
             persisted_files,
             parquet_cache,
-            gen1_duration,
             max_size_per_parquet_file_bytes,
         }: QueryableBufferArgs,
     ) -> Self {
-        let buffer = Arc::new(RwLock::new(BufferState::new(Arc::clone(&catalog))));
+        let buffer_chunk_interval = Duration::from_secs(60);
+        let buffer = Arc::new(RwLock::new(BufferState::new(
+            Arc::clone(&catalog),
+            buffer_chunk_interval,
+        )));
         let (persisted_snapshot_notify_tx, persisted_snapshot_notify_rx) =
             tokio::sync::watch::channel(None);
         Self {
@@ -103,8 +105,8 @@ impl QueryableBuffer {
             parquet_cache,
             persisted_snapshot_notify_rx,
             persisted_snapshot_notify_tx,
-            gen1_duration,
             max_size_per_parquet_file_bytes,
+            buffer_chunk_interval,
         }
     }
 
@@ -268,8 +270,8 @@ impl QueryableBuffer {
         let catalog = Arc::clone(&self.catalog);
         let notify_snapshot_tx = self.persisted_snapshot_notify_tx.clone();
         let parquet_cache = self.parquet_cache.clone();
-        let gen1_duration = self.gen1_duration;
         let max_size_per_parquet_file = self.max_size_per_parquet_file_bytes;
+        let chunk_interval = self.num_chunk_intervals_in_10m();
 
         tokio::spawn(async move {
             // persist the catalog if it has been updated
@@ -321,7 +323,7 @@ impl QueryableBuffer {
                     Arc::from(persister.node_identifier_prefix()),
                     wal_file_number,
                     Arc::clone(&catalog),
-                    gen1_duration.as_10m() as usize,
+                    chunk_interval,
                     Some(max_size_per_parquet_file),
                 );
 
@@ -351,7 +353,7 @@ impl QueryableBuffer {
                     Arc::from(persister.node_identifier_prefix()),
                     wal_file_number,
                     Arc::clone(&catalog),
-                    gen1_duration.as_10m() as usize,
+                    chunk_interval,
                     None,
                 );
 
@@ -452,6 +454,16 @@ impl QueryableBuffer {
     pub fn get_total_size_bytes(&self) -> usize {
         let buffer = self.buffer.read();
         buffer.find_overall_buffer_size_bytes()
+    }
+
+    fn num_chunk_intervals_in_10m(&self) -> usize {
+        let ten_mins_secs = 600;
+        let chunk_interval_secs = self.buffer_chunk_interval.as_secs();
+        if chunk_interval_secs >= ten_mins_secs {
+            return 1;
+        }
+        let num_chunks_in_ten_mins = ten_mins_secs / self.buffer_chunk_interval.as_secs();
+        num_chunks_in_ten_mins as usize
     }
 }
 
@@ -619,15 +631,17 @@ impl WalFileNotifier for QueryableBuffer {
 pub struct BufferState {
     pub db_to_table: HashMap<DbId, TableIdToBufferMap>,
     catalog: Arc<Catalog>,
+    chunk_interval: Duration,
 }
 
 type TableIdToBufferMap = HashMap<TableId, TableBuffer>;
 
 impl BufferState {
-    pub fn new(catalog: Arc<Catalog>) -> Self {
+    pub fn new(catalog: Arc<Catalog>, chunk_interval: Duration) -> Self {
         Self {
             db_to_table: HashMap::new(),
             catalog,
+            chunk_interval,
         }
     }
 
@@ -741,14 +755,14 @@ impl BufferState {
 
         let database_buffer = self.db_to_table.entry(write_batch.database_id).or_default();
         // keep internal query buffer chunks divided by 1m
-        let one_min_ns = Duration::from_secs(60).as_nanos() as i64;
+        let one_min_ns = self.chunk_interval.as_nanos() as i64;
 
         for (table_id, table_chunks) in &write_batch.table_chunks {
             let table_buffer = database_buffer.entry(*table_id).or_insert_with(|| {
                 let table_def = db_schema
                     .table_definition_by_id(table_id)
                     .expect("table should exist");
-                TableBuffer::new(table_def.sort_key())
+                TableBuffer::new(table_def.sort_key(), self.chunk_interval)
             });
 
             let mut one_min_groups = HashMap::new();
@@ -1127,7 +1141,6 @@ mod tests {
             .unwrap(),
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,
-            gen1_duration: Gen1Duration::new_1m(),
             max_size_per_parquet_file_bytes: 4_000,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
@@ -1281,7 +1294,6 @@ mod tests {
             .unwrap(),
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,
-            gen1_duration: Gen1Duration::new_1m(),
             max_size_per_parquet_file_bytes: 50_000,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
@@ -1410,7 +1422,6 @@ mod tests {
             .unwrap(),
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,
-            gen1_duration: Gen1Duration::new_1m(),
             max_size_per_parquet_file_bytes: 2_000,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
@@ -1544,7 +1555,6 @@ mod tests {
             .unwrap(),
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,
-            gen1_duration: Gen1Duration::new_1m(),
             max_size_per_parquet_file_bytes: 150_000,
         };
         let queryable_buffer = QueryableBuffer::new(queryable_buffer_args);
