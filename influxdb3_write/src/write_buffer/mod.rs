@@ -721,11 +721,14 @@ mod tests {
             "test_host",
             Arc::clone(&time_provider),
         ));
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
@@ -819,11 +822,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
@@ -906,12 +912,14 @@ mod tests {
                 .await
                 .unwrap(),
             );
-            let last_cache =
-                LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+            let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+                .await
+                .unwrap();
             let distinct_cache = DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap();
             WriteBufferImpl::new(WriteBufferImplArgs {
                 persister: Arc::clone(&wbuf.persister),
@@ -1161,11 +1169,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let write_buffer = WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&write_buffer.persister),
@@ -3058,11 +3069,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,

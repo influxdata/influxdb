@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
 
 use influxdb3_catalog::{
-    catalog::{Catalog, CatalogBroadcastReceiver},
+    catalog::Catalog,
+    channel::CatalogUpdateReceiver,
     log::{
         CatalogBatch, CreateLastCacheLog, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheTtl,
         LastCacheValueColumnsDef, SoftDeleteTableLog,
@@ -11,9 +12,8 @@ use influxdb3_catalog::{
 };
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::debug;
 use parking_lot::RwLock;
-use tokio::sync::broadcast::error::RecvError;
 
 use super::{
     CreateLastCacheArgs, Error,
@@ -38,7 +38,7 @@ impl std::fmt::Debug for LastCacheProvider {
 
 impl LastCacheProvider {
     /// Initialize a [`LastCacheProvider`] from a [`Catalog`]
-    pub fn new_from_catalog(catalog: Arc<Catalog>) -> Result<Arc<Self>, Error> {
+    pub async fn new_from_catalog(catalog: Arc<Catalog>) -> Result<Arc<Self>, Error> {
         let provider = Arc::new(LastCacheProvider {
             catalog: Arc::clone(&catalog),
             cache_map: Default::default(),
@@ -75,18 +75,21 @@ impl LastCacheProvider {
             }
         }
 
-        background_catalog_update(Arc::clone(&provider), catalog.subscribe_to_updates());
+        background_catalog_update(
+            Arc::clone(&provider),
+            catalog.subscribe_to_updates("last_cache").await,
+        );
 
         Ok(provider)
     }
 
     /// Initialize a [`LastCacheProvider`] from a [`Catalog`] and run a background process to
     /// evict expired entries from the cache
-    pub fn new_from_catalog_with_background_eviction(
+    pub async fn new_from_catalog_with_background_eviction(
         catalog: Arc<Catalog>,
         eviction_interval: Duration,
     ) -> Result<Arc<Self>, Error> {
-        let provider = Self::new_from_catalog(catalog)?;
+        let provider = Self::new_from_catalog(catalog).await?;
 
         background_eviction_process(Arc::clone(&provider), eviction_interval);
 
@@ -384,12 +387,12 @@ impl LastCacheProvider {
 
 fn background_catalog_update(
     provider: Arc<LastCacheProvider>,
-    mut subscription: CatalogBroadcastReceiver,
+    mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match subscription.recv().await {
-                Ok(catalog_update) => {
+                Some((catalog_update, tx)) => {
                     for batch in catalog_update
                         .batches()
                         .filter_map(CatalogBatch::as_database)
@@ -422,16 +425,9 @@ fn background_catalog_update(
                             }
                         }
                     }
+                    let _ = tx.send(());
                 }
-                Err(RecvError::Closed) => break,
-                Err(RecvError::Lagged(num_messages_skipped)) => {
-                    // TODO: in this case, we would need to re-initialize the last cache provider
-                    // from the catalog, if possible.
-                    warn!(
-                        num_messages_skipped,
-                        "last cache provider catalog subscription is lagging"
-                    );
-                }
+                None => break,
             }
         }
     })
