@@ -8,7 +8,6 @@ use std::{
     io::Write,
     process::{Command, Stdio},
     thread,
-    time::Duration,
 };
 use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
@@ -655,9 +654,6 @@ async fn test_create_trigger_and_run() {
 
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-
-    // HACK: sleeping here to wait for catalog to update
-    tokio::time::sleep(Duration::from_secs(1)).await;
 
     // creating the trigger should enable it
     let result = run_with_confirmation(&[
@@ -2140,9 +2136,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
 
-    // HACK: sleeping here to wait for catalog to update
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
     let trigger_path = "iterator_test";
     run_with_confirmation(&[
         "create",
@@ -2210,9 +2203,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     // Setup: create database and plugin
     run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
-
-    // HACK: sleeping here to wait for catalog to update
-    tokio::time::sleep(Duration::from_secs(1)).await;
 
     let trigger_path = "response_obj_test";
     run_with_confirmation(&[
