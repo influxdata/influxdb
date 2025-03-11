@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anyhow::Context;
 use arrow::datatypes::SchemaRef;
 use influxdb3_catalog::{
-    catalog::{Catalog, CatalogBroadcastReceiver},
+    catalog::Catalog,
+    channel::CatalogUpdateReceiver,
     log::{
         CatalogBatch, CreateDistinctCacheLog, DatabaseCatalogOp, DeleteDistinctCacheLog,
         SoftDeleteTableLog,
@@ -12,9 +13,7 @@ use influxdb3_catalog::{
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
-use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-use tokio::sync::broadcast::error::RecvError;
 
 use super::{
     CacheError,
@@ -47,7 +46,7 @@ pub struct DistinctCacheProvider {
 impl DistinctCacheProvider {
     /// Initialize a [`DistinctCacheProvider`] from a [`Catalog`], populating the provider's
     /// `cache_map` from the definitions in the catalog.
-    pub fn new_from_catalog(
+    pub async fn new_from_catalog(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
     ) -> Result<Arc<Self>, ProviderError> {
@@ -78,7 +77,10 @@ impl DistinctCacheProvider {
             }
         }
 
-        background_catalog_update(Arc::clone(&provider), catalog.subscribe_to_updates());
+        background_catalog_update(
+            Arc::clone(&provider),
+            catalog.subscribe_to_updates("distinct_cache").await,
+        );
 
         Ok(provider)
     }
@@ -87,12 +89,12 @@ impl DistinctCacheProvider {
     /// `cache_map` from the definitions in the catalog. This starts a background process that
     /// runs on the provided `eviction_interval` to perform eviction on all of the caches
     /// in the created [`DistinctCacheProvider`]'s `cache_map`.
-    pub fn new_from_catalog_with_background_eviction(
+    pub async fn new_from_catalog_with_background_eviction(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
         eviction_interval: Duration,
     ) -> Result<Arc<Self>, ProviderError> {
-        let provider = Self::new_from_catalog(time_provider, catalog)?;
+        let provider = Self::new_from_catalog(time_provider, catalog).await?;
 
         background_eviction_process(Arc::clone(&provider), eviction_interval);
 
@@ -325,12 +327,12 @@ impl DistinctCacheProvider {
 
 fn background_catalog_update(
     provider: Arc<DistinctCacheProvider>,
-    mut subscription: CatalogBroadcastReceiver,
+    mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match subscription.recv().await {
-                Ok(catalog_update) => {
+                Some((catalog_update, tx)) => {
                     for batch in catalog_update
                         .batches()
                         .filter_map(CatalogBatch::as_database)
@@ -369,16 +371,9 @@ fn background_catalog_update(
                             }
                         }
                     }
+                    let _ = tx.send(());
                 }
-                Err(RecvError::Closed) => break,
-                Err(RecvError::Lagged(num_messages_skipped)) => {
-                    // TODO: in this case, we would need to re-initialize the distinct cache provider
-                    // from the catalog, if possible.
-                    warn!(
-                        num_messages_skipped,
-                        "distinct cache provider catalog subscription is lagging"
-                    );
-                }
+                None => break,
             }
         }
     })

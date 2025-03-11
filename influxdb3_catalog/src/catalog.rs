@@ -14,14 +14,14 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{borrow::Cow, ops::Deref};
-use tokio::sync::{Mutex, MutexGuard, broadcast};
-use update::CatalogUpdate;
+use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
 mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
-pub use update::{DatabaseCatalogTransaction, Prompt};
+pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
+use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
 use crate::id::IdProvider;
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
@@ -78,20 +78,8 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 /// time that the permit was acquired.
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
 
-const CATALOG_BROADCAST_CHANNEL_CAPACITY: usize = 1_000;
-
-pub type CatalogBroadcastSender = broadcast::Sender<Arc<CatalogUpdate>>;
-pub type CatalogBroadcastReceiver = broadcast::Receiver<Arc<CatalogUpdate>>;
-
 pub struct Catalog {
-    /// Channel for broadcasting updates to other components that must handle `CatalogOp`s
-    ///
-    /// # Implementation Note
-    ///
-    /// This currently uses a `tokio::broadcast` channel, which can lead to dropped messages if
-    /// the channel fills up. If that is a concern a more durable form of broadcasting single
-    /// producer to multiple consumer messages would need to be implemented.
-    channel: CatalogBroadcastSender,
+    subscriptions: Arc<tokio::sync::RwLock<CatalogSubscriptions>>,
     time_provider: Arc<dyn TimeProvider>,
     /// Connection to the object store for managing persistence and updates to the catalog
     store: ObjectStoreCatalog,
@@ -123,14 +111,14 @@ impl Catalog {
     ) -> Result<Self> {
         let node_id = catalog_id.into();
         let store = ObjectStoreCatalog::new(Arc::clone(&node_id), store);
-        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+        let subscriptions = Default::default();
         store
             .load_or_create_catalog()
             .await
             .map_err(Into::into)
             .map(RwLock::new)
             .map(|inner| Self {
-                channel,
+                subscriptions,
                 time_provider,
                 store,
                 inner,
@@ -145,8 +133,8 @@ impl Catalog {
         self.inner.read().catalog_uuid
     }
 
-    pub fn subscribe_to_updates(&self) -> broadcast::Receiver<Arc<CatalogUpdate>> {
-        self.channel.subscribe()
+    pub async fn subscribe_to_updates(&self, name: impl Into<Arc<str>>) -> CatalogUpdateReceiver {
+        self.subscriptions.write().await.subscribe(name)
     }
 
     /// Create new `Catalog` that uses an in-memory object store.

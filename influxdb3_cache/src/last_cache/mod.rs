@@ -1185,7 +1185,9 @@ mod tests {
         let f1_col_id = table_def.column_name_to_id("f1").unwrap();
         let f2_col_id = table_def.column_name_to_id("f2").unwrap();
 
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog())
+            .await
+            .unwrap();
         assert_eq!(provider.size(), 0);
 
         let default_args = CreateLastCacheArgs {
@@ -1368,6 +1370,7 @@ mod tests {
 
         // This is the function we are testing, which initializes the LastCacheProvider from the catalog:
         let provider = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
             .expect("create last cache provider from catalog");
         // There should be a total of 3 caches:
         assert_eq!(3, provider.size());
@@ -1404,7 +1407,9 @@ mod tests {
         // create a last cache provider so we can use it to create our UDTF provider:
         let db_schema = writer.db_schema();
         let table_def = db_schema.table_definition("cpu").unwrap();
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog())
+            .await
+            .unwrap();
         provider
             .create_cache(
                 db_schema.id,
@@ -1658,7 +1663,9 @@ mod tests {
         // create a last cache provider so we can use it to create our UDTF provider:
         let db_schema = writer.db_schema();
         let table_def = db_schema.table_definition("cpu").unwrap();
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
+        let provider = LastCacheProvider::new_from_catalog(writer.catalog())
+            .await
+            .unwrap();
         let usage_col_id = table_def.column_name_to_id("usage").unwrap();
         provider
             .create_cache(

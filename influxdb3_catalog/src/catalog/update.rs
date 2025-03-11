@@ -72,12 +72,13 @@ impl Catalog {
             self.get_permit_and_verify_catalog_batch(&batch).await?
         {
             match self
-                .persist_ordered_batch_to_object_store(ordered_batch.clone(), &permit)
+                .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                 .await?
             {
                 UpdatePrompt::Retry => Ok(Prompt::Retry(())),
                 UpdatePrompt::Applied => {
                     self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                    self.broadcast_update(ordered_batch.into_batch()).await?;
                     Ok(Prompt::Success(self.sequence_number()))
                 }
             }
@@ -487,6 +488,7 @@ impl Catalog {
         trigger_arguments: &Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, trigger_name, "creating processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
@@ -608,7 +610,7 @@ impl Catalog {
             {
                 debug!(?ordered_batch, "applied batch and got permit");
                 match self
-                    .persist_ordered_batch_to_object_store(ordered_batch.clone(), &permit)
+                    .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                     .await?
                 {
                     UpdatePrompt::Retry => {
@@ -618,6 +620,8 @@ impl Catalog {
                     UpdatePrompt::Applied => {
                         debug!("catalog persist attempt was applied");
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                        self.broadcast_update(ordered_batch.clone().into_batch())
+                            .await?;
                         return Ok(Some(ordered_batch));
                     }
                 }
@@ -643,7 +647,7 @@ impl Catalog {
     /// operation, as well as the update applied by the ordered batch itself, if successful.
     async fn persist_ordered_batch_to_object_store(
         &self,
-        ordered_batch: OrderedCatalogBatch,
+        ordered_batch: &OrderedCatalogBatch,
         permit: &CatalogWritePermit,
     ) -> Result<UpdatePrompt> {
         debug!(?ordered_batch, "persisting ordered batch to store");
@@ -659,10 +663,7 @@ impl Catalog {
             .await
             .inspect_err(|error| debug!(?error, "failed on persist of next catalog sequence"))?
         {
-            PersistCatalogResult::Success => {
-                self.broadcast_update(ordered_batch.into_batch());
-                Ok(UpdatePrompt::Applied)
-            }
+            PersistCatalogResult::Success => Ok(UpdatePrompt::Applied),
             PersistCatalogResult::AlreadyExists => {
                 self.load_and_update_from_object_store(
                     ordered_batch.sequence_number(),
@@ -693,7 +694,7 @@ impl Catalog {
             match next_file {
                 CatalogFile::Log(ordered_catalog_batch) => {
                     let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
-                    self.broadcast_update(batch);
+                    self.broadcast_update(batch).await?;
                 }
                 CatalogFile::Snapshot(catalog_snapshot) => {
                     self.update_from_snapshot(catalog_snapshot);
@@ -707,10 +708,13 @@ impl Catalog {
         Ok(())
     }
 
-    fn broadcast_update(&self, update: impl Into<CatalogUpdate>) {
-        if let Err(send_error) = self.channel.send(Arc::new(update.into())) {
-            warn!(?send_error, "nothing listening for catalog updates");
-        }
+    async fn broadcast_update(&self, update: impl Into<CatalogUpdate>) -> Result<()> {
+        self.subscriptions
+            .write()
+            .await
+            .send_update(Arc::new(update.into()))
+            .await?;
+        Ok(())
     }
 }
 
