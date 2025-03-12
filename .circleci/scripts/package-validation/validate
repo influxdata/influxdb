@@ -85,7 +85,7 @@ if [[ "${NEEDED:-}" ]]
 then
   if echo "$NEEDED" | grep -Eq "Shared library: \[libpython" ; then
     # if have libpython, ensure we are only linking things we expect
-    if echo "$NEEDED" | grep -Ev "Shared library: \[(ld-linux.*|libc|libdl|libgcc_s|libm|libpthread|libpython3.[0-9]{2})\.so" ; then
+    if echo "$NEEDED" | grep -Ev "Shared library: \[(ld-linux.*|libc|libdl|libgcc_s|libm|libpthread|libpython3.[0-9]{2}|librt)\.so" ; then
       cat <<'EOF'
 ERROR: found unexpected dynamically linked libraries! This may
        prevent all platforms from running influxdb3 without
