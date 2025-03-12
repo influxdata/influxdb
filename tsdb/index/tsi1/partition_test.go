@@ -3,13 +3,13 @@ package tsi1_test
 import (
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
-
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 func TestPartition_Open(t *testing.T) {
@@ -162,6 +162,26 @@ func TestPartition_Compact_Write_Fail(t *testing.T) {
 			t.Fatalf("manifest write should have failed the compaction, but number of files changed: expected %d files, got %d files", fileN, p.FileN())
 		}
 	})
+}
+
+func TestPartition_Compact_And_Close_Contention(t *testing.T) {
+	t.Helper()
+	const ROUNDS = 100
+	sfile := MustOpenSeriesFile()
+	t.Cleanup(func() {
+		err := sfile.Close()
+		require.NoError(t, err)
+	})
+
+	p := MustOpenPartition(sfile.SeriesFile)
+	p.Partition.SetMaxLogFileSize(-1)
+	go func() {
+		p.Compact()
+	}()
+	go func() {
+		err := p.Close()
+		require.NoError(t, err)
+	}()
 }
 
 // Partition is a test wrapper for tsi1.Partition.
