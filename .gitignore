@@ -23,7 +23,6 @@ test-data/
 .env
 .gdb_history
 .idea/
-Cargo.lock
 debug/
 heaptrack.*
 massif.out.*
