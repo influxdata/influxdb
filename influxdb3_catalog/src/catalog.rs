@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
 use iox_time::{Time, TimeProvider};
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, info, warn};
+use observability_deps::tracing::{debug, info, trace, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
@@ -174,7 +174,7 @@ impl Catalog {
         // will be the sequence number that the catalog is updated to.
         let mut permit = CATALOG_WRITE_PERMIT.lock().await;
         *permit = self.sequence_number().next();
-        debug!(
+        trace!(
             next_sequence = permit.get(),
             "got permit to write to catalog"
         );
@@ -198,10 +198,6 @@ impl Catalog {
     ) -> CatalogBatch {
         let batch_sequence = batch.sequence_number().get();
         let current_sequence = self.sequence_number().get();
-        debug!(
-            batch_sequence,
-            current_sequence, "apply ordered catalog batch"
-        );
         assert_eq!(
             batch_sequence,
             current_sequence + 1,
@@ -421,7 +417,7 @@ impl InnerCatalog {
         sequence: CatalogSequenceNumber,
     ) -> Result<Option<OrderedCatalogBatch>> {
         debug!(
-            ?catalog_batch,
+            n_ops = catalog_batch.n_ops(),
             current_sequence = self.sequence_number().get(),
             verified_sequence = sequence.get(),
             "verify catalog batch"
@@ -437,7 +433,7 @@ impl InnerCatalog {
         sequence: CatalogSequenceNumber,
     ) -> Result<Option<OrderedCatalogBatch>> {
         debug!(
-            ?catalog_batch,
+            n_ops = catalog_batch.n_ops(),
             current_sequence = self.sequence_number().get(),
             applied_sequence = sequence.get(),
             "apply catalog batch"
@@ -464,16 +460,7 @@ impl InnerCatalog {
 
         Ok(updated.then(|| {
             if apply_changes {
-                debug!(
-                    sequence = sequence.get(),
-                    "catalog batch applied, updating sequence"
-                );
                 self.sequence = sequence;
-            } else {
-                debug!(
-                    sequence = sequence.get(),
-                    "catalog batch verified, will update sequence"
-                );
             }
             OrderedCatalogBatch::new(catalog_batch.clone(), sequence)
         }))
@@ -497,7 +484,7 @@ impl InnerCatalog {
                     let new_node = Arc::new(NodeDefinition {
                         node_id: Arc::clone(node_id),
                         instance_id: Arc::clone(instance_id),
-                        mode: *mode,
+                        mode: mode.clone(),
                         core_count: *core_count,
                         state: NodeState::Running {
                             registered_time_ns: *registered_time_ns,
@@ -585,7 +572,7 @@ fn check_overall_table_count(
 pub struct NodeDefinition {
     pub(crate) node_id: Arc<str>,
     pub(crate) instance_id: Arc<str>,
-    pub(crate) mode: NodeMode,
+    pub(crate) mode: Vec<NodeMode>,
     pub(crate) core_count: u64,
     pub(crate) state: NodeState,
 }
@@ -641,7 +628,7 @@ impl DatabaseSchema {
         db_schema: &DatabaseSchema,
         database_batch: &DatabaseBatch,
     ) -> Result<Option<Self>> {
-        debug!(
+        trace!(
             name = ?db_schema.name,
             deleted = ?db_schema.deleted,
             full_batch = ?database_batch,
