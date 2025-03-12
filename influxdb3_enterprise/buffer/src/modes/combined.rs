@@ -44,7 +44,7 @@ pub struct IngestArgs {
     pub snapshotted_wal_files_to_keep: u64,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct QueryArgs {
     pub replication_config: ReplicationConfig,
 }
@@ -96,7 +96,6 @@ impl IngestQueryMode {
         if ingest_args.is_none() && query_args.is_none() {
             return Err(anyhow::Error::msg("must provide ingest or query args"));
         }
-        let node_id = ingest_args.as_ref().map(|i| Arc::clone(&i.node_id));
         let ingest = if let Some(IngestArgs {
             node_id,
             persister,
@@ -126,33 +125,19 @@ impl IngestQueryMode {
         };
 
         let replicas = if let Some(QueryArgs { replication_config }) = query_args {
-            let ReplicationConfig {
-                interval: replication_interval,
-                mut node_ids,
-            } = replication_config;
-            // remove this writer from the list of replicas if it was provided to prevent from
-            // replicating the local primary buffer.
-            if let Some(node_id) = node_id {
-                node_ids.retain(|h| h != node_id.as_ref());
-            }
-            if !node_ids.is_empty() {
-                Some(
-                    Replicas::new(CreateReplicasArgs {
-                        last_cache,
-                        distinct_cache,
-                        object_store: Arc::clone(&object_store),
-                        metric_registry,
-                        replication_interval,
-                        node_ids,
-                        parquet_cache: parquet_cache.clone(),
-                        catalog: Arc::clone(&catalog),
-                        time_provider,
-                    })
-                    .await?,
-                )
-            } else {
-                None
-            }
+            Some(
+                Replicas::new(CreateReplicasArgs {
+                    last_cache,
+                    distinct_cache,
+                    object_store: Arc::clone(&object_store),
+                    metric_registry,
+                    replication_interval: replication_config.interval,
+                    parquet_cache: parquet_cache.clone(),
+                    catalog: Arc::clone(&catalog),
+                    time_provider,
+                })
+                .await?,
+            )
         } else {
             None
         };

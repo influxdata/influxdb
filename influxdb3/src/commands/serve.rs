@@ -817,12 +817,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let query_args = buffer_modes
         .is_querier()
-        .then(|| {
-            ReplicationConfig::new(
-                config.enterprise_config.replication_interval.into(),
-                read_from_node_ids,
-            )
-        })
+        .then(|| ReplicationConfig::new(config.enterprise_config.replication_interval.into()))
         .map(|rc| QueryArgs {
             replication_config: rc,
         });

@@ -1045,7 +1045,8 @@ mod test_helpers {
             Arc::clone(&time_provider),
         ));
         let catalog = Arc::new(
-            Catalog::new(
+            Catalog::new_enterprise(
+                node_id,
                 cluster_id,
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider),
@@ -1053,6 +1054,12 @@ mod test_helpers {
             .await
             .unwrap(),
         );
+        for node_id in read_from_node_ids {
+            catalog
+                .register_node(node_id, 1, vec![NodeMode::Ingest])
+                .await
+                .expect("must register node");
+        }
         catalog
             .register_node(node_id, 1, vec![NodeMode::Query, NodeMode::Ingest])
             .await
@@ -1067,7 +1074,6 @@ mod test_helpers {
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));
         let replication_config = ReplicationConfig {
             interval: Duration::from_millis(250),
-            node_ids: read_from_node_ids.iter().map(|s| s.to_string()).collect(),
         };
         WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
             query_args: Some(QueryArgs { replication_config }),

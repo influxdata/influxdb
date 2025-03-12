@@ -133,10 +133,7 @@ async fn two_writers_gen1_compaction() {
     let read_write_mode = Arc::new(
         WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
             query_args: Some(QueryArgs {
-                replication_config: ReplicationConfig::new(
-                    Duration::from_millis(10),
-                    vec![node2_id.to_string()],
-                ),
+                replication_config: ReplicationConfig::new(Duration::from_millis(10)),
             }),
             ingest_args: Some(IngestArgs {
                 node_id: node1_id.into(),

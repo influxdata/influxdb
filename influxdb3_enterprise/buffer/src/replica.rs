@@ -13,7 +13,10 @@ use influxdb3_cache::{
     last_cache::LastCacheProvider,
     parquet_cache::{CacheRequest, ParquetCacheOracle},
 };
-use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition};
+use influxdb3_catalog::{
+    catalog::{Catalog, CatalogSequenceNumber, DatabaseSchema, TableDefinition},
+    log::NodeModes,
+};
 use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
 use influxdb3_id::{DbId, ParquetFileId, TableId};
 use influxdb3_wal::{
@@ -51,19 +54,14 @@ pub(crate) enum Error {
 
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct ReplicationConfig {
     pub interval: Duration,
-    pub node_ids: Vec<String>,
 }
 
 impl ReplicationConfig {
-    pub fn new(interval: Duration, node_ids: Vec<String>) -> Self {
-        Self { interval, node_ids }
-    }
-
-    pub fn node_ids(&self) -> &[String] {
-        &self.node_ids
+    pub fn new(interval: Duration) -> Self {
+        Self { interval }
     }
 }
 
@@ -83,7 +81,6 @@ pub(crate) struct CreateReplicasArgs {
     // NOTE(trevor/catalog-refactor): this needs to go, nodes can just be pulled from the catalog
     // once there is a mechanism for handling the broadcast of a RegisterNodeLog through the
     // catalog.
-    pub node_ids: Vec<String>,
     pub parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     pub catalog: Arc<Catalog>,
     pub time_provider: Arc<dyn TimeProvider>,
@@ -97,13 +94,27 @@ impl Replicas {
             object_store,
             metric_registry,
             replication_interval,
-            node_ids,
             parquet_cache,
             catalog,
             time_provider,
         }: CreateReplicasArgs,
     ) -> Result<Self> {
         let mut replicated_buffers = vec![];
+        let node_ids: Vec<String> = catalog
+            .list_nodes()
+            .iter()
+            .filter_map(|nd| {
+                if catalog
+                    .current_node()
+                    .is_some_and(|cd| nd.node_id() == cd.node_id())
+                {
+                    return None;
+                }
+                NodeModes::from(nd.as_ref().modes().clone())
+                    .is_ingester()
+                    .then_some(nd.node_id().to_string())
+            })
+            .collect();
         for (i, node_identifier_prefix) in node_ids.into_iter().enumerate() {
             let object_store = Arc::clone(&object_store);
             let last_cache = Arc::clone(&last_cache);
@@ -1213,7 +1224,6 @@ mod tests {
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
-            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: None,
             catalog: Arc::clone(&replica_catalog),
             time_provider,
@@ -1349,7 +1359,6 @@ mod tests {
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
             replication_interval: Duration::from_millis(replication_interval_ms),
-            node_ids: vec!["newton".to_string()],
             parquet_cache: None,
             catalog,
             time_provider: Arc::<MockProvider>::clone(&time_provider),
@@ -1537,7 +1546,6 @@ mod tests {
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
-                node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: Some(parquet_cache),
                 catalog,
                 time_provider,
@@ -1620,7 +1628,6 @@ mod tests {
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
                 replication_interval: Duration::from_millis(10),
-                node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
                 parquet_cache: None,
                 catalog,
                 time_provider,
@@ -1735,7 +1742,6 @@ mod tests {
             object_store: Arc::clone(&cached_obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
-            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: Some(parquet_cache),
             catalog,
             time_provider: Arc::clone(&time_provider),
@@ -1904,7 +1910,6 @@ mod tests {
             object_store: Arc::clone(&cached_obj_store),
             metric_registry: Arc::new(Registry::new()),
             replication_interval: Duration::from_millis(10),
-            node_ids: primary_ids.iter().map(|s| s.to_string()).collect(),
             parquet_cache: Some(parquet_cache),
             catalog,
             time_provider: Arc::clone(&time_provider) as _,
