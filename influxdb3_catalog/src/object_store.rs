@@ -6,7 +6,7 @@ use bytes::Bytes;
 use futures::{StreamExt, stream::FuturesOrdered};
 use object_store::ObjectStore;
 use object_store::{PutOptions, path::Path as ObjPath};
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use crate::catalog::InnerCatalog;
@@ -150,7 +150,11 @@ impl ObjectStoreCatalog {
         );
 
         for ordered_catalog_batch in catalog_files {
-            debug!(?ordered_catalog_batch, "processing catalog file");
+            debug!(
+                sequence = ordered_catalog_batch.sequence_number().get(),
+                "processing catalog file"
+            );
+            trace!(?ordered_catalog_batch, "processing catalog file");
             inner_catalog
                 .apply_catalog_batch(
                     ordered_catalog_batch.batch(),
@@ -158,7 +162,8 @@ impl ObjectStoreCatalog {
                 )
                 .context("failed to apply persisted catalog batch")?;
         }
-        debug!(loaded_catalog = ?inner_catalog, "loaded the catalog");
+        debug!("loaded the catalog");
+        trace!(loaded_catalog = ?inner_catalog, "loaded the catalog");
         Ok(Some(inner_catalog))
     }
 

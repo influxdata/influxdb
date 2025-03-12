@@ -45,6 +45,13 @@ impl CatalogBatch {
         })
     }
 
+    pub fn n_ops(&self) -> usize {
+        match self {
+            CatalogBatch::Node(node_batch) => node_batch.ops.len(),
+            CatalogBatch::Database(database_batch) => database_batch.ops.len(),
+        }
+    }
+
     pub fn as_database(&self) -> Option<&DatabaseBatch> {
         match self {
             CatalogBatch::Node(_) => None,

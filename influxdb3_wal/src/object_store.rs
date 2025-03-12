@@ -123,7 +123,7 @@ impl WalObjectStore {
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         all_wal_file_paths: &[Path],
     ) -> crate::Result<()> {
-        debug!(">>> replaying");
+        debug!("replaying");
         let paths = self.load_existing_wal_file_paths(last_wal_sequence_number, all_wal_file_paths);
 
         let last_snapshot_sequence_number = {
@@ -378,7 +378,7 @@ impl WalObjectStore {
                     debug!(
                         ?path,
                         ?last_wal_path,
-                        ">>> path and last_wal_path check when replaying"
+                        "path and last_wal_path check when replaying"
                     );
                     // last_wal_sequence_number that comes from persisted snapshot is
                     // holds the last wal number (inclusive) that has been snapshotted
@@ -409,7 +409,7 @@ impl WalObjectStore {
             ?last,
             ?curr_num_files,
             ?self.snapshotted_wal_files_to_keep,
-            ">>> checking num wal files to delete"
+            "checking num wal files to delete"
         );
 
         if curr_num_files > self.snapshotted_wal_files_to_keep {
@@ -421,7 +421,7 @@ impl WalObjectStore {
                 ?curr_num_files,
                 ?num_files_to_delete,
                 ?last_to_delete,
-                ">>> more wal files than num files to keep around"
+                "more wal files than num files to keep around"
             );
 
             for idx in oldest..last_to_delete {
@@ -429,7 +429,7 @@ impl WalObjectStore {
                     &self.node_identifier_prefix,
                     WalFileSequenceNumber::new(idx),
                 );
-                debug!(?path, ">>> deleting wal file");
+                debug!(?path, "deleting wal file");
 
                 loop {
                     // if there are errors in between we are changing oldest to
@@ -475,7 +475,7 @@ fn oldest_wal_file_num(all_wal_file_paths: &[Path]) -> Option<WalFileSequenceNum
     debug!(
         ?file_name_with_path,
         ?wal_file_name,
-        ">>> file name path and wal file name"
+        "file name path and wal file name"
     );
     WalFileSequenceNumber::from_str(wal_file_name).ok()
 }
@@ -1535,7 +1535,7 @@ mod tests {
             .await
             .unwrap();
 
-        debug!(?all_paths, ">>> test: all paths in object store");
+        debug!(?all_paths, "test: all paths in object store");
 
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),
@@ -1593,10 +1593,7 @@ mod tests {
             .await
             .unwrap();
 
-        debug!(
-            ?all_paths,
-            ">>> test: all paths in object store after removal"
-        );
+        debug!(?all_paths, "test: all paths in object store after removal");
 
         assert!(object_store.get(&path1).await.ok().is_some());
         assert!(object_store.get(&path2).await.ok().is_some());
@@ -1625,10 +1622,7 @@ mod tests {
             .await
             .unwrap();
 
-        debug!(
-            ?all_paths,
-            ">>> test: all paths in object store after removal"
-        );
+        debug!(?all_paths, "test: all paths in object store after removal");
 
         let err = object_store.get(&path1).await.err().unwrap();
 
@@ -1683,7 +1677,7 @@ mod tests {
             .await
             .unwrap();
 
-        debug!(?all_paths, ">>> test: all paths in object store");
+        debug!(?all_paths, "test: all paths in object store");
 
         let wal = WalObjectStore::new_without_replay(
             Arc::clone(&time_provider),

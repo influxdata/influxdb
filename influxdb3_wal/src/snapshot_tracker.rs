@@ -61,7 +61,7 @@ impl SnapshotTracker {
         debug!(
             wal_periods_len = ?self.wal_periods.len(),
             num_snapshots_after = ?self.number_of_periods_to_snapshot_after(),
-            ">>> wal periods and snapshots"
+            "wal periods and snapshots"
         );
 
         if !self.should_run_snapshot(force_snapshot) {
@@ -113,7 +113,7 @@ impl SnapshotTracker {
         let t = self.wal_periods.last()?.max_time;
         // round the last timestamp down to the gen1_duration
         let t = t - (t.get() % self.gen1_duration.as_nanos());
-        debug!(timestamp_ns = ?t, gen1_duration_ns = ?self.gen1_duration.as_nanos(), ">>> last timestamp");
+        debug!(timestamp_ns = ?t, gen1_duration_ns = ?self.gen1_duration.as_nanos(), "last timestamp");
 
         // any wal period that has data before this time can be snapshot
         let periods_to_snapshot = self
@@ -122,7 +122,7 @@ impl SnapshotTracker {
             .take_while(|period| period.max_time < t)
             .cloned()
             .collect::<Vec<_>>();
-        debug!(?periods_to_snapshot, ">>> periods to snapshot");
+        debug!(?periods_to_snapshot, "periods to snapshot");
         let first_wal_file_number = periods_to_snapshot
             .iter()
             .peekable()
