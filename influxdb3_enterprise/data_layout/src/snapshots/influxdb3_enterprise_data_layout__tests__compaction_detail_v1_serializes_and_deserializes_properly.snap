@@ -1,0 +1,5 @@
+---
+source: influxdb3_enterprise/data_layout/src/lib.rs
+expression: serialized
+---
+"{\"version\":\"1\",\"db_name\":\"foo\",\"db_id\":0,\"table_name\":\"bar\",\"table_id\":0,\"sequence_number\":0,\"snapshot_markers\":[],\"compacted_generations\":[],\"leftover_gen1_files\":[]}"

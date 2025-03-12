@@ -15,13 +15,14 @@ use hashbrown::HashMap;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
 use influxdb3_config::EnterpriseConfig;
-use influxdb3_enterprise_data_layout::CompactionSummaryPath;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
-    CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary, Gen1File,
-    GenerationDetail, GenerationId, GenerationLevel, NodeSnapshotMarker,
+    CompactionConfig, CompactionDetail, CompactionSequenceNumber, CompactionSummary,
+    CompactionSummaryVersion, Gen1File, GenerationDetail, GenerationDetailVersion, GenerationId,
+    GenerationLevel, NodeSnapshotMarker,
 };
 use influxdb3_enterprise_data_layout::{CompactionDetailPath, GenerationDetailPath};
+use influxdb3_enterprise_data_layout::{CompactionDetailVersion, CompactionSummaryPath};
 use influxdb3_enterprise_data_layout::{
     Generation,
     persist::{
@@ -454,6 +455,8 @@ impl CompactedDataProducer {
                 detail.compacted_generations = existing.compacted_generations.clone();
             }
 
+            let detail = CompactionDetailVersion::V1(detail);
+
             // TODO: handle this failure, which will only occur if we can't serialize the JSON
             persist_compaction_detail(
                 Arc::clone(&self.compactor_id),
@@ -478,14 +481,14 @@ impl CompactedDataProducer {
             }
         }
 
-        let compaction_summary = CompactionSummary {
+        let compaction_summary = CompactionSummaryVersion::V1(CompactionSummary {
             compaction_sequence_number: next_sequence_number,
             catalog_sequence_number: self.compacted_data.catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
             last_generation_id: GenerationId::current(),
             snapshot_markers,
             compaction_details,
-        };
+        });
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_compaction_summary(
@@ -600,7 +603,7 @@ impl CompactedDataProducer {
             .unwrap_or(0);
 
         // write the generation detail to object store
-        let generation_detail = GenerationDetail {
+        let generation_detail = GenerationDetailVersion::V1(GenerationDetail {
             id: plan.output_generation.id,
             level: plan.output_generation.level,
             start_time_s: plan.output_generation.start_time_secs,
@@ -611,7 +614,7 @@ impl CompactedDataProducer {
                 .map(Arc::new)
                 .collect(),
             file_index: compactor_output.file_index,
-        };
+        });
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_generation_detail(
@@ -639,7 +642,7 @@ impl CompactedDataProducer {
         compacted_generations.push(plan.output_generation);
         compacted_generations.sort();
 
-        let compaction_detail = CompactionDetail {
+        let compaction_detail = CompactionDetailVersion::V1(CompactionDetail {
             db_name: Arc::clone(&plan.db_schema.name),
             db_id: plan.db_schema.id,
             table_name: Arc::clone(&plan.table_definition.table_name),
@@ -648,7 +651,7 @@ impl CompactedDataProducer {
             snapshot_markers,
             compacted_generations,
             leftover_gen1_files: plan.leftover_gen1_files,
-        };
+        });
 
         // TODO: handle this failure, which will only occur if we can't serialize the JSON
         persist_compaction_detail(
@@ -671,11 +674,12 @@ impl CompactedDataProducer {
                 continue;
             }
             let path = GenerationDetailPath::new(Arc::clone(&self.compactor_id), generation.id);
-            let Some(gen_detail) =
-                get_generation_detail(&path, Arc::clone(&self.object_store)).await
-            else {
-                continue;
-            };
+            let gen_detail =
+                match get_generation_detail(&path, Arc::clone(&self.object_store)).await {
+                    Some(GenerationDetailVersion::V1(gen_detail)) => gen_detail,
+
+                    None => continue,
+                };
             let mut lock = self.to_delete.lock();
             for file in &gen_detail.files {
                 lock.push(Path::from(file.path.clone()));
@@ -696,7 +700,7 @@ impl CompactedDataProducer {
             .into_inner(),
         );
 
-        let gen_details = vec![generation_detail];
+        let gen_details = vec![generation_detail.v1()];
         let file_index_with_new_parquet_gen_files = self
             .compacted_data
             .build_new_parquet_files_in_gen_and_file_index(
@@ -706,10 +710,11 @@ impl CompactedDataProducer {
                 &all_removed_gen_details,
             );
 
-        let _ = self.compacted_data.update_detail_with_generations(
-            compaction_detail,
-            file_index_with_new_parquet_gen_files,
-        );
+        let _ = match compaction_detail {
+            CompactionDetailVersion::V1(cd) => self
+                .compacted_data
+                .update_detail_with_generations(cd, file_index_with_new_parquet_gen_files),
+        };
 
         Ok(())
     }
@@ -805,7 +810,7 @@ impl CompactionState {
                 match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&obj_store))
                     .await?
                 {
-                    Some(summary) => summary,
+                    Some(CompactionSummaryVersion::V1(summary)) => summary,
                     None => {
                         // if there's no compaction summary, we initialize a new one with writers that have
                         // snapshot sequence numbers of zero, so that compaction can pick up all snapshots
@@ -821,19 +826,21 @@ impl CompactionState {
                             })
                             .collect::<Vec<_>>();
 
-                        let summary = CompactionSummary {
+                        let summary = CompactionSummaryVersion::V1(CompactionSummary {
                             compaction_sequence_number: CompactionSequenceNumber::new(0),
                             catalog_sequence_number: CatalogSequenceNumber::new(0),
                             last_file_id: ParquetFileId::from(0),
                             last_generation_id: GenerationId::from(0),
                             snapshot_markers,
                             compaction_details: SerdeVecMap::new(),
-                        };
+                        });
 
                         persist_compaction_summary(compactor_id, &summary, Arc::clone(&obj_store))
                             .await?;
 
-                        summary
+                        // We know this is a v1 summary so we can directly turn
+                        // it back into the right type
+                        summary.v1()
                     }
                 };
 
@@ -1264,7 +1271,7 @@ mod tests {
         // ensure the generation detail was persisted
         let generation_detail_path =
             GenerationDetailPath::new("compactor-1".into(), output_generation.id);
-        let generation_detail =
+        let GenerationDetailVersion::V1(generation_detail) =
             get_generation_detail(&generation_detail_path, Arc::clone(&object_store))
                 .await
                 .unwrap();
@@ -1282,7 +1289,7 @@ mod tests {
             table_definition.table_id,
             CompactionSequenceNumber::new(1),
         );
-        let persisted_compaction_detail =
+        let CompactionDetailVersion::V1(persisted_compaction_detail) =
             get_compaction_detail(&compaction_detail_path, Arc::clone(&object_store))
                 .await
                 .unwrap();

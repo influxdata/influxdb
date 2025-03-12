@@ -1,0 +1,5 @@
+---
+source: influxdb3_enterprise/data_layout/src/lib.rs
+expression: serialized
+---
+"{\"version\":\"1\",\"compaction_sequence_number\":0,\"catalog_sequence_number\":0,\"last_file_id\":0,\"last_generation_id\":0,\"snapshot_markers\":[],\"compaction_details\":[]}"

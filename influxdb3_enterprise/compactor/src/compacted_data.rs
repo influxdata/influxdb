@@ -5,8 +5,9 @@ use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::persist::{get_compaction_detail, get_generation_detail};
 use influxdb3_enterprise_data_layout::{
     CompactedDataSystemTableQueryResult, CompactionDetail, CompactionDetailPath,
-    CompactionSequenceNumber, CompactionSummary, GenerationDetail, GenerationDetailPath,
-    GenerationId, NodeSnapshotMarker, gen_time_string,
+    CompactionDetailVersion, CompactionSequenceNumber, CompactionSummary, CompactionSummaryVersion,
+    GenerationDetail, GenerationDetailPath, GenerationDetailVersion, GenerationId,
+    NodeSnapshotMarker, gen_time_string,
 };
 use influxdb3_enterprise_index::memory::{InMemoryFileIndex, ParquetFileMeta, ParquetMetaIndex};
 use influxdb3_id::{DbId, TableId};
@@ -74,8 +75,12 @@ impl CompactedData {
             })
     }
 
-    pub(crate) fn update_compaction_summary(&self, compaction_summary: CompactionSummary) {
-        self.inner_compacted_data.write().compaction_summary = Arc::new(compaction_summary);
+    pub(crate) fn update_compaction_summary(&self, compaction_summary: CompactionSummaryVersion) {
+        match compaction_summary {
+            CompactionSummaryVersion::V1(cs) => {
+                self.inner_compacted_data.write().compaction_summary = Arc::new(cs)
+            }
+        }
     }
 
     pub(crate) fn current_compaction_sequence_number(&self) -> CompactionSequenceNumber {
@@ -210,8 +215,9 @@ impl CompactedData {
         old_values
     }
 
-    pub(crate) fn update_compaction_detail(&self, compaction_detail: CompactionDetail) {
+    pub(crate) fn update_compaction_detail(&self, compaction_detail: CompactionDetailVersion) {
         let mut d = self.inner_compacted_data.write();
+        let CompactionDetailVersion::V1(compaction_detail) = compaction_detail;
         let db = d.databases.entry(compaction_detail.db_id).or_default();
         let compaction_detail = Arc::new(compaction_detail);
         let table = db
@@ -247,7 +253,7 @@ impl CompactedData {
                     table_id,
                     compaction_sequence_number,
                 );
-                let Some(compaction_detail) =
+                let Some(CompactionDetailVersion::V1(compaction_detail)) =
                     get_compaction_detail(&path, Arc::clone(&object_store)).await
                 else {
                     return Err(Error::CompactionDetailReadError(path.as_path().to_string()));
@@ -279,7 +285,9 @@ impl CompactedData {
                 }
 
                 while let Some(gen_detail) = gen_details.join_next().await {
-                    table.add_generation_detail(gen_detail??);
+                    match gen_detail?? {
+                        GenerationDetailVersion::V1(gd) => table.add_generation_detail(gd),
+                    }
                 }
 
                 Ok((compaction_detail_db_id, table))

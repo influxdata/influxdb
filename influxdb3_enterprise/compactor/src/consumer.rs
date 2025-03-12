@@ -8,7 +8,8 @@ use crate::sys_events::{CompactionEventStore, compaction_consumed};
 use anyhow::Context;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_enterprise_data_layout::{
-    CompactionDetailPath, GenerationDetail, GenerationDetailPath, GenerationId,
+    CompactionDetailPath, CompactionDetailVersion, CompactionSummaryVersion, GenerationDetail,
+    GenerationDetailPath, GenerationDetailVersion, GenerationId,
 };
 use influxdb3_enterprise_data_layout::{
     Generation,
@@ -60,7 +61,7 @@ impl CompactedDataConsumer {
                     .await
                     .context("error decoding comapction summary json")?
                 {
-                    Some(summary) => summary,
+                    Some(CompactionSummaryVersion::V1(summary)) => summary,
                     None => {
                         warn!(
                             "No compaction summary found for compactor id {}, retrying in 1 second",
@@ -163,9 +164,10 @@ impl CompactedDataConsumer {
                 *table_id,
                 *sequence_number,
             );
-            let compaction_detail = get_compaction_detail(&path, Arc::clone(&self.object_store))
-                .await
-                .context("compaction detail not found")?;
+            let CompactionDetailVersion::V1(compaction_detail) =
+                get_compaction_detail(&path, Arc::clone(&self.object_store))
+                    .await
+                    .context("compaction detail not found")?;
             let last_compaction_detail = self.compacted_data.compaction_detail(*db_id, *table_id);
 
             let (new_generations, removed_generations) = match last_compaction_detail {
@@ -276,7 +278,8 @@ impl CompactedDataConsumer {
             }
         }
 
-        self.compacted_data.update_compaction_summary(summary);
+        self.compacted_data
+            .update_compaction_summary(CompactionSummaryVersion::V1(summary));
 
         Ok(())
     }
@@ -302,7 +305,9 @@ impl CompactedDataConsumer {
         }
         while let Some(details) = join_set.join_next().await {
             let detail = details??;
-            generation_details.push(detail);
+            match detail {
+                GenerationDetailVersion::V1(gd) => generation_details.push(gd),
+            }
         }
         debug!(time_taken = ?start.elapsed(), ">>> time taken to load generation details");
         Ok(generation_details)
@@ -356,9 +361,9 @@ mod tests {
     async fn setup_compacted_data() -> (
         Arc<dyn ObjectStore>,
         Arc<Catalog>,
-        CompactionSummary,
-        CompactionDetail,
-        GenerationDetail,
+        CompactionSummaryVersion,
+        CompactionDetailVersion,
+        GenerationDetailVersion,
     ) {
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let cluster_id = Arc::<str>::from("test_cluster");
@@ -408,7 +413,7 @@ mod tests {
                 next_file_id: ParquetFileId::next_id(),
             }),
         ];
-        let summary = CompactionSummary {
+        let summary = CompactionSummaryVersion::V1(CompactionSummary {
             compaction_sequence_number,
             catalog_sequence_number: catalog.sequence_number(),
             last_file_id: ParquetFileId::next_id(),
@@ -417,7 +422,7 @@ mod tests {
             compaction_details: vec![((db.id, table1.table_id), compaction_sequence_number)]
                 .into_iter()
                 .collect(),
-        };
+        });
 
         let generation = Generation {
             id: GenerationId::new(),
@@ -425,7 +430,7 @@ mod tests {
             start_time_secs: 0,
             max_time: 0,
         };
-        let generation_detail = GenerationDetail {
+        let generation_detail = GenerationDetailVersion::V1(GenerationDetail {
             id: generation.id,
             level: GenerationLevel::two(),
             start_time_s: 0,
@@ -440,9 +445,9 @@ mod tests {
                 max_time: 0,
             })],
             file_index: Default::default(),
-        };
+        });
 
-        let detail = CompactionDetail {
+        let detail = CompactionDetailVersion::V1(CompactionDetail {
             db_name: "db1".into(),
             db_id: db.id,
             table_name: "table1".into(),
@@ -451,7 +456,7 @@ mod tests {
             snapshot_markers,
             compacted_generations: vec![generation],
             leftover_gen1_files: vec![],
-        };
+        });
 
         persist_generation_detail(
             Arc::clone(&cluster_id),
@@ -486,6 +491,9 @@ mod tests {
     #[test_log::test(tokio::test)]
     async fn loads_with_compacted_data() {
         let (object_store, catalog, summary, detail, generation) = setup_compacted_data().await;
+        let CompactionDetailVersion::V1(detail) = detail;
+        let CompactionSummaryVersion::V1(summary) = summary;
+        let GenerationDetailVersion::V1(generation) = generation;
         let db = catalog.db_schema("db1").unwrap();
         let table1 = db.table_definition("table1").unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
