@@ -578,17 +578,19 @@ impl ReplicatedBuffer {
             .max()
             .map(CatalogSequenceNumber::new)
         {
-            debug!(
-                catlog_sequence_from_wal = latest_catalog_sequence.get(),
-                current_catalog_sequence = self.catalog.sequence_number().get(),
-                catalog = ?self.catalog,
-                from_node = self.node_identifier_prefix,
-                "updating catalog for replica to latest from WAL"
-            );
-            self.catalog
+            let current_catalog_sequence = self.catalog.sequence_number().get();
+            if latest_catalog_sequence.get() > current_catalog_sequence {
+                debug!(
+                    catlog_sequence_from_wal = latest_catalog_sequence.get(),
+                    current_catalog_sequence = self.catalog.sequence_number().get(),
+                    from_node = self.node_identifier_prefix,
+                    "updating catalog for replica to latest from WAL"
+                );
+                self.catalog
                 .update_to_sequence_number(latest_catalog_sequence)
                 .await
                 .context("failed to update the catalog from latest sequence number found in replicated WAL file")?;
+            }
         }
 
         match wal_contents.snapshot {

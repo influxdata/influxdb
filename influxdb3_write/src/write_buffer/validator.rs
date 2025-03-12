@@ -12,7 +12,7 @@ use influxdb3_id::{DbId, TableId};
 use influxdb3_types::http::FieldDataType;
 use influxdb3_wal::{Field, FieldData, Gen1Duration, Row, TableChunks, WriteBatch};
 use iox_time::Time;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::trace;
 use schema::TIME_COLUMN_NAME;
 
 use super::Error;
@@ -97,7 +97,7 @@ impl WriteValidator<Initialized> {
     /// with name `db_name`. This initializes the database if it does not already exist.
     pub fn initialize(db_name: NamespaceName<'static>, catalog: Arc<Catalog>) -> Result<Self> {
         let txn = catalog.begin(db_name.as_str())?;
-        debug!(transaction = ?txn, ">>> initialize write validator");
+        trace!(transaction = ?txn, "initialize write validator");
         Ok(WriteValidator {
             state: Initialized { catalog, txn },
         })
