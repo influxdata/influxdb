@@ -691,7 +691,7 @@ impl Catalog {
             let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
             self.broadcast_update(batch);
             sequence_number = sequence_number.next();
-            if update_until.is_some_and(|max_sequence| sequence_number >= max_sequence) {
+            if update_until.is_some_and(|max_sequence| sequence_number > max_sequence) {
                 break;
             }
         }

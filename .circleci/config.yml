@@ -78,6 +78,17 @@ go_image: &go_image
   image: cimg/go:1.23
 
 
+# You can conditionally persist debug binaries for the build-dev job (so they
+# show up in the 'Artifacts' tab of the job) by:
+# 1. Go to https://app.circleci.com/pipelines/github/influxdata/influxdb?branch=<branch-name> (<- change this!)
+# 2. Click "Trigger Pipeline" in the top-right
+# 3. Adjust the "persist_debug" boolean parameter to true
+# 4. Click "Run Pipeline"
+parameters:
+  persist_debug:
+    type: boolean
+    default: false
+
 # Consistent environment setup for Python Build Standalone
 pbs_config: &pbs_config
   PBS_DATE: "20250212"
@@ -296,7 +307,7 @@ jobs:
   # Build a dev binary with the default cargo profile
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:d0c9ed7385866ceeb9c143bda0e2ea607bed0000eb73577d02f9e52e1bddc2d6
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -326,6 +337,23 @@ jobs:
           command: |
             target-env cargo build --target=<< parameters.target >> --workspace
       - when:
+          # this defaults to false, but can set it by triggering a pipeline (see above)
+          condition: << pipeline.parameters.persist_debug >>
+          steps:
+            - run:
+                name: tar and gzip debug build artifacts
+                command: |
+                  mkdir -p artifacts
+                  tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/debug" influxdb3{,.exe}
+                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+                  gzip "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar"
+            - store_artifacts:
+                path: artifacts
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - artifacts
+      - when:
           condition:
             not:
               equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
@@ -350,7 +378,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 pro releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:63726f571865bfb13232006bbca7aac42d2178f4c19a3526a7e5ee02ada836f8
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:d0c9ed7385866ceeb9c143bda0e2ea607bed0000eb73577d02f9e52e1bddc2d6
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
