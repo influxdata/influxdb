@@ -550,7 +550,7 @@ pub async fn command(config: Config) -> Result<()> {
         .register_node(
             &config.node_identifier_prefix,
             num_cpus as u64,
-            influxdb3_catalog::log::NodeMode::Core,
+            vec![influxdb3_catalog::log::NodeMode::Core],
         )
         .await?;
     let node_def = catalog

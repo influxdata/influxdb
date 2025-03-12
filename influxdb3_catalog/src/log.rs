@@ -45,6 +45,13 @@ impl CatalogBatch {
         })
     }
 
+    pub fn n_ops(&self) -> usize {
+        match self {
+            CatalogBatch::Node(node_batch) => node_batch.ops.len(),
+            CatalogBatch::Database(database_batch) => database_batch.ops.len(),
+        }
+    }
+
     pub fn as_database(&self) -> Option<&DatabaseBatch> {
         match self {
             CatalogBatch::Node(_) => None,
@@ -158,7 +165,7 @@ pub struct RegisterNodeLog {
     pub instance_id: Arc<str>,
     pub registered_time_ns: i64,
     pub core_count: u64,
-    pub mode: NodeMode,
+    pub mode: Vec<NodeMode>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]

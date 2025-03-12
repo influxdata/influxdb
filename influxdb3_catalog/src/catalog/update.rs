@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use schema::{InfluxColumnType, InfluxFieldType};
 use uuid::Uuid;
 
@@ -91,7 +91,7 @@ impl Catalog {
         &self,
         node_id: &str,
         core_count: u64,
-        mode: NodeMode,
+        mode: Vec<NodeMode>,
     ) -> Result<Option<OrderedCatalogBatch>> {
         self.catalog_update_with_retry(|| {
             let instance_id = if let Some(node) = self.node(node_id) {
@@ -129,7 +129,7 @@ impl Catalog {
                     instance_id,
                     registered_time_ns: time_ns,
                     core_count,
-                    mode,
+                    mode: mode.clone(),
                 })],
             ))
         })
@@ -607,17 +607,14 @@ impl Catalog {
             if let Some((ordered_batch, permit)) =
                 self.get_permit_and_verify_catalog_batch(&batch).await?
             {
-                debug!(?ordered_batch, "applied batch and got permit");
                 match self
                     .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                     .await?
                 {
                     UpdatePrompt::Retry => {
-                        debug!("retry after catalog persist attempt");
                         continue;
                     }
                     UpdatePrompt::Applied => {
-                        debug!("catalog persist attempt was applied");
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                         self.background_checkpoint(&ordered_batch);
                         self.broadcast_update(ordered_batch.clone().into_batch());
@@ -625,7 +622,7 @@ impl Catalog {
                     }
                 }
             } else {
-                debug!("applying batch did nothing");
+                debug!("verified batch but it does not change the catalog");
                 return Ok(None);
             }
         }
@@ -649,7 +646,7 @@ impl Catalog {
         ordered_batch: &OrderedCatalogBatch,
         permit: &CatalogWritePermit,
     ) -> Result<UpdatePrompt> {
-        debug!(?ordered_batch, "persisting ordered batch to store");
+        trace!(?ordered_batch, "persisting ordered batch to store");
         // TODO: maybe just an error?
         assert_eq!(
             ordered_batch.sequence_number(),
@@ -704,14 +701,14 @@ impl Catalog {
     /// Broadcast a `CatalogUpdate` to all subscribed components in the system.
     fn broadcast_update(&self, update: impl Into<CatalogUpdate>) {
         if let Err(send_error) = self.channel.send(Arc::new(update.into())) {
-            warn!(?send_error, "nothing listening for catalog updates");
+            info!("nothing listening for catalog updates");
+            trace!(?send_error, "nothing listening for catalog updates");
         }
     }
 
     /// Persist the catalog as a checkpoint in the background if we are at the _n_th sequence
     /// number.
     fn background_checkpoint(&self, ordered_batch: &OrderedCatalogBatch) {
-        debug!("background checkpoint");
         if ordered_batch.sequence_number().get() % self.store.checkpoint_interval != 0 {
             return;
         }
@@ -791,11 +788,15 @@ impl DatabaseCatalogTransaction {
         match self.database_schema.table_definition(table_name) {
             Some(def) => Ok(def),
             None => {
-                debug!(table_name, "create new table");
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
                 let db_schema = Arc::make_mut(&mut self.database_schema);
                 let table_def = db_schema.create_new_empty_table(table_name)?;
+                debug!(
+                    table_name,
+                    table_id = table_def.table_id.get(),
+                    "create new table"
+                );
                 self.ops
                     .push(DatabaseCatalogOp::CreateTable(CreateTableLog {
                         database_id,
@@ -834,7 +835,12 @@ impl DatabaseCatalogTransaction {
                 let table_name = Arc::clone(&table_def.table_name);
                 let mut table_def = table_def.as_ref().clone();
                 let new_col_id = table_def.add_column(column_name.into(), column_type.into())?;
-                debug!(next_col_id = table_def.next_column_id.get(), "next col id");
+                debug!(
+                    table_name = table_name.as_ref(),
+                    column_name,
+                    column_id = new_col_id.get(),
+                    "create new column"
+                );
                 self.ops.push(DatabaseCatalogOp::AddFields(AddFieldsLog {
                     database_name,
                     database_id,
