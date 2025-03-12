@@ -14,13 +14,16 @@ use std::{cmp::Ordering, sync::Arc};
 
 use crate::hash_for_index;
 
-#[derive(Debug, Eq, PartialEq, Default)]
-pub struct FileIndex {
-    index: HashMap<(u64, u64), Vec<ParquetFileMeta>>,
-    parquet_files: HashMap<ParquetFileId, Arc<ParquetFile>>,
+pub type ParquetMetaIndex = HashMap<(u64, u64), Vec<ParquetFileMeta>>;
+pub type ParquetFileIndex = HashMap<ParquetFileId, Arc<ParquetFile>>;
+
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
+pub struct InMemoryFileIndex {
+    pub index: ParquetMetaIndex,
+    pub parquet_files: ParquetFileIndex,
 }
 
-impl FileIndex {
+impl InMemoryFileIndex {
     pub fn append(
         &mut self,
         column_name: &str,
@@ -57,6 +60,10 @@ impl FileIndex {
             });
         }
         parquet_file_metas.sort();
+    }
+
+    pub fn clone_meta_index(&self) -> ParquetMetaIndex {
+        self.index.clone()
     }
 
     pub fn remove_older_gen_parquet_metas<'a>(
@@ -268,10 +275,24 @@ impl AsStringLiteral for ScalarValue {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-struct ParquetFileMeta {
+pub struct ParquetFileMeta {
     id: ParquetFileId,
     min_time: i64,
     max_time: i64,
+}
+
+impl ParquetFileMeta {
+    pub fn new(id: ParquetFileId, min_time: i64, max_time: i64) -> Self {
+        Self {
+            id,
+            min_time,
+            max_time,
+        }
+    }
+
+    pub fn eq_id(&self, other_id: ParquetFileId) -> bool {
+        self.id.as_u64() == other_id.as_u64()
+    }
 }
 
 // impl Ord and PartialOrd for ParquetFileMeta so that we can sort the list of ParquetFileMeta by id
@@ -375,7 +396,7 @@ mod tests {
         // a column name/value pair, e.g., "host"/"A", along with a min time and max time of the
         // generation indexed, as well as a set of parquet file ids that are in that generation
         // that are associated with the column/name value pair:
-        let mut file_index = FileIndex::default();
+        let mut file_index = InMemoryFileIndex::default();
         for (column, value, min_time, max_time, file_ids) in [
             ("host", "A", 0, 100, vec![1]),
             ("host", "A", 101, 200, vec![2]),
