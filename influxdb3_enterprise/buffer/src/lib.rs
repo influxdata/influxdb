@@ -135,7 +135,7 @@ impl<Mode: WriteBuffer> WriteBuffer for WriteBufferEnterprise<Mode> {}
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use datafusion::assert_batches_sorted_eq;
+    use datafusion::{assert_batches_sorted_eq, datasource::MemTable};
     use datafusion_util::config::register_iox_object_store;
     use futures::future::try_join_all;
     use influxdb3_cache::{
@@ -872,8 +872,47 @@ mod tests {
         }
 
         // kill our write loops
-        for handle in write_loop_handles {
+        for handle in &write_loop_handles {
             handle.abort();
+        }
+
+        // wait for them to fully close
+        for handle in write_loop_handles {
+            assert!(handle.await.unwrap_err().is_cancelled());
+        }
+
+        // check that each write buffer is still replaying writes from the other:
+        for write_buffer in &write_buffers {
+            let ctx = IOxSessionContext::with_testing();
+            let batches = write_buffer
+                .get_record_batches_unchecked("movie_ratings", "movies", &ctx)
+                .await;
+            ctx.inner()
+                .register_table(
+                    "movies",
+                    Arc::new(
+                        MemTable::try_new(batches.first().unwrap().schema(), vec![batches])
+                            .unwrap(),
+                    ),
+                )
+                .unwrap();
+            for query_str in [
+                "SELECT * FROM movies WHERE source = 0",
+                "SELECT * FROM movies WHERE source = 1",
+            ] {
+                let batches = ctx
+                    .inner()
+                    .sql(query_str)
+                    .await
+                    .unwrap()
+                    .collect()
+                    .await
+                    .unwrap();
+                assert!(
+                    batches.iter().any(|b| b.num_rows() > 0),
+                    "there should be rows for source 1 in writer 0, due to replication"
+                );
+            }
         }
     }
 }
