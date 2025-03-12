@@ -93,6 +93,24 @@ ERROR: found unexpected dynamically linked libraries! This may
 EOF
       exit 2
     fi
+
+    CUR_LATEST="$(readelf -s "$(which influxdb3)" | grep @GLIBC_ | sed 's/@@/@/' | cut -d @ -f 2 | cut -d ' ' -f 1 | cut -d _ -f 2 | grep -E '^[0-9]+\.[0-9][0-9.]*[0-9]$' | sort -uV | tail -1)" || true
+    if [ -z "$CUR_LATEST" ]; then
+        cat <<EOF
+ERROR: could not find any GLIBC symbols! The GLIBC compatibility
+       cannot be determined.
+EOF
+        exit 2
+    fi
+
+    MAX_VERSION="2.23"  # the portability we desire
+    if [[ $(printf '%s\n%s\n' "$CUR_LATEST" "$MAX_VERSION" | sort -V | tail -n 1) != "$MAX_VERSION" ]]; then
+        cat <<EOF
+ERROR: found GLIBC symbol version $CUR_LATEST > $MAX_VERSION. This will
+       prevent platforms with GLIBC < $CUR_LATEST from working.
+EOF
+        exit 2
+    fi
   else
     # if no libpython, then complain if any are NEEDED
     cat <<'EOF'
