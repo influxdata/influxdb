@@ -3,7 +3,7 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::common::Result;
 use datafusion::logical_expr::Expr;
-use influxdb3_catalog::log::CreateTriggerLog;
+use influxdb3_catalog::log::TriggerDefinition;
 use influxdb3_py_api::logging::ProcessingEngineLog;
 use influxdb3_sys_events::{SysEventStore, ToRecordBatch};
 use iox_system_tables::IoxSystemTable;
@@ -12,11 +12,11 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub(super) struct ProcessingEngineTriggerTable {
     schema: SchemaRef,
-    triggers: Vec<CreateTriggerLog>,
+    triggers: Vec<Arc<TriggerDefinition>>,
 }
 
 impl ProcessingEngineTriggerTable {
-    pub(super) fn new(triggers: Vec<CreateTriggerLog>) -> Self {
+    pub(super) fn new(triggers: Vec<Arc<TriggerDefinition>>) -> Self {
         Self {
             schema: trigger_schema(),
             triggers,
@@ -48,7 +48,7 @@ impl IoxSystemTable for ProcessingEngineTriggerTable {
         let trigger_column = self
             .triggers
             .iter()
-            .map(|trigger| Some(trigger.trigger_name.clone()))
+            .map(|trigger| Some(trigger.trigger_name.as_ref()))
             .collect::<StringArray>();
         let plugin_column = self
             .triggers

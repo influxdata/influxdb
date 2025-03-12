@@ -3036,6 +3036,7 @@ dependencies = [
  "reqwest 0.11.27",
  "serde_json",
  "tempfile",
+ "test-log",
  "thiserror 1.0.69",
  "tokio",
 ]

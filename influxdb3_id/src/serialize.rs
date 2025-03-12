@@ -221,4 +221,11 @@ mod tests {
         let d: SerdeVecMap<u32, &str> = serde_json::from_str(&s).unwrap();
         assert_eq!(d, serde_vec_map);
     }
+
+    #[test]
+    fn test_no_duplicates() {
+        let json_str = r#"[[0, "foo"], [0, "bar"]]"#;
+        let err = serde_json::from_str::<SerdeVecMap<u8, &str>>(json_str).unwrap_err();
+        assert!(err.to_string().contains("duplicate key found"));
+    }
 }

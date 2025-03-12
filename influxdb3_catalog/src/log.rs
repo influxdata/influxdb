@@ -12,7 +12,7 @@ use cron::Schedule;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use influxdb_line_protocol::FieldValue;
-use influxdb3_id::{ColumnId, DbId, TableId};
+use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TriggerId};
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
@@ -27,8 +27,18 @@ pub enum CatalogBatch {
 }
 
 impl CatalogBatch {
-    pub fn node(time_ns: i64, ops: Vec<NodeCatalogOp>) -> Self {
-        Self::Node(NodeBatch { time_ns, ops })
+    pub fn node(
+        time_ns: i64,
+        node_catalog_id: NodeId,
+        node_id: impl Into<Arc<str>>,
+        ops: Vec<NodeCatalogOp>,
+    ) -> Self {
+        Self::Node(NodeBatch {
+            time_ns,
+            node_catalog_id,
+            node_id: node_id.into(),
+            ops,
+        })
     }
 
     pub fn database(
@@ -70,6 +80,8 @@ impl CatalogBatch {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct NodeBatch {
     pub time_ns: i64,
+    pub node_catalog_id: NodeId,
+    pub node_id: Arc<str>,
     pub ops: Vec<NodeCatalogOp>,
 }
 
@@ -136,20 +148,20 @@ pub enum DatabaseCatalogOp {
     SoftDeleteTable(SoftDeleteTableLog),
     AddFields(AddFieldsLog),
     // Distinct cache ops:
-    CreateDistinctCache(CreateDistinctCacheLog),
+    CreateDistinctCache(DistinctCacheDefinition),
     DeleteDistinctCache(DeleteDistinctCacheLog),
     // Last cache ops:
-    CreateLastCache(CreateLastCacheLog),
+    CreateLastCache(LastCacheDefinition),
     DeleteLastCache(DeleteLastCacheLog),
     // Plugin trigger ops:
-    CreateTrigger(CreateTriggerLog),
+    CreateTrigger(TriggerDefinition),
     DeleteTrigger(DeleteTriggerLog),
     EnableTrigger(TriggerIdentifier),
     DisableTrigger(TriggerIdentifier),
 }
 
 impl DatabaseCatalogOp {
-    pub fn to_create_last_cache(self) -> Option<CreateLastCacheLog> {
+    pub fn to_create_last_cache(self) -> Option<LastCacheDefinition> {
         match self {
             DatabaseCatalogOp::CreateLastCache(create_last_cache_log) => {
                 Some(create_last_cache_log)
@@ -289,11 +301,13 @@ impl<'a> From<&FieldValue<'a>> for FieldDataType {
 
 /// Defines a last cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct CreateLastCacheLog {
+pub struct LastCacheDefinition {
     /// The table id the cache is associated with
     pub table_id: TableId,
     /// The table name the cache is associated with
     pub table: Arc<str>,
+    /// The last cache id scoped to parent table
+    pub id: LastCacheId,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -306,64 +320,15 @@ pub struct CreateLastCacheLog {
     pub ttl: LastCacheTtl,
 }
 
-impl CreateLastCacheLog {
-    /// Create a new last value cache with explicit value columns
-    ///
-    /// This is intended for tests and expects that the column id for the time
-    /// column is included in the value columns argument.
-    pub fn new_with_explicit_value_columns(
-        table_id: TableId,
-        table: impl Into<Arc<str>>,
-        name: impl Into<Arc<str>>,
-        key_columns: Vec<ColumnId>,
-        value_columns: Vec<ColumnId>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self> {
-        Ok(Self {
-            table_id,
-            table: table.into(),
-            name: name.into(),
-            key_columns,
-            value_columns: LastCacheValueColumnsDef::Explicit {
-                columns: value_columns,
-            },
-            count: count.try_into()?,
-            ttl: LastCacheTtl::from_secs(ttl),
-        })
-    }
-
-    /// Create a new last value cache with explicit value columns
-    ///
-    /// This is intended for tests.
-    pub fn new_all_non_key_value_columns(
-        table_id: TableId,
-        table: impl Into<Arc<str>>,
-        name: impl Into<Arc<str>>,
-        key_columns: Vec<ColumnId>,
-        count: usize,
-        ttl: u64,
-    ) -> Result<Self> {
-        Ok(Self {
-            table_id,
-            table: table.into(),
-            name: name.into(),
-            key_columns,
-            value_columns: LastCacheValueColumnsDef::AllNonKeyColumns,
-            count: count.try_into()?,
-            ttl: LastCacheTtl::from_secs(ttl),
-        })
-    }
-}
-
 /// A last cache will either store values for an explicit set of columns, or will accept all
 /// non-key columns
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LastCacheValueColumnsDef {
     /// Explicit list of column names
     Explicit { columns: Vec<ColumnId> },
     /// Stores all non-key columns
+    #[default]
     AllNonKeyColumns,
 }
 
@@ -511,18 +476,21 @@ impl Default for LastCacheTtl {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DeleteLastCacheLog {
-    pub table_name: Arc<str>,
     pub table_id: TableId,
+    pub table_name: Arc<str>,
+    pub id: LastCacheId,
     pub name: Arc<str>,
 }
 
 /// Defines a distinct value cache in a given table and database
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct CreateDistinctCacheLog {
+pub struct DistinctCacheDefinition {
     /// The id of the associated table
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
+    /// The cache id in the catalog scoped to its parent table
+    pub cache_id: DistinctCacheId,
     /// The name of the cache, is unique within the associated table
     pub cache_name: Arc<str>,
     /// The ids of columns tracked by this distinct value cache, in the defined order
@@ -632,8 +600,9 @@ impl MaxAge {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DeleteDistinctCacheLog {
-    pub table_name: Arc<str>,
     pub table_id: TableId,
+    pub table_name: Arc<str>,
+    pub cache_id: DistinctCacheId,
     pub cache_name: Arc<str>,
 }
 
@@ -669,8 +638,9 @@ impl Deref for ValidPluginFilename<'_> {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct CreateTriggerLog {
-    pub trigger_name: String,
+pub struct TriggerDefinition {
+    pub trigger_id: TriggerId,
+    pub trigger_name: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
     pub trigger: TriggerSpecificationDefinition,
@@ -700,15 +670,18 @@ pub enum ErrorBehavior {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct DeleteTriggerLog {
-    pub trigger_name: String,
+    pub trigger_id: TriggerId,
+    pub trigger_name: Arc<str>,
     #[serde(default)]
     pub force: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct TriggerIdentifier {
-    pub db_name: String,
-    pub trigger_name: String,
+    pub db_id: DbId,
+    pub db_name: Arc<str>,
+    pub trigger_id: TriggerId,
+    pub trigger_name: Arc<str>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]

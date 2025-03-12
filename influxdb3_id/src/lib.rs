@@ -1,10 +1,17 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod serialize;
 pub use serialize::SerdeVecMap;
+
+pub trait CatalogId: Default + Hash + Eq + Copy + Ord + Serialize {
+    type Integer;
+
+    fn next(&self) -> Self;
+}
 
 macro_rules! catalog_identifier_type {
     ($name:ident, $ty:ty) => {
@@ -13,13 +20,17 @@ macro_rules! catalog_identifier_type {
         )]
         pub struct $name($ty);
 
+        impl CatalogId for $name {
+            type Integer = $ty;
+
+            fn next(&self) -> Self {
+                Self::new(self.0.checked_add(1).expect("incrementing id overflow"))
+            }
+        }
+
         impl $name {
             pub fn new(id: $ty) -> Self {
                 Self(id)
-            }
-
-            pub fn next(&self) -> Self {
-                Self::from(self.0.checked_add(1).expect("incrementing id overflow"))
             }
 
             pub fn get(&self) -> $ty {
@@ -28,8 +39,8 @@ macro_rules! catalog_identifier_type {
         }
 
         impl From<$ty> for $name {
-            fn from(value: $ty) -> Self {
-                Self(value)
+            fn from(int: $ty) -> Self {
+                Self::new(int)
             }
         }
 
@@ -48,9 +59,13 @@ macro_rules! catalog_identifier_type {
     };
 }
 
+catalog_identifier_type!(NodeId, u32);
 catalog_identifier_type!(DbId, u32);
 catalog_identifier_type!(TableId, u32);
+catalog_identifier_type!(TriggerId, u32);
 catalog_identifier_type!(ColumnId, u16);
+catalog_identifier_type!(LastCacheId, u16);
+catalog_identifier_type!(DistinctCacheId, u16);
 
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);

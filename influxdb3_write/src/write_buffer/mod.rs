@@ -702,9 +702,21 @@ mod tests {
 
         assert_eq!(db.tables.len(), 2);
         // cpu table
-        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(0))
+                .unwrap()
+                .num_columns(),
+            3
+        );
         // foo table
-        assert_eq!(db.tables.get(&TableId::from(1)).unwrap().num_columns(), 2);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(1))
+                .unwrap()
+                .num_columns(),
+            2
+        );
     }
 
     #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
@@ -2865,7 +2877,13 @@ mod tests {
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
 
         assert_eq!(db.tables.len(), 1);
-        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(0))
+                .unwrap()
+                .num_columns(),
+            3
+        );
 
         let lp = "test_table,tag1=bar field0=1";
         WriteValidator::initialize(db_name, Arc::clone(&catalog))
@@ -2885,7 +2903,7 @@ mod tests {
 
         assert_eq!(db.tables.len(), 1);
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
-        let table = db.tables.get(&TableId::from(0)).unwrap();
+        let table = db.tables.get_by_id(&TableId::from(0)).unwrap();
         assert_eq!(table.num_columns(), 4);
         assert_eq!(table.series_key.len(), 2);
         assert_eq!(table.series_key[0], ColumnId::from(0));
