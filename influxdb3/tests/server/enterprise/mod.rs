@@ -14,7 +14,6 @@ pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
     cluster_id: Option<String>,
     node_id: Option<String>,
-    read_from_node_ids: Vec<String>,
     compact_from_node_ids: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<Vec<BufferMode>>,
@@ -48,12 +47,6 @@ impl ConfigProvider for TestConfigEnterprise {
                     .collect::<Vec<_>>()
                     .join(","),
             ]);
-        }
-        if !self.read_from_node_ids.is_empty() {
-            args.append(&mut vec![
-                "--read-from-node-ids".to_string(),
-                self.read_from_node_ids.join(","),
-            ])
         }
         if !self.compact_from_node_ids.is_empty() {
             args.append(&mut vec![
@@ -126,16 +119,6 @@ impl TestConfigEnterprise {
     /// Set the buffer mode for the spawned server
     pub fn with_mode(mut self, mode: Vec<BufferMode>) -> Self {
         self.mode = Some(mode);
-        self
-    }
-
-    /// Give a set of host identifier prefixes to be replicated by this server
-    pub fn with_read_from_node_ids(
-        mut self,
-        read_from_node_ids: impl IntoIterator<Item: Into<String>>,
-    ) -> Self {
-        self.read_from_node_ids
-            .extend(read_from_node_ids.into_iter().map(Into::into));
         self
     }
 

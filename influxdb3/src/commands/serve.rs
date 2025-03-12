@@ -10,6 +10,7 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_catalog::log::NodeModes;
 use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
@@ -710,6 +711,21 @@ pub async fn command(config: Config) -> Result<()> {
     compactor_datafusion_config.use_cached_parquet_loader = false;
     let compactor_datafusion_config = Arc::new(compactor_datafusion_config.build());
 
+    // TODO: remove the following once all tests are consistently passing without having to wait
+    // for new nodes to come online
+    //tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // TODO: figure out if we need to exclude the current node id from this vec
+    let read_from_node_ids: Vec<String> = catalog
+        .list_nodes()
+        .iter()
+        .filter_map(|nd| {
+            NodeModes::from(nd.as_ref().modes().clone())
+                .is_ingester()
+                .then_some(nd.node_id().to_string())
+        })
+        .collect();
+
     if let Some(compactor_id) = config.enterprise_config.compactor_id {
         if config.enterprise_config.run_compactions {
             let compaction_config = CompactionConfig::new(
@@ -735,9 +751,7 @@ pub async fn command(config: Config) -> Result<()> {
                 }
             } else {
                 let mut node_ids = vec![config.node_identifier_prefix.clone()];
-                if let Some(read_from_node_ids) = &config.enterprise_config.read_from_node_ids {
-                    node_ids.extend(read_from_node_ids.iter().cloned());
-                }
+                node_ids.extend(read_from_node_ids.iter().cloned());
                 node_ids
             };
 
@@ -801,17 +815,14 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .map_err(Error::InitializeDistinctCache)?;
 
-    let replica_config = config.enterprise_config.read_from_node_ids.map(|node_ids| {
-        ReplicationConfig::new(
-            config.enterprise_config.replication_interval.into(),
-            node_ids.into(),
-        )
-    });
-
     let query_args = buffer_modes
         .is_querier()
-        .then_some(replica_config)
-        .flatten()
+        .then(|| {
+            ReplicationConfig::new(
+                config.enterprise_config.replication_interval.into(),
+                read_from_node_ids,
+            )
+        })
         .map(|rc| QueryArgs {
             replication_config: rc,
         });

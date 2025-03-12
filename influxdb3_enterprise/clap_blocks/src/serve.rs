@@ -19,24 +19,6 @@ pub struct EnterpriseServeConfig {
     #[clap(long = "mode", value_enum, default_values = vec!["all"], env = "INFLUXDB3_ENTERPRISE_MODE", value_delimiter=',')]
     pub mode: Vec<BufferMode>,
 
-    /// Comma-separated list of node identifier prefixes, i.e., `node-id`s to read WAL files from
-    ///
-    /// Each node in the list will have its data queryable by this server by checking for new WAL files produced
-    /// by that node on object storage on the interval specified by the `replication-interval` option.
-    ///
-    /// If `run-compactions` is set to true, this node list, if provided, will also serve as
-    /// the list of nodes to compact data from.
-    ///
-    /// If the reader for any given node fails to initialize, the server will not start.
-    #[clap(
-        long = "read-from-node-ids",
-        // TODO: this alias should be deprecated
-        alias = "replicas",
-        env = "INFLUXDB3_ENTERPRISE_READ_FROM_NODE_IDS",
-        action
-    )]
-    pub read_from_node_ids: Option<NodeIdList>,
-
     /// The interval at which each reader specified in the `read-from-node-ids` option will be replicated
     #[clap(
         long = "replication-interval",
@@ -179,6 +161,7 @@ pub enum BufferMode {
     #[default]
     All,
 }
+
 impl std::fmt::Display for BufferMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

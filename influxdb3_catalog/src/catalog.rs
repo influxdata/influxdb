@@ -216,6 +216,15 @@ impl Catalog {
         self.inner.read().nodes.get(node_id).cloned()
     }
 
+    pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
+        self.inner
+            .read()
+            .nodes
+            .iter()
+            .map(|v| Arc::clone(v.1))
+            .collect()
+    }
+
     pub fn next_db_id(&self) -> DbId {
         self.inner.read().get_next_id()
     }
@@ -580,6 +589,14 @@ pub struct NodeDefinition {
 impl NodeDefinition {
     pub fn instance_id(&self) -> Arc<str> {
         Arc::clone(&self.instance_id)
+    }
+
+    pub fn node_id(&self) -> Arc<str> {
+        Arc::clone(&self.node_id)
+    }
+
+    pub fn modes(&self) -> &Vec<NodeMode> {
+        &self.mode
     }
 }
 

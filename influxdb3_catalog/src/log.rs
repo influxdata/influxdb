@@ -1,5 +1,6 @@
 use std::{
     cmp::{Ord, PartialOrd},
+    collections::{BTreeSet, btree_set},
     num::NonZeroUsize,
     ops::Deref,
     str::FromStr,
@@ -168,7 +169,7 @@ pub struct RegisterNodeLog {
     pub mode: Vec<NodeMode>,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Hash, PartialOrd, Ord)]
 pub enum NodeMode {
     Core,
     // Enterprise Only:
@@ -177,6 +178,49 @@ pub enum NodeMode {
     Compact,
     Process,
     All,
+}
+
+#[derive(Clone, Debug)]
+pub struct NodeModes(BTreeSet<NodeMode>);
+
+impl From<Vec<NodeMode>> for NodeModes {
+    fn from(ns: Vec<NodeMode>) -> Self {
+        let mut s = BTreeSet::new();
+
+        for n in ns {
+            s.insert(n);
+        }
+
+        NodeModes(s)
+    }
+}
+
+impl NodeModes {
+    pub fn is_compactor(&self) -> bool {
+        self.0.contains(&NodeMode::Compact) || self.0.contains(&NodeMode::All)
+    }
+
+    pub fn is_ingester(&self) -> bool {
+        self.0.contains(&NodeMode::Ingest) || self.0.contains(&NodeMode::All)
+    }
+
+    pub fn is_querier(&self) -> bool {
+        self.0.contains(&NodeMode::Query)
+            || self.0.contains(&NodeMode::All)
+            || self.0.contains(&NodeMode::Process)
+    }
+
+    pub fn contains(&self, mode: &NodeMode) -> bool {
+        self.0.contains(mode)
+    }
+
+    pub fn contains_only(&self, mode: &NodeMode) -> bool {
+        self.0.len() == 1 && self.0.contains(mode)
+    }
+
+    pub fn into_iter(&self) -> btree_set::IntoIter<NodeMode> {
+        self.0.clone().into_iter()
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
