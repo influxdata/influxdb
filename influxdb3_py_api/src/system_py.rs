@@ -366,6 +366,18 @@ class LineBuilder:
         if '=' in key:
             raise InvalidKeyError(f"{key_type} key '{key}' cannot contain equals signs")
 
+    def _escape_measurement(self, value: str) -> str:
+        """Escape characters in measurement names according to line protocol."""
+        return value.replace(',', '\\,').replace(' ', '\\ ')
+
+    def _escape_tag_value(self, value: str) -> str:
+        """Escape characters in tag values according to line protocol."""
+        return value.replace('\\', '\\\\').replace(',', '\\,').replace('=', '\\=').replace(' ', '\\ ')
+
+    def _escape_field_key(self, value: str) -> str:
+        """Escape characters in field keys according to line protocol."""
+        return value.replace('\\', '\\\\').replace(',', '\\,').replace('=', '\\=').replace(' ', '\\ ')
+
     def tag(self, key: str, value: str) -> 'LineBuilder':
         """Add a tag to the line protocol."""
         self._validate_key(key, "tag")
@@ -397,7 +409,7 @@ class LineBuilder:
         """Add a string field to the line protocol."""
         self._validate_key(key, "field")
         # Escape quotes and backslashes in string values
-        escaped_value = value.replace('"', '\\"').replace('\\', '\\\\')
+        escaped_value = value.replace('\\', '\\\\').replace('"', '\\"')
         self.fields[key] = f'"{escaped_value}"'
         return self
 
@@ -414,13 +426,14 @@ class LineBuilder:
 
     def build(self) -> str:
         """Build the line protocol string."""
-        # Start with measurement name (escape commas only)
-        line = self.measurement.replace(',', '\\,')
+        # Start with measurement name (escape commas and spaces)
+        line = self._escape_measurement(self.measurement)
 
         # Add tags if present
         if self.tags:
             tags_str = ','.join(
-                f"{k}={v}" for k, v in self.tags.items()
+                f"{key}={self._escape_tag_value(value)}"
+                for key, value in self.tags.items()
             )
             line += f",{tags_str}"
 
@@ -429,7 +442,8 @@ class LineBuilder:
             raise InvalidLineError(f"At least one field is required: {line}")
 
         fields_str = ','.join(
-            f"{k}={v}" for k, v in self.fields.items()
+            f"{self._escape_field_key(key)}={value}"
+            for key, value in self.fields.items()
         )
         line += f" {fields_str}"
 
