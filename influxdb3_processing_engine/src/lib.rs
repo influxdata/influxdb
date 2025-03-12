@@ -14,6 +14,7 @@ use influxdb3_catalog::log::{
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
+use influxdb3_py_api::system_py::CacheStore;
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_types::http::{
     SchedulePluginTestRequest, SchedulePluginTestResponse, WalPluginTestRequest,
@@ -23,10 +24,11 @@ use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
 use observability_deps::tracing::{debug, error, warn};
+use parking_lot::Mutex;
 use std::any::Any;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
@@ -45,6 +47,7 @@ pub struct ProcessingEngineManagerImpl {
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
     sys_event_store: Arc<SysEventStore>,
+    cache: Arc<Mutex<CacheStore>>,
     plugin_event_tx: RwLock<PluginChannels>,
 }
 
@@ -210,7 +213,6 @@ impl ProcessingEngineManagerImpl {
         sys_event_store: Arc<SysEventStore>,
     ) -> Arc<Self> {
         // if given a plugin dir, try to initialize the virtualenv.
-
         if let Some(plugin_dir) = &environment.plugin_dir {
             {
                 environment
@@ -223,6 +225,11 @@ impl ProcessingEngineManagerImpl {
 
         let catalog_sub = catalog.subscribe_to_updates();
 
+        let cache = Arc::new(Mutex::new(CacheStore::new(
+            Arc::clone(&time_provider),
+            Duration::from_secs(10),
+        )));
+
         let pem = Arc::new(Self {
             environment_manager: environment,
             catalog,
@@ -231,6 +238,7 @@ impl ProcessingEngineManagerImpl {
             sys_event_store,
             time_provider,
             plugin_event_tx: Default::default(),
+            cache,
         });
 
         background_catalog_update(Arc::clone(&pem), catalog_sub);
@@ -315,7 +323,7 @@ impl LocalPlugin {
     fn read_if_modified(&self) -> Arc<str> {
         let metadata = std::fs::metadata(&self.plugin_path);
 
-        let mut last_read_and_code = self.last_read_and_code.lock().unwrap();
+        let mut last_read_and_code = self.last_read_and_code.lock();
         let (last_read, code) = &mut *last_read_and_code;
 
         match metadata {
@@ -444,10 +452,6 @@ impl ProcessingEngineManagerImpl {
                 database_name: db_name.to_string(),
                 trigger_name: trigger_name.to_string(),
             })?;
-        // Already disabled, so this is a no-op
-        if trigger.disabled {
-            return Ok(());
-        };
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
@@ -474,6 +478,9 @@ impl ProcessingEngineManagerImpl {
                 &trigger.trigger,
             );
         }
+        self.cache
+            .lock()
+            .drop_trigger_cache(db_name.to_string(), trigger_name.to_string());
 
         Ok(())
     }
@@ -498,15 +505,23 @@ impl ProcessingEngineManagerImpl {
             let now = self.time_provider.now();
 
             let code = self.read_plugin_code(&request.filename).await?;
+            let cache = Arc::clone(&self.cache);
             let code_string = code.code().to_string();
 
             let res = tokio::task::spawn_blocking(move || {
-                plugins::run_test_wal_plugin(now, catalog, query_executor, code_string, request)
-                    .unwrap_or_else(|e| WalPluginTestResponse {
-                        log_lines: vec![],
-                        database_writes: Default::default(),
-                        errors: vec![e.to_string()],
-                    })
+                plugins::run_test_wal_plugin(
+                    now,
+                    catalog,
+                    query_executor,
+                    code_string,
+                    cache,
+                    request,
+                )
+                .unwrap_or_else(|e| WalPluginTestResponse {
+                    log_lines: vec![],
+                    database_writes: Default::default(),
+                    errors: vec![e.to_string()],
+                })
             })
             .await?;
 
@@ -525,6 +540,7 @@ impl ProcessingEngineManagerImpl {
 
             let code = self.read_plugin_code(&request.filename).await?;
             let code_string = code.code().to_string();
+            let cache = Arc::clone(&self.cache);
 
             let res = tokio::task::spawn_blocking(move || {
                 plugins::run_test_schedule_plugin(
@@ -532,6 +548,7 @@ impl ProcessingEngineManagerImpl {
                     catalog,
                     query_executor,
                     code_string,
+                    cache,
                     request,
                 )
             })
