@@ -336,7 +336,7 @@ impl<'a> ChunkFilter<'a> {
     /// This method analyzes the incoming `exprs` to determine if there are any filters on the
     /// `time` column and attempt to derive the boundaries on `time` from the query.
     pub fn new(table_def: &Arc<TableDefinition>, exprs: &'a [Expr]) -> Result<Self> {
-        debug!(input = ?exprs, ">>> creating chunk filter");
+        debug!(input = ?exprs, "creating chunk filter");
         let mut time_interval: Option<Interval> = None;
         let arrow_schema = table_def.schema.as_arrow();
         let time_col_index = arrow_schema
