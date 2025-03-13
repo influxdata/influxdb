@@ -216,11 +216,12 @@ impl From<DatabaseSnapshot> for DatabaseSchema {
                     CreateTriggerLog {
                         trigger_name: trigger.trigger_name,
                         plugin_filename: trigger.plugin_filename,
+                        database_name: trigger.database_name,
+                        node_id: trigger.node_id,
                         trigger: serde_json::from_str(&trigger.trigger_specification).unwrap(),
                         trigger_settings: trigger.trigger_settings,
                         trigger_arguments: trigger.trigger_arguments,
                         disabled: trigger.disabled,
-                        database_name: trigger.database_name,
                     },
                 )
             })
@@ -289,6 +290,7 @@ struct ProcessingEngineTriggerSnapshot {
     pub trigger_name: String,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
+    pub node_id: Arc<str>,
     pub trigger_specification: String,
     pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,
@@ -541,6 +543,7 @@ impl From<&CreateTriggerLog> for ProcessingEngineTriggerSnapshot {
             trigger_name: trigger.trigger_name.to_string(),
             plugin_filename: trigger.plugin_filename.to_string(),
             database_name: Arc::clone(&trigger.database_name),
+            node_id: Arc::clone(&trigger.node_id),
             trigger_specification: serde_json::to_string(&trigger.trigger)
                 .expect("should be able to serialize trigger specification"),
             trigger_settings: trigger.trigger_settings,

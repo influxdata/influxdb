@@ -766,9 +766,10 @@ mod tests {
             },
             DedicatedExecutor::new_testing(),
         ));
+        let node_identifier_prefix = "test_host";
         let persister = Arc::new(Persister::new(
             Arc::clone(&object_store),
-            "test_host",
+            node_identifier_prefix,
             Arc::clone(&time_provider) as _,
         ));
         let sample_node_id = Arc::from("sample-host-id");
@@ -841,6 +842,7 @@ mod tests {
                 package_manager: Arc::new(DisabledManager),
             },
             write_buffer.catalog(),
+            node_identifier_prefix,
             Arc::clone(&write_buffer),
             Arc::clone(&query_executor) as _,
             Arc::clone(&time_provider) as _,

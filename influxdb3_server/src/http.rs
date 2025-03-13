@@ -973,6 +973,7 @@ where
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
+                self.processing_engine.node_id(),
                 plugin_filename,
                 &trigger_specification,
                 trigger_settings,
