@@ -291,6 +291,10 @@ impl TestServer {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
+
+    pub fn child(&mut self) -> &mut Child {
+        &mut self.server_process
+    }
 }
 
 impl Drop for TestServer {

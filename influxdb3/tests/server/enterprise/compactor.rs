@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use assert_cmd::Command;
 use hyper::StatusCode;
 use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use observability_deps::tracing::debug;
@@ -73,4 +74,51 @@ async fn compactor_only_node_should_respond_to_compaction_events_query() {
         ])
         .await;
     assert_eq!(StatusCode::INTERNAL_SERVER_ERROR, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn no_second_compactor_with_different_node_id() {
+    let obj_store_path = tmp_dir();
+    let cluster_id = "whatever";
+    let mut node1 = TestServer::configure_enterprise()
+        .with_node_id("node1")
+        .with_cluster_id(cluster_id)
+        .with_object_store(&obj_store_path)
+        .with_mode(vec![BufferMode::Compact])
+        .spawn()
+        .await;
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+
+    // validate a second node can't be started
+    let output = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args([
+            "serve",
+            "--cluster-id",
+            cluster_id,
+            "--node-id",
+            "node2",
+            "--mode",
+            "compact",
+            "--object-store",
+            "file",
+            "--data-dir",
+            &obj_store_path,
+        ])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    println!("node 2 output: {output:?}");
+
+    // validate the first node is still running
+    let node1_child = node1.child();
+    let node1_exit = node1_child
+        .try_wait()
+        .expect("no error expected waiting for child to exit");
+    assert!(
+        node1_exit.is_none(),
+        "expect first node to continue running"
+    );
 }

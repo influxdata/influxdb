@@ -679,15 +679,23 @@ pub async fn command(config: Config) -> Result<()> {
     let buffer_modes: BufferModes = config.enterprise_config.mode.clone().into();
 
     if let Some(compactor_node) = &compactor_node {
-        if buffer_modes.is_compactor()
-            && compactor_node.node_id().as_ref() != config.node_identifier_prefix
-        {
-            // if the current buffer modes implies `compact` but we detect an existing running
-            // compactor with a different node id then the current one this should be considered an
-            // error since we can't (shouldn't?) run two compactors at the same time
-            return Err(Error::CompactorAlreadyRunning(Arc::clone(
-                &compactor_node.node_id(),
-            )));
+        if buffer_modes.is_compactor() {
+            if compactor_node.node_id().as_ref() != config.node_identifier_prefix {
+                // if the current buffer modes implies `compact` but we detect an existing running
+                // compactor with a different node id then the current one this should be considered an
+                // error since we can't (shouldn't?) run two compactors at the same time
+                return Err(Error::CompactorAlreadyRunning(Arc::clone(
+                    &compactor_node.node_id(),
+                )));
+            }
+            // TODO: this is a noop for now since there is not yet a clear way to determine whether
+            // a given node is actually running (NodeState::Stopped is never actually set), but it
+            // should be considered an error since two compactor nodes running at the same time
+            // would probably lead to data corruption issues
+            warn!(
+                "There may be a second node with the same `--node-id` running with `--mode
+                compact`, which could lead to data corruption issues in compacted data."
+            );
         }
     }
 
