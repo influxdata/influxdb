@@ -404,11 +404,29 @@ jobs:
                   echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
       - run:
-          name: tar and gzip build artifacts
+          name: tar build artifacts
           command: |
             mkdir -p artifacts
             tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
             tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+      - when:
+          condition:
+            equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
+          steps:
+            - run:
+                # Windows doesn't have a concept of RPATH; instead either PATH
+                # needs to be set ahead of time (by the user; in a .bat script)
+                # or the required DLLs need to be in the same directory as the
+                # executable. For now, copy the *.dll files from the
+                # python directory up next to the executable (we copy so that
+                # the python executable in the python directory can still find
+                # them). influxdb#26113
+                name: tar Windows DLLs next to influxdb3.exe
+                command: |
+                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>/python" $(find "/tmp/workspace/python-artifacts/<< parameters.target >>/python" -maxdepth 1 -name *.dll -printf '%f\n')
+      - run:
+          name: gzip build artifacts
+          command: |
             gzip "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar"
       - store_artifacts:
           path: artifacts
