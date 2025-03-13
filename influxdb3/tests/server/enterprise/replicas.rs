@@ -18,6 +18,7 @@ async fn two_primaries_one_replica() {
     let tuvok = TestServer::configure_enterprise()
         .with_node_id("tuvok")
         .with_object_store(&obj_store_path)
+        .with_mode(vec![BufferMode::Query, BufferMode::Ingest])
         .spawn()
         .await;
 
@@ -90,6 +91,7 @@ async fn replicate_last_cache() {
     let tuvok = TestServer::configure_enterprise()
         .with_node_id("tuvok")
         .with_object_store(&obj_store_path)
+        .with_mode(vec![BufferMode::Query, BufferMode::Ingest])
         .spawn()
         .await;
 

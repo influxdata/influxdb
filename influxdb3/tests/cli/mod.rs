@@ -1071,7 +1071,6 @@ async fn test_show_system() {
     let tmp_dir = TempDir::new().unwrap();
     let server = TestServer::configure_enterprise()
         .with_node_id("test")
-        .with_compactor_id("compactor")
         .with_object_store(tmp_dir.path().to_str().unwrap())
         .spawn()
         .await;
@@ -2126,7 +2125,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         yield "Line 1\n"
         yield "Line 2\n"
         yield "Line 3\n"
-    
+
     return generate_content()
 "#;
     let plugin_file = create_plugin_file(plugin_code);
@@ -2182,17 +2181,17 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
             self.response = response
             self.status_code = status
             self.headers = headers or {}
-            
+
         def get_data(self):
             return self.response
-            
+
         def __flask_response__(self):
             return True
-    
+
     # Return a Flask Response object
     response = FlaskResponse(
-        "Custom Flask Response", 
-        status=202, 
+        "Custom Flask Response",
+        status=202,
         headers={"Content-Type": "text/custom", "X-Generated-By": "FlaskResponse"}
     )
     return response

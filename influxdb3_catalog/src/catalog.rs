@@ -603,6 +603,13 @@ impl NodeDefinition {
     pub fn modes(&self) -> &Vec<NodeMode> {
         &self.mode
     }
+
+    pub fn is_running(&self) -> bool {
+        match self.state {
+            NodeState::Running { .. } => true,
+            NodeState::Stopped { .. } => false,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize)]

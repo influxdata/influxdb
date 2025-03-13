@@ -4,7 +4,6 @@ use std::{
     collections::{BTreeSet, btree_set},
     ops::Deref,
     str::FromStr,
-    sync::Arc,
 };
 
 use anyhow::bail;
@@ -27,31 +26,6 @@ pub struct EnterpriseServeConfig {
         action
     )]
     pub replication_interval: humantime::Duration,
-
-    /// The prefix in object store where all compacted data will be written to. Only provide this
-    /// option if this server should be running compaction for its own write buffer and any
-    /// replicas it is managing.
-    ///
-    /// Only a single server should be running at any time that has this option set with this value.
-    /// It should have exclusive write access to this prefix in object storage.
-    #[clap(
-        long = "compactor-id",
-        env = "INFLUXDB3_ENTERPRISE_COMPACTOR_ID",
-        action
-    )]
-    pub compactor_id: Option<Arc<str>>,
-
-    /// This tells the server to run compactions. Only a single server should ever be running
-    /// compactions for a given compactor_id. All other servers can read from that compactor id
-    /// to pick up compacted files. This option is only applicable if a compactor-id is set.
-    /// Set this flag if this server should be running compactions.
-    #[clap(
-        long = "run-compactions",
-        env = "INFLUXDB3_ENTERPRISE_RUN_COMPACTIONS",
-        default_value = "false",
-        action
-    )]
-    pub run_compactions: bool,
 
     /// The limit to the number of rows per file that the compactor will write. This is a soft limit
     /// and the compactor may write more rows than this limit.

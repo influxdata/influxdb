@@ -10,6 +10,8 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
+use influxdb3_catalog::catalog::NodeDefinition;
+use influxdb3_catalog::log::NodeModes;
 use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
@@ -161,6 +163,12 @@ pub enum Error {
 
     #[error("Must have `compact-from-node-ids` specfied if running in compactor mode")]
     CompactorModeWithoutNodeIds,
+
+    #[error("Error initializing compaction producer: {0:?}")]
+    TooManyRunningCompactorNodes(Vec<Arc<NodeDefinition>>),
+
+    #[error("Compactor with node id {0:?} is already running, refusing to start a new one.")]
+    CompactorAlreadyRunning(Arc<str>),
 
     #[error("IO Error occurred: {0}")]
     Io(#[from] std::io::Error),
@@ -652,7 +660,36 @@ pub async fn command(config: Config) -> Result<()> {
     );
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
+    let nodes = catalog.list_nodes();
+
+    let mut running_compactor_nodes = nodes
+        .clone()
+        .into_iter()
+        .filter_map(|nd| {
+            (NodeModes::from(nd.modes().clone()).is_compactor() && nd.is_running()).then_some(nd)
+        })
+        .collect::<Vec<_>>();
+
+    let compactor_node = match running_compactor_nodes.len() {
+        0 => None,
+        1 => Some(running_compactor_nodes.pop().unwrap()),
+        _ => return Err(Error::TooManyRunningCompactorNodes(running_compactor_nodes)),
+    };
+
     let buffer_modes: BufferModes = config.enterprise_config.mode.clone().into();
+
+    if let Some(compactor_node) = &compactor_node {
+        if buffer_modes.is_compactor()
+            && compactor_node.node_id().as_ref() != config.node_identifier_prefix
+        {
+            // if the current buffer modes implies `compact` but we detect an existing running
+            // compactor with a different node id then the current one this should be considered an
+            // error since we can't (shouldn't?) run two compactors at the same time
+            return Err(Error::CompactorAlreadyRunning(Arc::clone(
+                &compactor_node.node_id(),
+            )));
+        }
+    }
 
     let _ = catalog
         .register_node(
@@ -661,6 +698,7 @@ pub async fn command(config: Config) -> Result<()> {
             buffer_modes.into_iter().map(|e| e.into()).collect(),
         )
         .await?;
+
     let node_def = catalog
         .node(&config.node_identifier_prefix)
         .expect("node should be registered in catalog");
@@ -710,42 +748,45 @@ pub async fn command(config: Config) -> Result<()> {
     compactor_datafusion_config.use_cached_parquet_loader = false;
     let compactor_datafusion_config = Arc::new(compactor_datafusion_config.build());
 
-    if let Some(compactor_id) = config.enterprise_config.compactor_id {
-        if config.enterprise_config.run_compactions {
-            let compaction_config = CompactionConfig::new(
-                &config.enterprise_config.compaction_multipliers.0,
-                config.enterprise_config.compaction_gen2_duration.into(),
-            )
-            .with_per_file_row_limit(config.enterprise_config.compaction_row_limit)
-            .with_max_num_files_per_compaction(
-                config.enterprise_config.compaction_max_num_files_per_plan,
-            );
+    if buffer_modes.is_compactor() {
+        let compaction_config = CompactionConfig::new(
+            &config.enterprise_config.compaction_multipliers.0,
+            config.enterprise_config.compaction_gen2_duration.into(),
+        )
+        .with_per_file_row_limit(config.enterprise_config.compaction_row_limit)
+        .with_max_num_files_per_compaction(
+            config.enterprise_config.compaction_max_num_files_per_plan,
+        );
 
-            let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
-                compactor_id,
-                compaction_config,
-                enterprise_config: Arc::clone(&enterprise_config),
-                datafusion_config: compactor_datafusion_config,
-                object_store: Arc::clone(&object_store),
-                object_store_url: persister.object_store_url().clone(),
-                executor: Arc::clone(&exec),
-                parquet_cache_prefetcher: if buffer_modes.is_querier() {
-                    parquet_cache_prefetcher
-                } else {
-                    None
-                },
-                sys_events_store: Arc::clone(&compaction_event_store),
-                time_provider: Arc::clone(&time_provider),
-                span_ctx,
-                catalog: Arc::clone(&catalog),
-            })
-            .await?;
+        let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
+            compactor_id: config.node_identifier_prefix.clone().into(),
+            compaction_config,
+            enterprise_config: Arc::clone(&enterprise_config),
+            datafusion_config: compactor_datafusion_config,
+            object_store: Arc::clone(&object_store),
+            object_store_url: persister.object_store_url().clone(),
+            executor: Arc::clone(&exec),
+            parquet_cache_prefetcher: if buffer_modes.is_querier() {
+                parquet_cache_prefetcher.clone()
+            } else {
+                None
+            },
+            sys_events_store: Arc::clone(&compaction_event_store),
+            time_provider: Arc::clone(&time_provider),
+            span_ctx,
+            catalog: Arc::clone(&catalog),
+        })
+        .await?;
 
-            compacted_data = Some(Arc::clone(&producer.compacted_data));
-            compaction_producer = Some(producer);
-        } else {
+        compacted_data = Some(Arc::clone(&producer.compacted_data));
+        compaction_producer = Some(producer);
+    } else if buffer_modes.is_querier() {
+        // TODO: we shouldn't have to pass in the compactor node id -- the CompactedDataConsumer
+        // should get the compactor node automatically from the catalog and if a compactor node
+        // doesn't yet exist it should poll the catalog until one appears
+        if let Some(compactor_node) = compactor_node {
             let consumer = CompactedDataConsumer::new(
-                compactor_id,
+                compactor_node.node_id(),
                 Arc::clone(&object_store),
                 Arc::clone(&catalog),
                 parquet_cache_prefetcher,

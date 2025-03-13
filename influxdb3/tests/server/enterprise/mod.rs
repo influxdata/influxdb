@@ -17,7 +17,6 @@ pub struct TestConfigEnterprise {
     replication_interval: Option<String>,
     mode: Option<Vec<BufferMode>>,
     object_store_path: Option<String>,
-    compactor_id: Option<String>,
 }
 
 impl ConfigProvider for TestConfigEnterprise {
@@ -46,13 +45,6 @@ impl ConfigProvider for TestConfigEnterprise {
                     .collect::<Vec<_>>()
                     .join(","),
             ]);
-        }
-        if let Some(compactor_id) = &self.compactor_id {
-            args.append(&mut vec![
-                "--compactor-id".to_string(),
-                compactor_id.to_owned(),
-            ]);
-            args.append(&mut vec!["--run-compactions".to_string()]);
         }
         if let Some(path) = &self.object_store_path {
             args.append(&mut vec![
@@ -95,12 +87,6 @@ impl TestConfigEnterprise {
     /// Set a node identifier prefix on the spawned [`TestServer`]
     pub fn with_node_id<S: Into<String>>(mut self, node_id: S) -> Self {
         self.node_id = Some(node_id.into());
-        self
-    }
-
-    /// Set the compactor id for the spawned server
-    pub fn with_compactor_id<S: Into<String>>(mut self, compactor_id: S) -> Self {
-        self.compactor_id = Some(compactor_id.into());
         self
     }
 
