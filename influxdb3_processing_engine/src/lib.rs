@@ -43,6 +43,7 @@ pub mod virtualenv;
 pub struct ProcessingEngineManagerImpl {
     environment_manager: ProcessingEngineEnvironmentManager,
     catalog: Arc<Catalog>,
+    node_id: Arc<str>,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
     time_provider: Arc<dyn TimeProvider>,
@@ -207,6 +208,7 @@ impl ProcessingEngineManagerImpl {
     pub fn new(
         environment: ProcessingEngineEnvironmentManager,
         catalog: Arc<Catalog>,
+        node_id: impl Into<Arc<str>>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
         time_provider: Arc<dyn TimeProvider>,
@@ -233,6 +235,7 @@ impl ProcessingEngineManagerImpl {
         let pem = Arc::new(Self {
             environment_manager: environment,
             catalog,
+            node_id: node_id.into(),
             write_buffer,
             query_executor,
             sys_event_store,
@@ -244,6 +247,10 @@ impl ProcessingEngineManagerImpl {
         background_catalog_update(Arc::clone(&pem), catalog_sub);
 
         pem
+    }
+
+    pub fn node_id(&self) -> Arc<str> {
+        Arc::clone(&self.node_id)
     }
 
     pub async fn validate_plugin_filename<'a>(
@@ -371,6 +378,14 @@ impl ProcessingEngineManagerImpl {
                     trigger_name: trigger_name.to_string(),
                 })?
                 .clone();
+
+            if trigger.node_id != self.node_id {
+                error!(
+                    "Not running trigger {}, as it is configured for node id {}. Multi-node not supported in core, so this shouldn't happen.",
+                    trigger_name, trigger.node_id
+                );
+                return Ok(());
+            }
 
             let plugin_context = PluginContext {
                 write_buffer: Arc::clone(&self.write_buffer),
@@ -811,6 +826,7 @@ mod tests {
             .create_processing_engine_trigger(
                 "foo",
                 "test_trigger",
+                Arc::clone(&pem.node_id),
                 file_name,
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
@@ -889,6 +905,7 @@ mod tests {
             .create_processing_engine_trigger(
                 "foo",
                 "test_trigger",
+                Arc::clone(&pem.node_id),
                 file_name,
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
@@ -1014,6 +1031,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
             ProcessingEngineManagerImpl::new(
                 environment_manager,
                 catalog,
+                "test_node",
                 wbuf,
                 qe,
                 time_provider,
