@@ -862,6 +862,7 @@ mod test_helpers {
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
     };
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::log::NodeMode;
     use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_wal::{
@@ -920,7 +921,8 @@ mod test_helpers {
             let time_provider: Arc<dyn TimeProvider> =
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let catalog = Arc::new(
-                Catalog::new(
+                Catalog::new_enterprise(
+                    node_id,
                     node_id,
                     Arc::clone(&object_store),
                     Arc::clone(&time_provider),
@@ -928,6 +930,10 @@ mod test_helpers {
                 .await
                 .unwrap(),
             );
+            let _ = catalog
+                .register_node(node_id, 1, vec![NodeMode::Ingest])
+                .await
+                .expect("must successfully register ingest node");
             let persister = Arc::new(Persister::new(
                 Arc::clone(&object_store),
                 node_id,

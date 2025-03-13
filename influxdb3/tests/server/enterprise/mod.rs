@@ -14,7 +14,6 @@ pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
     cluster_id: Option<String>,
     node_id: Option<String>,
-    compact_from_node_ids: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<Vec<BufferMode>>,
     object_store_path: Option<String>,
@@ -47,12 +46,6 @@ impl ConfigProvider for TestConfigEnterprise {
                     .collect::<Vec<_>>()
                     .join(","),
             ]);
-        }
-        if !self.compact_from_node_ids.is_empty() {
-            args.append(&mut vec![
-                "--compact-from-node-ids".to_string(),
-                self.compact_from_node_ids.join(","),
-            ])
         }
         if let Some(compactor_id) = &self.compactor_id {
             args.append(&mut vec![
@@ -125,15 +118,6 @@ impl TestConfigEnterprise {
     /// Specify a replication interval in a "human time", e.g., "1ms", "10ms", etc.
     pub fn with_replication_interval<S: Into<String>>(mut self, interval: S) -> Self {
         self.replication_interval = Some(interval.into());
-        self
-    }
-
-    pub fn with_compact_from_node_ids(
-        mut self,
-        compact_from_node_ids: impl IntoIterator<Item: Into<String>>,
-    ) -> Self {
-        self.compact_from_node_ids
-            .extend(compact_from_node_ids.into_iter().map(Into::into));
         self
     }
 }

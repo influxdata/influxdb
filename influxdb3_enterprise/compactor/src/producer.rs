@@ -14,6 +14,7 @@ use datafusion::{common::instant::Instant, datasource::object_store::ObjectStore
 use hashbrown::HashMap;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
+use influxdb3_catalog::log::NodeModes;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
@@ -107,7 +108,6 @@ impl Debug for CompactedDataProducer {
 #[derive(Debug)]
 pub struct CompactedDataProducerArgs {
     pub compactor_id: Arc<str>,
-    pub node_ids: Vec<String>,
     pub compaction_config: CompactionConfig,
     pub enterprise_config: Arc<EnterpriseConfig>,
     pub datafusion_config: Arc<StdHashMap<String, String>>,
@@ -125,7 +125,6 @@ impl CompactedDataProducer {
     pub async fn new(
         CompactedDataProducerArgs {
             compactor_id,
-            node_ids,
             compaction_config,
             enterprise_config,
             datafusion_config,
@@ -141,7 +140,6 @@ impl CompactedDataProducer {
     ) -> Result<Self> {
         let (mut compaction_state, compacted_data) = CompactionState::load_or_initialize(
             Arc::clone(&compactor_id),
-            node_ids,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
             catalog,
@@ -795,11 +793,20 @@ impl CompactionState {
     /// from the target writers.
     pub(crate) async fn load_or_initialize(
         compactor_id: Arc<str>,
-        node_ids: Vec<String>,
         object_store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
     ) -> Result<(Self, CompactedData)> {
+        let node_ids: Vec<String> = catalog
+            .list_nodes()
+            .iter()
+            .filter_map(|nd| {
+                NodeModes::from(nd.as_ref().modes().clone())
+                    .is_ingester()
+                    .then_some(nd.node_id().to_string())
+            })
+            .collect();
+
         // load or initialize and persist the first compaction summary
         async fn summary(
             compactor_id: Arc<str>,
@@ -1200,7 +1207,6 @@ mod tests {
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
             span_ctx: None,
             compactor_id: "compactor-1".into(),
-            node_ids: vec![node_id.into()],
             compaction_config: CompactionConfig::default(),
             enterprise_config: Default::default(),
             datafusion_config: Default::default(),
@@ -1319,7 +1325,6 @@ mod tests {
 
         let (mut state, compacted_data) = CompactionState::load_or_initialize(
             "compactor-1".into(),
-            vec![node_id.into()],
             Arc::clone(&object_store),
             time_provider,
             writer.catalog(),
@@ -1331,7 +1336,8 @@ mod tests {
 
         assert_eq!(
             compacted_data.catalog.sequence_number(),
-            CatalogSequenceNumber::new(1)
+            // 1 for catalog initialization, 1 for node registration
+            CatalogSequenceNumber::new(2)
         );
 
         // now write a new snapshot, load snapshots, and reload the compacted catalog to ensure it's updated
@@ -1393,7 +1399,6 @@ mod tests {
         let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
             span_ctx: None,
             compactor_id: "compactor-1".into(),
-            node_ids: vec![node_id.into()],
             compaction_config,
             enterprise_config: Default::default(),
             datafusion_config: Default::default(),

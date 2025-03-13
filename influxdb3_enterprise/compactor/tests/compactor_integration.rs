@@ -10,6 +10,7 @@ use hashbrown::HashMap;
 use influxdb3_cache::distinct_cache::DistinctCacheProvider;
 use influxdb3_cache::last_cache::LastCacheProvider;
 use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::log::NodeMode;
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_buffer::WriteBufferEnterprise;
 use influxdb3_enterprise_buffer::modes::combined::CreateIngestQueryModeArgs;
@@ -66,6 +67,13 @@ async fn two_writers_gen1_compaction() {
     let node1_id = "node1";
     let node2_id = "node2";
 
+    for node_id in [&node1_id, &node2_id] {
+        let _ = catalog
+            .register_node(node_id, 1, vec![NodeMode::Ingest])
+            .await
+            .expect("must successfully register ingest node");
+    }
+
     let wal_config = WalConfig {
         gen1_duration: Gen1Duration::new_1m(),
         max_write_buffer_size: 100,
@@ -115,7 +123,6 @@ async fn two_writers_gen1_compaction() {
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
         compactor_id: Arc::clone(&cluster_id),
-        node_ids: vec!["node1".to_string(), "node2".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
@@ -305,7 +312,6 @@ async fn compact_consumer_picks_up_latest_summary() {
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
         compactor_id: Arc::clone(&compactor_id),
-        node_ids: vec!["spock".to_string(), "tuvok".to_string()],
         compaction_config,
         enterprise_config: Default::default(),
         datafusion_config: Default::default(),
@@ -450,6 +456,10 @@ async fn compaction_cleanup() {
             .unwrap();
 
     let node_id = "host";
+    let _ = catalog
+        .register_node(node_id, 1, vec![NodeMode::Ingest])
+        .await
+        .expect("must successfully register ingest node");
 
     let compaction_config = CompactionConfig::new(&[2], Duration::from_secs(120));
     let generation_levels = compaction_config.compaction_levels();
@@ -461,7 +471,6 @@ async fn compaction_cleanup() {
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
         compactor_id: Arc::clone(&cluster_id),
-        node_ids: vec![node_id.to_string()],
         compaction_config,
         enterprise_config: Arc::new(EnterpriseConfig::default()),
         datafusion_config: Arc::new(std::collections::HashMap::new()),
@@ -709,6 +718,10 @@ async fn setup_write_buffer(
         // small snapshot size will have parquet written out after 3 WAL periods:
         snapshot_size: 1,
     };
+    let _ = catalog
+        .register_node(node_id, 1, vec![NodeMode::Ingest])
+        .await
+        .expect("must successfuly register node");
     WriteBufferEnterprise::combined_ingest_query(CreateIngestQueryModeArgs {
         query_args: None,
         ingest_args: Some(IngestArgs {

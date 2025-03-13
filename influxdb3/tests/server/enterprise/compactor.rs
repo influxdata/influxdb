@@ -26,7 +26,6 @@ async fn compactor_only_node_should_respond_to_compaction_events_query() {
         .with_mode(vec![BufferMode::Compact])
         .with_object_store(&obj_store_path)
         .with_compactor_id("1")
-        .with_compact_from_node_ids(vec!["writer"])
         .spawn()
         .await;
 

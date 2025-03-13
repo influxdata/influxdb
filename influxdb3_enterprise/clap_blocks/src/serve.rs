@@ -41,20 +41,6 @@ pub struct EnterpriseServeConfig {
     )]
     pub compactor_id: Option<Arc<str>>,
 
-    /// Comma-separated list of node identifier prefixes to compact data from.
-    ///
-    /// The compactor will look for new snapshot files from each node in the list of
-    /// `compact-from-node-ids`. It will compact gen1 file from those nodes into a single
-    /// compacted view under the `compactor-id` prefix.
-    #[clap(
-        long = "compact-from-node-ids",
-        // TODO: deprecate this alias
-        alias = "compaction-hosts",
-        env = "INFLUXDB3_ENTERPRISE_COMPACT_FROM_NODE_IDS",
-        action
-    )]
-    pub compact_from_node_ids: Option<NodeIdList>,
-
     /// This tells the server to run compactions. Only a single server should ever be running
     /// compactions for a given compactor_id. All other servers can read from that compactor id
     /// to pick up compacted files. This option is only applicable if a compactor-id is set.

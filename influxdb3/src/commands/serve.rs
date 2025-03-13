@@ -10,7 +10,6 @@ use influxdb3_cache::{
     last_cache::{self, LastCacheProvider},
     parquet_cache::create_cached_obj_store_and_oracle,
 };
-use influxdb3_catalog::log::NodeModes;
 use influxdb3_catalog::{CatalogError, catalog::Catalog};
 use influxdb3_clap_blocks::plugins::{PackageManager, ProcessingEngineConfig};
 use influxdb3_clap_blocks::{
@@ -711,21 +710,6 @@ pub async fn command(config: Config) -> Result<()> {
     compactor_datafusion_config.use_cached_parquet_loader = false;
     let compactor_datafusion_config = Arc::new(compactor_datafusion_config.build());
 
-    // TODO: remove the following once all tests are consistently passing without having to wait
-    // for new nodes to come online
-    //tokio::time::sleep(Duration::from_secs(1)).await;
-
-    // TODO: figure out if we need to exclude the current node id from this vec
-    let read_from_node_ids: Vec<String> = catalog
-        .list_nodes()
-        .iter()
-        .filter_map(|nd| {
-            NodeModes::from(nd.as_ref().modes().clone())
-                .is_ingester()
-                .then_some(nd.node_id().to_string())
-        })
-        .collect();
-
     if let Some(compactor_id) = config.enterprise_config.compactor_id {
         if config.enterprise_config.run_compactions {
             let compaction_config = CompactionConfig::new(
@@ -737,27 +721,8 @@ pub async fn command(config: Config) -> Result<()> {
                 config.enterprise_config.compaction_max_num_files_per_plan,
             );
 
-            // TODO: the following should use buffer_modes.is_compactor() instead of just checking
-            // for the BufferMode::Compact variant since we want to be able to run the compactor
-            // even when using BufferMode::All; but that depends on future work to remove the
-            // --compact-from-node-ids flag in favor of getting node IDs to compact from the
-            // catalog
-            let node_ids = if buffer_modes.contains(&BufferMode::Compact) {
-                if let Some(compact_from_node_ids) = &config.enterprise_config.compact_from_node_ids
-                {
-                    compact_from_node_ids.to_vec()
-                } else {
-                    return Err(Error::CompactorModeWithoutNodeIds);
-                }
-            } else {
-                let mut node_ids = vec![config.node_identifier_prefix.clone()];
-                node_ids.extend(read_from_node_ids.iter().cloned());
-                node_ids
-            };
-
             let producer = CompactedDataProducer::new(CompactedDataProducerArgs {
                 compactor_id,
-                node_ids,
                 compaction_config,
                 enterprise_config: Arc::clone(&enterprise_config),
                 datafusion_config: compactor_datafusion_config,
