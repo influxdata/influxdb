@@ -14,12 +14,9 @@ pub struct TestConfigEnterprise {
     auth_token: Option<(String, String)>,
     cluster_id: Option<String>,
     node_id: Option<String>,
-    read_from_node_ids: Vec<String>,
-    compact_from_node_ids: Vec<String>,
     replication_interval: Option<String>,
     mode: Option<Vec<BufferMode>>,
     object_store_path: Option<String>,
-    compactor_id: Option<String>,
 }
 
 impl ConfigProvider for TestConfigEnterprise {
@@ -48,25 +45,6 @@ impl ConfigProvider for TestConfigEnterprise {
                     .collect::<Vec<_>>()
                     .join(","),
             ]);
-        }
-        if !self.read_from_node_ids.is_empty() {
-            args.append(&mut vec![
-                "--read-from-node-ids".to_string(),
-                self.read_from_node_ids.join(","),
-            ])
-        }
-        if !self.compact_from_node_ids.is_empty() {
-            args.append(&mut vec![
-                "--compact-from-node-ids".to_string(),
-                self.compact_from_node_ids.join(","),
-            ])
-        }
-        if let Some(compactor_id) = &self.compactor_id {
-            args.append(&mut vec![
-                "--compactor-id".to_string(),
-                compactor_id.to_owned(),
-            ]);
-            args.append(&mut vec!["--run-compactions".to_string()]);
         }
         if let Some(path) = &self.object_store_path {
             args.append(&mut vec![
@@ -112,12 +90,6 @@ impl TestConfigEnterprise {
         self
     }
 
-    /// Set the compactor id for the spawned server
-    pub fn with_compactor_id<S: Into<String>>(mut self, compactor_id: S) -> Self {
-        self.compactor_id = Some(compactor_id.into());
-        self
-    }
-
     pub fn with_object_store<S: Into<String>>(mut self, path: S) -> Self {
         self.object_store_path = Some(path.into());
         self
@@ -129,28 +101,9 @@ impl TestConfigEnterprise {
         self
     }
 
-    /// Give a set of host identifier prefixes to be replicated by this server
-    pub fn with_read_from_node_ids(
-        mut self,
-        read_from_node_ids: impl IntoIterator<Item: Into<String>>,
-    ) -> Self {
-        self.read_from_node_ids
-            .extend(read_from_node_ids.into_iter().map(Into::into));
-        self
-    }
-
     /// Specify a replication interval in a "human time", e.g., "1ms", "10ms", etc.
     pub fn with_replication_interval<S: Into<String>>(mut self, interval: S) -> Self {
         self.replication_interval = Some(interval.into());
-        self
-    }
-
-    pub fn with_compact_from_node_ids(
-        mut self,
-        compact_from_node_ids: impl IntoIterator<Item: Into<String>>,
-    ) -> Self {
-        self.compact_from_node_ids
-            .extend(compact_from_node_ids.into_iter().map(Into::into));
         self
     }
 }

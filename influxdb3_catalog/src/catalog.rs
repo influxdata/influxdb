@@ -18,6 +18,7 @@ use tokio::sync::{Mutex, MutexGuard, broadcast};
 use update::CatalogUpdate;
 use uuid::Uuid;
 
+mod enterprise;
 mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{DatabaseCatalogTransaction, Prompt};
@@ -84,6 +85,8 @@ pub type CatalogBroadcastSender = broadcast::Sender<Arc<CatalogUpdate>>;
 pub type CatalogBroadcastReceiver = broadcast::Receiver<Arc<CatalogUpdate>>;
 
 pub struct Catalog {
+    /// The ID of the current node, if different from the cluster ID.
+    current_node_id: Option<Arc<str>>,
     /// Channel for broadcasting updates to other components that must handle `CatalogOp`s
     ///
     /// # Implementation Note
@@ -133,6 +136,7 @@ impl Catalog {
             .map_err(Into::into)
             .map(RwLock::new)
             .map(|inner| Self {
+                current_node_id: None,
                 channel,
                 time_provider,
                 store,
@@ -214,6 +218,15 @@ impl Catalog {
 
     pub fn node(&self, node_id: &str) -> Option<Arc<NodeDefinition>> {
         self.inner.read().nodes.get(node_id).cloned()
+    }
+
+    pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
+        self.inner
+            .read()
+            .nodes
+            .iter()
+            .map(|v| Arc::clone(v.1))
+            .collect()
     }
 
     pub fn next_db_id(&self) -> DbId {
@@ -361,6 +374,7 @@ impl Catalog {
         let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
 
         Ok(Self {
+            current_node_id: None,
             channel,
             time_provider,
             store,
@@ -580,6 +594,21 @@ pub struct NodeDefinition {
 impl NodeDefinition {
     pub fn instance_id(&self) -> Arc<str> {
         Arc::clone(&self.instance_id)
+    }
+
+    pub fn node_id(&self) -> Arc<str> {
+        Arc::clone(&self.node_id)
+    }
+
+    pub fn modes(&self) -> &Vec<NodeMode> {
+        &self.mode
+    }
+
+    pub fn is_running(&self) -> bool {
+        match self.state {
+            NodeState::Running { .. } => true,
+            NodeState::Stopped { .. } => false,
+        }
     }
 }
 

@@ -1,8 +1,9 @@
 use arrow_util::assert_batches_sorted_eq;
 use influxdb3_client::Precision;
+use influxdb3_enterprise_clap_blocks::serve::BufferMode;
 use serde_json::json;
 
-use crate::server::{TestServer, collect_stream};
+use crate::server::{ConfigProvider, TestServer, collect_stream, enterprise::tmp_dir};
 
 #[tokio::test]
 async fn queries_table() {
@@ -466,7 +467,13 @@ async fn distinct_caches_table() {
 
 #[tokio::test]
 async fn snapshot_fetched_sys_table_empty_does_not_error() {
-    let server = TestServer::spawn().await;
+    let obj_store_path = tmp_dir();
+    let server = TestServer::configure_enterprise()
+        .with_mode(vec![BufferMode::Query, BufferMode::Ingest])
+        .with_node_id("meow")
+        .with_object_store(&obj_store_path)
+        .spawn()
+        .await;
     server
         .write_lp_to_db(
             "foo",
