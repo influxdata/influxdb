@@ -1263,7 +1263,7 @@ mod tests {
     /// Each test case verifies both the `RecordBatch` output, as well as the output of the `EXPLAIN`
     /// for a given query. The `EXPLAIN` contains a line for the `LastCacheExec`, which will list
     /// out any predicates that were pushed down from the provided SQL query to the cache.
-    #[tokio::test]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn datafusion_udtf_predicate_conversion() {
         let writer = TestWriter::new().await;
         let _ = writer
@@ -1285,11 +1285,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // make some writes into the cache:
         let write_batch = writer
@@ -1520,7 +1515,7 @@ mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn test_non_specified_key_val_cols() {
         let writer = TestWriter::new().await;
         let _ = writer
@@ -1540,11 +1535,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
-        // broadcast should be acknowledged and this would not be necessary... see
-        // https://github.com/influxdata/influxdb_pro/issues/556
-        tokio::time::sleep(Duration::from_secs(1)).await;
 
         let write_batch = writer
             .write_lp_to_write_batch(
