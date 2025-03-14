@@ -213,6 +213,7 @@ impl Snapshot for TableDefinition {
 pub(crate) struct ProcessingEngineTriggerSnapshot {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
+    pub node_id: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
     pub trigger_specification: TriggerSpecificationDefinition,
@@ -228,6 +229,7 @@ impl Snapshot for TriggerDefinition {
         Self::Serialized {
             trigger_id: self.trigger_id,
             trigger_name: Arc::clone(&self.trigger_name),
+            node_id: Arc::clone(&self.node_id),
             plugin_filename: self.plugin_filename.clone(),
             database_name: Arc::clone(&self.database_name),
             trigger_specification: self.trigger.clone(),
@@ -241,6 +243,7 @@ impl Snapshot for TriggerDefinition {
         Self {
             trigger_id: snap.trigger_id,
             trigger_name: snap.trigger_name,
+            node_id: snap.node_id,
             plugin_filename: snap.plugin_filename,
             database_name: snap.database_name,
             trigger: snap.trigger_specification,
