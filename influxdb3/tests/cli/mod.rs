@@ -4,7 +4,10 @@ use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
+use std::fs::File;
+use std::path::PathBuf;
 use std::{
+    fs,
     io::Write,
     process::{Command, Stdio},
     thread,
@@ -127,11 +130,24 @@ pub fn run_with_stdin_input(input: impl Into<String>, args: &[&str]) -> String {
         .into()
 }
 
-// Helper function to create a temporary Python plugin file
-fn create_plugin_file(code: &str) -> NamedTempFile {
-    let mut file = NamedTempFile::new().unwrap();
+fn create_plugin_in_temp_dir(code: &str) -> (TempDir, PathBuf) {
+    // Create a temporary directory that will exist until it's dropped
+    let temp_dir = tempfile::tempdir().unwrap();
+
+    let file_path = write_plugin_to_temp_dir(&temp_dir, "plugin.py", code);
+
+    // Return both the directory (which must be kept alive) and the file path
+    (temp_dir, file_path)
+}
+
+fn write_plugin_to_temp_dir(temp_dir: &TempDir, name: &str, code: &str) -> PathBuf {
+    // Create a path for the plugin file within this directory
+    let file_path = temp_dir.path().join(name);
+
+    // Write the code to the file
+    let mut file = File::create(&file_path).unwrap();
     writeln!(file, "{}", code).unwrap();
-    file
+    file_path
 }
 
 #[test_log::test(tokio::test)]
@@ -673,9 +689,11 @@ async fn test_create_delete_distinct_cache() {
 async fn test_create_trigger_and_run() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
-    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(WRITE_REPORTS_PLUGIN_CODE);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -766,9 +784,11 @@ async fn test_create_trigger_and_run() {
 async fn test_triggers_are_started() {
     // create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
-    let plugin_file = create_plugin_file(WRITE_REPORTS_PLUGIN_CODE);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(WRITE_REPORTS_PLUGIN_CODE);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     // create tmp dir for object store
     let tmp_file = TempDir::new().unwrap();
@@ -909,14 +929,15 @@ async fn test_database_create_persists() {
 
 #[test_log::test(tokio::test)]
 async fn test_trigger_enable() {
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#,
     );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -972,14 +993,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
 #[test_log::test(tokio::test)]
 async fn test_delete_enabled_trigger() {
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#,
     );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1036,14 +1058,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
 #[test_log::test(tokio::test)]
 async fn test_table_specific_trigger() {
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")
 "#,
     );
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1259,10 +1282,7 @@ async fn distinct_cache_create_and_delete() {
 }
 #[test_log::test(tokio::test)]
 async fn test_linebuilder_escaping() {
-    use crate::server::ConfigProvider;
-
-    // Create plugin file with all test cases
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     # Basic test with all field types
@@ -1340,8 +1360,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("All LineBuilder tests completed")"#,
     );
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1363,7 +1383,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         "test_input,tag1=tag1_value field1=1i 500",
         "--input-arguments",
         "arg1=test",
-        plugin_name,
+        plugin_filename,
     ]);
 
     let res = serde_json::from_str::<Value>(&result).unwrap();
@@ -1398,8 +1418,7 @@ async fn test_wal_plugin_test() {
     use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
-    // Create plugin file
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
@@ -1435,8 +1454,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("done")"#,
     );
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1469,7 +1488,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
         "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
         "--input-arguments",
         "arg1=arg1_value,host=s2",
-        plugin_name,
+        plugin_filename,
     ]);
     debug!(result = ?result, "test wal plugin");
 
@@ -1506,15 +1525,15 @@ async fn test_schedule_plugin_test() {
     use influxdb3_client::Precision;
 
     // Create plugin file with a scheduled task
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     influxdb3_local.info(f"args are {args}")
     influxdb3_local.info("Successfully called")"#,
     );
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1578,8 +1597,7 @@ async fn test_schedule_plugin_test_with_strftime() {
     use crate::server::ConfigProvider;
     use influxdb3_client::Precision;
 
-    // Create plugin file with a scheduled task
-    let plugin_file = create_plugin_file(
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
         r#"
 import datetime
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
@@ -1589,8 +1607,8 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     influxdb3_local.info("Successfully called")"#,
     );
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1860,9 +1878,11 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     return {"status": "ok", "line": line_str}
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -1935,13 +1955,13 @@ import json
 def process_request(influxdb3_local, query_parameters, request_headers, request_body, args=None):
     return {"status": "updated"}
 "#;
-    // clear all bytes from the plugin file
-    plugin_file.reopen().unwrap().set_len(0).unwrap();
-    plugin_file
-        .reopen()
-        .unwrap()
-        .write_all(plugin_code.as_bytes())
+    // Rewrite the file.
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&plugin_path)
         .unwrap();
+    file.write_all(plugin_code.as_bytes()).unwrap();
 
     // send an HTTP request to the server
     let response = client
@@ -1965,9 +1985,11 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a simple string (should become HTML with 200 status)
     return "Hello, World!"
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2015,9 +2037,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a dictionary (should be converted to JSON)
     return {"message": "Hello, World!", "status": "success"}
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2071,9 +2094,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a tuple with content and status code
     return "Created successfully", 201
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2121,9 +2145,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a tuple with content and headers
     return "Custom Content-Type", {"Content-Type": "text/plain", "X-Custom-Header": "test-value"}
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2178,9 +2203,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a tuple with content, status, and headers
     return "Not Found", 404, {"Content-Type": "text/plain", "X-Error-Code": "NOT_FOUND"}
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2232,9 +2258,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a list (should be converted to JSON array)
     return ["item1", "item2", "item3"]
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2290,9 +2317,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     
     return generate_content()
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2358,9 +2386,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     )
     return response
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2415,9 +2444,10 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     # Return a tuple with a dictionary and status code
     return {"error": "Not Found", "code": 404}, 404
 "#;
-    let plugin_file = create_plugin_file(plugin_code);
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_filename = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2514,8 +2544,7 @@ fn check_logs(response: &Value, expected_logs: &[&str]) {
 #[test_log::test(tokio::test)]
 async fn test_basic_cache_functionality() {
     // Create plugin file that uses the cache
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Store a value in the cache
     influxdb3_local.cache.put("test_key", "test_value")
@@ -2526,11 +2555,11 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     # Verify the value matches what we stored
     assert value == "test_value", f"Expected 'test_value', got {value}"
-    influxdb3_local.info("Cache test passed")"#,
-    );
+    influxdb3_local.info("Cache test passed")"#;
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2572,8 +2601,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_cache_ttl() {
     // Create plugin file that tests cache TTL
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 import time
 
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
@@ -2594,11 +2622,12 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     # Verify the value is None after TTL expiration
     assert expired_value is None, f"Expected None after TTL expiration, got {expired_value}"
-    influxdb3_local.info("TTL test passed")"#,
-    );
+    influxdb3_local.info("TTL test passed")"#;
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2641,8 +2670,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_cache_namespaces() {
     // Create plugin file that tests different cache namespaces
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Store value in local (trigger) cache
     influxdb3_local.cache.put("namespace_key", "trigger_value", use_global=False)
@@ -2660,11 +2688,12 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Verify namespace isolation
     assert trigger_value == "trigger_value", f"Expected 'trigger_value', got {trigger_value}"
     assert global_value == "global_value", f"Expected 'global_value', got {global_value}"
-    influxdb3_local.info("Cache namespace test passed")"#,
-    );
+    influxdb3_local.info("Cache namespace test passed")"#;
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2706,17 +2735,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_cache_persistence_across_runs() {
     // Create plugin file that stores a value in the cache
-    let first_plugin_file = create_plugin_file(
-        r#"
+    let first_plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Store a value that should persist across test runs with the same cache name
     influxdb3_local.cache.put("persistent_key", "I should persist")
-    influxdb3_local.info("Stored value in shared test cache")"#,
-    );
+    influxdb3_local.info("Stored value in shared test cache")"#;
+
+    let (temp_dir, first_plugin_file) = create_plugin_in_temp_dir(first_plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
 
     // Create second plugin file that retrieves the value
-    let second_plugin_file = create_plugin_file(
-        r#"
+    let second_plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Retrieve the value from the previous run
     value = influxdb3_local.cache.get("persistent_key")
@@ -2724,22 +2754,13 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     # Verify the value persisted
     assert value == "I should persist", f"Expected 'I should persist', got {value}"
-    influxdb3_local.info("Cache persistence test passed")"#,
-    );
+    influxdb3_local.info("Cache persistence test passed")"#;
 
-    let plugin_dir = first_plugin_file.path().parent().unwrap().to_str().unwrap();
-    let first_plugin_name = first_plugin_file
-        .path()
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap();
-    let second_plugin_name = second_plugin_file
-        .path()
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap();
+    let second_plugin_file =
+        write_plugin_to_temp_dir(&temp_dir, "second_plugin.py", second_plugin_code);
+
+    let first_plugin_name = first_plugin_file.file_name().unwrap().to_str().unwrap();
+    let second_plugin_name = second_plugin_file.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2801,8 +2822,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_cache_deletion() {
     // Create plugin file that tests cache deletion
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Store some values
     influxdb3_local.cache.put("delete_key", "delete me")
@@ -2828,11 +2848,12 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     influxdb3_local.info(f"Deleting non-existent key: {non_existent}")
     assert non_existent is False, f"Expected False for non-existent key, got {non_existent}"
 
-    influxdb3_local.info("Cache deletion test passed")"#,
-    );
+    influxdb3_local.info("Cache deletion test passed")"#;
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2876,8 +2897,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_cache_with_wal_plugin() {
     // Create plugin file that uses cache in a WAL plugin
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     # Count the number of records processed
     record_count = sum(len(batch['rows']) for batch in table_batches)
@@ -2895,11 +2915,12 @@ def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info(f"Updated count: {new_count}")
 
     # We're not modifying any records for this test
-    return table_batches"#,
-    );
+    return table_batches"#;
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -2984,9 +3005,10 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     else:
         influxdb3_local.cache.put("run_counter", run_count + 1)"#;
 
-    let trigger_file = create_plugin_file(trigger_script);
-    let plugin_dir = trigger_file.path().parent().unwrap().to_str().unwrap();
-    let trigger_filename = trigger_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(trigger_script);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let trigger_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
@@ -3087,8 +3109,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 #[test_log::test(tokio::test)]
 async fn test_complex_object_caching() {
     // Create plugin file that tests caching of complex Python objects
-    let plugin_file = create_plugin_file(
-        r#"
+    let plugin_code = r#"
 def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     # Create a complex object (nested dictionaries and lists)
     complex_obj = {
@@ -3122,11 +3143,12 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     assert retrieved_obj["list_key"][3] == "four", "List value mismatch"
     assert retrieved_obj["nested_dict"]["inner_list"][1]["b"] == 2, "Deeply nested value mismatch"
 
-    influxdb3_local.info("Complex object verification passed")"#,
-    );
+    influxdb3_local.info("Complex object verification passed")"#;
 
-    let plugin_dir = plugin_file.path().parent().unwrap().to_str().unwrap();
-    let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
+    let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
+
+    let plugin_dir = temp_dir.path().to_str().unwrap();
+    let plugin_name = plugin_path.file_name().unwrap().to_str().unwrap();
 
     let server = TestServer::configure()
         .with_plugin_dir(plugin_dir)
