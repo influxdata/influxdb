@@ -342,9 +342,14 @@ fn background_catalog_update(
                                     provider.delete_caches_for_table(&batch.database_id, table_id);
                                 }
                                 DatabaseCatalogOp::CreateLastCache(log) => {
-                                    if log
-                                        .node_spec
-                                        .matches_node_id(provider.catalog.current_node_id())
+                                    if provider
+                                        .catalog
+                                        .matches_node_spec(&log.node_spec)
+                                        .inspect_err(|e| {
+                                            warn!("error getting current node from catalog: {e:?}");
+                                            warn!("will proceed with last cache creation anyway");
+                                        })
+                                        .unwrap_or_default()
                                     {
                                         provider
                                             .create_cache_from_definition(batch.database_id, log);
@@ -356,15 +361,19 @@ fn background_catalog_update(
                                     node_spec,
                                     ..
                                 }) => {
-                                    if node_spec.matches_node_id(provider.catalog.current_node_id())
+                                    if provider
+                                        .catalog
+                                        .matches_node_spec(node_spec)
+                                        .inspect_err(|e| {
+                                            warn!("error getting current node from catalog: {e:?}");
+                                            warn!("will proceed with last cache deletion anyway");
+                                        })
+                                        .unwrap_or_default()
                                     {
                                         // This only errors when the cache isn't there, so we ignore the
                                         // error...
-                                        let _ = provider.delete_cache(
-                                            &batch.database_id,
-                                            table_id,
-                                            id,
-                                        );
+                                        let _ =
+                                            provider.delete_cache(&batch.database_id, table_id, id);
                                     }
                                 }
                                 _ => (),

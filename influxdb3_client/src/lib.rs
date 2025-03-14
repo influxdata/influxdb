@@ -2,7 +2,7 @@ pub mod enterprise;
 
 use bytes::Bytes;
 use hashbrown::HashMap;
-use influxdb3_catalog::log::{NodeSpec, OrderedCatalogBatch, TriggerSettings};
+use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
 use iox_query_params::StatementParam;
 use reqwest::{
     Body, IntoUrl, Method, StatusCode,
@@ -1180,8 +1180,7 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
 
 #[cfg(test)]
 mod tests {
-    use influxdb3_catalog::log::NodeSpec;
-    use influxdb3_types::http::{LastCacheDeleteRequest, LastCacheSize, LastCacheTtl};
+    use influxdb3_types::http::{LastCacheDeleteRequest, LastCacheSize, LastCacheTtl, NodeSpec};
     use mockito::{Matcher, Server};
     use serde_json::json;
 

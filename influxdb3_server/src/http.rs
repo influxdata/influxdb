@@ -977,7 +977,10 @@ where
             .create_last_cache(
                 &db,
                 &table,
-                node_spec.unwrap_or_else(Default::default),
+                node_spec
+                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
+                    .transpose()?
+                    .unwrap_or_default(),
                 name.as_deref(),
                 key_columns.as_deref(),
                 value_columns.as_deref(),
@@ -1016,7 +1019,15 @@ where
 
         self.write_buffer
             .catalog()
-            .delete_last_cache(&db, &table, node_spec.unwrap_or_default(), &name)
+            .delete_last_cache(
+                &db,
+                &table,
+                node_spec
+                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
+                    .transpose()?
+                    .unwrap_or_default(),
+                &name,
+            )
             .await?;
 
         Response::builder()

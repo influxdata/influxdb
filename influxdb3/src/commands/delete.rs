@@ -1,6 +1,6 @@
 use super::common::InfluxDb3Config;
-use influxdb3_catalog::log::NodeSpec;
 use influxdb3_client::Client;
+use influxdb3_types::http::NodeSpec;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;

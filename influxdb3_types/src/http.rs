@@ -1,6 +1,11 @@
 mod enterprise;
+use std::{str::FromStr, sync::Arc};
+
 pub use enterprise::*;
-use influxdb3_catalog::log::{NodeSpec, TriggerSettings};
+use influxdb3_catalog::{
+    catalog::Catalog,
+    log::{self, TriggerSettings},
+};
 
 use crate::write::Precision;
 use hashbrown::HashMap;
@@ -17,6 +22,9 @@ use serde::{Deserialize, Serialize};
 pub enum Error {
     #[error("invalid mime type ({0})")]
     InvalidMimeType(String),
+
+    #[error("invalid node name ({0})")]
+    InvalidNodeName(String),
 
     #[error("the mime type specified was not valid UTF8: {0}")]
     NonUtf8MimeType(#[from] std::string::FromUtf8Error),
@@ -40,6 +48,55 @@ impl PingResponse {
     /// Get the `revision` from the response
     pub fn revision(&self) -> &str {
         &self.revision
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<String>),
+}
+
+impl FromStr for NodeSpec {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            s if s.starts_with("nodes") => {
+                let (_, node_str) = s
+                    .split_once(":")
+                    .ok_or(anyhow::Error::msg("unsupported node spec format"))?;
+                let node_ids = node_str.split(",").map(|s| s.to_string()).collect();
+                Ok(Self::Nodes(node_ids))
+            }
+            _ => Err(anyhow::Error::msg("unsupported node spec format")),
+        }
+    }
+}
+
+impl NodeSpec {
+    pub fn from_api_nodespec(
+        self,
+        catalog: &Arc<Catalog>,
+    ) -> std::result::Result<log::NodeSpec, Error> {
+        match self {
+            Self::All => Ok(log::NodeSpec::All),
+            Self::Nodes(specs) => Ok(log::NodeSpec::Nodes(
+                specs
+                    .into_iter()
+                    .map(|ns| {
+                        catalog
+                            .node(&ns)
+                            .map(|n| n.node_catalog_id())
+                            .ok_or(Error::InvalidNodeName(ns.to_string()))
+                    })
+                    .collect::<std::result::Result<Vec<_>, Error>>()?,
+            )),
+        }
     }
 }
 

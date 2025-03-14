@@ -2,8 +2,8 @@
 //!
 //! This is useful for verifying that the client can parse API responses from the server
 
-use influxdb3_catalog::log::NodeSpec;
 use influxdb3_client::Precision;
+use influxdb3_types::http::NodeSpec;
 use influxdb3_types::http::QueryFormat as Format;
 
 use crate::server::TestServer;

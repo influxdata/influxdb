@@ -17,7 +17,10 @@ use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
+use crate::{
+    CatalogError, Result,
+    catalog::{CatalogSequenceNumber, NodeDefinition},
+};
 
 pub mod create;
 
@@ -378,32 +381,14 @@ pub enum NodeSpec {
     #[default]
     All,
     // Enterprise-only
-    Nodes(Vec<Arc<str>>),
-}
-
-impl FromStr for NodeSpec {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "all" => Ok(Self::All),
-            s if s.starts_with("nodes") => {
-                let (_, node_str) = s
-                    .split_once(":")
-                    .ok_or(anyhow::Error::msg("unsupported node spec format"))?;
-                let node_ids = node_str.split(",").map(|s| s.into()).collect();
-                Ok(Self::Nodes(node_ids))
-            }
-            _ => Err(anyhow::Error::msg("unsupported node spec format")),
-        }
-    }
+    Nodes(Vec<NodeId>),
 }
 
 impl NodeSpec {
-    pub fn matches_node_id(&self, node_id: Arc<str>) -> bool {
+    pub fn matches_node(&self, node: &NodeDefinition) -> bool {
         match self {
             Self::All => true,
-            Self::Nodes(v) => v.contains(&node_id),
+            Self::Nodes(v) => v.contains(&node.node_catalog_id),
         }
     }
 }

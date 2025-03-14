@@ -4,12 +4,12 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use humantime::Duration;
 use influxdb3_catalog::log::ErrorBehavior;
-use influxdb3_catalog::log::NodeSpec;
 use influxdb3_catalog::log::TriggerSettings;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
+use influxdb3_types::http::NodeSpec;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
@@ -461,7 +461,8 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
-    use influxdb3_catalog::log::{ErrorBehavior, NodeSpec, TriggerSpecificationDefinition};
+    use influxdb3_catalog::log::{ErrorBehavior, TriggerSpecificationDefinition};
+    use influxdb3_types::http::NodeSpec;
 
     #[test]
     fn parse_args_create_last_cache() {

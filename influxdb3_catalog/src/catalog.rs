@@ -696,6 +696,10 @@ impl NodeDefinition {
         Arc::clone(&self.node_id)
     }
 
+    pub fn node_catalog_id(&self) -> NodeId {
+        self.node_catalog_id
+    }
+
     pub fn modes(&self) -> &Vec<NodeMode> {
         &self.mode
     }
