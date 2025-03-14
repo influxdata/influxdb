@@ -162,14 +162,15 @@ pub struct LastCacheConfig {
     ///
     /// # `all` (default)
     ///
-    /// The cache is applied to all nodes. This is the default behavior when the flag is not
-    /// specified.
+    /// The cache is applied to `query` and `process` nodes. This is the default behavior when the
+    /// flag is not specified.
     ///
     /// Example 1: --node-spec "all"
     ///
     /// # `nodes:<node-id>[,<node-id>..]`
     ///
-    /// The cache is applied only to the specified comma-separated list of nodes.
+    /// The cache is applied only to the specified comma-separated list of nodes. Only applies to
+    /// `query` and `process` nodes.
     ///
     /// Example 2: --node-spec "node1,node2,node3"
     #[clap(short = 'n', long = "node-spec")]
