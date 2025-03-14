@@ -248,6 +248,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         table: impl Into<String> + Send,
+        node_spec: NodeSpec,
         name: impl Into<String> + Send,
     ) -> Result<()> {
         let _bytes = self
@@ -257,6 +258,7 @@ impl Client {
                 Some(LastCacheDeleteRequest {
                     db: db.into(),
                     table: table.into(),
+                    node_spec: Some(node_spec),
                     name: name.into(),
                 }),
                 None::<()>,
@@ -1178,7 +1180,8 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
 
 #[cfg(test)]
 mod tests {
-    use influxdb3_types::http::{LastCacheSize, LastCacheTtl};
+    use influxdb3_catalog::log::NodeSpec;
+    use influxdb3_types::http::{LastCacheDeleteRequest, LastCacheSize, LastCacheTtl};
     use mockito::{Matcher, Server};
     use serde_json::json;
 
@@ -1506,19 +1509,22 @@ mod tests {
         let table = "table";
         let name = "cache_name";
         let mut mock_server = Server::new_async().await;
+        let json = serde_json::to_value(&LastCacheDeleteRequest {
+            db: db.to_string(),
+            table: table.to_string(),
+            name: name.to_string(),
+            node_spec: Some(NodeSpec::All),
+        })
+        .unwrap();
         let mock = mock_server
             .mock("DELETE", "/api/v3/configure/last_cache")
-            .match_body(Matcher::Json(serde_json::json!({
-                "db": db,
-                "table": table,
-                "name": name,
-            })))
+            .match_body(Matcher::Json(json))
             .with_status(200)
             .create_async()
             .await;
         let client = Client::new(mock_server.url()).unwrap();
         client
-            .api_v3_configure_last_cache_delete(db, table, name)
+            .api_v3_configure_last_cache_delete(db, table, NodeSpec::All, name)
             .await
             .unwrap();
         mock.assert_async().await;

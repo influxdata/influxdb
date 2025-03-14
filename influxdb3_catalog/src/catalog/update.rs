@@ -11,9 +11,18 @@ use super::{
     DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
 };
 use crate::{
-    catalog::NodeDefinition, log::{
-        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode, NodeSpec, OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename
-    }, object_store::PersistCatalogResult, CatalogError, Result
+    CatalogError, Result,
+    catalog::NodeDefinition,
+    log::{
+        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
+        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
+        FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
+        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode, NodeSpec,
+        OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
+        ValidPluginFilename,
+    },
+    object_store::PersistCatalogResult,
 };
 
 impl Catalog {
@@ -474,6 +483,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: NodeSpec,
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name, "delete last cache");
@@ -495,6 +505,7 @@ impl Catalog {
                     table_id: tbl.table_id,
                     table_name: Arc::clone(&tbl.table_name),
                     id: cache.id,
+                    node_spec: node_spec.clone(),
                     name: Arc::clone(&cache.name),
                 })],
             ))

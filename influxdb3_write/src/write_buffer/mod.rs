@@ -1019,7 +1019,7 @@ mod tests {
         assert_batches_eq!(&expected, &actual);
         // Delete the last cache:
         wbuf.catalog()
-            .delete_last_cache(db_name, tbl_name, cache_name)
+            .delete_last_cache(db_name, tbl_name, NodeSpec::default(), cache_name)
             .await
             .unwrap();
 

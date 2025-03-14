@@ -353,11 +353,19 @@ fn background_catalog_update(
                                 DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
                                     table_id,
                                     id,
+                                    node_spec,
                                     ..
                                 }) => {
-                                    // This only errors when the cache isn't there, so we ignore the
-                                    // error...
-                                    let _ = provider.delete_cache(&batch.database_id, table_id, id);
+                                    if node_spec.matches_node_id(provider.catalog.current_node_id())
+                                    {
+                                        // This only errors when the cache isn't there, so we ignore the
+                                        // error...
+                                        let _ = provider.delete_cache(
+                                            &batch.database_id,
+                                            table_id,
+                                            id,
+                                        );
+                                    }
                                 }
                                 _ => (),
                             }

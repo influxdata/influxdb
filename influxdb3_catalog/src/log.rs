@@ -566,6 +566,7 @@ impl Default for LastCacheTtl {
 pub struct DeleteLastCacheLog {
     pub table_id: TableId,
     pub table_name: Arc<str>,
+    pub node_spec: NodeSpec,
     pub id: LastCacheId,
     pub name: Arc<str>,
 }

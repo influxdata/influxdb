@@ -1003,7 +1003,12 @@ where
     /// This will first attempt to parse the parameters from the URI query string, if a query string
     /// is provided, but if not, will attempt to parse them from the request body as JSON.
     async fn configure_last_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let LastCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query() {
+        let LastCacheDeleteRequest {
+            db,
+            table,
+            node_spec,
+            name,
+        } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
@@ -1011,7 +1016,7 @@ where
 
         self.write_buffer
             .catalog()
-            .delete_last_cache(&db, &table, &name)
+            .delete_last_cache(&db, &table, node_spec.unwrap_or_default(), &name)
             .await?;
 
         Response::builder()

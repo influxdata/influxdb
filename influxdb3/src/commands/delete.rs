@@ -1,4 +1,5 @@
 use super::common::InfluxDb3Config;
+use influxdb3_catalog::log::NodeSpec;
 use influxdb3_client::Client;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
@@ -133,6 +134,23 @@ pub struct LastCacheConfig {
     #[clap(short = 't', long = "table")]
     table: String,
 
+    /// The name of the nodes for which the cache should be deleted. Two value formats are supported:
+    ///
+    /// # all (default)
+    ///
+    /// The cache is deleted from all nodes. This is the default behavior when the flag is not
+    /// specified.
+    ///
+    /// Example 1: --node-spec "all"
+    ///
+    /// # nodes:<node-id>[,<node-id>..]
+    ///
+    /// The cache is only deleted from the specified comma-separated list of nodes.
+    ///
+    /// Example 2: --node-spec "node1,node2,node3"
+    #[clap(short = 'n', long = "node-spec")]
+    node_spec: Option<NodeSpec>,
+
     /// The name of the cache being deleted
     #[clap(required = true)]
     cache_name: String,
@@ -203,11 +221,17 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         }
         SubCommand::LastCache(LastCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
+            node_spec,
             table,
             cache_name,
         }) => {
             client
-                .api_v3_configure_last_cache_delete(database_name, table, cache_name)
+                .api_v3_configure_last_cache_delete(
+                    database_name,
+                    table,
+                    node_spec.unwrap_or_default(),
+                    cache_name,
+                )
                 .await?;
 
             println!("last cache deleted successfully");
