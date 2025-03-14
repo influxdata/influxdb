@@ -10,9 +10,11 @@ use anyhow::bail;
 use influxdb3_catalog::log::NodeMode;
 #[derive(Debug, clap::Parser)]
 pub struct EnterpriseServeConfig {
-    /// The cluster id which prefixes the location in object store for the Enterprise Catalog
+    /// The cluster-id prefixes the location in object store for the Enterprise Catalog
+    ///
+    /// This must be a different value than what is provided for the `--node-id` argument.
     #[clap(long = "cluster-id", env = "INFLUXDB3_ENTERPRISE_CLUSTER_ID", action)]
-    pub cluster_identifier_prefix: Option<String>,
+    pub cluster_identifier_prefix: String,
 
     /// The mode to start the server in
     #[clap(long = "mode", value_enum, default_values = vec!["all"], env = "INFLUXDB3_ENTERPRISE_MODE", value_delimiter=',')]
