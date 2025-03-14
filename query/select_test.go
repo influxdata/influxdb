@@ -2879,6 +2879,14 @@ func TestSelect(t *testing.T) {
 			},
 			now: mustParseTime("1970-01-01T00:02:30Z"),
 		},
+		{
+			// This caused a panic in 1.11.7 and earlier versions
+			name: "Multiple_Subqueries_Fail",
+			q: `SELECT ABS(a_count - b_count) FROM
+                                  (SELECT COUNT(DISTINCT a_id) AS a_count FROM (SELECT last(v0), tag0 AS a_id FROM m0 GROUP BY tag0) FILL(0)),
+                                  (SELECT COUNT(DISTINCT b_id) as b_count FROM (SELECT last(v0), tag0 AS a_id FROM m0 GROUP BY tag0) FILL(0))`,
+			err: `invalid expression type: *influxql.Distinct`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			shardMapper := ShardMapper{
