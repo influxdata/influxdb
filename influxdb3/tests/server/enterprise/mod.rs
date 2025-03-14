@@ -3,6 +3,8 @@ use reqwest::Response;
 
 use crate::server::{ConfigProvider, TestServer};
 
+use super::TestConfig;
+
 pub mod compactor;
 mod file_index;
 mod query;
@@ -11,31 +13,20 @@ mod replicas;
 /// Configuration for a [`TestServer`]
 #[derive(Debug, Default)]
 pub struct TestConfigEnterprise {
-    auth_token: Option<(String, String)>,
+    core: TestConfig,
     cluster_id: Option<String>,
-    node_id: Option<String>,
     replication_interval: Option<String>,
     mode: Option<Vec<BufferMode>>,
-    object_store_path: Option<String>,
 }
 
 impl ConfigProvider for TestConfigEnterprise {
     fn as_args(&self) -> Vec<String> {
-        let mut args = vec![];
-        if let Some((token, _)) = &self.auth_token {
-            args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
-        }
+        let mut args = self.core.as_args();
         args.push("--cluster-id".to_string());
         if let Some(cluster_id) = &self.cluster_id {
             args.push(cluster_id.to_owned());
         } else {
             args.push("test-cluster".to_string());
-        }
-        args.push("--node-id".to_string());
-        if let Some(node_id) = &self.node_id {
-            args.push(node_id.to_owned());
-        } else {
-            args.push("test-server".to_string());
         }
         if let Some(mode) = &self.mode {
             args.append(&mut vec![
@@ -45,14 +36,6 @@ impl ConfigProvider for TestConfigEnterprise {
                     .collect::<Vec<_>>()
                     .join(","),
             ]);
-        }
-        if let Some(path) = &self.object_store_path {
-            args.append(&mut vec![
-                "--object-store".to_string(),
-                "file".to_string(),
-                "--data-dir".to_string(),
-                path.to_owned(),
-            ])
         }
         if let Some(replication_interval) = &self.replication_interval {
             args.append(&mut vec![
@@ -64,7 +47,7 @@ impl ConfigProvider for TestConfigEnterprise {
     }
 
     fn auth_token(&self) -> Option<&str> {
-        self.auth_token.as_ref().map(|(_, t)| t.as_str())
+        self.core.auth_token.as_ref().map(|(_, t)| t.as_str())
     }
 }
 
@@ -75,7 +58,7 @@ impl TestConfigEnterprise {
         hashed_token: S,
         raw_token: R,
     ) -> Self {
-        self.auth_token = Some((hashed_token.into(), raw_token.into()));
+        self.core = self.core.with_auth_token(hashed_token, raw_token);
         self
     }
 
@@ -86,12 +69,12 @@ impl TestConfigEnterprise {
 
     /// Set a node identifier prefix on the spawned [`TestServer`]
     pub fn with_node_id<S: Into<String>>(mut self, node_id: S) -> Self {
-        self.node_id = Some(node_id.into());
+        self.core = self.core.with_node_id(node_id);
         self
     }
 
     pub fn with_object_store<S: Into<String>>(mut self, path: S) -> Self {
-        self.object_store_path = Some(path.into());
+        self.core = self.core.with_object_store_dir(path);
         self
     }
 
@@ -105,6 +88,15 @@ impl TestConfigEnterprise {
     pub fn with_replication_interval<S: Into<String>>(mut self, interval: S) -> Self {
         self.replication_interval = Some(interval.into());
         self
+    }
+}
+
+impl From<TestConfig> for TestConfigEnterprise {
+    fn from(core: TestConfig) -> Self {
+        Self {
+            core,
+            ..Default::default()
+        }
     }
 }
 

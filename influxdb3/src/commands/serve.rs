@@ -199,6 +199,9 @@ pub enum Error {
     #[cfg(not(feature = "no_license"))]
     #[error("Invalid email address")]
     InvalidEmail,
+
+    #[error("Must provide different values for the cluster-id and node-id")]
+    ClusterIdMatchingNodeId,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -647,16 +650,14 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
+    if config.node_identifier_prefix == config.enterprise_config.cluster_identifier_prefix {
+        return Err(Error::ClusterIdMatchingNodeId);
+    }
+
     let catalog = Arc::new(
         Catalog::new_enterprise(
             config.node_identifier_prefix.as_str(),
-            // TODO: the --cluster-id still needs to be made mandatory
-            config
-                .enterprise_config
-                .cluster_identifier_prefix
-                .as_ref()
-                .unwrap_or(&config.node_identifier_prefix)
-                .as_str(),
+            config.enterprise_config.cluster_identifier_prefix.as_str(),
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
         )

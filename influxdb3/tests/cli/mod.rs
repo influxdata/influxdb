@@ -13,6 +13,8 @@ use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
 use test_helpers::{assert_contains, assert_not_contains};
 
+mod enterprise;
+
 pub const WRITE_REPORTS_PLUGIN_CODE: &str = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     for table_batch in table_batches:
@@ -138,6 +140,10 @@ fn create_plugin_file(code: &str) -> NamedTempFile {
 async fn test_telemetry_disabled_with_debug_msg() {
     let serve_args = &[
         "serve",
+        // Enterprise only
+        "--cluster-id",
+        "the-best-cluster",
+        // End Enterprise only
         "--node-id",
         "the-best-node",
         "--object-store",
@@ -166,6 +172,10 @@ async fn test_telemetry_disabled_with_debug_msg() {
 async fn test_telemetry_disabled() {
     let serve_args = &[
         "serve",
+        // Enterprise only
+        "--cluster-id",
+        "the-best-cluster",
+        // End Enterprise only
         "--node-id",
         "the-best-node",
         "--object-store",
@@ -193,6 +203,10 @@ async fn test_telemetry_disabled() {
 async fn test_telemetry_enabled_with_debug_msg() {
     let serve_args = &[
         "serve",
+        // Enterprise only
+        "--cluster-id",
+        "the-best-cluster",
+        // End Enterprise only
         "--node-id",
         "the-best-node",
         "--object-store",
@@ -223,6 +237,10 @@ async fn test_telemetry_enabled_with_debug_msg() {
 async fn test_telementry_enabled() {
     let serve_args = &[
         "serve",
+        // Enterprise only
+        "--cluster-id",
+        "the-best-cluster",
+        // End Enterprise only
         "--node-id",
         "the-best-node",
         "--object-store",

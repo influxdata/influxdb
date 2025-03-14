@@ -8,6 +8,7 @@ use std::{
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{FlightClient, decode::FlightRecordBatchStream};
 use assert_cmd::cargo::CommandCargoExt;
+use enterprise::TestConfigEnterprise;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
@@ -47,7 +48,7 @@ pub trait ConfigProvider {
 }
 
 /// Configuration for a [`TestServer`]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
     node_id: Option<String>,
@@ -145,6 +146,16 @@ impl ConfigProvider for TestConfig {
     fn auth_token(&self) -> Option<&str> {
         self.auth_token.as_ref().map(|(_, t)| t.as_str())
     }
+
+    // This is an Enterprise only change to workaround the use of the Core TestConfig type
+    // in all the tests that are written in core.
+    fn spawn(&self) -> impl Future<Output = TestServer>
+    where
+        Self: Sized + Sync,
+    {
+        let config = TestConfigEnterprise::from(self.clone());
+        async move { TestServer::spawn_inner(&config).await }
+    }
 }
 
 /// A running instance of the `influxdb3 serve` process
@@ -171,7 +182,9 @@ impl TestServer {
     /// This will run the `influxdb3 serve` command, and bind its HTTP
     /// address to a random port on localhost.
     pub async fn spawn() -> Self {
-        Self::spawn_inner(&TestConfig::default()).await
+        // NOTE: for enterprise, a `--cluster-id` must be passed on server start, so we use the
+        // default enterprise config here to start the server:
+        Self::spawn_inner(&TestConfigEnterprise::default()).await
     }
 
     /// Configure a [`TestServer`] before spawning
