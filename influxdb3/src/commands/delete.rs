@@ -161,7 +161,7 @@ pub struct DistinctCacheConfig {
     /// The cache is applied only to the specified comma-separated list of nodes. Only applies to
     /// `query` and `process` nodes.
     ///
-    /// Example 2: --node-spec "node1,node2,node3"
+    /// Example 2: --node-spec "nodes:node1,node2,node3"
     #[clap(short = 'n', long = "node-spec")]
     node_spec: Option<ApiNodeSpec>,
 
