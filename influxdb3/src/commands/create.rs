@@ -160,14 +160,14 @@ pub struct LastCacheConfig {
 
     /// Which node(s) the cache should be configured on. Two value formats are supported:
     ///
-    /// # all (default)
+    /// # `all` (default)
     ///
     /// The cache is applied to all nodes. This is the default behavior when the flag is not
     /// specified.
     ///
     /// Example 1: --node-spec "all"
     ///
-    /// # nodes:<node-id>[,<node-id>..]
+    /// # `nodes:<node-id>[,<node-id>..]`
     ///
     /// The cache is applied only to the specified comma-separated list of nodes.
     ///

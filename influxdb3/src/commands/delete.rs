@@ -136,14 +136,14 @@ pub struct LastCacheConfig {
 
     /// The name of the nodes for which the cache should be deleted. Two value formats are supported:
     ///
-    /// # all (default)
+    /// # `all` (default)
     ///
     /// The cache is deleted from all nodes. This is the default behavior when the flag is not
     /// specified.
     ///
     /// Example 1: --node-spec "all"
     ///
-    /// # nodes:<node-id>[,<node-id>..]
+    /// # `nodes:<node-id>[,<node-id>..]`
     ///
     /// The cache is only deleted from the specified comma-separated list of nodes.
     ///
