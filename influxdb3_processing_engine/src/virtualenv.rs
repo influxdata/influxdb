@@ -36,6 +36,11 @@ fn find_python_install() -> Option<PathBuf> {
     } else if influxdb3_rel_dir.is_dir() {
         // Official tar/zip builds use runtime in python/ relative to executable
         Some(influxdb3_rel_dir)
+        // This is intended to find the python standalone during Circle CI runs.
+    } else if let Ok(pyo3_config) = env::var("PYO3_CONFIG_FILE") {
+        PathBuf::from(pyo3_config)
+            .parent()
+            .map(|path| path.join("python").to_path_buf())
     } else {
         // Could not find python-build-standalone installation
         None

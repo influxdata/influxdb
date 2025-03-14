@@ -87,7 +87,7 @@ parameters:
 # Consistent environment setup for Python Build Standalone
 pbs_config: &pbs_config
   PBS_DATE: "20250212"
-  PBS_VERSION: "3.11.11"
+  PBS_VERSION: "3.13.2"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -155,7 +155,7 @@ commands:
           name: Set PYO3 environment variables
           command: |
             echo "export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt" >> $BASH_ENV
-            echo "export PYO3_CROSS_PYTHON_VERSION=3.11" >> $BASH_ENV
+            echo "export PYO3_CROSS_PYTHON_VERSION=3.13" >> $BASH_ENV
 
 jobs:
   fmt:

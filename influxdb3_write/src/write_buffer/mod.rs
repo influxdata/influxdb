@@ -1245,6 +1245,7 @@ mod tests {
             )
             .await
             .unwrap();
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let expected = [
             "+-----+----------------------+",
