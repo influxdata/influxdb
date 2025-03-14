@@ -2,7 +2,7 @@ pub mod enterprise;
 
 use bytes::Bytes;
 use hashbrown::HashMap;
-use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
+use influxdb3_catalog::log::{NodeSpec, OrderedCatalogBatch, TriggerSettings};
 use iox_query_params::StatementParam;
 use reqwest::{
     Body, IntoUrl, Method, StatusCode,
@@ -1059,6 +1059,7 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
                 db: db.into(),
                 table: table.into(),
                 name: None,
+                node_spec: Default::default(),
                 key_columns: None,
                 value_columns: None,
                 count: Default::default(),
@@ -1070,6 +1071,12 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     /// Specify a cache name
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.request.name = Some(name.into());
+        self
+    }
+
+    /// Specify a node spec
+    pub fn node_spec(mut self, node_spec: NodeSpec) -> Self {
+        self.request.node_spec = Some(node_spec);
         self
     }
 

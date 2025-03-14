@@ -341,6 +341,10 @@ impl Catalog {
             .collect();
         result
     }
+
+    pub fn current_node_id(&self) -> Arc<str> {
+        Arc::clone(self.current_node_id.as_ref().unwrap_or(&self.store.prefix))
+    }
 }
 
 impl Catalog {
@@ -1547,7 +1551,9 @@ impl ColumnDefinition {
 mod tests {
 
     use crate::{
-        log::{FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, create},
+        log::{
+            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, NodeSpec, create,
+        },
         object_store::CatalogFilePath,
         serialize::{serialize_catalog_snapshot, verify_and_deserialize_catalog_checkpoint_file},
     };
@@ -1720,6 +1726,7 @@ mod tests {
             .create_last_cache(
                 "test_db",
                 "test",
+                NodeSpec::default(),
                 Some("test_table_last_cache"),
                 Some(&["tag_1", "tag_3"]),
                 Some(&["field"]),

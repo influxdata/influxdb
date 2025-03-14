@@ -342,7 +342,13 @@ fn background_catalog_update(
                                     provider.delete_caches_for_table(&batch.database_id, table_id);
                                 }
                                 DatabaseCatalogOp::CreateLastCache(log) => {
-                                    provider.create_cache_from_definition(batch.database_id, log);
+                                    if log
+                                        .node_spec
+                                        .matches_node_id(provider.catalog.current_node_id())
+                                    {
+                                        provider
+                                            .create_cache_from_definition(batch.database_id, log);
+                                    }
                                 }
                                 DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
                                     table_id,

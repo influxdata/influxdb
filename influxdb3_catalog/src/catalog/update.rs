@@ -11,18 +11,9 @@ use super::{
     DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
 };
 use crate::{
-    CatalogError, Result,
-    catalog::NodeDefinition,
-    log::{
-        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
-        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
-        FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
-        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
-        OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
-        ValidPluginFilename,
-    },
-    object_store::PersistCatalogResult,
+    catalog::NodeDefinition, log::{
+        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode, NodeSpec, OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog, TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename
+    }, object_store::PersistCatalogResult, CatalogError, Result
 };
 
 impl Catalog {
@@ -363,6 +354,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: NodeSpec,
         cache_name: Option<&str>,
         key_columns: Option<&[impl AsRef<str> + Send + Sync]>,
         value_columns: Option<&[impl AsRef<str> + Send + Sync]>,
@@ -466,6 +458,7 @@ impl Catalog {
                     table_id: tbl.table_id,
                     table: Arc::clone(&tbl.table_name),
                     id: cache_id,
+                    node_spec: node_spec.clone(),
                     name: cache_name,
                     key_columns: key_ids,
                     value_columns,

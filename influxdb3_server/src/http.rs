@@ -964,6 +964,7 @@ where
         let LastCacheCreateRequest {
             db,
             table,
+            node_spec,
             name,
             key_columns,
             value_columns,
@@ -976,6 +977,7 @@ where
             .create_last_cache(
                 &db,
                 &table,
+                node_spec.unwrap_or_else(Default::default),
                 name.as_deref(),
                 key_columns.as_deref(),
                 value_columns.as_deref(),

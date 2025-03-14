@@ -228,6 +228,7 @@ mod tests {
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
     use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::log::NodeSpec;
     use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
@@ -646,6 +647,7 @@ mod tests {
             .create_last_cache(
                 db_name,
                 tbl_name,
+                NodeSpec::default(),
                 None,
                 None as Option<&[&str]>,
                 None as Option<&[&str]>,

@@ -1,6 +1,7 @@
 ---
 source: influxdb3_cache/src/last_cache/mod.rs
 expression: catalog.snapshot()
+snapshot_kind: text
 ---
 {
   "nodes": {
@@ -118,6 +119,7 @@ expression: catalog.snapshot()
                         {
                           "table_id": 0,
                           "table": "test_table_1",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "test_cache_1",
                           "keys": [
@@ -208,6 +210,7 @@ expression: catalog.snapshot()
                         {
                           "table_id": 1,
                           "table": "test_table_2",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "test_cache_2",
                           "keys": [
@@ -226,6 +229,7 @@ expression: catalog.snapshot()
                         {
                           "table_id": 1,
                           "table": "test_table_2",
+                          "node_spec": "all",
                           "id": 1,
                           "name": "test_cache_3",
                           "keys": [],

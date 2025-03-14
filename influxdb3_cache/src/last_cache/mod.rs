@@ -52,7 +52,7 @@ mod tests {
     use indexmap::IndexMap;
     use influxdb3_catalog::{
         catalog::Catalog,
-        log::{FieldDataType, LastCacheSize, LastCacheTtl},
+        log::{FieldDataType, LastCacheSize, LastCacheTtl, NodeSpec},
     };
     use influxdb3_id::ColumnId;
     use iox_time::{MockProvider, Time};
@@ -1199,6 +1199,7 @@ mod tests {
             .create_last_cache(
                 db_name,
                 "test_table_1",
+                NodeSpec::default(),
                 Some("test_cache_1"),
                 Some(&["t1"]),
                 None as Option<&[&str]>,
@@ -1220,6 +1221,7 @@ mod tests {
             .create_last_cache(
                 db_name,
                 "test_table_2",
+                NodeSpec::default(),
                 Some("test_cache_2"),
                 Some(&["t1"]),
                 Some(&["f1", "time"]),
@@ -1232,6 +1234,7 @@ mod tests {
             .create_last_cache(
                 db_name,
                 "test_table_2",
+                NodeSpec::default(),
                 Some("test_cache_3"),
                 Option::<&[&str]>::Some(&[]),
                 Some(&["f2", "time"]),
@@ -1277,6 +1280,7 @@ mod tests {
             .create_last_cache(
                 TestWriter::DB_NAME,
                 "cpu",
+                NodeSpec::default(),
                 None,
                 Option::<&[&str]>::None,
                 Option::<&[&str]>::None,
@@ -1532,6 +1536,7 @@ mod tests {
             .create_last_cache(
                 TestWriter::DB_NAME,
                 "cpu",
+                NodeSpec::default(),
                 None,
                 Option::<&[&str]>::None,
                 Some(&["usage"]),

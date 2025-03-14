@@ -358,6 +358,8 @@ pub struct LastCacheDefinition {
     pub table: Arc<str>,
     /// The last cache id scoped to parent table
     pub id: LastCacheId,
+    /// Specify the node(s) which should have the cache enabled
+    pub node_spec: NodeSpec,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -368,6 +370,42 @@ pub struct LastCacheDefinition {
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: LastCacheTtl,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<Arc<str>>),
+}
+
+impl FromStr for NodeSpec {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            s if s.starts_with("nodes") => {
+                let (_, node_str) = s
+                    .split_once(":")
+                    .ok_or(anyhow::Error::msg("unsupported node spec format"))?;
+                let node_ids = node_str.split(",").map(|s| s.into()).collect();
+                Ok(Self::Nodes(node_ids))
+            }
+            _ => Err(anyhow::Error::msg("unsupported node spec format")),
+        }
+    }
+}
+
+impl NodeSpec {
+    pub fn matches_node_id(&self, node_id: Arc<str>) -> bool {
+        match self {
+            Self::All => true,
+            Self::Nodes(v) => v.contains(&node_id),
+        }
+    }
 }
 
 /// A last cache will either store values for an explicit set of columns, or will accept all

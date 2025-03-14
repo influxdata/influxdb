@@ -4,7 +4,8 @@ use crate::catalog::{
 };
 use crate::log::{
     DistinctCacheDefinition, LastCacheDefinition, LastCacheTtl, LastCacheValueColumnsDef, MaxAge,
-    MaxCardinality, NodeMode, TriggerDefinition, TriggerSettings, TriggerSpecificationDefinition,
+    MaxCardinality, NodeMode, NodeSpec, TriggerDefinition, TriggerSettings,
+    TriggerSpecificationDefinition,
 };
 use crate::resource::CatalogResource;
 use arrow::datatypes::DataType as ArrowDataType;
@@ -299,6 +300,7 @@ impl Snapshot for ColumnDefinition {
 pub(crate) struct LastCacheSnapshot {
     table_id: TableId,
     table: Arc<str>,
+    node_spec: NodeSpec,
     id: LastCacheId,
     name: Arc<str>,
     keys: Vec<ColumnId>,
@@ -314,6 +316,7 @@ impl Snapshot for LastCacheDefinition {
         Self::Serialized {
             table_id: self.table_id,
             table: Arc::clone(&self.table),
+            node_spec: self.node_spec.clone(),
             id: self.id,
             name: Arc::clone(&self.name),
             keys: self.key_columns.to_vec(),
@@ -330,6 +333,7 @@ impl Snapshot for LastCacheDefinition {
         Self {
             table_id: snap.table_id,
             table: snap.table,
+            node_spec: snap.node_spec.clone(),
             id: snap.id,
             name: snap.name,
             key_columns: snap.keys,
