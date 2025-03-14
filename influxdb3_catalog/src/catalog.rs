@@ -15,6 +15,7 @@ use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::hash::Hash;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard, broadcast};
 use update::CatalogUpdate;
@@ -27,7 +28,7 @@ pub use update::{DatabaseCatalogTransaction, Prompt};
 
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegisterNodeLog,
+    NodeSpec, RegisterNodeLog,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -384,6 +385,52 @@ impl Catalog {
             store,
             inner: RwLock::new(inner),
         })
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiNodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<String>),
+}
+
+impl FromStr for ApiNodeSpec {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            s if s.starts_with("nodes") => {
+                let (_, node_str) = s
+                    .split_once(":")
+                    .ok_or(anyhow::Error::msg("unsupported node spec format"))?;
+                let node_ids = node_str.split(",").map(|s| s.to_string()).collect();
+                Ok(Self::Nodes(node_ids))
+            }
+            _ => Err(anyhow::Error::msg("unsupported node spec format")),
+        }
+    }
+}
+
+impl ApiNodeSpec {
+    pub fn from_api_nodespec(self, catalog: &Arc<Catalog>) -> Result<NodeSpec> {
+        match self {
+            Self::All => Ok(NodeSpec::All),
+            Self::Nodes(specs) => Ok(NodeSpec::Nodes(
+                specs
+                    .into_iter()
+                    .map(|ns| {
+                        catalog
+                            .node(&ns)
+                            .map(|n| n.node_catalog_id())
+                            .ok_or(CatalogError::InvalidNodeName(ns.to_string()))
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            )),
+        }
     }
 }
 

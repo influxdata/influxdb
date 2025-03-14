@@ -44,6 +44,9 @@ pub enum CatalogError {
     #[error("invalid node registration")]
     InvalidNodeRegistration,
 
+    #[error("invalid node name ({0})")]
+    InvalidNodeName(String),
+
     #[error(
         "Update to schema would exceed number of columns per table limit of {} columns",
         Catalog::NUM_COLUMNS_PER_TABLE_LIMIT - 1

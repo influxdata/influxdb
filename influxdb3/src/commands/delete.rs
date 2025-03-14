@@ -1,6 +1,6 @@
 use super::common::InfluxDb3Config;
+use influxdb3_catalog::catalog::ApiNodeSpec;
 use influxdb3_client::Client;
-use influxdb3_types::http::NodeSpec;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;
@@ -150,7 +150,7 @@ pub struct LastCacheConfig {
     ///
     /// Example 2: --node-spec "node1,node2,node3"
     #[clap(short = 'n', long = "node-spec")]
-    node_spec: Option<NodeSpec>,
+    node_spec: Option<ApiNodeSpec>,
 
     /// The name of the cache being deleted
     #[clap(required = true)]

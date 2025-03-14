@@ -3,13 +3,13 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use humantime::Duration;
+use influxdb3_catalog::catalog::ApiNodeSpec;
 use influxdb3_catalog::log::ErrorBehavior;
 use influxdb3_catalog::log::TriggerSettings;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
-use influxdb3_types::http::NodeSpec;
 use rand::RngCore;
 use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
@@ -174,7 +174,7 @@ pub struct LastCacheConfig {
     ///
     /// Example 2: --node-spec "node1,node2,node3"
     #[clap(short = 'n', long = "node-spec")]
-    node_spec: Option<NodeSpec>,
+    node_spec: Option<ApiNodeSpec>,
 
     /// Which columns in the table to use as keys in the cache. This is a comma separated list.
     ///
@@ -461,8 +461,8 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
+    use influxdb3_catalog::catalog::ApiNodeSpec;
     use influxdb3_catalog::log::{ErrorBehavior, TriggerSpecificationDefinition};
-    use influxdb3_types::http::NodeSpec;
 
     #[test]
     fn parse_args_create_last_cache() {
@@ -501,7 +501,7 @@ mod tests {
         assert_eq!("bar", database_name);
         assert_eq!("foo", table);
         assert!(node_spec.is_some_and(
-            |n| n == NodeSpec::Nodes(vec!["node1".into(), "node2".into(), "node3".into()])
+            |n| n == ApiNodeSpec::Nodes(vec!["node1".into(), "node2".into(), "node3".into()])
         ));
         assert!(cache_name.is_some_and(|n| n == "bar"));
         assert!(key_columns.is_some_and(|keys| keys == ["tag1", "tag2", "tag3"]));

@@ -2,6 +2,7 @@ pub mod enterprise;
 
 use bytes::Bytes;
 use hashbrown::HashMap;
+use influxdb3_catalog::catalog::ApiNodeSpec;
 use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
 use iox_query_params::StatementParam;
 use reqwest::{
@@ -248,7 +249,7 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         table: impl Into<String> + Send,
-        node_spec: NodeSpec,
+        node_spec: ApiNodeSpec,
         name: impl Into<String> + Send,
     ) -> Result<()> {
         let _bytes = self
@@ -1077,7 +1078,7 @@ impl<'c> CreateLastCacheRequestBuilder<'c> {
     }
 
     /// Specify a node spec
-    pub fn node_spec(mut self, node_spec: NodeSpec) -> Self {
+    pub fn node_spec(mut self, node_spec: ApiNodeSpec) -> Self {
         self.request.node_spec = Some(node_spec);
         self
     }
@@ -1180,7 +1181,8 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
 
 #[cfg(test)]
 mod tests {
-    use influxdb3_types::http::{LastCacheDeleteRequest, LastCacheSize, LastCacheTtl, NodeSpec};
+    use influxdb3_catalog::catalog::ApiNodeSpec;
+    use influxdb3_types::http::{LastCacheDeleteRequest, LastCacheSize, LastCacheTtl};
     use mockito::{Matcher, Server};
     use serde_json::json;
 
@@ -1512,7 +1514,7 @@ mod tests {
             db: db.to_string(),
             table: table.to_string(),
             name: name.to_string(),
-            node_spec: Some(NodeSpec::All),
+            node_spec: Some(ApiNodeSpec::All),
         })
         .unwrap();
         let mock = mock_server
@@ -1523,7 +1525,7 @@ mod tests {
             .await;
         let client = Client::new(mock_server.url()).unwrap();
         client
-            .api_v3_configure_last_cache_delete(db, table, NodeSpec::All, name)
+            .api_v3_configure_last_cache_delete(db, table, ApiNodeSpec::All, name)
             .await
             .unwrap();
         mock.assert_async().await;
