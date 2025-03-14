@@ -1,51 +1,266 @@
 ---
 source: influxdb3_cache/src/last_cache/mod.rs
-expression: caches
+expression: catalog.snapshot()
 ---
-[
-  {
-    "table_id": 0,
-    "table": "test_table_1",
-    "name": "test_cache_1",
-    "key_columns": [
-      0
-    ],
-    "value_columns": "all_non_key_columns",
-    "count": 1,
-    "ttl": 600
+{
+  "nodes": {
+    "repo": [],
+    "next_id": 0
   },
-  {
-    "table_id": 1,
-    "table": "test_table_2",
-    "name": "test_cache_2",
-    "key_columns": [
-      0
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "test_db",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "test_table_1",
+                  "key": [
+                    0,
+                    1,
+                    2
+                  ],
+                  "columns": {
+                    "repo": [
+                      [
+                        3,
+                        {
+                          "name": "f1",
+                          "id": 3,
+                          "type": "str",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        4,
+                        {
+                          "name": "f2",
+                          "id": 4,
+                          "type": "f64",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        0,
+                        {
+                          "name": "t1",
+                          "id": 0,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": "t2",
+                          "id": 1,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        2,
+                        {
+                          "name": "t3",
+                          "id": 2,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        5,
+                        {
+                          "name": "time",
+                          "id": 5,
+                          "type": {
+                            "time": [
+                              "ns",
+                              null
+                            ]
+                          },
+                          "influx_type": "time",
+                          "nullable": false
+                        }
+                      ]
+                    ],
+                    "next_id": 6
+                  },
+                  "last_caches": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "table_id": 0,
+                          "table": "test_table_1",
+                          "id": 0,
+                          "name": "test_cache_1",
+                          "keys": [
+                            0
+                          ],
+                          "vals": null,
+                          "n": 1,
+                          "ttl": 600
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false
+                }
+              ],
+              [
+                1,
+                {
+                  "table_id": 1,
+                  "table_name": "test_table_2",
+                  "key": [
+                    0
+                  ],
+                  "columns": {
+                    "repo": [
+                      [
+                        1,
+                        {
+                          "name": "f1",
+                          "id": 1,
+                          "type": "str",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        2,
+                        {
+                          "name": "f2",
+                          "id": 2,
+                          "type": "f64",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        0,
+                        {
+                          "name": "t1",
+                          "id": 0,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        3,
+                        {
+                          "name": "time",
+                          "id": 3,
+                          "type": {
+                            "time": [
+                              "ns",
+                              null
+                            ]
+                          },
+                          "influx_type": "time",
+                          "nullable": false
+                        }
+                      ]
+                    ],
+                    "next_id": 4
+                  },
+                  "last_caches": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "table_id": 1,
+                          "table": "test_table_2",
+                          "id": 0,
+                          "name": "test_cache_2",
+                          "keys": [
+                            0
+                          ],
+                          "vals": [
+                            1,
+                            3
+                          ],
+                          "n": 5,
+                          "ttl": 60
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "table_id": 1,
+                          "table": "test_table_2",
+                          "id": 1,
+                          "name": "test_cache_3",
+                          "keys": [],
+                          "vals": [
+                            2,
+                            3
+                          ],
+                          "n": 10,
+                          "ttl": 500
+                        }
+                      ]
+                    ],
+                    "next_id": 2
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false
+                }
+              ]
+            ],
+            "next_id": 2
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false
+        }
+      ]
     ],
-    "value_columns": {
-      "explicit": {
-        "columns": [
-          1,
-          3
-        ]
-      }
-    },
-    "count": 5,
-    "ttl": 60
+    "next_id": 1
   },
-  {
-    "table_id": 1,
-    "table": "test_table_2",
-    "name": "test_cache_3",
-    "key_columns": [],
-    "value_columns": {
-      "explicit": {
-        "columns": [
-          2,
-          3
-        ]
-      }
-    },
-    "count": 10,
-    "ttl": 500
-  }
-]
+  "sequence": 6,
+  "catalog_id": "sample-host-id",
+  "catalog_uuid": "[uuid]"
+}

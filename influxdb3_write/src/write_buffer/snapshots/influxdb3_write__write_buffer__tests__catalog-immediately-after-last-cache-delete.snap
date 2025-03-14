@@ -3,89 +3,107 @@ source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
 ---
 {
-  "nodes": [],
-  "databases": [
-    [
-      0,
-      {
-        "id": 0,
-        "name": "db",
-        "tables": [
-          [
-            0,
-            {
-              "table_id": 0,
-              "table_name": "table",
-              "key": [
-                0
-              ],
-              "cols": [
-                [
-                  1,
-                  {
-                    "name": "f1",
-                    "id": 1,
-                    "type": "bool",
-                    "influx_type": "field",
-                    "nullable": true
-                  }
-                ],
-                [
-                  3,
-                  {
-                    "name": "f2",
-                    "id": 3,
-                    "type": "i64",
-                    "influx_type": "field",
-                    "nullable": true
-                  }
-                ],
-                [
-                  0,
-                  {
-                    "name": "t1",
-                    "id": 0,
-                    "type": {
-                      "dict": [
-                        "i32",
-                        "str"
+  "nodes": {
+    "repo": [],
+    "next_id": 0
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "db",
+          "tables": {
+            "repo": [
+              [
+                0,
+                {
+                  "table_id": 0,
+                  "table_name": "table",
+                  "key": [
+                    0
+                  ],
+                  "columns": {
+                    "repo": [
+                      [
+                        1,
+                        {
+                          "name": "f1",
+                          "id": 1,
+                          "type": "bool",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        3,
+                        {
+                          "name": "f2",
+                          "id": 3,
+                          "type": "i64",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        0,
+                        {
+                          "name": "t1",
+                          "id": 0,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        2,
+                        {
+                          "name": "time",
+                          "id": 2,
+                          "type": {
+                            "time": [
+                              "ns",
+                              null
+                            ]
+                          },
+                          "influx_type": "time",
+                          "nullable": false
+                        }
                       ]
-                    },
-                    "influx_type": "tag",
-                    "nullable": true
-                  }
-                ],
-                [
-                  2,
-                  {
-                    "name": "time",
-                    "id": 2,
-                    "type": {
-                      "time": [
-                        "ns",
-                        null
-                      ]
-                    },
-                    "influx_type": "time",
-                    "nullable": false
-                  }
-                ]
-              ],
-              "last_caches": [],
-              "distinct_caches": [],
-              "deleted": false,
-              "next_column_id": 4
-            }
-          ]
-        ],
-        "processing_engine_triggers": [],
-        "deleted": false,
-        "next_table_id": 1
-      }
-    ]
-  ],
+                    ],
+                    "next_id": 4
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 1
+                  },
+                  "distinct_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "deleted": false
+                }
+              ]
+            ],
+            "next_id": 1
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false
+        }
+      ]
+    ],
+    "next_id": 1
+  },
   "sequence": 4,
   "catalog_id": "test_host",
-  "catalog_uuid": "[uuid]",
-  "next_db_id": 1
+  "catalog_uuid": "[uuid]"
 }

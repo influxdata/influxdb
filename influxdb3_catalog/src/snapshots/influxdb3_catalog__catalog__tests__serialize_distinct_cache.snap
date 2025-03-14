@@ -4,123 +4,145 @@ description: catalog serialization to help catch breaking changes
 expression: snapshot
 ---
 {
-  "nodes": [],
-  "databases": [
-    [
-      0,
-      {
-        "id": 0,
-        "name": "test_db",
-        "tables": [
-          [
-            0,
-            {
-              "table_id": 0,
-              "table_name": "test_table",
-              "key": [
+  "nodes": {
+    "repo": [],
+    "next_id": 0
+  },
+  "databases": {
+    "repo": [
+      [
+        0,
+        {
+          "id": 0,
+          "name": "test_db",
+          "tables": {
+            "repo": [
+              [
                 0,
-                1,
-                2
-              ],
-              "cols": [
-                [
-                  3,
-                  {
-                    "name": "field",
-                    "id": 3,
-                    "type": "str",
-                    "influx_type": "field",
-                    "nullable": true
-                  }
-                ],
-                [
-                  0,
-                  {
-                    "name": "tag_1",
-                    "id": 0,
-                    "type": {
-                      "dict": [
-                        "i32",
-                        "str"
-                      ]
-                    },
-                    "influx_type": "tag",
-                    "nullable": true
-                  }
-                ],
-                [
-                  1,
-                  {
-                    "name": "tag_2",
-                    "id": 1,
-                    "type": {
-                      "dict": [
-                        "i32",
-                        "str"
-                      ]
-                    },
-                    "influx_type": "tag",
-                    "nullable": true
-                  }
-                ],
-                [
-                  2,
-                  {
-                    "name": "tag_3",
-                    "id": 2,
-                    "type": {
-                      "dict": [
-                        "i32",
-                        "str"
-                      ]
-                    },
-                    "influx_type": "tag",
-                    "nullable": true
-                  }
-                ],
-                [
-                  4,
-                  {
-                    "name": "time",
-                    "id": 4,
-                    "type": {
-                      "time": [
-                        "ns",
-                        null
-                      ]
-                    },
-                    "influx_type": "time",
-                    "nullable": false
-                  }
-                ]
-              ],
-              "last_caches": [],
-              "distinct_caches": [
                 {
                   "table_id": 0,
-                  "table": "test_table",
-                  "name": "test_cache",
-                  "cols": [
+                  "table_name": "test_table",
+                  "key": [
                     0,
-                    1
+                    1,
+                    2
                   ],
-                  "max_cardinality": 100,
-                  "max_age_seconds": 10
+                  "columns": {
+                    "repo": [
+                      [
+                        3,
+                        {
+                          "name": "field",
+                          "id": 3,
+                          "type": "str",
+                          "influx_type": "field",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        0,
+                        {
+                          "name": "tag_1",
+                          "id": 0,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        1,
+                        {
+                          "name": "tag_2",
+                          "id": 1,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        2,
+                        {
+                          "name": "tag_3",
+                          "id": 2,
+                          "type": {
+                            "dict": [
+                              "i32",
+                              "str"
+                            ]
+                          },
+                          "influx_type": "tag",
+                          "nullable": true
+                        }
+                      ],
+                      [
+                        4,
+                        {
+                          "name": "time",
+                          "id": 4,
+                          "type": {
+                            "time": [
+                              "ns",
+                              null
+                            ]
+                          },
+                          "influx_type": "time",
+                          "nullable": false
+                        }
+                      ]
+                    ],
+                    "next_id": 5
+                  },
+                  "last_caches": {
+                    "repo": [],
+                    "next_id": 0
+                  },
+                  "distinct_caches": {
+                    "repo": [
+                      [
+                        0,
+                        {
+                          "table_id": 0,
+                          "table": "test_table",
+                          "id": 0,
+                          "name": "test_cache",
+                          "cols": [
+                            0,
+                            1
+                          ],
+                          "max_cardinality": 100,
+                          "max_age_seconds": 10
+                        }
+                      ]
+                    ],
+                    "next_id": 1
+                  },
+                  "deleted": false
                 }
-              ],
-              "deleted": false,
-              "next_column_id": 5
-            }
-          ]
-        ],
-        "processing_engine_triggers": [],
-        "deleted": false,
-        "next_table_id": 1
-      }
-    ]
-  ],
+              ]
+            ],
+            "next_id": 1
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false
+        }
+      ]
+    ],
+    "next_id": 1
+  },
   "sequence": 3,
   "catalog_id": "sample-host-id",
-  "catalog_uuid": "[uuid]",
-  "next_db_id": 1
+  "catalog_uuid": "[uuid]"
 }

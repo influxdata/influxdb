@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
-use observability_deps::tracing::{debug, error, info, trace, warn};
+use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
 use uuid::Uuid;
 
@@ -12,14 +12,15 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    id::IdProvider,
+    catalog::NodeDefinition,
     log::{
-        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateDistinctCacheLog, CreateLastCacheLog,
-        CreateTableLog, CreateTriggerLog, DatabaseCatalogOp, DeleteDistinctCacheLog,
-        DeleteLastCacheLog, DeleteTriggerLog, FieldDataType, FieldDefinition, LastCacheSize,
-        LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
+        AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
+        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
+        FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
+        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
         OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
+        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
+        ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -27,19 +28,21 @@ use crate::{
 impl Catalog {
     pub fn begin(&self, db_name: &str) -> Result<DatabaseCatalogTransaction> {
         debug!(db_name, "starting catalog transaction");
+        let inner = self.inner.read();
         match self.db_schema(db_name) {
             Some(database_schema) => Ok(DatabaseCatalogTransaction {
-                catalog_sequence: self.sequence_number(),
+                catalog_sequence: inner.sequence_number(),
+                current_table_count: inner.table_count(),
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_schema: Arc::clone(&database_schema),
                 ops: vec![],
             }),
             None => {
-                if self.inner.read().database_count() >= Self::NUM_DBS_LIMIT {
+                let inner = self.inner.read();
+                if inner.database_count() >= Self::NUM_DBS_LIMIT {
                     return Err(CatalogError::TooManyDbs);
                 }
-                let mut inner = self.inner.write();
-                let database_id = inner.get_and_increment_next_id();
+                let database_id = inner.databases.next_id();
                 let database_name = Arc::from(db_name);
                 let database_schema =
                     Arc::new(DatabaseSchema::new(database_id, Arc::clone(&database_name)));
@@ -50,6 +53,7 @@ impl Catalog {
                 })];
                 Ok(DatabaseCatalogTransaction {
                     catalog_sequence: inner.sequence_number(),
+                    current_table_count: inner.table_count(),
                     time_ns,
                     database_schema,
                     ops,
@@ -66,24 +70,25 @@ impl Catalog {
             return Ok(Prompt::Success(txn.sequence_number()));
         }
 
-        let batch = txn.catalog_batch();
-        if let Some((ordered_batch, permit)) =
-            self.get_permit_and_verify_catalog_batch(&batch).await?
+        match self
+            .get_permit_and_verify_catalog_batch(txn.catalog_batch(), txn.sequence_number())
+            .await
         {
-            match self
-                .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                .await?
-            {
-                UpdatePrompt::Retry => Ok(Prompt::Retry(())),
-                UpdatePrompt::Applied => {
-                    self.apply_ordered_catalog_batch(&ordered_batch, &permit);
-                    self.background_checkpoint(&ordered_batch);
-                    self.broadcast_update(ordered_batch.into_batch());
-                    Ok(Prompt::Success(self.sequence_number()))
+            Prompt::Success((ordered_batch, permit)) => {
+                match self
+                    .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
+                    .await?
+                {
+                    UpdatePrompt::Retry => Ok(Prompt::Retry(())),
+                    UpdatePrompt::Applied => {
+                        self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                        self.background_checkpoint(&ordered_batch);
+                        self.broadcast_update(ordered_batch.into_batch());
+                        Ok(Prompt::Success(self.sequence_number()))
+                    }
                 }
             }
-        } else {
-            Ok(Prompt::Success(self.sequence_number()))
+            Prompt::Retry(_) => Ok(Prompt::Retry(())),
         }
     }
 
@@ -93,8 +98,10 @@ impl Catalog {
         core_count: u64,
         mode: Vec<NodeMode>,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(node_id, core_count, mode = ?mode, "register node");
         self.catalog_update_with_retry(|| {
-            let instance_id = if let Some(node) = self.node(node_id) {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            let node_def = if let Some(node) = self.node(node_id) {
                 if let NodeState::Running { .. } = node.state {
                     // NOTE(trevor/catalog-refactor): if it is still in running state, but that is
                     // invalid, i.e., if the node stopped unexpectedly without being able to update
@@ -105,13 +112,13 @@ impl Catalog {
                     //
                     // For now, just warn, as that is at least more than what the current system
                     // would have done in the event that the same node id was used twice.
-                    warn!(
+                    info!(
                         node_id,
                         instance_id = node.instance_id.as_ref(),
-                        "registering node to catalog that never shutdown properly"
+                        "registering node to catalog that was not previously de-registered"
                     );
                 }
-                Arc::clone(&node.instance_id)
+                Arc::clone(&node)
             } else {
                 let instance_id = Arc::<str>::from(Uuid::new_v4().to_string().as_str());
                 info!(
@@ -119,14 +126,26 @@ impl Catalog {
                     instance_id = instance_id.as_ref(),
                     "registering new node to the catalog"
                 );
-                instance_id
+                let inner = self.inner.read();
+                let node_catalog_id = inner.nodes.next_id();
+                Arc::new(NodeDefinition {
+                    node_id: node_id.into(),
+                    node_catalog_id,
+                    instance_id,
+                    mode: mode.clone(),
+                    core_count,
+                    state: NodeState::Running {
+                        registered_time_ns: time_ns,
+                    },
+                })
             };
-            let time_ns = self.time_provider.now().timestamp_nanos();
             Ok(CatalogBatch::node(
                 time_ns,
+                node_def.node_catalog_id,
+                Arc::clone(&node_def.node_id),
                 vec![NodeCatalogOp::RegisterNode(RegisterNodeLog {
-                    node_id: node_id.into(),
-                    instance_id,
+                    node_id: Arc::clone(&node_def.node_id),
+                    instance_id: Arc::clone(&node_def.instance_id),
                     registered_time_ns: time_ns,
                     core_count,
                     mode: mode.clone(),
@@ -137,7 +156,7 @@ impl Catalog {
     }
 
     pub async fn create_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
-        debug!(name, "create database");
+        info!(name, "create database");
         self.catalog_update_with_retry(|| {
             let (_, Some(batch)) =
                 self.db_or_create(name, self.time_provider.now().timestamp_nanos())?
@@ -150,7 +169,7 @@ impl Catalog {
     }
 
     pub async fn soft_delete_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
-        debug!(name, "soft delete database");
+        info!(name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(name) else {
                 return Err(CatalogError::NotFound);
@@ -183,7 +202,7 @@ impl Catalog {
         tags: &[impl AsRef<str> + Send + Sync],
         fields: &[(impl AsRef<str> + Send + Sync, FieldDataType)],
     ) -> Result<Option<OrderedCatalogBatch>> {
-        debug!(db_name, table_name, "create table");
+        info!(db_name, table_name, "create table");
         self.catalog_update_with_retry(|| {
             let mut txn = self.begin(db_name)?;
             txn.create_table(table_name, tags, fields)?;
@@ -197,7 +216,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
-        debug!(db_name, table_name, "soft delete database");
+        info!(db_name, table_name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
@@ -231,11 +250,12 @@ impl Catalog {
         max_cardinality: MaxCardinality,
         max_age_seconds: MaxAge,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, table_name, cache_name = ?cache_name, "create distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let Some(tbl) = db.table_definition(table_name) else {
+            let Some(mut tbl) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound);
             };
             if columns.is_empty() {
@@ -262,7 +282,7 @@ impl Catalog {
                             )
                         })
                         .and_then(|def| {
-                            if is_valid_distinct_cache_type(def) {
+                            if is_valid_distinct_cache_type(&def) {
                                 Ok((def.id, name.as_ref().to_string()))
                             } else {
                                 Err(CatalogError::InvalidDistinctCacheColumnType)
@@ -278,17 +298,21 @@ impl Catalog {
                 .as_str()
                 .into()
             });
-            if tbl.distinct_caches.contains_key(&cache_name) {
+            if tbl.distinct_caches.contains_name(&cache_name) {
                 return Err(CatalogError::AlreadyExists);
             }
+            let cache_id = Arc::make_mut(&mut tbl)
+                .distinct_caches
+                .get_and_increment_next_id();
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::CreateDistinctCache(
-                    CreateDistinctCacheLog {
+                    DistinctCacheDefinition {
                         table_id: tbl.table_id,
                         table_name: Arc::clone(&tbl.table_name),
+                        cache_id,
                         cache_name,
                         column_ids,
                         max_cardinality,
@@ -306,6 +330,7 @@ impl Catalog {
         table_name: &str,
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, table_name, cache_name, "delete distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
@@ -313,18 +338,19 @@ impl Catalog {
             let Some(tbl) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound);
             };
-            if !tbl.distinct_caches.contains_key(cache_name) {
+            let Some(cache) = tbl.distinct_caches.get_by_name(cache_name) else {
                 return Err(CatalogError::NotFound);
-            }
+            };
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::DeleteDistinctCache(
                     DeleteDistinctCacheLog {
-                        table_name: Arc::clone(&tbl.table_name),
                         table_id: tbl.table_id,
-                        cache_name: cache_name.into(),
+                        table_name: Arc::clone(&tbl.table_name),
+                        cache_id: cache.cache_id,
+                        cache_name: Arc::clone(&cache.cache_name),
                     },
                 )],
             ))
@@ -343,11 +369,12 @@ impl Catalog {
         count: LastCacheSize,
         ttl: LastCacheTtl,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, table_name, cache_name = ?cache_name, "create last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let Some(tbl) = db.table_definition(table_name) else {
+            let Some(mut tbl) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound);
             };
 
@@ -379,7 +406,7 @@ impl Catalog {
                                 )
                             })
                             .and_then(|def| {
-                                if is_valid_last_cache_key_col(def) {
+                                if is_valid_last_cache_key_col(&def) {
                                     Ok((def.id, name.as_ref().to_string()))
                                 } else {
                                     Err(CatalogError::InvalidLastCacheKeyColumnType)
@@ -425,16 +452,20 @@ impl Catalog {
                     .as_str()
                     .into()
             });
-            if tbl.last_caches.contains_key(&cache_name) {
+            if tbl.last_caches.contains_name(&cache_name) {
                 return Err(CatalogError::AlreadyExists);
             }
+            let cache_id = Arc::make_mut(&mut tbl)
+                .last_caches
+                .get_and_increment_next_id();
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
-                vec![DatabaseCatalogOp::CreateLastCache(CreateLastCacheLog {
+                vec![DatabaseCatalogOp::CreateLastCache(LastCacheDefinition {
                     table_id: tbl.table_id,
                     table: Arc::clone(&tbl.table_name),
+                    id: cache_id,
                     name: cache_name,
                     key_columns: key_ids,
                     value_columns,
@@ -452,6 +483,7 @@ impl Catalog {
         table_name: &str,
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, table_name, cache_name, "delete last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
@@ -459,17 +491,18 @@ impl Catalog {
             let Some(tbl) = db.table_definition(table_name) else {
                 return Err(CatalogError::NotFound);
             };
-            if !tbl.last_caches.contains_key(cache_name) {
+            let Some(cache) = tbl.last_caches.get_by_name(cache_name) else {
                 return Err(CatalogError::NotFound);
-            }
+            };
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
-                    table_name: Arc::clone(&tbl.table_name),
                     table_id: tbl.table_id,
-                    name: cache_name.into(),
+                    table_name: Arc::clone(&tbl.table_name),
+                    id: cache.id,
+                    name: Arc::clone(&cache.name),
                 })],
             ))
         })
@@ -489,17 +522,25 @@ impl Catalog {
         trigger_arguments: &Option<HashMap<String, String>>,
         disabled: bool,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, trigger_name, "create processing engine trigger");
         self.catalog_update_with_retry(|| {
-            let Some(db) = self.db_schema(db_name) else {
+            let Some(mut db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
             let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
+            if db.processing_engine_triggers.contains_name(trigger_name) {
+                return Err(CatalogError::AlreadyExists);
+            }
+            let trigger_id = Arc::make_mut(&mut db)
+                .processing_engine_triggers
+                .get_and_increment_next_id();
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
-                vec![DatabaseCatalogOp::CreateTrigger(CreateTriggerLog {
-                    trigger_name: trigger_name.to_string(),
+                vec![DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
+                    trigger_id,
+                    trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
                     node_id: Arc::clone(&node_id),
@@ -519,19 +560,26 @@ impl Catalog {
         trigger_name: &str,
         force: bool,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, trigger_name, "delete processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            if db.processing_engine_triggers.get(trigger_name).is_none() {
+            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
                 return Err(CatalogError::NotFound);
             };
+            if !trigger.disabled && !force {
+                return Err(CatalogError::ProcessingEngineTriggerRunning {
+                    trigger_name: trigger.trigger_name.to_string(),
+                });
+            }
             Ok(CatalogBatch::database(
                 self.time_provider.now().timestamp_nanos(),
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
-                    trigger_name: trigger_name.to_string(),
+                    trigger_id: trigger.trigger_id,
+                    trigger_name: Arc::clone(&trigger.trigger_name),
                     force,
                 })],
             ))
@@ -544,11 +592,12 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, trigger_name, "enable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let Some(trigger) = db.processing_engine_triggers.get(trigger_name) else {
+            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
                 return Err(CatalogError::NotFound);
             };
             if !trigger.disabled {
@@ -559,8 +608,10 @@ impl Catalog {
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
-                    db_name: db_name.to_string(),
-                    trigger_name: trigger_name.to_string(),
+                    db_id: db.id,
+                    db_name: Arc::clone(&db.name),
+                    trigger_id: trigger.trigger_id,
+                    trigger_name: Arc::clone(&trigger.trigger_name),
                 })],
             ))
         })
@@ -572,11 +623,12 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(db_name, trigger_name, "disable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let Some(trigger) = db.processing_engine_triggers.get(trigger_name) else {
+            let Some(trigger) = db.processing_engine_triggers.get_by_name(trigger_name) else {
                 return Err(CatalogError::NotFound);
             };
             if trigger.disabled {
@@ -587,8 +639,10 @@ impl Catalog {
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
-                    db_name: db_name.to_string(),
-                    trigger_name: trigger_name.to_string(),
+                    db_id: db.id,
+                    db_name: Arc::clone(&db.name),
+                    trigger_id: trigger.trigger_id,
+                    trigger_name: Arc::clone(&trigger.trigger_name),
                 })],
             ))
         })
@@ -605,27 +659,29 @@ impl Catalog {
         // NOTE(trevor/catalog-refactor): should there be a limit number of retries, or use a
         // timeout somewhere?
         loop {
+            let sequence = self.sequence_number();
             let batch = batch_creator_fn()?;
-            if let Some((ordered_batch, permit)) =
-                self.get_permit_and_verify_catalog_batch(&batch).await?
+            match self
+                .get_permit_and_verify_catalog_batch(batch, sequence)
+                .await
             {
-                match self
-                    .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                    .await?
-                {
-                    UpdatePrompt::Retry => {
-                        continue;
-                    }
-                    UpdatePrompt::Applied => {
-                        self.apply_ordered_catalog_batch(&ordered_batch, &permit);
-                        self.background_checkpoint(&ordered_batch);
-                        self.broadcast_update(ordered_batch.clone().into_batch());
-                        return Ok(Some(ordered_batch));
+                Prompt::Success((ordered_batch, permit)) => {
+                    match self
+                        .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
+                        .await?
+                    {
+                        UpdatePrompt::Retry => {
+                            continue;
+                        }
+                        UpdatePrompt::Applied => {
+                            self.apply_ordered_catalog_batch(&ordered_batch, &permit);
+                            self.background_checkpoint(&ordered_batch);
+                            self.broadcast_update(ordered_batch.clone().into_batch());
+                            return Ok(Some(ordered_batch));
+                        }
                     }
                 }
-            } else {
-                debug!("verified batch but it does not change the catalog");
-                return Ok(None);
+                Prompt::Retry(_) => continue,
             }
         }
     }
@@ -759,6 +815,7 @@ impl CatalogUpdate {
 #[derive(Debug)]
 pub struct DatabaseCatalogTransaction {
     catalog_sequence: CatalogSequenceNumber,
+    current_table_count: usize,
     time_ns: i64,
     database_schema: Arc<DatabaseSchema>,
     ops: Vec<DatabaseCatalogOp>,
@@ -870,6 +927,9 @@ impl DatabaseCatalogTransaction {
         if self.database_schema.table_definition(table_name).is_some() {
             return Err(CatalogError::AlreadyExists);
         }
+        if self.current_table_count >= Catalog::NUM_TABLES_LIMIT {
+            return Err(CatalogError::TooManyTables);
+        }
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;
         let table_def = Arc::make_mut(&mut table_def_arc);
@@ -877,7 +937,7 @@ impl DatabaseCatalogTransaction {
         let field_definitions = {
             let mut fd = Vec::new();
             for tag in tags {
-                let id = table_def.get_and_increment_next_id();
+                let id = table_def.columns.get_and_increment_next_id();
                 key.push(id);
                 fd.push(FieldDefinition {
                     name: Arc::from(tag.as_ref()),
@@ -889,14 +949,14 @@ impl DatabaseCatalogTransaction {
             for (name, ty) in fields {
                 fd.push(FieldDefinition {
                     name: Arc::from(name.as_ref()),
-                    id: table_def.get_and_increment_next_id(),
+                    id: table_def.columns.get_and_increment_next_id(),
                     data_type: *ty,
                 });
             }
 
             fd.push(FieldDefinition {
                 name: TIME_COLUMN_NAME.into(),
-                id: table_def.get_and_increment_next_id(),
+                id: table_def.columns.get_and_increment_next_id(),
                 data_type: FieldDataType::Timestamp,
             });
 

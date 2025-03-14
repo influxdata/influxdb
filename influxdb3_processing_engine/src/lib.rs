@@ -10,7 +10,7 @@ use hyper::{Body, Response};
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{Catalog, CatalogBroadcastReceiver};
 use influxdb3_catalog::log::{
-    CatalogBatch, CreateTriggerLog, DatabaseCatalogOp, DeleteTriggerLog, PluginType,
+    CatalogBatch, DatabaseCatalogOp, DeleteTriggerLog, PluginType, TriggerDefinition,
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
 use influxdb3_internal_api::query_executor::QueryExecutor;
@@ -358,6 +358,7 @@ impl LocalPlugin {
 }
 
 impl ProcessingEngineManagerImpl {
+    // TODO(trevor): should this be id-based and not use names?
     async fn run_trigger(
         self: Arc<Self>,
         db_name: &str,
@@ -372,12 +373,12 @@ impl ProcessingEngineManagerImpl {
                 .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
             let trigger = db_schema
                 .processing_engine_triggers
-                .get(trigger_name)
+                .get_by_name(trigger_name)
+                .clone()
                 .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
                     database_name: db_name.to_string(),
                     trigger_name: trigger_name.to_string(),
-                })?
-                .clone();
+                })?;
 
             if trigger.node_id != self.node_id {
                 error!(
@@ -451,6 +452,7 @@ impl ProcessingEngineManagerImpl {
         Ok(())
     }
 
+    // TODO(trevor): should this be id-based and not use names?
     async fn stop_trigger(
         &self,
         db_name: &str,
@@ -462,7 +464,7 @@ impl ProcessingEngineManagerImpl {
             .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
         let trigger = db_schema
             .processing_engine_triggers
-            .get(trigger_name)
+            .get_by_name(trigger_name)
             .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: db_name.to_string(),
                 trigger_name: trigger_name.to_string(),
@@ -679,7 +681,7 @@ fn background_catalog_update(
                         for op in batch.ops.iter() {
                             let processing_engine_manager = Arc::clone(&processing_engine_manager);
                             match op {
-                                DatabaseCatalogOp::CreateTrigger(CreateTriggerLog {
+                                DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
                                     trigger_name,
                                     database_name,
                                     disabled,
@@ -697,6 +699,7 @@ fn background_catalog_update(
                                 DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
                                     db_name,
                                     trigger_name,
+                                    ..
                                 }) => {
                                     if let Err(error) = processing_engine_manager
                                         .run_trigger(db_name, trigger_name)
@@ -708,6 +711,7 @@ fn background_catalog_update(
                                 DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
                                     trigger_name,
                                     force: true,
+                                    ..
                                 }) => {
                                     if let Err(error) = processing_engine_manager
                                         .stop_trigger(&batch.database_name, trigger_name)
@@ -719,6 +723,7 @@ fn background_catalog_update(
                                 DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
                                     db_name,
                                     trigger_name,
+                                    ..
                                 }) => {
                                     if let Err(error) = processing_engine_manager
                                         .stop_trigger(db_name, trigger_name)
@@ -781,7 +786,7 @@ mod tests {
     use std::time::Duration;
     use tempfile::NamedTempFile;
 
-    #[tokio::test]
+    #[test_log::test(tokio::test)]
     async fn test_trigger_lifecycle() -> influxdb3_write::write_buffer::Result<()> {
         let start_time = Time::from_rfc3339("2024-11-14T11:00:00+00:00").unwrap();
         let test_store = Arc::new(InMemory::new());
@@ -836,6 +841,14 @@ mod tests {
             .await
             .unwrap();
 
+        // Verify trigger is not disabled in schema
+        let schema = write_buffer.catalog().db_schema("foo").unwrap();
+        let trigger = schema
+            .processing_engine_triggers
+            .get_by_name("test_trigger")
+            .unwrap();
+        assert!(!trigger.disabled);
+
         // Disable the trigger
         write_buffer
             .catalog()
@@ -847,7 +860,7 @@ mod tests {
         let schema = write_buffer.catalog().db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
-            .get("test_trigger")
+            .get_by_name("test_trigger")
             .unwrap();
         assert!(trigger.disabled);
 
@@ -862,7 +875,7 @@ mod tests {
         let schema = write_buffer.catalog().db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
-            .get("test_trigger")
+            .get_by_name("test_trigger")
             .unwrap();
         assert!(!trigger.disabled);
         Ok(())
@@ -919,7 +932,7 @@ mod tests {
         let schema = pem.catalog.db_schema("foo").unwrap();
         let trigger = schema
             .processing_engine_triggers
-            .get("test_trigger")
+            .get_by_name("test_trigger")
             .unwrap();
         assert!(trigger.disabled);
 

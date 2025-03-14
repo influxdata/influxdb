@@ -18,7 +18,7 @@ use datafusion::{
 };
 use indexmap::IndexMap;
 use influxdb3_catalog::catalog::TableDefinition;
-use influxdb3_id::{ColumnId, DbId};
+use influxdb3_id::{ColumnId, DbId, DistinctCacheId};
 
 use super::{DistinctCacheProvider, cache::Predicate};
 
@@ -39,8 +39,8 @@ struct DistinctCacheFunctionProvider {
     db_id: DbId,
     /// The table definition that the called cache is related to
     table_def: Arc<TableDefinition>,
-    /// The name of the cache, which is determined when calling the `distinct_cache` function
-    cache_name: Arc<str>,
+    /// The id of the cache, which is determined when calling the `distinct_cache` function
+    cache_id: DistinctCacheId,
 }
 
 #[async_trait]
@@ -80,7 +80,7 @@ impl TableProvider for DistinctCacheFunctionProvider {
         let (batches, predicates) = if let Some(cache) = read
             .get(&self.db_id)
             .and_then(|db| db.get(&self.table_def.table_id))
-            .and_then(|tbl| tbl.get(&self.cache_name))
+            .and_then(|tbl| tbl.get(&self.cache_id))
         {
             let predicates = convert_filter_exprs(&self.table_def, self.schema(), filters)?;
             (
@@ -249,19 +249,31 @@ impl TableFunctionImpl for DistinctCacheFunction {
         else {
             return plan_err!("provided table name ({}) is invalid", table_name);
         };
-        let Some((cache_name, schema)) = self.provider.get_cache_name_and_schema(
-            self.db_id,
-            table_def.table_id,
-            cache_name.map(|n| n.as_str()),
-        ) else {
+        let Some(cache) = (match cache_name {
+            Some(name) => table_def.distinct_caches.get_by_name(name),
+            None => {
+                if table_def.distinct_caches.len() == 1 {
+                    table_def.distinct_caches.resource_iter().next().cloned()
+                } else {
+                    None
+                }
+            }
+        }) else {
             return plan_err!("could not find distinct value cache for the given arguments");
+        };
+
+        let Some(schema) =
+            self.provider
+                .get_cache_schema(self.db_id, table_def.table_id, cache.cache_id)
+        else {
+            return internal_err!("distinct cache state is invalid");
         };
         Ok(Arc::new(DistinctCacheFunctionProvider {
             schema,
             provider: Arc::clone(&self.provider),
             db_id: self.db_id,
             table_def,
-            cache_name,
+            cache_id: cache.cache_id,
         }))
     }
 }
