@@ -44,7 +44,7 @@ impl Error {
 
 #[cfg(test)]
 mod tests {
-    use std::{cmp::Ordering, sync::Arc, thread, time::Duration};
+    use std::{sync::Arc, thread, time::Duration};
 
     use arrow::array::AsArray;
     use arrow_util::{assert_batches_eq, assert_batches_sorted_eq};
@@ -52,7 +52,7 @@ mod tests {
     use indexmap::IndexMap;
     use influxdb3_catalog::{
         catalog::Catalog,
-        log::{DEFAULT_CACHE_TTL, FieldDataType, LastCacheSize, LastCacheTtl},
+        log::{FieldDataType, LastCacheSize, LastCacheTtl},
     };
     use influxdb3_id::ColumnId;
     use iox_time::{MockProvider, Time};
@@ -1172,131 +1172,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn idempotent_cache_creation() {
-        let writer = TestWriter::new().await;
-        let _ = writer
-            .write_lp_to_rows("tbl,t1=a,t2=b f1=1,f2=2", 500)
-            .await;
-
-        let db_id = writer.db_schema().id;
-        let table_def = writer.db_schema().table_definition("tbl").unwrap();
-        let t1_col_id = table_def.column_name_to_id("t1").unwrap();
-        let t2_col_id = table_def.column_name_to_id("t2").unwrap();
-        let f1_col_id = table_def.column_name_to_id("f1").unwrap();
-        let f2_col_id = table_def.column_name_to_id("f2").unwrap();
-
-        let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
-        assert_eq!(provider.size(), 0);
-
-        let default_args = CreateLastCacheArgs {
-            table_def: Arc::clone(&table_def),
-            count: Default::default(),
-            ttl: Default::default(),
-            key_columns: Default::default(),
-            value_columns: Default::default(),
-        };
-
-        // Create a last cache using all default settings
-        provider
-            .create_cache(db_id, None, default_args.clone())
-            .unwrap();
-        assert_eq!(provider.size(), 1);
-
-        // Doing the same should be fine:
-        provider
-            .create_cache(db_id, None, default_args.clone())
-            .unwrap();
-        assert_eq!(provider.size(), 1);
-
-        // Specify the same arguments as what the defaults would produce (minus the value columns)
-        provider
-            .create_cache(
-                db_id,
-                Some("tbl_t1_t2_last_cache"),
-                CreateLastCacheArgs {
-                    table_def: Arc::clone(&table_def),
-                    count: LastCacheSize::new(1).unwrap(),
-                    ttl: LastCacheTtl::from(DEFAULT_CACHE_TTL),
-                    key_columns: LastCacheKeyColumnsArg::Explicit(vec![t1_col_id, t2_col_id]),
-                    value_columns: LastCacheValueColumnsArg::AcceptNew,
-                },
-            )
-            .unwrap();
-        assert_eq!(provider.size(), 1);
-
-        // Specify value columns, which would deviate from above, as that implies different cache
-        // behaviour, i.e., no new fields are accepted:
-        provider
-            .create_cache(
-                db_id,
-                None,
-                CreateLastCacheArgs {
-                    value_columns: LastCacheValueColumnsArg::Explicit(vec![f1_col_id, f2_col_id]),
-                    ..default_args.clone()
-                },
-            )
-            .expect_err("create last cache should have failed");
-        assert_eq!(provider.size(), 1);
-
-        // Specify different key columns, along with the same cache name will produce error:
-        provider
-            .create_cache(
-                db_id,
-                Some("tbl_t1_t2_last_cache"),
-                CreateLastCacheArgs {
-                    key_columns: LastCacheKeyColumnsArg::Explicit(vec![t1_col_id]),
-                    ..default_args.clone()
-                },
-            )
-            .expect_err("create last cache should have failed");
-        assert_eq!(provider.size(), 1);
-
-        // However, just specifying different key columns and no cache name will result in a
-        // different generated cache name, and therefore cache, so it will work:
-        let info = provider
-            .create_cache(
-                db_id,
-                None,
-                CreateLastCacheArgs {
-                    key_columns: LastCacheKeyColumnsArg::Explicit(vec![t1_col_id]),
-                    ..default_args.clone()
-                },
-            )
-            .unwrap();
-        assert_eq!(provider.size(), 2);
-        assert_eq!(
-            Some("tbl_t1_last_cache"),
-            info.map(|info| info.name).as_deref()
-        );
-
-        // Specify different TTL:
-        provider
-            .create_cache(
-                db_id,
-                None,
-                CreateLastCacheArgs {
-                    ttl: Duration::from_secs(10).into(),
-                    ..default_args.clone()
-                },
-            )
-            .expect_err("create last cache should have failed");
-        assert_eq!(provider.size(), 2);
-
-        // Specify different count:
-        provider
-            .create_cache(
-                db_id,
-                None,
-                CreateLastCacheArgs {
-                    count: LastCacheSize::new(10).unwrap(),
-                    ..default_args.clone()
-                },
-            )
-            .expect_err("create last cache should have failed");
-        assert_eq!(provider.size(), 2);
-    }
-
-    #[tokio::test]
     async fn catalog_initialization() {
         let obj_store = Arc::new(InMemory::new());
         let node_id = Arc::from("sample-host-id");
@@ -1371,15 +1246,9 @@ mod tests {
             .expect("create last cache provider from catalog");
         // There should be a total of 3 caches:
         assert_eq!(3, provider.size());
-        // Get the cache definitions and snapshot them to check their content. They are sorted to
-        // ensure order, since the provider uses hashmaps and their order may not be guaranteed.
-        let db_id = catalog.db_name_to_id(db_name).unwrap();
-        let mut caches = provider.get_last_caches_for_db(db_id);
-        caches.sort_by(|a, b| match a.table.partial_cmp(&b.table).unwrap() {
-            ord @ Ordering::Less | ord @ Ordering::Greater => ord,
-            Ordering::Equal => a.name.partial_cmp(&b.name).unwrap(),
+        insta::assert_json_snapshot!(catalog.snapshot(), {
+            ".catalog_uuid" => "[uuid]"
         });
-        insta::assert_json_snapshot!(caches);
     }
 
     /// This test sets up a [`LastCacheProvider`], creates a [`LastCache`] using the `region` and
@@ -1394,7 +1263,7 @@ mod tests {
     /// Each test case verifies both the `RecordBatch` output, as well as the output of the `EXPLAIN`
     /// for a given query. The `EXPLAIN` contains a line for the `LastCacheExec`, which will list
     /// out any predicates that were pushed down from the provided SQL query to the cache.
-    #[tokio::test]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn datafusion_udtf_predicate_conversion() {
         let writer = TestWriter::new().await;
         let _ = writer
@@ -1402,22 +1271,25 @@ mod tests {
             .await;
 
         // create a last cache provider so we can use it to create our UDTF provider:
-        let db_schema = writer.db_schema();
-        let table_def = db_schema.table_definition("cpu").unwrap();
         let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
-        provider
-            .create_cache(
-                db_schema.id,
+        writer
+            .catalog()
+            .create_last_cache(
+                TestWriter::DB_NAME,
+                "cpu",
                 None,
-                CreateLastCacheArgs {
-                    table_def,
-                    count: LastCacheSize::default(),
-                    ttl: LastCacheTtl::default(),
-                    key_columns: LastCacheKeyColumnsArg::SeriesKey,
-                    value_columns: LastCacheValueColumnsArg::AcceptNew,
-                },
+                Option::<&[&str]>::None,
+                Option::<&[&str]>::None,
+                LastCacheSize::default(),
+                LastCacheTtl::default(),
             )
+            .await
             .unwrap();
+
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // make some writes into the cache:
         let write_batch = writer
@@ -1446,7 +1318,7 @@ mod tests {
         provider.write_wal_contents_to_cache(&wal_contents);
 
         let ctx = SessionContext::new();
-        let last_cache_fn = LastCacheFunction::new(db_schema.id, Arc::clone(&provider));
+        let last_cache_fn = LastCacheFunction::new(writer.db_schema().id, Arc::clone(&provider));
         ctx.register_udtf(LAST_CACHE_UDTF_NAME, Arc::new(last_cache_fn));
 
         struct TestCase<'a> {
@@ -1648,31 +1520,31 @@ mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn test_non_specified_key_val_cols() {
         let writer = TestWriter::new().await;
         let _ = writer
             .write_lp_to_write_batch("cpu,region=us-east,host=a usage=99,temp=88", 0)
             .await;
-
-        // create a last cache provider so we can use it to create our UDTF provider:
-        let db_schema = writer.db_schema();
-        let table_def = db_schema.table_definition("cpu").unwrap();
         let provider = LastCacheProvider::new_from_catalog(writer.catalog()).unwrap();
-        let usage_col_id = table_def.column_name_to_id("usage").unwrap();
-        provider
-            .create_cache(
-                db_schema.id,
+        writer
+            .catalog()
+            .create_last_cache(
+                TestWriter::DB_NAME,
+                "cpu",
                 None,
-                CreateLastCacheArgs {
-                    table_def,
-                    count: LastCacheSize::default(),
-                    ttl: LastCacheTtl::default(),
-                    key_columns: LastCacheKeyColumnsArg::SeriesKey,
-                    value_columns: LastCacheValueColumnsArg::Explicit(vec![usage_col_id]),
-                },
+                Option::<&[&str]>::None,
+                Some(&["usage"]),
+                LastCacheSize::default(),
+                LastCacheTtl::default(),
             )
+            .await
             .unwrap();
+
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let write_batch = writer
             .write_lp_to_write_batch(
@@ -1701,7 +1573,7 @@ mod tests {
         provider.write_wal_contents_to_cache(&wal_contents);
 
         let ctx = SessionContext::new();
-        let last_cache_fn = LastCacheFunction::new(db_schema.id, Arc::clone(&provider));
+        let last_cache_fn = LastCacheFunction::new(writer.db_schema().id, Arc::clone(&provider));
         ctx.register_udtf(LAST_CACHE_UDTF_NAME, Arc::new(last_cache_fn));
 
         struct TestCase<'a> {

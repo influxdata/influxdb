@@ -5,7 +5,7 @@ use crate::{RequestEvent, ScheduleEvent, WalEvent};
 use data_types::NamespaceName;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::Catalog;
-use influxdb3_catalog::log::CreateTriggerLog;
+use influxdb3_catalog::log::TriggerDefinition;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_py_api::system_py::ProcessingEngineLogger;
@@ -89,7 +89,7 @@ pub enum PluginError {
 pub(crate) fn run_wal_contents_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: CreateTriggerLog,
+    trigger_definition: Arc<TriggerDefinition>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
@@ -113,7 +113,7 @@ pub struct ProcessingEngineEnvironmentManager {
 pub(crate) fn run_schedule_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: CreateTriggerLog,
+    trigger_definition: Arc<TriggerDefinition>,
     time_provider: Arc<dyn TimeProvider>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<ScheduleEvent>,
@@ -146,7 +146,7 @@ pub(crate) fn run_schedule_plugin(
 pub(crate) fn run_request_plugin(
     db_name: String,
     plugin_code: Arc<PluginCode>,
-    trigger_definition: CreateTriggerLog,
+    trigger_definition: Arc<TriggerDefinition>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
@@ -172,7 +172,7 @@ pub(crate) struct PluginContext {
 
 #[derive(Debug, Clone)]
 struct TriggerPlugin {
-    trigger_definition: CreateTriggerLog,
+    trigger_definition: Arc<TriggerDefinition>,
     plugin_code: Arc<PluginCode>,
     db_name: String,
     write_buffer: Arc<dyn WriteBuffer>,
@@ -211,12 +211,12 @@ mod python_plugin {
         pub(crate) fn new(
             db_name: String,
             plugin_code: Arc<PluginCode>,
-            trigger_definition: CreateTriggerLog,
+            trigger_definition: Arc<TriggerDefinition>,
             context: PluginContext,
         ) -> Self {
             let logger = ProcessingEngineLogger::new(
                 context.sys_event_store,
-                trigger_definition.trigger_name.clone(),
+                Arc::clone(&trigger_definition.trigger_name),
             );
             Self {
                 trigger_definition,
@@ -321,7 +321,7 @@ mod python_plugin {
         pub(crate) fn send_disable_trigger(&self) {
             let manager = Arc::clone(&self.manager);
             let db_name = Arc::clone(&self.trigger_definition.database_name);
-            let trigger_name = self.trigger_definition.trigger_name.clone();
+            let trigger_name = Arc::clone(&self.trigger_definition.trigger_name);
             let fut = async move { manager.stop_trigger(&db_name, &trigger_name).await };
             // start the disable call, then look for the shutdown message
             tokio::spawn(fut);
@@ -461,7 +461,7 @@ mod python_plugin {
                         let py_cache = PyCache::new_trigger_cache(
                             Arc::clone(&self.manager.cache),
                             self.trigger_definition.database_name.to_string(),
-                            self.trigger_definition.trigger_name.clone(),
+                            self.trigger_definition.trigger_name.to_string(),
                         );
 
                         let result = tokio::task::spawn_blocking(move || {
@@ -566,7 +566,7 @@ mod python_plugin {
                                     table_name,
                                 } => {
                                     let table_id = schema
-                                        .table_name_to_id(table_name.as_ref())
+                                        .table_name_to_id(table_name)
                                         .context("table not found")?;
                                     Some(table_id)
                                 }
@@ -598,7 +598,7 @@ mod python_plugin {
                             let py_cache = PyCache::new_trigger_cache(
                                 Arc::clone(&self.manager.cache),
                                 self.trigger_definition.database_name.to_string(),
-                                self.trigger_definition.trigger_name.clone(),
+                                self.trigger_definition.trigger_name.to_string(),
                             );
 
                             let result = tokio::task::spawn_blocking(move || {
@@ -647,9 +647,9 @@ mod python_plugin {
                                             );
                                         }
                                         ErrorBehavior::Disable => {
-                                            return Ok(PluginNextState::Disable(
-                                                self.trigger_definition.clone(),
-                                            ));
+                                            return Ok(PluginNextState::Disable(Arc::clone(
+                                                &self.trigger_definition,
+                                            )));
                                         }
                                     }
                                 }
@@ -722,7 +722,7 @@ mod python_plugin {
     enum PluginNextState {
         SuccessfulRun,
         LogError(String),
-        Disable(CreateTriggerLog),
+        Disable(Arc<TriggerDefinition>),
     }
 
     pub(crate) struct ScheduleTriggerRunner {
@@ -802,7 +802,7 @@ mod python_plugin {
                 let py_cache = PyCache::new_trigger_cache(
                     Arc::clone(&plugin.manager.cache),
                     plugin.trigger_definition.database_name.to_string(),
-                    plugin.trigger_definition.trigger_name.clone(),
+                    plugin.trigger_definition.trigger_name.to_string(),
                 );
 
                 let result = tokio::task::spawn_blocking(move || {

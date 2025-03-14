@@ -1412,8 +1412,8 @@ mod tests {
         r.expect("sent request successfully");
     }
 
-    // HACK: these tests are flaky since we need to fabricate the mock response, considering removing
-    // them in favour of integration tests that use the actual APIs
+    // NOTE(trevor): these tests are flaky since we need to fabricate the mock response, considering
+    // removing them in favour of integration tests that use the actual APIs
     #[tokio::test]
     #[ignore]
     async fn api_v3_configure_last_cache_create_201() {

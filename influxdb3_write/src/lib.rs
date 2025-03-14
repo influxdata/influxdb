@@ -92,7 +92,9 @@ pub trait Bufferer: Debug + Send + Sync + 'static {
     ) -> Vec<ParquetFile>;
 
     /// A channel to watch for when new persisted snapshots are created
-    fn watch_persisted_snapshots(&self) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>>;
+    fn watch_persisted_snapshots(
+        &self,
+    ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshotVersion>>;
 }
 
 /// ChunkContainer is used by the query engine to get chunks for a given table. Chunks will generally be in the
@@ -140,6 +142,74 @@ pub struct BufferedWriteRequest {
     pub line_count: usize,
     pub field_count: usize,
     pub index_count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(tag = "version")]
+pub enum PersistedSnapshotVersion {
+    #[serde(rename = "1")]
+    V1(PersistedSnapshot),
+}
+
+impl PersistedSnapshotVersion {
+    pub fn node_id(&self) -> &str {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => &persisted_snapshot.node_id,
+        }
+    }
+
+    pub fn snapshot_sequence_number(&self) -> SnapshotSequenceNumber {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                persisted_snapshot.snapshot_sequence_number
+            }
+        }
+    }
+
+    pub fn next_file_id(&self) -> ParquetFileId {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => persisted_snapshot.next_file_id,
+        }
+    }
+
+    pub fn catalog_sequence_number(&self) -> CatalogSequenceNumber {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                persisted_snapshot.catalog_sequence_number
+            }
+        }
+    }
+
+    pub fn wal_file_sequence_number(&self) -> WalFileSequenceNumber {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                persisted_snapshot.wal_file_sequence_number
+            }
+        }
+    }
+
+    pub fn to_databases(self) -> SerdeVecMap<DbId, DatabaseTables> {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => persisted_snapshot.databases,
+        }
+    }
+
+    pub fn db_table_and_file_count(&self) -> (u64, u64, u64) {
+        match self {
+            PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                persisted_snapshot.db_table_and_file_count()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+impl PersistedSnapshotVersion {
+    fn v1_ref(&self) -> &PersistedSnapshot {
+        match self {
+            Self::V1(ps) => ps,
+        }
+    }
 }
 
 /// The collection of Parquet files that were persisted in a snapshot
@@ -228,14 +298,21 @@ impl PersistedSnapshot {
         (db_count, table_count, file_count)
     }
 
-    pub fn overall_db_table_file_counts(host_snapshots: &[PersistedSnapshot]) -> (u64, u64, u64) {
-        let overall_counts = host_snapshots.iter().fold((0, 0, 0), |mut acc, item| {
-            let (db_count, table_count, file_count) = item.db_table_and_file_count();
-            acc.0 += db_count;
-            acc.1 += table_count;
-            acc.2 += file_count;
-            acc
-        });
+    pub fn overall_db_table_file_counts(
+        host_snapshots: &[PersistedSnapshotVersion],
+    ) -> (u64, u64, u64) {
+        let overall_counts = host_snapshots
+            .iter()
+            .fold((0, 0, 0), |mut acc, item| match item {
+                PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                    let (db_count, table_count, file_count) =
+                        persisted_snapshot.db_table_and_file_count();
+                    acc.0 += db_count;
+                    acc.1 += table_count;
+                    acc.2 += file_count;
+                    acc
+                }
+            });
         overall_counts
     }
 }
@@ -517,7 +594,7 @@ mod tests {
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 
-    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion};
 
     #[test]
     fn test_overall_counts() {
@@ -607,8 +684,8 @@ mod tests {
         };
 
         let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[
-            persisted_snapshot_1,
-            persisted_snapshot_2,
+            PersistedSnapshotVersion::V1(persisted_snapshot_1),
+            PersistedSnapshotVersion::V1(persisted_snapshot_2),
         ]);
         assert_eq!((2, 2, 4), overall_counts);
     }

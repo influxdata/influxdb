@@ -9,7 +9,7 @@ use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::Wal;
 use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    LastCacheManager, ParquetFile, PersistedSnapshotVersion, Precision, WriteBuffer,
     write_buffer::{Result as WriteBufferResult, WriteBufferImpl, persisted_files::PersistedFiles},
 };
 use iox_query::QueryChunk;
@@ -92,7 +92,7 @@ impl<Mode: Bufferer> Bufferer for WriteBufferEnterprise<Mode> {
         self.mode.parquet_files_filtered(db_id, table_id, filter)
     }
 
-    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshotVersion>> {
         unimplemented!("watch_persisted_snapshots not implemented for WriteBufferEnterprise")
     }
 
@@ -252,9 +252,9 @@ mod tests {
         let persisted_files = buffer
             .persisted_files()
             .expect("persisted files must exist");
-        let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
+        let db_schema = buffer.catalog().db_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let parquet_files = persisted_files.get_files(db_id, table_id);
+        let parquet_files = persisted_files.get_files(db_schema.id, table_id);
         assert_eq!(1, parquet_files.len());
         let path = &parquet_files[0].path;
         let request_count =
@@ -385,9 +385,9 @@ mod tests {
         let persisted_files = buffer
             .persisted_files()
             .expect("persisted_files must be available");
-        let (db_id, db_schema) = buffer.catalog().db_id_and_schema("foo").unwrap();
+        let db_schema = buffer.catalog().db_schema("foo").unwrap();
         let table_id = db_schema.table_name_to_id("bar").unwrap();
-        let parquet_files = persisted_files.get_files(db_id, table_id);
+        let parquet_files = persisted_files.get_files(db_schema.id, table_id);
         assert_eq!(1, parquet_files.len());
         let path = &parquet_files[0].path;
         let request_count =

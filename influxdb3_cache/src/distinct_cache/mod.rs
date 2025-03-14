@@ -402,7 +402,7 @@ mod tests {
     /// EXPLAIN on the same query. The EXPLAIN output contains a line for the DistinctCacheExec, which
     /// is the custom execution plan impl for the distinct value cache that captures the predicates that
     /// are pushed down to the underlying [`DistinctCacahe::to_record_batch`] method, if any.
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn test_datafusion_distinct_cache_udtf() {
         // create a test writer and do a write in to populate the catalog with a db/table:
         let writer = TestWriter::new().await;
@@ -416,28 +416,27 @@ mod tests {
             .await;
 
         // create a distinct provider and a cache on tag columns 'region' and 'host':
-        debug!(catlog = ?writer.catalog(), ">>> writer catalog");
-        let db_schema = writer.db_schema();
-        let table_def = db_schema.table_definition("cpu").unwrap();
-        let column_ids: Vec<ColumnId> = ["region", "host"]
-            .into_iter()
-            .map(|name| table_def.column_name_to_id_unchecked(name))
-            .collect();
+        debug!(catlog = ?writer.catalog(), "writer catalog");
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let distinct_provider =
             DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
-        distinct_provider
-            .create_cache(
-                db_schema.id,
+        writer
+            .catalog()
+            .create_distinct_cache(
+                TestWriter::DB_NAME,
+                "cpu",
                 None,
-                CreateDistinctCacheArgs {
-                    table_def,
-                    max_cardinality: MaxCardinality::default(),
-                    max_age: MaxAge::default(),
-                    column_ids,
-                },
+                &["region", "host"],
+                MaxCardinality::default(),
+                MaxAge::default(),
             )
+            .await
             .unwrap();
+
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // do some writes to generate a write batch and send it into the cache:
         let write_batch = writer
@@ -469,7 +468,7 @@ mod tests {
         // can query for data in the cache we created and populated above:
         let ctx = SessionContext::new();
         let distinct_func =
-            DistinctCacheFunction::new(db_schema.id, Arc::clone(&distinct_provider));
+            DistinctCacheFunction::new(writer.db_schema().id, Arc::clone(&distinct_provider));
         ctx.register_udtf(DISTINCT_CACHE_UDTF_NAME, Arc::new(distinct_func));
 
         struct TestCase<'a> {
@@ -854,7 +853,7 @@ mod tests {
         }
     }
 
-    #[test_log::test(tokio::test)]
+    #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
     async fn test_projection_pushdown_indexing() {
         let writer = TestWriter::new().await;
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
@@ -864,26 +863,26 @@ mod tests {
             ",
             0,
         ).await;
-        let table_def = writer.db_schema().table_definition("wind_data").unwrap();
-        let column_ids: Vec<ColumnId> = ["country", "county", "city"]
-            .into_iter()
-            .map(|name| table_def.column_name_to_id_unchecked(name))
-            .collect();
 
         let distinct_provider =
             DistinctCacheProvider::new_from_catalog(time_provider, writer.catalog()).unwrap();
-        distinct_provider
-            .create_cache(
-                writer.db_schema().id,
+        writer
+            .catalog()
+            .create_distinct_cache(
+                TestWriter::DB_NAME,
+                "wind_data",
                 None,
-                CreateDistinctCacheArgs {
-                    table_def,
-                    max_cardinality: Default::default(),
-                    max_age: Default::default(),
-                    column_ids,
-                },
+                &["country", "county", "city"],
+                MaxCardinality::default(),
+                MaxAge::default(),
             )
+            .await
             .unwrap();
+
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let write_batch = writer.write_lp_to_write_batch(
             "\

@@ -1,19 +1,21 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
 use bimap::BiHashMap;
-use hashbrown::HashMap;
-use indexmap::IndexMap;
-use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
+use influxdb3_id::{
+    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId,
+    TriggerId,
+};
 use iox_time::{Time, TimeProvider};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, info, trace, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::hash::Hash;
 use std::sync::Arc;
-use std::{borrow::Cow, ops::Deref};
 use tokio::sync::{Mutex, MutexGuard, broadcast};
 use update::CatalogUpdate;
 use uuid::Uuid;
@@ -23,21 +25,21 @@ mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{DatabaseCatalogTransaction, Prompt};
 
-use crate::id::IdProvider;
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
     RegisterNodeLog,
 };
 use crate::object_store::ObjectStoreCatalog;
+use crate::resource::CatalogResource;
+use crate::snapshot::{CatalogSnapshot, Snapshot};
 use crate::{
     CatalogError, Result,
     log::{
-        AddFieldsLog, CatalogBatch, CreateDistinctCacheLog, CreateLastCacheLog, CreateTableLog,
-        CreateTriggerLog, DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog,
-        FieldDefinition, OrderedCatalogBatch, SoftDeleteDatabaseLog, SoftDeleteTableLog,
+        AddFieldsLog, CatalogBatch, CreateTableLog, DeleteDistinctCacheLog, DeleteLastCacheLog,
+        DeleteTriggerLog, DistinctCacheDefinition, FieldDefinition, LastCacheDefinition,
+        OrderedCatalogBatch, SoftDeleteDatabaseLog, SoftDeleteTableLog, TriggerDefinition,
         TriggerIdentifier,
     },
-    snapshot::CatalogSnapshot,
 };
 
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
@@ -99,7 +101,7 @@ pub struct Catalog {
     /// Connection to the object store for managing persistence and updates to the catalog
     store: ObjectStoreCatalog,
     /// In-memory representation of the catalog
-    inner: RwLock<InnerCatalog>,
+    pub(crate) inner: RwLock<InnerCatalog>,
 }
 
 /// Custom implementation of `Debug` for the `Catalog` type to avoid serializing the object store
@@ -161,32 +163,38 @@ impl Catalog {
     }
 
     pub fn snapshot(&self) -> CatalogSnapshot {
-        self.inner.read().deref().into()
+        self.inner.read().snapshot()
     }
 
     pub fn update_from_snapshot(&self, snapshot: CatalogSnapshot) {
         let mut inner = self.inner.write();
-        *inner = snapshot.into();
+        *inner = InnerCatalog::from_snapshot(snapshot);
     }
 
+    /// Acquire a permit to write the provided `CatalogBatch` to object store
+    ///
+    /// This issues a `Prompt` to signal retry or success. The provided `sequence` is checked
+    /// against the current catlog's sequence. If it is behind, due to some other concurrent
+    /// update to the catalog, a retry is issued, so that the caller can re-compose the catalog
+    /// batch using the latest state of the catalog and try again.
     pub async fn get_permit_and_verify_catalog_batch(
         &self,
-        catalog_batch: &CatalogBatch,
-    ) -> Result<Option<(OrderedCatalogBatch, CatalogWritePermit)>> {
+        catalog_batch: CatalogBatch,
+        sequence: CatalogSequenceNumber,
+    ) -> Prompt<(OrderedCatalogBatch, CatalogWritePermit)> {
         // Get the write permit, and update its contents with the next catalog sequence number. If
         // the `catalog_batch` provided results in an update, i.e., changes the catalog, then this
         // will be the sequence number that the catalog is updated to.
         let mut permit = CATALOG_WRITE_PERMIT.lock().await;
+        if sequence != self.sequence_number() {
+            return Prompt::Retry(());
+        }
         *permit = self.sequence_number().next();
         trace!(
             next_sequence = permit.get(),
             "got permit to write to catalog"
         );
-        Ok(self
-            .inner
-            .write()
-            .verify_catalog_batch(catalog_batch, *permit)?
-            .map(|batch| (batch, permit)))
+        Prompt::Success((OrderedCatalogBatch::new(catalog_batch, *permit), permit))
     }
 
     /// Apply an `OrderedCatalogBatch` to this catalog
@@ -217,23 +225,18 @@ impl Catalog {
     }
 
     pub fn node(&self, node_id: &str) -> Option<Arc<NodeDefinition>> {
-        self.inner.read().nodes.get(node_id).cloned()
+        self.inner.read().nodes.get_by_name(node_id)
     }
 
     pub fn list_nodes(&self) -> Vec<Arc<NodeDefinition>> {
-        self.inner
-            .read()
-            .nodes
-            .iter()
-            .map(|v| Arc::clone(v.1))
-            .collect()
+        self.inner.read().nodes.resource_iter().cloned().collect()
     }
 
     pub fn next_db_id(&self) -> DbId {
-        self.inner.read().get_next_id()
+        self.inner.read().databases.next_id()
     }
 
-    pub fn db_or_create(
+    pub(crate) fn db_or_create(
         &self,
         db_name: &str,
         now_time_ns: i64,
@@ -248,7 +251,7 @@ impl Catalog {
                 }
 
                 info!(database_name = db_name, "creating new database");
-                let db_id = inner.get_and_increment_next_id();
+                let db_id = inner.databases.get_and_increment_next_id();
                 let db_name = db_name.into();
                 let db = Arc::new(DatabaseSchema::new(db_id, Arc::clone(&db_name)));
                 let batch = CatalogBatch::database(
@@ -266,28 +269,19 @@ impl Catalog {
     }
 
     pub fn db_name_to_id(&self, db_name: &str) -> Option<DbId> {
-        self.inner.read().db_map.get_by_right(db_name).copied()
+        self.inner.read().databases.name_to_id(db_name)
     }
 
     pub fn db_id_to_name(&self, db_id: &DbId) -> Option<Arc<str>> {
-        self.inner.read().db_map.get_by_left(db_id).map(Arc::clone)
+        self.inner.read().databases.id_to_name(db_id)
     }
 
     pub fn db_schema(&self, db_name: &str) -> Option<Arc<DatabaseSchema>> {
-        self.db_id_and_schema(db_name).map(|(_, schema)| schema)
+        self.inner.read().databases.get_by_name(db_name)
     }
 
     pub fn db_schema_by_id(&self, db_id: &DbId) -> Option<Arc<DatabaseSchema>> {
-        self.inner.read().databases.get(db_id).cloned()
-    }
-
-    pub fn db_id_and_schema(&self, db_name: &str) -> Option<(DbId, Arc<DatabaseSchema>)> {
-        let inner = self.inner.read();
-        let db_id = inner.db_map.get_by_right(db_name)?;
-        inner
-            .databases
-            .get(db_id)
-            .map(|db| (*db_id, Arc::clone(db)))
+        self.inner.read().databases.get_by_id(db_id)
     }
 
     /// List names of databases that have not been deleted
@@ -295,14 +289,19 @@ impl Catalog {
         self.inner
             .read()
             .databases
-            .values()
+            .resource_iter()
             .filter(|db| !db.deleted)
             .map(|db| db.name.to_string())
             .collect()
     }
 
     pub fn list_db_schema(&self) -> Vec<Arc<DatabaseSchema>> {
-        self.inner.read().databases.values().cloned().collect()
+        self.inner
+            .read()
+            .databases
+            .resource_iter()
+            .cloned()
+            .collect()
     }
 
     pub fn sequence_number(&self) -> CatalogSequenceNumber {
@@ -321,20 +320,21 @@ impl Catalog {
         self.inner.read().db_exists(db_id)
     }
 
-    pub fn active_triggers(&self) -> Vec<(String, String)> {
+    /// Get active triggers by database and trigger name
+    // NOTE: this could be id-based in future
+    pub fn active_triggers(&self) -> Vec<(Arc<str>, Arc<str>)> {
         let inner = self.inner.read();
         let result = inner
             .databases
-            .values()
-            .flat_map(|schema| {
-                schema
-                    .processing_engine_triggers
-                    .iter()
-                    .filter_map(move |(key, trigger)| {
+            .resource_iter()
+            .flat_map(|db| {
+                db.processing_engine_triggers
+                    .resource_iter()
+                    .filter_map(move |trigger| {
                         if trigger.disabled {
                             None
                         } else {
-                            Some((schema.name.to_string(), key.to_string()))
+                            Some((Arc::clone(&db.name), Arc::clone(&trigger.trigger_name)))
                         }
                     })
             })
@@ -383,6 +383,139 @@ impl Catalog {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Repository<I: CatalogId, R: CatalogResource> {
+    pub(crate) repo: SerdeVecMap<I, Arc<R>>,
+    pub(crate) id_name_map: BiHashMap<I, Arc<str>>,
+    pub(crate) next_id: I,
+}
+
+impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
+    pub fn new() -> Self {
+        Self {
+            repo: SerdeVecMap::new(),
+            id_name_map: BiHashMap::new(),
+            next_id: I::default(),
+        }
+    }
+
+    pub(crate) fn get_and_increment_next_id(&mut self) -> I {
+        let next_id = self.next_id;
+        self.next_id = self.next_id.next();
+        next_id
+    }
+
+    pub(crate) fn next_id(&self) -> I {
+        self.next_id
+    }
+
+    pub(crate) fn set_next_id(&mut self, id: I) {
+        self.next_id = id;
+    }
+
+    pub fn name_to_id(&self, name: &str) -> Option<I> {
+        self.id_name_map.get_by_right(name).copied()
+    }
+
+    pub fn id_to_name(&self, id: &I) -> Option<Arc<str>> {
+        self.id_name_map.get_by_left(id).cloned()
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<Arc<R>> {
+        self.id_name_map
+            .get_by_right(name)
+            .and_then(|id| self.repo.get(id))
+            .cloned()
+    }
+
+    pub fn get_by_id(&self, id: &I) -> Option<Arc<R>> {
+        self.repo.get(id).cloned()
+    }
+
+    pub fn contains_id(&self, id: &I) -> bool {
+        self.repo.contains_key(id)
+    }
+
+    pub fn contains_name(&self, name: &str) -> bool {
+        self.id_name_map.contains_right(name)
+    }
+
+    pub fn len(&self) -> usize {
+        self.repo.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.repo.is_empty()
+    }
+
+    /// Check if a resource exists in the repository by `id` and `name`
+    ///
+    /// # Panics
+    ///
+    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
+    /// that would be a bad state for the repository to be in.
+    fn exists(&self, id: &I, name: &str) -> bool {
+        let id_in_map = self.id_name_map.contains_left(id);
+        let name_in_map = self.id_name_map.contains_right(name);
+        let id_in_repo = self.repo.contains_key(id);
+        assert_eq!(
+            id_in_map, id_in_repo,
+            "id map and repository are in an inconsistent state, \
+            in map: {id_in_map}, in repo: {id_in_repo}"
+        );
+        id_in_repo || id_in_map || name_in_map
+    }
+
+    /// Insert a new resource to the repository
+    pub(crate) fn insert(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
+        let resource = resource.into();
+        if self.exists(&id, resource.name().as_ref()) {
+            return Err(CatalogError::AlreadyExists);
+        }
+        self.id_name_map.insert(id, resource.name());
+        self.repo.insert(id, resource);
+        self.next_id = match self.next_id.cmp(&id) {
+            Ordering::Less | Ordering::Equal => id.next(),
+            Ordering::Greater => self.next_id,
+        };
+        Ok(())
+    }
+
+    /// Update an existing resource in the repository
+    pub(crate) fn update(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
+        let resource = resource.into();
+        if !self.exists(&id, resource.name().as_ref()) {
+            return Err(CatalogError::NotFound);
+        }
+        self.id_name_map.insert(id, resource.name());
+        self.repo.insert(id, resource);
+        Ok(())
+    }
+
+    pub(crate) fn remove(&mut self, id: &I) {
+        self.id_name_map.remove_by_left(id);
+        self.repo.shift_remove(id);
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&I, &Arc<R>)> {
+        self.repo.iter()
+    }
+
+    pub fn id_iter(&self) -> impl Iterator<Item = &I> {
+        self.repo.keys()
+    }
+
+    pub fn resource_iter(&self) -> impl Iterator<Item = &Arc<R>> {
+        self.repo.values()
+    }
+}
+
+impl<I: CatalogId, R: CatalogResource> Default for Repository<I, R> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct InnerCatalog {
     pub(crate) sequence: CatalogSequenceNumber,
@@ -390,24 +523,19 @@ pub struct InnerCatalog {
     pub(crate) catalog_id: Arc<str>,
     /// The `catalog_uuid` is a unique identifier to distinguish catalog instantiations
     pub(crate) catalog_uuid: Uuid,
-    pub(crate) nodes: SerdeVecMap<Arc<str>, Arc<NodeDefinition>>,
+    pub(crate) nodes: Repository<NodeId, NodeDefinition>,
     /// The catalog is a map of databases with their table schemas
-    pub(crate) databases: SerdeVecMap<DbId, Arc<DatabaseSchema>>,
-    /// A bidirectional map for fast lookups of database name via ID, or vice versa
-    pub(crate) db_map: BiHashMap<DbId, Arc<str>>,
-    pub(crate) next_db_id: DbId,
+    pub(crate) databases: Repository<DbId, DatabaseSchema>,
 }
 
 impl InnerCatalog {
     pub(crate) fn new(catalog_id: Arc<str>, catalog_uuid: Uuid) -> Self {
         Self {
-            nodes: SerdeVecMap::new(),
-            databases: SerdeVecMap::new(),
             sequence: CatalogSequenceNumber::new(0),
             catalog_id,
             catalog_uuid,
-            db_map: BiHashMap::new(),
-            next_db_id: DbId::default(),
+            nodes: Repository::default(),
+            databases: Repository::default(),
         }
     }
 
@@ -420,24 +548,10 @@ impl InnerCatalog {
     }
 
     pub fn table_count(&self) -> usize {
-        self.databases.values().map(|db| db.table_count()).sum()
-    }
-
-    /// Verifies the `CatalogBatch` by validating that all updates are compatible, and returns an
-    /// `OrderedCatalogBatch` if the updates result in a change to the catalog, or `None` otherwise.
-    pub(crate) fn verify_catalog_batch(
-        &mut self,
-        catalog_batch: &CatalogBatch,
-        sequence: CatalogSequenceNumber,
-    ) -> Result<Option<OrderedCatalogBatch>> {
-        debug!(
-            n_ops = catalog_batch.n_ops(),
-            current_sequence = self.sequence_number().get(),
-            verified_sequence = sequence.get(),
-            "verify catalog batch"
-        );
-
-        self.verify_or_apply_catalog_batch(catalog_batch, sequence, false)
+        self.databases
+            .resource_iter()
+            .map(|db| db.table_count())
+            .sum()
     }
 
     /// Verifies _and_ applies the `CatalogBatch` to the catalog.
@@ -452,39 +566,18 @@ impl InnerCatalog {
             applied_sequence = sequence.get(),
             "apply catalog batch"
         );
-
-        self.verify_or_apply_catalog_batch(catalog_batch, sequence, true)
-    }
-
-    /// Inner method for shared logic between `verify_catalog_batch` and `apply_catalog_batch`
-    fn verify_or_apply_catalog_batch(
-        &mut self,
-        catalog_batch: &CatalogBatch,
-        sequence: CatalogSequenceNumber,
-        apply_changes: bool,
-    ) -> Result<Option<OrderedCatalogBatch>> {
         let updated = match catalog_batch {
-            CatalogBatch::Node(root_batch) => {
-                self.verify_or_apply_node_batch(root_batch, apply_changes)?
-            }
-            CatalogBatch::Database(database_batch) => {
-                self.verify_or_apply_database_batch(database_batch, apply_changes)?
-            }
+            CatalogBatch::Node(root_batch) => self.apply_node_batch(root_batch)?,
+            CatalogBatch::Database(database_batch) => self.apply_database_batch(database_batch)?,
         };
 
         Ok(updated.then(|| {
-            if apply_changes {
-                self.sequence = sequence;
-            }
+            self.sequence = sequence;
             OrderedCatalogBatch::new(catalog_batch.clone(), sequence)
         }))
     }
 
-    fn verify_or_apply_node_batch(
-        &mut self,
-        node_batch: &NodeBatch,
-        apply_changes: bool,
-    ) -> Result<bool> {
+    fn apply_node_batch(&mut self, node_batch: &NodeBatch) -> Result<bool> {
         let mut updated = false;
         for op in &node_batch.ops {
             updated |= match op {
@@ -497,6 +590,7 @@ impl InnerCatalog {
                 }) => {
                     let new_node = Arc::new(NodeDefinition {
                         node_id: Arc::clone(node_id),
+                        node_catalog_id: node_batch.node_catalog_id,
                         instance_id: Arc::clone(instance_id),
                         mode: mode.clone(),
                         core_count: *core_count,
@@ -504,16 +598,20 @@ impl InnerCatalog {
                             registered_time_ns: *registered_time_ns,
                         },
                     });
-                    if let Some(node) = self.nodes.get(node_id) {
+                    if let Some(node) = self.nodes.get_by_name(node_id) {
                         if &node.instance_id != instance_id {
                             return Err(CatalogError::InvalidNodeRegistration);
                         }
-                        if *node == new_node {
+                        if node == new_node {
                             continue;
                         }
-                    }
-                    if apply_changes {
-                        self.nodes.insert(Arc::clone(node_id), new_node);
+                        self.nodes
+                            .update(node_batch.node_catalog_id, new_node)
+                            .expect("existing node should update");
+                    } else {
+                        self.nodes
+                            .insert(node_batch.node_catalog_id, new_node)
+                            .expect("there should not already be a node");
                     }
                     true
                 }
@@ -522,39 +620,32 @@ impl InnerCatalog {
         Ok(updated)
     }
 
-    fn verify_or_apply_database_batch(
-        &mut self,
-        database_batch: &DatabaseBatch,
-        apply_changes: bool,
-    ) -> Result<bool> {
+    fn apply_database_batch(&mut self, database_batch: &DatabaseBatch) -> Result<bool> {
         let table_count = self.table_count();
-        let db = if let Some(db) = self.databases.get(&database_batch.database_id) {
-            let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(db, database_batch)?
+        if let Some(db) = self.databases.get_by_id(&database_batch.database_id) {
+            let Some(new_db) = DatabaseSchema::new_if_updated_from_batch(&db, database_batch)?
             else {
                 return Ok(false);
             };
-            check_overall_table_count(Some(db), &new_db, table_count)?;
-            new_db
+            check_overall_table_count(Some(&db), &new_db, table_count)?;
+            self.databases
+                .update(db.id, new_db)
+                .expect("existing database should be updated");
         } else {
             if self.database_count() >= Catalog::NUM_DBS_LIMIT {
                 return Err(CatalogError::TooManyDbs);
             }
             let new_db = DatabaseSchema::new_from_batch(database_batch)?;
             check_overall_table_count(None, &new_db, table_count)?;
-            new_db
+            self.databases
+                .insert(new_db.id, new_db)
+                .expect("new database should be inserted");
         };
-        if apply_changes {
-            let name = Arc::clone(&db.name);
-            let id = db.id;
-            self.next_db_id = self.next_db_id.max(id.next());
-            self.databases.insert(id, Arc::new(db));
-            self.db_map.insert(id, name);
-        }
         Ok(true)
     }
 
     pub fn db_exists(&self, db_id: DbId) -> bool {
-        self.databases.contains_key(&db_id)
+        self.databases.get_by_id(&db_id).is_some()
     }
 }
 
@@ -585,6 +676,7 @@ fn check_overall_table_count(
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NodeDefinition {
     pub(crate) node_id: Arc<str>,
+    pub(crate) node_catalog_id: NodeId,
     pub(crate) instance_id: Arc<str>,
     pub(crate) mode: Vec<NodeMode>,
     pub(crate) core_count: u64,
@@ -622,11 +714,9 @@ pub enum NodeState {
 pub struct DatabaseSchema {
     pub id: DbId,
     pub name: Arc<str>,
-    pub tables: SerdeVecMap<TableId, Arc<TableDefinition>>,
-    pub table_map: BiHashMap<TableId, Arc<str>>,
-    pub processing_engine_triggers: HashMap<String, CreateTriggerLog>,
+    pub tables: Repository<TableId, TableDefinition>,
+    pub processing_engine_triggers: Repository<TriggerId, TriggerDefinition>,
     pub deleted: bool,
-    pub(crate) next_table_id: TableId,
 }
 
 impl DatabaseSchema {
@@ -634,11 +724,9 @@ impl DatabaseSchema {
         Self {
             id,
             name,
-            tables: Default::default(),
-            table_map: BiHashMap::new(),
-            processing_engine_triggers: HashMap::new(),
+            tables: Repository::new(),
+            processing_engine_triggers: Repository::new(),
             deleted: false,
-            next_table_id: TableId::default(),
         }
     }
 
@@ -688,62 +776,23 @@ impl DatabaseSchema {
     }
 
     /// Create a new empty table definition with the given `table_name` in the database.
-    ///
-    /// # Panics
-    ///
-    /// This panics if either the `tables` map or `table_map` contain the table already.
     pub(crate) fn create_new_empty_table(
         &mut self,
         table_name: impl Into<Arc<str>>,
     ) -> Result<Arc<TableDefinition>> {
-        let table_id = self.get_next_id();
+        let table_id = self.tables.next_id();
         let table_def = Arc::new(TableDefinition::new_empty(table_id, table_name.into()));
-        if self.table_map.contains_right(&table_def.table_name)
-            || self.table_map.contains_left(&table_id)
-        {
-            return Err(CatalogError::AlreadyExists);
-        }
-        assert!(
-            !self
-                .table_map
-                .insert(table_id, Arc::clone(&table_def.table_name))
-                .did_overwrite(),
-            "table is in an unexpected state"
-        );
-        assert!(
-            self.tables
-                .insert(table_id, Arc::clone(&table_def))
-                .is_none(),
-            "table map and table name/id map are in inconsistent state"
-        );
-        self.next_table_id = self.next_table_id.next();
+        self.tables.insert(table_id, Arc::clone(&table_def))?;
         Ok(table_def)
     }
 
     /// Update a table in the database. This fails if the table doesn't exist.
-    ///
-    /// # Panics
-    ///
-    /// This panics if the `tables` map and `table_map` are in an inconsistent state.
     pub(crate) fn update_table(
         &mut self,
         table_id: TableId,
         table_def: Arc<TableDefinition>,
-    ) -> Result<Arc<TableDefinition>> {
-        let in_table_map = self.table_map.contains_left(&table_id);
-        let in_tables = self.tables.contains_key(&table_id);
-        assert_eq!(
-            in_table_map, in_tables,
-            "tables map and table id/name maps are in inconsistent state"
-        );
-        if !in_tables {
-            return Err(CatalogError::NotFound);
-        }
-        self.table_map
-            .insert(table_id, Arc::clone(&table_def.table_name));
-        self.tables
-            .insert(table_id, table_def)
-            .ok_or_else(|| CatalogError::NotFound)
+    ) -> Result<()> {
+        self.tables.update(table_id, table_def)
     }
 
     /// Insert a [`TableDefinition`] to the `tables` map and also update the `table_map` and
@@ -755,110 +804,67 @@ impl DatabaseSchema {
     /// is known, but the table does not yet exist in this instance of the `DatabaseSchema`, i.e.,
     /// on catalog initialization/replay.
     pub fn insert_table_from_log(&mut self, table_id: TableId, table_def: Arc<TableDefinition>) {
-        debug!(table_id = table_id.get(), "insert table from log");
-        let in_table_map = self.table_map.contains_left(&table_id)
-            || self.table_map.contains_right(&table_def.table_name);
-        let in_tables = self.tables.contains_key(&table_id);
-        assert!(
-            !in_tables && !in_table_map,
-            "table created from log should not exist already"
-        );
-        self.table_map
-            .insert(table_id, Arc::clone(&table_def.table_name));
-        self.next_table_id = self.next_table_id.max(table_id.next());
-        self.tables.insert(table_id, table_def);
-    }
-
-    pub fn table_schema(&self, table_name: impl Into<Arc<str>>) -> Option<Schema> {
-        self.table_id_and_schema(table_name)
-            .map(|(_, schema)| schema.clone())
+        self.tables
+            .insert(table_id, table_def)
+            .expect("table inserted from the log should not already exist");
     }
 
     pub fn table_schema_by_id(&self, table_id: &TableId) -> Option<Schema> {
         self.tables
-            .get(table_id)
-            .map(|table| table.influx_schema())
-            .cloned()
+            .get_by_id(table_id)
+            .map(|table| table.influx_schema().clone())
     }
 
-    pub fn table_id_and_schema(
-        &self,
-        table_name: impl Into<Arc<str>>,
-    ) -> Option<(TableId, Schema)> {
-        self.table_map
-            .get_by_right(&table_name.into())
-            .and_then(|table_id| {
-                self.tables
-                    .get(table_id)
-                    .map(|table_def| (*table_id, table_def.influx_schema().clone()))
-            })
-    }
-
-    pub fn table_definition(
-        &self,
-        table_name: impl Into<Arc<str>>,
-    ) -> Option<Arc<TableDefinition>> {
-        self.table_map
-            .get_by_right(&table_name.into())
-            .and_then(|table_id| self.tables.get(table_id).cloned())
+    pub fn table_definition(&self, table_name: impl AsRef<str>) -> Option<Arc<TableDefinition>> {
+        self.tables.get_by_name(table_name.as_ref())
     }
 
     pub fn table_definition_by_id(&self, table_id: &TableId) -> Option<Arc<TableDefinition>> {
-        self.tables.get(table_id).cloned()
-    }
-
-    pub fn table_id_and_definition(
-        &self,
-        table_name: impl Into<Arc<str>>,
-    ) -> Option<(TableId, Arc<TableDefinition>)> {
-        let table_id = self.table_map.get_by_right(&table_name.into())?;
-        self.tables
-            .get(table_id)
-            .map(|table_def| (*table_id, Arc::clone(table_def)))
+        self.tables.get_by_id(table_id)
     }
 
     pub fn table_ids(&self) -> Vec<TableId> {
-        self.tables.keys().cloned().collect()
+        self.tables.id_iter().copied().collect()
     }
 
     pub fn table_names(&self) -> Vec<Arc<str>> {
         self.tables
-            .values()
+            .resource_iter()
             .map(|td| Arc::clone(&td.table_name))
             .collect()
     }
 
     pub fn table_exists(&self, table_id: &TableId) -> bool {
-        self.tables.contains_key(table_id)
+        self.tables.get_by_id(table_id).is_some()
     }
 
     pub fn tables(&self) -> impl Iterator<Item = Arc<TableDefinition>> + use<'_> {
-        self.tables.values().map(Arc::clone)
+        self.tables.resource_iter().map(Arc::clone)
     }
 
-    pub fn table_name_to_id(&self, table_name: impl Into<Arc<str>>) -> Option<TableId> {
-        self.table_map.get_by_right(&table_name.into()).copied()
+    pub fn table_name_to_id(&self, table_name: impl AsRef<str>) -> Option<TableId> {
+        self.tables.name_to_id(table_name.as_ref())
     }
 
     pub fn table_id_to_name(&self, table_id: &TableId) -> Option<Arc<str>> {
-        self.table_map.get_by_left(table_id).map(Arc::clone)
+        self.tables.id_to_name(table_id)
     }
 
-    pub fn list_distinct_caches(&self) -> Vec<&CreateDistinctCacheLog> {
+    pub fn list_distinct_caches(&self) -> Vec<Arc<DistinctCacheDefinition>> {
         self.tables
-            .values()
+            .resource_iter()
             .filter(|t| !t.deleted)
-            .flat_map(|t| t.distinct_caches())
-            .map(|(_, def)| def)
+            .flat_map(|t| t.distinct_caches.resource_iter())
+            .cloned()
             .collect()
     }
 
-    pub fn list_last_caches(&self) -> Vec<&CreateLastCacheLog> {
+    pub fn list_last_caches(&self) -> Vec<Arc<LastCacheDefinition>> {
         self.tables
-            .values()
+            .resource_iter()
             .filter(|t| !t.deleted)
-            .flat_map(|t| t.last_caches())
-            .map(|(_, def)| def)
+            .flat_map(|t| t.last_caches.resource_iter())
+            .cloned()
             .collect()
     }
 }
@@ -926,7 +932,7 @@ impl UpdateDatabaseSchema for CreateTableLog {
         &self,
         mut database_schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        match database_schema.tables.get(&self.table_id) {
+        match database_schema.tables.get_by_id(&self.table_id) {
             Some(existing_table) => {
                 debug!("creating existing table");
                 if let Cow::Owned(updated_table) = existing_table.check_and_add_new_fields(self)? {
@@ -968,20 +974,20 @@ impl UpdateDatabaseSchema for SoftDeleteTableLog {
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
         // unlike other table ops, this is not an error.
-        if !schema.tables.contains_key(&self.table_id) {
+        if !schema.tables.contains_id(&self.table_id) {
             return Ok(schema);
         }
         let mut_schema = schema.to_mut();
-        if let Some(deleted_table) = mut_schema.tables.get_mut(&self.table_id) {
+        if let Some(mut deleted_table) = mut_schema.tables.get_by_id(&self.table_id) {
             let deletion_time = Time::from_timestamp_nanos(self.deletion_time);
             let table_name = make_new_name_using_deleted_time(&self.table_name, deletion_time);
-            let new_table_def = Arc::make_mut(deleted_table);
+            let new_table_def = Arc::make_mut(&mut deleted_table);
             new_table_def.deleted = true;
             new_table_def.table_name = table_name;
-            mut_schema.table_map.insert(
-                new_table_def.table_id,
-                Arc::clone(&new_table_def.table_name),
-            );
+            mut_schema
+                .tables
+                .update(new_table_def.table_id, deleted_table)
+                .expect("the table should exist");
         }
         Ok(schema)
     }
@@ -995,7 +1001,10 @@ impl UpdateDatabaseSchema for EnableTrigger {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
+        let Some(trigger) = schema
+            .processing_engine_triggers
+            .get_by_name(&self.0.trigger_name)
+        else {
             return Err(CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: self.0.db_name.to_string(),
                 trigger_name: self.0.trigger_name.to_string(),
@@ -1004,12 +1013,16 @@ impl UpdateDatabaseSchema for EnableTrigger {
         if !trigger.disabled {
             return Ok(schema);
         }
-        let mut_trigger = schema
+        let mut mut_trigger = schema
+            .processing_engine_triggers
+            .get_by_id(&trigger.trigger_id)
+            .expect("already checked containment");
+        Arc::make_mut(&mut mut_trigger).disabled = false;
+        schema
             .to_mut()
             .processing_engine_triggers
-            .get_mut(&self.0.trigger_name)
-            .expect("already checked containment");
-        mut_trigger.disabled = false;
+            .update(trigger.trigger_id, mut_trigger)
+            .expect("existing trigger should update");
         Ok(schema)
     }
 }
@@ -1019,7 +1032,10 @@ impl UpdateDatabaseSchema for DisableTrigger {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let Some(trigger) = schema.processing_engine_triggers.get(&self.0.trigger_name) else {
+        let Some(trigger) = schema
+            .processing_engine_triggers
+            .get_by_name(&self.0.trigger_name)
+        else {
             return Err(CatalogError::ProcessingEngineTriggerNotFound {
                 database_name: self.0.db_name.to_string(),
                 trigger_name: self.0.trigger_name.to_string(),
@@ -1028,23 +1044,30 @@ impl UpdateDatabaseSchema for DisableTrigger {
         if trigger.disabled {
             return Ok(schema);
         }
-        let mut_trigger = schema
+        let mut mut_trigger = schema
+            .processing_engine_triggers
+            .get_by_id(&trigger.trigger_id)
+            .expect("already checked containment");
+        Arc::make_mut(&mut mut_trigger).disabled = true;
+        schema
             .to_mut()
             .processing_engine_triggers
-            .get_mut(&self.0.trigger_name)
-            .expect("already checked containment");
-        mut_trigger.disabled = true;
+            .update(trigger.trigger_id, mut_trigger)
+            .expect("existing trigger should update");
         Ok(schema)
     }
 }
 
-impl UpdateDatabaseSchema for CreateTriggerLog {
+impl UpdateDatabaseSchema for TriggerDefinition {
     fn update_schema<'a>(
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        if let Some(current) = schema.processing_engine_triggers.get(&self.trigger_name) {
-            if current == self {
+        if let Some(current) = schema
+            .processing_engine_triggers
+            .get_by_name(&self.trigger_name)
+        {
+            if current.as_ref() == self {
                 return Ok(schema);
             }
             return Err(CatalogError::ProcessingEngineTriggerExists {
@@ -1055,7 +1078,8 @@ impl UpdateDatabaseSchema for CreateTriggerLog {
         schema
             .to_mut()
             .processing_engine_triggers
-            .insert(self.trigger_name.to_string(), self.clone());
+            .insert(self.trigger_id, Arc::new(self.clone()))
+            .expect("new trigger should insert");
         Ok(schema)
     }
 }
@@ -1065,7 +1089,10 @@ impl UpdateDatabaseSchema for DeleteTriggerLog {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let Some(trigger) = schema.processing_engine_triggers.get(&self.trigger_name) else {
+        let Some(trigger) = schema
+            .processing_engine_triggers
+            .get_by_name(&self.trigger_name)
+        else {
             // deleting a non-existent trigger is a no-op to make it idempotent.
             return Ok(schema);
         };
@@ -1081,7 +1108,7 @@ impl UpdateDatabaseSchema for DeleteTriggerLog {
         schema
             .to_mut()
             .processing_engine_triggers
-            .remove(&self.trigger_name);
+            .remove(&trigger.trigger_id);
 
         Ok(schema)
     }
@@ -1100,14 +1127,12 @@ pub struct TableDefinition {
     pub table_id: TableId,
     pub table_name: Arc<str>,
     pub schema: Schema,
-    pub columns: IndexMap<ColumnId, ColumnDefinition>,
-    pub column_map: BiHashMap<ColumnId, Arc<str>>,
+    pub columns: Repository<ColumnId, ColumnDefinition>,
     pub series_key: Vec<ColumnId>,
     pub series_key_names: Vec<Arc<str>>,
-    pub last_caches: HashMap<Arc<str>, CreateLastCacheLog>,
-    pub distinct_caches: HashMap<Arc<str>, CreateDistinctCacheLog>,
+    pub last_caches: Repository<LastCacheId, LastCacheDefinition>,
+    pub distinct_caches: Repository<DistinctCacheId, DistinctCacheDefinition>,
     pub deleted: bool,
-    pub(crate) next_column_id: ColumnId,
 }
 
 impl TableDefinition {
@@ -1138,18 +1163,7 @@ impl TableDefinition {
         }
         let mut schema_builder = SchemaBuilder::with_capacity(columns.len());
         schema_builder.measurement(table_name.as_ref());
-        let next_column_id = if columns.is_empty() {
-            ColumnId::default()
-        } else {
-            columns
-                .iter()
-                .map(|c| c.0)
-                .max()
-                .expect("there should be max column id when columns provided")
-                .next()
-        };
-        let mut columns = IndexMap::with_capacity(ordered_columns.len());
-        let mut column_map = BiHashMap::with_capacity(ordered_columns.len());
+        let mut columns = Repository::new();
         for (name, (col_id, column_type)) in ordered_columns {
             schema_builder.influx_column(name, *column_type);
             let not_nullable = matches!(column_type, InfluxColumnType::Timestamp);
@@ -1157,20 +1171,23 @@ impl TableDefinition {
                 columns
                     .insert(
                         *col_id,
-                        ColumnDefinition::new(*col_id, name, *column_type, !not_nullable),
+                        Arc::new(ColumnDefinition::new(
+                            *col_id,
+                            name,
+                            *column_type,
+                            !not_nullable
+                        )),
                     )
-                    .is_none(),
+                    .is_ok(),
                 "table definition initialized with duplicate column ids"
             );
-            column_map.insert(*col_id, name.into());
         }
         let series_key_names = series_key
             .clone()
             .into_iter()
             .map(|id| {
-                column_map
-                    .get_by_left(&id)
-                    .cloned()
+                columns
+                    .id_to_name(&id)
                     // NOTE: should this be an error instead of panic?
                     .expect("invalid column id in series key definition")
             })
@@ -1183,13 +1200,11 @@ impl TableDefinition {
             table_name,
             schema,
             columns,
-            column_map,
             series_key,
             series_key_names,
-            last_caches: HashMap::new(),
-            distinct_caches: HashMap::new(),
+            last_caches: Repository::new(),
+            distinct_caches: Repository::new(),
             deleted: false,
-            next_column_id,
         })
     }
 
@@ -1226,7 +1241,11 @@ impl TableDefinition {
         let mut new_fields: Vec<(ColumnId, Arc<str>, InfluxColumnType)> =
             Vec::with_capacity(fields.len());
         for field_def in fields {
-            if let Some(existing_type) = table.columns.get(&field_def.id).map(|def| def.data_type) {
+            if let Some(existing_type) = table
+                .columns
+                .get_by_id(&field_def.id)
+                .map(|def| def.data_type)
+            {
                 if existing_type != field_def.data_type.into() {
                     return Err(CatalogError::FieldTypeMismatch {
                         table_name: table.table_name.to_string(),
@@ -1246,19 +1265,14 @@ impl TableDefinition {
 
         if !new_fields.is_empty() {
             let table = table.to_mut();
-            table.next_column_id = new_fields
-                .iter()
-                .map(|f| f.0.next())
-                .max()
-                .unwrap_or(table.next_column_id);
             table.add_columns(new_fields)?;
         }
         Ok(table)
     }
 
     /// Check if the column exists in the [`TableDefinition`]
-    pub fn column_exists(&self, column: impl Into<Arc<str>>) -> bool {
-        self.column_map.get_by_right(&column.into()).is_some()
+    pub fn column_exists(&self, column: impl AsRef<str>) -> bool {
+        self.columns.contains_name(column.as_ref())
     }
 
     pub(crate) fn add_column(
@@ -1266,7 +1280,7 @@ impl TableDefinition {
         column_name: Arc<str>,
         column_type: InfluxColumnType,
     ) -> Result<ColumnId> {
-        let col_id = self.get_and_increment_next_id();
+        let col_id = self.columns.get_and_increment_next_id();
         self.add_columns(vec![(col_id, column_name, column_type)])?;
         Ok(col_id)
     }
@@ -1281,7 +1295,7 @@ impl TableDefinition {
         // Use BTree to insert existing and new columns, and use that to generate the
         // resulting schema, to ensure column order is consistent:
         let mut cols = BTreeMap::new();
-        for (_, col_def) in self.columns.drain(..) {
+        for col_def in self.columns.resource_iter().cloned() {
             cols.insert(Arc::clone(&col_def.name), col_def);
         }
         for (id, name, column_type) in columns {
@@ -1289,7 +1303,7 @@ impl TableDefinition {
             assert!(
                 cols.insert(
                     Arc::clone(&name),
-                    ColumnDefinition::new(id, name, column_type, nullable)
+                    Arc::new(ColumnDefinition::new(id, name, column_type, nullable))
                 )
                 .is_none(),
                 "attempted to add existing column"
@@ -1315,13 +1329,13 @@ impl TableDefinition {
         let schema = schema_builder.build().expect("schema should be valid");
         self.schema = schema;
 
-        self.columns = cols
-            .into_iter()
-            .inspect(|(_, def)| {
-                self.column_map.insert(def.id, Arc::clone(&def.name));
-            })
-            .map(|(_, def)| (def.id, def))
-            .collect();
+        let mut new_columns = Repository::new();
+        for col in cols.values().cloned() {
+            new_columns
+                .insert(col.id, col)
+                .expect("should be a new column");
+        }
+        self.columns = new_columns;
 
         Ok(())
     }
@@ -1344,86 +1358,44 @@ impl TableDefinition {
         self.influx_schema().len()
     }
 
-    pub fn field_type_by_name(&self, name: impl Into<Arc<str>>) -> Option<InfluxColumnType> {
-        self.column_name_to_id(name)
-            .and_then(|id| self.columns.get(&id))
+    pub fn field_type_by_name(&self, name: impl AsRef<str>) -> Option<InfluxColumnType> {
+        self.columns
+            .get_by_name(name.as_ref())
             .map(|def| def.data_type)
     }
 
-    /// Add the `distinct_cache` to this table
-    pub fn add_distinct_cache(&mut self, distinct_cache: CreateDistinctCacheLog) {
-        self.distinct_caches
-            .insert(Arc::clone(&distinct_cache.cache_name), distinct_cache);
+    // TODO(trevor): remove thid API in favour of the Repository APIs
+    pub fn column_name_to_id(&self, name: impl AsRef<str>) -> Option<ColumnId> {
+        self.columns.name_to_id(name.as_ref())
     }
 
-    /// Remove the distinct cache with the given name
-    pub fn remove_distinct_cache(&mut self, cache_name: &str) {
-        self.distinct_caches.remove(cache_name);
-    }
-
-    /// Add a new last cache to this table definition
-    pub fn add_last_cache(&mut self, last_cache: CreateLastCacheLog) {
-        self.last_caches
-            .insert(Arc::clone(&last_cache.name), last_cache);
-    }
-
-    /// Remove a last cache from the table definition by its name
-    pub fn remove_last_cache(&mut self, cache_name: &str) {
-        self.last_caches.remove(cache_name);
-    }
-
-    pub fn last_caches(&self) -> impl Iterator<Item = (Arc<str>, &CreateLastCacheLog)> {
-        self.last_caches
-            .iter()
-            .map(|(name, def)| (Arc::clone(name), def))
-    }
-
-    pub fn distinct_caches(&self) -> impl Iterator<Item = (Arc<str>, &CreateDistinctCacheLog)> {
-        self.distinct_caches
-            .iter()
-            .map(|(name, def)| (Arc::clone(name), def))
-    }
-
-    pub fn column_name_to_id(&self, name: impl Into<Arc<str>>) -> Option<ColumnId> {
-        self.column_map.get_by_right(&name.into()).copied()
-    }
-
+    // TODO(trevor): remove thid API in favour of the Repository APIs
     pub fn column_id_to_name(&self, id: &ColumnId) -> Option<Arc<str>> {
-        self.column_map.get_by_left(id).cloned()
+        self.columns.id_to_name(id)
     }
 
-    pub fn column_name_to_id_unchecked(&self, name: impl Into<Arc<str>>) -> ColumnId {
-        *self
-            .column_map
-            .get_by_right(&name.into())
+    // TODO(trevor): remove thid API in favour of the Repository APIs
+    pub fn column_name_to_id_unchecked(&self, name: impl AsRef<str>) -> ColumnId {
+        self.columns
+            .name_to_id(name.as_ref())
             .expect("Column exists in mapping")
     }
 
+    // TODO(trevor): remove thid API in favour of the Repository APIs
     pub fn column_id_to_name_unchecked(&self, id: &ColumnId) -> Arc<str> {
-        Arc::clone(
-            self.column_map
-                .get_by_left(id)
-                .expect("Column exists in mapping"),
-        )
+        self.columns
+            .id_to_name(id)
+            .expect("Column exists in mapping")
     }
 
-    pub fn column_definition(&self, name: impl Into<Arc<str>>) -> Option<&ColumnDefinition> {
-        self.column_map
-            .get_by_right(&name.into())
-            .and_then(|id| self.columns.get(id))
+    // TODO(trevor): remove thid API in favour of the Repository APIs
+    pub fn column_definition(&self, name: impl AsRef<str>) -> Option<Arc<ColumnDefinition>> {
+        self.columns.get_by_name(name.as_ref())
     }
 
-    pub fn column_definition_by_id(&self, id: &ColumnId) -> Option<&ColumnDefinition> {
-        self.columns.get(id)
-    }
-
-    pub fn column_id_and_definition(
-        &self,
-        name: impl Into<Arc<str>>,
-    ) -> Option<(ColumnId, &ColumnDefinition)> {
-        self.column_map
-            .get_by_right(&name.into())
-            .and_then(|id| self.columns.get(id).map(|def| (*id, def)))
+    // TODO(trevor): remove thid API in favour of the Repository APIs
+    pub fn column_definition_by_id(&self, id: &ColumnId) -> Option<Arc<ColumnDefinition>> {
+        self.columns.get_by_id(id)
     }
 
     pub fn series_key_ids(&self) -> &[ColumnId] {
@@ -1447,7 +1419,7 @@ impl<T: TableUpdate> UpdateDatabaseSchema for T {
         &self,
         mut schema: Cow<'a, DatabaseSchema>,
     ) -> Result<Cow<'a, DatabaseSchema>> {
-        let Some(table) = schema.tables.get(&self.table_id()) else {
+        let Some(table) = schema.tables.get_by_id(&self.table_id()) else {
             return Err(CatalogError::TableNotFound {
                 db_name: Arc::clone(&schema.name),
                 table_name: Arc::clone(&self.table_name()),
@@ -1477,7 +1449,7 @@ impl TableUpdate for AddFieldsLog {
     }
 }
 
-impl TableUpdate for CreateDistinctCacheLog {
+impl TableUpdate for DistinctCacheDefinition {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1488,9 +1460,10 @@ impl TableUpdate for CreateDistinctCacheLog {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if !table.distinct_caches.contains_key(&self.cache_name) {
-            table.to_mut().add_distinct_cache(self.clone());
-        }
+        table
+            .to_mut()
+            .distinct_caches
+            .insert(self.cache_id, self.clone())?;
         Ok(table)
     }
 }
@@ -1506,14 +1479,12 @@ impl TableUpdate for DeleteDistinctCacheLog {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if table.distinct_caches.contains_key(&self.cache_name) {
-            table.to_mut().distinct_caches.remove(&self.cache_name);
-        }
+        table.to_mut().distinct_caches.remove(&self.cache_id);
         Ok(table)
     }
 }
 
-impl TableUpdate for CreateLastCacheLog {
+impl TableUpdate for LastCacheDefinition {
     fn table_id(&self) -> TableId {
         self.table_id
     }
@@ -1526,9 +1497,7 @@ impl TableUpdate for CreateLastCacheLog {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if !table.last_caches.contains_key(&self.name) {
-            table.to_mut().add_last_cache(self.clone());
-        }
+        table.to_mut().last_caches.insert(self.id, self.clone())?;
         Ok(table)
     }
 }
@@ -1545,9 +1514,7 @@ impl TableUpdate for DeleteLastCacheLog {
         &self,
         mut table: Cow<'a, TableDefinition>,
     ) -> Result<Cow<'a, TableDefinition>> {
-        if table.last_caches.contains_key(&self.name) {
-            table.to_mut().last_caches.remove(&self.name);
-        }
+        table.to_mut().last_caches.remove(&self.id);
         Ok(table)
     }
 }
@@ -1649,177 +1616,40 @@ mod tests {
     }
 
     #[test]
-    fn invalid_catalog_deserialization() {
-        // Duplicate databases
-        {
-            let json = r#"{
-                "databases": [
-                    [
-                        0,
-                        {
-                            "id": 0,
-                            "name": "db1",
-                            "tables": [],
-                            "table_map": [],
-                            "deleted": false,
-                            "next_table_id": 0
-                        }
-                    ],
-                    [
-                        0,
-                        {
-                            "id": 0,
-                            "name": "db1",
-                            "tables": [],
-                            "table_map": [],
-                            "deleted": false,
-                            "next_table_id": 0
-                        }
-                    ]
-                ],
-                "sequence": 0,
-                "catalog_id": "test",
-                "catalog_uuid": "test",
-                "next_db_id": 1
-            }"#;
-            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "duplicate key found");
-        }
-        // Duplicate tables
-        {
-            let json = r#"{
-                "databases": [
-                    [
-                        0,
-                        {
-                            "id": 0,
-                            "name": "db1",
-                            "tables": [
-                                [
-                                    0,
-                                    {
-                                        "table_id": 0,
-                                        "table_name": "tbl1",
-                                        "cols": [],
-                                        "next_column_id": 0,
-                                        "deleted": false,
-                                        "key": []
-
-                                    }
-                                ],
-                                [
-                                    0,
-                                    {
-                                        "table_id": 0,
-                                        "table_name": "tbl1",
-                                        "cols": [],
-                                        "next_column_id": 0,
-                                        "deleted": false,
-                                        "key": []
-                                    }
-                                ]
-                            ],
-                            "deleted": false
-                        }
-                    ]
-                ],
-                "sequence": 0,
-                "catalog_id": "test",
-                "catalog_uuid": "test",
-                "next_db_id": 1
-            }"#;
-            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "duplicate key found");
-        }
-        // Duplicate columns
-        {
-            let json = r#"{
-                "databases": [
-                    [
-                        0,
-                        {
-                            "id": 0,
-                            "name": "db1",
-                            "tables": [
-                                [
-                                    0,
-                                    {
-                                        "table_id": 0,
-                                        "table_name": "tbl1",
-                                        "cols": [
-                                            [
-                                                0,
-                                                {
-                                                    "id": 0,
-                                                    "name": "col",
-                                                    "type": "i64",
-                                                    "influx_type": "field",
-                                                    "nullable": true
-                                                }
-                                            ],
-                                            [
-                                                0,
-                                                {
-                                                    "id": 0,
-                                                    "name": "col",
-                                                    "type": "u64",
-                                                    "influx_type": "field",
-                                                    "nullable": true
-                                                }
-                                            ]
-                                        ],
-                                        "deleted": false
-
-                                    }
-                                ]
-                            ],
-                            "deleted": false
-                        }
-                    ]
-                ],
-                "catalog_id": "test",
-                "catalog_uuid": "test",
-                "next_db_id": 1
-            }"#;
-            let err = serde_json::from_str::<InnerCatalog>(json).unwrap_err();
-            assert_contains!(err.to_string(), "duplicate key found");
-        }
-    }
-
-    #[test]
     fn add_columns_updates_schema_and_column_map() {
         let mut database = DatabaseSchema {
             id: DbId::from(0),
             name: "test".into(),
-            tables: SerdeVecMap::new(),
-            table_map: BiHashMap::new(),
+            tables: Repository::new(),
             processing_engine_triggers: Default::default(),
             deleted: false,
-            next_table_id: Default::default(),
         };
-        database.tables.insert(
-            TableId::from(0),
-            Arc::new(
-                TableDefinition::new(
-                    TableId::from(0),
-                    "test".into(),
-                    vec![(
-                        ColumnId::from(0),
+        database
+            .tables
+            .insert(
+                TableId::from(0),
+                Arc::new(
+                    TableDefinition::new(
+                        TableId::from(0),
                         "test".into(),
-                        InfluxColumnType::Field(InfluxFieldType::String),
-                    )],
-                    vec![],
-                )
-                .unwrap(),
-            ),
-        );
+                        vec![(
+                            ColumnId::from(0),
+                            "test".into(),
+                            InfluxColumnType::Field(InfluxFieldType::String),
+                        )],
+                        vec![],
+                    )
+                    .unwrap(),
+                ),
+            )
+            .unwrap();
 
-        let table = database.tables.get_mut(&TableId::from(0)).unwrap();
+        let mut table = database.tables.get_by_id(&TableId::from(0)).unwrap();
         println!("table: {table:#?}");
-        assert_eq!(table.column_map.len(), 1);
+        assert_eq!(table.columns.len(), 1);
         assert_eq!(table.column_id_to_name_unchecked(&0.into()), "test".into());
 
-        Arc::make_mut(table)
+        Arc::make_mut(&mut table)
             .add_columns(vec![(
                 ColumnId::from(1),
                 "test2".into(),
@@ -1834,7 +1664,7 @@ mod tests {
         assert_eq!(schema.field(1).0, InfluxColumnType::Tag);
 
         println!("table: {table:#?}");
-        assert_eq!(table.column_map.len(), 2);
+        assert_eq!(table.columns.len(), 2);
         assert_eq!(table.column_name_to_id_unchecked("test2"), 1.into());
     }
 
@@ -1994,9 +1824,11 @@ mod tests {
                 )],
             )],
         );
-        let err = catalog
-            .get_permit_and_verify_catalog_batch(&catalog_batch)
-            .await
+        debug!("getting write lock");
+        let mut inner = catalog.inner.write();
+        let sequence = inner.sequence_number();
+        let err = inner
+            .apply_catalog_batch(&catalog_batch, sequence.next())
             .expect_err("should fail to apply AddFields operation for non-existent table");
         assert_contains!(err.to_string(), "Table banana not in DB schema for foo");
     }
@@ -2088,22 +1920,25 @@ mod tests {
             })],
         );
         debug!("apply create op");
-        let (create_ordered_op, _) = catalog
-            .get_permit_and_verify_catalog_batch(&create_op)
-            .await
-            .expect("get permit and verify create op")
+        let create_ordered_op = catalog
+            .inner
+            .write()
+            .apply_catalog_batch(&create_op, catalog.sequence_number().next())
+            .expect("apply create op")
             .expect("should be able to create");
         debug!("apply add column op");
-        let (add_column_op, permit) = catalog
-            .get_permit_and_verify_catalog_batch(&add_column_op)
-            .await
-            .expect("verify and permit add column op")
+        let add_column_op = catalog
+            .inner
+            .write()
+            .apply_catalog_batch(&add_column_op, catalog.sequence_number().next())
+            .expect("apply add column op")
             .expect("should produce operation");
         let mut ordered_batches = vec![add_column_op, create_ordered_op];
         ordered_batches.sort();
 
         let replayed_catalog = Catalog::new_in_memory("host").await.unwrap();
         debug!(?ordered_batches, "apply sorted ops");
+        let permit = CATALOG_WRITE_PERMIT.lock().await;
         for ordered_batch in ordered_batches {
             replayed_catalog.apply_ordered_catalog_batch(&ordered_batch, &permit);
         }

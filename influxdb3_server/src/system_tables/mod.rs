@@ -131,8 +131,8 @@ impl AllSystemSchemaTablesProvider {
                 ProcessingEngineTriggerTable::new(
                     db_schema
                         .processing_engine_triggers
-                        .iter()
-                        .map(|(_name, trigger)| trigger.clone())
+                        .resource_iter()
+                        .cloned()
                         .collect(),
                 ),
             ))),

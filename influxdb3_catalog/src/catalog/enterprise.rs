@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use parking_lot::RwLock;
@@ -20,9 +21,12 @@ impl Catalog {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self> {
         let current_node_id = Some(current_node_id.into());
-        let node_id = catalog_id.into();
-        let store =
-            ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
+        let object_store_prefix = catalog_id.into();
+        let store = ObjectStoreCatalog::new(
+            Arc::clone(&object_store_prefix),
+            CATALOG_CHECKPOINT_INTERVAL,
+            store,
+        );
         let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
         store
             .load_or_create_catalog()
@@ -38,8 +42,20 @@ impl Catalog {
             })
     }
 
-    pub fn current_node(&self) -> Option<Arc<NodeDefinition>> {
-        let id = Arc::clone(self.current_node_id.as_ref().unwrap_or(&self.store.prefix));
-        self.inner.read().nodes.get(&id).cloned()
+    pub fn current_node(&self) -> Result<Arc<NodeDefinition>> {
+        let node_id = Arc::clone(
+            self.current_node_id
+                .as_ref()
+                .context("the current node is not set in the enterprise catalog")?,
+        );
+        self.inner
+            .read()
+            .nodes
+            .get_by_name(&node_id)
+            .context(
+                "the current node set on the catalog did not correspond \
+                to any nodes registered in the catalog",
+            )
+            .map_err(Into::into)
     }
 }

@@ -13,7 +13,7 @@ pub(crate) struct TestWriter {
 }
 
 impl TestWriter {
-    const DB_NAME: &str = "test_db";
+    pub(crate) const DB_NAME: &str = "test_db";
 
     pub(crate) async fn new() -> Self {
         Self {

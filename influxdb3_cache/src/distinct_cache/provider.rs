@@ -1,15 +1,14 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use anyhow::Context;
 use arrow::datatypes::SchemaRef;
 use influxdb3_catalog::{
     catalog::{Catalog, CatalogBroadcastReceiver},
     log::{
-        CatalogBatch, CreateDistinctCacheLog, DatabaseCatalogOp, DeleteDistinctCacheLog,
+        CatalogBatch, DatabaseCatalogOp, DeleteDistinctCacheLog, DistinctCacheDefinition,
         SoftDeleteTableLog,
     },
 };
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{DbId, DistinctCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
 use observability_deps::tracing::warn;
@@ -33,8 +32,8 @@ pub enum ProviderError {
 
 /// Triple nested map for storing a multiple distinct value caches per table.
 ///
-/// That is, the map nesting is `database -> table -> cache name`
-type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<Arc<str>, DistinctCache>>>>;
+/// That is, the map nesting is `database -> table -> cache id`
+type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<DistinctCacheId, DistinctCache>>>>;
 
 /// Provides the distinct value caches for the running instance of InfluxDB
 #[derive(Debug)]
@@ -58,22 +57,17 @@ impl DistinctCacheProvider {
         });
         for db_schema in catalog.list_db_schema() {
             for table_def in db_schema.tables() {
-                for (cache_name, cache_def) in table_def.distinct_caches() {
-                    assert!(
-                        provider
-                            .create_cache(
-                                db_schema.id,
-                                Some(cache_name),
-                                CreateDistinctCacheArgs {
-                                    table_def: Arc::clone(&table_def),
-                                    max_cardinality: cache_def.max_cardinality,
-                                    max_age: cache_def.max_age_seconds,
-                                    column_ids: cache_def.column_ids.to_vec()
-                                }
-                            )?
-                            .is_some(),
-                        "there should not be duplicated cache definitions in the catalog"
-                    )
+                for (cache_id, cache_def) in table_def.distinct_caches.iter() {
+                    provider.create_cache(
+                        db_schema.id,
+                        *cache_id,
+                        CreateDistinctCacheArgs {
+                            table_def: Arc::clone(&table_def),
+                            max_cardinality: cache_def.max_cardinality,
+                            max_age: cache_def.max_age_seconds,
+                            column_ids: cache_def.column_ids.to_vec(),
+                        },
+                    )?
                 }
             }
         }
@@ -105,74 +99,34 @@ impl DistinctCacheProvider {
     /// `TableProvider` traits as a convenience method for the scenario where there is only a
     /// single cache on a table, and therefore one does not need to specify the cache name
     /// in addition to the db/table identifiers.
-    pub(crate) fn get_cache_name_and_schema(
+    pub(crate) fn get_cache_schema(
         &self,
         db_id: DbId,
         table_id: TableId,
-        cache_name: Option<&str>,
-    ) -> Option<(Arc<str>, SchemaRef)> {
+        cache_id: DistinctCacheId,
+    ) -> Option<SchemaRef> {
         self.cache_map
             .read()
             .get(&db_id)
             .and_then(|db| db.get(&table_id))
-            .and_then(|table| {
-                if let Some(cache_name) = cache_name {
-                    table
-                        .get_key_value(cache_name)
-                        .map(|(name, mc)| (Arc::clone(name), mc.arrow_schema()))
-                } else if table.len() == 1 {
-                    table
-                        .iter()
-                        .map(|(name, mc)| (Arc::clone(name), mc.arrow_schema()))
-                        .next()
-                } else {
-                    None
-                }
-            })
+            .and_then(|table| table.get(&cache_id))
+            .map(|cache| cache.arrow_schema())
     }
 
     /// Create a new entry in the distinct cache for a given database and parameters.
-    ///
-    /// If a new cache is created, this will return the [`CreateDistinctCacheLog`] for the created
-    /// cache; otherwise, if the provided arguments are identical to an existing cache, along with
-    /// any defaults, then `None` will be returned. It is an error to attempt to create a cache that
-    /// overwite an existing one with different parameters.
-    ///
-    /// The cache name is optional; if not provided, it will be of the form:
-    /// ```text
-    /// <table_name>_<column_names>_distinct_cache
-    /// ```
-    /// Where `<column_names>` is an `_`-separated list of the column names used in the cache.
     pub fn create_cache(
         &self,
         db_id: DbId,
-        cache_name: Option<Arc<str>>,
+        cache_id: DistinctCacheId,
         CreateDistinctCacheArgs {
             table_def,
             max_cardinality,
             max_age: max_age_seconds,
             column_ids,
         }: CreateDistinctCacheArgs,
-    ) -> Result<Option<CreateDistinctCacheLog>, ProviderError> {
-        let cache_name = if let Some(cache_name) = cache_name {
-            cache_name
-        } else {
-            format!(
-                "{table_name}_{cols}_distinct_cache",
-                table_name = table_def.table_name,
-                cols = column_ids
-                    .iter()
-                    .map(
-                        |id| table_def.column_id_to_name(id).with_context(|| format!(
-                            "invalid column id ({id}) encountered in cache creation arguments"
-                        ))
-                    )
-                    .collect::<Result<Vec<_>, anyhow::Error>>()?
-                    .join("_")
-            )
-            .into()
-        };
-
+    ) -> Result<(), ProviderError> {
+        // NOTE(trevor): if cache creation is validated by catalog, this function may not need to be
+        // fallible...
         let new_cache = DistinctCache::new(
             Arc::clone(&self.time_provider),
             CreateDistinctCacheArgs {
@@ -187,33 +141,23 @@ impl DistinctCacheProvider {
         if let Some(cache) = lock
             .get(&db_id)
             .and_then(|db| db.get(&table_def.table_id))
-            .and_then(|table| table.get(&cache_name))
+            .and_then(|table| table.get(&cache_id))
         {
-            return cache
-                .compare_config(&new_cache)
-                .map(|_| None)
-                .map_err(Into::into);
+            return cache.compare_config(&new_cache).map_err(Into::into);
         }
 
         lock.entry(db_id)
             .or_default()
             .entry(table_def.table_id)
             .or_default()
-            .insert(Arc::clone(&cache_name), new_cache);
+            .insert(cache_id, new_cache);
 
-        Ok(Some(CreateDistinctCacheLog {
-            table_id: table_def.table_id,
-            table_name: Arc::clone(&table_def.table_name),
-            cache_name,
-            column_ids,
-            max_cardinality,
-            max_age_seconds,
-        }))
+        Ok(())
     }
 
     /// Create a new cache given the database schema and WAL definition. This is useful during WAL
     /// replay.
-    pub fn create_from_catalog(&self, db_id: DbId, definition: &CreateDistinctCacheLog) {
+    pub fn create_from_catalog(&self, db_id: DbId, definition: &DistinctCacheDefinition) {
         let table_def = self
             .catalog
             .db_schema_by_id(&db_id)
@@ -235,7 +179,7 @@ impl DistinctCacheProvider {
             .or_default()
             .entry(definition.table_id)
             .or_default()
-            .insert(Arc::clone(&definition.cache_name), distinct_cache);
+            .insert(definition.cache_id, distinct_cache);
     }
 
     /// Delete a cache from the provider
@@ -246,14 +190,12 @@ impl DistinctCacheProvider {
         &self,
         db_id: &DbId,
         table_id: &TableId,
-        cache_name: &str,
+        cache_id: &DistinctCacheId,
     ) -> Result<(), ProviderError> {
         let mut lock = self.cache_map.write();
         let db = lock.get_mut(db_id).ok_or(ProviderError::CacheNotFound)?;
         let table = db.get_mut(table_id).ok_or(ProviderError::CacheNotFound)?;
-        table
-            .remove(cache_name)
-            .ok_or(ProviderError::CacheNotFound)?;
+        table.remove(cache_id).ok_or(ProviderError::CacheNotFound)?;
         if table.is_empty() {
             db.remove(table_id);
         }
@@ -352,9 +294,7 @@ fn background_catalog_update(
                                 }
                                 DatabaseCatalogOp::DeleteDistinctCache(
                                     DeleteDistinctCacheLog {
-                                        table_id,
-                                        cache_name,
-                                        ..
+                                        table_id, cache_id, ..
                                     },
                                 ) => {
                                     // This only errors when the cache isn't there, so we ignore the
@@ -362,7 +302,7 @@ fn background_catalog_update(
                                     let _ = provider.delete_cache(
                                         &batch.database_id,
                                         table_id,
-                                        cache_name,
+                                        cache_id,
                                     );
                                 }
                                 _ => (),

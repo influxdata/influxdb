@@ -1,7 +1,7 @@
 //! This is the implementation of the `Persister` used to write data from the buffer to object
 //! storage.
 
-use crate::PersistedSnapshot;
+use crate::PersistedSnapshotVersion;
 use crate::paths::ParquetFilePath;
 use crate::paths::SnapshotInfoFilePath;
 use arrow::datatypes::SchemaRef;
@@ -119,7 +119,10 @@ impl Persister {
     /// Loads the most recently persisted N snapshot parquet file lists from object storage.
     ///
     /// This is intended to be used on server start.
-    pub async fn load_snapshots(&self, mut most_recent_n: usize) -> Result<Vec<PersistedSnapshot>> {
+    pub async fn load_snapshots(
+        &self,
+        mut most_recent_n: usize,
+    ) -> Result<Vec<PersistedSnapshotVersion>> {
         let mut futures = FuturesOrdered::new();
         let mut offset: Option<ObjPath> = None;
 
@@ -165,7 +168,7 @@ impl Persister {
             async fn get_snapshot(
                 location: ObjPath,
                 object_store: Arc<dyn ObjectStore>,
-            ) -> Result<PersistedSnapshot> {
+            ) -> Result<PersistedSnapshotVersion> {
                 let bytes = object_store.get(&location).await?.bytes().await?;
                 serde_json::from_slice(&bytes).map_err(Into::into)
             }
@@ -201,10 +204,15 @@ impl Persister {
     }
 
     /// Persists the snapshot file
-    pub async fn persist_snapshot(&self, persisted_snapshot: &PersistedSnapshot) -> Result<()> {
+    pub async fn persist_snapshot(
+        &self,
+        persisted_snapshot: &PersistedSnapshotVersion,
+    ) -> Result<()> {
         let snapshot_file_path = SnapshotInfoFilePath::new(
             self.node_identifier_prefix.as_str(),
-            persisted_snapshot.snapshot_sequence_number,
+            match persisted_snapshot {
+                PersistedSnapshotVersion::V1(ps) => ps.snapshot_sequence_number,
+            },
         );
         let json = serde_json::to_vec_pretty(persisted_snapshot)?;
         self.object_store
@@ -337,7 +345,9 @@ impl<W: Write + Send> TrackedMemoryArrowWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DatabaseTables, ParquetFile, ParquetFileId};
+    use crate::{
+        DatabaseTables, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotVersion,
+    };
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_id::{DbId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -357,7 +367,7 @@ mod tests {
         let local_disk =
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let info_file = PersistedSnapshot {
+        let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -368,7 +378,7 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
-        };
+        });
 
         persister.persist_snapshot(&info_file).await.unwrap();
     }
@@ -379,7 +389,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let info_file = PersistedSnapshot {
+        let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -390,8 +400,8 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
-        };
-        let info_file_2 = PersistedSnapshot {
+        });
+        let info_file_2 = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(1),
             snapshot_sequence_number: SnapshotSequenceNumber::new(1),
@@ -402,8 +412,8 @@ mod tests {
             min_time: 0,
             row_count: 0,
             parquet_size_bytes: 0,
-        };
-        let info_file_3 = PersistedSnapshot {
+        });
+        let info_file_3 = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(2),
             snapshot_sequence_number: SnapshotSequenceNumber::new(2),
@@ -414,7 +424,7 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
-        };
+        });
 
         persister.persist_snapshot(&info_file).await.unwrap();
         persister.persist_snapshot(&info_file_2).await.unwrap();
@@ -423,12 +433,12 @@ mod tests {
         let snapshots = persister.load_snapshots(2).await.unwrap();
         assert_eq!(snapshots.len(), 2);
         // The most recent files are first
-        assert_eq!(snapshots[0].next_file_id.as_u64(), 2);
-        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 2);
-        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 2);
-        assert_eq!(snapshots[1].next_file_id.as_u64(), 1);
-        assert_eq!(snapshots[1].wal_file_sequence_number.as_u64(), 1);
-        assert_eq!(snapshots[1].snapshot_sequence_number.as_u64(), 1);
+        assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 2);
+        assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[0].v1_ref().snapshot_sequence_number.as_u64(), 2);
+        assert_eq!(snapshots[1].v1_ref().next_file_id.as_u64(), 1);
+        assert_eq!(snapshots[1].v1_ref().wal_file_sequence_number.as_u64(), 1);
+        assert_eq!(snapshots[1].v1_ref().snapshot_sequence_number.as_u64(), 1);
     }
 
     #[tokio::test]
@@ -437,7 +447,7 @@ mod tests {
             LocalFileSystem::new_with_prefix(test_helpers::tmp_dir().unwrap()).unwrap();
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
-        let info_file = PersistedSnapshot {
+        let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "test_host".to_string(),
             next_file_id: ParquetFileId::from(0),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -448,12 +458,12 @@ mod tests {
             max_time: 1,
             row_count: 0,
             parquet_size_bytes: 0,
-        };
+        });
         persister.persist_snapshot(&info_file).await.unwrap();
         let snapshots = persister.load_snapshots(2).await.unwrap();
         // We asked for the most recent 2 but there should only be 1
         assert_eq!(snapshots.len(), 1);
-        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
+        assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 0);
     }
 
     #[tokio::test]
@@ -464,7 +474,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let persister = Persister::new(Arc::new(local_disk), "test_host", time_provider);
         for id in 0..1001 {
-            let info_file = PersistedSnapshot {
+            let info_file = PersistedSnapshotVersion::V1(PersistedSnapshot {
                 node_id: "test_host".to_string(),
                 next_file_id: ParquetFileId::from(id),
                 snapshot_sequence_number: SnapshotSequenceNumber::new(id),
@@ -475,16 +485,22 @@ mod tests {
                 max_time: 1,
                 row_count: 0,
                 parquet_size_bytes: 0,
-            };
+            });
             persister.persist_snapshot(&info_file).await.unwrap();
         }
         let snapshots = persister.load_snapshots(1500).await.unwrap();
         // We asked for the most recent 1500 so there should be 1001 of them
         assert_eq!(snapshots.len(), 1001);
-        assert_eq!(snapshots[0].next_file_id.as_u64(), 1000);
-        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 1000);
-        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 1000);
-        assert_eq!(snapshots[0].catalog_sequence_number.get(), 1000);
+        assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 1000);
+        assert_eq!(
+            snapshots[0].v1_ref().wal_file_sequence_number.as_u64(),
+            1000
+        );
+        assert_eq!(
+            snapshots[0].v1_ref().snapshot_sequence_number.as_u64(),
+            1000
+        );
+        assert_eq!(snapshots[0].v1_ref().catalog_sequence_number.get(), 1000);
     }
 
     #[tokio::test]
@@ -521,14 +537,17 @@ mod tests {
                 max_time: 1,
             },
         );
-        persister.persist_snapshot(&info_file).await.unwrap();
+        persister
+            .persist_snapshot(&PersistedSnapshotVersion::V1(info_file))
+            .await
+            .unwrap();
         let snapshots = persister.load_snapshots(10).await.unwrap();
         assert_eq!(snapshots.len(), 1);
         // Should be the next available id after the largest number
-        assert_eq!(snapshots[0].next_file_id.as_u64(), 9877);
-        assert_eq!(snapshots[0].wal_file_sequence_number.as_u64(), 0);
-        assert_eq!(snapshots[0].snapshot_sequence_number.as_u64(), 0);
-        assert_eq!(snapshots[0].catalog_sequence_number.get(), 0);
+        assert_eq!(snapshots[0].v1_ref().next_file_id.as_u64(), 9877);
+        assert_eq!(snapshots[0].v1_ref().wal_file_sequence_number.as_u64(), 0);
+        assert_eq!(snapshots[0].v1_ref().snapshot_sequence_number.as_u64(), 0);
+        assert_eq!(snapshots[0].v1_ref().catalog_sequence_number.get(), 0);
     }
 
     #[tokio::test]
@@ -590,7 +609,7 @@ mod tests {
             ),
         ]
         .into();
-        let snapshot = PersistedSnapshot {
+        let snapshot = PersistedSnapshotVersion::V1(PersistedSnapshot {
             node_id: "host".to_string(),
             next_file_id: ParquetFileId::new(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -601,7 +620,7 @@ mod tests {
             min_time: 0,
             max_time: 1,
             databases,
-        };
+        });
         insta::assert_json_snapshot!(snapshot);
     }
 

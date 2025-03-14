@@ -11,7 +11,8 @@ pub mod validator;
 
 use crate::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer, WriteLineError,
+    LastCacheManager, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion, Precision,
+    WriteBuffer, WriteLineError,
     chunk::ParquetChunk,
     persister::{Persister, PersisterError},
     write_buffer::{
@@ -198,7 +199,13 @@ impl WriteBufferImpl {
         // load snapshots and replay the wal into the in memory buffer
         let persisted_snapshots = persister
             .load_snapshots(N_SNAPSHOTS_TO_LOAD_ON_START)
-            .await?;
+            .await?
+            .into_iter()
+            // map the persisted snapshots into the newest version
+            .map(|psv| match psv {
+                PersistedSnapshotVersion::V1(ps) => ps,
+            })
+            .collect::<Vec<PersistedSnapshot>>();
         let last_wal_sequence_number = persisted_snapshots
             .first()
             .map(|s| s.wal_file_sequence_number);
@@ -545,7 +552,7 @@ impl Bufferer for WriteBufferImpl {
         self.buffer.persisted_parquet_files(db_id, table_id, filter)
     }
 
-    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshotVersion>> {
         self.buffer.persisted_snapshot_notify_rx()
     }
 }
@@ -696,9 +703,21 @@ mod tests {
 
         assert_eq!(db.tables.len(), 2);
         // cpu table
-        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(0))
+                .unwrap()
+                .num_columns(),
+            3
+        );
         // foo table
-        assert_eq!(db.tables.get(&TableId::from(1)).unwrap().num_columns(), 2);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(1))
+                .unwrap()
+                .num_columns(),
+            2
+        );
     }
 
     #[test_log::test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
@@ -1097,8 +1116,8 @@ mod tests {
             let persisted = write_buffer.persister.load_snapshots(1000).await.unwrap();
             if !persisted.is_empty() {
                 assert_eq!(persisted.len(), 1);
-                assert_eq!(persisted[0].min_time, 10000000000);
-                assert_eq!(persisted[0].row_count, 2);
+                assert_eq!(persisted[0].v1_ref().min_time, 10000000000);
+                assert_eq!(persisted[0].v1_ref().row_count, 2);
                 break;
             } else if ticks > 10 {
                 panic!("not persisting");
@@ -1350,7 +1369,8 @@ mod tests {
             WalFileSequenceNumber::new(0),
             CatalogSequenceNumber::new(0),
         );
-        let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
+        let snapshot_json =
+            serde_json::to_vec(&PersistedSnapshotVersion::V1(prev_snapshot)).unwrap();
         // set ParquetFileId to be 0 so that we can make sure when it's loaded from the
         // snapshot that it becomes the expected number
         ParquetFileId::from(0).set_next_id();
@@ -1486,7 +1506,8 @@ mod tests {
             assert_eq!(file.id.as_u64(), i as u64);
         }
 
-        let snapshot_json = serde_json::to_vec(&prev_snapshot).unwrap();
+        let snapshot_json =
+            serde_json::to_vec(&PersistedSnapshotVersion::V1(prev_snapshot)).unwrap();
 
         // put the snapshot file in object store:
         object_store
@@ -2857,7 +2878,13 @@ mod tests {
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
 
         assert_eq!(db.tables.len(), 1);
-        assert_eq!(db.tables.get(&TableId::from(0)).unwrap().num_columns(), 3);
+        assert_eq!(
+            db.tables
+                .get_by_id(&TableId::from(0))
+                .unwrap()
+                .num_columns(),
+            3
+        );
 
         let lp = "test_table,tag1=bar field0=1";
         WriteValidator::initialize(db_name, Arc::clone(&catalog))
@@ -2877,7 +2904,7 @@ mod tests {
 
         assert_eq!(db.tables.len(), 1);
         let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
-        let table = db.tables.get(&TableId::from(0)).unwrap();
+        let table = db.tables.get_by_id(&TableId::from(0)).unwrap();
         assert_eq!(table.num_columns(), 4);
         assert_eq!(table.series_key.len(), 2);
         assert_eq!(table.series_key[0], ColumnId::from(0));

@@ -16,7 +16,7 @@ use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{NoopWal, Wal, WalConfig};
 use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
-    LastCacheManager, ParquetFile, PersistedSnapshot, Precision, WriteBuffer,
+    LastCacheManager, ParquetFile, PersistedSnapshotVersion, Precision, WriteBuffer,
     persister::{DEFAULT_OBJECT_STORE_URL, Persister},
     write_buffer::{
         self, Error as WriteBufferError, WriteBufferImpl, WriteBufferImplArgs, cache_parquet_files,
@@ -221,7 +221,7 @@ impl Bufferer for IngestQueryMode {
         files
     }
 
-    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshotVersion>> {
         unimplemented!("watch_persisted_snapshots not implemented")
     }
 

@@ -1038,6 +1038,11 @@ mod test_helpers {
                 .await
                 .unwrap()
                 .pop()
+                .map(|ps| match ps {
+                    influxdb3_write::PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                        persisted_snapshot
+                    }
+                })
                 .unwrap();
             assert_eq!(
                 persisted_snapshot.snapshot_sequence_number,

@@ -335,6 +335,39 @@ async fn test_show_databases() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_show_empty_database() {
+    let server = TestServer::spawn().await;
+    let server_addr = server.client_addr();
+    let output = run(&["show", "databases", "--host", &server_addr]);
+    assert_eq!(
+        "\
+        +---------------+\n\
+        | iox::database |\n\
+        +---------------+\n\
+        +---------------+",
+        output
+    );
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "json",
+    ]);
+    assert_eq!(output, "[]");
+    let output = run(&[
+        "show",
+        "databases",
+        "--host",
+        &server_addr,
+        "--format",
+        "jsonl",
+    ]);
+    assert_eq!(output, "");
+}
+
+#[test_log::test(tokio::test)]
 async fn test_create_database() {
     let server = TestServer::spawn().await;
     let server_addr = server.client_addr();

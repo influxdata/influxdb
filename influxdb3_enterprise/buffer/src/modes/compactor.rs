@@ -9,12 +9,12 @@ use influxdb3_cache::{distinct_cache::DistinctCacheProvider, last_cache::LastCac
 use influxdb3_catalog::catalog::{Catalog, DatabaseSchema, TableDefinition};
 use influxdb3_id::{DbId, TableId};
 use influxdb3_wal::{NoopWal, Wal};
-use influxdb3_write::DistinctCacheManager;
 use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, LastCacheManager, ParquetFile,
-    PersistedSnapshot, Precision, WriteBuffer,
+    Precision, WriteBuffer,
     write_buffer::{Error as WriteBufferError, Result as WriteBufferResult},
 };
+use influxdb3_write::{DistinctCacheManager, PersistedSnapshotVersion};
 use iox_query::QueryChunk;
 use iox_time::Time;
 use std::sync::Arc;
@@ -59,7 +59,7 @@ impl Bufferer for CompactorMode {
         vec![]
     }
 
-    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshot>> {
+    fn watch_persisted_snapshots(&self) -> Receiver<Option<PersistedSnapshotVersion>> {
         unimplemented!("watch_persisted_snapshots not implemented for CompactorMode")
     }
 

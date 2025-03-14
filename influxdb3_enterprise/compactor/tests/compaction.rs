@@ -103,8 +103,9 @@ async fn five_files_multiple_series_same_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
 
@@ -343,8 +344,9 @@ async fn two_files_two_series_and_same_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
 
@@ -515,8 +517,9 @@ async fn two_files_same_series_and_schema() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
 
@@ -668,8 +671,9 @@ async fn compact_with_new_tag_added() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
     let batch_maker1 = BatchMaker::new(Arc::clone(&schema1));
@@ -691,8 +695,9 @@ async fn compact_with_new_tag_added() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
     let batch_maker2 = BatchMaker::new(Arc::clone(&schema2));
@@ -865,8 +870,9 @@ async fn deduplication_of_data() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
 
@@ -1020,8 +1026,9 @@ async fn compactor_casting() {
             .catalog()
             .db_schema("test_db")
             .unwrap()
-            .table_schema("test_table")
+            .table_definition("test_table")
             .unwrap()
+            .influx_schema()
             .as_arrow(),
     );
     let a: DictionaryArray<Int32Type> = ["0"].into_iter().collect();

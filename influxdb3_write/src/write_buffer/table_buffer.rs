@@ -383,7 +383,7 @@ impl MutableTableChunk {
 
         for f in schema.fields() {
             let column_def = table_def
-                .column_definition(f.name().as_ref())
+                .column_definition(f.name())
                 .expect("a valid column name");
             let b = match self.data.get(&column_def.id) {
                 Some(b) => b.as_arrow(),
@@ -432,7 +432,7 @@ impl MutableTableChunk {
         }
 
         // ensure that every field column is present in the batch
-        for (col_id, col_def) in &table_def.columns {
+        for (col_id, col_def) in table_def.columns.iter() {
             if !cols_in_batch.contains(col_id) {
                 schema_builder.influx_column(col_def.name.as_ref(), col_def.data_type);
                 let col = array_ref_nulls_for_type(col_def.data_type, self.row_count);
