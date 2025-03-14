@@ -908,6 +908,7 @@ where
         let DistinctCacheCreateRequest {
             db,
             table,
+            node_spec,
             name,
             columns,
             max_cardinality,
@@ -919,6 +920,10 @@ where
             .create_distinct_cache(
                 &db,
                 &table,
+                node_spec
+                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
+                    .transpose()?
+                    .unwrap_or_default(),
                 name.as_deref(),
                 &columns,
                 max_cardinality,
@@ -942,8 +947,12 @@ where
     ///
     /// The parameters must be passed in either the query string or the body of the request as JSON.
     async fn configure_distinct_cache_delete(&self, req: Request<Body>) -> Result<Response<Body>> {
-        let DistinctCacheDeleteRequest { db, table, name } = if let Some(query) = req.uri().query()
-        {
+        let DistinctCacheDeleteRequest {
+            db,
+            table,
+            node_spec,
+            name,
+        } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
             self.read_body_json(req).await?
@@ -951,7 +960,15 @@ where
 
         self.write_buffer
             .catalog()
-            .delete_distinct_cache(&db, &table, &name)
+            .delete_distinct_cache(
+                &db,
+                &table,
+                node_spec
+                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
+                    .transpose()?
+                    .unwrap_or_default(),
+                &name,
+            )
             .await?;
 
         Response::builder()

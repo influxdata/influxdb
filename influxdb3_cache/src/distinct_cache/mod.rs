@@ -425,6 +425,7 @@ mod tests {
             .create_distinct_cache(
                 TestWriter::DB_NAME,
                 "cpu",
+                Default::default(),
                 None,
                 &["region", "host"],
                 MaxCardinality::default(),
@@ -871,6 +872,7 @@ mod tests {
             .create_distinct_cache(
                 TestWriter::DB_NAME,
                 "wind_data",
+                Default::default(),
                 None,
                 &["country", "county", "city"],
                 MaxCardinality::default(),

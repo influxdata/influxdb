@@ -241,10 +241,12 @@ impl Catalog {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_distinct_cache(
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: NodeSpec,
         cache_name: Option<&str>,
         columns: &[impl AsRef<str> + Send + Sync],
         max_cardinality: MaxCardinality,
@@ -312,6 +314,7 @@ impl Catalog {
                     DistinctCacheDefinition {
                         table_id: tbl.table_id,
                         table_name: Arc::clone(&tbl.table_name),
+                        node_spec: node_spec.clone(),
                         cache_id,
                         cache_name,
                         column_ids,
@@ -328,6 +331,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
+        node_spec: NodeSpec,
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name, "delete distinct cache");
@@ -349,6 +353,7 @@ impl Catalog {
                     DeleteDistinctCacheLog {
                         table_id: tbl.table_id,
                         table_name: Arc::clone(&tbl.table_name),
+                        node_spec: node_spec.clone(),
                         cache_id: cache.cache_id,
                         cache_name: Arc::clone(&cache.cache_name),
                     },

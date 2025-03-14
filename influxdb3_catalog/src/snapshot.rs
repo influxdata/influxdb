@@ -353,6 +353,7 @@ impl Snapshot for LastCacheDefinition {
 pub(crate) struct DistinctCacheSnapshot {
     table_id: TableId,
     table: Arc<str>,
+    node_spec: NodeSpec,
     id: DistinctCacheId,
     name: Arc<str>,
     cols: Vec<ColumnId>,
@@ -367,6 +368,7 @@ impl Snapshot for DistinctCacheDefinition {
         Self::Serialized {
             table_id: self.table_id,
             table: Arc::clone(&self.table_name),
+            node_spec: self.node_spec.clone(),
             id: self.cache_id,
             name: Arc::clone(&self.cache_name),
             cols: self.column_ids.clone(),
@@ -379,6 +381,7 @@ impl Snapshot for DistinctCacheDefinition {
         Self {
             table_id: snap.table_id,
             table_name: snap.table,
+            node_spec: snap.node_spec.clone(),
             cache_id: snap.id,
             cache_name: snap.name,
             column_ids: snap.cols,

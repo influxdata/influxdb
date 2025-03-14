@@ -147,6 +147,24 @@ pub struct DistinctCacheConfig {
     #[clap(short = 't', long = "table")]
     table: String,
 
+    /// The name of the nodes for which the cache should be deleted. Two value formats are supported:
+    ///
+    /// # `all` (default)
+    ///
+    /// The cache is applied to `query` and `process` nodes. This is the default behavior when the
+    /// flag is not specified.
+    ///
+    /// Example 1: --node-spec "all"
+    ///
+    /// # `nodes:<node-id>[,<node-id>..]`
+    ///
+    /// The cache is applied only to the specified comma-separated list of nodes. Only applies to
+    /// `query` and `process` nodes.
+    ///
+    /// Example 2: --node-spec "node1,node2,node3"
+    #[clap(short = 'n', long = "node-spec")]
+    node_spec: Option<ApiNodeSpec>,
+
     /// The name of the cache being deleted
     #[clap(required = true)]
     cache_name: String,
@@ -215,10 +233,16 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::DistinctCache(DistinctCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
+            node_spec,
             cache_name,
         }) => {
             client
-                .api_v3_configure_distinct_cache_delete(database_name, table, cache_name)
+                .api_v3_configure_distinct_cache_delete(
+                    database_name,
+                    table,
+                    node_spec.unwrap_or_default(),
+                    cache_name,
+                )
                 .await?;
 
             println!("distinct cache deleted successfully");

@@ -290,20 +290,47 @@ fn background_catalog_update(
                                     provider.delete_caches_for_db_and_table(database_id, table_id);
                                 }
                                 DatabaseCatalogOp::CreateDistinctCache(log) => {
-                                    provider.create_from_catalog(batch.database_id, log);
+                                    if provider
+                                        .catalog
+                                        .matches_node_spec(&log.node_spec)
+                                        .inspect_err(|e| {
+                                            warn!("error getting current node from catalog: {e:?}");
+                                            warn!(
+                                                "will proceed with distinct cache creation anyway"
+                                            );
+                                        })
+                                        .unwrap_or_default()
+                                    {
+                                        provider.create_from_catalog(batch.database_id, log);
+                                    }
                                 }
                                 DatabaseCatalogOp::DeleteDistinctCache(
                                     DeleteDistinctCacheLog {
-                                        table_id, cache_id, ..
-                                    },
-                                ) => {
-                                    // This only errors when the cache isn't there, so we ignore the
-                                    // error...
-                                    let _ = provider.delete_cache(
-                                        &batch.database_id,
                                         table_id,
                                         cache_id,
-                                    );
+                                        node_spec,
+                                        ..
+                                    },
+                                ) => {
+                                    if provider
+                                        .catalog
+                                        .matches_node_spec(node_spec)
+                                        .inspect_err(|e| {
+                                            warn!("error getting current node from catalog: {e:?}");
+                                            warn!(
+                                                "will proceed with distinct cache deletion anyway"
+                                            );
+                                        })
+                                        .unwrap_or_default()
+                                    {
+                                        // This only errors when the cache isn't there, so we ignore the
+                                        // error...
+                                        let _ = provider.delete_cache(
+                                            &batch.database_id,
+                                            table_id,
+                                            cache_id,
+                                        );
+                                    }
                                 }
                                 _ => (),
                             }

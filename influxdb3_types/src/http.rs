@@ -51,6 +51,8 @@ pub struct DistinctCacheCreateRequest {
     pub db: String,
     /// The name of the table associated with the cache
     pub table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_spec: Option<ApiNodeSpec>,
     /// The name of the cache. If not provided, the cache name will be generated from the table
     /// name and selected column names.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -90,6 +92,8 @@ pub struct DistinctCacheCreatedResponse {
 pub struct DistinctCacheDeleteRequest {
     pub db: String,
     pub table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_spec: Option<ApiNodeSpec>,
     pub name: String,
 }
 
