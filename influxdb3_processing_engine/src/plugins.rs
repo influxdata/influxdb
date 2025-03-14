@@ -1056,6 +1056,7 @@ pub(crate) fn run_test_schedule_plugin(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::virtualenv::init_pyo3;
     use hashbrown::HashMap;
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
@@ -1065,13 +1066,9 @@ mod tests {
     use object_store::memory::InMemory;
     use std::time::Duration;
 
-    fn ensure_pyo3() {
-        pyo3::prepare_freethreaded_python();
-    }
-
     #[tokio::test]
     async fn test_wal_plugin() {
-        ensure_pyo3();
+        init_pyo3();
         let now = Time::from_timestamp_nanos(1);
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(now));
         let cache = Arc::new(Mutex::new(CacheStore::new(
@@ -1168,7 +1165,7 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     #[tokio::test]
     async fn test_wal_plugin_invalid_lines() {
-        ensure_pyo3();
+        init_pyo3();
         // set up a catalog and write some data into it to create a schema
         let now = Time::from_timestamp_nanos(1);
         let time_provider: Arc<dyn TimeProvider> = Arc::new(MockProvider::new(now));
