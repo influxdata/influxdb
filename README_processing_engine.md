@@ -68,9 +68,7 @@ well as a few OS-specific libraries. Specifically:
    * `python-build-standalone` is linked against `glibc` and is compatible with
      `glibc` [2.17+](https://github.com/astral-sh/python-build-standalone/blob/main/docs/running.rst#linux)
    * `influxdb3` is linked against `libpython` from `python-build-standalone` as
-     well as `glibc` (currently compatible with `glibc` 2.36+ (though 2.35 is
-     known to work; future releases will be built against an earlier `glibc`
-     release to improve compatibility))
+     well as `glibc` (official builds target `glibc` 2.23+)
  * Darwin (seen with `otool -L`; cross-compiled with [osxcross](https://github.com/tpoechtrager/osxcross)):
    * `python-build-standalone` is linked against:
      * `CoreFoundation.framework/Versions/A/CoreFoundation` compatibility
@@ -404,9 +402,6 @@ to be compiled on an older system with a `glibc` with the desired version.
 `python-build-standalone` and `rust` both support systems with `glibc` 2.17+,
 which is covers distributions going back to 2014 (CentOS/RHEL 7 (EOL), Debian 8
 (Jessie; EOL), Ubuntu 14.04 LTS (EOL), Fedora 21, etc.
-
-Certain InfluxDB alpha releases are compiled against a too new `glibc` (2.36).
-This will be addressed before release.
 
 
 ### How does InfluxDB find the correct libpython and the python runtime?

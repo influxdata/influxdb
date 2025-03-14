@@ -19,9 +19,9 @@ use arrow::{
 use indexmap::{IndexMap, IndexSet};
 use influxdb3_catalog::{
     catalog::{ColumnDefinition, TIME_COLUMN_NAME, TableDefinition},
-    log::{CreateLastCacheLog, LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef},
+    log::{LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef},
 };
-use influxdb3_id::{ColumnId, TableId};
+use influxdb3_id::ColumnId;
 use influxdb3_wal::{Field, FieldData, Row};
 use iox_time::Time;
 use schema::{InfluxColumnType, InfluxFieldType};
@@ -134,7 +134,7 @@ impl LastCache {
         let mut seen = HashSet::new();
         let mut schema_builder = ArrowSchemaBuilder::new();
         // handle key columns:
-        let key_column_definitions: Vec<&ColumnDefinition> = match &key_columns {
+        let key_column_definitions: Vec<Arc<ColumnDefinition>> = match &key_columns {
             LastCacheKeyColumnsArg::SeriesKey => table_def.series_key.iter(),
             LastCacheKeyColumnsArg::Explicit(col_ids) => col_ids.iter(),
         }
@@ -147,41 +147,40 @@ impl LastCache {
         .collect::<Result<Vec<_>, Error>>()?;
         let mut key_column_ids = IndexSet::new();
         let mut key_column_name_to_ids = HashMap::new();
-        for ColumnDefinition {
-            id,
-            name,
-            data_type,
-            ..
-        } in key_column_definitions
-        {
+        for col_def in key_column_definitions {
             use InfluxFieldType::*;
-            match *data_type {
+            match col_def.data_type {
                 InfluxColumnType::Tag => {
                     // override tags with string type in the schema, because the KeyValue type stores
                     // them as strings, and produces them as StringArray when creating RecordBatches:
-                    schema_builder.push(ArrowField::new(name.as_ref(), DataType::Utf8, false))
+                    schema_builder.push(ArrowField::new(
+                        col_def.name.as_ref(),
+                        DataType::Utf8,
+                        false,
+                    ))
                 }
                 InfluxColumnType::Field(Integer)
                 | InfluxColumnType::Field(UInteger)
                 | InfluxColumnType::Field(String)
                 | InfluxColumnType::Field(Boolean) => schema_builder.push(ArrowField::new(
-                    name.as_ref(),
-                    DataType::from(data_type),
+                    col_def.name.as_ref(),
+                    DataType::from(&col_def.data_type),
                     true,
                 )),
                 column_type => return Err(Error::InvalidKeyColumn { column_type }),
             }
-            key_column_ids.insert(*id);
-            key_column_name_to_ids.insert(Arc::clone(name), *id);
+            key_column_ids.insert(col_def.id);
+            key_column_name_to_ids.insert(Arc::clone(&col_def.name), col_def.id);
         }
 
         // handle value columns:
-        let value_column_definitions: Vec<&ColumnDefinition> = match &value_columns {
+        let value_column_definitions: Vec<Arc<ColumnDefinition>> = match &value_columns {
             LastCacheValueColumnsArg::AcceptNew => table_def
                 .columns
                 .iter()
                 .filter(|(id, _)| !key_column_ids.contains(*id))
                 .map(|(_, def)| def)
+                .cloned()
                 .collect(),
             LastCacheValueColumnsArg::Explicit(col_ids) => col_ids
                 .iter()
@@ -203,21 +202,15 @@ impl LastCache {
                         .columns
                         .iter()
                         .filter(|(_, def)| def.name.as_ref() == TIME_COLUMN_NAME)
-                        .map(|(_, def)| Ok(def)),
+                        .map(|(_, def)| Ok(Arc::clone(def))),
                 )
                 .collect::<Result<Vec<_>, Error>>()?,
         };
-        for ColumnDefinition {
-            id,
-            name,
-            data_type,
-            ..
-        } in &value_column_definitions
-        {
-            seen.insert(*id);
+        for col_def in &value_column_definitions {
+            seen.insert(col_def.id);
             schema_builder.push(ArrowField::new(
-                name.as_ref(),
-                DataType::from(data_type),
+                col_def.name.as_ref(),
+                DataType::from(&col_def.data_type),
                 true,
             ));
         }
@@ -237,22 +230,6 @@ impl LastCache {
             series_key: table_def.series_key.iter().copied().collect(),
             state: LastCacheState::Init,
         })
-    }
-
-    pub(crate) fn key_column_ids(&self) -> &IndexSet<ColumnId> {
-        &self.key_column_ids
-    }
-
-    pub(crate) fn value_columns(&self) -> &ValueColumnType {
-        &self.value_columns
-    }
-
-    pub(crate) fn count(&self) -> LastCacheSize {
-        self.count
-    }
-
-    pub(crate) fn ttl_seconds(&self) -> u64 {
-        self.ttl.as_secs()
     }
 
     /// Compare this cache's configuration with that of another
@@ -432,29 +409,6 @@ impl LastCache {
     /// Remove expired values from the internal cache state
     pub(crate) fn remove_expired(&mut self) {
         self.state.remove_expired();
-    }
-
-    /// Convert the `LastCache` into a `LastCacheDefinition`
-    pub(crate) fn to_definition(
-        &self,
-        table_id: TableId,
-        table: impl Into<Arc<str>>,
-        name: impl Into<Arc<str>>,
-    ) -> CreateLastCacheLog {
-        CreateLastCacheLog {
-            table_id,
-            table: table.into(),
-            name: name.into(),
-            key_columns: self.key_column_ids.iter().copied().collect(),
-            value_columns: match &self.value_columns {
-                ValueColumnType::AcceptNew { .. } => LastCacheValueColumnsDef::AllNonKeyColumns,
-                ValueColumnType::Explicit { columns, .. } => LastCacheValueColumnsDef::Explicit {
-                    columns: columns.to_vec(),
-                },
-            },
-            count: self.count,
-            ttl: self.ttl.into(),
-        }
     }
 }
 
@@ -988,7 +942,7 @@ fn update_last_cache_schema_for_new_fields(
     // Add key columns first, because of how the cache produces records, they should appear first
     // in the schema, it is important that they go in order:
     for id in &key_columns {
-        let def = table_def.columns.get(id).expect("valid key column");
+        let def = table_def.columns.get_by_id(id).expect("valid key column");
         seen.insert(*id);
         if let InfluxColumnType::Tag = def.data_type {
             // override tags with string type in the schema, because the KeyValue type stores

@@ -34,9 +34,9 @@ use influxdb3_enterprise_data_layout::{
 use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
 use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
 use influxdb3_wal::SnapshotSequenceNumber;
-use influxdb3_write::PersistedSnapshot;
 use influxdb3_write::paths::SnapshotInfoFilePath;
 use influxdb3_write::persister::Persister;
+use influxdb3_write::{PersistedSnapshot, PersistedSnapshotVersion};
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
@@ -957,7 +957,7 @@ impl CompactionState {
         }
 
         let Some(latest_catalog_sequence_number) =
-            snapshots.iter().map(|s| s.catalog_sequence_number).max()
+            snapshots.iter().map(|s| s.catalog_sequence_number()).max()
         else {
             return Ok(());
         };
@@ -974,31 +974,34 @@ impl CompactionState {
     }
 
     /// Adds snapshots to the state, updating the writer markers and the files to compact
-    fn add_snapshots(&mut self, snapshots: Vec<PersistedSnapshot>) {
+    fn add_snapshots(&mut self, snapshots: Vec<PersistedSnapshotVersion>) {
         if snapshots.is_empty() {
             return;
         }
 
         for snapshot in snapshots {
-            let Some(marker) = self.node_id_to_last_marker.get_mut(&snapshot.node_id) else {
-                warn!(node_id = %snapshot.node_id, "snapshot writer not in marker map");
+            let Some(marker) = self.node_id_to_last_marker.get_mut(snapshot.node_id()) else {
+                warn!(
+                    node_id = snapshot.node_id(),
+                    "snapshot writer not in marker map"
+                );
                 continue;
             };
 
             let new_marker = Arc::new(NodeSnapshotMarker {
-                node_id: snapshot.node_id.clone(),
-                snapshot_sequence_number: snapshot.snapshot_sequence_number,
-                next_file_id: snapshot.next_file_id,
+                node_id: snapshot.node_id().to_string(),
+                snapshot_sequence_number: snapshot.snapshot_sequence_number(),
+                next_file_id: snapshot.next_file_id(),
             });
 
-            if snapshot.snapshot_sequence_number > marker.snapshot_sequence_number {
+            if snapshot.snapshot_sequence_number() > marker.snapshot_sequence_number {
                 self.node_id_to_last_marker
-                    .insert(snapshot.node_id.clone(), Arc::clone(&new_marker));
+                    .insert(snapshot.node_id().to_string(), Arc::clone(&new_marker));
             }
 
             self.writer_markers.push(new_marker);
 
-            for (db_id, tables) in snapshot.databases {
+            for (db_id, tables) in snapshot.to_databases() {
                 let db_map = self.files_to_compact.entry(db_id).or_default();
 
                 for (table_id, parquet_files) in tables.tables {
@@ -1028,7 +1031,7 @@ async fn load_next_snapshot(
     node_id: &str,
     object_store: &Arc<dyn ObjectStore>,
     sys_events_store: &Arc<dyn CompactionEventStore>,
-    snapshots: &mut Vec<PersistedSnapshot>,
+    snapshots: &mut Vec<PersistedSnapshotVersion>,
 ) -> Result<(), CompactedDataProducerError> {
     let next_snapshot_sequence_number = marker.snapshot_sequence_number.next();
     let next_snapshot_path = SnapshotInfoFilePath::new(node_id, next_snapshot_sequence_number);
@@ -1036,9 +1039,9 @@ async fn load_next_snapshot(
     if let Some(data) =
         get_bytes_at_path(next_snapshot_path.as_ref(), Arc::clone(object_store)).await
     {
-        let snapshot: PersistedSnapshot = serde_json::from_slice(&data)?;
+        let snapshot: PersistedSnapshotVersion = serde_json::from_slice(&data)?;
         let time_taken = start.elapsed();
-        info!(node_id, snapshot = %snapshot.snapshot_sequence_number, "loaded snapshot");
+        info!(node_id, snapshot = %snapshot.snapshot_sequence_number(), "loaded snapshot");
         let overall_counts = snapshot.db_table_and_file_count();
         let success_event = SuccessInfo::new(
             node_id,
@@ -1057,7 +1060,7 @@ async fn load_all_snapshots(
     node_id: &str,
     marker: &Arc<NodeSnapshotMarker>,
     sys_events_store: &Arc<dyn CompactionEventStore>,
-) -> Result<Vec<PersistedSnapshot>> {
+) -> Result<Vec<PersistedSnapshotVersion>> {
     let start = Instant::now();
     let writer_snapshots = persister.load_snapshots(1_000).await?;
     let time_taken = start.elapsed();
@@ -1508,7 +1511,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         persister
-            .persist_snapshot(&persisted_snapshot)
+            .persist_snapshot(&PersistedSnapshotVersion::V1(persisted_snapshot))
             .await
             .expect("snaphost to be persisted");
 
@@ -1561,7 +1564,7 @@ mod tests {
             parquet_size_bytes: 0,
         };
         persister
-            .persist_snapshot(&persisted_snapshot)
+            .persist_snapshot(&PersistedSnapshotVersion::V1(persisted_snapshot))
             .await
             .expect("snaphost to be persisted");
 

@@ -3,6 +3,7 @@ pub mod error;
 pub mod id;
 pub mod log;
 pub mod object_store;
+pub mod resource;
 pub mod serialize;
 pub mod snapshot;
 

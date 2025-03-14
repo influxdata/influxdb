@@ -4,7 +4,7 @@ use arrow::array::{GenericListBuilder, StringViewBuilder, UInt16Builder, UInt64B
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, prelude::Expr};
-use influxdb3_catalog::{catalog::DatabaseSchema, log::CreateDistinctCacheLog};
+use influxdb3_catalog::{catalog::DatabaseSchema, log::DistinctCacheDefinition};
 use iox_system_tables::IoxSystemTable;
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl IoxSystemTable for DistinctCachesTable {
 fn from_distinct_cache_definitions(
     db_schema: &DatabaseSchema,
     sys_table_schema: SchemaRef,
-    cache_definitions: Vec<&CreateDistinctCacheLog>,
+    cache_definitions: Vec<Arc<DistinctCacheDefinition>>,
 ) -> Result<RecordBatch, DataFusionError> {
     let mut table_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());
     let mut cache_name_arr = StringViewBuilder::with_capacity(cache_definitions.len());

@@ -6,7 +6,7 @@ use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use datafusion::{error::DataFusionError, logical_expr::Expr};
 use influxdb3_catalog::{
     catalog::DatabaseSchema,
-    log::{CreateLastCacheLog, LastCacheValueColumnsDef},
+    log::{LastCacheDefinition, LastCacheValueColumnsDef},
 };
 use iox_system_tables::IoxSystemTable;
 
@@ -74,7 +74,7 @@ impl IoxSystemTable for LastCachesTable {
 fn from_last_cache_definitions(
     db_schema: &DatabaseSchema,
     sys_table_schema: SchemaRef,
-    cache_defns: Vec<&CreateLastCacheLog>,
+    cache_defns: Vec<Arc<LastCacheDefinition>>,
 ) -> Result<RecordBatch, DataFusionError> {
     let mut table_name_arr = StringViewBuilder::with_capacity(cache_defns.len());
     let mut cache_name_arr = StringViewBuilder::with_capacity(cache_defns.len());

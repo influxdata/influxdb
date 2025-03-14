@@ -89,7 +89,7 @@ impl DistinctCache {
         }
         let mut builder = SchemaBuilder::new();
         for id in &column_ids {
-            let col = table_def.columns.get(id).with_context(|| {
+            let col = table_def.columns.get_by_id(id).with_context(|| {
                 format!("invalid column id ({id}) encountered while creating distinct value cache")
             })?;
             let data_type = match col.data_type {

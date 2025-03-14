@@ -648,11 +648,15 @@ pub async fn command(config: Config) -> Result<()> {
     };
 
     let catalog = Arc::new(
-        Catalog::new(
+        Catalog::new_enterprise(
+            config.node_identifier_prefix.as_str(),
+            // TODO: the --cluster-id still needs to be made mandatory
             config
                 .enterprise_config
                 .cluster_identifier_prefix
-                .unwrap_or_else(|| config.node_identifier_prefix.clone()),
+                .as_ref()
+                .unwrap_or(&config.node_identifier_prefix)
+                .as_str(),
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
         )
@@ -948,6 +952,7 @@ pub async fn command(config: Config) -> Result<()> {
     let processing_engine = ProcessingEngineManagerImpl::new(
         setup_processing_engine_env_manager(&config.processing_engine_config),
         write_buffer.catalog(),
+        config.node_identifier_prefix,
         Arc::clone(&write_buffer),
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,

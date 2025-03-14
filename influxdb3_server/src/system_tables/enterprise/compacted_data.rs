@@ -173,10 +173,12 @@ fn to_record_batch(
 mod tests {
     use datafusion::{
         logical_expr::{BinaryExpr, Operator},
+        prelude::lit,
         scalar::ScalarValue,
     };
     use influxdb3_catalog::catalog::Catalog;
-    use influxdb3_id::{DbId, ParquetFileId, TableId};
+    use influxdb3_id::{DbId, ParquetFileId};
+    use influxdb3_types::http::FieldDataType;
     use influxdb3_write::ParquetFile;
     use observability_deps::tracing::info;
     use pretty_assertions::assert_eq;
@@ -230,15 +232,21 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table() {
-        let db_name = Arc::from("foo");
-        let db_id = DbId::new(0);
-        let table_id = TableId::new(0);
-        let table_name = "bar_table";
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        catalog
+            .create_table(
+                "foo",
+                "bar_table",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let db_schema = catalog.db_schema("foo").unwrap();
 
-        let mut db_schema = DatabaseSchema::new(db_id, db_name);
-        db_schema.table_map.insert(table_id, Arc::from(table_name));
         let compacted_data_table = CompactedDataTable::new(
-            Arc::new(db_schema),
+            db_schema,
             Some(Arc::new(MockCompactedDataSystemTable::new(
                 "foo",
                 "bar_table",
@@ -247,9 +255,7 @@ mod tests {
         let expr = Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column("table_name".into())),
             op: Operator::Eq,
-            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(
-                table_name.to_owned(),
-            )))),
+            right: Box::new(lit("bar_table")),
         });
 
         let result = compacted_data_table.scan(Some(vec![expr]), None).await;
@@ -263,20 +269,24 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table_no_compaction() {
-        let db_name = Arc::from("foo");
-        let db_id = DbId::new(0);
-        let table_id = TableId::new(0);
-        let table_name = "bar_table";
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        catalog
+            .create_table(
+                "foo",
+                "bar_table",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let db_schema = catalog.db_schema("foo").unwrap();
 
-        let mut db_schema = DatabaseSchema::new(db_id, db_name);
-        db_schema.table_map.insert(table_id, Arc::from(table_name));
-        let compacted_data_table = CompactedDataTable::new(Arc::new(db_schema), None);
+        let compacted_data_table = CompactedDataTable::new(db_schema, None);
         let expr = Expr::BinaryExpr(BinaryExpr {
             left: Box::new(Expr::Column("table_name".into())),
             op: Operator::Eq,
-            right: Box::new(Expr::Literal(ScalarValue::Utf8(Some(
-                table_name.to_owned(),
-            )))),
+            right: Box::new(lit("bar_table")),
         });
 
         let result = compacted_data_table.scan(Some(vec![expr]), None).await;
@@ -323,15 +333,21 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_query_compacted_data_sys_table_missing_table() {
-        let db_name = Arc::from("foo");
-        let db_id = DbId::new(0);
-        let table_id = TableId::new(0);
-        let table_name = "bar_table";
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        catalog
+            .create_table(
+                "foo",
+                "bar_table",
+                &["tag"],
+                &[("field", FieldDataType::String)],
+            )
+            .await
+            .unwrap();
+        let db_schema = catalog.db_schema("foo").unwrap();
 
-        let mut db_schema = DatabaseSchema::new(db_id, db_name);
-        db_schema.table_map.insert(table_id, Arc::from(table_name));
         let compacted_data_table = CompactedDataTable::new(
-            Arc::new(db_schema),
+            db_schema,
             Some(Arc::new(MockCompactedDataSystemTable::new(
                 "foo",
                 "bar_table",

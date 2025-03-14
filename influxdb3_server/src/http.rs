@@ -1045,6 +1045,7 @@ where
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
+                self.processing_engine.node_id(),
                 plugin_filename,
                 &trigger_specification,
                 trigger_settings,
@@ -1598,7 +1599,15 @@ async fn record_batch_stream_to_body(
                             match self.state {
                                 State::FirstPoll => {
                                     let mut writer = arrow_json::ArrayWriter::new(Vec::new());
-                                    if let Err(err) = writer.write(&batch) {
+
+                                    // If we have nothing in this batch but we are
+                                    // polling for the first time write just the open
+                                    // bracket as the writer will not do so if there
+                                    // is nothing in the batch to write to JSON
+                                    if batch.num_rows() == 0 {
+                                        self.state = State::Body;
+                                        Poll::Ready(Some(Ok(Bytes::from("["))))
+                                    } else if let Err(err) = writer.write(&batch) {
                                         Poll::Ready(Some(Err(err.into())))
                                     } else {
                                         self.state = State::Body;

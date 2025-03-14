@@ -5,11 +5,11 @@ use arrow::{array::RecordBatch, datatypes::SchemaRef as ArrowSchemaRef, error::A
 use influxdb3_catalog::{
     catalog::{Catalog, CatalogBroadcastReceiver},
     log::{
-        CatalogBatch, CreateLastCacheLog, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheTtl,
+        CatalogBatch, DatabaseCatalogOp, DeleteLastCacheLog, LastCacheDefinition,
         LastCacheValueColumnsDef, SoftDeleteTableLog,
     },
 };
-use influxdb3_id::{DbId, TableId};
+use influxdb3_id::{DbId, LastCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use observability_deps::tracing::{debug, warn};
 use parking_lot::RwLock;
@@ -20,9 +20,8 @@ use super::{
     cache::{LastCache, LastCacheValueColumnsArg},
 };
 
-/// A three level hashmap storing DbId -> TableId -> Cache Name -> LastCache
-// TODO: last caches could get a similar ID, e.g., `LastCacheId`
-type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<Arc<str>, LastCache>>>>;
+/// A three level hashmap storing DbId -> TableId -> LastCacheId -> LastCache
+type CacheMap = RwLock<HashMap<DbId, HashMap<TableId, HashMap<LastCacheId, LastCache>>>>;
 
 /// Provides all last-N-value caches for the entire database
 pub struct LastCacheProvider {
@@ -45,32 +44,31 @@ impl LastCacheProvider {
         });
         for db_schema in catalog.list_db_schema() {
             for table_def in db_schema.tables() {
-                for (cache_name, cache_def) in table_def.last_caches() {
-                    debug!(%cache_name, ?cache_def, "adding last cache from catalog");
-                    assert!(
-                        provider
-                            .create_cache(
-                                db_schema.id,
-                                Some(cache_name.as_ref()),
-                                CreateLastCacheArgs {
-                                    table_def: Arc::clone(&table_def),
-                                    count: cache_def.count,
-                                    ttl: cache_def.ttl,
-                                    key_columns:
-                                        crate::last_cache::cache::LastCacheKeyColumnsArg::Explicit(
-                                            cache_def.key_columns.clone()
-                                        ),
-                                    value_columns: match &cache_def.value_columns {
-                                        LastCacheValueColumnsDef::Explicit { columns } =>
-                                            LastCacheValueColumnsArg::Explicit(columns.clone()),
-                                        LastCacheValueColumnsDef::AllNonKeyColumns =>
-                                            LastCacheValueColumnsArg::AcceptNew,
-                                    }
-                                }
-                            )?
-                            .is_some(),
-                        "catalog should not contain duplicate last cache definitions"
+                for (cache_id, cache_def) in table_def.last_caches.iter() {
+                    debug!(
+                        cache_name = cache_def.name.as_ref(),
+                        "adding last cache from catalog"
                     );
+                    provider.create_cache(
+                        db_schema.id,
+                        *cache_id,
+                        CreateLastCacheArgs {
+                            table_def: Arc::clone(&table_def),
+                            count: cache_def.count,
+                            ttl: cache_def.ttl,
+                            key_columns: crate::last_cache::cache::LastCacheKeyColumnsArg::Explicit(
+                                cache_def.key_columns.clone(),
+                            ),
+                            value_columns: match &cache_def.value_columns {
+                                LastCacheValueColumnsDef::Explicit { columns } => {
+                                    LastCacheValueColumnsArg::Explicit(columns.clone())
+                                }
+                                LastCacheValueColumnsDef::AllNonKeyColumns => {
+                                    LastCacheValueColumnsArg::AcceptNew
+                                }
+                            },
+                        },
+                    )?;
                 }
             }
         }
@@ -97,53 +95,18 @@ impl LastCacheProvider {
     ///
     /// This is used for the implementation of DataFusion's `TableFunctionImpl` and `TableProvider`
     /// traits.
-    pub(crate) fn get_cache_name_and_schema(
+    pub(crate) fn get_cache_schema(
         &self,
-        db_id: DbId,
-        table_id: TableId,
-        cache_name: Option<&str>,
-    ) -> Option<(Arc<str>, ArrowSchemaRef)> {
+        db_id: &DbId,
+        table_id: &TableId,
+        cache_id: &LastCacheId,
+    ) -> Option<ArrowSchemaRef> {
         self.cache_map
             .read()
-            .get(&db_id)
-            .and_then(|db| db.get(&table_id))
-            .and_then(|table| {
-                if let Some(cache_name) = cache_name {
-                    table
-                        .get_key_value(cache_name)
-                        .map(|(name, lc)| (Arc::clone(name), lc.arrow_schema()))
-                } else if table.len() == 1 {
-                    table
-                        .iter()
-                        .map(|(name, lc)| (Arc::clone(name), lc.arrow_schema()))
-                        .next()
-                } else {
-                    None
-                }
-            })
-    }
-
-    /// Get the [`CreateLastCacheLog`] for all caches contained in a database
-    pub fn get_last_caches_for_db(&self, db: DbId) -> Vec<CreateLastCacheLog> {
-        let read = self.cache_map.read();
-        read.get(&db)
-            .map(|table| {
-                table
-                    .iter()
-                    .flat_map(|(table_id, table_map)| {
-                        let table_name = self
-                            .catalog
-                            .db_schema_by_id(&db)
-                            .expect("db exists")
-                            .table_id_to_name(table_id)
-                            .expect("table exists");
-                        table_map.iter().map(move |(lc_name, lc)| {
-                            lc.to_definition(*table_id, table_name.as_ref(), Arc::clone(lc_name))
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
+            .get(db_id)
+            .and_then(|db| db.get(table_id))
+            .and_then(|table| table.get(cache_id))
+            .map(|cache| cache.arrow_schema())
     }
 
     /// Create a new entry in the last cache for a given database and table, along with the given
@@ -154,32 +117,11 @@ impl LastCacheProvider {
     pub fn create_cache(
         &self,
         db_id: DbId,
-        cache_name: Option<&str>,
+        cache_id: LastCacheId,
         args: CreateLastCacheArgs,
-    ) -> Result<Option<CreateLastCacheLog>, Error> {
+    ) -> Result<(), Error> {
         let table_def = Arc::clone(&args.table_def);
         let last_cache = LastCache::new(args)?;
-        let key_column_names = last_cache
-            .key_column_ids()
-            .iter()
-            .map(|id| table_def.column_id_to_name_unchecked(id).to_string())
-            .collect::<Vec<String>>();
-
-        // Generate the cache name if it was not provided
-        let cache_name = cache_name.map(Arc::from).unwrap_or_else(|| {
-            format!(
-                "{table_name}_{keys}_last_cache",
-                table_name = table_def.table_name,
-                keys = key_column_names.join("_")
-            )
-            .into()
-        });
-
-        // set aside some variables used in the return:
-        let key_columns = last_cache.key_column_ids().iter().copied().collect();
-        let value_columns = last_cache.value_columns().into();
-        let count = last_cache.count();
-        let ttl = last_cache.ttl_seconds();
 
         // Check to see if there is already a cache for the same database/table/cache name, and with
         // the exact same configuration. If so, we return None, indicating that the operation did
@@ -190,29 +132,21 @@ impl LastCacheProvider {
         if let Some(lc) = lock
             .get(&db_id)
             .and_then(|db| db.get(&table_def.table_id))
-            .and_then(|table| table.get(&cache_name))
+            .and_then(|table| table.get(&cache_id))
         {
-            return lc.compare_config(&last_cache).map(|_| None);
+            return lc.compare_config(&last_cache);
         }
 
         lock.entry(db_id)
             .or_default()
             .entry(table_def.table_id)
             .or_default()
-            .insert(Arc::clone(&cache_name), last_cache);
+            .insert(cache_id, last_cache);
 
-        Ok(Some(CreateLastCacheLog {
-            table_id: table_def.table_id,
-            table: Arc::clone(&table_def.table_name),
-            name: cache_name,
-            key_columns,
-            value_columns,
-            count,
-            ttl: LastCacheTtl::from_secs(ttl),
-        }))
+        Ok(())
     }
 
-    pub fn create_cache_from_definition(&self, db_id: DbId, log: &CreateLastCacheLog) {
+    pub fn create_cache_from_definition(&self, db_id: DbId, log: &LastCacheDefinition) {
         let table_def = self
             .catalog
             .db_schema_by_id(&db_id)
@@ -238,7 +172,7 @@ impl LastCacheProvider {
             .or_default()
             .entry(log.table_id)
             .or_default()
-            .insert(Arc::clone(&log.name), last_cache);
+            .insert(log.id, last_cache);
     }
 
     /// Delete a cache from the provider
@@ -250,7 +184,7 @@ impl LastCacheProvider {
         &self,
         db_id: &DbId,
         table_id: &TableId,
-        cache_name: &str,
+        cache_id: &LastCacheId,
     ) -> Result<(), Error> {
         let mut lock = self.cache_map.write();
 
@@ -262,7 +196,7 @@ impl LastCacheProvider {
             return Err(Error::CacheDoesNotExist);
         };
 
-        if table.remove(cache_name).is_none() {
+        if table.remove(cache_id).is_none() {
             return Err(Error::CacheDoesNotExist);
         }
 
@@ -354,20 +288,22 @@ impl LastCacheProvider {
             .db_schema_by_id(&db_id)
             .and_then(|db| db.table_definition_by_id(&table_id))
             .expect("valid db and table ids to get table definition");
+        let cache = (match cache_name {
+            Some(name) => table_def.last_caches.get_by_name(name),
+            None => {
+                if table_def.last_caches.len() == 1 {
+                    table_def.last_caches.resource_iter().next().cloned()
+                } else {
+                    None
+                }
+            }
+        })?;
 
         self.cache_map
             .read()
             .get(&db_id)
             .and_then(|db| db.get(&table_id))
-            .and_then(|table| {
-                if let Some(name) = cache_name {
-                    table.get(name)
-                } else if table.len() == 1 {
-                    table.iter().next().map(|(_, lc)| lc)
-                } else {
-                    None
-                }
-            })
+            .and_then(|table| table.get(&cache.id))
             .map(|lc| lc.to_record_batches(table_def, &Default::default()))
     }
 
@@ -410,13 +346,12 @@ fn background_catalog_update(
                                 }
                                 DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
                                     table_id,
-                                    name,
+                                    id,
                                     ..
                                 }) => {
                                     // This only errors when the cache isn't there, so we ignore the
                                     // error...
-                                    let _ =
-                                        provider.delete_cache(&batch.database_id, table_id, name);
+                                    let _ = provider.delete_cache(&batch.database_id, table_id, id);
                                 }
                                 _ => (),
                             }

@@ -11,13 +11,13 @@ use uuid::Uuid;
 
 use crate::catalog::InnerCatalog;
 use crate::serialize::verify_and_deserialize_catalog_checkpoint_file;
+use crate::snapshot::{CatalogSnapshot, Snapshot};
 use crate::{
     catalog::CatalogSequenceNumber,
     log::OrderedCatalogBatch,
     serialize::{
         serialize_catalog_log, serialize_catalog_snapshot, verify_and_deserialize_catalog_file,
     },
-    snapshot::CatalogSnapshot,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -65,7 +65,7 @@ impl ObjectStoreCatalog {
                 let catalog_uuid = Uuid::new_v4();
                 info!(catalog_uuid = ?catalog_uuid, "catalog not found, creating a new one");
                 let new_catalog = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-                self.persist_catalog_checkpoint(&CatalogSnapshot::from(&new_catalog))
+                self.persist_catalog_checkpoint(&new_catalog.snapshot())
                     .await?;
                 Ok(new_catalog)
             }
@@ -86,7 +86,7 @@ impl ObjectStoreCatalog {
                     "there was a catalog checkpoint file on object store, but it \
                         could not be verified and deserialized",
                 )?;
-                InnerCatalog::from(snapshot)
+                InnerCatalog::from_snapshot(snapshot)
             }
             // there should always be a checkpoint if the server and catalog was successfully
             // initialized:

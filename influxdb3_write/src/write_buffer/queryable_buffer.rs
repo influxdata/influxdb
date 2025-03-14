@@ -3,7 +3,7 @@ use crate::paths::ParquetFilePath;
 use crate::persister::Persister;
 use crate::write_buffer::persisted_files::PersistedFiles;
 use crate::write_buffer::table_buffer::TableBuffer;
-use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot};
+use crate::{ChunkFilter, ParquetFile, ParquetFileId, PersistedSnapshot, PersistedSnapshotVersion};
 use anyhow::Context;
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
@@ -48,8 +48,8 @@ pub struct QueryableBuffer {
     buffer: Arc<RwLock<BufferState>>,
     parquet_cache: Option<Arc<dyn ParquetCacheOracle>>,
     /// Sends a notification to this watch channel whenever a snapshot info is persisted
-    persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshot>>,
-    persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshot>>,
+    persisted_snapshot_notify_rx: tokio::sync::watch::Receiver<Option<PersistedSnapshotVersion>>,
+    persisted_snapshot_notify_tx: tokio::sync::watch::Sender<Option<PersistedSnapshotVersion>>,
 }
 
 #[derive(Debug)]
@@ -346,9 +346,11 @@ impl QueryableBuffer {
             // force_snapshot) snapshot runs, snapshot_tracker will check if
             // wal_periods are empty so it won't trigger a snapshot in the first
             // place.
-            let persisted_snapshot = Arc::into_inner(persisted_snapshot)
-                .expect("Should only have one strong reference")
-                .into_inner();
+            let persisted_snapshot = PersistedSnapshotVersion::V1(
+                Arc::into_inner(persisted_snapshot)
+                    .expect("Should only have one strong reference")
+                    .into_inner(),
+            );
             if !persist_jobs_empty {
                 loop {
                     match persister.persist_snapshot(&persisted_snapshot).await {
@@ -385,7 +387,7 @@ impl QueryableBuffer {
 
     pub fn persisted_snapshot_notify_rx(
         &self,
-    ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshot>> {
+    ) -> tokio::sync::watch::Receiver<Option<PersistedSnapshotVersion>> {
         self.persisted_snapshot_notify_rx.clone()
     }
 

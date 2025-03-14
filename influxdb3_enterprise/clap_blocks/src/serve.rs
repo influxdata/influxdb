@@ -10,7 +10,7 @@ use anyhow::bail;
 use influxdb3_catalog::log::NodeMode;
 #[derive(Debug, clap::Parser)]
 pub struct EnterpriseServeConfig {
-    /// The cluster id
+    /// The cluster id which prefixes the location in object store for the Enterprise Catalog
     #[clap(long = "cluster-id", env = "INFLUXDB3_ENTERPRISE_CLUSTER_ID", action)]
     pub cluster_identifier_prefix: Option<String>,
 
