@@ -433,6 +433,11 @@ mod tests {
             .await
             .unwrap();
 
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         // do some writes to generate a write batch and send it into the cache:
         let write_batch = writer
             .write_lp_to_write_batch(
@@ -873,6 +878,11 @@ mod tests {
             )
             .await
             .unwrap();
+
+        // Use a short sleep to allow catalog change to be broadast. In future, the catalog
+        // broadcast should be acknowledged and this would not be necessary... see
+        // https://github.com/influxdata/influxdb_pro/issues/556
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let write_batch = writer.write_lp_to_write_batch(
             "\
