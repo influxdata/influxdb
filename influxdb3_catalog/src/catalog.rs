@@ -7,7 +7,7 @@ use influxdb3_id::{
 };
 use iox_time::{Time, TimeProvider};
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, info, trace, warn};
+use observability_deps::tracing::{debug, trace, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
@@ -25,8 +25,7 @@ pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{DatabaseCatalogTransaction, Prompt};
 
 use crate::log::{
-    CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegisterNodeLog,
+    DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode, RegisterNodeLog,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -226,38 +225,6 @@ impl Catalog {
 
     pub fn next_db_id(&self) -> DbId {
         self.inner.read().databases.next_id()
-    }
-
-    pub(crate) fn db_or_create(
-        &self,
-        db_name: &str,
-        now_time_ns: i64,
-    ) -> Result<(Arc<DatabaseSchema>, Option<CatalogBatch>)> {
-        match self.db_schema(db_name) {
-            Some(db) => Ok((db, None)),
-            None => {
-                let mut inner = self.inner.write();
-
-                if inner.database_count() >= Self::NUM_DBS_LIMIT {
-                    return Err(CatalogError::TooManyDbs);
-                }
-
-                info!(database_name = db_name, "creating new database");
-                let db_id = inner.databases.get_and_increment_next_id();
-                let db_name = db_name.into();
-                let db = Arc::new(DatabaseSchema::new(db_id, Arc::clone(&db_name)));
-                let batch = CatalogBatch::database(
-                    now_time_ns,
-                    db.id,
-                    db.name(),
-                    vec![DatabaseCatalogOp::CreateDatabase(CreateDatabaseLog {
-                        database_id: db.id,
-                        database_name: Arc::clone(&db.name),
-                    })],
-                );
-                Ok((db, Some(batch)))
-            }
-        }
     }
 
     pub fn db_name_to_id(&self, db_name: &str) -> Option<DbId> {

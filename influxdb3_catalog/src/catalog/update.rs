@@ -158,12 +158,30 @@ impl Catalog {
     pub async fn create_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         info!(name, "create database");
         self.catalog_update_with_retry(|| {
-            let (_, Some(batch)) =
-                self.db_or_create(name, self.time_provider.now().timestamp_nanos())?
-            else {
+            let inner = self.inner.read();
+
+            if inner.databases.contains_name(name) {
                 return Err(CatalogError::AlreadyExists);
-            };
-            Ok(batch)
+            }
+            if inner.database_count() >= Self::NUM_DBS_LIMIT {
+                return Err(CatalogError::TooManyDbs);
+            }
+            drop(inner);
+
+            let mut inner = self.inner.write();
+
+            let db_id = inner.databases.get_and_increment_next_id();
+            let db_name = name.into();
+            let db = Arc::new(DatabaseSchema::new(db_id, Arc::clone(&db_name)));
+            Ok(CatalogBatch::database(
+                self.time_provider.now().timestamp_nanos(),
+                db.id,
+                db.name(),
+                vec![DatabaseCatalogOp::CreateDatabase(CreateDatabaseLog {
+                    database_id: db.id,
+                    database_name: Arc::clone(&db.name),
+                })],
+            ))
         })
         .await
     }
