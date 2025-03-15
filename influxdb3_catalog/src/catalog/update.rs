@@ -97,7 +97,7 @@ impl Catalog {
         node_id: &str,
         core_count: u64,
         mode: Vec<NodeMode>,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(node_id, core_count, mode = ?mode, "register node");
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
@@ -155,7 +155,7 @@ impl Catalog {
         .await
     }
 
-    pub async fn create_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
+    pub async fn create_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         info!(name, "create database");
         self.catalog_update_with_retry(|| {
             let (_, Some(batch)) =
@@ -168,7 +168,7 @@ impl Catalog {
         .await
     }
 
-    pub async fn soft_delete_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
+    pub async fn soft_delete_database(&self, name: &str) -> Result<OrderedCatalogBatch> {
         info!(name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(name) else {
@@ -201,7 +201,7 @@ impl Catalog {
         table_name: &str,
         tags: &[impl AsRef<str> + Send + Sync],
         fields: &[(impl AsRef<str> + Send + Sync, FieldDataType)],
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, "create table");
         self.catalog_update_with_retry(|| {
             let mut txn = self.begin(db_name)?;
@@ -215,7 +215,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, "soft delete database");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -249,7 +249,7 @@ impl Catalog {
         columns: &[impl AsRef<str> + Send + Sync],
         max_cardinality: MaxCardinality,
         max_age_seconds: MaxAge,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name = ?cache_name, "create distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -329,7 +329,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
         cache_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name, "delete distinct cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -368,7 +368,7 @@ impl Catalog {
         value_columns: Option<&[impl AsRef<str> + Send + Sync]>,
         count: LastCacheSize,
         ttl: LastCacheTtl,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name = ?cache_name, "create last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -482,7 +482,7 @@ impl Catalog {
         db_name: &str,
         table_name: &str,
         cache_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, table_name, cache_name, "delete last cache");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -521,7 +521,7 @@ impl Catalog {
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
         disabled: bool,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "create processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(mut db) = self.db_schema(db_name) else {
@@ -559,7 +559,7 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
         force: bool,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "delete processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -591,7 +591,7 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "enable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -622,7 +622,7 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-    ) -> Result<Option<OrderedCatalogBatch>> {
+    ) -> Result<OrderedCatalogBatch> {
         info!(db_name, trigger_name, "disable processing engine trigger");
         self.catalog_update_with_retry(|| {
             let Some(db) = self.db_schema(db_name) else {
@@ -649,10 +649,7 @@ impl Catalog {
         .await
     }
 
-    async fn catalog_update_with_retry<F>(
-        &self,
-        batch_creator_fn: F,
-    ) -> Result<Option<OrderedCatalogBatch>>
+    async fn catalog_update_with_retry<F>(&self, batch_creator_fn: F) -> Result<OrderedCatalogBatch>
     where
         F: Fn() -> Result<CatalogBatch>,
     {
@@ -677,7 +674,7 @@ impl Catalog {
                             self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                             self.background_checkpoint(&ordered_batch);
                             self.broadcast_update(ordered_batch.clone().into_batch());
-                            return Ok(Some(ordered_batch));
+                            return Ok(ordered_batch);
                         }
                     }
                 }

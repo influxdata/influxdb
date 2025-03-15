@@ -841,7 +841,7 @@ where
             max_cardinality,
             max_age,
         } = args;
-        match self
+        let batch = self
             .write_buffer
             .catalog()
             .create_distinct_cache(
@@ -852,18 +852,12 @@ where
                 max_cardinality,
                 max_age,
             )
-            .await
-        {
-            Ok(Some(batch)) => Response::builder()
-                .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
-                .map_err(Into::into),
-            Err(error) => Err(error.into()),
-        }
+            .await?;
+
+        Response::builder()
+            .status(StatusCode::CREATED)
+            .body(Body::from(serde_json::to_vec(&batch)?))
+            .map_err(Into::into)
     }
 
     /// Delete a distinct value cache entry with the given [`DistinctCacheDeleteRequest`] parameters
@@ -898,7 +892,7 @@ where
             count,
             ttl,
         } = self.read_body_json(req).await?;
-        match self
+        let batch = self
             .write_buffer
             .catalog()
             .create_last_cache(
@@ -910,18 +904,11 @@ where
                 count,
                 ttl,
             )
-            .await
-        {
-            Ok(Some(batch)) => Response::builder()
-                .status(StatusCode::CREATED)
-                .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
-                .map_err(Into::into),
-            Err(error) => Err(error.into()),
-        }
+            .await?;
+        Response::builder()
+            .status(StatusCode::CREATED)
+            .body(Body::from(serde_json::to_vec(&batch)?))
+            .map_err(Into::into)
     }
 
     /// Delete a last cache entry with the given [`LastCacheDeleteRequest`] parameters
