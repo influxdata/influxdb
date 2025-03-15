@@ -344,9 +344,9 @@ jobs:
                 name: tar and gzip debug build artifacts
                 command: |
                   mkdir -p artifacts
-                  tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/debug" influxdb3{,.exe}
-                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
-                  gzip "${PWD}/artifacts/influxdb3-core_<< parameters.target >>.tar"
+                  tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/debug" influxdb3{,.exe}
+                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+                  gzip "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar"
             - store_artifacts:
                 path: artifacts
             - persist_to_workspace:
