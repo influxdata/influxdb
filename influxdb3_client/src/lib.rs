@@ -1138,6 +1138,7 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
             request: DistinctCacheCreateRequest {
                 db: db.into(),
                 table: table.into(),
+                node_spec: Default::default(),
                 columns: columns.into_iter().map(Into::into).collect(),
                 name: None,
                 max_cardinality: Default::default(),
@@ -1149,6 +1150,12 @@ impl<'c> CreateDistinctCacheRequestBuilder<'c> {
     /// Specify the name of the cache to be created, `snake_case` names are encouraged
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.request.name = Some(name.into());
+        self
+    }
+
+    /// Specify a node spec
+    pub fn node_spec(mut self, node_spec: ApiNodeSpec) -> Self {
+        self.request.node_spec = Some(node_spec);
         self
     }
 

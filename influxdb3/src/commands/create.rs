@@ -214,6 +214,24 @@ pub struct DistinctCacheConfig {
     #[clap(short = 't', long = "table")]
     table: String,
 
+    /// Which node(s) the cache should be configured on. Two value formats are supported:
+    ///
+    /// # `all` (default)
+    ///
+    /// The cache is applied to `query` and `process` nodes. This is the default behavior when the
+    /// flag is not specified.
+    ///
+    /// Example 1: --node-spec "all"
+    ///
+    /// # `nodes:<node-id>[,<node-id>..]`
+    ///
+    /// The cache is applied only to the specified comma-separated list of nodes. Only applies to
+    /// `query` and `process` nodes.
+    ///
+    /// Example 2: --node-spec "nodes:node1,node2,node3"
+    #[clap(short = 'n', long = "node-spec")]
+    node_spec: Option<ApiNodeSpec>,
+
     /// Which columns in the table to cache distinct values for, as a comma-separated list of the
     /// column names.
     ///
@@ -349,6 +367,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::DistinctCache(DistinctCacheConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
+            node_spec,
             cache_name,
             columns,
             max_cardinality,
@@ -360,6 +379,9 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             // Add the optional stuff:
             if let Some(name) = cache_name {
                 b = b.name(name);
+            }
+            if let Some(node_spec) = node_spec {
+                b = b.node_spec(node_spec);
             }
             if let Some(max_cardinality) = max_cardinality {
                 b = b.max_cardinality(max_cardinality);

@@ -2,6 +2,7 @@
 source: influxdb3_catalog/src/catalog.rs
 description: catalog serialization to help catch breaking changes
 expression: snapshot
+snapshot_kind: text
 ---
 {
   "nodes": {
@@ -113,6 +114,7 @@ expression: snapshot
                         {
                           "table_id": 0,
                           "table": "test_table",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "test_cache",
                           "cols": [

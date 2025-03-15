@@ -562,6 +562,8 @@ pub struct DistinctCacheDefinition {
     pub table_id: TableId,
     /// The name of the associated table
     pub table_name: Arc<str>,
+    /// Specify the node(s) which should have the cache enabled
+    pub node_spec: NodeSpec,
     /// The cache id in the catalog scoped to its parent table
     pub cache_id: DistinctCacheId,
     /// The name of the cache, is unique within the associated table

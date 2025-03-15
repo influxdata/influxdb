@@ -1825,6 +1825,7 @@ mod tests {
             .create_distinct_cache(
                 "test_db",
                 "test_table",
+                Default::default(),
                 Some("test_cache"),
                 &["tag_1", "tag_2"],
                 MaxCardinality::from_usize_unchecked(100),

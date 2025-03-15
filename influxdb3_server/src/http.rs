@@ -908,6 +908,7 @@ where
         let DistinctCacheCreateRequest {
             db,
             table,
+            node_spec,
             name,
             columns,
             max_cardinality,
@@ -919,6 +920,10 @@ where
             .create_distinct_cache(
                 &db,
                 &table,
+                node_spec
+                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
+                    .transpose()?
+                    .unwrap_or_default(),
                 name.as_deref(),
                 &columns,
                 max_cardinality,
