@@ -424,11 +424,13 @@ impl std::fmt::Display for ApiNodeSpec {
     }
 }
 
-impl ApiNodeSpec {
-    pub fn from_api_nodespec(self, catalog: &Catalog) -> Result<NodeSpec> {
-        match self {
-            Self::All => Ok(NodeSpec::All),
-            Self::Nodes(specs) => Ok(NodeSpec::Nodes(
+impl TryFrom<(ApiNodeSpec, &Catalog)> for NodeSpec {
+    type Error = CatalogError;
+
+    fn try_from((ans, catalog): (ApiNodeSpec, &Catalog)) -> Result<Self> {
+        match ans {
+            ApiNodeSpec::All => Ok(Self::All),
+            ApiNodeSpec::Nodes(specs) => Ok(Self::Nodes(
                 specs
                     .into_iter()
                     .map(|ns| {
@@ -1612,8 +1614,8 @@ mod tests {
 
     use crate::{
         log::{
-            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, NodeSpec,
-            TriggerSettings, ValidPluginFilename, create,
+            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, TriggerSettings,
+            ValidPluginFilename, create,
         },
         object_store::CatalogFilePath,
         serialize::{serialize_catalog_snapshot, verify_and_deserialize_catalog_checkpoint_file},
@@ -1787,7 +1789,7 @@ mod tests {
             .create_last_cache(
                 "test_db",
                 "test",
-                NodeSpec::default(),
+                ApiNodeSpec::default(),
                 Some("test_table_last_cache"),
                 Some(&["tag_1", "tag_3"]),
                 Some(&["field"]),
@@ -2348,7 +2350,7 @@ mod tests {
                 "foo",
                 "all-trig",
                 ValidPluginFilename::from_validated_name("plugin.py"),
-                "all",
+                ApiNodeSpec::All,
                 "all_tables",
                 TriggerSettings::default(),
                 &Default::default(),
@@ -2362,7 +2364,7 @@ mod tests {
                 "foo",
                 "node-1-trig",
                 ValidPluginFilename::from_validated_name("plugin.py"),
-                "nodes:node-1",
+                ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
                 "all_tables",
                 TriggerSettings::default(),
                 &Default::default(),
@@ -2376,7 +2378,7 @@ mod tests {
                 "foo",
                 "node-2-trig",
                 ValidPluginFilename::from_validated_name("plugin.py"),
-                "nodes:node-2",
+                ApiNodeSpec::Nodes(vec!["node-1".to_string()]),
                 "all_tables",
                 TriggerSettings::default(),
                 &Default::default(),
@@ -2390,7 +2392,7 @@ mod tests {
                 "foo",
                 "invalid-trig",
                 ValidPluginFilename::from_validated_name("plugin.py"),
-                "nodes:invalid-node",
+                ApiNodeSpec::Nodes(vec!["invalid-node".to_string()]),
                 "all_tables",
                 TriggerSettings::default(),
                 &Default::default(),

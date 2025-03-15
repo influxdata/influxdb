@@ -777,7 +777,7 @@ mod tests {
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_catalog::CatalogError;
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::catalog::{ApiNodeSpec, Catalog};
     use influxdb3_catalog::log::{TriggerSettings, TriggerSpecificationDefinition};
     use influxdb3_internal_api::query_executor::UnimplementedQueryExecutor;
     use influxdb3_sys_events::SysEventStore;
@@ -843,7 +843,7 @@ mod tests {
                 "foo",
                 "test_trigger",
                 file_name,
-                "all",
+                ApiNodeSpec::All,
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
                 &None,
@@ -930,7 +930,7 @@ mod tests {
                 "foo",
                 "test_trigger",
                 file_name,
-                "all",
+                ApiNodeSpec::All,
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
                 &None,

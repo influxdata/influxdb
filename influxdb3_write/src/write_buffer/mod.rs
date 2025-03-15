@@ -653,8 +653,8 @@ mod tests {
     use executor::DedicatedExecutor;
     use futures_util::StreamExt;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
-    use influxdb3_catalog::catalog::CatalogSequenceNumber;
-    use influxdb3_catalog::log::{FieldDataType, NodeSpec};
+    use influxdb3_catalog::catalog::{ApiNodeSpec, CatalogSequenceNumber};
+    use influxdb3_catalog::log::FieldDataType;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId};
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_types::http::LastCacheSize;
@@ -905,7 +905,7 @@ mod tests {
             .create_last_cache(
                 db_name,
                 tbl_name,
-                NodeSpec::default(),
+                ApiNodeSpec::default(),
                 Some(cache_name),
                 None as Option<&[&str]>,
                 None as Option<&[&str]>,
@@ -2622,7 +2622,7 @@ mod tests {
             .create_last_cache(
                 "sample",
                 "cpu",
-                NodeSpec::default(),
+                ApiNodeSpec::default(),
                 Some("sample_cpu_usage"),
                 None as Option<&[&str]>,
                 None as Option<&[&str]>,
