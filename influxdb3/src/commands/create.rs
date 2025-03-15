@@ -279,6 +279,22 @@ pub struct TableConfig {
 pub struct TriggerConfig {
     #[clap(flatten)]
     influxdb3_config: InfluxDb3Config,
+    /// Which node(s) the trigger should be configured on. Two value formats are supported:
+    ///
+    /// # `all` (default)
+    ///
+    /// The trigger is applied to all nodes. This is the default behavior when the flag is not
+    /// specified.
+    ///
+    /// Example 1: --node-spec "all"
+    ///
+    /// # `nodes:<node-id>[,<node-id>..]`
+    ///
+    /// The trigger is applied only to the specified comma-separated list of nodes.
+    ///
+    /// Example 2: --node-spec "nodes:node1,node2,node3"
+    #[clap(short = 'n', long = "node-spec", default_value_t = ApiNodeSpec::default())]
+    pub node_spec: ApiNodeSpec,
     /// Python file name of the file on the server's plugin-dir containing the plugin code. Or
     /// on the [influxdb3_plugins](https://github.com/influxdata/influxdb3_plugins) repo if `gh:` is specified as
     /// the prefix.
@@ -442,6 +458,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             disabled,
             run_asynchronous,
             error_behavior,
+            node_spec,
         }) => {
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
@@ -456,6 +473,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
             match client
                 .api_v3_configure_processing_engine_trigger_create(
+                    node_spec.to_string(),
                     database_name,
                     &trigger_name,
                     plugin_filename,
@@ -556,12 +574,14 @@ mod tests {
             run_asynchronous,
             error_behavior,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            node_spec,
         }) = args.cmd
         else {
             panic!("Did not parse args correctly: {args:#?}")
         };
         assert_eq!("test", database_name);
         assert_eq!("test-trigger", trigger_name);
+        assert!(matches!(node_spec, ApiNodeSpec::All));
         assert_eq!("plugin.py", plugin_filename);
         assert_eq!(
             TriggerSpecificationDefinition::Every {
@@ -583,5 +603,32 @@ mod tests {
             .expect("must include query_path trigger argument");
 
         assert_eq!("/metrics?format=json", query_path.0.1);
+    }
+
+    #[test]
+    fn parse_args_create_trigger_arguments_with_node_spec() {
+        let args = super::Config::parse_from([
+            "create",
+            "trigger",
+            "--node-spec",
+            "nodes:a,b,c",
+            "--trigger-spec",
+            "every:10s",
+            "--plugin-filename",
+            "plugin.py",
+            "--database",
+            "test",
+            "--trigger-arguments",
+            "query_path=/metrics?format=json,whatever=hello",
+            "test-trigger",
+        ]);
+        let super::SubCommand::Trigger(super::TriggerConfig { node_spec, .. }) = args.cmd else {
+            panic!("Did not parse args correctly: {args:#?}")
+        };
+
+        let ApiNodeSpec::Nodes(nodes) = node_spec else {
+            panic!("should get 'nodes' node spec");
+        };
+        assert_eq!(["a", "b", "c"], nodes.as_slice());
     }
 }

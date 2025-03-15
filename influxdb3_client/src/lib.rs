@@ -463,6 +463,7 @@ impl Client {
     #[allow(clippy::too_many_arguments)]
     pub async fn api_v3_configure_processing_engine_trigger_create(
         &self,
+        node_spec: impl Into<String> + Send,
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
         plugin_filename: impl Into<String> + Send,
@@ -477,6 +478,7 @@ impl Client {
                 "/api/v3/configure/processing_engine_trigger",
                 Some(ProcessingEngineTriggerCreateRequest {
                     db: db.into(),
+                    node_spec: node_spec.into(),
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.into(),
                     trigger_specification: trigger_spec.into(),

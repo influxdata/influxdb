@@ -718,7 +718,7 @@ pub struct TriggerDefinition {
     pub trigger_name: Arc<str>,
     pub plugin_filename: String,
     pub database_name: Arc<str>,
-    pub node_id: Arc<str>,
+    pub node_spec: NodeSpec,
     pub trigger: TriggerSpecificationDefinition,
     pub trigger_settings: TriggerSettings,
     pub trigger_arguments: Option<HashMap<String, String>>,

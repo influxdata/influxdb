@@ -1040,6 +1040,7 @@ where
             trigger_specification,
             trigger_arguments,
             disabled,
+            node_spec,
         } = if let Some(query) = req.uri().query() {
             serde_urlencoded::from_str(query)?
         } else {
@@ -1055,8 +1056,8 @@ where
             .create_processing_engine_trigger(
                 &db,
                 &trigger_name,
-                self.processing_engine.node_id(),
                 plugin_filename,
+                &node_spec,
                 &trigger_specification,
                 trigger_settings,
                 &trigger_arguments,

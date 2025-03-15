@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::NodeDefinition,
+    catalog::{ApiNodeSpec, NodeDefinition},
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
         DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
@@ -520,8 +520,8 @@ impl Catalog {
         &self,
         db_name: &str,
         trigger_name: &str,
-        node_id: Arc<str>,
         plugin_filename: ValidPluginFilename<'_>,
+        node_spec: &str,
         trigger_specification: &str,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
@@ -532,6 +532,9 @@ impl Catalog {
             let Some(mut db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
+            let api_node_spec =
+                ApiNodeSpec::from_str(node_spec).map_err(CatalogError::InvalidNodeSpec)?;
+            let node_spec = api_node_spec.from_api_nodespec(self)?;
             let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
             if db.processing_engine_triggers.contains_name(trigger_name) {
                 return Err(CatalogError::AlreadyExists);
@@ -548,7 +551,7 @@ impl Catalog {
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
-                    node_id: Arc::clone(&node_id),
+                    node_spec,
                     trigger,
                     trigger_settings,
                     trigger_arguments: trigger_arguments.clone(),
