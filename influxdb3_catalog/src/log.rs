@@ -771,7 +771,7 @@ pub enum TriggerSpecificationDefinition {
 }
 
 impl TriggerSpecificationDefinition {
-    pub fn from_string_rep(spec_str: &str) -> Result<TriggerSpecificationDefinition> {
+    fn from_string_rep(spec_str: &str) -> Result<TriggerSpecificationDefinition> {
         let spec_str = spec_str.trim();
         match spec_str {
             s if s.starts_with("table:") => {
@@ -834,7 +834,7 @@ impl TriggerSpecificationDefinition {
         }
     }
 
-    pub fn string_rep(&self) -> String {
+    fn string_rep(&self) -> String {
         match self {
             TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
                 format!("table:{}", table_name)
@@ -860,5 +860,19 @@ impl TriggerSpecificationDefinition {
             | TriggerSpecificationDefinition::Every { .. } => PluginType::Schedule,
             TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
+    }
+}
+
+impl FromStr for TriggerSpecificationDefinition {
+    type Err = CatalogError;
+
+    fn from_str(s: &str) -> Result<TriggerSpecificationDefinition> {
+        Self::from_string_rep(s)
+    }
+}
+
+impl std::fmt::Display for TriggerSpecificationDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.string_rep())
     }
 }

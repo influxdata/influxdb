@@ -522,7 +522,7 @@ impl Catalog {
         trigger_name: &str,
         plugin_filename: ValidPluginFilename<'_>,
         node_spec: ApiNodeSpec,
-        trigger_specification: &str,
+        trigger: TriggerSpecificationDefinition,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
         disabled: bool,
@@ -532,7 +532,6 @@ impl Catalog {
             let Some(mut db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
             if db.processing_engine_triggers.contains_name(trigger_name) {
                 return Err(CatalogError::AlreadyExists);
             }
@@ -549,7 +548,7 @@ impl Catalog {
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
                     node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
-                    trigger,
+                    trigger: trigger.clone(),
                     trigger_settings,
                     trigger_arguments: trigger_arguments.clone(),
                     disabled,

@@ -1,7 +1,10 @@
 mod enterprise;
 
 pub use enterprise::*;
-use influxdb3_catalog::{catalog::ApiNodeSpec, log::TriggerSettings};
+use influxdb3_catalog::{
+    catalog::ApiNodeSpec,
+    log::{TriggerSettings, TriggerSpecificationDefinition},
+};
 
 use crate::write::Precision;
 use hashbrown::HashMap;
@@ -147,7 +150,7 @@ pub struct ProcessingEngineTriggerCreateRequest {
     pub node_spec: Option<ApiNodeSpec>,
     pub trigger_name: String,
     pub trigger_settings: TriggerSettings,
-    pub trigger_specification: String,
+    pub trigger_specification: TriggerSpecificationDefinition,
     pub trigger_arguments: Option<HashMap<String, String>>,
     pub disabled: bool,
 }
