@@ -483,7 +483,6 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
-        node_spec: NodeSpec,
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name, "delete last cache");
@@ -505,7 +504,6 @@ impl Catalog {
                     table_id: tbl.table_id,
                     table_name: Arc::clone(&tbl.table_name),
                     id: cache.id,
-                    node_spec: node_spec.clone(),
                     name: Arc::clone(&cache.name),
                 })],
             ))

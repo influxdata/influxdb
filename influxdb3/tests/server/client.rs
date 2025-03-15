@@ -2,7 +2,6 @@
 //!
 //! This is useful for verifying that the client can parse API responses from the server
 
-use influxdb3_catalog::catalog::ApiNodeSpec;
 use influxdb3_client::Precision;
 use influxdb3_types::http::QueryFormat as Format;
 
@@ -66,7 +65,7 @@ async fn configure_last_caches() {
         .map(|r| r.name.to_string())
         .unwrap();
     client
-        .api_v3_configure_last_cache_delete(db_name, tbl_name, ApiNodeSpec::All, name)
+        .api_v3_configure_last_cache_delete(db_name, tbl_name, name)
         .await
         .expect("deletes the cache");
     let Some(batch) = client
@@ -86,7 +85,7 @@ async fn configure_last_caches() {
         .map(|r| r.name.to_string())
         .unwrap();
     client
-        .api_v3_configure_last_cache_delete(db_name, tbl_name, ApiNodeSpec::All, name)
+        .api_v3_configure_last_cache_delete(db_name, tbl_name, name)
         .await
         .expect("should delete the cache");
 }

@@ -117,8 +117,6 @@ pub struct LastCacheCreateRequest {
 pub struct LastCacheDeleteRequest {
     pub db: String,
     pub table: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub node_spec: Option<ApiNodeSpec>,
     pub name: String,
 }
 
