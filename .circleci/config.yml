@@ -443,8 +443,8 @@ jobs:
           name: tar build artifacts
           command: |
             mkdir -p artifacts
-            tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-enterprise__<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
-            tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-enterprise__<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
+            tar --ignore-failed-read -cvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar" -C "${PWD}/target/<< parameters.target >>/<< parameters.profile >>" influxdb3{,.exe}
+            tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>" python
       - when:
           condition:
             equal: [ << parameters.target >>, x86_64-pc-windows-gnu ]
@@ -459,11 +459,11 @@ jobs:
                 # them). influxdb#26113
                 name: tar Windows DLLs next to influxdb3.exe
                 command: |
-                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-enterprise__<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>/python" $(find "/tmp/workspace/python-artifacts/<< parameters.target >>/python" -maxdepth 1 -name *.dll -printf '%f\n')
+                  tar --ignore-failed-read -rvf "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar" -C "/tmp/workspace/python-artifacts/<< parameters.target >>/python" $(find "/tmp/workspace/python-artifacts/<< parameters.target >>/python" -maxdepth 1 -name *.dll -printf '%f\n')
       - run:
           name: gzip build artifacts
           command: |
-            gzip "${PWD}/artifacts/influxdb3-enterprise__<< parameters.target >>.tar"
+            gzip "${PWD}/artifacts/influxdb3-enterprise_<< parameters.target >>.tar"
       - store_artifacts:
           path: artifacts
       - persist_to_workspace:
