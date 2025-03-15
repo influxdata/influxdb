@@ -17,7 +17,10 @@ use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
-use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
+use crate::{
+    CatalogError, Result,
+    catalog::{CatalogSequenceNumber, NodeDefinition},
+};
 
 pub mod create;
 
@@ -358,6 +361,8 @@ pub struct LastCacheDefinition {
     pub table: Arc<str>,
     /// The last cache id scoped to parent table
     pub id: LastCacheId,
+    /// Specify the node(s) which should have the cache enabled
+    pub node_spec: NodeSpec,
     /// Given name of the cache
     pub name: Arc<str>,
     /// Columns intended to be used as predicates in the cache
@@ -368,6 +373,24 @@ pub struct LastCacheDefinition {
     pub count: LastCacheSize,
     /// The time-to-live (TTL) in seconds for entries in the cache
     pub ttl: LastCacheTtl,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeSpec {
+    #[default]
+    All,
+    // Enterprise-only
+    Nodes(Vec<NodeId>),
+}
+
+impl NodeSpec {
+    pub fn matches_node(&self, node: &NodeDefinition) -> bool {
+        match self {
+            Self::All => true,
+            Self::Nodes(v) => v.contains(&node.node_catalog_id),
+        }
+    }
 }
 
 /// A last cache will either store values for an explicit set of columns, or will accept all

@@ -1,6 +1,7 @@
 ---
 source: influxdb3_write/src/write_buffer/mod.rs
 expression: catalog_json
+snapshot_kind: text
 ---
 {
   "nodes": {
@@ -76,6 +77,7 @@ expression: catalog_json
                         {
                           "table_id": 0,
                           "table": "table",
+                          "node_spec": "all",
                           "id": 0,
                           "name": "cache",
                           "keys": [

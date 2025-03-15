@@ -1,6 +1,7 @@
 mod enterprise;
+
 pub use enterprise::*;
-use influxdb3_catalog::log::TriggerSettings;
+use influxdb3_catalog::{catalog::ApiNodeSpec, log::TriggerSettings};
 
 use crate::write::Precision;
 use hashbrown::HashMap;
@@ -97,6 +98,8 @@ pub struct DistinctCacheDeleteRequest {
 pub struct LastCacheCreateRequest {
     pub db: String,
     pub table: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_spec: Option<ApiNodeSpec>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

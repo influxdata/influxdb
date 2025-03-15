@@ -6,8 +6,8 @@ use object_store::ObjectStore;
 use parking_lot::RwLock;
 use tokio::sync::broadcast;
 
-use crate::Result;
 use crate::object_store::ObjectStoreCatalog;
+use crate::{Result, log::NodeSpec};
 
 use super::{
     CATALOG_BROADCAST_CHANNEL_CAPACITY, CATALOG_CHECKPOINT_INTERVAL, Catalog, NodeDefinition,
@@ -57,5 +57,14 @@ impl Catalog {
                 to any nodes registered in the catalog",
             )
             .map_err(Into::into)
+    }
+
+    pub fn matches_node_spec(&self, node_spec: &NodeSpec) -> Result<bool> {
+        match node_spec {
+            NodeSpec::All => Ok(true),
+            NodeSpec::Nodes(v) => self
+                .current_node()
+                .map(|cn| v.contains(&cn.node_catalog_id)),
+        }
     }
 }

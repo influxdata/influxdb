@@ -3,6 +3,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use humantime::Duration;
+use influxdb3_catalog::catalog::ApiNodeSpec;
 use influxdb3_catalog::log::ErrorBehavior;
 use influxdb3_catalog::log::TriggerSettings;
 use influxdb3_catalog::log::TriggerSpecificationDefinition;
@@ -157,6 +158,24 @@ pub struct LastCacheConfig {
     #[clap(short = 't', long = "table")]
     table: String,
 
+    /// Which node(s) the cache should be configured on. Two value formats are supported:
+    ///
+    /// # `all` (default)
+    ///
+    /// The cache is applied to `query` and `process` nodes. This is the default behavior when the
+    /// flag is not specified.
+    ///
+    /// Example 1: --node-spec "all"
+    ///
+    /// # `nodes:<node-id>[,<node-id>..]`
+    ///
+    /// The cache is applied only to the specified comma-separated list of nodes. Only applies to
+    /// `query` and `process` nodes.
+    ///
+    /// Example 2: --node-spec "nodes:node1,node2,node3"
+    #[clap(short = 'n', long = "node-spec")]
+    node_spec: Option<ApiNodeSpec>,
+
     /// Which columns in the table to use as keys in the cache. This is a comma separated list.
     ///
     /// Example: --key-columns "foo,bar,baz"
@@ -289,6 +308,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
+            node_spec,
             key_columns,
             value_columns,
             count,
@@ -299,6 +319,9 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             // Add optional parameters:
             if let Some(name) = cache_name {
                 b = b.name(name);
+            }
+            if let Some(node_spec) = node_spec {
+                b = b.node_spec(node_spec);
             }
             if let Some(keys) = key_columns {
                 b = b.key_columns(keys);
@@ -438,6 +461,7 @@ mod tests {
     use std::time::Duration;
 
     use clap::Parser;
+    use influxdb3_catalog::catalog::ApiNodeSpec;
     use influxdb3_catalog::log::{ErrorBehavior, TriggerSpecificationDefinition};
 
     #[test]
@@ -453,6 +477,8 @@ mod tests {
             "tag1,tag2,tag3",
             "--value-columns",
             "field1,field2,field3",
+            "--node-spec",
+            "nodes:node1,node2,node3",
             "--ttl",
             "1 hour",
             "--count",
@@ -462,6 +488,7 @@ mod tests {
         let super::SubCommand::LastCache(super::LastCacheConfig {
             table,
             cache_name,
+            node_spec,
             key_columns,
             value_columns,
             count,
@@ -473,6 +500,9 @@ mod tests {
         };
         assert_eq!("bar", database_name);
         assert_eq!("foo", table);
+        assert!(node_spec.is_some_and(
+            |n| n == ApiNodeSpec::Nodes(vec!["node1".into(), "node2".into(), "node3".into()])
+        ));
         assert!(cache_name.is_some_and(|n| n == "bar"));
         assert!(key_columns.is_some_and(|keys| keys == ["tag1", "tag2", "tag3"]));
         assert!(value_columns.is_some_and(|vals| vals == ["field1", "field2", "field3"]));
