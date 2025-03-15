@@ -302,7 +302,6 @@ impl Client {
         &self,
         db: impl Into<String> + Send,
         table: impl Into<String> + Send,
-        node_spec: ApiNodeSpec,
         name: impl Into<String> + Send,
     ) -> Result<()> {
         let _bytes = self
@@ -312,7 +311,6 @@ impl Client {
                 Some(DistinctCacheDeleteRequest {
                     db: db.into(),
                     table: table.into(),
-                    node_spec: Some(node_spec),
                     name: name.into(),
                 }),
                 None::<()>,

@@ -677,7 +677,6 @@ impl MaxAge {
 pub struct DeleteDistinctCacheLog {
     pub table_id: TableId,
     pub table_name: Arc<str>,
-    pub node_spec: NodeSpec,
     pub cache_id: DistinctCacheId,
     pub cache_name: Arc<str>,
 }

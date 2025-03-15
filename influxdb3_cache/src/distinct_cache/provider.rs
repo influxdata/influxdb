@@ -306,31 +306,16 @@ fn background_catalog_update(
                                 }
                                 DatabaseCatalogOp::DeleteDistinctCache(
                                     DeleteDistinctCacheLog {
-                                        table_id,
-                                        cache_id,
-                                        node_spec,
-                                        ..
+                                        table_id, cache_id, ..
                                     },
                                 ) => {
-                                    if provider
-                                        .catalog
-                                        .matches_node_spec(node_spec)
-                                        .inspect_err(|e| {
-                                            warn!("error getting current node from catalog: {e:?}");
-                                            warn!(
-                                                "will proceed with distinct cache deletion anyway"
-                                            );
-                                        })
-                                        .unwrap_or_default()
-                                    {
-                                        // This only errors when the cache isn't there, so we ignore the
-                                        // error...
-                                        let _ = provider.delete_cache(
-                                            &batch.database_id,
-                                            table_id,
-                                            cache_id,
-                                        );
-                                    }
+                                    // This only errors when the cache isn't there, so we ignore the
+                                    // error...
+                                    let _ = provider.delete_cache(
+                                        &batch.database_id,
+                                        table_id,
+                                        cache_id,
+                                    );
                                 }
                                 _ => (),
                             }
