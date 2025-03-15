@@ -13,6 +13,7 @@ use influxdb3_catalog::log::{
     CatalogBatch, DatabaseCatalogOp, DeleteTriggerLog, PluginType, TriggerDefinition,
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
+use influxdb3_catalog::resource::CatalogResource;
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_py_api::system_py::CacheStore;
 use influxdb3_sys_events::SysEventStore;
@@ -23,7 +24,7 @@ use influxdb3_types::http::{
 use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{debug, error, info, warn};
 use parking_lot::Mutex;
 use std::any::Any;
 use std::path::PathBuf;
@@ -380,10 +381,20 @@ impl ProcessingEngineManagerImpl {
                     trigger_name: trigger_name.to_string(),
                 })?;
 
-            if trigger.node_id != self.node_id {
+            let Ok(current_node) = self.catalog.current_node() else {
                 error!(
-                    "Not running trigger {}, as it is configured for node id {}. Multi-node not supported in core, so this shouldn't happen.",
-                    trigger_name, trigger.node_id
+                    trigger_name = trigger.trigger_name.as_ref(),
+                    "there was no current node set on this InfluxDB 3 Enterprise process \
+                    the trigger will not be started."
+                );
+                return Ok(());
+            };
+
+            if !trigger.node_spec.matches_node(&current_node) {
+                info!(
+                    trigger_name = trigger.trigger_name.as_ref(),
+                    node_id = current_node.name().as_ref(),
+                    "not running trigger not enabled on this node"
                 );
                 return Ok(());
             }
@@ -831,8 +842,8 @@ mod tests {
             .create_processing_engine_trigger(
                 "foo",
                 "test_trigger",
-                Arc::clone(&pem.node_id),
                 file_name,
+                "all",
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
                 &None,
@@ -918,8 +929,8 @@ mod tests {
             .create_processing_engine_trigger(
                 "foo",
                 "test_trigger",
-                Arc::clone(&pem.node_id),
                 file_name,
+                "all",
                 &TriggerSpecificationDefinition::AllTablesWalWrite.string_rep(),
                 TriggerSettings::default(),
                 &None,

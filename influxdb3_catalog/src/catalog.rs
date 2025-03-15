@@ -415,8 +415,17 @@ impl FromStr for ApiNodeSpec {
     }
 }
 
+impl std::fmt::Display for ApiNodeSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiNodeSpec::All => write!(f, "all"),
+            ApiNodeSpec::Nodes(vec) => write!(f, "nodes:{}", vec.join(",")),
+        }
+    }
+}
+
 impl ApiNodeSpec {
-    pub fn from_api_nodespec(self, catalog: &Arc<Catalog>) -> Result<NodeSpec> {
+    pub fn from_api_nodespec(self, catalog: &Catalog) -> Result<NodeSpec> {
         match self {
             Self::All => Ok(NodeSpec::All),
             Self::Nodes(specs) => Ok(NodeSpec::Nodes(
@@ -1603,7 +1612,8 @@ mod tests {
 
     use crate::{
         log::{
-            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, NodeSpec, create,
+            FieldDataType, LastCacheSize, LastCacheTtl, MaxAge, MaxCardinality, NodeSpec,
+            TriggerSettings, ValidPluginFilename, create,
         },
         object_store::CatalogFilePath,
         serialize::{serialize_catalog_snapshot, verify_and_deserialize_catalog_checkpoint_file},
@@ -2318,5 +2328,75 @@ mod tests {
         // this file should have been read on re-init, as it would not be covered by a
         // checkpoint:
         assert_eq!(1, last_log_read_count);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_trigger_node_spec() {
+        let catalog = Catalog::new_in_memory("test-catalog").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        catalog
+            .register_node("node-1", 1, vec![NodeMode::Ingest])
+            .await
+            .unwrap();
+        catalog
+            .register_node("node-2", 1, vec![NodeMode::Ingest])
+            .await
+            .unwrap();
+
+        catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "all-trig",
+                ValidPluginFilename::from_validated_name("plugin.py"),
+                "all",
+                "all_tables",
+                TriggerSettings::default(),
+                &Default::default(),
+                false,
+            )
+            .await
+            .expect("create all node spec");
+
+        catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "node-1-trig",
+                ValidPluginFilename::from_validated_name("plugin.py"),
+                "nodes:node-1",
+                "all_tables",
+                TriggerSettings::default(),
+                &Default::default(),
+                false,
+            )
+            .await
+            .expect("create specific node spec for node-1");
+
+        catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "node-2-trig",
+                ValidPluginFilename::from_validated_name("plugin.py"),
+                "nodes:node-2",
+                "all_tables",
+                TriggerSettings::default(),
+                &Default::default(),
+                false,
+            )
+            .await
+            .expect("create specific node spec for node-2");
+
+        catalog
+            .create_processing_engine_trigger(
+                "foo",
+                "invalid-trig",
+                ValidPluginFilename::from_validated_name("plugin.py"),
+                "nodes:invalid-node",
+                "all_tables",
+                TriggerSettings::default(),
+                &Default::default(),
+                false,
+            )
+            .await
+            .expect_err("create specific node spec for invalid-node should fail");
     }
 }
