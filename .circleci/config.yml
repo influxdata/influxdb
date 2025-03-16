@@ -92,7 +92,7 @@ parameters:
 # Consistent environment setup for Python Build Standalone
 pbs_config: &pbs_config
   PBS_DATE: "20250212"
-  PBS_VERSION: "3.11.11"
+  PBS_VERSION: "3.13.2"
 
 # Consistent Cargo environment configuration
 cargo_env: &cargo_env
@@ -160,7 +160,7 @@ commands:
           name: Set PYO3 environment variables
           command: |
             echo "export PYO3_CONFIG_FILE=/tmp/workspace/python-artifacts/<< parameters.target >>/pyo3_config_file.txt" >> $BASH_ENV
-            echo "export PYO3_CROSS_PYTHON_VERSION=3.11" >> $BASH_ENV
+            echo "export PYO3_CROSS_PYTHON_VERSION=3.13" >> $BASH_ENV
 
 jobs:
   fmt:
@@ -307,7 +307,7 @@ jobs:
   # Build a dev binary with the default cargo profile
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:d0c9ed7385866ceeb9c143bda0e2ea607bed0000eb73577d02f9e52e1bddc2d6
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:1f41029cb68a723c3b559a44bcf91e04b6a71b631b0886185562f4a90e1460ba
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -378,7 +378,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 pro releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:d0c9ed7385866ceeb9c143bda0e2ea607bed0000eb73577d02f9e52e1bddc2d6
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:1f41029cb68a723c3b559a44bcf91e04b6a71b631b0886185562f4a90e1460ba
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION

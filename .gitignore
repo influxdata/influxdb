@@ -33,3 +33,6 @@ valgrind-out.txt
 *.pending-snap
 # Helix editor configuration directory:
 **/.helix
+# .cargo/config.toml is checked in, but glibc builds create .cargo/config to
+# override it, which we can ignore
+.cargo/config
