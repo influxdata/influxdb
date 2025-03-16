@@ -2214,6 +2214,7 @@ mod tests {
                 .await
                 .unwrap();
         }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let prefix = catalog.object_store_prefix();
         drop(catalog);
