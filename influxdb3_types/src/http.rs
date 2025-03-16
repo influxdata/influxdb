@@ -143,7 +143,8 @@ pub struct ProcessingEnginePluginDeleteRequest {
 pub struct ProcessingEngineTriggerCreateRequest {
     pub db: String,
     pub plugin_filename: String,
-    pub node_spec: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_spec: Option<ApiNodeSpec>,
     pub trigger_name: String,
     pub trigger_settings: TriggerSettings,
     pub trigger_specification: String,

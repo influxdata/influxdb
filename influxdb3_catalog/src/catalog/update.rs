@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
@@ -7,12 +7,12 @@ use schema::{InfluxColumnType, InfluxFieldType};
 use uuid::Uuid;
 
 use super::{
-    CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit, ColumnDefinition,
-    DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
+    ApiNodeSpec, CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit,
+    ColumnDefinition, DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
 };
 use crate::{
     CatalogError, Result,
-    catalog::{ApiNodeSpec, NodeDefinition},
+    catalog::NodeDefinition,
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
         DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
@@ -246,7 +246,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
-        node_spec: NodeSpec,
+        node_spec: ApiNodeSpec,
         cache_name: Option<&str>,
         columns: &[impl AsRef<str> + Send + Sync],
         max_cardinality: MaxCardinality,
@@ -314,7 +314,7 @@ impl Catalog {
                     DistinctCacheDefinition {
                         table_id: tbl.table_id,
                         table_name: Arc::clone(&tbl.table_name),
-                        node_spec: node_spec.clone(),
+                        node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
                         cache_id,
                         cache_name,
                         column_ids,
@@ -366,7 +366,7 @@ impl Catalog {
         &self,
         db_name: &str,
         table_name: &str,
-        node_spec: NodeSpec,
+        node_spec: ApiNodeSpec,
         cache_name: Option<&str>,
         key_columns: Option<&[impl AsRef<str> + Send + Sync]>,
         value_columns: Option<&[impl AsRef<str> + Send + Sync]>,
@@ -470,7 +470,7 @@ impl Catalog {
                     table_id: tbl.table_id,
                     table: Arc::clone(&tbl.table_name),
                     id: cache_id,
-                    node_spec: node_spec.clone(),
+                    node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
                     name: cache_name,
                     key_columns: key_ids,
                     value_columns,
@@ -521,7 +521,7 @@ impl Catalog {
         db_name: &str,
         trigger_name: &str,
         plugin_filename: ValidPluginFilename<'_>,
-        node_spec: &str,
+        node_spec: ApiNodeSpec,
         trigger_specification: &str,
         trigger_settings: TriggerSettings,
         trigger_arguments: &Option<HashMap<String, String>>,
@@ -532,9 +532,6 @@ impl Catalog {
             let Some(mut db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
-            let api_node_spec =
-                ApiNodeSpec::from_str(node_spec).map_err(CatalogError::InvalidNodeSpec)?;
-            let node_spec = api_node_spec.from_api_nodespec(self)?;
             let trigger = TriggerSpecificationDefinition::from_string_rep(trigger_specification)?;
             if db.processing_engine_triggers.contains_name(trigger_name) {
                 return Err(CatalogError::AlreadyExists);
@@ -551,7 +548,7 @@ impl Catalog {
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.to_string(),
                     database_name: Arc::clone(&db.name),
-                    node_spec,
+                    node_spec: NodeSpec::try_from((node_spec.clone(), self))?,
                     trigger,
                     trigger_settings,
                     trigger_arguments: trigger_arguments.clone(),

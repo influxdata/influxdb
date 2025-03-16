@@ -473,7 +473,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
 
             match client
                 .api_v3_configure_processing_engine_trigger_create(
-                    node_spec.to_string(),
+                    node_spec,
                     database_name,
                     &trigger_name,
                     plugin_filename,

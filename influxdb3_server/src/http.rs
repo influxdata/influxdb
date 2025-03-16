@@ -920,10 +920,7 @@ where
             .create_distinct_cache(
                 &db,
                 &table,
-                node_spec
-                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
-                    .transpose()?
-                    .unwrap_or_default(),
+                node_spec.unwrap_or_default(),
                 name.as_deref(),
                 &columns,
                 max_cardinality,
@@ -982,10 +979,7 @@ where
             .create_last_cache(
                 &db,
                 &table,
-                node_spec
-                    .map(|ns| ns.from_api_nodespec(&self.write_buffer.catalog()))
-                    .transpose()?
-                    .unwrap_or_default(),
+                node_spec.unwrap_or_default(),
                 name.as_deref(),
                 key_columns.as_deref(),
                 value_columns.as_deref(),
@@ -1057,7 +1051,7 @@ where
                 &db,
                 &trigger_name,
                 plugin_filename,
-                &node_spec,
+                node_spec.unwrap_or_default(),
                 &trigger_specification,
                 trigger_settings,
                 &trigger_arguments,
