@@ -107,7 +107,7 @@ case "$INSTALL_TYPE" in
         printf "${BOLD}NEXT STEPS${NC}\n"
         printf "1) Run the Docker image:\n"
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
-        printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+        printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
 
         END_TIME=$(date +%s)
@@ -381,9 +381,7 @@ else
     printf "├─ Access InfluxDB with the ${BOLD}%s${NC} command.\n" "$INSTALL_LOC/$BINARY_NAME"
 fi
 printf "├─ View the Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
-printf "├─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
-printf "└─ The Processing Engine is now included for real-time data transformation,\n"
-printf "   enrichment, and general custom Python code execution.\n\n"
+printf "└─ Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
 echo
 
 END_TIME=$(date +%s)
