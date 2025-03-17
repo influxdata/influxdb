@@ -8,7 +8,6 @@ readonly NC='\033[0m' # No Color
 
 ARCHITECTURE=$(uname -m)
 ARTIFACT=""
-IS_MUSL=""
 OS=""
 INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
@@ -37,20 +36,9 @@ if [ "${OS}" = "Linux" ]; then
     # XXX: use 'uname -o | grep GNU' instead?
     ldd_exec=$(command -v ldd)
     if [ "${ARCHITECTURE}" = "x86_64" ] || [ "${ARCHITECTURE}" = "amd64" ]; then
-        # Check if we're on a GNU/Linux system, otherwise default to musl
-        if [ -n "$ldd_exec" ] && sh -c "$ldd_exec --version" 2>&1 | grep -Eq "(GNU|GLIBC)"; then
             ARTIFACT="x86_64-unknown-linux-gnu"
-        else
-            ARTIFACT="x86_64-unknown-linux-musl"
-            IS_MUSL="yes"
-        fi
     elif [ "${ARCHITECTURE}" = "aarch64" ] || [ "${ARCHITECTURE}" = "arm64" ]; then
-        if [ -n "$ldd_exec" ] && sh -c "$ldd_exec --version" 2>&1 | grep -Eq "(GNU|GLIBC)"; then
             ARTIFACT="aarch64-unknown-linux-gnu"
-        else
-            ARTIFACT="aarch64-unknown-linux-musl"
-            IS_MUSL="yes"
-        fi
     fi
 elif [ "${OS}" = "Darwin" ]; then
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
@@ -111,8 +99,9 @@ case "$INSTALL_TYPE" in
             printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         else 
             printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
-        printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
         fi
+        printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
+
         END_TIME=$(date +%s)
         DURATION=$((END_TIME - START_TIME))
 
@@ -313,11 +302,9 @@ if [ "${EDITION}" = "Core" ]; then
                 ;;
         esac
 
-        # Ensure port is available; if not, find a new one. If IS_MUSL is set,
-        # assume we are on a busybox-like system whose lsof doesn't support the
-        # args we need
+        # Ensure port is available; if not, find a new one. 
         lsof_exec=$(command -v lsof) && {
-            while [ -n "$lsof_exec" ] && [ "$IS_MUSL" != "yes" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
+            while [ -n "$lsof_exec" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
                 printf "├─${DIM} Port %s is in use. Finding new port.${NC}\n" "$PORT"
                 PORT=$((PORT + 1))
                 if [ "$PORT" -gt 32767 ]; then
@@ -345,7 +332,7 @@ if [ "${EDITION}" = "Core" ]; then
             # on systems without a usable lsof, sleep a second to see if the pid is
             # still there to give influxdb a chance to error out in case an already
             # running influxdb is running on this port
-            if [ -z "$lsof_exec" ] || [ "$IS_MUSL" = "yes" ]; then
+            if [ -z "$lsof_exec" ]; then
                 sleep 1
             fi
 
