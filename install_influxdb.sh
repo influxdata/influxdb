@@ -36,9 +36,9 @@ if [ "${OS}" = "Linux" ]; then
     # XXX: use 'uname -o | grep GNU' instead?
     ldd_exec=$(command -v ldd)
     if [ "${ARCHITECTURE}" = "x86_64" ] || [ "${ARCHITECTURE}" = "amd64" ]; then
-            ARTIFACT="x86_64-unknown-linux-gnu"
+        ARTIFACT="x86_64-unknown-linux-gnu"
     elif [ "${ARCHITECTURE}" = "aarch64" ] || [ "${ARCHITECTURE}" = "arm64" ]; then
-            ARTIFACT="aarch64-unknown-linux-gnu"
+        ARTIFACT="aarch64-unknown-linux-gnu"
     fi
 elif [ "${OS}" = "Darwin" ]; then
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
@@ -52,7 +52,7 @@ elif [ "${OS}" = "Darwin" ]; then
 fi
 
 # Exit if unsupported system
-[ -n "${ARTIFACT}" ] || { 
+[ -n "${ARTIFACT}" ] || {
     printf "Unfortunately this script doesn't support your '${OS}' | '${ARCHITECTURE}' setup, or was unable to identify it correctly.\n"
     printf "Visit our public Discord at \033[4;94mhttps://discord.gg/az4jPm8x${NC} for additional guidance.\n"
     printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
@@ -97,7 +97,7 @@ case "$INSTALL_TYPE" in
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
         if [ "${EDITION}" = "Core" ]; then
             printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
-        else 
+        else
             printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         fi
         printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
@@ -302,7 +302,7 @@ if [ "${EDITION}" = "Core" ]; then
                 ;;
         esac
 
-        # Ensure port is available; if not, find a new one. 
+        # Ensure port is available; if not, find a new one.
         lsof_exec=$(command -v lsof) && {
             while [ -n "$lsof_exec" ] && lsof -i:"$PORT" -t >/dev/null 2>&1; do
                 printf "├─${DIM} Port %s is in use. Finding new port.${NC}\n" "$PORT"
