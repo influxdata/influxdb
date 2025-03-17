@@ -395,8 +395,3 @@ done
 printf "┌%s┐\n" "$mid"
 printf "│%s│\n" "$out"
 printf "└%s┘\n" "$mid"
-    mid="${mid}─"
-done
-printf "┌%s┐\n" "$mid"
-printf "│%s│\n" "$out"
-printf "└%s┘\n" "$mid"
