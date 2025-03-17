@@ -759,7 +759,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.Executio
 		dbInfo := e.MetaClient.Database(q.Database)
 		if dbInfo == nil {
 			return ctx.Send(&query.Result{
-				Err: fmt.Errorf("unknown database %s", dbInfo.Name),
+				Err: fmt.Errorf("unknown database %s", q.Database),
 			})
 		}
 		for _, rpInfo := range dbInfo.RetentionPolicies {
