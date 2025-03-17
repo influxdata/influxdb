@@ -3,7 +3,9 @@ pub mod enterprise;
 use bytes::Bytes;
 use hashbrown::HashMap;
 use influxdb3_catalog::catalog::ApiNodeSpec;
-use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
+use influxdb3_catalog::log::{
+    OrderedCatalogBatch, TriggerSettings, TriggerSpecificationDefinition,
+};
 use iox_query_params::StatementParam;
 use reqwest::{
     Body, IntoUrl, Method, StatusCode,
@@ -467,7 +469,7 @@ impl Client {
         db: impl Into<String> + Send,
         trigger_name: impl Into<String> + Send,
         plugin_filename: impl Into<String> + Send,
-        trigger_spec: impl Into<String> + Send,
+        trigger_spec: TriggerSpecificationDefinition,
         trigger_arguments: Option<HashMap<String, String>>,
         disabled: bool,
         trigger_settings: TriggerSettings,
@@ -481,7 +483,7 @@ impl Client {
                     node_spec: Some(node_spec),
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.into(),
-                    trigger_specification: trigger_spec.into(),
+                    trigger_specification: trigger_spec.clone(),
                     trigger_settings,
                     trigger_arguments,
                     disabled,

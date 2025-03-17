@@ -1052,7 +1052,7 @@ where
                 &trigger_name,
                 plugin_filename,
                 node_spec.unwrap_or_default(),
-                &trigger_specification,
+                trigger_specification,
                 trigger_settings,
                 &trigger_arguments,
                 disabled,
