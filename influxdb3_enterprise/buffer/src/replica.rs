@@ -495,15 +495,22 @@ impl ReplicatedBuffer {
             .load_existing_wal_paths(last_snapshotted_wal_file_sequence_number)
             .await?;
         let last_path = paths.last().cloned();
-        // track some information about the paths loaded for this replicated write buffer
-        info!(
-            from_node_id = self.node_def.name().as_ref(),
-            number_of_wal_files = paths.len(),
-            first_wal_file_path = ?paths.first(),
-            last_wal_file_path = ?paths.last(),
-            ?last_snapshotted_wal_file_sequence_number,
-            "loaded existing wal paths from object store"
-        );
+        if !paths.is_empty() {
+            // track some information about the paths loaded for this replicated write buffer
+            info!(
+                from_node_id = self.node_def.name().as_ref(),
+                number_of_wal_files = paths.len(),
+                first_wal_file_path = ?paths.first(),
+                last_wal_file_path = ?paths.last(),
+                ?last_snapshotted_wal_file_sequence_number,
+                "loaded existing wal paths from object store"
+            );
+        } else {
+            debug!(
+                from_node_id = self.node_def.name().as_ref(),
+                "no existing wal paths loaded from object store"
+            );
+        }
 
         // fetch WAL files from object store in parallel:
         let mut fetch_handles = Vec::new();
@@ -522,7 +529,7 @@ impl ReplicatedBuffer {
                 .await
                 .context("failed to complete task to fetch wal contents")??;
             self.replay_wal_file(wal_contents).await?;
-            info!(
+            debug!(
                 from_node_id = self.node_id().as_ref(),
                 wal_file_path = %path,
                 "replayed wal file"
