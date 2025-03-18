@@ -287,10 +287,10 @@ fn background_catalog_update(
                             table_id,
                             ..
                         }) => {
-                            provider.delete_caches_for_db_and_table(&database_id, &table_id);
+                            provider.delete_caches_for_db_and_table(database_id, table_id);
                         }
                         DatabaseCatalogOp::CreateDistinctCache(log) => {
-                            provider.create_from_catalog(batch.database_id, &log);
+                            provider.create_from_catalog(batch.database_id, log);
                         }
                         DatabaseCatalogOp::DeleteDistinctCache(DeleteDistinctCacheLog {
                             table_id,
@@ -299,7 +299,7 @@ fn background_catalog_update(
                         }) => {
                             // This only errors when the cache isn't there, so we ignore the
                             // error...
-                            let _ = provider.delete_cache(&batch.database_id, &table_id, &cache_id);
+                            let _ = provider.delete_cache(&batch.database_id, table_id, cache_id);
                         }
                         _ => (),
                     }

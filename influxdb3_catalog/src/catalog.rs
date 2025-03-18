@@ -147,6 +147,10 @@ impl Catalog {
         self.subscriptions.write().await.subscribe(name)
     }
 
+    pub async fn prune_subscriptions(&self) {
+        self.subscriptions.write().await.prune_closed()
+    }
+
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
         self.store.object_store()
     }

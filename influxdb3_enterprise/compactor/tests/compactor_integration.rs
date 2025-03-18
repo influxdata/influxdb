@@ -87,9 +87,12 @@ async fn two_writers_gen1_compaction() {
         node1_id,
         Arc::clone(&time_provider),
     ));
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+        .await
+        .unwrap();
     let distinct_cache =
         DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .await
             .unwrap();
 
     let node2_persister = Arc::new(Persister::new(
@@ -267,16 +270,6 @@ async fn compact_consumer_picks_up_latest_summary() {
         Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
     let exec = make_exec_and_register_runtime(Arc::clone(&object_store), Arc::clone(&metrics));
     let cluster_id = Arc::<str>::from("test_cluster");
-    let catalog = Arc::new(
-        Catalog::new(
-            Arc::clone(&cluster_id),
-            Arc::clone(&object_store),
-            Arc::clone(&time_provider),
-        )
-        .await
-        .unwrap(),
-    );
-
     // create two write buffers to write data that will be compacted:
     let mut write_buffers = HashMap::new();
     for node_id in ["spock", "tuvok"] {
@@ -284,7 +277,7 @@ async fn compact_consumer_picks_up_latest_summary() {
             node_id,
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
-            Arc::clone(&catalog),
+            Arc::clone(&cluster_id),
             Arc::clone(&exec),
             Arc::clone(&metrics),
         )
@@ -308,6 +301,15 @@ async fn compact_consumer_picks_up_latest_summary() {
         Arc::clone(&object_store),
         compactor_id.as_ref(),
         Arc::clone(&time_provider),
+    );
+    let catalog = Arc::new(
+        Catalog::new(
+            Arc::clone(&cluster_id),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
     );
     let compaction_producer = CompactedDataProducer::new(CompactedDataProducerArgs {
         span_ctx: None,
@@ -450,9 +452,12 @@ async fn compaction_cleanup() {
         cluster_id.as_ref(),
         Arc::clone(&time_provider),
     ));
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+        .await
+        .unwrap();
     let distinct_cache =
         DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .await
             .unwrap();
 
     let node_id = "host";
@@ -698,18 +703,31 @@ async fn setup_write_buffer(
     node_id: &str,
     object_store: Arc<dyn ObjectStore>,
     time_provider: Arc<dyn TimeProvider>,
-    catalog: Arc<Catalog>,
+    cluster_id: Arc<str>,
     executor: Arc<Executor>,
     metric_registry: Arc<Registry>,
 ) -> WriteBufferEnterprise<IngestQueryMode> {
+    let catalog = Arc::new(
+        Catalog::new(
+            Arc::clone(&cluster_id),
+            Arc::clone(&object_store),
+            Arc::clone(&time_provider),
+        )
+        .await
+        .unwrap(),
+    );
+
     let persister = Arc::new(Persister::new(
         Arc::clone(&object_store),
         node_id,
         Arc::clone(&time_provider),
     ));
-    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+    let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+        .await
+        .unwrap();
     let distinct_cache =
         DistinctCacheProvider::new_from_catalog(Arc::clone(&time_provider), Arc::clone(&catalog))
+            .await
             .unwrap();
     let wal_config = WalConfig {
         gen1_duration: Gen1Duration::new_1m(),

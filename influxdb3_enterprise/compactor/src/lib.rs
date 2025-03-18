@@ -1052,6 +1052,7 @@ mod test_helpers {
             );
             self.persisted_files
                 .add_persisted_snapshot_files(persisted_snapshot.clone());
+            self.catalog.prune_subscriptions().await;
 
             persisted_snapshot
         }

@@ -1384,12 +1384,12 @@ mod tests {
 
         Replicas::new(CreateReplicasArgs {
             // just using the catalog from primary for caches since they aren't used:
-            last_cache: LastCacheProvider::new_from_catalog(primary.catalog())
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
                 .await
                 .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::<MockProvider>::clone(&time_provider),
-                primary.catalog(),
+                Arc::clone(&catalog),
             )
             .await
             .unwrap(),

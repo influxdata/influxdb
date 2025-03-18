@@ -339,10 +339,10 @@ fn background_catalog_update(
                         DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
                             table_id, ..
                         }) => {
-                            provider.delete_caches_for_table(&batch.database_id, &table_id);
+                            provider.delete_caches_for_table(&batch.database_id, table_id);
                         }
                         DatabaseCatalogOp::CreateLastCache(log) => {
-                            provider.create_cache_from_definition(batch.database_id, &log);
+                            provider.create_cache_from_definition(batch.database_id, log);
                         }
                         DatabaseCatalogOp::DeleteLastCache(DeleteLastCacheLog {
                             table_id,
@@ -351,7 +351,7 @@ fn background_catalog_update(
                         }) => {
                             // This only errors when the cache isn't there, so we ignore the
                             // error...
-                            let _ = provider.delete_cache(&batch.database_id, &table_id, &id);
+                            let _ = provider.delete_cache(&batch.database_id, table_id, id);
                         }
                         _ => (),
                     }

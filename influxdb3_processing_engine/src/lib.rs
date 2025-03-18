@@ -698,7 +698,7 @@ fn background_catalog_update(
                         }) => {
                             if !disabled {
                                 if let Err(error) = processing_engine_manager
-                                    .run_trigger(&database_name, &trigger_name)
+                                    .run_trigger(database_name, trigger_name)
                                     .await
                                 {
                                     error!(?error, "failed to run the created trigger");
@@ -711,7 +711,7 @@ fn background_catalog_update(
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .run_trigger(&db_name, &trigger_name)
+                                .run_trigger(db_name, trigger_name)
                                 .await
                             {
                                 error!(?error, "failed to run the trigger");
@@ -723,7 +723,7 @@ fn background_catalog_update(
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .stop_trigger(&batch.database_name, &trigger_name)
+                                .stop_trigger(&batch.database_name, trigger_name)
                                 .await
                             {
                                 error!(?error, "failed to disable the trigger");
@@ -735,7 +735,7 @@ fn background_catalog_update(
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .stop_trigger(&db_name, &trigger_name)
+                                .stop_trigger(db_name, trigger_name)
                                 .await
                             {
                                 error!(?error, "failed to disable the trigger");

@@ -116,6 +116,10 @@ impl CatalogSubscriptions {
             .collect::<Result<Vec<()>, anyhow::Error>>()?;
         Ok(())
     }
+
+    pub(crate) fn prune_closed(&mut self) {
+        self.subscriptions.retain(|_, s| s.is_closed());
+    }
 }
 
 #[cfg(test)]
