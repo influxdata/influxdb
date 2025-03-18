@@ -214,7 +214,7 @@ impl Replicas {
         let mut chunks = vec![];
         for replica in &self.replicated_buffers {
             let last_parquet_file_id = writer_markers.iter().find_map(|marker| {
-                if marker.node_id == replica.node_def.name().as_ref() {
+                if marker.node_id == replica.node_def.node_id() {
                     Some(marker.next_file_id)
                 } else {
                     None

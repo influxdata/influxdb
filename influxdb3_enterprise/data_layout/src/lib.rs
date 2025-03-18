@@ -84,7 +84,7 @@ pub struct CompactionSummary {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeSnapshotMarker {
     /// The node identifier prefix this snapshot tracker is for
-    pub node_id: String,
+    pub node_id: Arc<str>,
     /// The last snapshot sequence number we compacted for this writer. All < than this will have
     /// been compacted.
     pub snapshot_sequence_number: SnapshotSequenceNumber,

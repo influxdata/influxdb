@@ -14,7 +14,8 @@ use datafusion::{common::instant::Instant, datasource::object_store::ObjectStore
 use hashbrown::HashMap;
 use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::{Catalog, CatalogSequenceNumber};
-use influxdb3_catalog::log::NodeModes;
+use influxdb3_catalog::channel::CatalogUpdateReceiver;
+use influxdb3_catalog::log::{CatalogBatch, NodeCatalogOp, NodeMode, NodeModes, RegisterNodeLog};
 use influxdb3_config::EnterpriseConfig;
 use influxdb3_enterprise_data_layout::persist::get_generation_detail;
 use influxdb3_enterprise_data_layout::{
@@ -80,10 +81,15 @@ pub struct CompactedDataProducer {
     pub datafusion_config: Arc<StdHashMap<String, String>>,
     pub compacted_data: Arc<CompactedData>,
     parquet_cache_prefetcher: Option<Arc<ParquetCachePreFetcher>>,
-
-    /// The gen1 data to compact should only ever be accessed by the compaction loop, so we use a
-    /// tokio Mutex so we can hold it across await points to object storage.
-    compaction_state: tokio::sync::Mutex<CompactionState>,
+    /// Compaction state that tracks the gen1 data to be compacted accross the nodes in the cluster
+    ///
+    /// We need to hold a single lock during the compaction plan/run, which requieres a tokio lock
+    /// to be held across await points (compaction execution, object store interaction).
+    ///
+    /// The compaction state can also be updated if a new ingester is registered into the Enterprise
+    /// cluster, so this state is `Arc`'d and shared with the process that checks for new nodes in
+    /// the catalog.
+    compaction_state: Arc<tokio::sync::Mutex<CompactionState>>,
     sys_events_store: Arc<dyn CompactionEventStore>,
     _time_provider: Arc<dyn TimeProvider>,
     span_ctx: Option<SpanContext>,
@@ -142,7 +148,7 @@ impl CompactedDataProducer {
             Arc::clone(&compactor_id),
             Arc::clone(&object_store),
             Arc::clone(&time_provider),
-            catalog,
+            Arc::clone(&catalog),
         )
         .await?;
         let span = span_ctx
@@ -158,6 +164,13 @@ impl CompactedDataProducer {
             )
             .await?;
 
+        let compaction_state = Arc::new(tokio::sync::Mutex::new(compaction_state));
+
+        background_catalog_update(
+            Arc::clone(&compaction_state),
+            catalog.subscribe_to_updates("compactor_producer").await,
+        );
+
         Ok(Self {
             compactor_id,
             enterprise_config,
@@ -167,7 +180,7 @@ impl CompactedDataProducer {
             executor,
             parquet_cache_prefetcher,
             compacted_data: Arc::new(compacted_data),
-            compaction_state: tokio::sync::Mutex::new(compaction_state),
+            compaction_state,
             sys_events_store,
             datafusion_config,
             span_ctx,
@@ -773,11 +786,66 @@ fn record_compaction_plan(
     sys_events_store.record_compaction_plan_success(event);
 }
 
+fn background_catalog_update(
+    compaction_state: Arc<tokio::sync::Mutex<CompactionState>>,
+    mut subscription: CatalogUpdateReceiver,
+) {
+    tokio::spawn(async move {
+        while let Some(update) = subscription.recv().await {
+            for batch in update.batches() {
+                let CatalogBatch::Node(node_batch) = batch else {
+                    continue;
+                };
+                for op in &node_batch.ops {
+                    match op {
+                        NodeCatalogOp::RegisterNode(RegisterNodeLog { node_id, mode, .. })
+                            if mode.contains(&NodeMode::Ingest) =>
+                        {
+                            // NOTE: handle update of the compaction state in a separate task
+                            // This is so that if the compactor is in the middle of a compaction
+                            // plan, this will not have to wait until that plan completes (that
+                            // can take quite a while). Otherwise, the node register request to the
+                            // catalog would hang until the compactor is finished with the plan.
+                            //
+                            // None of the operations below are fallible, so this should be fine.
+                            let compaction_state = Arc::clone(&compaction_state);
+                            let node_id = Arc::clone(node_id);
+                            tokio::spawn(async move {
+                                let mut state = compaction_state.lock().await;
+                                if state.node_id_to_last_marker.contains_key(&node_id) {
+                                    warn!(
+                                        node_id = node_id.as_ref(),
+                                        "node-id regestered into catalog that was already tracked by the compactor"
+                                    );
+                                    return;
+                                }
+                                state.node_id_to_last_marker.insert(
+                                    Arc::clone(&node_id),
+                                    Arc::new(NodeSnapshotMarker {
+                                        node_id: Arc::clone(&node_id),
+                                        snapshot_sequence_number: SnapshotSequenceNumber::new(0),
+                                        next_file_id: ParquetFileId::from(0),
+                                    }),
+                                );
+                                info!(
+                                    node_id = node_id.as_ref(),
+                                    "new node registered for compaction"
+                                );
+                            });
+                        }
+                        _ => continue,
+                    }
+                }
+            }
+        }
+    });
+}
+
 /// CompactionState tracks the snapshot data and associated files from writers that have yet to be
 /// compacted or tracked in the comapcted data structure.
 pub(crate) struct CompactionState {
     // The most recent snapshot marker for each writer
-    node_id_to_last_marker: HashMap<String, Arc<NodeSnapshotMarker>>,
+    node_id_to_last_marker: HashMap<Arc<str>, Arc<NodeSnapshotMarker>>,
     // Snapshots that have yet to be compacted (could be multiple per writer)
     writer_markers: Vec<Arc<NodeSnapshotMarker>>,
     // Map of files in all snapshots waiting to be compacted
@@ -797,22 +865,25 @@ impl CompactionState {
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
     ) -> Result<(Self, CompactedData)> {
-        let node_ids: Vec<String> = catalog
+        let node_ids = catalog
             .list_nodes()
             .iter()
             .filter_map(|nd| {
                 NodeModes::from(nd.as_ref().modes().clone())
                     .is_ingester()
-                    .then_some(nd.node_id().to_string())
+                    .then_some(nd.node_id())
             })
             .collect();
 
         // load or initialize and persist the first compaction summary
         async fn summary(
             compactor_id: Arc<str>,
-            node_ids: Vec<String>,
+            node_ids: Vec<Arc<str>>,
             obj_store: Arc<dyn ObjectStore>,
-        ) -> Result<(CompactionSummary, HashMap<String, Arc<NodeSnapshotMarker>>)> {
+        ) -> Result<(
+            CompactionSummary,
+            HashMap<Arc<str>, Arc<NodeSnapshotMarker>>,
+        )> {
             let compaction_summary =
                 match load_compaction_summary(Arc::clone(&compactor_id), Arc::clone(&obj_store))
                     .await?
@@ -826,7 +897,7 @@ impl CompactionState {
                             .iter()
                             .map(|node_id| {
                                 Arc::new(NodeSnapshotMarker {
-                                    node_id: node_id.clone(),
+                                    node_id: Arc::clone(node_id),
                                     snapshot_sequence_number: SnapshotSequenceNumber::new(0),
                                     next_file_id: ParquetFileId::from(0),
                                 })
@@ -855,12 +926,12 @@ impl CompactionState {
             let mut node_id_to_last_marker = compaction_summary
                 .snapshot_markers
                 .iter()
-                .map(|marker| (marker.node_id.clone(), Arc::clone(marker)))
+                .map(|marker| (Arc::clone(&marker.node_id), Arc::clone(marker)))
                 .collect::<HashMap<_, _>>();
             for node_id in node_ids {
                 if !node_id_to_last_marker.contains_key(&node_id) {
                     node_id_to_last_marker.insert(
-                        node_id.clone(),
+                        Arc::clone(&node_id),
                         Arc::new(NodeSnapshotMarker {
                             node_id,
                             snapshot_sequence_number: SnapshotSequenceNumber::new(0),
@@ -919,7 +990,7 @@ impl CompactionState {
                 // writer up to the most recent 1,000
                 let persister = Persister::new(
                     Arc::clone(&object_store),
-                    node_id,
+                    node_id.as_ref(),
                     Arc::clone(&self.time_provider),
                 );
                 let writer_snapshots =
@@ -927,7 +998,7 @@ impl CompactionState {
                         .await
                         .inspect_err(|err| {
                             let failed_event = FailedInfo {
-                                node_id: Arc::from(node_id.as_str()),
+                                node_id: Arc::clone(node_id),
                                 duration: start.elapsed(),
                                 sequence_number: marker.snapshot_sequence_number.as_u64(),
                                 error: err.to_string(),
@@ -946,7 +1017,7 @@ impl CompactionState {
                 .await
                 .inspect_err(|err| {
                     let failed_event = FailedInfo {
-                        node_id: Arc::from(node_id.as_str()),
+                        node_id: Arc::clone(node_id),
                         duration: start.elapsed(),
                         sequence_number: marker.snapshot_sequence_number.as_u64(),
                         error: err.to_string(),
@@ -989,14 +1060,14 @@ impl CompactionState {
             };
 
             let new_marker = Arc::new(NodeSnapshotMarker {
-                node_id: snapshot.node_id().to_string(),
+                node_id: snapshot.node_id().into(),
                 snapshot_sequence_number: snapshot.snapshot_sequence_number(),
                 next_file_id: snapshot.next_file_id(),
             });
 
             if snapshot.snapshot_sequence_number() > marker.snapshot_sequence_number {
                 self.node_id_to_last_marker
-                    .insert(snapshot.node_id().to_string(), Arc::clone(&new_marker));
+                    .insert(snapshot.node_id().into(), Arc::clone(&new_marker));
             }
 
             self.writer_markers.push(new_marker);
@@ -1139,17 +1210,22 @@ impl CompactionCleaner {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
     use std::sync::Arc;
 
+    use executor::DedicatedExecutor;
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_enterprise_data_layout::NodeSnapshotMarker;
     use influxdb3_id::{ParquetFileId, SerdeVecMap};
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
+    use influxdb3_write::persister::DEFAULT_OBJECT_STORE_URL;
     use influxdb3_write::{PersistedSnapshot, persister::Persister};
+    use iox_query::exec::ExecutorConfig;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use observability_deps::tracing::debug;
+    use parquet_file::storage::{ParquetStorage, StorageId};
     use pretty_assertions::assert_eq;
 
     use crate::producer::{load_all_snapshots, load_next_snapshot};
@@ -1171,7 +1247,7 @@ mod tests {
     async fn test_run_compaction() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
+        let mut writer = TestWriter::new("cluster", node_id, Arc::clone(&object_store)).await;
 
         let lp = r#"
             cpu,host=foo usage=1 1
@@ -1318,7 +1394,7 @@ mod tests {
     async fn load_snapshots_persists_compacted_catalog() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
+        let mut writer = TestWriter::new("cluster", node_id, Arc::clone(&object_store)).await;
 
         let lp = r#"
             cpu,host=asdf usage=1 1
@@ -1379,7 +1455,7 @@ mod tests {
     async fn producer_updates_compacted_catalog_and_consumer_picks_up() {
         let node_id = "test_host";
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let mut writer = TestWriter::new(node_id, Arc::clone(&object_store)).await;
+        let mut writer = TestWriter::new("cluster", node_id, Arc::clone(&object_store)).await;
 
         // create 3 snapshots so we have enough to compact
         let _snapshot = writer.persist_lp_and_snapshot("cpu,t=a usage=1 1").await;
@@ -1516,7 +1592,7 @@ mod tests {
             .expect("snaphost to be persisted");
 
         let marker = Arc::new(NodeSnapshotMarker {
-            node_id: node_id.to_string(),
+            node_id: node_id.into(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             next_file_id: ParquetFileId::new(),
         });
@@ -1569,7 +1645,7 @@ mod tests {
             .expect("snaphost to be persisted");
 
         let marker = Arc::new(NodeSnapshotMarker {
-            node_id: node_id.to_string(),
+            node_id: node_id.into(),
             snapshot_sequence_number: SnapshotSequenceNumber::new(123),
             next_file_id: ParquetFileId::new(),
         });
@@ -1600,5 +1676,162 @@ mod tests {
             },
             _ => panic!("no other event type expected"),
         }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_new_node_tracked_by_compactor() {
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let metrics = Arc::new(metric::Registry::default());
+
+        let parquet_store =
+            ParquetStorage::new(Arc::clone(&object_store), StorageId::from("influxdb3"));
+        let exec = Arc::new(Executor::new_with_config_and_executor(
+            ExecutorConfig {
+                target_query_partitions: NonZeroUsize::new(1).unwrap(),
+                object_stores: [&parquet_store]
+                    .into_iter()
+                    .map(|store| (store.id(), Arc::clone(store.object_store())))
+                    .collect(),
+                metric_registry: Arc::clone(&metrics),
+                // Default to 1gb
+                mem_pool_size: 1024 * 1024 * 1024, // 1024 (b/kb) * 1024 (kb/mb) * 1024 (mb/gb)
+            },
+            DedicatedExecutor::new_testing(),
+        ));
+        let compactor_catalog = Arc::new(
+            Catalog::new_enterprise(
+                "compactor",
+                "cluster",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap(),
+        );
+
+        let sys_events_store: Arc<dyn CompactionEventStore> =
+            Arc::new(SysEventStore::new(Arc::<MockProvider>::clone(
+                &time_provider,
+            )));
+
+        let compaction_config =
+            CompactionConfig::new(&[2], Duration::from_secs(120)).with_per_file_row_limit(10);
+
+        let compactor = CompactedDataProducer::new(CompactedDataProducerArgs {
+            span_ctx: None,
+            compactor_id: "compactor".into(),
+            compaction_config,
+            enterprise_config: Default::default(),
+            datafusion_config: Default::default(),
+            object_store: Arc::clone(&object_store),
+            object_store_url: ObjectStoreUrl::parse(DEFAULT_OBJECT_STORE_URL).unwrap(),
+            executor: exec,
+            parquet_cache_prefetcher: None,
+            sys_events_store: Arc::clone(&sys_events_store),
+            time_provider: Arc::clone(&time_provider) as _,
+            catalog: Arc::clone(&compactor_catalog),
+        })
+        .await
+        .unwrap();
+        compactor_catalog
+            .register_node("compactor", 2, vec![NodeMode::Compact])
+            .await
+            .unwrap();
+
+        // setup the ingester, note, this registers the node in the catalog, and the compactor
+        // pick it up and add it to its state:
+        let mut ingester = TestWriter::new("cluster", "ingester", Arc::clone(&object_store)).await;
+
+        // also register a query node, as that should not affect the compactor state...
+        {
+            Catalog::new_enterprise(
+                "querier",
+                "cluster",
+                Arc::clone(&object_store),
+                Arc::clone(&time_provider) as _,
+            )
+            .await
+            .unwrap()
+            .register_node("querier", 2, vec![NodeMode::Query])
+            .await
+            .unwrap();
+        }
+
+        // check that the compactor is not tracking any nodes before it gets updated:
+        assert!(
+            compactor
+                .compaction_state
+                .lock()
+                .await
+                .node_id_to_last_marker
+                .is_empty()
+        );
+
+        // update the compactor catalog; in practice, this would need to be handled by a separate
+        // process
+        compactor_catalog
+            .update_to_sequence_number(CatalogSequenceNumber::new(u64::MAX))
+            .await
+            .unwrap();
+
+        // allow time for the catalog update broadcast to take effect, in this case, because the
+        // ACK for the compactor picking up new ingesters is sent before it actually gets put into
+        // the compaction state...
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // check that the compactor is tracking the ingester:
+        assert!(
+            compactor
+                .compaction_state
+                .lock()
+                .await
+                .node_id_to_last_marker
+                .contains_key("ingester")
+        );
+        // check that the compactor is not tracking the querier:
+        assert!(
+            !compactor
+                .compaction_state
+                .lock()
+                .await
+                .node_id_to_last_marker
+                .contains_key("querier")
+        );
+
+        // create some snapshots on the ingester:
+        let snapshot = ingester
+            .persist_lp_and_snapshot("fruit,kind=mango yeild=10")
+            .await;
+        debug!(?snapshot, "ingester snapshot");
+        let snapshot = ingester
+            .persist_lp_and_snapshot("fruit,kind=melon yeild=4")
+            .await;
+        debug!(?snapshot, "ingester snapshot");
+
+        // load the snapshots in the compactor:
+        compactor
+            .compaction_state
+            .lock()
+            .await
+            .load_snapshots(
+                &compactor.compacted_data,
+                Arc::clone(&object_store),
+                Arc::clone(&sys_events_store),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // the snapshot sequence should be incremented to 2:
+        assert!(
+            compactor
+                .compaction_state
+                .lock()
+                .await
+                .node_id_to_last_marker
+                .get("ingester")
+                .is_some_and(|n| n.snapshot_sequence_number == SnapshotSequenceNumber::new(2))
+        );
     }
 }
