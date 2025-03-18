@@ -667,11 +667,14 @@ mod tests {
             executor: Arc::clone(&exec),
             catalog: Arc::clone(&catalog),
             persister: Arc::clone(&persister),
-            last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             persisted_files: Arc::new(PersistedFiles::new()),
             parquet_cache: None,

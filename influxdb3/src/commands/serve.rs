@@ -562,6 +562,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog) as _,
         config.last_cache_eviction_interval.into(),
     )
+    .await
     .map_err(Error::InitializeLastCache)?;
 
     let distinct_cache = DistinctCacheProvider::new_from_catalog_with_background_eviction(
@@ -569,6 +570,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&catalog),
         config.distinct_cache_eviction_interval.into(),
     )
+    .await
     .map_err(Error::InitializeDistinctCache)?;
 
     let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
@@ -637,7 +639,8 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&query_executor) as _,
         Arc::clone(&time_provider) as _,
         sys_events_store,
-    );
+    )
+    .await;
 
     let builder = ServerBuilder::new(common_state)
         .max_request_size(config.max_http_request_size)
