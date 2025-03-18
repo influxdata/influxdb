@@ -65,9 +65,19 @@ impl ObjectStoreCatalog {
                 let catalog_uuid = Uuid::new_v4();
                 info!(catalog_uuid = ?catalog_uuid, "catalog not found, creating a new one");
                 let new_catalog = InnerCatalog::new(Arc::clone(&self.prefix), catalog_uuid);
-                self.persist_catalog_checkpoint(&new_catalog.snapshot())
-                    .await?;
-                Ok(new_catalog)
+                match self
+                    .persist_catalog_checkpoint(&new_catalog.snapshot())
+                    .await?
+                {
+                    PersistCatalogResult::Success => Ok(new_catalog),
+                    PersistCatalogResult::AlreadyExists => {
+                        self.load_catalog().await.map(|catalog| {
+                            catalog.expect(
+                                "the catalog should have already been persisted for us to load",
+                            )
+                        })
+                    }
+                }
             }
         }
     }
@@ -206,11 +216,13 @@ impl ObjectStoreCatalog {
             .await
     }
 
-    /// Persist the `CatalogSnapshot` as a checkpoint and ensure that the operation succeeds
+    /// Persist the `CatalogSnapshot` as a checkpoint and ensure that the operation succeeds unless
+    /// the file already exists. Object Storage should handle the concurrent requests in order and
+    /// make sure that only one of them gets the win in terms of who writes first
     pub(crate) async fn persist_catalog_checkpoint(
         &self,
         snapshot: &CatalogSnapshot,
-    ) -> Result<()> {
+    ) -> Result<PersistCatalogResult> {
         let sequence = snapshot.sequence_number().get();
         let catalog_path = CatalogFilePath::checkpoint(&self.prefix);
 
@@ -219,13 +231,26 @@ impl ObjectStoreCatalog {
 
         // NOTE: not sure if this should be done in a loop, i.e., what error variants from
         // the object store would warrant a retry.
-        match self.store.put(&catalog_path, content.clone().into()).await {
+        match self
+            .store
+            .put_opts(
+                &catalog_path,
+                content.clone().into(),
+                PutOptions {
+                    mode: object_store::PutMode::Create,
+                    ..Default::default()
+                },
+            )
+            .await
+        {
             Ok(put_result) => {
                 info!(sequence, "persisted catalog checkpoint file");
                 debug!(put_result = ?put_result, "object store PUT result");
-                Ok(())
+                Ok(PersistCatalogResult::Success)
             }
-            Err(object_store::Error::NotModified { .. }) => Ok(()),
+            Err(object_store::Error::AlreadyExists { .. }) => {
+                Ok(PersistCatalogResult::AlreadyExists)
+            }
             Err(err) => {
                 error!(error = ?err, "failed to persist catalog checkpoint file");
                 Err(err.into())
