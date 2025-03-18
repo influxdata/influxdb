@@ -861,7 +861,7 @@ mod test_helpers {
     use influxdb3_cache::{
         last_cache::LastCacheProvider, parquet_cache::test_cached_obj_store_and_oracle,
     };
-    use influxdb3_catalog::catalog::Catalog;
+    use influxdb3_catalog::catalog::{Catalog, Prompt};
     use influxdb3_catalog::log::NodeMode;
     use influxdb3_enterprise_parquet_cache::ParquetCachePreFetcher;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
@@ -896,7 +896,11 @@ mod test_helpers {
     }
 
     impl TestWriter {
-        pub(crate) async fn new(node_id: &str, object_store: Arc<dyn ObjectStore>) -> Self {
+        pub(crate) async fn new(
+            cluster_id: &str,
+            node_id: &str,
+            object_store: Arc<dyn ObjectStore>,
+        ) -> Self {
             let metrics = Arc::new(metric::Registry::default());
 
             let parquet_store =
@@ -923,7 +927,7 @@ mod test_helpers {
             let catalog = Arc::new(
                 Catalog::new_enterprise(
                     node_id,
-                    node_id,
+                    cluster_id,
                     Arc::clone(&object_store),
                     Arc::clone(&time_provider),
                 )
@@ -963,20 +967,27 @@ mod test_helpers {
 
         pub(crate) async fn persist_lp_and_snapshot(&mut self, lp: &str) -> PersistedSnapshot {
             let db = data_types::NamespaceName::new("testdb").unwrap();
-            let val = WriteValidator::initialize(db, Arc::clone(&self.catalog)).unwrap();
-            let lines = val
-                .v1_parse_lines_and_catalog_updates(
-                    lp,
-                    false,
-                    self.time_provider.now(),
-                    Precision::Nanosecond,
-                )
-                .unwrap()
-                .commit_catalog_changes()
-                .await
-                .unwrap()
-                .unwrap_success()
-                .convert_lines_to_buffer(Gen1Duration::new_1m());
+            let lines = loop {
+                let val =
+                    WriteValidator::initialize(db.clone(), Arc::clone(&self.catalog)).unwrap();
+                match val
+                    .v1_parse_lines_and_catalog_updates(
+                        lp,
+                        false,
+                        self.time_provider.now(),
+                        Precision::Nanosecond,
+                    )
+                    .unwrap()
+                    .commit_catalog_changes()
+                    .await
+                {
+                    Ok(Prompt::Success(validated)) => {
+                        break validated.convert_lines_to_buffer(Gen1Duration::new_1m());
+                    }
+                    Ok(Prompt::Retry(_)) => continue,
+                    Err(error) => panic!("error when committing changes to catalog: {error:?}"),
+                }
+            };
             let batch: WriteBatch = lines.into();
             let wal_contents = WalContents {
                 persist_timestamp_ms: 0,

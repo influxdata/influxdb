@@ -322,7 +322,7 @@ impl ChunkContainer for IngestQueryMode {
             // now add in the gen1 chunks from primary
             let next_non_compacted_parquet_file_id = writer_markers.as_ref().and_then(|markers| {
                 markers.iter().find_map(|marker| {
-                    if marker.node_id == ingest.node_id.as_ref() {
+                    if marker.node_id == ingest.node_id {
                         Some(marker.next_file_id)
                     } else {
                         None
