@@ -17,15 +17,15 @@ use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::{Mutex, MutexGuard, broadcast};
-use update::CatalogUpdate;
+use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
 mod enterprise;
 mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
-pub use update::{DatabaseCatalogTransaction, Prompt};
+pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
+use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
     NodeSpec, RegisterNodeLog,
@@ -82,22 +82,10 @@ static CATALOG_WRITE_PERMIT: Mutex<CatalogSequenceNumber> =
 /// time that the permit was acquired.
 pub type CatalogWritePermit = MutexGuard<'static, CatalogSequenceNumber>;
 
-const CATALOG_BROADCAST_CHANNEL_CAPACITY: usize = 10_000;
-
-pub type CatalogBroadcastSender = broadcast::Sender<Arc<CatalogUpdate>>;
-pub type CatalogBroadcastReceiver = broadcast::Receiver<Arc<CatalogUpdate>>;
-
 pub struct Catalog {
     /// The ID of the current node, if different from the cluster ID.
     current_node_id: Option<Arc<str>>,
-    /// Channel for broadcasting updates to other components that must handle `CatalogOp`s
-    ///
-    /// # Implementation Note
-    ///
-    /// This currently uses a `tokio::broadcast` channel, which can lead to dropped messages if
-    /// the channel fills up. If that is a concern a more durable form of broadcasting single
-    /// producer to multiple consumer messages would need to be implemented.
-    channel: CatalogBroadcastSender,
+    subscriptions: Arc<tokio::sync::RwLock<CatalogSubscriptions>>,
     time_provider: Arc<dyn TimeProvider>,
     /// Connection to the object store for managing persistence and updates to the catalog
     store: ObjectStoreCatalog,
@@ -132,7 +120,7 @@ impl Catalog {
         let node_id = catalog_id.into();
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
-        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+        let subscriptions = Default::default();
         store
             .load_or_create_catalog()
             .await
@@ -140,7 +128,7 @@ impl Catalog {
             .map(RwLock::new)
             .map(|inner| Self {
                 current_node_id: None,
-                channel,
+                subscriptions,
                 time_provider,
                 store,
                 inner,
@@ -155,8 +143,12 @@ impl Catalog {
         self.inner.read().catalog_uuid
     }
 
-    pub fn subscribe_to_updates(&self) -> broadcast::Receiver<Arc<CatalogUpdate>> {
-        self.channel.subscribe()
+    pub async fn subscribe_to_updates(&self, name: &'static str) -> CatalogUpdateReceiver {
+        self.subscriptions.write().await.subscribe(name)
+    }
+
+    pub async fn prune_subscriptions(&self) {
+        self.subscriptions.write().await.prune_closed()
     }
 
     pub fn object_store(&self) -> Arc<dyn ObjectStore> {
@@ -376,11 +368,11 @@ impl Catalog {
     ) -> Result<Self> {
         let store = ObjectStoreCatalog::new(catalog_id, checkpoint_interval, store);
         let inner = store.load_or_create_catalog().await?;
-        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+        let subscriptions = Default::default();
 
         Ok(Self {
             current_node_id: None,
-            channel,
+            subscriptions,
             time_provider,
             store,
             inner: RwLock::new(inner),

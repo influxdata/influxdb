@@ -4,14 +4,11 @@ use anyhow::Context;
 use iox_time::TimeProvider;
 use object_store::ObjectStore;
 use parking_lot::RwLock;
-use tokio::sync::broadcast;
 
 use crate::object_store::ObjectStoreCatalog;
 use crate::{Result, log::NodeSpec};
 
-use super::{
-    CATALOG_BROADCAST_CHANNEL_CAPACITY, CATALOG_CHECKPOINT_INTERVAL, Catalog, NodeDefinition,
-};
+use super::{CATALOG_CHECKPOINT_INTERVAL, Catalog, NodeDefinition};
 
 impl Catalog {
     pub async fn new_enterprise(
@@ -27,7 +24,7 @@ impl Catalog {
             CATALOG_CHECKPOINT_INTERVAL,
             store,
         );
-        let (channel, _) = broadcast::channel(CATALOG_BROADCAST_CHANNEL_CAPACITY);
+        let subscriptions = Default::default();
         store
             .load_or_create_catalog()
             .await
@@ -35,7 +32,7 @@ impl Catalog {
             .map(RwLock::new)
             .map(|inner| Self {
                 current_node_id,
-                channel,
+                subscriptions,
                 time_provider,
                 store,
                 inner,

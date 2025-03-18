@@ -83,7 +83,7 @@ impl Catalog {
                     UpdatePrompt::Applied => {
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                         self.background_checkpoint(&ordered_batch);
-                        self.broadcast_update(ordered_batch.into_batch());
+                        self.broadcast_update(ordered_batch.into_batch()).await?;
                         Ok(Prompt::Success(self.sequence_number()))
                     }
                 }
@@ -680,7 +680,8 @@ impl Catalog {
                         UpdatePrompt::Applied => {
                             self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                             self.background_checkpoint(&ordered_batch);
-                            self.broadcast_update(ordered_batch.clone().into_batch());
+                            self.broadcast_update(ordered_batch.clone().into_batch())
+                                .await?;
                             return Ok(Some(ordered_batch));
                         }
                     }
@@ -751,7 +752,7 @@ impl Catalog {
             .inspect_err(|error| debug!(?error, "failed to fetch next catalog sequence"))?
         {
             let batch = self.apply_ordered_catalog_batch(&ordered_catalog_batch, permit);
-            self.broadcast_update(batch);
+            self.broadcast_update(batch).await?;
             sequence_number = sequence_number.next();
             if update_until.is_some_and(|max_sequence| sequence_number > max_sequence) {
                 break;
@@ -761,11 +762,13 @@ impl Catalog {
     }
 
     /// Broadcast a `CatalogUpdate` to all subscribed components in the system.
-    fn broadcast_update(&self, update: impl Into<CatalogUpdate>) {
-        if let Err(send_error) = self.channel.send(Arc::new(update.into())) {
-            info!("nothing listening for catalog updates");
-            trace!(?send_error, "nothing listening for catalog updates");
-        }
+    async fn broadcast_update(&self, update: impl Into<CatalogUpdate>) -> Result<()> {
+        self.subscriptions
+            .write()
+            .await
+            .send_update(Arc::new(update.into()))
+            .await?;
+        Ok(())
     }
 
     /// Persist the catalog as a checkpoint in the background if we are at the _n_th sequence
@@ -811,7 +814,7 @@ pub struct CatalogUpdate {
 }
 
 impl CatalogUpdate {
-    pub fn batches(&self) -> impl Iterator<Item = &CatalogBatch> {
+    pub(crate) fn batches(&self) -> impl Iterator<Item = &CatalogBatch> {
         self.batches.iter()
     }
 }

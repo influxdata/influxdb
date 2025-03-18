@@ -799,11 +799,14 @@ mod tests {
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
                 catalog: Arc::clone(&catalog),
-                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                    .await
+                    .unwrap(),
                 distinct_cache: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&time_provider) as _,
                     Arc::clone(&catalog),
                 )
+                .await
                 .unwrap(),
                 time_provider: Arc::clone(&time_provider) as _,
                 executor: Arc::clone(&exec),
@@ -863,7 +866,8 @@ mod tests {
             Arc::clone(&query_executor) as _,
             Arc::clone(&time_provider) as _,
             sys_events_store,
-        );
+        )
+        .await;
 
         let server = ServerBuilder::new(common_state)
             .write_buffer(Arc::clone(&write_buffer))

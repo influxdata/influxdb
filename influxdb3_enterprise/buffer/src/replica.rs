@@ -1239,11 +1239,14 @@ mod tests {
             .unwrap();
 
         let replicas = Replicas::new(CreateReplicasArgs {
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&replica_catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&replica_catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&replica_catalog),
             )
+            .await
             .unwrap(),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::new(Registry::new()),
@@ -1381,11 +1384,14 @@ mod tests {
 
         Replicas::new(CreateReplicasArgs {
             // just using the catalog from primary for caches since they aren't used:
-            last_cache: LastCacheProvider::new_from_catalog(primary.catalog()).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::<MockProvider>::clone(&time_provider),
-                primary.catalog(),
+                Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             object_store: Arc::clone(&obj_store),
             metric_registry: Arc::clone(&metric_registry),
@@ -1568,11 +1574,14 @@ mod tests {
             let replicas = Replicas::new(CreateReplicasArgs {
                 // could load a new catalog from the object store, but it is easier to just re-use
                 // skinner's:
-                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+                last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                    .await
+                    .unwrap(),
                 distinct_cache: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&time_provider),
                     Arc::clone(&catalog),
                 )
+                .await
                 .unwrap(),
                 object_store: Arc::clone(&cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
@@ -1650,11 +1659,13 @@ mod tests {
             let replicas = Replicas::new(CreateReplicasArgs {
                 // like above, just re-use skinner's catalog for ease:
                 last_cache: LastCacheProvider::new_from_catalog(primaries["skinner"].catalog())
+                    .await
                     .unwrap(),
                 distinct_cache: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&time_provider),
                     primaries["skinner"].catalog(),
                 )
+                .await
                 .unwrap(),
                 object_store: Arc::clone(&non_cached_obj_store),
                 metric_registry: Arc::new(Registry::new()),
@@ -1770,11 +1781,14 @@ mod tests {
 
         // This is a READ replica
         let replicas = Replicas::new(CreateReplicasArgs {
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             object_store: Arc::clone(&cached_obj_store),
             metric_registry: Arc::new(Registry::new()),
@@ -1944,11 +1958,14 @@ mod tests {
             .unwrap();
 
         let replicas = Replicas::new(CreateReplicasArgs {
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider) as _,
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             object_store: Arc::clone(&cached_obj_store),
             metric_registry: Arc::new(Registry::new()),
@@ -2050,11 +2067,14 @@ mod tests {
             node_id,
             Arc::clone(&time_provider),
         ));
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let metric_registry = Arc::new(Registry::new());
         WriteBufferImpl::new(WriteBufferImplArgs {

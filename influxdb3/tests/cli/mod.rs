@@ -1270,7 +1270,7 @@ async fn distinct_cache_create_and_delete() {
         .await
         .expect("write to db");
 
-    let result = run_with_confirmation(&[
+    let create_args = &[
         "create",
         "distinct_cache",
         "-H",
@@ -1286,9 +1286,16 @@ async fn distinct_cache_create_and_delete() {
         "--max-age",
         "200s",
         "cache_money",
-    ]);
+    ];
+
+    let result = run_with_confirmation(create_args);
 
     assert_contains!(result, "new cache created");
+
+    // try to create again, should not work:
+    let result = run_with_confirmation_and_err(create_args);
+
+    assert_contains!(result, "attempted to create a resource that already exists");
 
     let result = run_with_confirmation(&[
         "delete",
