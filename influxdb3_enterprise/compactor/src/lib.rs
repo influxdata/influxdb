@@ -994,11 +994,13 @@ mod test_helpers {
                 catalog: Arc::clone(&self.catalog),
                 persister: Arc::clone(&self.persister),
                 last_cache_provider: LastCacheProvider::new_from_catalog(Arc::clone(&self.catalog))
+                    .await
                     .unwrap(),
                 distinct_cache_provider: DistinctCacheProvider::new_from_catalog(
                     Arc::clone(&self.time_provider),
                     Arc::clone(&self.catalog),
                 )
+                .await
                 .unwrap(),
                 persisted_files: Arc::new(PersistedFiles::new_from_persisted_snapshots(vec![])),
                 parquet_cache: None,

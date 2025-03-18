@@ -66,11 +66,14 @@ async fn five_files_multiple_series_same_schema() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),
@@ -307,11 +310,14 @@ async fn two_files_two_series_and_same_schema() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),
@@ -480,11 +486,14 @@ async fn two_files_same_series_and_schema() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),
@@ -635,11 +644,14 @@ async fn compact_with_new_tag_added() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),
@@ -833,11 +845,14 @@ async fn deduplication_of_data() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),
@@ -981,11 +996,14 @@ async fn compactor_casting() {
         WriteBufferImpl::new(WriteBufferImplArgs {
             persister: Arc::clone(&persister),
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider,
             executor: Arc::new(Executor::new_testing()),

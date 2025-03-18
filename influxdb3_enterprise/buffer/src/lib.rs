@@ -179,11 +179,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
@@ -313,11 +316,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let metric_registry = Arc::new(Registry::new());
         let ctx = IOxSessionContext::with_testing();
@@ -1064,11 +1070,14 @@ mod test_helpers {
             .register_node(node_id, 1, vec![NodeMode::Query, NodeMode::Ingest])
             .await
             .unwrap();
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let metric_registry = Arc::new(metric::Registry::new());
         let executor = make_exec(Arc::clone(&object_store), Arc::clone(&metric_registry));

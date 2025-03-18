@@ -8,7 +8,8 @@ use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
 use influxdb3_catalog::CatalogError;
-use influxdb3_catalog::catalog::{Catalog, CatalogBroadcastReceiver};
+use influxdb3_catalog::catalog::Catalog;
+use influxdb3_catalog::channel::CatalogUpdateReceiver;
 use influxdb3_catalog::log::{
     CatalogBatch, DatabaseCatalogOp, DeleteTriggerLog, PluginType, TriggerDefinition,
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
@@ -30,7 +31,6 @@ use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{RwLock, mpsc, oneshot};
 
@@ -206,7 +206,7 @@ impl PluginChannels {
 }
 
 impl ProcessingEngineManagerImpl {
-    pub fn new(
+    pub async fn new(
         environment: ProcessingEngineEnvironmentManager,
         catalog: Arc<Catalog>,
         node_id: impl Into<Arc<str>>,
@@ -226,7 +226,7 @@ impl ProcessingEngineManagerImpl {
             }
         }
 
-        let catalog_sub = catalog.subscribe_to_updates();
+        let catalog_sub = catalog.subscribe_to_updates("processing_engine").await;
 
         let cache = Arc::new(Mutex::new(CacheStore::new(
             Arc::clone(&time_provider),
@@ -679,88 +679,73 @@ pub(crate) struct Request {
 
 fn background_catalog_update(
     processing_engine_manager: Arc<ProcessingEngineManagerImpl>,
-    mut subscription: CatalogBroadcastReceiver,
+    mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        loop {
-            match subscription.recv().await {
-                Ok(catalog_update) => {
-                    for batch in catalog_update
-                        .batches()
-                        .filter_map(CatalogBatch::as_database)
-                    {
-                        for op in batch.ops.iter() {
-                            let processing_engine_manager = Arc::clone(&processing_engine_manager);
-                            match op {
-                                DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
-                                    trigger_name,
-                                    database_name,
-                                    disabled,
-                                    ..
-                                }) => {
-                                    if !disabled {
-                                        if let Err(error) = processing_engine_manager
-                                            .run_trigger(database_name, trigger_name)
-                                            .await
-                                        {
-                                            error!(?error, "failed to run the created trigger");
-                                        }
-                                    }
+        while let Some(catalog_update) = subscription.recv().await {
+            for batch in catalog_update
+                .batches()
+                .filter_map(CatalogBatch::as_database)
+            {
+                for op in batch.ops.iter() {
+                    let processing_engine_manager = Arc::clone(&processing_engine_manager);
+                    match op {
+                        DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
+                            trigger_name,
+                            database_name,
+                            disabled,
+                            ..
+                        }) => {
+                            if !disabled {
+                                if let Err(error) = processing_engine_manager
+                                    .run_trigger(&database_name, &trigger_name)
+                                    .await
+                                {
+                                    error!(?error, "failed to run the created trigger");
                                 }
-                                DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
-                                    db_name,
-                                    trigger_name,
-                                    ..
-                                }) => {
-                                    if let Err(error) = processing_engine_manager
-                                        .run_trigger(db_name, trigger_name)
-                                        .await
-                                    {
-                                        error!(?error, "failed to run the trigger");
-                                    }
-                                }
-                                DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
-                                    trigger_name,
-                                    force: true,
-                                    ..
-                                }) => {
-                                    if let Err(error) = processing_engine_manager
-                                        .stop_trigger(&batch.database_name, trigger_name)
-                                        .await
-                                    {
-                                        error!(?error, "failed to disable the trigger");
-                                    }
-                                }
-                                DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
-                                    db_name,
-                                    trigger_name,
-                                    ..
-                                }) => {
-                                    if let Err(error) = processing_engine_manager
-                                        .stop_trigger(db_name, trigger_name)
-                                        .await
-                                    {
-                                        error!(?error, "failed to disable the trigger");
-                                    }
-                                }
-                                // NOTE(trevor/catalog-refactor): it is not clear that any other operation needs to be
-                                // handled, based on the existing code, but we could potentially
-                                // handle database deletion, trigger creation/deletion/enable here
-                                _ => (),
                             }
                         }
+                        DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
+                            db_name,
+                            trigger_name,
+                            ..
+                        }) => {
+                            if let Err(error) = processing_engine_manager
+                                .run_trigger(&db_name, &trigger_name)
+                                .await
+                            {
+                                error!(?error, "failed to run the trigger");
+                            }
+                        }
+                        DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
+                            trigger_name,
+                            force: true,
+                            ..
+                        }) => {
+                            if let Err(error) = processing_engine_manager
+                                .stop_trigger(&batch.database_name, &trigger_name)
+                                .await
+                            {
+                                error!(?error, "failed to disable the trigger");
+                            }
+                        }
+                        DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
+                            db_name,
+                            trigger_name,
+                            ..
+                        }) => {
+                            if let Err(error) = processing_engine_manager
+                                .stop_trigger(&db_name, &trigger_name)
+                                .await
+                            {
+                                error!(?error, "failed to disable the trigger");
+                            }
+                        }
+                        // NOTE(trevor/catalog-refactor): it is not clear that any other operation needs to be
+                        // handled, based on the existing code, but we could potentially
+                        // handle database deletion, trigger creation/deletion/enable here
+                        _ => (),
                     }
-                }
-                Err(RecvError::Closed) => break,
-                Err(RecvError::Lagged(num_messages_skipped)) => {
-                    // NOTE(trevor/catalog-refactor): in this case, we would need to re-initialize the proc eng manager
-                    // from the catalog, if possible; but, it may be more desireable to not have this
-                    // situation be possible at all.. The use of a broadcast channel should only
-                    // be temporary, so this particular error variant should go away in future
-                    warn!(
-                        num_messages_skipped,
-                        "processing engine manager catalog subscription is lagging"
-                    );
                 }
             }
         }
@@ -1010,11 +995,14 @@ mod tests {
             .await
             .unwrap(),
         );
-        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _).unwrap();
+        let last_cache = LastCacheProvider::new_from_catalog(Arc::clone(&catalog) as _)
+            .await
+            .unwrap();
         let distinct_cache = DistinctCacheProvider::new_from_catalog(
             Arc::clone(&time_provider),
             Arc::clone(&catalog),
         )
+        .await
         .unwrap();
         let wbuf = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
@@ -1060,7 +1048,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
                 qe,
                 time_provider,
                 sys_event_store,
-            ),
+            )
+            .await,
             file,
         )
     }

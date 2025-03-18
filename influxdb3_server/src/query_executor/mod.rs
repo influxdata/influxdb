@@ -827,11 +827,14 @@ mod tests {
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
-            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog)).unwrap(),
+            last_cache: LastCacheProvider::new_from_catalog(Arc::clone(&catalog))
+                .await
+                .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
                 Arc::<MockProvider>::clone(&time_provider),
                 Arc::clone(&catalog),
             )
+            .await
             .unwrap(),
             time_provider: Arc::<MockProvider>::clone(&time_provider),
             executor: Arc::clone(&exec),

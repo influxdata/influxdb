@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use schema::InfluxColumnType;
 
-use crate::{catalog::Catalog, object_store::ObjectStoreCatalogError};
+use crate::{catalog::Catalog, channel::SubscriptionError, object_store::ObjectStoreCatalogError};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
@@ -97,6 +97,9 @@ pub enum CatalogError {
         table_name: String,
         existing: String,
     },
+
+    #[error("catalog subscription error: {0}")]
+    Subscription(#[from] SubscriptionError),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),

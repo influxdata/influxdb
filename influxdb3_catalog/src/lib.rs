@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod channel;
 pub mod error;
 pub mod id;
 pub mod log;

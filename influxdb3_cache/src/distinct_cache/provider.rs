@@ -2,7 +2,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arrow::datatypes::SchemaRef;
 use influxdb3_catalog::{
-    catalog::{Catalog, CatalogBroadcastReceiver},
+    catalog::Catalog,
+    channel::CatalogUpdateReceiver,
     log::{
         CatalogBatch, DatabaseCatalogOp, DeleteDistinctCacheLog, DistinctCacheDefinition,
         SoftDeleteTableLog,
@@ -11,9 +12,7 @@ use influxdb3_catalog::{
 use influxdb3_id::{DbId, DistinctCacheId, TableId};
 use influxdb3_wal::{WalContents, WalOp};
 use iox_time::TimeProvider;
-use observability_deps::tracing::warn;
 use parking_lot::RwLock;
-use tokio::sync::broadcast::error::RecvError;
 
 use super::{
     CacheError,
@@ -46,7 +45,7 @@ pub struct DistinctCacheProvider {
 impl DistinctCacheProvider {
     /// Initialize a [`DistinctCacheProvider`] from a [`Catalog`], populating the provider's
     /// `cache_map` from the definitions in the catalog.
-    pub fn new_from_catalog(
+    pub async fn new_from_catalog(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
     ) -> Result<Arc<Self>, ProviderError> {
@@ -72,7 +71,10 @@ impl DistinctCacheProvider {
             }
         }
 
-        background_catalog_update(Arc::clone(&provider), catalog.subscribe_to_updates());
+        background_catalog_update(
+            Arc::clone(&provider),
+            catalog.subscribe_to_updates("distinct_cache").await,
+        );
 
         Ok(provider)
     }
@@ -81,12 +83,12 @@ impl DistinctCacheProvider {
     /// `cache_map` from the definitions in the catalog. This starts a background process that
     /// runs on the provided `eviction_interval` to perform eviction on all of the caches
     /// in the created [`DistinctCacheProvider`]'s `cache_map`.
-    pub fn new_from_catalog_with_background_eviction(
+    pub async fn new_from_catalog_with_background_eviction(
         time_provider: Arc<dyn TimeProvider>,
         catalog: Arc<Catalog>,
         eviction_interval: Duration,
     ) -> Result<Arc<Self>, ProviderError> {
-        let provider = Self::new_from_catalog(time_provider, catalog)?;
+        let provider = Self::new_from_catalog(time_provider, catalog).await?;
 
         background_eviction_process(Arc::clone(&provider), eviction_interval);
 
@@ -267,69 +269,40 @@ impl DistinctCacheProvider {
 
 fn background_catalog_update(
     provider: Arc<DistinctCacheProvider>,
-    mut subscription: CatalogBroadcastReceiver,
+    mut subscription: CatalogUpdateReceiver,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        loop {
-            match subscription.recv().await {
-                Ok(catalog_update) => {
-                    for batch in catalog_update
-                        .batches()
-                        .filter_map(CatalogBatch::as_database)
-                    {
-                        for op in batch.ops.iter() {
-                            match op {
-                                DatabaseCatalogOp::SoftDeleteDatabase(_) => {
-                                    provider.delete_caches_for_db(&batch.database_id);
-                                }
-                                DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
-                                    database_id,
-                                    table_id,
-                                    ..
-                                }) => {
-                                    provider.delete_caches_for_db_and_table(database_id, table_id);
-                                }
-                                DatabaseCatalogOp::CreateDistinctCache(log) => {
-                                    if provider
-                                        .catalog
-                                        .matches_node_spec(&log.node_spec)
-                                        .inspect_err(|e| {
-                                            warn!("error getting current node from catalog: {e:?}");
-                                            warn!(
-                                                "will proceed with distinct cache creation anyway"
-                                            );
-                                        })
-                                        .unwrap_or_default()
-                                    {
-                                        provider.create_from_catalog(batch.database_id, log);
-                                    }
-                                }
-                                DatabaseCatalogOp::DeleteDistinctCache(
-                                    DeleteDistinctCacheLog {
-                                        table_id, cache_id, ..
-                                    },
-                                ) => {
-                                    // This only errors when the cache isn't there, so we ignore the
-                                    // error...
-                                    let _ = provider.delete_cache(
-                                        &batch.database_id,
-                                        table_id,
-                                        cache_id,
-                                    );
-                                }
-                                _ => (),
-                            }
+        while let Some(catalog_update) = subscription.recv().await {
+            for batch in catalog_update
+                .batches()
+                .filter_map(CatalogBatch::as_database)
+            {
+                for op in batch.ops.iter() {
+                    match op {
+                        DatabaseCatalogOp::SoftDeleteDatabase(_) => {
+                            provider.delete_caches_for_db(&batch.database_id);
                         }
+                        DatabaseCatalogOp::SoftDeleteTable(SoftDeleteTableLog {
+                            database_id,
+                            table_id,
+                            ..
+                        }) => {
+                            provider.delete_caches_for_db_and_table(&database_id, &table_id);
+                        }
+                        DatabaseCatalogOp::CreateDistinctCache(log) => {
+                            provider.create_from_catalog(batch.database_id, &log);
+                        }
+                        DatabaseCatalogOp::DeleteDistinctCache(DeleteDistinctCacheLog {
+                            table_id,
+                            cache_id,
+                            ..
+                        }) => {
+                            // This only errors when the cache isn't there, so we ignore the
+                            // error...
+                            let _ = provider.delete_cache(&batch.database_id, &table_id, &cache_id);
+                        }
+                        _ => (),
                     }
-                }
-                Err(RecvError::Closed) => break,
-                Err(RecvError::Lagged(num_messages_skipped)) => {
-                    // TODO: in this case, we would need to re-initialize the distinct cache provider
-                    // from the catalog, if possible.
-                    warn!(
-                        num_messages_skipped,
-                        "distinct cache provider catalog subscription is lagging"
-                    );
                 }
             }
         }
