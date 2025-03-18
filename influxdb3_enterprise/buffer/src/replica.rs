@@ -1344,7 +1344,12 @@ mod tests {
         let ctx = IOxSessionContext::with_testing();
         let runtime_env = ctx.inner().runtime_env();
         register_iox_object_store(runtime_env, "influxdb3", Arc::clone(&obj_store));
-        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        // start the primary time provider at 1000ms; this will be the `persist_time` on WAL files
+        // that are persisted, and which is compared with the replica's time provider `now()` time
+        // to determine TTBR
+        let primary_time_provider = Arc::new(MockProvider::new(
+            Time::from_timestamp_millis(1_000).unwrap(),
+        ));
 
         let cluster_id = "test_cluster";
 
@@ -1359,7 +1364,7 @@ mod tests {
                 flush_interval: Duration::from_millis(10),
                 snapshot_size: 1_000,
             },
-            Arc::<MockProvider>::clone(&time_provider),
+            Arc::<MockProvider>::clone(&primary_time_provider),
         )
         .await;
 
@@ -1367,12 +1372,17 @@ mod tests {
         let metric_registry = Arc::new(Registry::new());
         let replication_interval_ms = 50;
         let replica_id = "replica_node";
+        // give the replica a separate time provider so it fixes its time at 100 ms ahead of the
+        // primary, i.e., so that the TTBR is always 100ms.
+        let replica_time_provider = Arc::new(MockProvider::new(
+            Time::from_timestamp_millis(1_100).unwrap(),
+        ));
         let catalog = Arc::new(
             Catalog::new_enterprise(
                 replica_id,
                 cluster_id,
                 Arc::clone(&obj_store) as _,
-                Arc::clone(&time_provider) as _,
+                Arc::clone(&replica_time_provider) as _,
             )
             .await
             .unwrap(),
@@ -1388,7 +1398,7 @@ mod tests {
                 .await
                 .unwrap(),
             distinct_cache: DistinctCacheProvider::new_from_catalog(
-                Arc::<MockProvider>::clone(&time_provider),
+                Arc::<MockProvider>::clone(&replica_time_provider),
                 Arc::clone(&catalog),
             )
             .await
@@ -1398,14 +1408,10 @@ mod tests {
             replication_interval: Duration::from_millis(replication_interval_ms),
             parquet_cache: None,
             catalog,
-            time_provider: Arc::<MockProvider>::clone(&time_provider),
+            time_provider: Arc::<MockProvider>::clone(&replica_time_provider),
         })
         .await
         .unwrap();
-
-        // set the time provider before writing to primary... this will be the persist_time_ms in
-        // the WAL files created by the primary:
-        time_provider.set(Time::from_timestamp_millis(1_000).unwrap());
 
         // write to newton:
         do_writes(
@@ -1428,10 +1434,6 @@ mod tests {
         )
         .await;
 
-        // set the time provider before doing replication so that the replica's "now" time is in
-        // advance of the persist time of the WAL files it is replaying:
-        time_provider.set(Time::from_timestamp_millis(1_100).unwrap());
-
         // sleep for replicas to replicate:
         tokio::time::sleep(Duration::from_millis(50)).await;
 
@@ -1445,12 +1447,12 @@ mod tests {
             .fetch();
         debug!(?ttbr_ms, "ttbr metric for writer");
         assert_eq!(ttbr_ms.sample_count(), 3);
-        assert_eq!(ttbr_ms.total, Duration::from_millis(200));
+        assert_eq!(ttbr_ms.total, Duration::from_millis(300));
         assert!(
             ttbr_ms
                 .buckets
                 .iter()
-                .any(|bucket| bucket.le == Duration::from_millis(100) && bucket.count == 2)
+                .any(|bucket| bucket.le == Duration::from_millis(100) && bucket.count == 3)
         );
     }
 
@@ -2050,7 +2052,8 @@ mod tests {
     ) -> Arc<WriteBufferImpl> {
         debug!(node_id, cluster_id, "setting up primary for test");
         let catalog = Arc::new(
-            Catalog::new(
+            Catalog::new_enterprise(
+                node_id,
                 cluster_id,
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider),
