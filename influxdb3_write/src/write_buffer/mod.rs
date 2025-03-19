@@ -2836,6 +2836,9 @@ mod tests {
             &batches
         );
 
+        // Give the cache a little time to populate before making another request
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
         assert!(inner_store.total_read_request_count(&path) > 0);
         let expected_req_counts = inner_store.total_read_request_count(&path);
 
