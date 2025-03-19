@@ -104,7 +104,7 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) 
 	return m
 }
 
-func (m *multiShardArrayCursors) createCursor(row SeriesRow) (cursors.Cursor, error) {
+func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
 	m.req.Name = row.Name
 	m.req.Tags = row.SeriesTags
 	m.req.Field = row.Field
@@ -123,29 +123,26 @@ func (m *multiShardArrayCursors) createCursor(row SeriesRow) (cursors.Cursor, er
 	}
 
 	if cur == nil || err != nil {
-		return nil, nil
+		return nil
 	}
 
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
 		m.cursors.i.reset(c, row.Query, cond)
-		return &m.cursors.i, nil
+		return &m.cursors.i
 	case cursors.FloatArrayCursor:
 		m.cursors.f.reset(c, row.Query, cond)
-		return &m.cursors.f, nil
+		return &m.cursors.f
 	case cursors.UnsignedArrayCursor:
 		m.cursors.u.reset(c, row.Query, cond)
-		return &m.cursors.u, nil
+		return &m.cursors.u
 	case cursors.StringArrayCursor:
 		m.cursors.s.reset(c, row.Query, cond)
-		return &m.cursors.s, nil
+		return &m.cursors.s
 	case cursors.BooleanArrayCursor:
 		m.cursors.b.reset(c, row.Query, cond)
-		return &m.cursors.b, nil
+		return &m.cursors.b
 	default:
-		return nil, &errors2.Error{
-			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unsupported cursor type while creating cursor: %s", arrayCursorType(cur)),
-		}
+		return nil
 	}
 }
