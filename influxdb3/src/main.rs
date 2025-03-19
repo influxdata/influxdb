@@ -22,7 +22,7 @@ use trogging::{
 };
 
 pub mod commands {
-    pub(crate) mod common;
+    pub mod common;
     pub mod create;
     pub mod delete;
     pub mod disable;

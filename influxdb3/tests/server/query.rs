@@ -1745,14 +1745,9 @@ async fn api_v3_query_sql_distinct_cache() {
 
     // do the query using JSON format:
     let resp = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("format", "json"),
-            ("q", "SELECT * FROM distinct_cache('cpu')"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql("foo")
+        .with_query("SELECT * FROM distinct_cache('cpu')")
+        .run()
         .unwrap();
 
     assert_eq!(
