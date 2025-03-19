@@ -49,10 +49,27 @@ any_filter: &any_filter
     branches:
       only: /.*/
 
+# This regex is used to trigger 'release builds' based on tags. For semver,
+# package upgrades, etc, the tags must conform to specific schema. Eg:
+#
+# - v3.0.0-0.alpha.1 (1st alpha release)
+# - v3.0.0-0.alpha.1.1 (2nd build of 1st alpha release; ie, no code changes)
+# - v3.0.0-0.alpha.2 (2nd alpha release)
+# - v3.0.0-0.beta.1 (1st beta release)
+# - v3.0.0-0.rc.1 (1st rc release)
+# - v3.0.0 (3.0.0 official release)
+# - v3.0.0-2 (2nd build of 3.0.0 official release; ie, no code changes)
+# - v3.0.1 (3.0.1 official release)
+# - v3.1.0 (3.1.0 official release)
+#
+# If the tag does not conform to the above, then ci-support/ci-packager-next,
+# will generate snapshat versions. For easier maintenance, this regex is more
+# open than ci-support/ci-packager-next (which enforces a number of
+# constraints). See .circleci/packages/config.yaml for details.
 release_filter: &release_filter
   filters:
     tags:
-      only: /^v(\d+)(?:\.(\d+))?(?:\.(\d+))?$/
+      only: /^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+(\.(alpha|beta|rc)\.[0-9]+(\.[0-9]+)?)?)?$/
     branches:
       ignore: /.*/
 
@@ -307,7 +324,7 @@ jobs:
   # Build a dev binary with the default cargo profile
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:1f41029cb68a723c3b559a44bcf91e04b6a71b631b0886185562f4a90e1460ba
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:e34ee8aafbc3b3bc9ddbe57eda2580a0263597160d766c86dc02ce038fba8300
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -378,7 +395,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 pro releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:1f41029cb68a723c3b559a44bcf91e04b6a71b631b0886185562f4a90e1460ba
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:e34ee8aafbc3b3bc9ddbe57eda2580a0263597160d766c86dc02ce038fba8300
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -473,7 +490,7 @@ jobs:
 
   build-packages:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:db0cd91a5445c4287154cea1d4d5566735cb0d3b7b9e2a95724a83f9d979d497
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:57495019df2dcb3c008987dabafb5566618ba5ab032857ddb2d0c04fb68fc019
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
