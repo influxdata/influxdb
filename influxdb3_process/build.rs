@@ -17,7 +17,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn get_git_hash() -> String {
     let git_hash = {
         let output = Command::new("git")
-            .args(["describe", "--always", "--dirty", "--abbrev=64"])
+            // We used `git describe`, but when you tag a build the commit hash goes missing when
+            // using describe. So, switching it to use `rev-parse` which is consistent with the
+            // `get_git_hash_short` below as well.
+            //
+            // And we already have cargo version appearing as a separate string so using `git
+            // describe` looks redundant on tagged release builds
+            .args(["rev-parse", "HEAD"])
             .output()
             .expect("failed to execute git rev-parse to read the current git hash");
 

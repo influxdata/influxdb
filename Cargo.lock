@@ -2739,7 +2739,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2810,7 +2810,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_cache"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2845,7 +2845,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_catalog"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -2884,7 +2884,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_clap_blocks"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2917,7 +2917,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_client"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "bytes",
  "hashbrown 0.15.2",
@@ -2937,7 +2937,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_id"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "indexmap 2.7.0",
  "serde",
@@ -2946,7 +2946,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_internal_api"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2962,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_load_generator"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2990,7 +2990,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_process"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "iox_time",
  "metric",
@@ -3003,7 +3003,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_processing_engine"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_py_api"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow-array",
@@ -3070,7 +3070,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_server"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3156,7 +3156,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_sys_events"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -3175,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_telemetry"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "futures",
  "futures-util",
@@ -3196,7 +3196,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_test_helpers"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3209,7 +3209,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_types"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "hashbrown 0.15.2",
@@ -3224,7 +3224,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_wal"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "async-trait",
  "bitcode",
@@ -3253,7 +3253,7 @@ dependencies = [
 
 [[package]]
 name = "influxdb3_write"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "iox_query_influxql_rewrite"
-version = "0.1.0"
+version = "3.0.0-beta.1"
 dependencies = [
  "influxdb_influxql_parser",
  "thiserror 1.0.69",
