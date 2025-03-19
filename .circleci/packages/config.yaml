@@ -94,7 +94,7 @@ sources:
     plat:   windows
 
 packages:
-  - name:        influxdb3
+  - name:        influxdb3-enterprise
     description: Monolithic time-series database.
     license:     MIT/Apache-2.0
     vendor:      InfluxData
