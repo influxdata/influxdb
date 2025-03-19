@@ -35,7 +35,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "3.0.0-beta.1"
 authors = ["InfluxData OSS Developers"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
