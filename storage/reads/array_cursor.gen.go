@@ -24,101 +24,113 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
-func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
+func newLimitArrayCursor(cur cursors.Cursor) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatLimitArrayCursor(cur)
+		return newFloatLimitArrayCursor(cur), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerLimitArrayCursor(cur)
+		return newIntegerLimitArrayCursor(cur), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedLimitArrayCursor(cur)
+		return newUnsignedLimitArrayCursor(cur), nil
 
 	case cursors.StringArrayCursor:
-		return newStringLimitArrayCursor(cur)
+		return newStringLimitArrayCursor(cur), nil
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanLimitArrayCursor(cur)
+		return newBooleanLimitArrayCursor(cur), nil
 
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowFirstArrayCursor(cur, window)
+		return newFloatWindowFirstArrayCursor(cur, window), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowFirstArrayCursor(cur, window)
+		return newIntegerWindowFirstArrayCursor(cur, window), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowFirstArrayCursor(cur, window)
+		return newUnsignedWindowFirstArrayCursor(cur, window), nil
 
 	case cursors.StringArrayCursor:
-		return newStringWindowFirstArrayCursor(cur, window)
+		return newStringWindowFirstArrayCursor(cur, window), nil
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanWindowFirstArrayCursor(cur, window)
+		return newBooleanWindowFirstArrayCursor(cur, window), nil
 
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowLastArrayCursor(cur, window)
+		return newFloatWindowLastArrayCursor(cur, window), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowLastArrayCursor(cur, window)
+		return newIntegerWindowLastArrayCursor(cur, window), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowLastArrayCursor(cur, window)
+		return newUnsignedWindowLastArrayCursor(cur, window), nil
 
 	case cursors.StringArrayCursor:
-		return newStringWindowLastArrayCursor(cur, window)
+		return newStringWindowLastArrayCursor(cur, window), nil
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanWindowLastArrayCursor(cur, window)
+		return newBooleanWindowLastArrayCursor(cur, window), nil
 
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowCountArrayCursor(cur, window)
+		return newFloatWindowCountArrayCursor(cur, window), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowCountArrayCursor(cur, window)
+		return newIntegerWindowCountArrayCursor(cur, window), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowCountArrayCursor(cur, window)
+		return newUnsignedWindowCountArrayCursor(cur, window), nil
 
 	case cursors.StringArrayCursor:
-		return newStringWindowCountArrayCursor(cur, window)
+		return newStringWindowCountArrayCursor(cur, window), nil
 
 	case cursors.BooleanArrayCursor:
-		return newBooleanWindowCountArrayCursor(cur, window)
+		return newBooleanWindowCountArrayCursor(cur, window), nil
 
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -142,37 +154,43 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursor
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowMinArrayCursor(cur, window)
+		return newFloatWindowMinArrayCursor(cur, window), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowMinArrayCursor(cur, window)
+		return newIntegerWindowMinArrayCursor(cur, window), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowMinArrayCursor(cur, window)
+		return newUnsignedWindowMinArrayCursor(cur, window), nil
 
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate min: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported for aggregate min: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 
 	case cursors.FloatArrayCursor:
-		return newFloatWindowMaxArrayCursor(cur, window)
+		return newFloatWindowMaxArrayCursor(cur, window), nil
 
 	case cursors.IntegerArrayCursor:
-		return newIntegerWindowMaxArrayCursor(cur, window)
+		return newIntegerWindowMaxArrayCursor(cur, window), nil
 
 	case cursors.UnsignedArrayCursor:
-		return newUnsignedWindowMaxArrayCursor(cur, window)
+		return newUnsignedWindowMaxArrayCursor(cur, window), nil
 
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate max: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported for aggregate max: %s", arrayCursorType(cur)),
+		}
 	}
 }
 

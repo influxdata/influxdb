@@ -18,53 +18,65 @@ const (
 	MaxPointsPerBlock = 1000
 )
 
-func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
+func newLimitArrayCursor(cur cursors.Cursor) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports limit */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}LimitArrayCursor(cur)
+		return new{{.Name}}LimitArrayCursor(cur), nil
 {{end}}
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports first */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowFirstArrayCursor(cur, window)
+		return new{{.Name}}WindowFirstArrayCursor(cur, window), nil
 {{end}}
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports last */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowLastArrayCursor(cur, window)
+		return new{{.Name}}WindowLastArrayCursor(cur, window), nil
 {{end}}
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowCountArrayCursor(cur, window)
+		return new{{.Name}}WindowCountArrayCursor(cur, window), nil
 {{end}}
 	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -87,35 +99,41 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursor
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Min"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowMinArrayCursor(cur, window)
+		return new{{$Type}}WindowMinArrayCursor(cur, window), nil
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate min: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unsupported for aggregate min: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Max"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowMaxArrayCursor(cur, window)
+		return new{{$Type}}WindowMaxArrayCursor(cur, window), nil
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate max: %T", cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg: fmt.Sprintf("unsupported for aggregate max: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
