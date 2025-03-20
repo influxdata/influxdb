@@ -134,10 +134,15 @@ pub enum FieldKind {
     String(String),
     /// generate a random string of this length for every line this field is present
     StringRandom(usize),
+    /// generate a sequentially-incremented string for every line this field is present
+    StringSeq(String),
     /// output this integer value for every line this field is present
     Integer(i64),
     /// generate a random integer in this range for every line this field is present
     IntegerRange(i64, i64),
+    /// generate a sequentially-incremented integer starting from 0 for every line this field is
+    /// present
+    IntegerSeq,
     /// output this float value for every line this field is present
     Float(f64),
     /// generate a random float in this range for every line this field is present
