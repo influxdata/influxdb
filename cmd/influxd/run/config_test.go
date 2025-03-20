@@ -228,7 +228,7 @@ min-version = "tls1.0"
 		t.Fatalf("unexpected cache max memory size: %v", c.Data.CacheMaxMemorySize)
 	}
 
-	if c.Logging.Level != zapcore.WarnLevel {
+	if c.Logging.Level.Level() != zapcore.WarnLevel {
 		t.Fatalf("unexpected logging level: %v", c.Logging.Level)
 	}
 
