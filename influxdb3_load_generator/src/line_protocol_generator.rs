@@ -5,8 +5,7 @@ use crate::specification::{DataSpec, FieldKind, MeasurementSpec};
 use chrono::{DateTime, Local};
 use influxdb3_client::{Client, Precision};
 use rand::distributions::Alphanumeric;
-use rand::rngs::SmallRng;
-use rand::{Rng, RngCore, SeedableRng};
+use rand::{Rng, RngCore};
 use std::collections::HashMap;
 use std::io::Write;
 use std::ops::Add;
@@ -133,9 +132,15 @@ fn create_measurement<'a>(
                         key: Arc::clone(&key),
                         copy_id,
                         null_probability,
-                        field_value: FieldValue::Boolean(BooleanValue::Random(
-                            SmallRng::from_entropy(),
-                        )),
+                        field_value: FieldValue::Boolean(BooleanValue::Random),
+                    });
+                }
+                FieldKind::BoolToggle => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        null_probability,
+                        field_value: FieldValue::Boolean(BooleanValue::Toggle(false)),
                     });
                 }
                 FieldKind::String(s) => {
@@ -213,6 +218,17 @@ fn create_measurement<'a>(
                             start: *min,
                             end: *max,
                         })),
+                    });
+                }
+                FieldKind::FloatSeqWithInc(inc) => {
+                    fields.push(Field {
+                        key: Arc::clone(&key),
+                        copy_id,
+                        null_probability,
+                        field_value: FieldValue::Float(FloatValue::SequentialWithInc {
+                            next: 0f64,
+                            inc: *inc,
+                        }),
                     });
                 }
             }
@@ -458,6 +474,10 @@ impl Field {
                     let v: f64 = rng.gen_range(range.clone());
                     write!(w, "{:.3}", v)?;
                 }
+                FloatValue::SequentialWithInc { next, inc } => {
+                    write!(w, "{:.10}", next)?;
+                    *next += *inc;
+                }
             },
             FieldValue::String(s) => match s {
                 StringValue::Fixed(v) => write!(w, "\"{}\"", v)?,
@@ -476,9 +496,13 @@ impl Field {
                 }
             },
             FieldValue::Boolean(f) => match f {
-                BooleanValue::Random(rng) => {
+                BooleanValue::Random => {
                     let v: bool = rng.r#gen();
                     write!(w, "{}", v)?;
+                }
+                BooleanValue::Toggle(current) => {
+                    write!(w, "{current}")?;
+                    *current = !*current;
                 }
             },
         }
@@ -498,6 +522,7 @@ pub enum IntegerValue {
 pub enum FloatValue {
     Fixed(f64),
     Random(Range<f64>),
+    SequentialWithInc { next: f64, inc: f64 },
 }
 
 #[derive(Clone, Debug)]
@@ -507,9 +532,10 @@ pub enum StringValue {
     Sequential(Arc<str>, u64),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum BooleanValue {
-    Random(SmallRng),
+    Random,
+    Toggle(bool),
 }
 
 struct ByteCounter<W> {
@@ -722,6 +748,7 @@ pub struct Output {
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
+    use rand::{SeedableRng, rngs::SmallRng};
 
     use super::*;
     use crate::specification::{FieldSpec, TagSpec};
