@@ -1746,7 +1746,7 @@ async fn api_v3_query_sql_distinct_cache() {
     // do the query using JSON format:
     let resp = server
         .query_sql("foo")
-        .with_query("SELECT * FROM distinct_cache('cpu')")
+        .with_sql("SELECT * FROM distinct_cache('cpu')")
         .run()
         .unwrap();
 

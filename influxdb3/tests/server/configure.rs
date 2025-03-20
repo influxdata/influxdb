@@ -1050,7 +1050,7 @@ async fn api_v3_configure_table_create_then_write() {
     assert_eq!(StatusCode::OK, resp.status());
     let result = server
         .query_sql("foo")
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
     assert_eq!(result, json!([]));
@@ -1064,7 +1064,7 @@ async fn api_v3_configure_table_create_then_write() {
         .expect("write to db");
     let result = server
         .query_sql("foo")
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
     assert_eq!(
@@ -1114,7 +1114,7 @@ async fn api_v3_configure_table_create_no_fields() {
     assert_eq!(StatusCode::OK, resp.status());
     let result = server
         .query_sql("foo")
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
     assert_eq!(result, json!([]));
@@ -1128,7 +1128,7 @@ async fn api_v3_configure_table_create_no_fields() {
         .expect("write to db");
     let result = server
         .query_sql("foo")
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
     assert_eq!(

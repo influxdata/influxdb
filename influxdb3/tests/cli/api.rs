@@ -253,7 +253,7 @@ impl QuerySqlQuery<'_> {
         self
     }
 
-    pub fn with_query(mut self, query: impl Into<String>) -> Self {
+    pub fn with_sql(mut self, query: impl Into<String>) -> Self {
         self.query = Some(query.into());
         self
     }

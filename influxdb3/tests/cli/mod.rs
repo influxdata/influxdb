@@ -370,7 +370,7 @@ async fn test_create_table() {
     // Check that we can query the table and that it has no values
     let result = server
         .query_sql(db_name)
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
 
@@ -389,7 +389,7 @@ async fn test_create_table() {
     // Check that we can get data from the table
     let result = server
         .query_sql(db_name)
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
 
@@ -591,7 +591,7 @@ async fn test_create_trigger_and_run() {
     loop {
         match server
             .query_sql(db_name)
-            .with_query("SELECT table_name, row_count FROM write_reports")
+            .with_sql("SELECT table_name, row_count FROM write_reports")
             .run()
         {
             Ok(value) => {
@@ -685,7 +685,7 @@ async fn test_triggers_are_started() {
     loop {
         match server
             .query_sql(db_name)
-            .with_query("SELECT table_name, row_count FROM write_reports")
+            .with_sql("SELECT table_name, row_count FROM write_reports")
             .run()
         {
             Ok(value) => {
@@ -1592,7 +1592,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     // query to see if the plugin did the write into the DB
     let val = server
         .query_sql(db_name)
-        .with_query("SELECT tag1, field1 FROM request_data")
+        .with_sql("SELECT tag1, field1 FROM request_data")
         .run()
         .unwrap();
 
@@ -2521,7 +2521,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     // Query to see what values were written before disabling
     let first_query_result = server
         .query_sql(db_name)
-        .with_query("SELECT count(*) FROM cache_test")
+        .with_sql("SELECT count(*) FROM cache_test")
         .run()
         .unwrap();
 
@@ -2540,7 +2540,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     // Query results after re-enabling
     let second_query_result = server
         .query_sql(db_name)
-        .with_query("SELECT count(*) FROM cache_test")
+        .with_sql("SELECT count(*) FROM cache_test")
         .run()
         .unwrap();
 
@@ -2637,7 +2637,7 @@ async fn write_and_query_via_stdin() {
     // Query data
     let result = server
         .query_sql(db_name)
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
 
@@ -2695,7 +2695,7 @@ async fn write_and_query_via_string() {
     // Query data directly
     let result = server
         .query_sql(db_name)
-        .with_query("SELECT * FROM bar")
+        .with_sql("SELECT * FROM bar")
         .run()
         .unwrap();
 
@@ -2767,7 +2767,7 @@ async fn write_with_precision_arg() {
         // Verify result
         let result = server
             .query_sql(db_name)
-            .with_query(format!(
+            .with_sql(format!(
                 "SELECT * FROM {table_name} WHERE name='{name_tag}'"
             ))
             .run()
