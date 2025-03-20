@@ -26,7 +26,10 @@ use influxdb3_wal::{
 };
 use influxdb3_write::{
     ChunkFilter, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion,
-    chunk::BufferChunk,
+    chunk::{
+        BufferChunk,
+        enterprise::{ReplicaBufferChunk, ReplicaParquetChunk},
+    },
     paths::SnapshotInfoFilePath,
     persister::{DEFAULT_OBJECT_STORE_URL, Persister},
     write_buffer::{
@@ -402,8 +405,12 @@ impl ReplicatedBuffer {
                     Arc::clone(&self.object_store),
                     chunk_order_offset,
                 );
+                let replica_parquet_chunk = ReplicaParquetChunk {
+                    core: parquet_chunk,
+                    node_id: self.node_id(),
+                };
 
-                Arc::new(parquet_chunk) as Arc<dyn QueryChunk>
+                Arc::new(replica_parquet_chunk) as Arc<dyn QueryChunk>
             })
             .collect()
     }
@@ -438,20 +445,23 @@ impl ReplicatedBuffer {
                     Some(ts_min_max),
                     &NoColumnRanges,
                 );
-                Arc::new(BufferChunk {
-                    batches,
-                    schema: table_def.schema.clone(),
-                    stats: Arc::new(chunk_stats),
-                    partition_id: TransitionPartitionId::from_parts(
-                        PartitionId::new(0),
-                        Some(PartitionHashId::new(
-                            IoxTableId::new(0),
-                            &PartitionKey::from(gen_time.to_string()),
-                        )),
-                    ),
-                    sort_key: None,
-                    id: ChunkId::new(),
-                    chunk_order: self.chunk_order(),
+                Arc::new(ReplicaBufferChunk {
+                    core: BufferChunk {
+                        batches,
+                        schema: table_def.schema.clone(),
+                        stats: Arc::new(chunk_stats),
+                        partition_id: TransitionPartitionId::from_parts(
+                            PartitionId::new(0),
+                            Some(PartitionHashId::new(
+                                IoxTableId::new(0),
+                                &PartitionKey::from(gen_time.to_string()),
+                            )),
+                        ),
+                        sort_key: None,
+                        id: ChunkId::new(),
+                        chunk_order: self.chunk_order(),
+                    },
+                    node_id: self.node_id(),
                 }) as Arc<dyn QueryChunk>
             })
             .collect())

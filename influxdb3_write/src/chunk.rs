@@ -9,6 +9,8 @@ use schema::sort::SortKey;
 use std::any::Any;
 use std::sync::Arc;
 
+pub mod enterprise;
+
 #[derive(Debug)]
 pub struct BufferChunk {
     pub batches: Vec<RecordBatch>,
