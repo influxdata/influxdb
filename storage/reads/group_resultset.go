@@ -316,7 +316,7 @@ func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor,
 }
 
 func (c *groupNoneCursor) Cursor() (cursors.Cursor, error) {
-	return c.cursor, nil
+	return c.cursor, c.err
 }
 
 type groupByCursor struct {
@@ -367,7 +367,7 @@ func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, e
 }
 
 func (c *groupByCursor) Cursor() (cursors.Cursor, error) {
-	return c.cursor, nil
+	return c.cursor, c.err
 }
 
 func (c *groupByCursor) Stats() cursors.CursorStats {
