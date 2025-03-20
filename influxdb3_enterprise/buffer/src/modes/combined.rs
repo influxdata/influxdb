@@ -17,6 +17,7 @@ use influxdb3_wal::{NoopWal, Wal, WalConfig};
 use influxdb3_write::{
     BufferedWriteRequest, Bufferer, ChunkContainer, ChunkFilter, DistinctCacheManager,
     LastCacheManager, ParquetFile, PersistedSnapshotVersion, Precision, WriteBuffer,
+    chunk::enterprise::CompactedParquetChunk,
     persister::{DEFAULT_OBJECT_STORE_URL, Persister},
     write_buffer::{
         self, Error as WriteBufferError, WriteBufferImpl, WriteBufferImplArgs, cache_parquet_files,
@@ -27,6 +28,7 @@ use iox_query::QueryChunk;
 use iox_time::{Time, TimeProvider};
 use metric::Registry;
 use object_store::ObjectStore;
+use observability_deps::tracing::trace;
 use tokio::sync::watch::Receiver;
 
 #[derive(Clone, Debug)]
@@ -280,13 +282,17 @@ impl ChunkContainer for IngestQueryMode {
                 parquet_files
                     .into_iter()
                     .map(|file| {
-                        Arc::new(parquet_chunk_from_file(
+                        let parquet_chunk = parquet_chunk_from_file(
                             &file,
                             &table_def.schema,
                             self.object_store_url.clone(),
                             Arc::clone(&self.object_store),
                             buffer_chunks.len() as i64,
-                        )) as Arc<dyn QueryChunk>
+                        );
+
+                        Arc::new(CompactedParquetChunk {
+                            core: parquet_chunk,
+                        }) as Arc<dyn QueryChunk>
                     })
                     .collect::<Vec<_>>(),
             );
@@ -339,6 +345,8 @@ impl ChunkContainer for IngestQueryMode {
             );
             buffer_chunks.extend(gen1_persisted_chunks);
         }
+
+        trace!(?buffer_chunks, "QueryChunks from buffer");
 
         Ok(buffer_chunks)
     }
