@@ -130,6 +130,8 @@ pub struct FieldSpec {
 pub enum FieldKind {
     /// generates a random bool for the value of this field
     Bool(bool),
+    /// repeatedly toggles a boolean field value with the initial value being `false`
+    BoolToggle,
     /// output this string value for every line this field is present
     String(String),
     /// generate a random string of this length for every line this field is present
@@ -147,6 +149,9 @@ pub enum FieldKind {
     Float(f64),
     /// generate a random float in this range for every line this field is present
     FloatRange(f64, f64),
+    /// generate sequential floating point numbers with sequential values generated as increments
+    /// of the specified floating point number, starting from 0
+    FloatSeqWithInc(f64),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
