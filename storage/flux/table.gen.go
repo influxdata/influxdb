@@ -970,7 +970,19 @@ func (t *floatGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur, _ := t.gc.Cursor()
+		cur, err := t.gc.Cursor()
+		if err != nil {
+			cur.Close()
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "float",
+					cursor: cur,
+				},
+			}
+			return false
+		}
+
 		if cur == nil {
 			continue
 		}
@@ -1954,7 +1966,19 @@ func (t *integerGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur, _ := t.gc.Cursor()
+		cur, err := t.gc.Cursor()
+		if err != nil {
+			cur.Close()
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "integer",
+					cursor: cur,
+				},
+			}
+			return false
+		}
+
 		if cur == nil {
 			continue
 		}
@@ -2935,7 +2959,19 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur, _ := t.gc.Cursor()
+		cur, err := t.gc.Cursor()
+		if err != nil {
+			cur.Close()
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "unsigned",
+					cursor: cur,
+				},
+			}
+			return false
+		}
+
 		if cur == nil {
 			continue
 		}
@@ -3860,7 +3896,19 @@ func (t *stringGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur, _ := t.gc.Cursor()
+		cur, err := t.gc.Cursor()
+		if err != nil {
+			cur.Close()
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "string",
+					cursor: cur,
+				},
+			}
+			return false
+		}
+
 		if cur == nil {
 			continue
 		}
@@ -4785,7 +4833,19 @@ func (t *booleanGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur, _ := t.gc.Cursor()
+		cur, err := t.gc.Cursor()
+		if err != nil {
+			cur.Close()
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "boolean",
+					cursor: cur,
+				},
+			}
+			return false
+		}
+
 		if cur == nil {
 			continue
 		}
