@@ -247,6 +247,11 @@ impl TestServer {
         format!("http://{addr}", addr = self.bind_addr)
     }
 
+    /// Get the token for the server
+    pub fn token(&self) -> Option<&String> {
+        self.auth_token.as_ref()
+    }
+
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
     pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
         let channel = tonic::transport::Channel::from_shared(self.client_addr())

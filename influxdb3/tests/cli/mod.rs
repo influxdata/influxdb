@@ -1,3 +1,5 @@
+mod api;
+
 use crate::server::{ConfigProvider, TestServer};
 use assert_cmd::Command as AssertCmd;
 use assert_cmd::cargo::CommandCargoExt;
@@ -10,7 +12,6 @@ use std::{
     fs,
     io::Write,
     process::{Command, Stdio},
-    thread,
 };
 use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
@@ -34,101 +35,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
             .int64_field("row_count", row_count)
         influxdb3_local.write(line)
 "#;
-
-pub fn run(args: &[&str]) -> String {
-    let process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(args)
-        .stdout(Stdio::piped())
-        .output()
-        .unwrap();
-
-    String::from_utf8_lossy(&process.stdout).trim().into()
-}
-
-pub fn run_and_err(args: &[&str]) -> String {
-    let process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(args)
-        .stderr(Stdio::piped())
-        .output()
-        .unwrap();
-
-    String::from_utf8_lossy(&process.stderr).trim().into()
-}
-
-pub fn run_with_confirmation(args: &[&str]) -> String {
-    let mut child_process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let mut stdin = child_process.stdin.take().expect("failed to open stdin");
-    thread::spawn(move || {
-        stdin
-            .write_all(b"yes\n")
-            .expect("cannot write confirmation msg to stdin");
-    });
-    let output = child_process.wait_with_output().unwrap();
-    if !output.status.success() {
-        panic!(
-            "failed to run 'influxdb3 {}' with status {}",
-            args.join(" "),
-            output.status
-        );
-    }
-
-    String::from_utf8(output.stdout).unwrap().trim().into()
-}
-
-pub fn run_with_confirmation_and_err(args: &[&str]) -> String {
-    let mut child_process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let mut stdin = child_process.stdin.take().expect("failed to open stdin");
-    thread::spawn(move || {
-        stdin
-            .write_all(b"yes\n")
-            .expect("cannot write confirmation msg to stdin");
-    });
-
-    String::from_utf8(child_process.wait_with_output().unwrap().stderr)
-        .unwrap()
-        .trim()
-        .into()
-}
-
-pub fn run_with_stdin_input(input: impl Into<String>, args: &[&str]) -> String {
-    let input = input.into();
-    let mut child_process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
-
-    let mut stdin = child_process.stdin.take().expect("failed to open stdin");
-    thread::spawn(move || {
-        stdin
-            .write_all(input.as_bytes())
-            .expect("cannot write to stdin");
-    });
-
-    String::from_utf8(child_process.wait_with_output().unwrap().stdout)
-        .unwrap()
-        .trim()
-        .into()
-}
 
 fn create_plugin_in_temp_dir(code: &str) -> (TempDir, PathBuf) {
     // Create a temporary directory that will exist until it's dropped
@@ -264,16 +170,16 @@ async fn test_telementry_enabled() {
     let output = String::from_utf8(output).expect("must be able to convert output to String");
     assert_not_contains!(output, expected_enabled);
 }
-
 #[test_log::test(tokio::test)]
 async fn test_show_databases() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
-    let output = run_with_confirmation(&["create", "database", "foo", "--host", &server_addr]);
-    debug!(output, "create database");
-    let output = run_with_confirmation(&["create", "database", "bar", "--host", &server_addr]);
-    debug!(output, "create database");
-    let output = run(&["show", "databases", "--host", &server_addr]);
+
+    // Create two databases
+    server.create_database("foo").run().unwrap();
+    server.create_database("bar").run().unwrap();
+
+    // Show databases with default format (pretty)
+    let output = server.show_databases().run().unwrap();
     assert_eq!(
         "\
         +---------------+\n\
@@ -285,26 +191,16 @@ async fn test_show_databases() {
         ",
         output
     );
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--format",
-        "json",
-    ]);
+
+    // Show databases with JSON format
+    let output = server.show_databases().with_format("json").run().unwrap();
     assert_eq!(
         r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
         output
     );
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--format",
-        "csv",
-    ]);
+
+    // Show databases with CSV format
+    let output = server.show_databases().with_format("csv").run().unwrap();
     assert_eq!(
         "\
         iox::database\n\
@@ -313,14 +209,9 @@ async fn test_show_databases() {
         ",
         output
     );
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--format",
-        "jsonl",
-    ]);
+
+    // Show databases with JSONL format
+    let output = server.show_databases().with_format("jsonl").run().unwrap();
     assert_eq!(
         "\
         {\"iox::database\":\"bar\"}\n\
@@ -328,8 +219,12 @@ async fn test_show_databases() {
         ",
         output
     );
-    run_with_confirmation(&["delete", "database", "foo", "--host", &server_addr]);
-    let output = run(&["show", "databases", "--host", &server_addr]);
+
+    // Delete a database
+    server.delete_database("foo").run().unwrap();
+
+    // Show databases after deletion
+    let output = server.show_databases().run().unwrap();
     assert_eq!(
         "\
         +---------------+\n\
@@ -339,13 +234,9 @@ async fn test_show_databases() {
         +---------------+",
         output
     );
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--show-deleted",
-    ]);
+
+    // Show databases including deleted ones
+    let output = server.show_databases().show_deleted(true).run().unwrap();
     // don't assert on actual output since it contains a time stamp which would be flaky
     assert_contains!(output, "foo-");
 }
@@ -353,8 +244,9 @@ async fn test_show_databases() {
 #[test_log::test(tokio::test)]
 async fn test_show_empty_database() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
-    let output = run(&["show", "databases", "--host", &server_addr]);
+
+    // Show empty database list with default format (pretty)
+    let output = server.show_databases().run().unwrap();
     assert_eq!(
         "\
         +---------------+\n\
@@ -363,32 +255,22 @@ async fn test_show_empty_database() {
         +---------------+",
         output
     );
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--format",
-        "json",
-    ]);
+
+    // Show empty database list with JSON format
+    let output = server.show_databases().with_format("json").run().unwrap();
     assert_eq!(output, "[]");
-    let output = run(&[
-        "show",
-        "databases",
-        "--host",
-        &server_addr,
-        "--format",
-        "jsonl",
-    ]);
+
+    // Show empty database list with JSONL format
+    let output = server.show_databases().with_format("jsonl").run().unwrap();
     assert_eq!(output, "");
 }
 
 #[test_log::test(tokio::test)]
 async fn test_create_database() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+
+    let result = server.create_database(db_name).run().unwrap();
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
 }
@@ -396,20 +278,23 @@ async fn test_create_database() {
 #[test_log::test(tokio::test)]
 async fn test_create_database_limit() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
+
+    // Create 5 databases successfully
     for i in 0..5 {
         let name = format!("{db_name}{i}");
-        let result = run_with_confirmation(&["create", "database", &name, "--host", &server_addr]);
+        let result = server.create_database(&name).run().unwrap();
         debug!(result = ?result, "create database");
         assert_contains!(&result, format!("Database \"{name}\" created successfully"));
     }
 
-    let result =
-        run_with_confirmation_and_err(&["create", "database", "foo5", "--host", &server_addr]);
-    debug!(result = ?result, "create database");
+    // Try to create a 6th database, which should fail
+    let result = server.create_database("foo5").run();
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    debug!(error = ?err, "create database error");
     assert_contains!(
-        &result,
+        &err,
         "Adding a new database would exceed limit of 5 databases"
     );
 }
@@ -417,8 +302,9 @@ async fn test_create_database_limit() {
 #[test_log::test(tokio::test)]
 async fn test_delete_database() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
+
+    // Write data to the database first
     server
         .write_lp_to_db(
             db_name,
@@ -427,58 +313,70 @@ async fn test_delete_database() {
         )
         .await
         .expect("write to db");
-    let result = run_with_confirmation(&["delete", "database", db_name, "--host", &server_addr]);
+
+    // Delete the database using our new API
+    let result = server
+        .delete_database(db_name)
+        .run()
+        .expect("delete database");
     debug!(result = ?result, "delete database");
+
+    // We need to modify the DeleteDatabaseQuery to return the output string
     assert_contains!(&result, "Database \"foo\" deleted successfully");
 }
 
 #[test_log::test(tokio::test)]
 async fn test_delete_missing_database() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result =
-        run_with_confirmation_and_err(&["delete", "database", db_name, "--host", &server_addr]);
-    debug!(result = ?result, "delete missing database");
-    assert_contains!(&result, "404");
-}
 
+    // Try to delete a non-existent database
+    let result = server.delete_database(db_name).run();
+
+    // Check that we got the expected error
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    debug!(err = ?err, "delete missing database");
+    assert_contains!(&err, "404");
+}
 #[test_log::test(tokio::test)]
 async fn test_create_table() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
-    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+
+    // Create database using the new query API
+    let result = server.create_database(db_name).run().unwrap();
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
-    let result = run_with_confirmation(&[
-        "create",
-        "table",
-        table_name,
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--tags",
-        "one,two,three",
-        "--fields",
-        "four:utf8,five:uint64,six:float64,seven:int64,eight:bool",
-    ]);
+
+    // Create table using the new query API
+    let result = server
+        .create_table(db_name, table_name)
+        .with_tags(["one", "two", "three"])
+        .with_fields([
+            ("four", "utf8".to_string()),
+            ("five", "uint64".to_string()),
+            ("six", "float64".to_string()),
+            ("seven", "int64".to_string()),
+            ("eight", "bool".to_string()),
+        ])
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "create table");
     assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
+
     // Check that we can query the table and that it has no values
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql(db_name)
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
+
     assert_eq!(result, json!([]));
+
+    // Write data to the table
     server
         .write_lp_to_db(
             db_name,
@@ -487,17 +385,14 @@ async fn test_create_table() {
         )
         .await
         .expect("write to db");
+
     // Check that we can get data from the table
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql(db_name)
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
+
     debug!(result = ?result, "data written");
     assert_eq!(
         result,
@@ -514,55 +409,44 @@ async fn test_create_table() {
         }])
     );
 }
-
 #[test_log::test(tokio::test)]
 async fn test_create_table_fail_existing() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
-    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+
+    // Create database
+    let result = server.create_database(db_name).run().unwrap();
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
-    let result = run_with_confirmation(&[
-        "create",
-        "table",
-        table_name,
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--tags",
-        "one",
-        "--fields",
-        "four:utf8",
-    ]);
+
+    // Create table successfully
+    let result = server
+        .create_table(db_name, table_name)
+        .add_tag("one")
+        .add_field("four", "utf8")
+        .run()
+        .unwrap();
     debug!(result = ?result, "create table");
     assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
 
-    let result = run_with_confirmation_and_err(&[
-        "create",
-        "table",
-        table_name,
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--tags",
-        "one",
-        "--fields",
-        "four:utf8",
-    ]);
+    // Try creating table again, expect failure
+    let err = server
+        .create_table(db_name, table_name)
+        .add_tag("one")
+        .add_field("four", "utf8")
+        .run()
+        .unwrap_err();
 
-    insta::assert_snapshot!("test_create_table_fail_existing", result);
+    insta::assert_snapshot!("test_create_table_fail_existing", err.to_string());
 }
 
 #[test_log::test(tokio::test)]
 async fn test_delete_table() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "cpu";
+
     server
         .write_lp_to_db(
             db_name,
@@ -571,15 +455,9 @@ async fn test_delete_table() {
         )
         .await
         .expect("write to db");
-    let result = run_with_confirmation(&[
-        "delete",
-        "table",
-        table_name,
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
+
+    let result = server.delete_table(db_name, table_name).run().unwrap();
+
     debug!(result = ?result, "delete table");
     assert_contains!(&result, "Table \"foo\".\"cpu\" deleted successfully");
 }
@@ -587,9 +465,10 @@ async fn test_delete_table() {
 #[test_log::test(tokio::test)]
 async fn test_delete_missing_table() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "mem";
+
+    // Write data to the "mem" table
     server
         .write_lp_to_db(
             db_name,
@@ -599,25 +478,19 @@ async fn test_delete_missing_table() {
         .await
         .expect("write to db");
 
-    let result = run_with_confirmation_and_err(&[
-        "delete",
-        "table",
-        "cpu",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-    ]);
-    debug!(result = ?result, "delete missing table");
-    assert_contains!(&result, "404");
+    // Try to delete a non-existent "cpu" table
+    let err = server.delete_table(db_name, "cpu").run().unwrap_err();
+
+    debug!(result = ?err, "delete missing table");
+    assert_contains!(err.to_string(), "404");
 }
 
 #[tokio::test]
 async fn test_create_delete_distinct_cache() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
+
     server
         .write_lp_to_db(
             db_name,
@@ -626,63 +499,42 @@ async fn test_create_delete_distinct_cache() {
         )
         .await
         .unwrap();
+
     let cache_name = "baz";
-    // first create the cache:
-    let result = run(&[
-        "create",
-        "distinct_cache",
-        "--host",
-        &server_addr,
-        "--database",
-        db_name,
-        "--table",
-        table_name,
-        "--columns",
-        "t1,t2",
-        cache_name,
-    ]);
+
+    // First create the cache
+    let result = server
+        .create_distinct_cache(db_name, table_name, cache_name)
+        .with_columns(["t1", "t2"])
+        .run()
+        .unwrap();
+
     assert_contains!(&result, "new cache created");
-    // doing the same thing over again will be a no-op
-    let result = run_and_err(&[
-        "create",
-        "distinct_cache",
-        "--host",
-        &server_addr,
-        "--database",
-        db_name,
-        "--table",
-        table_name,
-        "--columns",
-        "t1,t2",
-        cache_name,
-    ]);
-    assert_contains!(&result, "[409 Conflict]");
-    // now delete it:
-    let result = run(&[
-        "delete",
-        "distinct_cache",
-        "--host",
-        &server_addr,
-        "--database",
-        db_name,
-        "--table",
-        table_name,
-        cache_name,
-    ]);
+
+    // Doing the same thing over again will be a no-op and return an error
+    let err = server
+        .create_distinct_cache(db_name, table_name, cache_name)
+        .with_columns(["t1", "t2"])
+        .run()
+        .unwrap_err();
+
+    assert_contains!(&err.to_string(), "[409 Conflict]");
+
+    // Now delete the cache
+    let result = server
+        .delete_distinct_cache(db_name, table_name, cache_name)
+        .run()
+        .unwrap();
+
     assert_contains!(&result, "distinct cache deleted successfully");
-    // trying to delete again should result in an error as the cache no longer exists:
-    let result = run_and_err(&[
-        "delete",
-        "distinct_cache",
-        "--host",
-        &server_addr,
-        "--database",
-        db_name,
-        "--table",
-        table_name,
-        cache_name,
-    ]);
-    assert_contains!(&result, "[404 Not Found]");
+
+    // Trying to delete again should result in an error as the cache no longer exists
+    let err = server
+        .delete_distinct_cache(db_name, table_name, cache_name)
+        .run()
+        .unwrap_err();
+
+    assert_contains!(&err.to_string(), "[404 Not Found]");
 }
 
 #[test_log::test(tokio::test)]
@@ -699,33 +551,23 @@ async fn test_create_trigger_and_run() {
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let trigger_name = "test_trigger";
 
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
-    // creating the trigger should enable it
-    let result = run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "all_tables",
-        "--trigger-arguments",
-        "double_count_table=cpu",
-        trigger_name,
-    ]);
+    // Creating the trigger should enable it
+    let result = server
+        .create_trigger(db_name, trigger_name, plugin_filename, "all_tables")
+        .add_trigger_argument("double_count_table=cpu")
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "create trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
 
-    // now let's write data and see if it gets processed
+    // Now let's write data and see if it gets processed
     server
         .write_lp_to_db(
             db_name,
@@ -742,20 +584,15 @@ async fn test_create_trigger_and_run() {
         ]
     );
 
-    // query to see if the processed data is there. we loop because it could take a bit to write
+    // Query to see if the processed data is there. We loop because it could take a bit to write
     // back the data. There's also a condition where the table may have been created, but the
     // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
     let mut check_count = 0;
     loop {
         match server
-            .api_v3_query_sql(&[
-                ("db", db_name),
-                ("q", "SELECT table_name, row_count FROM write_reports"),
-                ("format", "json"),
-            ])
-            .await
-            .json::<Value>()
-            .await
+            .query_sql(db_name)
+            .with_sql("SELECT table_name, row_count FROM write_reports")
+            .run()
         {
             Ok(value) => {
                 if value == expected {
@@ -782,7 +619,7 @@ async fn test_create_trigger_and_run() {
 
 #[test_log::test(tokio::test)]
 async fn test_triggers_are_started() {
-    // create a plugin and trigger and write data in, verifying that the trigger is enabled
+    // Create a plugin and trigger and write data in, verifying that the trigger is enabled
     // and sent data
 
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(WRITE_REPORTS_PLUGIN_CODE);
@@ -790,7 +627,7 @@ async fn test_triggers_are_started() {
     let plugin_dir = temp_dir.path().to_str().unwrap();
     let plugin_filename = plugin_path.file_name().unwrap().to_str().unwrap();
 
-    // create tmp dir for object store
+    // Create tmp dir for object store
     let tmp_file = TempDir::new().unwrap();
     let tmp_dir = tmp_file.path().to_str().unwrap();
 
@@ -799,33 +636,23 @@ async fn test_triggers_are_started() {
         .with_object_store_dir(tmp_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let trigger_name = "test_trigger";
 
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
-    // creating the trigger should enable it
-    let result = run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "all_tables",
-        "--trigger-arguments",
-        "double_count_table=cpu",
-        trigger_name,
-    ]);
+    // Creating the trigger should enable it
+    let result = server
+        .create_trigger(db_name, trigger_name, plugin_filename, "all_tables")
+        .add_trigger_argument("double_count_table=cpu")
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "create trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
 
-    // restart the server
+    // Restart the server
     server.kill();
 
     server = TestServer::configure()
@@ -834,7 +661,7 @@ async fn test_triggers_are_started() {
         .spawn()
         .await;
 
-    // now let's write data and see if it gets processed
+    // Now let's write data and see if it gets processed
     server
         .write_lp_to_db(
             db_name,
@@ -851,20 +678,15 @@ async fn test_triggers_are_started() {
         ]
     );
 
-    // query to see if the processed data is there. we loop because it could take a bit to write
+    // Query to see if the processed data is there. We loop because it could take a bit to write
     // back the data. There's also a condition where the table may have been created, but the
     // write hasn't happened yet, which returns empty results. This ensures we don't hit that race.
     let mut check_count = 0;
     loop {
         match server
-            .api_v3_query_sql(&[
-                ("db", db_name),
-                ("q", "SELECT table_name, row_count FROM write_reports"),
-                ("format", "json"),
-            ])
-            .await
-            .json::<Value>()
-            .await
+            .query_sql(db_name)
+            .with_sql("SELECT table_name, row_count FROM write_reports")
+            .run()
         {
             Ok(value) => {
                 if value == expected {
@@ -888,7 +710,6 @@ async fn test_triggers_are_started() {
         };
     }
 }
-
 #[test_log::test(tokio::test)]
 async fn test_database_create_persists() {
     // create tmp dir for object store
@@ -900,9 +721,8 @@ async fn test_database_create_persists() {
         .spawn()
         .await;
 
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run_with_confirmation(&["create", "database", db_name, "--host", &server_addr]);
+    let result = server.create_database(db_name).run().unwrap();
     debug!(result = ?result, "create database");
     assert_contains!(&result, "Database \"foo\" created successfully");
 
@@ -914,9 +734,7 @@ async fn test_database_create_persists() {
         .spawn()
         .await;
 
-    let server_addr = server.client_addr();
-
-    let result = run_with_confirmation(&["show", "databases", "--host", &server_addr]);
+    let result = server.show_databases().run().unwrap();
     assert_eq!(
         r#"+---------------+
 | iox::database |
@@ -926,7 +744,6 @@ async fn test_database_create_persists() {
         result
     );
 }
-
 #[test_log::test(tokio::test)]
 async fn test_trigger_enable() {
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
@@ -943,54 +760,29 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let trigger_name = "test_trigger";
 
-    // Setup: create database, plugin, and trigger
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database and trigger
+    server.create_database(db_name).run().unwrap();
 
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "all_tables",
-        trigger_name,
-    ]);
+    server
+        .create_trigger(db_name, trigger_name, plugin_filename, "all_tables")
+        .run()
+        .unwrap();
 
     // Test enabling
-    let result = run_with_confirmation(&[
-        "enable",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
+    let result = server.enable_trigger(db_name, trigger_name).run().unwrap();
+
     debug!(result = ?result, "enable trigger");
     assert_contains!(&result, "Trigger test_trigger enabled successfully");
 
     // Test disable
-    let result = run_with_confirmation(&[
-        "disable",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
+    let result = server.disable_trigger(db_name, trigger_name).run().unwrap();
+
     debug!(result = ?result, "disable trigger");
     assert_contains!(&result, "Trigger test_trigger disabled successfully");
 }
-
 #[test_log::test(tokio::test)]
 async fn test_delete_enabled_trigger() {
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
@@ -1007,55 +799,36 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let trigger_name = "test_trigger";
 
     // Setup: create database, plugin, and enable trigger
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "all_tables",
-        trigger_name,
-    ]);
+    server
+        .create_trigger(db_name, trigger_name, plugin_filename, "all_tables")
+        .run()
+        .unwrap();
 
     // Try to delete the enabled trigger without force flag
-    let result = run_with_confirmation_and_err(&[
-        "delete",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
-    debug!(result = ?result, "delete enabled trigger without force");
-    assert_contains!(&result, "command failed");
+    let err = server
+        .delete_trigger(db_name, trigger_name)
+        .run()
+        .unwrap_err();
+
+    debug!(result = ?err, "delete enabled trigger without force");
+    assert_contains!(&err.to_string(), "command failed");
 
     // Delete active trigger with force flag
-    let result = run_with_confirmation(&[
-        "delete",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-        "--force",
-    ]);
+    let result = server
+        .delete_trigger(db_name, trigger_name)
+        .force(true)
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "delete enabled trigger with force");
     assert_contains!(&result, "Trigger test_trigger deleted successfully");
 }
-
 #[test_log::test(tokio::test)]
 async fn test_table_specific_trigger() {
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(
@@ -1072,59 +845,52 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
     let trigger_name = "test_trigger";
 
     // Setup: create database, table, and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
-    run_with_confirmation(&[
-        "create",
-        "table",
-        table_name,
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--tags",
-        "tag1",
-        "--fields",
-        "field1:float64",
-    ]);
+    server
+        .create_table(db_name, table_name)
+        .add_tag("tag1")
+        .add_field("field1", "float64")
+        .run()
+        .unwrap();
 
     // Create table-specific trigger
-    let result = run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        &format!("table:{}", table_name),
-        trigger_name,
-    ]);
+    let result = server
+        .create_trigger(
+            db_name,
+            trigger_name,
+            plugin_filename,
+            format!("table:{}", table_name),
+        )
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "create table-specific trigger");
     assert_contains!(&result, "Trigger test_trigger created successfully");
 }
 
 #[test]
 fn test_create_token() {
-    let result = run_with_confirmation(&["create", "token"]);
+    let process = Command::cargo_bin("influxdb3")
+        .unwrap()
+        .args(["create", "token"])
+        .stdout(Stdio::piped())
+        .output()
+        .unwrap();
+    let result: String = String::from_utf8_lossy(&process.stdout).trim().into();
     assert_contains!(
         &result,
         "This will grant you access to every HTTP endpoint or deny it otherwise"
     );
 }
-
 #[test_log::test(tokio::test)]
 async fn test_show_system() {
     let server = TestServer::configure().spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
 
     server
@@ -1136,107 +902,58 @@ async fn test_show_system() {
         .await
         .expect("write to db");
 
-    struct SuccessTestCase<'a> {
-        name: &'static str,
-        args: Vec<&'a str>,
-    }
+    // Test successful cases
+    // 1. Summary command
+    let summary_output = server.show_system(db_name).summary().run().unwrap();
+    insta::assert_snapshot!(
+        "summary_should_show_up_to_ten_entries_from_each_table",
+        summary_output
+    );
 
-    let cases = vec![
-        SuccessTestCase {
-            name: "summary should show up to ten entries from each table",
-            args: vec![
-                "show",
-                "system",
-                "--host",
-                server_addr.as_str(),
-                "--database",
-                db_name,
-                "summary",
-            ],
-        },
-        SuccessTestCase {
-            name: "table NAME should show queries table without information or system schema queries",
-            args: vec![
-                "show",
-                "system",
-                "--host",
-                server_addr.as_str(),
-                "--database",
-                db_name,
-                "table",
-                "queries",
-            ],
-        },
-        SuccessTestCase {
-            name: "table-list should list system schema tables only",
-            args: vec![
-                "show",
-                "system",
-                "--host",
-                server_addr.as_str(),
-                "--database",
-                db_name,
-                "table-list",
-            ],
-        },
-    ];
+    // 2. Table command for "queries"
+    let table_output = server.show_system(db_name).table("queries").run().unwrap();
+    insta::assert_snapshot!(
+        "table_NAME_should_show_queries_table_without_information_or_system_schema_queries",
+        table_output
+    );
 
-    for case in cases {
-        let output = run(&case.args);
-        let snap_name = case.name.replace(' ', "_");
-        insta::assert_snapshot!(snap_name, output);
-    }
+    // 3. Table-list command
+    let table_list_output = server.show_system(db_name).table_list().run().unwrap();
+    insta::assert_snapshot!(
+        "table-list_should_list_system_schema_tables_only",
+        table_list_output
+    );
 
-    struct FailTestCase<'a> {
-        name: &'static str,
-        args: Vec<&'a str>,
-    }
+    // Test failure cases
+    // 1. Missing database (this can't be tested with the fluent API since we always require a db name)
+    let output = server
+        .run(vec!["show", "system"], &["table-list"])
+        .unwrap_err()
+        .to_string();
+    insta::assert_snapshot!("fail_without_database_name", output);
 
-    let cases = vec![
-        FailTestCase {
-            name: "fail without database name",
-            args: vec!["show", "system", "table-list"],
-        },
-        FailTestCase {
-            name: "random table name doesn't exist, should error",
-            args: vec![
-                "show",
-                "system",
-                "--host",
-                server_addr.as_str(),
-                "--database",
-                db_name,
-                "table",
-                "meow",
-            ],
-        },
-        FailTestCase {
-            name: "iox schema table name exists, but should error because we're concerned here with system tables",
-            args: vec![
-                "show",
-                "system",
-                "--host",
-                server_addr.as_str(),
-                "--database",
-                db_name,
-                "table",
-                "cpu",
-            ],
-        },
-    ];
+    // 2. Non-existent table name
+    let result = server.show_system(db_name).table("meow").run();
+    assert!(result.is_err());
+    insta::assert_snapshot!(
+        "random_table_name_doesn't_exist,_should_error",
+        format!("{}", result.unwrap_err())
+    );
 
-    for case in cases {
-        let output = run_and_err(&case.args);
-        let snap_name = case.name.replace(' ', "_");
-        insta::assert_snapshot!(snap_name, output);
-    }
+    // 3. IOx schema table (not a system table)
+    let result = server.show_system(db_name).table("cpu").run();
+    assert!(result.is_err());
+    insta::assert_snapshot!(
+        "iox_schema_table_name_exists,_but_should_error_because_we're_concerned_here_with_system_tables",
+        format!("{}", result.unwrap_err())
+    );
 }
 
 #[tokio::test]
 async fn distinct_cache_create_and_delete() {
     let server = TestServer::spawn().await;
     let db_name = "foo";
-    let server_addr = server.client_addr();
+
     server
         .write_lp_to_db(
             db_name,
@@ -1246,44 +963,36 @@ async fn distinct_cache_create_and_delete() {
         .await
         .expect("write to db");
 
-    let create_args = &[
-        "create",
-        "distinct_cache",
-        "-H",
-        &server_addr,
-        "-d",
-        db_name,
-        "-t",
-        "cpu",
-        "--columns",
-        "t1,t2",
-        "--max-cardinality",
-        "20000",
-        "--max-age",
-        "200s",
-        "cache_money",
-    ];
-
-    let result = run_with_confirmation(create_args);
+    // Create distinct cache
+    let result = server
+        .create_distinct_cache(db_name, "cpu", "cache_money")
+        .with_columns(["t1", "t2"])
+        .with_max_cardinality(20000)
+        .with_max_age("200s")
+        .run()
+        .unwrap();
 
     assert_contains!(result, "new cache created");
 
-    // try to create again, should not work:
-    let result = run_with_confirmation_and_err(create_args);
+    // Try to create again, should not work
+    let err = server
+        .create_distinct_cache(db_name, "cpu", "cache_money")
+        .with_columns(["t1", "t2"])
+        .with_max_cardinality(20000)
+        .with_max_age("200s")
+        .run()
+        .unwrap_err();
 
-    assert_contains!(result, "attempted to create a resource that already exists");
+    assert_contains!(
+        err.to_string(),
+        "attempted to create a resource that already exists"
+    );
 
-    let result = run_with_confirmation(&[
-        "delete",
-        "distinct_cache",
-        "-H",
-        &server_addr,
-        "-d",
-        db_name,
-        "-t",
-        "cpu",
-        "cache_money",
-    ]);
+    // Delete the cache
+    let result = server
+        .delete_distinct_cache(db_name, "cpu", "cache_money")
+        .run()
+        .unwrap();
 
     assert_contains!(result, "distinct cache deleted successfully");
 }
@@ -1374,52 +1083,41 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "test_db";
 
-    // Run the test
-    let result = run_with_confirmation(&[
-        "test",
-        "wal_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--lp",
-        "test_input,tag1=tag1_value field1=1i 500",
-        "--input-arguments",
-        "arg1=test",
-        plugin_filename,
-    ]);
+    // Run the test using the fluent API
+    let result = server
+        .test_wal_plugin(db_name, plugin_filename)
+        .with_line_protocol("test_input,tag1=tag1_value field1=1i 500")
+        .add_input_argument("arg1=test")
+        .run()
+        .expect("Failed to run wal plugin test");
 
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let expected_result = serde_json::json!({
+        "log_lines": [
+            "INFO: All LineBuilder tests completed"
+        ],
+        "database_writes": {
+            "test_db": [
+                "metrics,host=server01,region=us-west cpu=42i,memory_bytes=8589934592u,load=86.5,status=\"online\",healthy=t 1609459200000000000",
+                "system_metrics,server=app\\ server\\ 1,datacenter=us\\ west count=1i",
+                "network,servers=web\\,app\\,db,location=floor1\\,rack3 connections=256i",
+                "formulas,equation=y\\=mx+b,result=a\\=b\\=c value=3.14159",
+                "paths,windows_path=C:\\\\Program\\ Files\\\\App,regex=\\\\d+\\\\w+ description=\"Windows\\\\Unix paths\",count=42i",
+                "messages,type=notification content=\"User said \\\"Hello World\\\"\",json=\"{\\\"key\\\": \\\"value\\\"}\",priority=1i",
+                "complex\\,measurement,location=New\\ York\\,\\ USA,details=floor\\=5\\,\\ room\\=3,path=C:\\\\Users\\\\Admin\\\\Documents message=\"Error in line: \\\"x = y + z\\\"\",query=\"SELECT * FROM table WHERE id=\\\"abc\\\"\",value=123.456 1609459200000000000",
+                "sensor_data,device=thermostat,room=living\\ room,floor=1 temperature=72.5,humidity=45i,mode=\"auto\""
+            ],
+            "metrics_db": [
+                "memory_stats,host=server1 usage=75i"
+            ]
+        },
+        "errors": []
+    });
 
-    let expected_result = r#"{
-  "log_lines": [
-    "INFO: All LineBuilder tests completed"
-  ],
-  "database_writes": {
-    "test_db": [
-      "metrics,host=server01,region=us-west cpu=42i,memory_bytes=8589934592u,load=86.5,status=\"online\",healthy=t 1609459200000000000",
-      "system_metrics,server=app\\ server\\ 1,datacenter=us\\ west count=1i",
-      "network,servers=web\\,app\\,db,location=floor1\\,rack3 connections=256i",
-      "formulas,equation=y\\=mx+b,result=a\\=b\\=c value=3.14159",
-      "paths,windows_path=C:\\\\Program\\ Files\\\\App,regex=\\\\d+\\\\w+ description=\"Windows\\\\Unix paths\",count=42i",
-      "messages,type=notification content=\"User said \\\"Hello World\\\"\",json=\"{\\\"key\\\": \\\"value\\\"}\",priority=1i",
-      "complex\\,measurement,location=New\\ York\\,\\ USA,details=floor\\=5\\,\\ room\\=3,path=C:\\\\Users\\\\Admin\\\\Documents message=\"Error in line: \\\"x = y + z\\\"\",query=\"SELECT * FROM table WHERE id=\\\"abc\\\"\",value=123.456 1609459200000000000",
-      "sensor_data,device=thermostat,room=living\\ room,floor=1 temperature=72.5,humidity=45i,mode=\"auto\""
-    ],
-    "metrics_db": [
-      "memory_stats,host=server1 usage=75i"
-    ]
-  },
-  "errors": []
-}"#;
-    let expected_result = serde_json::from_str::<Value>(expected_result).unwrap();
-    assert_eq!(res, expected_result);
+    assert_eq!(result, expected_result);
 }
-
 #[test_log::test(tokio::test)]
 async fn test_wal_plugin_test() {
     use crate::server::ConfigProvider;
@@ -1468,7 +1166,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     server
         .write_lp_to_db(
@@ -1483,23 +1180,15 @@ def process_writes(influxdb3_local, table_batches, args=None):
 
     let db_name = "foo";
 
-    // Run the test
-    let result = run_with_confirmation(&[
-        "test",
-        "wal_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--lp",
-        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
-        "--input-arguments",
-        "arg1=arg1_value,host=s2",
-        plugin_filename,
-    ]);
-    debug!(result = ?result, "test wal plugin");
+    // Run the test using the fluent API
+    let result = server
+        .test_wal_plugin(db_name, plugin_filename)
+        .with_line_protocol("test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500")
+        .with_input_arguments(["arg1=arg1_value", "host=s2"])
+        .run()
+        .expect("Failed to run test_wal_plugin");
 
-    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
+    debug!(result = ?result, "test wal plugin");
 
     let expected_result = r#"{
   "log_lines": [
@@ -1523,9 +1212,8 @@ def process_writes(influxdb3_local, table_batches, args=None):
   "errors": []
 }"#;
     let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
-    assert_eq!(res, expected_result);
+    assert_eq!(result, expected_result);
 }
-
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test() {
     use crate::server::ConfigProvider;
@@ -1546,7 +1234,6 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     // Write some test data
     server
@@ -1562,26 +1249,17 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     let db_name = "foo";
 
-    // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "*/5 * * * * *", // Run every 5 seconds
-        "--input-arguments",
-        "region=us-east",
-        plugin_name,
-    ]);
+    // Run the schedule plugin test using the new fluent API
+    let result = server
+        .test_schedule_plugin(db_name, plugin_name, "*/5 * * * * *") // Run every 5 seconds
+        .add_input_argument("region=us-east")
+        .run()
+        .expect("Failed to run schedule plugin test");
+
     debug!(result = ?result, "test schedule plugin");
 
-    let res = serde_json::from_str::<Value>(&result).unwrap();
-
     // The trigger_time will be dynamic, so we'll just verify it exists and is in the right format
-    let trigger_time = res["trigger_time"].as_str().unwrap();
+    let trigger_time = result["trigger_time"].as_str().unwrap();
     assert!(trigger_time.contains('T')); // Basic RFC3339 format check
 
     // Check the rest of the response structure
@@ -1594,11 +1272,13 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         },
         "errors": []
     });
-    assert_eq!(res["log_lines"], expected_result["log_lines"]);
-    assert_eq!(res["database_writes"], expected_result["database_writes"]);
-    assert_eq!(res["errors"], expected_result["errors"]);
+    assert_eq!(result["log_lines"], expected_result["log_lines"]);
+    assert_eq!(
+        result["database_writes"],
+        expected_result["database_writes"]
+    );
+    assert_eq!(result["errors"], expected_result["errors"]);
 }
-
 #[test_log::test(tokio::test)]
 async fn test_schedule_plugin_test_with_strftime() {
     use crate::server::ConfigProvider;
@@ -1621,7 +1301,6 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     // Write some test data
     server
@@ -1637,31 +1316,22 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     let db_name = "foo";
 
-    // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "*/5 * * * * *", // Run every 5 seconds
-        "--input-arguments",
-        "region=us-east",
-        plugin_name,
-    ]);
+    // Run the schedule plugin test using the fluent API
+    let result = server
+        .test_schedule_plugin(db_name, plugin_name, "*/5 * * * * *") // Run every 5 seconds
+        .add_input_argument("region=us-east")
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "test schedule plugin");
 
-    let res = serde_json::from_str::<Value>(&result).unwrap();
-
     // The trigger_time will be dynamic, so we'll just verify it exists and is in the right format
-    let trigger_time = res["trigger_time"].as_str().unwrap();
+    let trigger_time = result["trigger_time"].as_str().unwrap();
     assert!(trigger_time.contains('T')); // Basic RFC3339 format check
 
     // Check the rest of the response structure
     // Modified expectations to include the timestamp message
-    let log_lines = &res["log_lines"];
+    let log_lines = &result["log_lines"];
     assert_eq!(log_lines.as_array().unwrap().len(), 3);
     assert!(
         log_lines[0]
@@ -1675,8 +1345,8 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     );
     assert_eq!(log_lines[2].as_str().unwrap(), "INFO: Successfully called");
 
-    assert_eq!(res["database_writes"], serde_json::json!({}));
-    assert_eq!(res["errors"], serde_json::json!([]));
+    assert_eq!(result["database_writes"], serde_json::json!({}));
+    assert_eq!(result["errors"], serde_json::json!([]));
 }
 
 #[test_log::test(tokio::test)]
@@ -1754,7 +1424,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir.path().to_str().unwrap())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     server
         .write_lp_to_db(
@@ -1768,35 +1437,32 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .unwrap();
 
     let db_name = "foo";
+    let lp = "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500";
+    let input_args = vec!["arg1=arg1_value", "host=s2"];
 
     for test in tests {
         let mut plugin_file = NamedTempFile::new_in(plugin_dir.path()).unwrap();
         writeln!(plugin_file, "{}", test.plugin_code).unwrap();
         let plugin_name = plugin_file.path().file_name().unwrap().to_str().unwrap();
 
-        let result = run_with_confirmation(&[
-            "test",
-            "wal_plugin",
-            "--database",
-            db_name,
-            "--host",
-            &server_addr,
-            "--lp",
-            "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
-            "--input-arguments",
-            "arg1=arg1_value,host=s2",
-            plugin_name,
-        ]);
+        // Using the fluent API for testing wal plugins
+        let result = server
+            .test_wal_plugin(db_name, plugin_name)
+            .with_line_protocol(lp)
+            .with_input_arguments(input_args.clone())
+            .run()
+            .unwrap();
+
         debug!(result = ?result, "test wal plugin");
 
-        println!("{}", result);
-        let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
-        let errors = res.get("errors").unwrap().as_array().unwrap();
+        let errors = result.get("errors").unwrap().as_array().unwrap();
         let error = errors[0].as_str().unwrap();
         assert_eq!(
-            error, test.expected_error,
+            error,
+            test.expected_error,
             "test: {}, response was: {}",
-            test.name, result
+            test.name,
+            serde_json::to_string_pretty(&result).unwrap()
         );
     }
 }
@@ -1812,7 +1478,6 @@ async fn test_load_wal_plugin_from_gh() {
         .with_plugin_dir(plugin_dir.path().to_str().unwrap())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     server
         .write_lp_to_db(
@@ -1829,22 +1494,16 @@ async fn test_load_wal_plugin_from_gh() {
 
     // this will pull from https://github.com/influxdata/influxdb3_plugins/blob/main/examples/wal_plugin/wal_plugin.py
     let plugin_name = "gh:examples/wal_plugin/wal_plugin.py";
+    let lp = "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500";
 
-    // Run the test to make sure it'll load from GH
-    let result = run_with_confirmation(&[
-        "test",
-        "wal_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--lp",
-        "test_input,tag1=tag1_value,tag2=tag2_value field1=1i 500",
-        plugin_name,
-    ]);
+    // Run the test using the fluent API
+    let result = server
+        .test_wal_plugin(db_name, plugin_name)
+        .with_line_protocol(lp)
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "test wal plugin");
-
-    let res = serde_json::from_str::<serde_json::Value>(&result).unwrap();
 
     let expected_result = r#"{
   "log_lines": [
@@ -1858,9 +1517,8 @@ async fn test_load_wal_plugin_from_gh() {
   "errors": []
 }"#;
     let expected_result = serde_json::from_str::<serde_json::Value>(expected_result).unwrap();
-    assert_eq!(res, expected_result);
+    assert_eq!(result, expected_result);
 }
-
 #[test_log::test(tokio::test)]
 async fn test_request_plugin_and_trigger() {
     let plugin_code = r#"
@@ -1895,36 +1553,26 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
     let trigger_path = "foo";
     // creating the trigger should enable it
-    let result = run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:bar",
-        "--trigger-arguments",
-        "test_arg=hello",
-        trigger_path,
-    ]);
+    let result = server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:bar")
+        .add_trigger_argument("test_arg=hello")
+        .run()
+        .unwrap();
+
     debug!(result = ?result, "create trigger");
     assert_contains!(&result, "Trigger foo created successfully");
 
     // send an HTTP request to the server
     let client = reqwest::Client::new();
     let response = client
-        .post(format!("{}/api/v3/engine/bar", server_addr))
+        .post(format!("{}/api/v3/engine/bar", server.client_addr()))
         .header("Content-Type", "application/json")
         .query(&[("q1", "whatevs")])
         .body(r#"{"hello": "world"}"#)
@@ -1943,14 +1591,9 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     // query to see if the plugin did the write into the DB
     let val = server
-        .api_v3_query_sql(&[
-            ("db", db_name),
-            ("q", "SELECT tag1, field1 FROM request_data"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql(db_name)
+        .with_sql("SELECT tag1, field1 FROM request_data")
+        .run()
         .unwrap();
 
     assert_eq!(val, json!([{"tag1": "tag1_value", "field1": 1}]));
@@ -1972,7 +1615,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
 
     // send an HTTP request to the server
     let response = client
-        .post(format!("{}/api/v3/engine/bar", server_addr))
+        .post(format!("{}/api/v3/engine/bar", server.client_addr()))
         .header("Content-Type", "application/json")
         .query(&[("q1", "whatevs")])
         .body(r#"{"hello": "world"}"#)
@@ -1984,7 +1627,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = serde_json::from_str::<serde_json::Value>(&body).unwrap();
     assert_eq!(body, json!({"status": "updated"}));
 }
-
 #[test_log::test(tokio::test)]
 async fn test_flask_string_response() {
     let plugin_code = r#"
@@ -2002,31 +1644,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_string";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "string_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test string response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2053,31 +1688,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_dict";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "dict_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test dict/JSON response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2110,31 +1738,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_tuple_status";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "tuple_status_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test tuple with status response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2161,31 +1782,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_tuple_headers";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "tuple_headers_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test tuple with headers response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2219,31 +1833,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_tuple_status_headers";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "tuple_status_headers_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test tuple with status and headers response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2274,31 +1881,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_list";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "list_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test list/JSON response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2333,31 +1933,24 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_iterator";
 
     // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server
+        .create_database(db_name)
+        .run()
+        .expect("Failed to create database");
 
     let trigger_path = "iterator_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .expect("Failed to create trigger");
 
     // Send request to test iterator/generator response
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2367,7 +1960,6 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     let body = response.text().await.unwrap();
     assert_eq!(body, "Line 1\nLine 2\nLine 3\n");
 }
-
 #[test_log::test(tokio::test)]
 async fn test_flask_response_object() {
     let plugin_code = r#"
@@ -2402,31 +1994,21 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_response_obj";
 
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database and trigger
+    server.create_database(db_name).run().unwrap();
 
     let trigger_path = "response_obj_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .unwrap();
 
     // Send request to test Flask Response object
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2460,31 +2042,21 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "flask_test_json_status";
 
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database and trigger
+    server.create_database(db_name).run().unwrap();
 
     let trigger_path = "json_status_test";
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        plugin_filename,
-        "--trigger-spec",
-        "request:test_route",
-        trigger_path,
-    ]);
+    server
+        .create_trigger(db_name, trigger_path, plugin_filename, "request:test_route")
+        .run()
+        .unwrap();
 
     // Send request to test JSON dict with status
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/api/v3/engine/test_route", server_addr))
+        .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
         .await
         .unwrap();
@@ -2506,31 +2078,21 @@ async fn test_trigger_create_validates_file_present() {
         .with_plugin_dir(plugin_dir.path().to_str().unwrap())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
 
-    // Setup: create database and plugin
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     let trigger_path = "foo";
     // creating the trigger should return a 404 error from github
-    let result = run_with_confirmation_and_err(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        "gh:not_a_file.py",
-        "--trigger-spec",
-        "request:foo",
-        "--trigger-arguments",
-        "test_arg=hello",
-        trigger_path,
-    ]);
-    debug!(result = ?result, "create trigger");
-    assert_contains!(&result, "error reading file from Github: 404 Not Found");
+    let result = server
+        .create_trigger(db_name, trigger_path, "gh:not_a_file.py", "request:foo")
+        .add_trigger_argument("test_arg=hello")
+        .run();
+
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("error reading file from Github: 404 Not Found"));
 }
 
 fn check_logs(response: &Value, expected_logs: &[&str]) {
@@ -2547,7 +2109,6 @@ fn check_logs(response: &Value, expected_logs: &[&str]) {
         expected_logs, logs, response["errors"]
     );
 }
-
 #[test_log::test(tokio::test)]
 async fn test_basic_cache_functionality() {
     // Create plugin file that uses the cache
@@ -2572,29 +2133,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
 
     // Setup: create database
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
     // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        "test_basic_cache",
-        plugin_name,
-    ]);
-
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let res = server
+        .test_schedule_plugin(db_name, plugin_name, "* * * * * *")
+        .with_cache_name("test_basic_cache")
+        .run()
+        .unwrap();
 
     // Check that the cache operations were successful
     let expected_logs = [
@@ -2640,28 +2190,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
 
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        "ttl_test_cache",
-        plugin_name,
-    ]);
-
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let res = server
+        .test_schedule_plugin(db_name, plugin_name, "* * * * * *")
+        .with_cache_name("ttl_test_cache")
+        .run()
+        .unwrap();
 
     // Check logs to verify TTL functionality
     let expected_logs = [
@@ -2706,28 +2246,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
 
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        "test_cache_namespaces",
-        plugin_name,
-    ]);
-
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let res = server
+        .test_schedule_plugin(db_name, plugin_name, "* * * * * *")
+        .with_cache_name("test_cache_namespaces")
+        .run()
+        .unwrap();
 
     // Check logs to verify namespace isolation
     let expected_logs = [
@@ -2773,49 +2303,29 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
     let cache_name = "shared_test_cache";
 
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     // First run - store the value
-    let first_result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        cache_name,
-        first_plugin_name,
-    ]);
+    let first_res = server
+        .test_schedule_plugin(db_name, first_plugin_name, "* * * * * *")
+        .with_cache_name(cache_name)
+        .run()
+        .unwrap();
 
-    let first_res = serde_json::from_str::<Value>(&first_result).unwrap();
-
-    let expected_logs = vec!["INFO: Stored value in shared test cache"];
+    let expected_logs = ["INFO: Stored value in shared test cache"];
     check_logs(&first_res, &expected_logs);
 
     // Second run - retrieve the value
-    let second_result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "*/5 * * * * *",
-        "--cache-name",
-        cache_name,
-        second_plugin_name,
-    ]);
-
-    let second_res = serde_json::from_str::<Value>(&second_result).unwrap();
+    let second_res = server
+        .test_schedule_plugin(db_name, second_plugin_name, "*/5 * * * * *")
+        .with_cache_name(cache_name)
+        .run()
+        .unwrap();
 
     // Check logs to verify persistence
     let expected_logs = [
@@ -2866,28 +2376,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
 
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        "test_cache_deletion",
-        plugin_name,
-    ]);
-
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let res = server
+        .test_schedule_plugin(db_name, plugin_name, "* * * * * *")
+        .with_cache_name("test_cache_deletion")
+        .run()
+        .unwrap();
 
     // Check logs to verify deletion functionality
     let expected_logs = [
@@ -2933,35 +2433,25 @@ def process_writes(influxdb3_local, table_batches, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     // Make sure each test creates its own database
     let db_name = "foo";
     let cache_name = "test_cache";
 
     // Setup: create database
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
     // First run with 3 data points
     let first_lp =
         "cpu,host=host1 usage=0.75\ncpu,host=host2 usage=0.82\ncpu,host=host3 usage=0.91";
 
     // First test run
-    let first_result = run_with_confirmation(&[
-        "test",
-        "wal_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--lp",
-        first_lp,
-        "--cache-name",
-        cache_name,
-        plugin_name,
-    ]);
-
-    let first_res = serde_json::from_str::<Value>(&first_result).unwrap();
+    let first_res = server
+        .test_wal_plugin(db_name, plugin_name)
+        .with_line_protocol(first_lp)
+        .with_cache_name(cache_name)
+        .run()
+        .unwrap();
 
     // Check first run logs
     let init_log = "INFO: First run, initializing count";
@@ -2973,21 +2463,12 @@ def process_writes(influxdb3_local, table_batches, args=None):
     let second_lp = "cpu,host=host4 usage=0.65\ncpu,host=host5 usage=0.72";
 
     // Second test run
-    let second_result = run_with_confirmation(&[
-        "test",
-        "wal_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--lp",
-        second_lp,
-        "--cache-name",
-        cache_name,
-        plugin_name,
-    ]);
-
-    let second_res = serde_json::from_str::<Value>(&second_result).unwrap();
+    let second_res = server
+        .test_wal_plugin(db_name, plugin_name)
+        .with_line_protocol(second_lp)
+        .with_cache_name(cache_name)
+        .run()
+        .unwrap();
 
     // Check second run logs
     let prev_log = "INFO: Previous count: 3";
@@ -3021,96 +2502,50 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
     let trigger_name = "cache_cleanup_trigger";
 
     // Setup: create database
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    server.create_database(db_name).run().unwrap();
 
     // Create scheduled trigger
-    run_with_confirmation(&[
-        "create",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--plugin-filename",
-        trigger_filename,
-        "--trigger-spec",
-        "cron:* * * * * *", // Run every second
-        trigger_name,
-    ]);
+    server
+        .create_trigger(db_name, trigger_name, trigger_filename, "cron:* * * * * *")
+        .run()
+        .unwrap();
 
     // Wait for trigger to run several times
     tokio::time::sleep(std::time::Duration::from_millis(3100)).await;
 
     // Query to see what values were written before disabling
-    let first_query = run_with_confirmation(&[
-        "query",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "SELECT count(*) FROM cache_test",
-    ]);
+    let first_query_result = server
+        .query_sql(db_name)
+        .with_sql("SELECT count(*) FROM cache_test")
+        .run()
+        .unwrap();
 
-    // There should be a single row.
-    assert_eq!(
-        r#"+----------+
-| count(*) |
-+----------+
-| 1        |
-+----------+"#,
-        first_query
-    );
+    // There should be a single row
+    assert_eq!(json!([{"count(*)":1}]), first_query_result);
 
     // Disable trigger (which should clear its cache)
-    run_with_confirmation(&[
-        "disable",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
+    server.disable_trigger(db_name, trigger_name).run().unwrap();
 
     // Re-enable trigger
-    run_with_confirmation(&[
-        "enable",
-        "trigger",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        trigger_name,
-    ]);
+    server.enable_trigger(db_name, trigger_name).run().unwrap();
 
     // Wait for trigger to run again
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
     // Query results after re-enabling
-    let second_query = run_with_confirmation(&[
-        "query",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "SELECT count(*) FROM cache_test",
-    ]);
+    let second_query_result = server
+        .query_sql(db_name)
+        .with_sql("SELECT count(*) FROM cache_test")
+        .run()
+        .unwrap();
 
     // If cache was cleared, we should see a second row
-    assert_eq!(
-        r#"+----------+
-| count(*) |
-+----------+
-| 2        |
-+----------+"#,
-        second_query
-    );
+    assert_eq!(json!([{"count(*)":2}]), second_query_result);
 }
 
 #[test_log::test(tokio::test)]
@@ -3161,28 +2596,18 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .with_plugin_dir(plugin_dir)
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
     let db_name = "foo";
 
-    run_with_confirmation(&["create", "database", "--host", &server_addr, db_name]);
+    // Setup: create database
+    server.create_database(db_name).run().unwrap();
 
     // Run the schedule plugin test
-    let result = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--schedule",
-        "* * * * * *",
-        "--cache-name",
-        "test_complex_objects",
-        plugin_name,
-    ]);
-
-    let res = serde_json::from_str::<Value>(&result).unwrap();
+    let res = server
+        .test_schedule_plugin(db_name, plugin_name, "* * * * * *")
+        .with_cache_name("test_complex_objects")
+        .run()
+        .unwrap();
 
     // Check logs to verify complex object preservation
     let expected_logs = [
@@ -3195,32 +2620,30 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
 
     check_logs(&res, &expected_logs);
 }
-
 #[test_log::test(tokio::test)]
 async fn write_and_query_via_stdin() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run_with_stdin_input(
-        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
-        &["write", "--database", db_name, "--host", &server_addr],
-    );
+
+    // Write data via stdin
+    let result = server
+        .write(db_name)
+        .run_with_stdin("bar,tag1=1,tag2=2 field1=1,field2=2 0")
+        .unwrap();
+
     assert_eq!("success", result);
     debug!(result = ?result, "wrote data to database");
-    let result = run_with_stdin_input(
-        "SELECT * FROM bar",
-        &["query", "--database", db_name, "--host", &server_addr],
-    );
-    debug!(result = ?result, "queried data to database");
+
+    // Query data
+    let result = server
+        .query_sql(db_name)
+        .with_sql("SELECT * FROM bar")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "queried data from database");
     assert_eq!(
-        [
-            "+--------+--------+------+------+---------------------+",
-            "| field1 | field2 | tag1 | tag2 | time                |",
-            "+--------+--------+------+------+---------------------+",
-            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
-            "+--------+--------+------+------+---------------------+",
-        ]
-        .join("\n"),
+        json!([{"field1":1.0,"field2":2.0,"tag1":"1","tag2":"2","time":"1970-01-01T00:00:00"}]),
         result
     );
 }
@@ -3228,74 +2651,57 @@ async fn write_and_query_via_stdin() {
 #[test_log::test(tokio::test)]
 async fn write_and_query_via_file() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run(&[
-        "write",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--file",
-        "tests/server/fixtures/file.lp",
-    ]);
+
+    // Write data via file
+    let result = server
+        .write(db_name)
+        .with_file("tests/server/fixtures/file.lp")
+        .run()
+        .unwrap();
+
     assert_eq!("success", result);
     debug!(result = ?result, "wrote data to database");
-    let result = run(&[
-        "query",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "--file",
-        "tests/server/fixtures/file.sql",
-    ]);
-    debug!(result = ?result, "queried data to database");
+
+    // Query data via file
+    let result = server
+        .query_sql(db_name)
+        .with_query_file("tests/server/fixtures/file.sql")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "queried data from database");
     assert_eq!(
-        [
-            "+--------+--------+------+------+---------------------+",
-            "| field1 | field2 | tag1 | tag2 | time                |",
-            "+--------+--------+------+------+---------------------+",
-            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
-            "+--------+--------+------+------+---------------------+",
-        ]
-        .join("\n"),
+        json!([{"field1":1.0,"field2":2.0,"tag1":"1","tag2":"2","time":"1970-01-01T00:00:00"}]),
         result
     );
 }
+
 #[test_log::test(tokio::test)]
 async fn write_and_query_via_string() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
-    let result = run(&[
-        "write",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "bar,tag1=1,tag2=2 field1=1,field2=2 0",
-    ]);
+
+    // Write data directly
+    let result = server
+        .write(db_name)
+        .with_line_protocol("bar,tag1=1,tag2=2 field1=1,field2=2 0")
+        .run()
+        .unwrap();
+
     assert_eq!("success", result);
     debug!(result = ?result, "wrote data to database");
-    let result = run(&[
-        "query",
-        "--database",
-        db_name,
-        "--host",
-        &server_addr,
-        "SELECT * FROM bar",
-    ]);
-    debug!(result = ?result, "queried data to database");
+
+    // Query data directly
+    let result = server
+        .query_sql(db_name)
+        .with_sql("SELECT * FROM bar")
+        .run()
+        .unwrap();
+
+    debug!(result = ?result, "queried data from database");
     assert_eq!(
-        [
-            "+--------+--------+------+------+---------------------+",
-            "| field1 | field2 | tag1 | tag2 | time                |",
-            "+--------+--------+------+------+---------------------+",
-            "| 1.0    | 2.0    | 1    | 2    | 1970-01-01T00:00:00 |",
-            "+--------+--------+------+------+---------------------+",
-        ]
-        .join("\n"),
+        json!([{"field1":1.0,"field2":2.0,"tag1":"1","tag2":"2","time":"1970-01-01T00:00:00"}]),
         result
     );
 }
@@ -3303,7 +2709,6 @@ async fn write_and_query_via_string() {
 #[test_log::test(tokio::test)]
 async fn write_with_precision_arg() {
     let server = TestServer::spawn().await;
-    let server_addr = server.client_addr();
     let db_name = "foo";
     let table_name = "bar";
 
@@ -3350,25 +2755,22 @@ async fn write_with_precision_arg() {
         let name_tag = name.replace(' ', "_");
         let lp = format!("{table_name},name={name_tag} theanswer=42 1");
 
-        let mut args = vec!["write", "--host", &server_addr, "--database", db_name];
-        if let Some(precision) = precision {
-            args.extend(vec!["--precision", precision]);
+        // Build write query with precision if specified
+        let mut write_query = server.write(db_name).with_line_protocol(&lp);
+        if let Some(prec) = precision {
+            write_query = write_query.with_precision(prec);
         }
-        args.push(&lp);
 
-        run(args.as_slice());
+        // Execute write
+        write_query.run().unwrap();
+
+        // Verify result
         let result = server
-            .api_v3_query_sql(&[
-                ("db", db_name),
-                (
-                    "q",
-                    format!("SELECT * FROM {table_name} WHERE name='{name_tag}'").as_str(),
-                ),
-                ("format", "json"),
-            ])
-            .await
-            .json::<Value>()
-            .await
+            .query_sql(db_name)
+            .with_sql(format!(
+                "SELECT * FROM {table_name} WHERE name='{name_tag}'"
+            ))
+            .run()
             .unwrap();
         assert_eq!(
             result,
@@ -3381,16 +2783,15 @@ async fn write_with_precision_arg() {
         );
     }
 
+    // Test invalid precision
     let lp = format!("{table_name},name=invalid_precision theanswer=42 1");
-    let output = run_and_err(&[
-        "write",
-        "--host",
-        &server_addr,
-        "--database",
-        db_name,
-        "--precision",
-        "fake",
-        &lp,
-    ]);
-    insta::assert_snapshot!("invalid_precision", output);
+    let result = server
+        .write(db_name)
+        .with_line_protocol(&lp)
+        .with_precision("fake")
+        .run();
+
+    // This should result in an error
+    assert!(result.is_err());
+    insta::assert_snapshot!("invalid_precision", format!("{}", result.unwrap_err()));
 }

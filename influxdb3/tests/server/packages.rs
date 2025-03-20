@@ -1,7 +1,5 @@
-use crate::cli::run_with_confirmation;
 use crate::server::{ConfigProvider, TestServer};
 use anyhow::{Result, bail};
-use serde_json::Value;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -55,18 +53,10 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     Ok(plugin_file)
 }
 
-async fn run_version_check(server_addr: &str, plugin_path: &str) -> Result<Vec<String>> {
-    let output = run_with_confirmation(&[
-        "test",
-        "schedule_plugin",
-        "-H",
-        server_addr,
-        "-d",
-        "version_check",
-        plugin_path,
-    ]);
-
-    let json: Value = serde_json::from_str(&output)?;
+async fn run_version_check(test_server: &TestServer, plugin_path: &str) -> Result<Vec<String>> {
+    let json = test_server
+        .test_schedule_plugin("version_test", plugin_path, "* * * * * *")
+        .run()?;
     Ok(json["log_lines"]
         .as_array()
         .unwrap()
@@ -108,31 +98,21 @@ async fn test_python_venv_pip_install() -> Result<()> {
         .with_virtual_env(test.venv_path().to_string_lossy())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Install specific version
-    run_with_confirmation(&[
-        "install",
-        "package",
-        "--host",
-        &server_addr,
-        &format!("{}=={}", TEST_PACKAGE, TEST_VERSION),
-    ]);
+    server
+        .install_package()
+        .add_package(format!("{}=={}", TEST_PACKAGE, TEST_VERSION))
+        .run()?;
 
     // Verify correct version installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -151,25 +131,18 @@ async fn test_uv_venv_uv_install() -> Result<()> {
         .with_package_manager("uv")
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(vec!["tablib is not installed"], logs);
 
     // Install with UV
-    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
+    server.install_package().add_package(TEST_PACKAGE).run()?;
 
     // Verify package is installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert!(!logs[0].contains("not installed"));
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -187,18 +160,11 @@ async fn test_venv_requirements_install() -> Result<()> {
         .with_virtual_env(test.venv_path().to_string_lossy())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Create requirements.txt
@@ -206,17 +172,13 @@ async fn test_venv_requirements_install() -> Result<()> {
     writeln!(requirements_file, "{}=={}", TEST_PACKAGE, TEST_VERSION)?;
 
     // Install from requirements
-    run_with_confirmation(&[
-        "install",
-        "package",
-        "--host",
-        &server_addr,
-        "--requirements",
-        requirements_file.path().to_str().unwrap(),
-    ]);
+    server
+        .install_package()
+        .with_requirements_file(requirements_file.path().to_str().unwrap())
+        .run()?;
 
     // Verify installation
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -234,25 +196,21 @@ async fn test_venv_remote_install() -> Result<()> {
         .with_virtual_env(test.venv_path().to_string_lossy())
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Test remote installation
-    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
+    server
+        .install_package()
+        .with_requirements_file(TEST_PACKAGE)
+        .run()?;
 
     // Verify installation
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert!(!logs[0].contains("not installed"));
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -270,33 +228,22 @@ async fn test_auto_venv_pip_install() -> Result<()> {
         .with_package_manager("pip")
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec!["tablib is not installed"]);
 
     // Install specific version
-    run_with_confirmation(&[
-        "install",
-        "package",
-        "--host",
-        &server_addr,
-        "--package-manager",
-        "pip",
-        &format!("{}=={}", TEST_PACKAGE, TEST_VERSION),
-    ]);
+    server
+        .install_package()
+        .add_package(format!("{}=={}", TEST_PACKAGE, TEST_VERSION))
+        .with_package_manager("pip")
+        .run()?;
 
     // Verify correct version installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(logs, vec![TEST_VERSION]);
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
@@ -315,25 +262,18 @@ async fn test_auto_venv_uv_install() -> Result<()> {
         .with_package_manager("uv")
         .spawn()
         .await;
-    let server_addr = server.client_addr();
 
-    run_with_confirmation(&[
-        "create",
-        "database",
-        "--host",
-        &server_addr,
-        "version_check",
-    ]);
+    server.create_database("version_check").run()?;
 
     // Check package is not installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert_eq!(vec!["tablib is not installed"], logs);
 
     // Install with UV
-    run_with_confirmation(&["install", "package", "--host", &server_addr, TEST_PACKAGE]);
+    server.install_package().add_package(TEST_PACKAGE).run()?;
 
     // Verify package is installed
-    let logs = run_version_check(&server_addr, test.plugin_file.path().to_str().unwrap()).await?;
+    let logs = run_version_check(&server, test.plugin_file.path().to_str().unwrap()).await?;
     assert!(!logs[0].contains("not installed"));
     // And that it isn't on the system python.
     assert_tablib_not_in_system_python();
