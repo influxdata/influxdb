@@ -325,6 +325,13 @@ jobs:
           name: Cargo build
           command: |
             target-env cargo build --target=<< parameters.target >> --workspace
+      - run:
+          # this runs diff twice, once to report the changes so that it's easier to see the changed file in circleci
+          # if it is dirty build should fail with exit 1
+          name: check build is dirty
+          command: |
+            git diff --exit-code
+            git diff --exit-code --quiet || exit 1
       - when:
           # this defaults to false, but can set it by triggering a pipeline (see above)
           condition: << pipeline.parameters.persist_debug >>
@@ -420,6 +427,13 @@ jobs:
                   # re-sign after install_name_tool since osxcross won't do it
                   echo "Running: /usr/local/bin/rcodesign sign '${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3'"
                   /usr/local/bin/rcodesign sign "${PWD}/target/<< parameters.target >>/<< parameters.profile >>/influxdb3"
+      - run:
+          # this runs diff twice, once to report the changes so that it's easier to see the changed file in circleci
+          # if it is dirty build should fail with exit 1
+          name: check build is dirty
+          command: |
+            git diff --exit-code
+            git diff --exit-code --quiet || exit 1
       - run:
           name: tar build artifacts
           command: |
