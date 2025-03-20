@@ -10,7 +10,7 @@ use data_types::TimestampMinMax;
 use hashbrown::{HashMap, HashSet};
 use influxdb3_catalog::catalog::TableDefinition;
 use influxdb3_id::ColumnId;
-use influxdb3_wal::{FieldData, Row};
+use influxdb3_wal::{FieldData, Row, SnapshotSequenceNumber};
 use observability_deps::tracing::error;
 use schema::sort::SortKey;
 use schema::{InfluxColumnType, InfluxFieldType, Schema, SchemaBuilder};
@@ -35,7 +35,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct TableBuffer {
     chunk_time_to_chunks: BTreeMap<i64, MutableTableChunk>,
-    snapshotting_chunks: Vec<SnapshotChunk>,
+    snapshotting_chunks: HashMap<SnapshotSequenceNumber, Vec<SnapshotChunk>>,
     pub(crate) sort_key: SortKey,
 }
 
@@ -43,7 +43,7 @@ impl TableBuffer {
     pub fn new(sort_key: SortKey) -> Self {
         Self {
             chunk_time_to_chunks: BTreeMap::default(),
-            snapshotting_chunks: vec![],
+            snapshotting_chunks: HashMap::default(),
             sort_key,
         }
     }
@@ -77,7 +77,7 @@ impl TableBuffer {
     ) -> Result<HashMap<i64, (TimestampMinMax, Vec<RecordBatch>)>> {
         let mut batches = HashMap::new();
         let schema = table_def.schema.as_arrow();
-        for sc in self.snapshotting_chunks.iter().filter(|sc| {
+        for sc in self.snapshotting_chunks().filter(|sc| {
             filter.test_time_stamp_min_max(sc.timestamp_min_max.min, sc.timestamp_min_max.max)
         }) {
             let cols: std::result::Result<Vec<_>, _> = schema
@@ -127,11 +127,15 @@ impl TableBuffer {
         };
         let mut timestamp_min_max = TimestampMinMax::new(min, max);
 
-        for sc in &self.snapshotting_chunks {
+        for sc in self.snapshotting_chunks() {
             timestamp_min_max = timestamp_min_max.union(&sc.timestamp_min_max);
         }
 
         timestamp_min_max
+    }
+
+    fn snapshotting_chunks(&self) -> impl Iterator<Item = &SnapshotChunk> {
+        self.snapshotting_chunks.values().flat_map(|v| v.iter())
     }
 
     /// Returns an estimate of the size of this table buffer based on the data and index sizes.
@@ -151,6 +155,7 @@ impl TableBuffer {
     pub fn snapshot(
         &mut self,
         table_def: Arc<TableDefinition>,
+        sequence: SnapshotSequenceNumber,
         older_than_chunk_time: i64,
     ) -> Vec<SnapshotChunk> {
         let keys_to_remove = self
@@ -159,7 +164,7 @@ impl TableBuffer {
             .filter(|k| **k < older_than_chunk_time)
             .copied()
             .collect::<Vec<_>>();
-        self.snapshotting_chunks = keys_to_remove
+        let snapshotting_chunks = keys_to_remove
             .into_iter()
             .map(|chunk_time| {
                 let chunk = self.chunk_time_to_chunks.remove(&chunk_time).unwrap();
@@ -175,11 +180,18 @@ impl TableBuffer {
             })
             .collect::<Vec<_>>();
 
-        self.snapshotting_chunks.clone()
+        assert!(
+            self.snapshotting_chunks
+                .insert(sequence, snapshotting_chunks.clone())
+                .is_none(),
+            "should not overwrite snapshot chunks for provided sequence"
+        );
+
+        snapshotting_chunks
     }
 
-    pub fn clear_snapshots(&mut self) {
-        self.snapshotting_chunks.clear();
+    pub fn clear_snapshots(&mut self, sequence: &SnapshotSequenceNumber) {
+        self.snapshotting_chunks.remove(sequence);
     }
 }
 
@@ -724,7 +736,7 @@ mod tests {
         table_buffer.buffer_chunk(0, &rows);
 
         let size = table_buffer.computed_size();
-        assert_eq!(size, 17763);
+        assert_eq!(size, 17779);
     }
 
     #[test]
