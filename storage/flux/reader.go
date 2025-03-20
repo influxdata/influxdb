@@ -314,6 +314,7 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
+		err   error
 	)
 
 	defer func() {
@@ -334,7 +335,7 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 READ:
 	for gc != nil {
 		for gc.Next() {
-			cur, err := gc.Cursor()
+			cur, err = gc.Cursor()
 			if err != nil {
 				return err
 			}
