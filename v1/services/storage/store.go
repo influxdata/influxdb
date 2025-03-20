@@ -257,7 +257,11 @@ func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaquer
 	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
 	for rs.Next() {
 		func() {
-			c := rs.Cursor()
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return
+			}
 			if c == nil {
 				// no data for series key + field combination
 				return
@@ -623,7 +627,11 @@ func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes,
 	rs := reads.NewFilteredResultSet(ctx, mqAttrs.start, mqAttrs.end, cur)
 	for rs.Next() {
 		func() {
-			c := rs.Cursor()
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return
+			}
 			if c == nil {
 				// no data for series key + field combination?
 				// It seems that even when there is no data for this series key + field
@@ -764,7 +772,11 @@ func (s *Store) seriesCardinalityWithPredicateAndTime(ctx context.Context, shard
 	rs := reads.NewFilteredResultSet(ctx, start, end, cur)
 	for rs.Next() {
 		func() {
-			c := rs.Cursor()
+			c, err := rs.Cursor()
+			if err != nil {
+				s.Logger.Error("failed to get next cursor during iteration", zap.Error(err))
+				return
+			}
 			if c == nil {
 				// no data for series key + field combination
 				return

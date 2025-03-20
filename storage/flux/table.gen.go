@@ -970,7 +970,7 @@ func (t *floatGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur := t.gc.Cursor()
+		cur, _ := t.gc.Cursor()
 		if cur == nil {
 			continue
 		}
@@ -1954,7 +1954,7 @@ func (t *integerGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur := t.gc.Cursor()
+		cur, _ := t.gc.Cursor()
 		if cur == nil {
 			continue
 		}
@@ -2935,7 +2935,7 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur := t.gc.Cursor()
+		cur, _ := t.gc.Cursor()
 		if cur == nil {
 			continue
 		}
@@ -3860,7 +3860,7 @@ func (t *stringGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur := t.gc.Cursor()
+		cur, _ := t.gc.Cursor()
 		if cur == nil {
 			continue
 		}
@@ -4785,7 +4785,7 @@ func (t *booleanGroupTable) advanceCursor() bool {
 	t.cur.Close()
 	t.cur = nil
 	for t.gc.Next() {
-		cur := t.gc.Cursor()
+		cur, _ := t.gc.Cursor()
 		if cur == nil {
 			continue
 		}

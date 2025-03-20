@@ -121,7 +121,10 @@ func (g *groupResultSet) Next() GroupCursor {
 // the time range of the query.
 func (g *groupResultSet) seriesHasPoints(row *SeriesRow) bool {
 	// TODO(sgc): this is expensive. Storage engine must provide efficient time range queries of series keys.
-	cur := g.arrayCursors.createCursor(*row)
+	cur, err := g.arrayCursors.createCursor(*row)
+	if err != nil {
+		return false
+	}
 	var ts []int64
 	switch c := cur.(type) {
 	case cursors.IntegerArrayCursor:
@@ -302,15 +305,18 @@ func (c *groupNoneCursor) Next() bool {
 }
 
 func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
-	cur = c.arrayCursors.createCursor(c.row)
+	cur, err = c.arrayCursors.createCursor(c.row)
+	if err != nil {
+		return nil, err
+	}
 	if c.agg != nil {
 		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
 	return cur, err
 }
 
-func (c *groupNoneCursor) Cursor() cursors.Cursor {
-	return c.cursor
+func (c *groupNoneCursor) Cursor() (cursors.Cursor, error) {
+	return c.cursor, nil
 }
 
 type groupByCursor struct {
@@ -350,15 +356,18 @@ func (c *groupByCursor) Next() bool {
 }
 
 func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
-	cur = c.arrayCursors.createCursor(seriesRow)
+	cur, err = c.arrayCursors.createCursor(seriesRow)
+	if err != nil {
+		return nil, err
+	}
 	if c.agg != nil {
 		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
 	return cur, err
 }
 
-func (c *groupByCursor) Cursor() cursors.Cursor {
-	return c.cursor
+func (c *groupByCursor) Cursor() (cursors.Cursor, error) {
+	return c.cursor, nil
 }
 
 func (c *groupByCursor) Stats() cursors.CursorStats {

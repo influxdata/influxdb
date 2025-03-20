@@ -45,7 +45,7 @@ func newLimitArrayCursor(cur cursors.Cursor) (cursors.Cursor, error) {
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported limit array cursor type: %s", arrayCursorType(cur)),
 		}
 	}
 }
@@ -74,7 +74,7 @@ func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) (curs
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported window first cursor type: %s", arrayCursorType(cur)),
 		}
 	}
 }
@@ -103,7 +103,7 @@ func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) (curso
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported window last cursor type: %s", arrayCursorType(cur)),
 		}
 	}
 }
@@ -129,7 +129,7 @@ func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) (curs
 	default:
 		return nil, &errors2.Error{
 			Code: errors2.EInvalid,
-			Msg:  fmt.Sprintf("unreachable: %s", arrayCursorType(cur)),
+			Msg:  fmt.Sprintf("unsupported window count cursor type: %s", arrayCursorType(cur)),
 		}
 	}
 }
