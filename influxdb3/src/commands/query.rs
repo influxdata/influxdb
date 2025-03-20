@@ -18,9 +18,6 @@ pub(crate) enum Error {
     #[error(transparent)]
     Client(#[from] influxdb3_client::Error),
 
-    #[error(transparent)]
-    Query(#[from] QueryError),
-
     #[error("invlid UTF8 received from server: {0}")]
     Utf8(#[from] Utf8Error),
 
@@ -42,7 +39,7 @@ pub(crate) enum Error {
 pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Parser)]
-#[clap(visible_alias = "q", trailing_var_arg = true)]
+#[clap(visible_alias = "q")]
 pub struct Config {
     /// Common InfluxDB 3 Core config
     #[clap(flatten)]
@@ -73,7 +70,7 @@ pub struct Config {
     file_path: Option<String>,
 
     /// The query string to execute
-    query: Option<Vec<String>>,
+    query: Option<String>,
 }
 
 #[derive(Debug, ValueEnum, Clone)]
@@ -94,7 +91,7 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     }
 
     let query = if let Some(query) = config.query {
-        parse_query(query)?
+        query
     } else if let Some(file_path) = config.file_path {
         fs::read_to_string(file_path)?
     } else {
@@ -144,28 +141,4 @@ pub(crate) async fn command(config: Config) -> Result<()> {
     }
 
     Ok(())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum QueryError {
-    #[error("no query provided")]
-    NoQuery,
-
-    #[error(
-        "ensure that a single query string is provided as the final \
-        argument, enclosed in quotes"
-    )]
-    MoreThanOne,
-}
-
-/// Parse the user-inputted query string
-fn parse_query(mut input: Vec<String>) -> Result<String> {
-    if input.is_empty() {
-        Err(QueryError::NoQuery)?
-    }
-    if input.len() > 1 {
-        Err(QueryError::MoreThanOne)?
-    } else {
-        Ok(input.remove(0))
-    }
 }

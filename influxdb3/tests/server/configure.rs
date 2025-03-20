@@ -1049,14 +1049,9 @@ async fn api_v3_configure_table_create_then_write() {
         .expect("create table call failed");
     assert_eq!(StatusCode::OK, resp.status());
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql("foo")
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
     assert_eq!(result, json!([]));
     server
@@ -1068,14 +1063,9 @@ async fn api_v3_configure_table_create_then_write() {
         .await
         .expect("write to db");
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql("foo")
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
     assert_eq!(
         result,
@@ -1123,14 +1113,9 @@ async fn api_v3_configure_table_create_no_fields() {
         .expect("create table call failed");
     assert_eq!(StatusCode::OK, resp.status());
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql("foo")
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
     assert_eq!(result, json!([]));
     server
@@ -1142,14 +1127,9 @@ async fn api_v3_configure_table_create_no_fields() {
         .await
         .expect("write to db");
     let result = server
-        .api_v3_query_sql(&[
-            ("db", "foo"),
-            ("q", "SELECT * FROM bar"),
-            ("format", "json"),
-        ])
-        .await
-        .json::<Value>()
-        .await
+        .query_sql("foo")
+        .with_sql("SELECT * FROM bar")
+        .run()
         .unwrap();
     assert_eq!(
         result,

@@ -5,6 +5,6 @@ expression: output
 error: the following required arguments were not provided:
   --database <DATABASE_NAME>
 
-Usage: influxdb3 show system --database <DATABASE_NAME> <COMMAND>
+Usage: influxdb3 show system --database <DATABASE_NAME> --host <HOST_URL> <COMMAND>
 
 For more information, try '--help'.
