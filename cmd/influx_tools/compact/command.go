@@ -58,7 +58,7 @@ func (cmd *Command) Run(args []string) (err error) {
 
 	var log = zap.NewNop()
 	if cmd.verbose {
-		cfg := logger.Config{Format: "logfmt", Level: zapcore.DebugLevel}
+		cfg := logger.Config{Format: "logfmt", Level: zap.NewAtomicLevelAt(zapcore.DebugLevel)}
 		log, err = cfg.New(os.Stdout)
 		if err != nil {
 			return err
