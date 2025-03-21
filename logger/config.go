@@ -2,7 +2,6 @@ package logger
 
 import (
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // Config represents the configuration for creating a zap.Logger.
@@ -16,6 +15,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Format: "auto",
-		Level:  zap.NewAtomicLevelAt(zapcore.InfoLevel),
+		Level:  zap.NewAtomicLevel(),
 	}
 }

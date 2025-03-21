@@ -141,10 +141,10 @@ func TestGroup_UnmarshalTOML(t *testing.T) {
 }
 
 func TestConfig_Encode(t *testing.T) {
-	var c run.Config
+	var c *run.Config = run.NewConfig()
 	c.Coordinator.WriteTimeout = itoml.Duration(time.Minute)
 	buf := new(bytes.Buffer)
-	if err := toml.NewEncoder(buf).Encode(&c); err != nil {
+	if err := toml.NewEncoder(buf).Encode(c); err != nil {
 		t.Fatal("Failed to encode: ", err)
 	}
 	got, search := buf.String(), `write-timeout = "1m0s"`
