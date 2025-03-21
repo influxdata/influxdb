@@ -119,7 +119,7 @@ func resultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
 	for rs.Next() {
 		fmt.Fprint(wr, "series: ")
 		tagsToString(wr, rs.Tags())
-		cur := rs.Cursor()
+		cur, _ := rs.Cursor()
 
 		if po.SkipNilCursor && cur == nil {
 			continue

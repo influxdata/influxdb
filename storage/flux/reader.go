@@ -194,7 +194,10 @@ func (fi *filterIterator) handleRead(f func(flux.Table) error, rs storage.Result
 
 READ:
 	for rs.Next() {
-		cur = rs.Cursor()
+		cur, err := rs.Cursor()
+		if err != nil {
+			return err
+		}
 		if cur == nil {
 			// no data for series key + field combination
 			continue
@@ -311,6 +314,7 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
+		err   error
 	)
 
 	defer func() {
@@ -331,7 +335,10 @@ func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupRe
 READ:
 	for gc != nil {
 		for gc.Next() {
-			cur = gc.Cursor()
+			cur, err = gc.Cursor()
+			if err != nil {
+				return err
+			}
 			if cur != nil {
 				break
 			}
@@ -740,7 +747,10 @@ func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs stor
 
 READ:
 	for rs.Next() {
-		cur = rs.Cursor()
+		cur, err = rs.Cursor()
+		if err != nil {
+			return err
+		}
 		if cur == nil {
 			// no data for series key + field combination
 			continue
