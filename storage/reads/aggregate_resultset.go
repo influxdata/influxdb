@@ -136,7 +136,7 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 }
 
 func (r *windowAggregateResultSet) Cursor() (cursors.Cursor, error) {
-	return r.cursor, nil
+	return r.cursor, r.err
 }
 
 func (r *windowAggregateResultSet) Close() {
