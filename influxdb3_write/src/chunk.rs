@@ -9,7 +9,6 @@ use schema::sort::SortKey;
 use std::any::Any;
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct BufferChunk {
     pub batches: Vec<RecordBatch>,
     pub schema: Schema,
@@ -18,6 +17,20 @@ pub struct BufferChunk {
     pub sort_key: Option<SortKey>,
     pub id: data_types::ChunkId,
     pub chunk_order: data_types::ChunkOrder,
+}
+
+/// Custom `Debug` implementation for `BufferChunk`s that avoids serializing excessive information
+/// contained in the record batches and schema
+impl std::fmt::Debug for BufferChunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BufferChunk")
+            .field("stats", &self.stats)
+            .field("partition_id", &self.partition_id)
+            .field("sort_key", &self.sort_key)
+            .field("id", &self.id)
+            .field("chunk_order", &self.chunk_order)
+            .finish()
+    }
 }
 
 impl QueryChunk for BufferChunk {
@@ -62,7 +75,6 @@ impl QueryChunk for BufferChunk {
     }
 }
 
-#[derive(Debug)]
 pub struct ParquetChunk {
     pub schema: Schema,
     pub stats: Arc<ChunkStatistics>,
@@ -71,6 +83,21 @@ pub struct ParquetChunk {
     pub id: ChunkId,
     pub chunk_order: ChunkOrder,
     pub parquet_exec: ParquetExecInput,
+}
+
+/// Custom `Debug` implementation for `ParquetChunk`s that avoids serializing excessive information
+/// contained in the `ParquetExecInput` and schema
+impl std::fmt::Debug for ParquetChunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParquetChunk")
+            .field("stats", &self.stats)
+            .field("partition_id", &self.partition_id)
+            .field("sort_key", &self.sort_key)
+            .field("id", &self.id)
+            .field("chunk_order", &self.chunk_order)
+            .field("object_meta", &self.parquet_exec.object_meta)
+            .finish()
+    }
 }
 
 impl QueryChunk for ParquetChunk {
