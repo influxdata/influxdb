@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use influxdb3_id::{ColumnId, DbId, TableId};
 
+use crate::catalog::CatalogSequenceNumber;
+
 use super::*;
 
 pub fn catalog_database_batch_op(
