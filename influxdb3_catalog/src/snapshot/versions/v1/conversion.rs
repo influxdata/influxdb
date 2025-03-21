@@ -1,6 +1,6 @@
 use influxdb3_id::CatalogId;
 
-use crate::snapshot::versions::latest;
+use crate::{catalog::NodeState, snapshot::versions::latest};
 
 impl From<super::CatalogSnapshot> for latest::CatalogSnapshot {
     fn from(value: super::CatalogSnapshot) -> Self {
@@ -33,9 +33,20 @@ impl From<super::NodeSnapshot> for latest::NodeSnapshot {
             node_id: value.node_id,
             node_catalog_id: value.node_catalog_id,
             instance_id: value.instance_id,
-            mode: value.mode,
-            state: value.state,
+            mode: value.mode.into_iter().map(Into::into).collect(),
+            state: value.state.into(),
             core_count: value.core_count,
+        }
+    }
+}
+
+impl From<super::NodeState> for NodeState {
+    fn from(value: super::NodeState) -> Self {
+        match value {
+            super::NodeState::Running { registered_time_ns } => {
+                NodeState::Running { registered_time_ns }
+            }
+            super::NodeState::Stopped { stopped_time_ns } => NodeState::Stopped { stopped_time_ns },
         }
     }
 }
@@ -153,8 +164,8 @@ impl From<super::DistinctCacheSnapshot> for latest::DistinctCacheSnapshot {
             id: value.id,
             name: value.name,
             cols: value.cols,
-            max_cardinality: value.max_cardinality,
-            max_age_seconds: value.max_age_seconds,
+            max_cardinality: value.max_cardinality.into(),
+            max_age_seconds: value.max_age_seconds.into(),
         }
     }
 }
@@ -167,8 +178,8 @@ impl From<super::ProcessingEngineTriggerSnapshot> for latest::ProcessingEngineTr
             node_id: value.node_id,
             plugin_filename: value.plugin_filename,
             database_name: value.database_name,
-            trigger_specification: value.trigger_specification,
-            trigger_settings: value.trigger_settings,
+            trigger_specification: value.trigger_specification.into(),
+            trigger_settings: value.trigger_settings.into(),
             trigger_arguments: value.trigger_arguments,
             disabled: value.disabled,
         }

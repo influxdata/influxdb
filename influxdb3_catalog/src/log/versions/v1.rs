@@ -41,8 +41,8 @@ pub(crate) struct DatabaseBatch {
 /// A catalog batch that has been processed by the catalog and given a sequence number.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct OrderedCatalogBatch {
-    catalog_batch: CatalogBatch,
-    sequence_number: CatalogSequenceNumber,
+    pub(crate) catalog_batch: CatalogBatch,
+    pub(crate) sequence_number: CatalogSequenceNumber,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
