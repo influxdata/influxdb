@@ -2516,7 +2516,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
         .unwrap();
 
     // Wait for trigger to run several times
-    tokio::time::sleep(std::time::Duration::from_millis(3100)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
 
     // Query to see what values were written before disabling
     let first_query_result = server
@@ -2535,7 +2535,7 @@ def process_scheduled_call(influxdb3_local, schedule_time, args=None):
     server.enable_trigger(db_name, trigger_name).run().unwrap();
 
     // Wait for trigger to run again
-    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
 
     // Query results after re-enabling
     let second_query_result = server

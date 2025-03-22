@@ -7,13 +7,13 @@ use anyhow::Context;
 use bytes::Bytes;
 use hashbrown::HashMap;
 use hyper::{Body, Response};
-use influxdb3_catalog::CatalogError;
 use influxdb3_catalog::catalog::Catalog;
 use influxdb3_catalog::channel::CatalogUpdateReceiver;
 use influxdb3_catalog::log::{
     CatalogBatch, DatabaseCatalogOp, DeleteTriggerLog, PluginType, TriggerDefinition,
     TriggerIdentifier, TriggerSpecificationDefinition, ValidPluginFilename,
 };
+use influxdb3_id::{DbId, TriggerId};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_py_api::system_py::CacheStore;
 use influxdb3_sys_events::SysEventStore;
@@ -24,7 +24,7 @@ use influxdb3_types::http::{
 use influxdb3_wal::{SnapshotDetails, WalContents, WalFileNotifier};
 use influxdb3_write::WriteBuffer;
 use iox_time::TimeProvider;
-use observability_deps::tracing::{debug, error, warn};
+use observability_deps::tracing::{error, warn};
 use parking_lot::Mutex;
 use std::any::Any;
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ pub mod plugins;
 
 pub mod virtualenv;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProcessingEngineManagerImpl {
     environment_manager: ProcessingEngineEnvironmentManager,
     catalog: Arc<Catalog>,
@@ -49,15 +49,15 @@ pub struct ProcessingEngineManagerImpl {
     time_provider: Arc<dyn TimeProvider>,
     sys_event_store: Arc<SysEventStore>,
     cache: Arc<Mutex<CacheStore>>,
-    plugin_event_tx: RwLock<PluginChannels>,
+    plugin_event_tx: Arc<RwLock<PluginChannels>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default, Debug, Clone)]
 struct PluginChannels {
-    /// Map of database to wal trigger name to handler
-    wal_triggers: HashMap<String, HashMap<String, mpsc::Sender<WalEvent>>>,
-    /// Map of database to schedule trigger name to handler
-    schedule_triggers: HashMap<String, HashMap<String, mpsc::Sender<ScheduleEvent>>>,
+    /// Map of database to wal trigger id to handler
+    wal_triggers: HashMap<(DbId, TriggerId), mpsc::Sender<WalEvent>>,
+    /// Map of database to schedule trigger id to handler
+    schedule_triggers: HashMap<(DbId, TriggerId), mpsc::Sender<ScheduleEvent>>,
     /// Map of request path to the request trigger handler
     request_triggers: HashMap<String, mpsc::Sender<RequestEvent>>,
 }
@@ -68,51 +68,47 @@ impl PluginChannels {
     // returns Ok(Some(receiver)) if there was a sender to the named trigger.
     async fn send_shutdown(
         &self,
-        db: String,
-        trigger: String,
+        db: &DbId,
+        trigger: &TriggerId,
         trigger_spec: &TriggerSpecificationDefinition,
     ) -> Result<Option<Receiver<()>>, ProcessingEngineError> {
         match trigger_spec {
             TriggerSpecificationDefinition::SingleTableWalWrite { .. }
             | TriggerSpecificationDefinition::AllTablesWalWrite => {
-                if let Some(trigger_map) = self.wal_triggers.get(&db) {
-                    if let Some(sender) = trigger_map.get(&trigger) {
-                        // create a one shot to wait for the shutdown to complete
-                        let (tx, rx) = oneshot::channel();
-                        if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
-                            return Err(ProcessingEngineError::TriggerShutdownError {
-                                database: db,
-                                trigger_name: trigger,
-                            });
-                        }
-                        return Ok(Some(rx));
+                if let Some(sender) = self.wal_triggers.get(&(*db, *trigger)) {
+                    // create a one shot to wait for the shutdown to complete
+                    let (tx, rx) = oneshot::channel();
+                    if sender.send(WalEvent::Shutdown(tx)).await.is_err() {
+                        return Err(ProcessingEngineError::TriggerShutdownError {
+                            database_id: *db,
+                            trigger_id: *trigger,
+                        });
                     }
+                    return Ok(Some(rx));
                 }
             }
             TriggerSpecificationDefinition::Schedule { .. }
             | TriggerSpecificationDefinition::Every { .. } => {
-                if let Some(trigger_map) = self.schedule_triggers.get(&db) {
-                    if let Some(sender) = trigger_map.get(&trigger) {
-                        // create a one shot to wait for the shutdown to complete
-                        let (tx, rx) = oneshot::channel();
-                        if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
-                            return Err(ProcessingEngineError::TriggerShutdownError {
-                                database: db,
-                                trigger_name: trigger,
-                            });
-                        }
-                        return Ok(Some(rx));
+                if let Some(sender) = self.schedule_triggers.get(&(*db, *trigger)) {
+                    // create a one shot to wait for the shutdown to complete
+                    let (tx, rx) = oneshot::channel();
+                    if sender.send(ScheduleEvent::Shutdown(tx)).await.is_err() {
+                        return Err(ProcessingEngineError::TriggerShutdownError {
+                            database_id: *db,
+                            trigger_id: *trigger,
+                        });
                     }
+                    return Ok(Some(rx));
                 }
             }
-            TriggerSpecificationDefinition::RequestPath { .. } => {
-                if let Some(sender) = self.request_triggers.get(&trigger) {
+            TriggerSpecificationDefinition::RequestPath { path } => {
+                if let Some(sender) = self.request_triggers.get(path) {
                     // create a one shot to wait for the shutdown to complete
                     let (tx, rx) = oneshot::channel();
                     if sender.send(RequestEvent::Shutdown(tx)).await.is_err() {
                         return Err(ProcessingEngineError::TriggerShutdownError {
-                            database: db,
-                            trigger_name: trigger,
+                            database_id: *db,
+                            trigger_id: *trigger,
                         });
                     }
                     return Ok(Some(rx));
@@ -125,45 +121,38 @@ impl PluginChannels {
 
     fn remove_trigger(
         &mut self,
-        db: String,
-        trigger: String,
+        db_id: &DbId,
+        trigger_id: &TriggerId,
         trigger_spec: &TriggerSpecificationDefinition,
     ) {
         match trigger_spec {
             TriggerSpecificationDefinition::SingleTableWalWrite { .. }
             | TriggerSpecificationDefinition::AllTablesWalWrite => {
-                if let Some(trigger_map) = self.wal_triggers.get_mut(&db) {
-                    trigger_map.remove(&trigger);
-                }
+                self.wal_triggers.remove(&(*db_id, *trigger_id));
             }
             TriggerSpecificationDefinition::Schedule { .. }
             | TriggerSpecificationDefinition::Every { .. } => {
-                if let Some(trigger_map) = self.schedule_triggers.get_mut(&db) {
-                    trigger_map.remove(&trigger);
-                }
+                self.schedule_triggers.remove(&(*db_id, *trigger_id));
             }
-            TriggerSpecificationDefinition::RequestPath { .. } => {
-                self.request_triggers.remove(&trigger);
+            TriggerSpecificationDefinition::RequestPath { path } => {
+                self.request_triggers.remove(path);
             }
         }
     }
 
-    fn add_wal_trigger(&mut self, db: String, trigger: String) -> mpsc::Receiver<WalEvent> {
+    fn add_wal_trigger(&mut self, db_id: DbId, trigger_id: TriggerId) -> mpsc::Receiver<WalEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
-        self.wal_triggers.entry(db).or_default().insert(trigger, tx);
+        self.wal_triggers.insert((db_id, trigger_id), tx);
         rx
     }
 
     fn add_schedule_trigger(
         &mut self,
-        db: String,
-        trigger: String,
+        db_id: DbId,
+        trigger_id: TriggerId,
     ) -> mpsc::Receiver<ScheduleEvent> {
         let (tx, rx) = mpsc::channel(PLUGIN_EVENT_BUFFER_SIZE);
-        self.schedule_triggers
-            .entry(db)
-            .or_default()
-            .insert(trigger, tx);
+        self.schedule_triggers.insert((db_id, trigger_id), tx);
         rx
     }
 
@@ -174,14 +163,12 @@ impl PluginChannels {
     }
 
     async fn send_wal_contents(&self, wal_contents: Arc<WalContents>) {
-        for (db, trigger_map) in &self.wal_triggers {
-            for (trigger, sender) in trigger_map {
-                if let Err(e) = sender
-                    .send(WalEvent::WriteWalContents(Arc::clone(&wal_contents)))
-                    .await
-                {
-                    warn!(%e, %db, ?trigger, "error sending wal contents to plugin");
-                }
+        for ((db_id, trigger_id), sender) in &self.wal_triggers {
+            if let Err(e) = sender
+                .send(WalEvent::WriteWalContents(Arc::clone(&wal_contents)))
+                .await
+            {
+                warn!(%e, %db_id, ?trigger_id, "error sending wal contents to plugin");
             }
         }
     }
@@ -358,32 +345,25 @@ impl LocalPlugin {
 }
 
 impl ProcessingEngineManagerImpl {
-    // TODO(trevor): should this be id-based and not use names?
     async fn run_trigger(
         self: Arc<Self>,
-        db_name: &str,
-        trigger_name: &str,
+        db_id: &DbId,
+        trigger_id: &TriggerId,
     ) -> Result<(), ProcessingEngineError> {
-        debug!(db_name, trigger_name, "starting trigger");
-
         {
             let db_schema = self
                 .catalog
-                .db_schema(db_name)
-                .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
+                .db_schema_by_id(db_id)
+                .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(*db_id))?;
             let trigger = db_schema
                 .processing_engine_triggers
-                .get_by_name(trigger_name)
-                .clone()
-                .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
-                    database_name: db_name.to_string(),
-                    trigger_name: trigger_name.to_string(),
-                })?;
+                .get_by_id(trigger_id)
+                .ok_or_else(|| ProcessingEngineError::TriggerNotFound(*trigger_id))?;
 
             if trigger.node_id != self.node_id {
                 error!(
                     "Not running trigger {}, as it is configured for node id {}. Multi-node not supported in core, so this shouldn't happen.",
-                    trigger_name, trigger.node_id
+                    trigger.trigger_name, trigger.node_id
                 );
                 return Ok(());
             }
@@ -401,10 +381,10 @@ impl ProcessingEngineManagerImpl {
                         .plugin_event_tx
                         .write()
                         .await
-                        .add_wal_trigger(db_name.to_string(), trigger_name.to_string());
+                        .add_wal_trigger(*db_id, *trigger_id);
 
                     plugins::run_wal_contents_plugin(
-                        db_name.to_string(),
+                        *db_id,
                         plugin_code,
                         trigger,
                         plugin_context,
@@ -416,10 +396,10 @@ impl ProcessingEngineManagerImpl {
                         .plugin_event_tx
                         .write()
                         .await
-                        .add_schedule_trigger(db_name.to_string(), trigger_name.to_string());
+                        .add_schedule_trigger(*db_id, *trigger_id);
 
                     plugins::run_schedule_plugin(
-                        db_name.to_string(),
+                        *db_id,
                         plugin_code,
                         trigger,
                         Arc::clone(&self.time_provider),
@@ -438,13 +418,7 @@ impl ProcessingEngineManagerImpl {
                         .await
                         .add_request_trigger(path.to_string());
 
-                    plugins::run_request_plugin(
-                        db_name.to_string(),
-                        plugin_code,
-                        trigger,
-                        plugin_context,
-                        rec,
-                    )
+                    plugins::run_request_plugin(*db_id, plugin_code, trigger, plugin_context, rec)
                 }
             }
         }
@@ -452,33 +426,25 @@ impl ProcessingEngineManagerImpl {
         Ok(())
     }
 
-    // TODO(trevor): should this be id-based and not use names?
     async fn stop_trigger(
         &self,
-        db_name: &str,
-        trigger_name: &str,
+        db_id: &DbId,
+        trigger_id: &TriggerId,
     ) -> Result<(), ProcessingEngineError> {
         let db_schema = self
             .catalog
-            .db_schema(db_name)
-            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(db_name.to_string()))?;
+            .db_schema_by_id(db_id)
+            .ok_or_else(|| ProcessingEngineError::DatabaseNotFound(*db_id))?;
         let trigger = db_schema
             .processing_engine_triggers
-            .get_by_name(trigger_name)
-            .ok_or_else(|| CatalogError::ProcessingEngineTriggerNotFound {
-                database_name: db_name.to_string(),
-                trigger_name: trigger_name.to_string(),
-            })?;
+            .get_by_id(trigger_id)
+            .ok_or_else(|| ProcessingEngineError::TriggerNotFound(*trigger_id))?;
 
         let Some(shutdown_rx) = self
             .plugin_event_tx
             .write()
             .await
-            .send_shutdown(
-                db_name.to_string(),
-                trigger_name.to_string(),
-                &trigger.trigger,
-            )
+            .send_shutdown(db_id, trigger_id, &trigger.trigger)
             .await?
         else {
             return Ok(());
@@ -489,25 +455,22 @@ impl ProcessingEngineManagerImpl {
                 "shutdown trigger receiver dropped, may have received multiple shutdown requests"
             );
         } else {
-            self.plugin_event_tx.write().await.remove_trigger(
-                db_name.to_string(),
-                trigger_name.to_string(),
-                &trigger.trigger,
-            );
+            self.plugin_event_tx
+                .write()
+                .await
+                .remove_trigger(db_id, trigger_id, &trigger.trigger);
         }
         self.cache
             .lock()
-            .drop_trigger_cache(db_name.to_string(), trigger_name.to_string());
+            .drop_trigger_cache(db_id.to_string(), trigger_id.to_string());
 
         Ok(())
     }
 
     pub async fn start_triggers(self: Arc<Self>) -> Result<(), ProcessingEngineError> {
         let triggers = self.catalog.active_triggers();
-        for (db_name, trigger_name) in triggers {
-            Arc::clone(&self)
-                .run_trigger(&db_name, &trigger_name)
-                .await?;
+        for (db_id, trigger_id) in triggers {
+            Arc::clone(&self).run_trigger(&db_id, &trigger_id).await?;
         }
         Ok(())
     }
@@ -596,7 +559,6 @@ impl ProcessingEngineManagerImpl {
             body: request_body,
             response_tx: tx,
         };
-
         self.plugin_event_tx
             .write()
             .await
@@ -680,14 +642,14 @@ fn background_catalog_update(
                     let processing_engine_manager = Arc::clone(&processing_engine_manager);
                     match op {
                         DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
-                            trigger_name,
-                            database_name,
+                            trigger_id,
+                            database_id,
                             disabled,
                             ..
                         }) => {
                             if !disabled {
                                 if let Err(error) = processing_engine_manager
-                                    .run_trigger(database_name, trigger_name)
+                                    .run_trigger(database_id, trigger_id)
                                     .await
                                 {
                                     error!(?error, "failed to run the created trigger");
@@ -695,36 +657,36 @@ fn background_catalog_update(
                             }
                         }
                         DatabaseCatalogOp::EnableTrigger(TriggerIdentifier {
-                            db_name,
-                            trigger_name,
+                            db_id,
+                            trigger_id,
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .run_trigger(db_name, trigger_name)
+                                .run_trigger(db_id, trigger_id)
                                 .await
                             {
                                 error!(?error, "failed to run the trigger");
                             }
                         }
                         DatabaseCatalogOp::DeleteTrigger(DeleteTriggerLog {
-                            trigger_name,
+                            trigger_id,
                             force: true,
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .stop_trigger(&batch.database_name, trigger_name)
+                                .stop_trigger(&batch.database_id, trigger_id)
                                 .await
                             {
                                 error!(?error, "failed to disable the trigger");
                             }
                         }
                         DatabaseCatalogOp::DisableTrigger(TriggerIdentifier {
-                            db_name,
-                            trigger_name,
+                            db_id,
+                            trigger_id,
                             ..
                         }) => {
                             if let Err(error) = processing_engine_manager
-                                .stop_trigger(db_name, trigger_name)
+                                .stop_trigger(db_id, trigger_id)
                                 .await
                             {
                                 error!(?error, "failed to disable the trigger");

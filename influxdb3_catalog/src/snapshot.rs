@@ -211,6 +211,7 @@ impl Snapshot for TableDefinition {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProcessingEngineTriggerSnapshot {
+    pub database_id: DbId,
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
     pub node_id: Arc<str>,
@@ -227,6 +228,7 @@ impl Snapshot for TriggerDefinition {
 
     fn snapshot(&self) -> Self::Serialized {
         Self::Serialized {
+            database_id: self.database_id,
             trigger_id: self.trigger_id,
             trigger_name: Arc::clone(&self.trigger_name),
             node_id: Arc::clone(&self.node_id),
@@ -241,6 +243,7 @@ impl Snapshot for TriggerDefinition {
 
     fn from_snapshot(snap: Self::Serialized) -> Self {
         Self {
+            database_id: snap.database_id,
             trigger_id: snap.trigger_id,
             trigger_name: snap.trigger_name,
             node_id: snap.node_id,

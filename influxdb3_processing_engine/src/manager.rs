@@ -1,12 +1,13 @@
 use crate::environment::PluginEnvironmentError;
 use influxdb3_catalog::CatalogError;
+use influxdb3_id::{DbId, TriggerId};
 use std::fmt::Debug;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ProcessingEngineError {
     #[error("database not found: {0}")]
-    DatabaseNotFound(String),
+    DatabaseNotFound(DbId),
 
     #[error("catalog update error: {0}")]
     CatalogUpdateError(#[from] CatalogError),
@@ -23,10 +24,10 @@ pub enum ProcessingEngineError {
     #[error("plugin error: {0}")]
     PluginError(#[from] crate::plugins::PluginError),
 
-    #[error("failed to shutdown trigger {trigger_name} in database {database}")]
+    #[error("failed to shutdown trigger {trigger_id} in database {database_id}")]
     TriggerShutdownError {
-        database: String,
-        trigger_name: String,
+        database_id: DbId,
+        trigger_id: TriggerId,
     },
 
     #[error("request trigger not found")]
@@ -37,4 +38,7 @@ pub enum ProcessingEngineError {
 
     #[error("error installing python packages: {0}")]
     PythonPackageError(#[from] PluginEnvironmentError),
+
+    #[error("trigger not found: {0}")]
+    TriggerNotFound(TriggerId),
 }

@@ -31,6 +31,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 
+use influxdb3_id::DbId;
 use tokio::sync::mpsc;
 
 #[derive(Debug, Error)]
@@ -87,13 +88,13 @@ pub enum PluginError {
 }
 
 pub(crate) fn run_wal_contents_plugin(
-    db_name: String,
+    db_id: DbId,
     plugin_code: Arc<PluginCode>,
     trigger_definition: Arc<TriggerDefinition>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<WalEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
+    let trigger_plugin = TriggerPlugin::new(db_id, plugin_code, trigger_definition, context);
 
     tokio::task::spawn(async move {
         trigger_plugin
@@ -111,7 +112,7 @@ pub struct ProcessingEngineEnvironmentManager {
 }
 
 pub(crate) fn run_schedule_plugin(
-    db_name: String,
+    db_id: DbId,
     plugin_code: Arc<PluginCode>,
     trigger_definition: Arc<TriggerDefinition>,
     time_provider: Arc<dyn TimeProvider>,
@@ -127,7 +128,7 @@ pub(crate) fn run_schedule_plugin(
         )));
     }
 
-    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
+    let trigger_plugin = TriggerPlugin::new(db_id, plugin_code, trigger_definition, context);
 
     let runner = python_plugin::ScheduleTriggerRunner::try_new(
         &trigger_plugin.trigger_definition.trigger,
@@ -144,13 +145,13 @@ pub(crate) fn run_schedule_plugin(
 }
 
 pub(crate) fn run_request_plugin(
-    db_name: String,
+    db_id: DbId,
     plugin_code: Arc<PluginCode>,
     trigger_definition: Arc<TriggerDefinition>,
     context: PluginContext,
     plugin_receiver: mpsc::Receiver<RequestEvent>,
 ) {
-    let trigger_plugin = TriggerPlugin::new(db_name, plugin_code, trigger_definition, context);
+    let trigger_plugin = TriggerPlugin::new(db_id, plugin_code, trigger_definition, context);
     tokio::task::spawn(async move {
         trigger_plugin
             .run_request_plugin(plugin_receiver)
@@ -174,7 +175,7 @@ pub(crate) struct PluginContext {
 struct TriggerPlugin {
     trigger_definition: Arc<TriggerDefinition>,
     plugin_code: Arc<PluginCode>,
-    db_name: String,
+    db_id: DbId,
     write_buffer: Arc<dyn WriteBuffer>,
     query_executor: Arc<dyn QueryExecutor>,
     manager: Arc<ProcessingEngineManagerImpl>,
@@ -209,7 +210,7 @@ mod python_plugin {
 
     impl TriggerPlugin {
         pub(crate) fn new(
-            db_name: String,
+            db_id: DbId,
             plugin_code: Arc<PluginCode>,
             trigger_definition: Arc<TriggerDefinition>,
             context: PluginContext,
@@ -221,7 +222,7 @@ mod python_plugin {
             Self {
                 trigger_definition,
                 plugin_code,
-                db_name,
+                db_id,
                 write_buffer: Arc::clone(&context.write_buffer),
                 query_executor: Arc::clone(&context.query_executor),
                 manager: Arc::clone(&context.manager),
@@ -320,9 +321,9 @@ mod python_plugin {
         /// it is done in a separate task so that the caller can send back shutdown.
         pub(crate) fn send_disable_trigger(&self) {
             let manager = Arc::clone(&self.manager);
-            let db_name = Arc::clone(&self.trigger_definition.database_name);
-            let trigger_name = Arc::clone(&self.trigger_definition.trigger_name);
-            let fut = async move { manager.stop_trigger(&db_name, &trigger_name).await };
+            let db_id = self.db_id;
+            let trigger_id = self.trigger_definition.trigger_id;
+            let fut = async move { manager.stop_trigger(&db_id, &trigger_id).await };
             // start the disable call, then look for the shutdown message
             tokio::spawn(fut);
         }
@@ -341,7 +342,7 @@ mod python_plugin {
 
                 tokio::select! {
                     _ = time_provider.sleep_until(next_run_instant) => {
-                        let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
+                        let Some(schema) = self.write_buffer.catalog().db_schema_by_id(&self.trigger_definition.database_id) else {
                             return Err(PluginError::MissingDb);
                         };
 
@@ -448,8 +449,10 @@ mod python_plugin {
                         break;
                     }
                     Some(RequestEvent::Request(request)) => {
-                        let Some(schema) =
-                            self.write_buffer.catalog().db_schema(self.db_name.as_str())
+                        let Some(schema) = self
+                            .write_buffer
+                            .catalog()
+                            .db_schema_by_id(&self.trigger_definition.database_id)
                         else {
                             error!(?self.trigger_definition, "missing db schema");
                             return Err(PluginError::MissingDb);
@@ -546,7 +549,11 @@ mod python_plugin {
             &self,
             wal_contents: Arc<WalContents>,
         ) -> Result<PluginNextState, PluginError> {
-            let Some(schema) = self.write_buffer.catalog().db_schema(self.db_name.as_str()) else {
+            let Some(schema) = self
+                .write_buffer
+                .catalog()
+                .db_schema_by_id(&self.trigger_definition.database_id)
+            else {
                 return Err(PluginError::MissingDb);
             };
 
@@ -554,7 +561,7 @@ mod python_plugin {
                 match wal_op {
                     WalOp::Write(write_batch) => {
                         // determine if this write batch is for this database
-                        if write_batch.database_name != self.trigger_definition.database_name {
+                        if write_batch.database_id != self.trigger_definition.database_id {
                             continue;
                         }
                         let table_filter = match &self.trigger_definition.trigger {
@@ -675,7 +682,8 @@ mod python_plugin {
                 if let Err(e) = self
                     .write_buffer
                     .write_lp(
-                        NamespaceName::new(self.db_name.clone()).unwrap(),
+                        NamespaceName::new(self.trigger_definition.database_name.to_string())
+                            .unwrap(),
                         plugin_return_state.write_back_lines.join("\n").as_str(),
                         Time::from_timestamp_nanos(ingest_time.as_nanos() as i64),
                         false,

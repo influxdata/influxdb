@@ -642,6 +642,7 @@ pub struct TriggerDefinition {
     pub trigger_id: TriggerId,
     pub trigger_name: Arc<str>,
     pub plugin_filename: String,
+    pub database_id: DbId,
     pub database_name: Arc<str>,
     pub node_id: Arc<str>,
     pub trigger: TriggerSpecificationDefinition,
