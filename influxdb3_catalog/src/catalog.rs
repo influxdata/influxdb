@@ -300,9 +300,8 @@ impl Catalog {
         self.inner.read().db_exists(db_id)
     }
 
-    /// Get active triggers by database and trigger name
-    // NOTE: this could be id-based in future
-    pub fn active_triggers(&self) -> Vec<(Arc<str>, Arc<str>)> {
+    /// Get active triggers by database ID and trigger ID
+    pub fn active_triggers(&self) -> Vec<(DbId, TriggerId)> {
         let inner = self.inner.read();
         let result = inner
             .databases
@@ -314,7 +313,7 @@ impl Catalog {
                         if trigger.disabled {
                             None
                         } else {
-                            Some((Arc::clone(&db.name), Arc::clone(&trigger.trigger_name)))
+                            Some((db.id, trigger.trigger_id))
                         }
                     })
             })

@@ -539,6 +539,7 @@ impl Catalog {
                 db.id,
                 db.name(),
                 vec![DatabaseCatalogOp::CreateTrigger(TriggerDefinition {
+                    database_id: db.id,
                     trigger_id,
                     trigger_name: trigger_name.into(),
                     plugin_filename: plugin_filename.to_string(),
