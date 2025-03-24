@@ -1,6 +1,6 @@
-use crate::log::versions::latest;
+use crate::log::versions::v2;
 
-impl From<super::OrderedCatalogBatch> for latest::OrderedCatalogBatch {
+impl From<super::OrderedCatalogBatch> for v2::OrderedCatalogBatch {
     fn from(value: super::OrderedCatalogBatch) -> Self {
         Self {
             catalog_batch: value.catalog_batch.into(),
@@ -9,18 +9,18 @@ impl From<super::OrderedCatalogBatch> for latest::OrderedCatalogBatch {
     }
 }
 
-impl From<super::CatalogBatch> for latest::CatalogBatch {
+impl From<super::CatalogBatch> for v2::CatalogBatch {
     fn from(value: super::CatalogBatch) -> Self {
         match value {
-            super::CatalogBatch::Node(node_batch) => latest::CatalogBatch::Node(node_batch.into()),
+            super::CatalogBatch::Node(node_batch) => v2::CatalogBatch::Node(node_batch.into()),
             super::CatalogBatch::Database(database_batch) => {
-                latest::CatalogBatch::Database(database_batch.into())
+                v2::CatalogBatch::Database(database_batch.into())
             }
         }
     }
 }
 
-impl From<super::NodeBatch> for latest::NodeBatch {
+impl From<super::NodeBatch> for v2::NodeBatch {
     fn from(value: super::NodeBatch) -> Self {
         Self {
             time_ns: value.time_ns,
@@ -31,17 +31,17 @@ impl From<super::NodeBatch> for latest::NodeBatch {
     }
 }
 
-impl From<super::NodeCatalogOp> for latest::NodeCatalogOp {
+impl From<super::NodeCatalogOp> for v2::NodeCatalogOp {
     fn from(value: super::NodeCatalogOp) -> Self {
         match value {
             super::NodeCatalogOp::RegisterNode(register_node_log) => {
-                latest::NodeCatalogOp::RegisterNode(register_node_log.into())
+                v2::NodeCatalogOp::RegisterNode(register_node_log.into())
             }
         }
     }
 }
 
-impl From<super::RegisterNodeLog> for latest::RegisterNodeLog {
+impl From<super::RegisterNodeLog> for v2::RegisterNodeLog {
     fn from(value: super::RegisterNodeLog) -> Self {
         Self {
             node_id: value.node_id,
@@ -53,15 +53,15 @@ impl From<super::RegisterNodeLog> for latest::RegisterNodeLog {
     }
 }
 
-impl From<super::NodeMode> for latest::NodeMode {
+impl From<super::NodeMode> for v2::NodeMode {
     fn from(value: super::NodeMode) -> Self {
         match value {
-            super::NodeMode::Core => latest::NodeMode::Core,
+            super::NodeMode::Core => v2::NodeMode::Core,
         }
     }
 }
 
-impl From<super::DatabaseBatch> for latest::DatabaseBatch {
+impl From<super::DatabaseBatch> for v2::DatabaseBatch {
     fn from(value: super::DatabaseBatch) -> Self {
         Self {
             time_ns: value.time_ns,
@@ -72,53 +72,53 @@ impl From<super::DatabaseBatch> for latest::DatabaseBatch {
     }
 }
 
-impl From<super::DatabaseCatalogOp> for latest::DatabaseCatalogOp {
+impl From<super::DatabaseCatalogOp> for v2::DatabaseCatalogOp {
     fn from(value: super::DatabaseCatalogOp) -> Self {
         match value {
             super::DatabaseCatalogOp::CreateDatabase(create_database_log) => {
-                latest::DatabaseCatalogOp::CreateDatabase(create_database_log.into())
+                v2::DatabaseCatalogOp::CreateDatabase(create_database_log.into())
             }
             super::DatabaseCatalogOp::SoftDeleteDatabase(soft_delete_database_log) => {
-                latest::DatabaseCatalogOp::SoftDeleteDatabase(soft_delete_database_log.into())
+                v2::DatabaseCatalogOp::SoftDeleteDatabase(soft_delete_database_log.into())
             }
             super::DatabaseCatalogOp::CreateTable(create_table_log) => {
-                latest::DatabaseCatalogOp::CreateTable(create_table_log.into())
+                v2::DatabaseCatalogOp::CreateTable(create_table_log.into())
             }
             super::DatabaseCatalogOp::SoftDeleteTable(soft_delete_table_log) => {
-                latest::DatabaseCatalogOp::SoftDeleteTable(soft_delete_table_log.into())
+                v2::DatabaseCatalogOp::SoftDeleteTable(soft_delete_table_log.into())
             }
             super::DatabaseCatalogOp::AddFields(add_fields_log) => {
-                latest::DatabaseCatalogOp::AddFields(add_fields_log.into())
+                v2::DatabaseCatalogOp::AddFields(add_fields_log.into())
             }
             super::DatabaseCatalogOp::CreateDistinctCache(distinct_cache_definition) => {
-                latest::DatabaseCatalogOp::CreateDistinctCache(distinct_cache_definition.into())
+                v2::DatabaseCatalogOp::CreateDistinctCache(distinct_cache_definition.into())
             }
             super::DatabaseCatalogOp::DeleteDistinctCache(delete_distinct_cache_log) => {
-                latest::DatabaseCatalogOp::DeleteDistinctCache(delete_distinct_cache_log.into())
+                v2::DatabaseCatalogOp::DeleteDistinctCache(delete_distinct_cache_log.into())
             }
             super::DatabaseCatalogOp::CreateLastCache(last_cache_definition) => {
-                latest::DatabaseCatalogOp::CreateLastCache(last_cache_definition.into())
+                v2::DatabaseCatalogOp::CreateLastCache(last_cache_definition.into())
             }
             super::DatabaseCatalogOp::DeleteLastCache(delete_last_cache_log) => {
-                latest::DatabaseCatalogOp::DeleteLastCache(delete_last_cache_log.into())
+                v2::DatabaseCatalogOp::DeleteLastCache(delete_last_cache_log.into())
             }
             super::DatabaseCatalogOp::CreateTrigger(trigger_definition) => {
-                latest::DatabaseCatalogOp::CreateTrigger(trigger_definition.into())
+                v2::DatabaseCatalogOp::CreateTrigger(trigger_definition.into())
             }
             super::DatabaseCatalogOp::DeleteTrigger(delete_trigger_log) => {
-                latest::DatabaseCatalogOp::DeleteTrigger(delete_trigger_log.into())
+                v2::DatabaseCatalogOp::DeleteTrigger(delete_trigger_log.into())
             }
             super::DatabaseCatalogOp::EnableTrigger(trigger_identifier) => {
-                latest::DatabaseCatalogOp::EnableTrigger(trigger_identifier.into())
+                v2::DatabaseCatalogOp::EnableTrigger(trigger_identifier.into())
             }
             super::DatabaseCatalogOp::DisableTrigger(trigger_identifier) => {
-                latest::DatabaseCatalogOp::DisableTrigger(trigger_identifier.into())
+                v2::DatabaseCatalogOp::DisableTrigger(trigger_identifier.into())
             }
         }
     }
 }
 
-impl From<super::CreateDatabaseLog> for latest::CreateDatabaseLog {
+impl From<super::CreateDatabaseLog> for v2::CreateDatabaseLog {
     fn from(value: super::CreateDatabaseLog) -> Self {
         Self {
             database_id: value.database_id,
@@ -127,7 +127,7 @@ impl From<super::CreateDatabaseLog> for latest::CreateDatabaseLog {
     }
 }
 
-impl From<super::SoftDeleteDatabaseLog> for latest::SoftDeleteDatabaseLog {
+impl From<super::SoftDeleteDatabaseLog> for v2::SoftDeleteDatabaseLog {
     fn from(value: super::SoftDeleteDatabaseLog) -> Self {
         Self {
             database_id: value.database_id,
@@ -137,7 +137,7 @@ impl From<super::SoftDeleteDatabaseLog> for latest::SoftDeleteDatabaseLog {
     }
 }
 
-impl From<super::CreateTableLog> for latest::CreateTableLog {
+impl From<super::CreateTableLog> for v2::CreateTableLog {
     fn from(value: super::CreateTableLog) -> Self {
         Self {
             database_id: value.database_id,
@@ -154,7 +154,7 @@ impl From<super::CreateTableLog> for latest::CreateTableLog {
     }
 }
 
-impl From<super::FieldDefinition> for latest::FieldDefinition {
+impl From<super::FieldDefinition> for v2::FieldDefinition {
     fn from(value: super::FieldDefinition) -> Self {
         Self {
             name: value.name,
@@ -164,21 +164,21 @@ impl From<super::FieldDefinition> for latest::FieldDefinition {
     }
 }
 
-impl From<super::FieldDataType> for latest::FieldDataType {
+impl From<super::FieldDataType> for v2::FieldDataType {
     fn from(value: super::FieldDataType) -> Self {
         match value {
-            super::FieldDataType::String => latest::FieldDataType::String,
-            super::FieldDataType::Integer => latest::FieldDataType::Integer,
-            super::FieldDataType::UInteger => latest::FieldDataType::UInteger,
-            super::FieldDataType::Float => latest::FieldDataType::Float,
-            super::FieldDataType::Boolean => latest::FieldDataType::Boolean,
-            super::FieldDataType::Timestamp => latest::FieldDataType::Timestamp,
-            super::FieldDataType::Tag => latest::FieldDataType::Tag,
+            super::FieldDataType::String => v2::FieldDataType::String,
+            super::FieldDataType::Integer => v2::FieldDataType::Integer,
+            super::FieldDataType::UInteger => v2::FieldDataType::UInteger,
+            super::FieldDataType::Float => v2::FieldDataType::Float,
+            super::FieldDataType::Boolean => v2::FieldDataType::Boolean,
+            super::FieldDataType::Timestamp => v2::FieldDataType::Timestamp,
+            super::FieldDataType::Tag => v2::FieldDataType::Tag,
         }
     }
 }
 
-impl From<super::SoftDeleteTableLog> for latest::SoftDeleteTableLog {
+impl From<super::SoftDeleteTableLog> for v2::SoftDeleteTableLog {
     fn from(value: super::SoftDeleteTableLog) -> Self {
         Self {
             database_id: value.database_id,
@@ -190,7 +190,7 @@ impl From<super::SoftDeleteTableLog> for latest::SoftDeleteTableLog {
     }
 }
 
-impl From<super::AddFieldsLog> for latest::AddFieldsLog {
+impl From<super::AddFieldsLog> for v2::AddFieldsLog {
     fn from(value: super::AddFieldsLog) -> Self {
         Self {
             database_name: value.database_name,
@@ -206,7 +206,7 @@ impl From<super::AddFieldsLog> for latest::AddFieldsLog {
     }
 }
 
-impl From<super::DistinctCacheDefinition> for latest::DistinctCacheDefinition {
+impl From<super::DistinctCacheDefinition> for v2::DistinctCacheDefinition {
     fn from(value: super::DistinctCacheDefinition) -> Self {
         Self {
             table_id: value.table_id,
@@ -220,19 +220,19 @@ impl From<super::DistinctCacheDefinition> for latest::DistinctCacheDefinition {
     }
 }
 
-impl From<super::MaxCardinality> for latest::MaxCardinality {
+impl From<super::MaxCardinality> for v2::MaxCardinality {
     fn from(value: super::MaxCardinality) -> Self {
         Self::from(value.0)
     }
 }
 
-impl From<super::MaxAge> for latest::MaxAge {
+impl From<super::MaxAge> for v2::MaxAge {
     fn from(value: super::MaxAge) -> Self {
         Self(value.0)
     }
 }
 
-impl From<super::DeleteDistinctCacheLog> for latest::DeleteDistinctCacheLog {
+impl From<super::DeleteDistinctCacheLog> for v2::DeleteDistinctCacheLog {
     fn from(value: super::DeleteDistinctCacheLog) -> Self {
         Self {
             table_id: value.table_id,
@@ -243,7 +243,7 @@ impl From<super::DeleteDistinctCacheLog> for latest::DeleteDistinctCacheLog {
     }
 }
 
-impl From<super::LastCacheDefinition> for latest::LastCacheDefinition {
+impl From<super::LastCacheDefinition> for v2::LastCacheDefinition {
     fn from(value: super::LastCacheDefinition) -> Self {
         Self {
             table_id: value.table_id,
@@ -258,32 +258,32 @@ impl From<super::LastCacheDefinition> for latest::LastCacheDefinition {
     }
 }
 
-impl From<super::LastCacheValueColumnsDef> for latest::LastCacheValueColumnsDef {
+impl From<super::LastCacheValueColumnsDef> for v2::LastCacheValueColumnsDef {
     fn from(value: super::LastCacheValueColumnsDef) -> Self {
         match value {
             super::LastCacheValueColumnsDef::Explicit { columns } => {
-                latest::LastCacheValueColumnsDef::Explicit { columns }
+                v2::LastCacheValueColumnsDef::Explicit { columns }
             }
             super::LastCacheValueColumnsDef::AllNonKeyColumns => {
-                latest::LastCacheValueColumnsDef::AllNonKeyColumns
+                v2::LastCacheValueColumnsDef::AllNonKeyColumns
             }
         }
     }
 }
 
-impl From<super::LastCacheSize> for latest::LastCacheSize {
+impl From<super::LastCacheSize> for v2::LastCacheSize {
     fn from(value: super::LastCacheSize) -> Self {
         Self(value.0)
     }
 }
 
-impl From<super::LastCacheTtl> for latest::LastCacheTtl {
+impl From<super::LastCacheTtl> for v2::LastCacheTtl {
     fn from(value: super::LastCacheTtl) -> Self {
         Self(value.0)
     }
 }
 
-impl From<super::DeleteLastCacheLog> for latest::DeleteLastCacheLog {
+impl From<super::DeleteLastCacheLog> for v2::DeleteLastCacheLog {
     fn from(value: super::DeleteLastCacheLog) -> Self {
         Self {
             table_id: value.table_id,
@@ -294,7 +294,7 @@ impl From<super::DeleteLastCacheLog> for latest::DeleteLastCacheLog {
     }
 }
 
-impl From<super::TriggerDefinition> for latest::TriggerDefinition {
+impl From<super::TriggerDefinition> for v2::TriggerDefinition {
     fn from(value: super::TriggerDefinition) -> Self {
         Self {
             trigger_id: value.trigger_id,
@@ -310,29 +310,29 @@ impl From<super::TriggerDefinition> for latest::TriggerDefinition {
     }
 }
 
-impl From<super::TriggerSpecificationDefinition> for latest::TriggerSpecificationDefinition {
+impl From<super::TriggerSpecificationDefinition> for v2::TriggerSpecificationDefinition {
     fn from(value: super::TriggerSpecificationDefinition) -> Self {
         match value {
             super::TriggerSpecificationDefinition::SingleTableWalWrite { table_name } => {
-                latest::TriggerSpecificationDefinition::SingleTableWalWrite { table_name }
+                v2::TriggerSpecificationDefinition::SingleTableWalWrite { table_name }
             }
             super::TriggerSpecificationDefinition::AllTablesWalWrite => {
-                latest::TriggerSpecificationDefinition::AllTablesWalWrite
+                v2::TriggerSpecificationDefinition::AllTablesWalWrite
             }
             super::TriggerSpecificationDefinition::Schedule { schedule } => {
-                latest::TriggerSpecificationDefinition::Schedule { schedule }
+                v2::TriggerSpecificationDefinition::Schedule { schedule }
             }
             super::TriggerSpecificationDefinition::RequestPath { path } => {
-                latest::TriggerSpecificationDefinition::RequestPath { path }
+                v2::TriggerSpecificationDefinition::RequestPath { path }
             }
             super::TriggerSpecificationDefinition::Every { duration } => {
-                latest::TriggerSpecificationDefinition::Every { duration }
+                v2::TriggerSpecificationDefinition::Every { duration }
             }
         }
     }
 }
 
-impl From<super::TriggerSettings> for latest::TriggerSettings {
+impl From<super::TriggerSettings> for v2::TriggerSettings {
     fn from(value: super::TriggerSettings) -> Self {
         Self {
             run_async: value.run_async,
@@ -341,17 +341,17 @@ impl From<super::TriggerSettings> for latest::TriggerSettings {
     }
 }
 
-impl From<super::ErrorBehavior> for latest::ErrorBehavior {
+impl From<super::ErrorBehavior> for v2::ErrorBehavior {
     fn from(value: super::ErrorBehavior) -> Self {
         match value {
-            super::ErrorBehavior::Log => latest::ErrorBehavior::Log,
-            super::ErrorBehavior::Retry => latest::ErrorBehavior::Retry,
-            super::ErrorBehavior::Disable => latest::ErrorBehavior::Disable,
+            super::ErrorBehavior::Log => v2::ErrorBehavior::Log,
+            super::ErrorBehavior::Retry => v2::ErrorBehavior::Retry,
+            super::ErrorBehavior::Disable => v2::ErrorBehavior::Disable,
         }
     }
 }
 
-impl From<super::DeleteTriggerLog> for latest::DeleteTriggerLog {
+impl From<super::DeleteTriggerLog> for v2::DeleteTriggerLog {
     fn from(value: super::DeleteTriggerLog) -> Self {
         Self {
             trigger_id: value.trigger_id,
@@ -361,7 +361,7 @@ impl From<super::DeleteTriggerLog> for latest::DeleteTriggerLog {
     }
 }
 
-impl From<super::TriggerIdentifier> for latest::TriggerIdentifier {
+impl From<super::TriggerIdentifier> for v2::TriggerIdentifier {
     fn from(value: super::TriggerIdentifier) -> Self {
         Self {
             db_id: value.db_id,

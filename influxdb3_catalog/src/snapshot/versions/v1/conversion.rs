@@ -1,8 +1,8 @@
 use influxdb3_id::CatalogId;
 
-use crate::{catalog::NodeState, snapshot::versions::latest};
+use crate::{catalog::NodeState, snapshot::versions::v2};
 
-impl From<super::CatalogSnapshot> for latest::CatalogSnapshot {
+impl From<super::CatalogSnapshot> for v2::CatalogSnapshot {
     fn from(value: super::CatalogSnapshot) -> Self {
         Self {
             nodes: value.nodes.into(),
@@ -14,7 +14,7 @@ impl From<super::CatalogSnapshot> for latest::CatalogSnapshot {
     }
 }
 
-impl<I, RS, RL> From<super::RepositorySnapshot<I, RS>> for latest::RepositorySnapshot<I, RL>
+impl<I, RS, RL> From<super::RepositorySnapshot<I, RS>> for v2::RepositorySnapshot<I, RL>
 where
     I: CatalogId,
     RL: From<RS>,
@@ -27,7 +27,7 @@ where
     }
 }
 
-impl From<super::NodeSnapshot> for latest::NodeSnapshot {
+impl From<super::NodeSnapshot> for v2::NodeSnapshot {
     fn from(value: super::NodeSnapshot) -> Self {
         Self {
             node_id: value.node_id,
@@ -51,7 +51,7 @@ impl From<super::NodeState> for NodeState {
     }
 }
 
-impl From<super::DatabaseSnapshot> for latest::DatabaseSnapshot {
+impl From<super::DatabaseSnapshot> for v2::DatabaseSnapshot {
     fn from(value: super::DatabaseSnapshot) -> Self {
         Self {
             id: value.id,
@@ -63,7 +63,7 @@ impl From<super::DatabaseSnapshot> for latest::DatabaseSnapshot {
     }
 }
 
-impl From<super::TableSnapshot> for latest::TableSnapshot {
+impl From<super::TableSnapshot> for v2::TableSnapshot {
     fn from(value: super::TableSnapshot) -> Self {
         Self {
             table_id: value.table_id,
@@ -77,7 +77,7 @@ impl From<super::TableSnapshot> for latest::TableSnapshot {
     }
 }
 
-impl From<super::ColumnDefinitionSnapshot> for latest::ColumnDefinitionSnapshot {
+impl From<super::ColumnDefinitionSnapshot> for v2::ColumnDefinitionSnapshot {
     fn from(value: super::ColumnDefinitionSnapshot) -> Self {
         Self {
             name: value.name,
@@ -89,59 +89,59 @@ impl From<super::ColumnDefinitionSnapshot> for latest::ColumnDefinitionSnapshot 
     }
 }
 
-impl From<super::DataType> for latest::DataType {
+impl From<super::DataType> for v2::DataType {
     fn from(value: super::DataType) -> Self {
         match value {
-            super::DataType::Null => latest::DataType::Null,
-            super::DataType::Bool => latest::DataType::Bool,
-            super::DataType::I8 => latest::DataType::I8,
-            super::DataType::I16 => latest::DataType::I16,
-            super::DataType::I32 => latest::DataType::I32,
-            super::DataType::I64 => latest::DataType::I64,
-            super::DataType::U8 => latest::DataType::U8,
-            super::DataType::U16 => latest::DataType::U16,
-            super::DataType::U32 => latest::DataType::U32,
-            super::DataType::U64 => latest::DataType::U64,
-            super::DataType::F16 => latest::DataType::F16,
-            super::DataType::F32 => latest::DataType::F32,
-            super::DataType::F64 => latest::DataType::F64,
-            super::DataType::Str => latest::DataType::Str,
-            super::DataType::BigStr => latest::DataType::BigStr,
-            super::DataType::StrView => latest::DataType::StrView,
-            super::DataType::Bin => latest::DataType::Bin,
-            super::DataType::BigBin => latest::DataType::BigBin,
-            super::DataType::BinView => latest::DataType::BinView,
-            super::DataType::Dict(a, b) => latest::DataType::Dict(
+            super::DataType::Null => v2::DataType::Null,
+            super::DataType::Bool => v2::DataType::Bool,
+            super::DataType::I8 => v2::DataType::I8,
+            super::DataType::I16 => v2::DataType::I16,
+            super::DataType::I32 => v2::DataType::I32,
+            super::DataType::I64 => v2::DataType::I64,
+            super::DataType::U8 => v2::DataType::U8,
+            super::DataType::U16 => v2::DataType::U16,
+            super::DataType::U32 => v2::DataType::U32,
+            super::DataType::U64 => v2::DataType::U64,
+            super::DataType::F16 => v2::DataType::F16,
+            super::DataType::F32 => v2::DataType::F32,
+            super::DataType::F64 => v2::DataType::F64,
+            super::DataType::Str => v2::DataType::Str,
+            super::DataType::BigStr => v2::DataType::BigStr,
+            super::DataType::StrView => v2::DataType::StrView,
+            super::DataType::Bin => v2::DataType::Bin,
+            super::DataType::BigBin => v2::DataType::BigBin,
+            super::DataType::BinView => v2::DataType::BinView,
+            super::DataType::Dict(a, b) => v2::DataType::Dict(
                 Box::new(a.as_ref().clone().into()),
                 Box::new(b.as_ref().clone().into()),
             ),
-            super::DataType::Time(tu, tz) => latest::DataType::Time(tu.into(), tz),
+            super::DataType::Time(tu, tz) => v2::DataType::Time(tu.into(), tz),
         }
     }
 }
 
-impl From<super::TimeUnit> for latest::TimeUnit {
+impl From<super::TimeUnit> for v2::TimeUnit {
     fn from(value: super::TimeUnit) -> Self {
         match value {
-            super::TimeUnit::Second => latest::TimeUnit::Second,
-            super::TimeUnit::Millisecond => latest::TimeUnit::Millisecond,
-            super::TimeUnit::Microsecond => latest::TimeUnit::Microsecond,
-            super::TimeUnit::Nanosecond => latest::TimeUnit::Nanosecond,
+            super::TimeUnit::Second => v2::TimeUnit::Second,
+            super::TimeUnit::Millisecond => v2::TimeUnit::Millisecond,
+            super::TimeUnit::Microsecond => v2::TimeUnit::Microsecond,
+            super::TimeUnit::Nanosecond => v2::TimeUnit::Nanosecond,
         }
     }
 }
 
-impl From<super::InfluxType> for latest::InfluxType {
+impl From<super::InfluxType> for v2::InfluxType {
     fn from(value: super::InfluxType) -> Self {
         match value {
-            super::InfluxType::Tag => latest::InfluxType::Tag,
-            super::InfluxType::Field => latest::InfluxType::Field,
-            super::InfluxType::Time => latest::InfluxType::Time,
+            super::InfluxType::Tag => v2::InfluxType::Tag,
+            super::InfluxType::Field => v2::InfluxType::Field,
+            super::InfluxType::Time => v2::InfluxType::Time,
         }
     }
 }
 
-impl From<super::LastCacheSnapshot> for latest::LastCacheSnapshot {
+impl From<super::LastCacheSnapshot> for v2::LastCacheSnapshot {
     fn from(value: super::LastCacheSnapshot) -> Self {
         Self {
             table_id: value.table_id,
@@ -156,7 +156,7 @@ impl From<super::LastCacheSnapshot> for latest::LastCacheSnapshot {
     }
 }
 
-impl From<super::DistinctCacheSnapshot> for latest::DistinctCacheSnapshot {
+impl From<super::DistinctCacheSnapshot> for v2::DistinctCacheSnapshot {
     fn from(value: super::DistinctCacheSnapshot) -> Self {
         Self {
             table_id: value.table_id,
@@ -170,7 +170,7 @@ impl From<super::DistinctCacheSnapshot> for latest::DistinctCacheSnapshot {
     }
 }
 
-impl From<super::ProcessingEngineTriggerSnapshot> for latest::ProcessingEngineTriggerSnapshot {
+impl From<super::ProcessingEngineTriggerSnapshot> for v2::ProcessingEngineTriggerSnapshot {
     fn from(value: super::ProcessingEngineTriggerSnapshot) -> Self {
         Self {
             trigger_id: value.trigger_id,

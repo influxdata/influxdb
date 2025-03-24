@@ -1,2 +1,2 @@
 pub(crate) mod versions;
-pub(crate) use versions::latest::*;
+pub(crate) use versions::v2::*;
