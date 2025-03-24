@@ -115,7 +115,7 @@ impl From<super::DataType> for latest::DataType {
                 Box::new(a.as_ref().clone().into()),
                 Box::new(b.as_ref().clone().into()),
             ),
-            super::DataType::Time(tu, tz) => latest::DataType::Time(tu.into(), tz.into()),
+            super::DataType::Time(tu, tz) => latest::DataType::Time(tu.into(), tz),
         }
     }
 }

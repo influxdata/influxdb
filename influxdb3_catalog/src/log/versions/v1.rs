@@ -363,18 +363,6 @@ pub(crate) struct DistinctCacheDefinition {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MaxCardinality(NonZeroUsize);
 
-impl MaxCardinality {
-    pub fn from_usize_unchecked(value: usize) -> Self {
-        Self::try_from(value).unwrap()
-    }
-
-    pub fn to_u64(&self) -> u64 {
-        usize::from(self.0)
-            .try_into()
-            .expect("usize not to overflow u64")
-    }
-}
-
 impl TryFrom<usize> for MaxCardinality {
     type Error = anyhow::Error;
 
