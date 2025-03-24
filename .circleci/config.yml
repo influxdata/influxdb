@@ -305,21 +305,21 @@ jobs:
             equal: [ << parameters.workflow >>, release ]
           steps:
             - aws-s3/copy:
-                aws-region:            INFLUXDB1X_AWS_REGION
-                aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
-                aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+                aws-region:            RELEASE_AWS_REGION
+                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
                 from:                  /tmp/workspace/changelog_artifacts/CHANGELOG.md
-                to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >>/CHANGELOG.<< pipeline.git.tag >>.md
+                to:                    s3://dl.influxdata.com/influxdb/releases/<< pipeline.git.tag >>/CHANGELOG.<< pipeline.git.tag >>.md
       - when:
           condition:
             equal: [ << parameters.workflow >>, nightly ]
           steps:
             - aws-s3/copy:
-                aws-region:            INFLUXDB1X_AWS_REGION
-                aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
-                aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+                aws-region:            RELEASE_AWS_REGION
+                aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+                aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
                 from:                  /tmp/workspace/changelog_artifacts/CHANGELOG.md
-                to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
+                to:                    s3://dl.influxdata.com/influxdb/nightlies/<< pipeline.git.branch >>/CHANGELOG.md
 
   publish_packages:
     docker:
@@ -328,11 +328,11 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - aws-s3/sync:
-          aws-region:            INFLUXDB1X_AWS_REGION
-          aws-access-key-id:     INFLUXDB1X_AWS_ACCESS_KEY_ID
-          aws-secret-access-key: INFLUXDB1X_AWS_SECRET_ACCESS_KEY
+          aws-region:            RELEASE_AWS_REGION
+          aws-access-key-id:     RELEASE_AWS_ACCESS_KEY_ID
+          aws-secret-access-key: RELEASE_AWS_SECRET_ACCESS_KEY
           from:                  /tmp/workspace/packages
-          to:                    s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >>
+          to:                    s3://dl.influxdata.com/influxdb/releases/<< pipeline.git.tag >>
 
   slack:
     docker:
@@ -345,7 +345,7 @@ jobs:
           at: /tmp/workspace
       - run:
           command: |
-            SLACK_ARTIFACT_URL=s3://${INFLUXDB1X_ARTIFACTS_BUCKET}/influxdb/releases/<< pipeline.git.tag >> slack
+            SLACK_ARTIFACT_URL=https://dl.influxdata.com/influxdb/releases/<< pipeline.git.tag >> slack
           environment:
             SLACK_ARTIFACT_ROOT:   /tmp/workspace/packages
             SLACK_RELEASE_MESSAGE: New InfluxDB Release
