@@ -309,12 +309,13 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 }
 
 func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupResultSet) error {
+	// error declaration to be used with our cursor iterations below
+	var err error
 	// these resources must be closed if not nil on return
 	var (
 		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
-		err   error
 	)
 
 	defer func() {

@@ -229,9 +229,9 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 		return cur, nil
 	}
 
-	rs := reads.NewGroupResultSet(ctx, req, newCursor)
-	if rs == nil {
-		return nil, nil
+	rs, err := reads.NewGroupResultSet(ctx, req, newCursor)
+	if err != nil {
+		return nil, err
 	}
 
 	return rs, nil

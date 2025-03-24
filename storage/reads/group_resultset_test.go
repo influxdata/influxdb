@@ -2,6 +2,7 @@ package reads_test
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 
@@ -259,7 +260,7 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+			rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
 				Group:     tt.group,
 				GroupKeys: tt.keys,
 				// TODO(jlapacik):
@@ -267,6 +268,7 @@ group:
 				//     Eventually this field should be removed entirely.
 				Hints: uint32(hints),
 			}, newCursor)
+			require.NoError(t, err, "group result set creation error")
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -287,7 +289,8 @@ func TestNewGroupResultSet_GroupNone_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupNone}, newCursor)
+	rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupNone}, newCursor)
+	require.NoError(t, err, "group result set creation error")
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -302,7 +305,8 @@ func TestNewGroupResultSet_GroupBy_NoDataReturnsNil(t *testing.T) {
 			)}, nil
 	}
 
-	rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag0"}}, newCursor)
+	require.NoError(t, err, "group result set creation error")
 	if rs != nil {
 		t.Errorf("expected nil cursor")
 	}
@@ -385,7 +389,7 @@ group:
 
 			var hints datatypes.HintFlags
 			hints.SetHintSchemaAllTime()
-			rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
+			rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{
 				Group:     datatypes.ReadGroupRequest_GroupBy,
 				GroupKeys: tt.keys,
 				// TODO(jlapacik):
@@ -393,6 +397,7 @@ group:
 				//     Eventually this field should be removed entirely.
 				Hints: uint32(hints),
 			}, newCursor, tt.opts...)
+			require.NoError(t, err, "group result set creation error")
 
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs, SkipNilCursor())
@@ -459,7 +464,8 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 	hints.SetHintSchemaAllTime()
 
 	for i := 0; i < b.N; i++ {
-		rs := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag2"}, Hints: uint32(hints)}, newCursor)
+		rs, err := reads.NewGroupResultSet(context.Background(), &datatypes.ReadGroupRequest{Group: datatypes.ReadGroupRequest_GroupBy, GroupKeys: []string{"tag2"}, Hints: uint32(hints)}, newCursor)
+		require.NoError(b, err, "group result set creation error")
 		rs.Close()
 	}
 }
@@ -490,9 +496,11 @@ func TestNewGroupResultSet_TimeRange(t *testing.T) {
 		},
 	}
 
-	resultSet := reads.NewGroupResultSet(ctx, &req, func() (reads.SeriesCursor, error) {
+	resultSet, err := reads.NewGroupResultSet(ctx, &req, func() (reads.SeriesCursor, error) {
 		return &newCursor, nil
 	})
+	require.NoError(t, err, "group result set creation error")
+
 	groupByCursor := resultSet.Next()
 	if groupByCursor == nil {
 		t.Fatal("unexpected: groupByCursor was nil")
