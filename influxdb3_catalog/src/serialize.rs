@@ -115,6 +115,7 @@ fn hash_and_freeze(mut buf: BytesMut, data: Vec<u8>) -> Bytes {
     buf.freeze()
 }
 
+/// Test the conversion from `v1` catalog format, which used bitcode serialization/deserialization
 #[cfg(test)]
 mod v1_tests {
     use std::time::Duration;

@@ -1,3 +1,16 @@
+//! Version 1 (v1) Catalog definitions
+//!
+//! v1 catalog serialization relied on [`bitcode`][bitcode] for serialization/deserialization of
+//! catalog snapshot files.
+//!
+//! The type definitions in this module should not be modified. They exist for deserializing
+//! files that were written with the v1 format. `bitcode` is not self-describing, and does not
+//! handle the addition of new fields to types like other self-describing formats.
+//!
+//! See also [#26180][issue].
+//!
+//! [bitcode]: https://docs.rs/bitcode/latest/bitcode/
+//! [issue]: https://github.com/influxdata/influxdb/issues/26180
 use std::{
     cmp::{Ord, PartialOrd},
     num::NonZeroUsize,
