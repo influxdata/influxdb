@@ -1528,13 +1528,10 @@ async fn record_batch_stream_to_body(
                                 State::FirstPoll => {
                                     let mut writer = arrow_json::ArrayWriter::new(Vec::new());
 
-                                    // If we have nothing in this batch but we are
-                                    // polling for the first time write just the open
-                                    // bracket as the writer will not do so if there
-                                    // is nothing in the batch to write to JSON
+                                    // If we have nothing in this batch just skip it.
+                                    // The initial '[' will be added either on the first non-empty batch or as '[]' at the end.
                                     if batch.num_rows() == 0 {
-                                        self.state = State::Body;
-                                        Poll::Ready(Some(Ok(Bytes::from("["))))
+                                        Poll::Ready(Some(Ok(Bytes::new())))
                                     } else if let Err(err) = writer.write(&batch) {
                                         Poll::Ready(Some(Err(err.into())))
                                     } else {
@@ -1774,12 +1771,13 @@ mod tests {
     use super::ValidateDbNameError;
     use super::record_batch_stream_to_body;
     use super::validate_db_name;
-    use arrow_array::record_batch;
+    use arrow_array::{Int32Array, RecordBatch, record_batch};
     use datafusion::execution::SendableRecordBatchStream;
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
     use hyper::body::to_bytes;
     use pretty_assertions::assert_eq;
     use std::str;
+    use std::sync::Arc;
 
     macro_rules! assert_validate_db_name {
         ($name:literal, $accept_rp:literal, $expected:pat) => {
@@ -1847,6 +1845,39 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[{\"a\":1}]");
+    }
+
+    #[tokio::test]
+    async fn test_json_output_all_empties() {
+        let bytes = to_bytes(
+            record_batch_stream_to_body(
+                make_record_stream_with_sizes(vec![0, 0, 0]),
+                QueryFormat::Json,
+            )
+            .await
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(str::from_utf8(bytes.as_ref()).unwrap(), "[]");
+    }
+
+    #[tokio::test]
+    async fn test_empty_present_mixture() {
+        let bytes = to_bytes(
+            record_batch_stream_to_body(
+                make_record_stream_with_sizes(vec![0, 0, 1, 1, 0, 1, 0]),
+                QueryFormat::Json,
+            )
+            .await
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            str::from_utf8(bytes.as_ref()).unwrap(),
+            "[{\"a\":1},{\"a\":1},{\"a\":1}]"
+        );
     }
     #[tokio::test]
     async fn test_json_output_three_records() {
@@ -1997,23 +2028,40 @@ mod tests {
         );
     }
     fn make_record_stream(records: Option<usize>) -> SendableRecordBatchStream {
-        let mut batches = Vec::new();
+        match records {
+            None => make_record_stream_with_sizes(vec![]),
+            Some(num) => make_record_stream_with_sizes(vec![1; num]),
+        }
+    }
+
+    fn make_record_stream_with_sizes(batch_sizes: Vec<usize>) -> SendableRecordBatchStream {
         let batch = record_batch!(("a", Int32, [1])).unwrap();
         let schema = batch.schema();
-        let num = match records {
-            None => {
-                let stream = futures::stream::iter(Vec::new());
-                let adapter = RecordBatchStreamAdapter::new(schema, stream);
-                return Box::pin(adapter);
-            }
-            Some(num) => num,
-        };
-        batches.push(Ok(batch));
-        for _ in 1..num {
-            batches.push(Ok(record_batch!(("a", Int32, [1])).unwrap()));
+
+        // If there are no sizes, return empty stream
+        if batch_sizes.is_empty() {
+            let stream = futures::stream::iter(Vec::new());
+            let adapter = RecordBatchStreamAdapter::new(schema, stream);
+            return Box::pin(adapter);
         }
+
+        let batches = batch_sizes
+            .into_iter()
+            .map(|size| {
+                if size == 0 {
+                    // Create an empty batch
+                    Ok(RecordBatch::new_empty(Arc::clone(&schema)))
+                } else {
+                    // Create a batch with 'size' rows, all with value 1
+                    Ok(RecordBatch::try_new(
+                        Arc::clone(&schema),
+                        vec![Arc::new(Int32Array::from_iter_values(vec![1; size]))],
+                    )?)
+                }
+            })
+            .collect::<Vec<_>>();
+
         let stream = futures::stream::iter(batches);
-        // Convert the stream to a SendableRecordBatchStream
         let adapter = RecordBatchStreamAdapter::new(schema, stream);
         Box::pin(adapter)
     }
