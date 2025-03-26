@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -166,6 +167,52 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 			t.Fatalf("series out of order: %d !< %d ", elem.SeriesID, prevSeriesID)
 		}
 		prevSeriesID = elem.SeriesID
+	}
+}
+
+// Issue
+func TestLogFile_AddSeries_TagValueIterator_Contention(t *testing.T) {
+	const TAG_COUNT = 10000
+	const ROUNDS = 1000
+
+	sfile := MustOpenSeriesFile(t)
+	defer func(sfile *SeriesFile) {
+		err := sfile.Close()
+		require.NoError(t, err, "close series file")
+	}(sfile)
+
+	f := MustOpenLogFile(sfile.SeriesFile)
+	defer func(f *LogFile) {
+		err := f.Close()
+		require.NoError(t, err, "close log file")
+	}(f)
+
+	seriesSet := tsdb.NewSeriesIDSet()
+
+	for round := 0; round < ROUNDS; round++ {
+		var wg sync.WaitGroup
+		go func() {
+			wg.Add(1)
+			newTags := make([]models.Tags, 0)
+			for i := 0; i < TAG_COUNT; i++ {
+				newTags = append(newTags, models.NewTags(map[string]string{"region": fmt.Sprintf("region-%d", i)}))
+				newTags = append(newTags, models.NewTags(map[string]string{"host": fmt.Sprintf("server-%d", i)}))
+			}
+
+			_, err := f.AddSeriesList(seriesSet,
+				slices.StringsToBytes("cpu", "mem"),
+				newTags,
+			)
+			require.NoError(t, err, "adding series data")
+			wg.Done()
+		}()
+
+		go func() {
+			wg.Add(1)
+			f.TagValueIterator([]byte("cpu"), []byte("region"))
+			wg.Done()
+		}()
+		wg.Wait()
 	}
 }
 
