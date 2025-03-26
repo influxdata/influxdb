@@ -419,6 +419,7 @@ func (f *LogFile) TagValue(name, key, value []byte) TagValueElem {
 func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+
 	mm, ok := f.mms[string(name)]
 	if !ok {
 		return nil
@@ -1387,7 +1388,6 @@ func (tk *logTagKey) TagValueIterator() TagValueIterator {
 	tk.f.mu.RLock()
 	a := make([]logTagValue, 0, len(tk.tagValues))
 	for _, v := range tk.tagValues {
-		time.Sleep(10 * time.Millisecond)
 		a = append(a, v)
 	}
 	tk.f.mu.RUnlock()
