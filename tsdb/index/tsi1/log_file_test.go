@@ -174,7 +174,7 @@ func TestLogFile_SeriesStoredInOrder(t *testing.T) {
 // Data race test to check for contention between AddSeriesList, LogFile.TagValueIterator, and logTagKey.TagValueIterator
 func TestLogFile_AddSeries_TagValueIterator_Contention(t *testing.T) {
 	const TAG_COUNT = 10000
-	const ROUNDS = 1000
+	const ROUNDS = 100
 
 	sfile := MustOpenSeriesFile(t)
 	defer func(sfile *SeriesFile) {
@@ -204,17 +204,23 @@ func TestLogFile_AddSeries_TagValueIterator_Contention(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for round := 0; round < ROUNDS; round++ {
-		wg.Add(1)
-		go func() {
-			f.TagValueIterator([]byte("cpu"), []byte("region"))
-			wg.Done()
-		}()
-		wg.Add(1)
-		go func() {
-			f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu", "mem"), newTags)
-			wg.Done()
-		}()
-		wg.Wait()
+		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		for round := 0; round < ROUNDS; round++ {
+			wg.Add(1)
+			go func() {
+				f.TagValueIterator([]byte("cpu"), []byte("region"))
+				wg.Done()
+			}()
+		}
+		for round := 0; round < ROUNDS; round++ {
+			time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+			wg.Add(1)
+			go func() {
+				f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu", "mem"), newTags)
+				wg.Done()
+			}()
+			wg.Wait()
+		}
 	}
 }
 
