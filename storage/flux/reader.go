@@ -223,7 +223,7 @@ READ:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
 			table = newStringTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.cache, fi.alloc)
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		cur = nil
@@ -371,7 +371,7 @@ READ:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString, gc.Aggregate(), key)
 			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		// table owns these resources and is responsible for closing them
@@ -837,7 +837,7 @@ READ:
 				table = newStringWindowSelectorTable(done, typedCur, bnds, window, timeColumn, key, cols, rs.Tags(), defs, wai.cache, wai.alloc)
 			}
 		default:
-			panic(fmt.Sprintf("unreachable: %T", typedCur))
+			return fmt.Errorf("unexpected cursor type: %T", typedCur)
 		}
 
 		cur = nil
