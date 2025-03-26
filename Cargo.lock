@@ -3155,6 +3155,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_shutdown"
+version = "3.0.0-beta.2"
+dependencies = [
+ "observability_deps",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_sys_events"
 version = "3.0.0-beta.2"
 dependencies = [
