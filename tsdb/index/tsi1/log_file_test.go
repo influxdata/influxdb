@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -201,9 +202,19 @@ func TestLogFile_AddSeries_TagValueIterator_Contention(t *testing.T) {
 	)
 	require.NoError(t, err, "adding series data")
 
+	var wg sync.WaitGroup
 	for round := 0; round < ROUNDS; round++ {
-		go f.TagValueIterator([]byte("cpu"), []byte("region"))
-		go f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu", "mem"), newTags)
+		wg.Add(1)
+		go func() {
+			f.TagValueIterator([]byte("cpu"), []byte("region"))
+			wg.Done()
+		}()
+		wg.Add(1)
+		go func() {
+			f.AddSeriesList(seriesSet, slices.StringsToBytes("cpu", "mem"), newTags)
+			wg.Done()
+		}()
+		wg.Wait()
 	}
 }
 
