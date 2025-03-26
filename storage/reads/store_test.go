@@ -119,9 +119,9 @@ func resultSetToString(wr io.Writer, rs reads.ResultSet, opts ...optionFn) {
 	for rs.Next() {
 		fmt.Fprint(wr, "series: ")
 		tagsToString(wr, rs.Tags())
-		// Cursor error is not used within these tests
+		// Tests withint group_resultset_test that call `resultSetToString` always have a nil cursor
+		// the error here will not be printed within the tests.
 		cur, _ := rs.Cursor()
-
 		if po.SkipNilCursor && cur == nil {
 			continue
 		}
