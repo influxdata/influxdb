@@ -28,7 +28,7 @@ use object_store::{
     Error, GetOptions, GetResult, GetResultPayload, ListResult, MultipartUpload, ObjectMeta,
     ObjectStore, PutMultipartOpts, PutOptions, PutPayload, PutResult, path::Path,
 };
-use observability_deps::tracing::{debug, error, info, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
     mpsc::{Receiver, Sender, channel},
     oneshot, watch,
@@ -215,11 +215,7 @@ impl ParquetCacheOracle for MemCacheOracle {
         // we have already fetched, in eventual mode we send the notification immediately, so
         // that it doesn't wait it's turn in the queue.
         let already_in_cache = self.mem_store.cache.path_already_fetched(path);
-        debug!(
-            ?already_in_cache,
-            ?path,
-            ">>> is path already in parquet cache"
-        );
+        trace!(?already_in_cache, ?path, "is path already in parquet cache");
         match request {
             CacheRequest::Immediate(ImmediateCacheRequest { path, parquet_data }) => {
                 if !already_in_cache {
@@ -245,7 +241,7 @@ impl ParquetCacheOracle for MemCacheOracle {
                 }
             }
             CacheRequest::Evict(eviction_req) => {
-                debug!(path = ?eviction_req.path, ">>> removing path from cache");
+                trace!(path = ?eviction_req.path, "removing path from cache");
                 self.mem_store.cache.remove(&eviction_req.path);
             }
         }
@@ -859,12 +855,12 @@ fn background_cache_request_handler(
                 cache_request.get_path_and_notifier_and_timestamp();
 
             if !should_request_be_cached(file_timestamp_min_max, &mem_store.cache) {
-                debug!(?path, ">>> not caching parquet file path");
+                trace!(?path, "not caching parquet file path");
                 let _ = notifier.send(());
                 continue;
             }
 
-            debug!(?path, ">>> caching parquet file path");
+            trace!(?path, "caching parquet file path");
             // Create a future that will go and fetch the cache value from the store:
             let path_cloned = path.clone();
             let store_cloned = Arc::clone(&mem_store.inner);
@@ -919,10 +915,10 @@ fn should_request_be_cached(
                 let start = end - cache.query_cache_duration;
                 let allowed_time_range =
                     TimestampRange::new(start.timestamp_nanos(), end.timestamp_nanos());
-                debug!(
+                trace!(
                     ?file_timestamp_min_max,
                     ?allowed_time_range,
-                    ">>> parquet file timestamp min max to cache"
+                    "parquet file timestamp min max to cache"
                 );
 
                 file_timestamp_min_max.overlaps(allowed_time_range)
@@ -940,7 +936,7 @@ fn background_cache_pruner(
     interval_duration: Duration,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        debug!(">>> test: background cache pruning running");
+        debug!("background cache pruning running");
         let mut interval = tokio::time::interval(interval_duration);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
