@@ -183,8 +183,11 @@ impl QueryableBuffer {
                     let table_def = db_schema
                         .table_definition_by_id(table_id)
                         .expect("table exists");
-                    let snapshot_chunks =
-                        table_buffer.snapshot(table_def, snapshot_details.end_time_marker);
+                    let snapshot_chunks = table_buffer.snapshot(
+                        table_def,
+                        snapshot_details.snapshot_sequence_number,
+                        snapshot_details.end_time_marker,
+                    );
 
                     for chunk in snapshot_chunks {
                         let table_name =
@@ -300,7 +303,7 @@ impl QueryableBuffer {
                         // then clear the buffer
                         if let Some(db) = buffer.db_to_table.get_mut(&database_id) {
                             if let Some(table) = db.get_mut(&table_id) {
-                                table.clear_snapshots();
+                                table.clear_snapshots(&snapshot_details.snapshot_sequence_number);
                             }
                         }
                     }
