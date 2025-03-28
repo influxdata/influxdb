@@ -2766,6 +2766,7 @@ dependencies = [
  "influxdb3_process",
  "influxdb3_processing_engine",
  "influxdb3_server",
+ "influxdb3_shutdown",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_types",
@@ -3021,6 +3022,7 @@ dependencies = [
  "influxdb3_client",
  "influxdb3_internal_api",
  "influxdb3_py_api",
+ "influxdb3_shutdown",
  "influxdb3_sys_events",
  "influxdb3_types",
  "influxdb3_wal",
@@ -3104,6 +3106,7 @@ dependencies = [
  "influxdb3_process",
  "influxdb3_processing_engine",
  "influxdb3_py_api",
+ "influxdb3_shutdown",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_types",
@@ -3158,8 +3161,12 @@ dependencies = [
 name = "influxdb3_shutdown"
 version = "3.0.0-beta.2"
 dependencies = [
+ "futures",
+ "futures-util",
  "observability_deps",
+ "parking_lot",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3247,6 +3254,7 @@ dependencies = [
  "indexmap 2.7.0",
  "influxdb-line-protocol",
  "influxdb3_id",
+ "influxdb3_shutdown",
  "iox_time",
  "object_store",
  "observability_deps",
@@ -3289,6 +3297,7 @@ dependencies = [
  "influxdb3_id",
  "influxdb3_internal_api",
  "influxdb3_py_api",
+ "influxdb3_shutdown",
  "influxdb3_sys_events",
  "influxdb3_telemetry",
  "influxdb3_test_helpers",
@@ -6558,6 +6567,8 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
+ "futures-util",
+ "hashbrown 0.14.5",
  "pin-project-lite",
  "tokio",
 ]

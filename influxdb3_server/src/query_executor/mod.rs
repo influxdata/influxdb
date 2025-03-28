@@ -750,6 +750,7 @@ mod tests {
     };
     use influxdb3_catalog::catalog::Catalog;
     use influxdb3_internal_api::query_executor::QueryExecutor;
+    use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -822,6 +823,7 @@ mod tests {
             .await
             .unwrap(),
         );
+        let shutdown = ShutdownManager::new_testing();
         let write_buffer_impl = WriteBufferImpl::new(WriteBufferImplArgs {
             persister,
             catalog: Arc::clone(&catalog),
@@ -846,6 +848,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 1,
             query_file_limit,
+            shutdown: shutdown.register(),
         })
         .await
         .unwrap();

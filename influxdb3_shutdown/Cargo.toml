@@ -10,7 +10,11 @@ license.workspace = true
 observability_deps.workspace = true
 
 # crates.io dependencies
+futures.workspace = true
+futures-util.workspace = true
+parking_lot.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 
 [lints]
 workspace = true

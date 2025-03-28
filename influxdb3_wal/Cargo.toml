@@ -15,6 +15,7 @@ schema.workspace =  true
 
 # Local Crates
 influxdb3_id = { path = "../influxdb3_id" }
+influxdb3_shutdown = { path = "../influxdb3_shutdown" }
 
 # crates.io dependencies
 async-trait.workspace = true

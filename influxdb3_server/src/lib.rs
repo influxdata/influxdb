@@ -182,28 +182,6 @@ where
     Ok(())
 }
 
-/// On unix platforms we want to intercept SIGINT and SIGTERM
-/// This method returns if either are signalled
-#[cfg(unix)]
-pub async fn wait_for_signal() {
-    use observability_deps::tracing::info;
-    use tokio::signal::unix::{SignalKind, signal};
-    let mut term = signal(SignalKind::terminate()).expect("failed to register signal handler");
-    let mut int = signal(SignalKind::interrupt()).expect("failed to register signal handler");
-
-    tokio::select! {
-        _ = term.recv() => info!("Received SIGTERM"),
-        _ = int.recv() => info!("Received SIGINT"),
-    }
-}
-
-#[cfg(windows)]
-/// ctrl_c is the cross-platform way to intercept the equivalent of SIGINT
-/// This method returns if this occurs
-pub async fn wait_for_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
 #[cfg(test)]
 mod tests {
     use crate::auth::DefaultAuthorizer;
@@ -219,6 +197,7 @@ mod tests {
     use influxdb3_processing_engine::ProcessingEngineManagerImpl;
     use influxdb3_processing_engine::environment::DisabledManager;
     use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
+    use influxdb3_shutdown::ShutdownManager;
     use influxdb3_sys_events::SysEventStore;
     use influxdb3_telemetry::store::TelemetryStore;
     use influxdb3_wal::WalConfig;
@@ -782,6 +761,8 @@ mod tests {
             .await
             .unwrap(),
         );
+        let frontend_shutdown = CancellationToken::new();
+        let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
         let write_buffer_impl = influxdb3_write::write_buffer::WriteBufferImpl::new(
             influxdb3_write::write_buffer::WriteBufferImplArgs {
                 persister: Arc::clone(&persister),
@@ -802,6 +783,7 @@ mod tests {
                 metric_registry: Arc::clone(&metrics),
                 snapshotted_wal_files_to_keep: 100,
                 query_file_limit: None,
+                shutdown: shutdown_manager.register(),
             },
         )
         .await
@@ -863,7 +845,6 @@ mod tests {
             .processing_engine(processing_engine)
             .build()
             .await;
-        let frontend_shutdown = CancellationToken::new();
         let shutdown = frontend_shutdown.clone();
 
         tokio::spawn(async move { serve(server, frontend_shutdown, server_start_time).await });
