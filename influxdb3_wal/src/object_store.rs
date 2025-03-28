@@ -8,6 +8,7 @@ use bytes::Bytes;
 use data_types::Timestamp;
 use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
+use influxdb3_shutdown::ShutdownToken;
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutPayload};
@@ -43,13 +44,14 @@ impl WalObjectStore {
         last_wal_sequence_number: Option<WalFileSequenceNumber>,
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
         snapshotted_wal_files_to_keep: u64,
+        shutdown: ShutdownToken,
     ) -> Result<Arc<Self>, crate::Error> {
         let node_identifier = node_identifier_prefix.into();
         let all_wal_file_paths =
             load_all_wal_file_paths(Arc::clone(&object_store), node_identifier.clone()).await?;
         let flush_interval = config.flush_interval;
         let wal = Self::new_without_replay(
-            time_provider,
+            Arc::clone(&time_provider),
             object_store,
             node_identifier,
             file_notifier,
@@ -63,7 +65,7 @@ impl WalObjectStore {
         wal.replay(last_wal_sequence_number, &all_wal_file_paths)
             .await?;
         let wal = Arc::new(wal);
-        background_wal_flush(Arc::clone(&wal), flush_interval);
+        background_wal_flush(Arc::clone(&wal), flush_interval, shutdown);
 
         Ok(wal)
     }
@@ -212,7 +214,7 @@ impl WalObjectStore {
     }
 
     /// Stop accepting write operations, flush of buffered writes to a WAL file and return when done.
-    pub async fn shutdown(&mut self) {
+    pub async fn shutdown_inner(&self) {
         // stop accepting writes
         self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
 
@@ -566,7 +568,7 @@ impl Wal for WalObjectStore {
     }
 
     async fn shutdown(&self) {
-        self.shutdown().await
+        self.shutdown_inner().await
     }
 
     fn add_file_notifier(&self, notifier: Arc<dyn WalFileNotifier>) {
@@ -661,7 +663,7 @@ impl FlushBuffer {
         // swap out the filled buffer with a new one
         let mut new_buffer = WalBuffer {
             time_provider: Arc::clone(&self.time_provider),
-            is_shutdown: false,
+            is_shutdown: self.wal_buffer.is_shutdown,
             wal_file_sequence_number: self.wal_buffer.wal_file_sequence_number.next(),
             op_limit: self.wal_buffer.op_limit,
             op_count: 0,
@@ -715,6 +717,9 @@ pub enum WriteResult {
 
 impl WalBuffer {
     fn write_ops_unconfirmed(&mut self, ops: Vec<WalOp>) -> crate::Result<(), crate::Error> {
+        if self.is_shutdown {
+            return Err(crate::Error::Shutdown);
+        }
         if self.op_count >= self.op_limit {
             return Err(crate::Error::BufferFull(self.op_count));
         }
@@ -754,6 +759,9 @@ impl WalBuffer {
         ops: Vec<WalOp>,
         response: oneshot::Sender<WriteResult>,
     ) -> crate::Result<(), crate::Error> {
+        if self.is_shutdown {
+            return Err(crate::Error::Shutdown);
+        }
         self.write_op_responses.push(response);
         self.write_ops_unconfirmed(ops)?;
 

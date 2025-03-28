@@ -4,6 +4,7 @@ mod metrics;
 pub mod persisted_files;
 pub mod queryable_buffer;
 mod table_buffer;
+use influxdb3_shutdown::ShutdownToken;
 use tokio::sync::{oneshot, watch::Receiver};
 use trace::span::{MetaValue, SpanRecorder};
 pub mod validator;
@@ -177,6 +178,7 @@ pub struct WriteBufferImplArgs {
     pub metric_registry: Arc<Registry>,
     pub snapshotted_wal_files_to_keep: u64,
     pub query_file_limit: Option<usize>,
+    pub shutdown: ShutdownToken,
 }
 
 impl WriteBufferImpl {
@@ -193,6 +195,7 @@ impl WriteBufferImpl {
             metric_registry,
             snapshotted_wal_files_to_keep,
             query_file_limit,
+            shutdown,
         }: WriteBufferImplArgs,
     ) -> Result<Arc<Self>> {
         // load snapshots and replay the wal into the in memory buffer
@@ -240,6 +243,7 @@ impl WriteBufferImpl {
             last_wal_sequence_number,
             last_snapshot_sequence_number,
             snapshotted_wal_files_to_keep,
+            shutdown,
         )
         .await?;
 
@@ -655,6 +659,7 @@ mod tests {
     use influxdb3_catalog::catalog::CatalogSequenceNumber;
     use influxdb3_catalog::log::FieldDataType;
     use influxdb3_id::{ColumnId, DbId, ParquetFileId};
+    use influxdb3_shutdown::ShutdownManager;
     use influxdb3_test_helpers::object_store::RequestCountedObjectStore;
     use influxdb3_types::http::LastCacheSize;
     use influxdb3_wal::{Gen1Duration, SnapshotSequenceNumber, WalFileSequenceNumber};
@@ -761,6 +766,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            shutdown: ShutdownManager::new_testing().register(),
         })
         .await
         .unwrap();
@@ -867,6 +873,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            shutdown: ShutdownManager::new_testing().register(),
         })
         .await
         .unwrap();
@@ -957,6 +964,7 @@ mod tests {
                 metric_registry: Default::default(),
                 snapshotted_wal_files_to_keep: 10,
                 query_file_limit: None,
+                shutdown: ShutdownManager::new_testing().register(),
             })
             .await
             .unwrap()
@@ -1214,6 +1222,7 @@ mod tests {
             metric_registry: Default::default(),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            shutdown: ShutdownManager::new_testing().register(),
         })
         .await
         .unwrap();
@@ -3090,6 +3099,7 @@ mod tests {
             metric_registry: Arc::clone(&metric_registry),
             snapshotted_wal_files_to_keep: 10,
             query_file_limit: None,
+            shutdown: ShutdownManager::new_testing().register(),
         })
         .await
         .unwrap();

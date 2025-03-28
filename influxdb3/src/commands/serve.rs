@@ -2,6 +2,7 @@
 
 use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
+use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
@@ -32,6 +33,7 @@ use influxdb3_server::{
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
 };
+use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -105,6 +107,12 @@ pub enum Error {
 
     #[error("failed to initialize distinct cache: {0:#}")]
     InitializeDistinctCache(#[source] influxdb3_cache::distinct_cache::ProviderError),
+
+    #[error("lost backend")]
+    LostBackend,
+
+    #[error("lost HTTP/gRPC service")]
+    LostHttpGrpc,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -457,6 +465,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
+    let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
 
     let time_provider = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
@@ -585,6 +594,7 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
+        shutdown: shutdown_manager.register(),
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
@@ -659,9 +669,49 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build().await
     };
-    serve(server, frontend_shutdown, startup_timer).await?;
 
-    Ok(())
+    let signal = wait_for_signal().fuse();
+    let frontend = serve(server, frontend_shutdown.clone(), startup_timer).fuse();
+    let backend = shutdown_manager.join().fuse();
+
+    pin_mut!(signal);
+    pin_mut!(frontend);
+    pin_mut!(backend);
+
+    let mut res = Ok(());
+
+    while !frontend.is_terminated() {
+        futures::select! {
+            _ = signal => info!("shutdown requested"),
+            _ = backend => {
+                if frontend_shutdown.is_cancelled() {
+                    break;
+                }
+                error!("backend shutdown before frontend");
+                res = res.and(Err(Error::LostBackend));
+            }
+            result = frontend => match result {
+                Ok(_) if frontend_shutdown.is_cancelled() => info!("HTTP/gRPC service shutdown"),
+                Ok(_) => {
+                    error!("early HTTP/gRPC service exit");
+                    res = res.and(Err(Error::LostHttpGrpc));
+                },
+                Err(error) => {
+                    error!("HTTP/gRPC error");
+                    res = res.and(Err(Error::Server(error)));
+                }
+            }
+        }
+        shutdown_manager.shutdown()
+    }
+    info!("frontend shutdown completed");
+
+    if !backend.is_terminated() {
+        backend.await;
+    }
+    info!("backend shutdown completed");
+
+    res
 }
 
 pub(crate) fn setup_processing_engine_env_manager(

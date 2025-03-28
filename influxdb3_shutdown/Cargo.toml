@@ -1,0 +1,20 @@
+[package]
+name = "influxdb3_shutdown"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# influxdb3_core dependencies
+observability_deps.workspace = true
+
+# crates.io dependencies
+futures.workspace = true
+futures-util.workspace = true
+parking_lot.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+
+[lints]
+workspace = true

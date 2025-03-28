@@ -13,8 +13,10 @@ members = [
     "influxdb3_processing_engine",
     "influxdb3_py_api",
     "influxdb3_server",
+    "influxdb3_shutdown",
     "influxdb3_telemetry",
-    "influxdb3_test_helpers", "influxdb3_types",
+    "influxdb3_test_helpers",
+    "influxdb3_types",
     "influxdb3_wal",
     "influxdb3_write",
     "iox_query_influxql_rewrite",
@@ -120,7 +122,7 @@ tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
 tokio = { version = "1.43", features = ["full"] }
-tokio-util = "0.7.13"
+tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
 tonic-build = "0.11.0"
 tonic-health = "0.11.0"
