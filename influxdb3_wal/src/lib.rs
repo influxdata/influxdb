@@ -15,6 +15,7 @@ use indexmap::IndexMap;
 use influxdb_line_protocol::FieldValue;
 use influxdb_line_protocol::v3::SeriesValue;
 use influxdb3_id::{ColumnId, DbId, SerdeVecMap, TableId};
+use influxdb3_shutdown::ShutdownToken;
 use iox_time::Time;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -544,30 +545,38 @@ pub struct SnapshotDetails {
 pub fn background_wal_flush<W: Wal>(
     wal: Arc<W>,
     flush_interval: Duration,
+    shutdown: ShutdownToken,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(flush_interval);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = shutdown.wait_for_shutdown() => {
+                    wal.shutdown().await;
+                    break;
+                },
+                _ = interval.tick() => {
+                    let cleanup_after_snapshot = wal.flush_buffer().await;
 
-            let cleanup_after_snapshot = wal.flush_buffer().await;
+                    // handle snapshot cleanup outside of the flush loop
+                    if let Some((snapshot_complete, snapshot_info, snapshot_permit)) =
+                        cleanup_after_snapshot
+                    {
+                        let snapshot_wal = Arc::clone(&wal);
+                        tokio::spawn(async move {
+                            let snapshot_details = snapshot_complete.await.expect("snapshot failed");
+                            assert_eq!(snapshot_info, snapshot_details);
 
-            // handle snapshot cleanup outside of the flush loop
-            if let Some((snapshot_complete, snapshot_info, snapshot_permit)) =
-                cleanup_after_snapshot
-            {
-                let snapshot_wal = Arc::clone(&wal);
-                tokio::spawn(async move {
-                    let snapshot_details = snapshot_complete.await.expect("snapshot failed");
-                    assert_eq!(snapshot_info, snapshot_details);
-
-                    snapshot_wal
-                        .cleanup_snapshot(snapshot_info, snapshot_permit)
-                        .await;
-                });
+                            snapshot_wal
+                                .cleanup_snapshot(snapshot_info, snapshot_permit)
+                                .await;
+                        });
+                    }
+                }
             }
         }
+        shutdown.complete();
     })
 }

@@ -2,6 +2,7 @@
 
 use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
+use futures::{FutureExt, future::FusedFuture, pin_mut};
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
@@ -32,6 +33,7 @@ use influxdb3_server::{
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
 };
+use influxdb3_shutdown::{ShutdownManager, wait_for_signal};
 use influxdb3_sys_events::SysEventStore;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_wal::{Gen1Duration, WalConfig};
@@ -105,6 +107,12 @@ pub enum Error {
 
     #[error("failed to initialize distinct cache: {0:#}")]
     InitializeDistinctCache(#[source] influxdb3_cache::distinct_cache::ProviderError),
+
+    #[error("lost backend")]
+    LostBackend,
+
+    #[error("lost HTTP/gRPC service")]
+    LostHttpGrpc,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -457,6 +465,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
+    let shutdown_manager = ShutdownManager::new(frontend_shutdown.clone());
 
     let time_provider = Arc::new(SystemProvider::new());
     let sys_events_store = Arc::new(SysEventStore::new(Arc::clone(&time_provider) as _));
@@ -585,6 +594,7 @@ pub async fn command(config: Config) -> Result<()> {
         metric_registry: Arc::clone(&metrics),
         snapshotted_wal_files_to_keep: config.snapshotted_wal_files_to_keep,
         query_file_limit: config.query_file_limit,
+        shutdown: shutdown_manager.register(),
     })
     .await
     .map_err(|e| Error::WriteBufferInit(e.into()))?;
@@ -659,9 +669,85 @@ pub async fn command(config: Config) -> Result<()> {
     } else {
         builder.build().await
     };
-    serve(server, frontend_shutdown, startup_timer).await?;
 
-    Ok(())
+    // There are two different select! macros - tokio::select and futures::select
+    //
+    // tokio::select takes ownership of the passed future "moving" it into the
+    // select block. This works well when not running select inside a loop, or
+    // when using a future that can be dropped and recreated, often the case
+    // with tokio's futures e.g. `channel.recv()`
+    //
+    // futures::select is more flexible as it doesn't take ownership of the provided
+    // future. However, to safely provide this it imposes some additional
+    // requirements
+    //
+    // All passed futures must implement FusedFuture - it is IB to poll a future
+    // that has returned Poll::Ready(_). A FusedFuture has an is_terminated()
+    // method that indicates if it is safe to poll - e.g. false if it has
+    // returned Poll::Ready(_). futures::select uses this to implement its
+    // functionality. futures::FutureExt adds a fuse() method that
+    // wraps an arbitrary future and makes it a FusedFuture
+    //
+    // The additional requirement of futures::select is that if the future passed
+    // outlives the select block, it must be Unpin or already Pinned
+
+    // Create the FusedFutures that will be waited on before exiting the process
+    let signal = wait_for_signal().fuse();
+    let frontend = serve(server, frontend_shutdown.clone(), startup_timer).fuse();
+    let backend = shutdown_manager.join().fuse();
+
+    // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
+    // from the current stack frame and constructing a Pin<&mut T> to it
+    pin_mut!(signal);
+    pin_mut!(frontend);
+    pin_mut!(backend);
+
+    let mut res = Ok(());
+
+    // Graceful shutdown can be triggered by sending SIGINT or SIGTERM to the
+    // process, or by a background task exiting - most likely with an error
+    while !frontend.is_terminated() {
+        futures::select! {
+            // External shutdown signal, e.g., `ctrl+c`
+            _ = signal => info!("shutdown requested"),
+            // `join` on the `ShutdownManager` has completed
+            _ = backend => {
+                // If something stops the process on the backend the frontend shutdown should have
+                // been signaled in which case we can break the loop here once checking that it
+                // has been cancelled.
+                //
+                // The select! could also pick this branch in the event that the frontend and
+                // backend stop at the same time. That shouldn't be an issue so long as the frontend
+                // so long as the frontend has indeed stopped.
+                if frontend_shutdown.is_cancelled() {
+                    break;
+                }
+                error!("backend shutdown before frontend");
+                res = res.and(Err(Error::LostBackend));
+            }
+            // HTTP/gRPC frontend has stopped
+            result = frontend => match result {
+                Ok(_) if frontend_shutdown.is_cancelled() => info!("HTTP/gRPC service shutdown"),
+                Ok(_) => {
+                    error!("early HTTP/gRPC service exit");
+                    res = res.and(Err(Error::LostHttpGrpc));
+                },
+                Err(error) => {
+                    error!("HTTP/gRPC error");
+                    res = res.and(Err(Error::Server(error)));
+                }
+            }
+        }
+        shutdown_manager.shutdown()
+    }
+    info!("frontend shutdown completed");
+
+    if !backend.is_terminated() {
+        backend.await;
+    }
+    info!("backend shutdown completed");
+
+    res
 }
 
 pub(crate) fn setup_processing_engine_env_manager(
