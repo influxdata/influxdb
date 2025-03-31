@@ -8,8 +8,8 @@ use crate::system_py::CacheId::{Global, GlobalTest, Trigger, TriggerTest};
 use anyhow::{Context, bail};
 use arrow_array::types::Int32Type;
 use arrow_array::{
-    BooleanArray, DictionaryArray, Float64Array, Int64Array, RecordBatch, StringArray,
-    TimestampNanosecondArray, UInt64Array,
+    Array, BooleanArray, DictionaryArray, Float64Array, Int32Array, Int64Array, RecordBatch,
+    StringArray, TimestampNanosecondArray, UInt64Array,
 };
 use arrow_schema::DataType;
 use bytes::Bytes;
@@ -278,13 +278,19 @@ impl PyPluginCallApi {
                                     .downcast_ref::<DictionaryArray<Int32Type>>()
                                     .expect("unexpected datatype");
 
+                                let keys = col
+                                    .keys()
+                                    .as_any()
+                                    .downcast_ref::<Int32Array>()
+                                    .expect("unexpected datatype");
+
                                 let values = col.values();
                                 let values = values
                                     .as_any()
                                     .downcast_ref::<StringArray>()
                                     .expect("unexpected datatype");
 
-                                let val = values.value(row_idx).to_string();
+                                let val = values.value(keys.value(row_idx) as usize).to_string();
                                 row.set_item(field_name, val)?;
                             }
                             _ => {
