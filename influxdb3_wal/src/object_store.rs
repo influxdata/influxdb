@@ -11,7 +11,7 @@ use hashbrown::HashMap;
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
-use object_store::{ObjectStore, PutPayload};
+use object_store::{ObjectStore, PutMode, PutOptions, PutPayload};
 use observability_deps::tracing::{debug, error, info};
 use std::time::Duration;
 use std::{str::FromStr, sync::Arc};
@@ -29,6 +29,7 @@ pub struct WalObjectStore {
     /// number of snapshotted wal files to retain in object store
     snapshotted_wal_files_to_keep: u64,
     wal_remover: WalFileRemover,
+    shutdown_token: ShutdownToken,
 }
 
 impl WalObjectStore {
@@ -60,6 +61,7 @@ impl WalObjectStore {
             last_snapshot_sequence_number,
             &all_wal_file_paths,
             snapshotted_wal_files_to_keep,
+            shutdown.clone(),
         );
 
         wal.replay(last_wal_sequence_number, &all_wal_file_paths)
@@ -81,6 +83,7 @@ impl WalObjectStore {
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
         all_wal_file_paths: &[Path],
         num_wal_files_to_keep: u64,
+        shutdown_token: ShutdownToken,
     ) -> Self {
         let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
         let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
@@ -94,7 +97,7 @@ impl WalObjectStore {
                 Arc::clone(&time_provider),
                 WalBuffer {
                     time_provider,
-                    is_shutdown: false,
+                    state: WalBufferState::AcceptingWrites,
                     wal_file_sequence_number,
                     op_limit: config.max_write_buffer_size,
                     op_count: 0,
@@ -115,6 +118,7 @@ impl WalObjectStore {
                     last_snapshotted_wal_sequence_number: last_wal_sequence_number,
                 }),
             },
+            shutdown_token,
         }
     }
 
@@ -278,11 +282,49 @@ impl WalObjectStore {
         loop {
             match self
                 .object_store
-                .put(&wal_path, PutPayload::from_bytes(data.clone()))
+                .put_opts(
+                    &wal_path,
+                    PutPayload::from_bytes(data.clone()),
+                    PutOptions {
+                        mode: PutMode::Create,
+                        ..Default::default()
+                    },
+                )
                 .await
             {
                 Ok(_) => {
                     break;
+                }
+                // In the event that the WAL file has already been written, we want to stop the
+                // process. This would be due to someone running multiple processes with the same
+                // `--node-id` simultaneously. Whether that is intentional or not, we have to stop
+                // the process so that either the other running process can take over, or so that
+                // the operator can intervene and correct the state of their object store.
+                Err(object_store::Error::AlreadyExists { path, source }) => {
+                    error!(
+                        path,
+                        ?source,
+                        "invoking shutdown after attempt to persist a WAL file \
+                        that already exists on the object store"
+                    );
+                    // update the state on the wal buffer so that new writes are not
+                    // accepted:
+                    let error = WalBufferErrorState::WalAlreadyWrittenTo;
+                    self.flush_buffer
+                        .lock()
+                        .await
+                        .wal_buffer
+                        .set_state(WalBufferState::Error(error));
+
+                    // send error responses back to waiting clients
+                    for response in responses {
+                        let _ = response.send(WriteResult::Error(error.to_string()));
+                    }
+
+                    // trigger application shutdown
+                    self.shutdown_token.trigger_shutdown();
+
+                    return None;
                 }
                 Err(e) => {
                     error!(%e, "error writing wal file to object store");
@@ -553,7 +595,11 @@ impl Wal for WalObjectStore {
 
     async fn shutdown(&self) {
         // stop accepting writes
-        self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
+        self.flush_buffer
+            .lock()
+            .await
+            .wal_buffer
+            .set_state(WalBufferState::ShuttingDown);
 
         // do the flush and wait for the snapshot if that's running
         if let Some((snapshot_done, snapshot_info, snapshot_permit)) =
@@ -658,7 +704,7 @@ impl FlushBuffer {
         // swap out the filled buffer with a new one
         let mut new_buffer = WalBuffer {
             time_provider: Arc::clone(&self.time_provider),
-            is_shutdown: self.wal_buffer.is_shutdown,
+            state: self.wal_buffer.state,
             wal_file_sequence_number: self.wal_buffer.wal_file_sequence_number.next(),
             op_limit: self.wal_buffer.op_limit,
             op_count: 0,
@@ -682,7 +728,7 @@ impl FlushBuffer {
 #[derive(Debug)]
 struct WalBuffer {
     time_provider: Arc<dyn TimeProvider>,
-    is_shutdown: bool,
+    state: WalBufferState,
     wal_file_sequence_number: WalFileSequenceNumber,
     op_limit: usize,
     op_count: usize,
@@ -699,6 +745,28 @@ impl WalBuffer {
     fn add_no_op(&mut self) {
         self.no_op = Some(self.time_provider.now().timestamp_nanos());
     }
+
+    fn set_state(&mut self, state: WalBufferState) {
+        self.state = state;
+    }
+
+    fn is_accepting_writes(&self) -> bool {
+        matches!(self.state, WalBufferState::AcceptingWrites)
+    }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+enum WalBufferState {
+    #[default]
+    AcceptingWrites,
+    ShuttingDown,
+    Error(WalBufferErrorState),
+}
+
+#[derive(Debug, thiserror::Error, Copy, Clone)]
+enum WalBufferErrorState {
+    #[error("another process as written to the WAL ahead of this one")]
+    WalAlreadyWrittenTo,
 }
 
 // Writes should only fail if the underlying WAL throws an error. They are validated before they
@@ -712,7 +780,7 @@ pub enum WriteResult {
 
 impl WalBuffer {
     fn write_ops_unconfirmed(&mut self, ops: Vec<WalOp>) -> crate::Result<(), crate::Error> {
-        if self.is_shutdown {
+        if !self.is_accepting_writes() {
             return Err(crate::Error::Shutdown);
         }
         if self.op_count >= self.op_limit {
@@ -754,7 +822,7 @@ impl WalBuffer {
         ops: Vec<WalOp>,
         response: oneshot::Sender<WriteResult>,
     ) -> crate::Result<(), crate::Error> {
-        if self.is_shutdown {
+        if !self.is_accepting_writes() {
             return Err(crate::Error::Shutdown);
         }
         self.write_op_responses.push(response);
@@ -886,6 +954,7 @@ mod tests {
     use async_trait::async_trait;
     use indexmap::IndexMap;
     use influxdb3_id::{ColumnId, DbId, TableId};
+    use influxdb3_shutdown::ShutdownManager;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use std::any::Any;
@@ -914,6 +983,7 @@ mod tests {
             None,
             &paths,
             1,
+            ShutdownManager::new_testing().register(),
         );
 
         let db_name: Arc<str> = "db1".into();
@@ -1125,6 +1195,7 @@ mod tests {
             None,
             &paths,
             1,
+            ShutdownManager::new_testing().register(),
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths(
@@ -1286,6 +1357,7 @@ mod tests {
             None,
             &paths,
             1,
+            ShutdownManager::new_testing().register(),
         );
         assert_eq!(
             replay_wal
@@ -1333,6 +1405,7 @@ mod tests {
             None,
             &paths,
             10,
+            ShutdownManager::new_testing().register(),
         );
 
         assert!(wal.flush_buffer(false).await.is_none());
@@ -1348,7 +1421,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let wal_buffer = WalBuffer {
             time_provider: Arc::clone(&time_provider) as _,
-            is_shutdown: false,
+            state: WalBufferState::AcceptingWrites,
             wal_file_sequence_number: WalFileSequenceNumber(0),
             op_limit: 10,
             op_count: 0,
@@ -1371,7 +1444,7 @@ mod tests {
             clone,
             WalBuffer {
                 time_provider: Arc::clone(&time_provider) as _,
-                is_shutdown: false,
+                state: WalBufferState::AcceptingWrites,
                 wal_file_sequence_number: WalFileSequenceNumber(0),
                 op_limit: 10,
                 op_count: 0,
@@ -1550,6 +1623,7 @@ mod tests {
             None,
             &[],
             1,
+            ShutdownManager::new_testing().register(),
         );
 
         {}
@@ -1692,6 +1766,7 @@ mod tests {
             Some(SnapshotSequenceNumber::new(10)),
             &all_paths,
             10,
+            ShutdownManager::new_testing().register(),
         );
 
         let snapshot_details = SnapshotDetails {
