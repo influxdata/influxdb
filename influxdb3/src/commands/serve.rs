@@ -718,7 +718,8 @@ pub async fn command(config: Config) -> Result<()> {
                 //
                 // The select! could also pick this branch in the event that the frontend and
                 // backend stop at the same time. That shouldn't be an issue so long as the frontend
-                // has indeed stopped.
+                // has indeed stopped, so we check on exiting the loop that the frontend has
+                // terminated before checking and waiting on the backend.
                 if frontend_shutdown.is_cancelled() {
                     break;
                 }
@@ -739,6 +740,10 @@ pub async fn command(config: Config) -> Result<()> {
             }
         }
         shutdown_manager.shutdown()
+    }
+    // ensure that the frontend has fully terminated so we dont close the connection on any clients
+    if !frontend.is_terminated() {
+        res = res.and(frontend.await.map_err(Into::into));
     }
     info!("frontend shutdown completed");
 
