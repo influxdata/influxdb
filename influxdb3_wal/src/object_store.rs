@@ -751,10 +751,7 @@ impl WalBuffer {
     }
 
     fn is_accepting_writes(&self) -> bool {
-        match self.state {
-            WalBufferState::AcceptingWrites => true,
-            _ => false,
-        }
+        matches!(self.state, WalBufferState::AcceptingWrites)
     }
 }
 
