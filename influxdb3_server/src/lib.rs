@@ -29,7 +29,6 @@ use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
-use iox_time::TimeProvider;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
 use service::hybrid;
@@ -116,28 +115,25 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server<T> {
+pub struct Server {
     common_state: CommonServerState,
-    http: Arc<HttpApi<T>>,
+    http: Arc<HttpApi>,
     persister: Arc<Persister>,
     authorizer: Arc<dyn Authorizer>,
     listener: TcpListener,
 }
 
-impl<T> Server<T> {
+impl Server {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer)
     }
 }
 
-pub async fn serve<T>(
-    server: Server<T>,
+pub async fn serve(
+    server: Server,
     shutdown: CancellationToken,
     startup_timer: Instant,
-) -> Result<()>
-where
-    T: TimeProvider,
-{
+) -> Result<()> {
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
         MetricFamily::HttpServer,
@@ -840,7 +836,7 @@ mod tests {
             .query_executor(query_executor)
             .persister(persister)
             .authorizer(Arc::new(DefaultAuthorizer))
-            .time_provider(Arc::clone(&time_provider))
+            .time_provider(Arc::clone(&time_provider) as _)
             .tcp_listener(listener)
             .processing_engine(processing_engine)
             .build()

@@ -73,7 +73,7 @@ pub struct WithPersister(Arc<Persister>);
 #[derive(Clone, Copy, Debug)]
 pub struct NoTimeProvider;
 #[derive(Debug)]
-pub struct WithTimeProvider<T>(Arc<T>);
+pub struct WithTimeProvider(Arc<dyn TimeProvider>);
 #[derive(Clone, Copy, Debug)]
 pub struct NoListener;
 #[derive(Debug)]
@@ -139,7 +139,10 @@ impl<W, Q, T, L, E> ServerBuilder<W, Q, NoPersister, T, L, E> {
 }
 
 impl<W, Q, P, L, E> ServerBuilder<W, Q, P, NoTimeProvider, L, E> {
-    pub fn time_provider<T>(self, tp: Arc<T>) -> ServerBuilder<W, Q, P, WithTimeProvider<T>, L, E> {
+    pub fn time_provider(
+        self,
+        tp: Arc<dyn TimeProvider>,
+    ) -> ServerBuilder<W, Q, P, WithTimeProvider, L, E> {
         ServerBuilder {
             common_state: self.common_state,
             time_provider: WithTimeProvider(tp),
@@ -189,17 +192,17 @@ impl<W, Q, P, T, L> ServerBuilder<W, Q, P, T, L, NoProcessingEngine> {
     }
 }
 
-impl<T: TimeProvider>
+impl
     ServerBuilder<
         WithWriteBuf,
         WithQueryExec,
         WithPersister,
-        WithTimeProvider<T>,
+        WithTimeProvider,
         WithListener,
         WithProcessingEngine,
     >
 {
-    pub async fn build(self) -> Server<T> {
+    pub async fn build(self) -> Server {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::clone(&self.processing_engine.0);

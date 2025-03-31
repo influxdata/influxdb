@@ -26,7 +26,6 @@ use futures::{Stream, StreamExt, ready, stream::Fuse};
 use hyper::http::HeaderValue;
 use hyper::{Body, Request, Response, StatusCode, header::ACCEPT, header::CONTENT_TYPE};
 use influxdb_influxql_parser::select::{Dimension, GroupByClause};
-use iox_time::TimeProvider;
 use observability_deps::tracing::info;
 use regex::Regex;
 use schema::{INFLUXQL_MEASUREMENT_COLUMN_NAME, InfluxColumnType, TIME_COLUMN_NAME};
@@ -37,10 +36,7 @@ use super::{Error, HttpApi, Result};
 
 const DEFAULT_CHUNK_SIZE: usize = 10_000;
 
-impl<T> HttpApi<T>
-where
-    T: TimeProvider,
-{
+impl HttpApi {
     /// Implements the v1 query API for InfluxDB
     ///
     /// Accepts the URL parameters, defined by [`QueryParams`]), and returns a stream
