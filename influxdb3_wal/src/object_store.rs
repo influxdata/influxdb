@@ -213,22 +213,6 @@ impl WalObjectStore {
         Ok(())
     }
 
-    /// Stop accepting write operations, flush of buffered writes to a WAL file and return when done.
-    pub async fn shutdown_inner(&self) {
-        // stop accepting writes
-        self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
-
-        // do the flush and wait for the snapshot if that's running
-        if let Some((snapshot_done, snapshot_info, snapshot_permit)) =
-            self.flush_buffer(false).await
-        {
-            let snapshot_details = snapshot_done.await.expect("snapshot should complete");
-            assert_eq!(snapshot_info, snapshot_details);
-            self.remove_snapshot_wal_files(snapshot_info, snapshot_permit)
-                .await;
-        }
-    }
-
     /// Buffer into a single larger operation in memory. Returns before the operation is persisted.
     async fn write_ops_unconfirmed(&self, op: Vec<WalOp>) -> crate::Result<(), crate::Error> {
         self.flush_buffer
@@ -568,7 +552,18 @@ impl Wal for WalObjectStore {
     }
 
     async fn shutdown(&self) {
-        self.shutdown_inner().await
+        // stop accepting writes
+        self.flush_buffer.lock().await.wal_buffer.is_shutdown = true;
+
+        // do the flush and wait for the snapshot if that's running
+        if let Some((snapshot_done, snapshot_info, snapshot_permit)) =
+            self.flush_buffer(false).await
+        {
+            let snapshot_details = snapshot_done.await.expect("snapshot should complete");
+            assert_eq!(snapshot_info, snapshot_details);
+            self.remove_snapshot_wal_files(snapshot_info, snapshot_permit)
+                .await;
+        }
     }
 
     fn add_file_notifier(&self, notifier: Arc<dyn WalFileNotifier>) {

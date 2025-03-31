@@ -577,6 +577,5 @@ pub fn background_wal_flush<W: Wal>(
                 }
             }
         }
-        shutdown.complete();
     })
 }

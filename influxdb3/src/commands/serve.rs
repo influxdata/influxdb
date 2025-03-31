@@ -718,7 +718,7 @@ pub async fn command(config: Config) -> Result<()> {
                 //
                 // The select! could also pick this branch in the event that the frontend and
                 // backend stop at the same time. That shouldn't be an issue so long as the frontend
-                // so long as the frontend has indeed stopped.
+                // has indeed stopped.
                 if frontend_shutdown.is_cancelled() {
                     break;
                 }

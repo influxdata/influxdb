@@ -66,7 +66,7 @@ impl ShutdownManager {
     /// Create a [`ShutdownManager`] for testing purposes
     ///
     /// This handles creation of the frontend [`CancellationToken`] for tests where `tokio-util` is
-    /// not a dependency, or hanlding of the frontend shutdown is not necessary.
+    /// not a dependency, or handling of the frontend shutdown is not necessary.
     pub fn new_testing() -> Self {
         Self {
             frontend_shutdown: CancellationToken::new(),
@@ -136,10 +136,24 @@ impl ShutdownToken {
 
     /// Signal back to the [`ShutdownManager`] that the component that owns this token is finished
     /// cleaning up and it is safe for the process to exit
+    ///
+    /// # Implementation Note
+    ///
+    /// It is not required that registered components invoke this method, as the `ShutdownToken`
+    /// type invokes this method on `Drop`.
     pub fn complete(&self) {
         if let Some(s) = self.complete_tx.lock().take() {
             let _ = s.send(());
         }
+    }
+}
+
+/// `ShutdownToken` implements `Drop` such that the completion signal is guaranteed to be sent
+/// to the `ShutdownManager`. This will prevent application hang on shutdown in the event that a
+/// registered component fails before signaling completion.
+impl Drop for ShutdownToken {
+    fn drop(&mut self) {
+        self.complete();
     }
 }
 
@@ -168,7 +182,6 @@ mod tests {
                 futures::select! {
                     _ = token.wait_for_shutdown().fuse() => {
                         CLEAN.store(true, Ordering::SeqCst);
-                        token.complete();
                         break;
                     }
                     _ = tokio::time::sleep(Duration::from_millis(10)).fuse() => {
