@@ -8,6 +8,7 @@ use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::fs::File;
 use std::path::PathBuf;
+use std::time::Duration;
 use std::{
     fs,
     io::Write,
@@ -2794,4 +2795,61 @@ async fn write_with_precision_arg() {
     // This should result in an error
     assert!(result.is_err());
     insta::assert_snapshot!("invalid_precision", format!("{}", result.unwrap_err()));
+}
+
+#[test_log::test(tokio::test)]
+async fn test_wal_overwritten() {
+    let tmp_dir = TempDir::new().unwrap();
+    let tmp_dir_path = tmp_dir.path().to_str().unwrap();
+    let mut p1 = TestServer::configure()
+        .with_node_id("node-0")
+        .with_object_store_dir(tmp_dir_path)
+        .spawn()
+        .await;
+
+    // perform a write so that a WAL file is written/wal folder created:
+    p1.write("foo")
+        .with_line_protocol("bar,process=p1 f1=true")
+        .run()
+        .unwrap();
+
+    // start another process with the same node id:
+    let mut p2 = TestServer::configure()
+        .with_node_id("node-0")
+        .with_object_store_dir(tmp_dir_path)
+        .spawn()
+        .await;
+
+    // perform a write from p2 that will create the next wal file:
+    p2.write("foo")
+        .with_line_protocol("bar,process=p2 f1=true")
+        .run()
+        .unwrap();
+
+    // perform another write from p1 which will fail since the next WAL file was already written:
+    let result = p1
+        .write("foo")
+        .with_line_protocol("bar,process=p1 f1=true")
+        .run()
+        .unwrap_err();
+
+    debug!(?result, "second write to p1 that should fail");
+
+    assert_contains!(
+        result.to_string(),
+        "another process as written to the WAL ahead of this one"
+    );
+
+    // give p1 some time to shutdown:
+    for _ in 0..10 {
+        if p1.is_stopped() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(
+        p1.is_stopped(),
+        "p1 should have stopped due to internal shutdown"
+    );
+    assert!(!p2.is_stopped(), "p2 should not be stopped");
 }

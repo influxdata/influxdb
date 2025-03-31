@@ -278,6 +278,14 @@ impl TestServer {
         self.server_process.kill().expect("kill the server process");
     }
 
+    pub fn is_stopped(&mut self) -> bool {
+        self.server_process
+            .try_wait()
+            .inspect_err(|error| println!("error when checking for stopped: {error:?}"))
+            .expect("check process status")
+            .is_some()
+    }
+
     async fn wait_until_ready(&self) {
         let mut count = 0;
         while self
