@@ -14,12 +14,12 @@
 //! be used to [`wait_for_shutdown`][ShutdownToken::wait_for_shutdown] to trigger component-specific
 //! cleanup logic before signaling back via [`complete`][ShutdownToken::complete] to indicate that
 //! shutdown can proceed.
-use std::sync::Arc;
 
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use tokio::sync::oneshot;
-use tokio_util::{sync::CancellationToken, task::TaskTracker};
+pub use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 
 /// Wait for a `SIGTERM` or `SIGINT` to stop the process on UNIX systems
 #[cfg(unix)]
@@ -43,7 +43,9 @@ pub async fn wait_for_signal() {
 }
 
 /// Manage application shutdown
-#[derive(Debug)]
+///
+/// This deries `Clone`, as the underlying `tokio` types can be shared via clone.
+#[derive(Debug, Clone)]
 pub struct ShutdownManager {
     frontend_shutdown: CancellationToken,
     backend_shutdown: CancellationToken,
@@ -107,12 +109,13 @@ impl ShutdownManager {
 
 /// A token that a component can obtain via [`register`][ShutdownManager::register]
 ///
-/// This implements [`Clone`] so that a component that obtains it can make copies as needed for
-/// sub-components or tasks  that may be responsible for triggering a shutdown internally.
-#[derive(Debug, Clone)]
+/// This does not implement `Clone` because there should only be a single instance of a given
+/// `ShutdownToken`. If you just need a copy of the `CancellationToken` for invoking shutdown, use
+/// [`ShutdownToken::clone_cancellation_token`].
+#[derive(Debug)]
 pub struct ShutdownToken {
     token: CancellationToken,
-    complete_tx: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+    complete_tx: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 impl ShutdownToken {
@@ -120,13 +123,18 @@ impl ShutdownToken {
     fn new(token: CancellationToken, complete_tx: oneshot::Sender<()>) -> Self {
         Self {
             token,
-            complete_tx: Arc::new(Mutex::new(Some(complete_tx))),
+            complete_tx: Mutex::new(Some(complete_tx)),
         }
     }
 
     /// Trigger application shutdown due to some unrecoverable state
     pub fn trigger_shutdown(&self) {
         self.token.cancel();
+    }
+
+    /// Get a clone of the cancellation token for triggering shutdown
+    pub fn clone_cancellation_token(&self) -> CancellationToken {
+        self.token.clone()
     }
 
     /// Future that completes when [`ShutdownManager`] that issued this token is shutdown

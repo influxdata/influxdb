@@ -8,7 +8,7 @@ use bytes::Bytes;
 use data_types::Timestamp;
 use futures_util::stream::StreamExt;
 use hashbrown::HashMap;
-use influxdb3_shutdown::ShutdownToken;
+use influxdb3_shutdown::{CancellationToken, ShutdownToken};
 use iox_time::TimeProvider;
 use object_store::path::{Path, PathPart};
 use object_store::{ObjectStore, PutMode, PutOptions, PutPayload};
@@ -29,7 +29,7 @@ pub struct WalObjectStore {
     /// number of snapshotted wal files to retain in object store
     snapshotted_wal_files_to_keep: u64,
     wal_remover: WalFileRemover,
-    shutdown_token: ShutdownToken,
+    shutdown_token: CancellationToken,
 }
 
 impl WalObjectStore {
@@ -61,7 +61,7 @@ impl WalObjectStore {
             last_snapshot_sequence_number,
             &all_wal_file_paths,
             snapshotted_wal_files_to_keep,
-            shutdown.clone(),
+            shutdown.clone_cancellation_token(),
         );
 
         wal.replay(last_wal_sequence_number, &all_wal_file_paths)
@@ -83,7 +83,7 @@ impl WalObjectStore {
         last_snapshot_sequence_number: Option<SnapshotSequenceNumber>,
         all_wal_file_paths: &[Path],
         num_wal_files_to_keep: u64,
-        shutdown_token: ShutdownToken,
+        shutdown_token: CancellationToken,
     ) -> Self {
         let wal_file_sequence_number = last_wal_sequence_number.unwrap_or_default().next();
         let oldest_wal_file_num = oldest_wal_file_num(all_wal_file_paths);
@@ -322,7 +322,7 @@ impl WalObjectStore {
                     }
 
                     // trigger application shutdown
-                    self.shutdown_token.trigger_shutdown();
+                    self.shutdown_token.cancel();
 
                     return None;
                 }
@@ -765,7 +765,7 @@ enum WalBufferState {
 
 #[derive(Debug, thiserror::Error, Copy, Clone)]
 enum WalBufferErrorState {
-    #[error("another process as written to the WAL ahead of this one")]
+    #[error("another process has written to the WAL ahead of this one")]
     WalAlreadyWrittenTo,
 }
 
@@ -954,7 +954,6 @@ mod tests {
     use async_trait::async_trait;
     use indexmap::IndexMap;
     use influxdb3_id::{ColumnId, DbId, TableId};
-    use influxdb3_shutdown::ShutdownManager;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
     use std::any::Any;
@@ -983,7 +982,7 @@ mod tests {
             None,
             &paths,
             1,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
 
         let db_name: Arc<str> = "db1".into();
@@ -1195,7 +1194,7 @@ mod tests {
             None,
             &paths,
             1,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
         assert_eq!(
             replay_wal.load_existing_wal_file_paths(
@@ -1357,7 +1356,7 @@ mod tests {
             None,
             &paths,
             1,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
         assert_eq!(
             replay_wal
@@ -1405,7 +1404,7 @@ mod tests {
             None,
             &paths,
             10,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
 
         assert!(wal.flush_buffer(false).await.is_none());
@@ -1623,7 +1622,7 @@ mod tests {
             None,
             &[],
             1,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
 
         {}
@@ -1766,7 +1765,7 @@ mod tests {
             Some(SnapshotSequenceNumber::new(10)),
             &all_paths,
             10,
-            ShutdownManager::new_testing().register(),
+            CancellationToken::new(),
         );
 
         let snapshot_details = SnapshotDetails {
