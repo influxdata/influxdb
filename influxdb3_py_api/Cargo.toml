@@ -24,14 +24,11 @@ influxdb3_sys_events = { path = "../influxdb3_sys_events" }
 iox_query_params.workspace = true
 observability_deps.workspace = true
 parking_lot.workspace = true
+pyo3.workspace = true
 futures.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 lazy_static = "1.5.0"
-
-[dependencies.pyo3]
-version = "0.24.1"
-features = ["experimental-async"]
 
 [lints]
 workspace = true

@@ -103,6 +103,7 @@ prost = "0.12.6"
 prost-build = "0.12.6"
 prost-types = "0.12.6"
 proptest = { version = "1", default-features = false, features = ["std"] }
+pyo3 = { version = "0.24.1", features = ["experimental-async"]}
 rand = "0.8.5"
 regex = "1.11.1"
 reqwest = { version = "0.11.27", default-features = false, features = ["rustls-tls", "stream", "json"] }
