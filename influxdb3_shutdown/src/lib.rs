@@ -43,7 +43,9 @@ pub async fn wait_for_signal() {
 }
 
 /// Manage application shutdown
-#[derive(Debug)]
+///
+/// This deries `Clone`, as the underlying `tokio` types can be shared via clone.
+#[derive(Debug, Clone)]
 pub struct ShutdownManager {
     frontend_shutdown: CancellationToken,
     backend_shutdown: CancellationToken,
