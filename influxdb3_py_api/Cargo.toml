@@ -30,7 +30,7 @@ tokio.workspace = true
 lazy_static = "1.5.0"
 
 [dependencies.pyo3]
-version = "0.23.3"
+version = "0.24.1"
 features = ["experimental-async"]
 
 [lints]

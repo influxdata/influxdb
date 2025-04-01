@@ -34,7 +34,7 @@ thiserror.workspace = true
 tokio.workspace = true
 
 [dependencies.pyo3]
-version = "0.23.3"
+version = "0.24.1"
 
 [dev-dependencies]
 datafusion_util.workspace = true

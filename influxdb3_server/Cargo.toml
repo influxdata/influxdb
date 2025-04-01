@@ -89,7 +89,7 @@ unicode-segmentation.workspace = true
 url.workspace = true
 
 [dependencies.pyo3]
-version = "0.23.3"
+version = "0.24.1"
 
 [dev-dependencies]
 # Core Crates
