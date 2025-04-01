@@ -2886,7 +2886,7 @@ async fn test_wal_overwritten() {
 
     assert_contains!(
         result.to_string(),
-        "another process as written to the WAL ahead of this one"
+        "another process has written to the WAL ahead of this one"
     );
 
     // give p1 some time to shutdown:
