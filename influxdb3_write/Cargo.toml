@@ -57,6 +57,7 @@ indexmap.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 parquet.workspace = true
+pyo3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
@@ -66,9 +67,6 @@ thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 uuid.workspace = true
-
-[dependencies.pyo3]
-version = "0.23.3"
 
 [dev-dependencies]
 # Core Crates

@@ -74,6 +74,7 @@ mime.workspace = true
 object_store.workspace = true
 parking_lot.workspace = true
 pin-project-lite.workspace = true
+pyo3.workspace = true
 regex.workspace = true
 secrecy.workspace = true
 serde.workspace = true
@@ -87,9 +88,6 @@ tonic.workspace = true
 tower.workspace = true
 unicode-segmentation.workspace = true
 url.workspace = true
-
-[dependencies.pyo3]
-version = "0.23.3"
 
 [dev-dependencies]
 # Core Crates
