@@ -489,21 +489,21 @@ impl IntoResponse for Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
-pub(crate) struct HttpApi<T> {
+pub(crate) struct HttpApi {
     common_state: CommonServerState,
     write_buffer: Arc<dyn WriteBuffer>,
     processing_engine: Arc<ProcessingEngineManagerImpl>,
-    time_provider: Arc<T>,
+    time_provider: Arc<dyn TimeProvider>,
     pub(crate) query_executor: Arc<dyn QueryExecutor>,
     max_request_bytes: usize,
     authorizer: Arc<dyn Authorizer>,
     legacy_write_param_unifier: SingleTenantRequestUnifier,
 }
 
-impl<T> HttpApi<T> {
+impl HttpApi {
     pub(crate) fn new(
         common_state: CommonServerState,
-        time_provider: Arc<T>,
+        time_provider: Arc<dyn TimeProvider>,
         write_buffer: Arc<dyn WriteBuffer>,
         query_executor: Arc<dyn QueryExecutor>,
         processing_engine: Arc<ProcessingEngineManagerImpl>,
@@ -524,10 +524,7 @@ impl<T> HttpApi<T> {
     }
 }
 
-impl<T> HttpApi<T>
-where
-    T: TimeProvider,
-{
+impl HttpApi {
     async fn write_lp(&self, req: Request<Body>) -> Result<Response<Body>> {
         let query = req.uri().query().ok_or(Error::MissingWriteParams)?;
         let params: WriteParams = serde_urlencoded::from_str(query)?;
@@ -1606,8 +1603,8 @@ async fn record_batch_stream_to_body(
     }
 }
 
-pub(crate) async fn route_request<T: TimeProvider>(
-    http_server: Arc<HttpApi<T>>,
+pub(crate) async fn route_request(
+    http_server: Arc<HttpApi>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible> {
     if let Err(e) = http_server.authorize_request(&mut req).await {
