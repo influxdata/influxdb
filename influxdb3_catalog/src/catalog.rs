@@ -427,28 +427,38 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
         self.repo.is_empty()
     }
 
-    /// Check if a resource exists in the repository by `id` and `name`
+    /// Check if a resource exists in the repository by `id`
     ///
     /// # Panics
     ///
     /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
     /// that would be a bad state for the repository to be in.
-    fn exists(&self, id: &I, name: &str) -> bool {
+    fn id_exists(&self, id: &I) -> bool {
         let id_in_map = self.id_name_map.contains_left(id);
-        let name_in_map = self.id_name_map.contains_right(name);
         let id_in_repo = self.repo.contains_key(id);
         assert_eq!(
             id_in_map, id_in_repo,
             "id map and repository are in an inconsistent state, \
             in map: {id_in_map}, in repo: {id_in_repo}"
         );
-        id_in_repo || id_in_map || name_in_map
+        id_in_repo
+    }
+
+    /// Check if a resource exists in the repository by `id` and `name`
+    ///
+    /// # Panics
+    ///
+    /// This panics if the `id` is in the id-to-name map, but not in the actual repository map, as
+    /// that would be a bad state for the repository to be in.
+    fn id_and_name_exists(&self, id: &I, name: &str) -> bool {
+        let name_in_map = self.id_name_map.contains_right(name);
+        self.id_exists(id) && name_in_map
     }
 
     /// Insert a new resource to the repository
     pub(crate) fn insert(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
         let resource = resource.into();
-        if self.exists(&id, resource.name().as_ref()) {
+        if self.id_and_name_exists(&id, resource.name().as_ref()) {
             return Err(CatalogError::AlreadyExists);
         }
         self.id_name_map.insert(id, resource.name());
@@ -463,7 +473,7 @@ impl<I: CatalogId, R: CatalogResource> Repository<I, R> {
     /// Update an existing resource in the repository
     pub(crate) fn update(&mut self, id: I, resource: impl Into<Arc<R>>) -> Result<()> {
         let resource = resource.into();
-        if !self.exists(&id, resource.name().as_ref()) {
+        if !self.id_exists(&id) {
             return Err(CatalogError::NotFound);
         }
         self.id_name_map.insert(id, resource.name());
