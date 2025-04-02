@@ -304,7 +304,7 @@ jobs:
   # Build a dev binary with the default cargo profile
   build-dev:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:e34ee8aafbc3b3bc9ddbe57eda2580a0263597160d766c86dc02ce038fba8300
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:98b05538182a2e4eac5ce96150a1f5c552de48a7d3ea8d312d38e45f0dd42611
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -374,7 +374,7 @@ jobs:
   # Compile cargo "release" profile binaries for influxdb3 edge releases
   build-release:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:e34ee8aafbc3b3bc9ddbe57eda2580a0263597160d766c86dc02ce038fba8300
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-cross-influxdb3@sha256:98b05538182a2e4eac5ce96150a1f5c552de48a7d3ea8d312d38e45f0dd42611
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
@@ -468,7 +468,7 @@ jobs:
 
   build-packages:
     docker:
-      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:57495019df2dcb3c008987dabafb5566618ba5ab032857ddb2d0c04fb68fc019
+      - image: us-east1-docker.pkg.dev/influxdata-team-edge/ci-support/ci-packager-next@sha256:8223348466129205be30413c597e573114949be4190e66e45eb3e2ff8af4cc25
         auth:
           username: _json_key
           password: $CISUPPORT_GCS_AUTHORIZATION
