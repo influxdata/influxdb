@@ -1670,6 +1670,58 @@ async fn api_v1_query_group_by() {
 }
 
 #[tokio::test]
+async fn test_influxql_group_by_tag_called_name() {
+    let server = TestServer::spawn().await;
+    server
+        .write_lp_to_db(
+            "foo",
+            "\
+        bar,name=a,label=a value=1 1743693748\n\
+        bar,name=b,label=a value=2 1743693748\n\
+        bar,name=a,label=b value=3 1743693748\n\
+        bar,name=b,label=b value=4 1743693748\n\
+        ",
+            Precision::Second,
+        )
+        .await
+        .unwrap();
+
+    // query using the `name` column without quoting it is an error:
+    let unquoted_query_str = "SELECT time, name, label, value FROM bar GROUP BY name LIMIT 1";
+    let resp = server
+        .api_v1_query(&[("db", "foo"), ("q", unquoted_query_str)], None)
+        .await
+        .text()
+        .await
+        .unwrap();
+    assert_contains!(resp, "invalid InfluxQL statement");
+
+    // query grouping on the `label` column is fine:
+    let quoted_query_str = "SELECT time, \"name\", label, value FROM bar GROUP BY label LIMIT 1";
+    let resp = server
+        .api_v1_query(&[("db", "foo"), ("q", quoted_query_str)], None)
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    println!("response when grouping by `label`:\n\n{resp:#}\n");
+    assert_eq!(resp.pointer("/results/0/series/0/tags/label").unwrap(), "b");
+    assert_eq!(resp.pointer("/results/0/series/1/tags/label").unwrap(), "a");
+
+    // query grouping on `\"name\"`, i.e., quoted, should also be fine:
+    let quoted_query_str = "SELECT time, \"name\", label, value FROM bar GROUP BY \"name\" LIMIT 1";
+    let resp = server
+        .api_v1_query(&[("db", "foo"), ("q", quoted_query_str)], None)
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    println!("response when grouping by `\"name\"`:\n\n{resp:#}\n");
+    assert_eq!(resp.pointer("/results/0/series/0/tags/name").unwrap(), "b");
+    assert_eq!(resp.pointer("/results/0/series/1/tags/name").unwrap(), "a");
+}
+
+#[tokio::test]
 async fn api_v1_query_group_by_with_nulls() {
     let server = TestServer::spawn().await;
 
