@@ -2475,10 +2475,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
@@ -2565,9 +2565,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2585,9 +2585,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0,
 		},
@@ -2609,10 +2609,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 	}
 
@@ -2706,9 +2706,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0, true,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0, true,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2726,9 +2726,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0, true,
 		},
@@ -2750,10 +2750,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, tsdb.SingleGenerationReasonText, 1, false,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, tsdb.SingleGenerationReasonText, 1, false,
 		},
 	}
 
@@ -2924,23 +2924,348 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 400 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultMaxPointsPerBlock,
-				// Use some magic numbers but these are just small values for block counts
-				100,
-				10,
-			},
+			tsdb.DefaultMaxPointsPerBlock,
+			// Use some magic numbers but these are just small values for block counts
+			100,
+			10,
+		},
+		},
+		{
+			"1.12.0 RC0 Planner issue mock data from cluster",
+			[]tsm1.FileStat{
+				{
+					Path: "000029202-000000004.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000005.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000006.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000007.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000008.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000009.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000010.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000011.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000012.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000013.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000014.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000015.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000016.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000017.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000018.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000019.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000020.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000021.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000022.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000023.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000024.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000025.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000026.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000027.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000028.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000029.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000030.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000031.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000032.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000033.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000034.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000035.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000036.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000037.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000038.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000039.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000040.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000041.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000042.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000043.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000044.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000045.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029202-000000046.tsm",
+					Size: 161480704,
+				},
+				{
+					Path: "000029235-000000003.tsm",
+					Size: 96468992,
+				},
+				{
+					Path: "000029267-000000003.tsm",
+					Size: 109051904,
+				},
+				{
+					Path: "000029268-000000001.tsm",
+					Size: 3040870,
+				},
+				{
+					Path: "000029268-000000002.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000003.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000004.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000005.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000006.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000007.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000008.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000009.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000010.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000011.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000012.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000013.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000014.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000015.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000016.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000017.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000018.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000019.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000020.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000021.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000022.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000023.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000024.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000025.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000026.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000027.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000028.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000029.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000030.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000031.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000032.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000033.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000034.tsm",
+					Size: 2254857830,
+				},
+				{
+					Path: "000029268-000000035.tsm",
+					Size: 1717986918,
+				},
+			}, []int{},
 		},
 	}
 
@@ -2980,378 +3305,8 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 			planBeforePlanOptimizedRunner(cp)
-
-			// Reverse test files and re-run tests
-			slices.Reverse(test.fs)
-			if len(test.bc) > 0 {
-				slices.Reverse(test.bc)
-				err := ffs.SetBlockCounts(test.bc)
-				require.NoError(t, err, "setting reverse block counts")
-			}
-
-			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			planBeforePlanOptimizedRunner(cp)
 		})
 	}
-}
-
-func TestDefaultPlanner_Plan_Run_Before_PlanOptimize(t *testing.T) {
-	type PlanTests struct {
-		name           string
-		fs             []tsm1.FileStat
-		bc             []int
-		fullyCompacted bool
-	}
-	data := []tsm1.FileStat{
-		{
-			Path: "000029202-000000004.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000005.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000006.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000007.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000008.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000009.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000010.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000011.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000012.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000013.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000014.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000015.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000016.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000017.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000018.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000019.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000020.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000021.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000022.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000023.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000024.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000025.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000026.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000027.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000028.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000029.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000030.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000031.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000032.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000033.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000034.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000035.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000036.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000037.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000038.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000039.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000040.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000041.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000042.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000043.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000044.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000045.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029202-000000046.tsm",
-			Size: 161480704,
-		},
-		{
-			Path: "000029235-000000003.tsm",
-			Size: 96468992,
-		},
-		{
-			Path: "000029267-000000003.tsm",
-			Size: 109051904,
-		},
-		{
-			Path: "000029268-000000001.tsm",
-			Size: 3040870,
-		},
-		{
-			Path: "000029268-000000002.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000003.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000004.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000005.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000006.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000007.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000008.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000009.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000010.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000011.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000012.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000013.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000014.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000015.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000016.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000017.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000018.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000019.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000020.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000021.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000022.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000023.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000024.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000025.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000026.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000027.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000028.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000029.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000030.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000031.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000032.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000033.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000034.tsm",
-			Size: 2254857830,
-		},
-		{
-			Path: "000029268-000000035.tsm",
-			Size: 1717986918,
-		},
-	}
-	cp := tsm1.NewDefaultPlanner(
-		&fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		}, tsdb.DefaultCompactFullWriteColdDuration,
-	)
-	compacted, reason := cp.FullyCompacted()
-	require.Equal(t, reason, "not fully compacted and not idle because of more than one generation", "fullyCompacted reason")
-	require.False(t, compacted, "is fully compacted")
-
-	_, cgLen := cp.PlanLevel(1)
-	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
-	_, cgLen = cp.PlanLevel(2)
-	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
-	_, cgLen = cp.PlanLevel(3)
-	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
-
-	// Should be scheduled for Plan()
-	tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-	require.Equal(t, 1, len(tsmP), "compaction group; Plan()")
-	require.Equal(t, int64(1), pLenP, "compaction group length; Plan()")
-
-	// While files are planned for Plan() they should not be planned for PlanOptimize()
-	cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
-	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
-	require.Zero(t, cgLen, "compaction group length")
-	require.Zero(t, genLen, "generation count")
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
