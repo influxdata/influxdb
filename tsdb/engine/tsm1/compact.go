@@ -115,7 +115,7 @@ type CompactionPlanner interface {
 	// This value is mostly ignored in normal compaction code paths, but,
 	// for the edge case where there is a single generation with many
 	// files under 2 GB this value is an important indicator.
-	PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
+	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
 	FullyCompacted() (bool, string)
 
@@ -255,7 +255,7 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 
 // FullyCompacted returns true if the shard is fully compacted.
 func (c *DefaultPlanner) FullyCompacted() (bool, string) {
-	gens := c.findGenerations(false)
+	gens := c.findGenerations(true)
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
@@ -392,7 +392,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 // PlanOptimize returns all TSM files if they are in different generations in order
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
-func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
+func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
@@ -406,9 +406,10 @@ func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compact
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
+
 	fullyCompacted, _ := c.FullyCompacted()
 
-	if fullyCompacted {
+	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
 	}
 
@@ -498,9 +499,15 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) ([]CompactionGroup, int64) {
 		var genCount int
 		for i, group := range generations {
 			var skip bool
+			var fullBlocks int
+			for _, file := range group.files {
+				if c.FileStore.BlockCount(file.Path, 1) >= tsdb.DefaultMaxPointsPerBlock {
+					fullBlocks++
+				}
+			}
 
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if len(generations) > 2 && group.size() > uint64(tsdb.MaxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) >= tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && group.size() > uint64(tsdb.MaxTSMFileSize) && fullBlocks > 0 && !group.hasTombstones() {
 				skip = true
 			}
 

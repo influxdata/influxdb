@@ -2258,7 +2258,7 @@ func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{}
-	tsm, pLen, gLen := cp.PlanOptimize()
+	tsm, pLen, gLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -2323,7 +2323,19 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 512 * 1024 * 1024,
 				},
 			},
-			[]int{},
+			// Randomization of block sizes compared to file size
+			[]int{
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				100,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				100,
+				10,
+				5,
+			},
 			"not fully compacted and not idle because of more than one generation",
 			3,
 		},
@@ -2463,143 +2475,12 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			tsdb.SingleGenerationReasonText,
 			1,
-		},
-		{
-			// Last files are lower than first files generations
-			// Mix of less than 4 level files and > level 4 files
-			"Generations with files under level 4",
-			[]tsm1.FileStat{
-				{
-					Path: "01-05.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "01-06.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "01-07.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "01-08.tsm1",
-					Size: 1048 * 1024 * 1024,
-				},
-				{
-					Path: "02-05.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "02-06.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "02-07.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "02-08.tsm1",
-					Size: 1048 * 1024 * 1024,
-				},
-				{
-					Path: "03-03.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "03-04.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "03-04.tsm1",
-					Size: 600 * 1024 * 1024,
-				},
-				{
-					Path: "03-06.tsm1",
-					Size: 500 * 1024 * 1024,
-				},
-			}, []int{}, "not fully compacted and not idle because of more than one generation", 3,
-		},
-		{
-			// This test will mock a 'backfill' condition where we have a single
-			// shard with many generations. The initial generation should be fully
-			// compacted, but we have some new generations that are not. We need to ensure
-			// the optimize planner will pick these up and compact everything together.
-			"Backfill mock condition",
-			[]tsm1.FileStat{
-				{
-					Path: "01-05.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "01-06.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "01-07.tsm1",
-					Size: 2048 * 1024 * 1024,
-				},
-				{
-					Path: "02-04.tsm1",
-					Size: 700 * 1024 * 1024,
-				},
-				{
-					Path: "02-05.tsm1",
-					Size: 500 * 1024 * 1024,
-				},
-				{
-					Path: "02-06.tsm1",
-					Size: 400 * 1024 * 1024,
-				},
-				{
-					Path: "03-02.tsm1",
-					Size: 700 * 1024 * 1024,
-				},
-				{
-					Path: "03-03.tsm1",
-					Size: 500 * 1024 * 1024,
-				},
-				{
-					Path: "03-04.tsm1",
-					Size: 400 * 1024 * 1024,
-				},
-				{
-					Path: "04-01.tsm1",
-					Size: 700 * 1024 * 1024,
-				},
-				{
-					Path: "04-02.tsm1",
-					Size: 500 * 1024 * 1024,
-				},
-				{
-					Path: "03-03.tsm1",
-					Size: 400 * 1024 * 1024,
-				},
-			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-
-			tsdb.DefaultMaxPointsPerBlock,
-			// Use some magic numbers but these are just small values for block counts
-			100,
-			10,
-		},
-			"not fully compacted and not idle because of more than one generation",
-			4,
 		},
 	}
 
@@ -2615,11 +2496,11 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		_, cgLen = cp.PlanLevel(3)
 		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
 
-		tsmP, pLenP := cp.Plan(time.Now().Add(-time.Second))
+		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 		require.Zero(t, len(tsmP), "compaction group; Plan()")
 		require.Zero(t, pLenP, "compaction group length; Plan()")
 
-		_, cgLen, genLen := cp.PlanOptimize()
+		_, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 		require.Equal(t, int64(1), cgLen, "compaction group length")
 		require.Equal(t, generationCountExp, genLen, "generation count")
 
@@ -2684,9 +2565,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			}, "", 0,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2704,9 +2585,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			"",
 			0,
 		},
@@ -2728,10 +2609,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			}, "", 0,
 		},
 	}
 
@@ -2751,7 +2632,7 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 		require.Zero(t, len(tsmP), "compaction group; Plan()")
 		require.Zero(t, pLenP, "compaction group length; Plan()")
 
-		cgroup, cgLen, genLen := cp.PlanOptimize()
+		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
 		require.Zero(t, cgLen, "compaction group length")
 		require.Zero(t, genLen, "generation count")
@@ -2825,9 +2706,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, "", 0, true,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			}, "", 0, true,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2845,9 +2726,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultMaxPointsPerBlock,
-		},
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+			},
 			"",
 			0, true,
 		},
@@ -2869,10 +2750,10 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-			tsdb.DefaultAggressiveMaxPointsPerBlock,
-		}, tsdb.SingleGenerationReasonText, 1, false,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			}, tsdb.SingleGenerationReasonText, 1, false,
 		},
 	}
 
@@ -2924,6 +2805,553 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 			mixedPlanOptimizeTestRunner(cp, test.expectedFullyCompactedReasonExp, test.fullyCompacted)
 		})
 	}
+
+	// The following tests ensure that if Plan() is scheduled
+	// for a shard than PlanOptimize() should not be scheduled for that shard
+	type PlanBeforePlanOptimizeTests struct {
+		name string
+		fs   []tsm1.FileStat
+		bc   []int
+	}
+
+	planBeforePlanOptimized := []PlanBeforePlanOptimizeTests{
+		{
+			"Generations with files under level 4",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "02-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-08.tsm1",
+					Size: 1048 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 600 * 1024 * 1024,
+				},
+				{
+					Path: "03-06.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+			}, []int{},
+		},
+		{
+			// This test will mock a 'backfill' condition where we have a single
+			// shard with many generations. The initial generation should be fully
+			// compacted, but we have some new generations that are not. We need to ensure
+			// the optimize planner will pick these up and compact everything together.
+			"Backfill mock condition",
+			[]tsm1.FileStat{
+				{
+					Path: "01-05.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-06.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "01-07.tsm1",
+					Size: 2048 * 1024 * 1024,
+				},
+				{
+					Path: "02-04.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "02-05.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "02-06.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+				{
+					Path: "03-02.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "03-04.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+				{
+					Path: "04-01.tsm1",
+					Size: 700 * 1024 * 1024,
+				},
+				{
+					Path: "04-02.tsm1",
+					Size: 500 * 1024 * 1024,
+				},
+				{
+					Path: "03-03.tsm1",
+					Size: 400 * 1024 * 1024,
+				},
+			}, []int{
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultAggressiveMaxPointsPerBlock,
+				tsdb.DefaultMaxPointsPerBlock,
+
+				tsdb.DefaultMaxPointsPerBlock,
+				// Use some magic numbers but these are just small values for block counts
+				100,
+				10,
+			},
+		},
+	}
+
+	planBeforePlanOptimizedRunner := func(cp *tsm1.DefaultPlanner) {
+		// Ensure that no level planning takes place
+		_, cgLen := cp.PlanLevel(1)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+		_, cgLen = cp.PlanLevel(2)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+		_, cgLen = cp.PlanLevel(3)
+		require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+		// Plan should schedule
+		tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
+		require.Equal(t, 1, len(tsmP), "compaction group; Plan()")
+		require.Equal(t, int64(1), pLenP, "compaction group length; Plan()")
+
+		// PlanOptimize should not schedule
+		cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
+		require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+		require.Zero(t, cgLen, "compaction group length")
+		require.Zero(t, genLen, "generation count")
+	}
+
+	for _, test := range planBeforePlanOptimized {
+		t.Run(test.name, func(t *testing.T) {
+			ffs := &fakeFileStore{
+				PathsFn: func() []tsm1.FileStat {
+					return test.fs
+				},
+			}
+
+			if len(test.bc) > 0 {
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting block counts")
+			}
+
+			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			planBeforePlanOptimizedRunner(cp)
+
+			// Reverse test files and re-run tests
+			slices.Reverse(test.fs)
+			if len(test.bc) > 0 {
+				slices.Reverse(test.bc)
+				err := ffs.SetBlockCounts(test.bc)
+				require.NoError(t, err, "setting reverse block counts")
+			}
+
+			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
+			planBeforePlanOptimizedRunner(cp)
+		})
+	}
+}
+
+func TestDefaultPlanner_Plan_Run_Before_PlanOptimize(t *testing.T) {
+	type PlanTests struct {
+		name           string
+		fs             []tsm1.FileStat
+		bc             []int
+		fullyCompacted bool
+	}
+	data := []tsm1.FileStat{
+		{
+			Path: "000029202-000000004.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000005.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000006.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000007.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000008.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000009.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000010.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000011.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000012.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000013.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000014.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000015.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000016.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000017.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000018.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000019.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000020.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000021.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000022.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000023.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000024.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000025.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000026.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000027.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000028.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000029.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000030.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000031.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000032.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000033.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000034.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000035.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000036.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000037.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000038.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000039.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000040.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000041.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000042.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000043.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000044.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000045.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029202-000000046.tsm",
+			Size: 161480704,
+		},
+		{
+			Path: "000029235-000000003.tsm",
+			Size: 96468992,
+		},
+		{
+			Path: "000029267-000000003.tsm",
+			Size: 109051904,
+		},
+		{
+			Path: "000029268-000000001.tsm",
+			Size: 3040870,
+		},
+		{
+			Path: "000029268-000000002.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000003.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000004.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000005.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000006.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000007.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000008.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000009.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000010.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000011.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000012.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000013.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000014.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000015.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000016.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000017.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000018.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000019.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000020.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000021.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000022.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000023.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000024.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000025.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000026.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000027.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000028.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000029.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000030.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000031.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000032.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000033.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000034.tsm",
+			Size: 2254857830,
+		},
+		{
+			Path: "000029268-000000035.tsm",
+			Size: 1717986918,
+		},
+	}
+	cp := tsm1.NewDefaultPlanner(
+		&fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		}, tsdb.DefaultCompactFullWriteColdDuration,
+	)
+	compacted, reason := cp.FullyCompacted()
+	require.Equal(t, reason, "not fully compacted and not idle because of more than one generation", "fullyCompacted reason")
+	require.False(t, compacted, "is fully compacted")
+
+	_, cgLen := cp.PlanLevel(1)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(1)")
+	_, cgLen = cp.PlanLevel(2)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(2)")
+	_, cgLen = cp.PlanLevel(3)
+	require.Zero(t, cgLen, "compaction group length; PlanLevel(3)")
+
+	// Should be scheduled for Plan()
+	tsmP, pLenP := cp.Plan(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
+	require.Equal(t, 1, len(tsmP), "compaction group; Plan()")
+	require.Equal(t, int64(1), pLenP, "compaction group length; Plan()")
+
+	// While files are planned for Plan() they should not be planned for PlanOptimize()
+	cgroup, cgLen, genLen := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
+	require.Equal(t, []tsm1.CompactionGroup(nil), cgroup, "compaction group")
+	require.Zero(t, cgLen, "compaction group length")
+	require.Zero(t, genLen, "generation count")
 }
 
 func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
@@ -2952,7 +3380,7 @@ func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
 	)
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
-	tsm, pLen, _ := cp.PlanOptimize()
+	tsm, pLen, _ := cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	} else if pLen != int64(len(tsm)) {
@@ -3140,7 +3568,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	}
 	cp.Release(plan)
 
-	plan, pLen, _ = cp.PlanOptimize()
+	plan, pLen, _ = cp.PlanOptimize(time.Now().Add(-tsdb.DefaultCompactFullWriteColdDuration + 1))
 	// ensure the optimize planner would pick this up
 	if exp, got := 1, len(plan); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
