@@ -2137,7 +2137,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 				level4Groups, len4, genLen = e.CompactionPlan.PlanOptimize(e.LastModified())
 				if len(level4Groups) > 0 {
 					for _, group := range level4Groups {
-						e.logger.Info("TSM scheduled for optimized compaction", zap.Any("file", group))
+						e.logger.Info("TSM scheduled for optimized compaction", zap.Strings("files", group))
 					}
 				}
 				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len4)
