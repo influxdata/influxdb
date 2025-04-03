@@ -246,14 +246,21 @@ impl PersistedSnapshot {
         (db_count, table_count, file_count)
     }
 
-    pub fn overall_db_table_file_counts(host_snapshots: &[PersistedSnapshot]) -> (u64, u64, u64) {
-        let overall_counts = host_snapshots.iter().fold((0, 0, 0), |mut acc, item| {
-            let (db_count, table_count, file_count) = item.db_table_and_file_count();
-            acc.0 += db_count;
-            acc.1 += table_count;
-            acc.2 += file_count;
-            acc
-        });
+    pub fn overall_db_table_file_counts(
+        host_snapshots: &[PersistedSnapshotVersion],
+    ) -> (u64, u64, u64) {
+        let overall_counts = host_snapshots
+            .iter()
+            .fold((0, 0, 0), |mut acc, item| match item {
+                PersistedSnapshotVersion::V1(persisted_snapshot) => {
+                    let (db_count, table_count, file_count) =
+                        persisted_snapshot.db_table_and_file_count();
+                    acc.0 += db_count;
+                    acc.1 += table_count;
+                    acc.2 += file_count;
+                    acc
+                }
+            });
         overall_counts
     }
 }
@@ -535,7 +542,7 @@ mod tests {
     use influxdb3_id::{DbId, ParquetFileId, SerdeVecMap, TableId};
     use influxdb3_wal::{SnapshotSequenceNumber, WalFileSequenceNumber};
 
-    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot};
+    use crate::{DatabaseTables, ParquetFile, PersistedSnapshot, PersistedSnapshotVersion};
 
     #[test]
     fn test_overall_counts() {
@@ -625,8 +632,8 @@ mod tests {
         };
 
         let overall_counts = PersistedSnapshot::overall_db_table_file_counts(&[
-            persisted_snapshot_1,
-            persisted_snapshot_2,
+            PersistedSnapshotVersion::V1(persisted_snapshot_1),
+            PersistedSnapshotVersion::V1(persisted_snapshot_2),
         ]);
         assert_eq!((2, 2, 4), overall_counts);
     }
