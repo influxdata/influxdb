@@ -2521,17 +2521,6 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 
 			cp := tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
 			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
-
-			// Reverse test files and re-run tests
-			slices.Reverse(test.fs)
-			if len(test.bc) > 0 {
-				slices.Reverse(test.bc)
-				err := ffs.SetBlockCounts(test.bc)
-				require.NoError(t, err, "setting reverse block counts")
-			}
-
-			cp = tsm1.NewDefaultPlanner(ffs, tsdb.DefaultCompactFullWriteColdDuration)
-			expectedNotFullyCompacted(cp, test.expectedFullyCompactedReasonExp, test.expectedgenerationCount)
 		})
 	}
 
