@@ -1,0 +1,29 @@
+InfluxDB 3 Core Server and Command Line Tools
+
+# Example to run the InfluxDB 3 Core server:
+  influxdb3 serve --node-id my_node_name --object-store file --data-dir ~/.influxdb3_data 
+
+Usage: influxdb3 [OPTIONS] [COMMAND]
+
+Common Commands:
+  serve     Run the InfluxDB 3 Core server
+  query, q  Perform a query against a running InfluxDB 3 Core server
+  write, w  Perform a set of writes to a running InfluxDB 3 Core server
+  
+Resource Management:
+  create    Create a resource such as a database or auth token
+  show      List resources on the InfluxDB 3 Core server
+  delete    Delete a resource such as a database or table
+  enable    Enable a resource such as a trigger
+  disable   Disable a resource such as a trigger
+  
+System Management:
+  install   Install Python packages for the Processing Engine
+  test      Test that Processing Engine plugins work the way you expect
+
+Common Options:
+  -h, --help        Print help information
+  -V, --version     Print version information
+
+Advanced Help Options:
+  Use --help-all to see runtime configuration options
