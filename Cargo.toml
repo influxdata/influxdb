@@ -63,6 +63,7 @@ chrono = "0.4"
 cron = "0.15"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clru = "0.6.2"
+owo-colors = "4.2.0"
 crc32fast = "1.2.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-channel = "0.5.11"

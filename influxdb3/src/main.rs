@@ -10,10 +10,12 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
+use clap::Parser;
 use dotenvy::dotenv;
 use influxdb3_clap_blocks::tokio::TokioIoConfig;
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
+use owo_colors::OwoColorize;
 
 use trogging::{
     TroggingGuard,
@@ -44,33 +46,23 @@ enum ReturnCode {
 name = "influxdb3",
 version = &VERSION_STRING[..],
 disable_help_flag = true,
+disable_help_subcommand = true,
 arg(
 clap::Arg::new("help")
 .short('h')
 .long("help")
 .help("Print help information")
-.action(clap::ArgAction::Help)
+.action(clap::ArgAction::HelpShort)
+.global(true)
+),
+arg(
+clap::Arg::new("help-all")
+.long("help-all")
+.help("Print more detailed help information")
+.action(clap::ArgAction::HelpLong)
 .global(true)
 ),
 about = "InfluxDB 3 Core server and command line tools",
-long_about = r#"InfluxDB 3 Core server and command line tools
-
-Examples:
-    # Run the InfluxDB 3 Core server
-    influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
-
-    # Display all commands short form
-    influxdb3 -h
-
-    # Display all commands long form
-    influxdb3 --help
-
-    # Run the InfluxDB 3 Core server with extra verbose logging
-    influxdb3 serve -v --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
-
-    # Run InfluxDB 3 Core with full debug logging specified with LOG_FILTER
-    LOG_FILTER=debug influxdb3 serve --object-store file --data-dir ~/.influxdb3 --node_id my_node_name
-"#
 )]
 struct Config {
     #[clap(flatten)]
@@ -82,8 +74,7 @@ struct Config {
 
 // Ignoring clippy here since this enum is just used for running
 // the CLI command
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, clap::Subcommand)]
 #[allow(clippy::large_enum_variant)]
 enum Command {
     /// Enable a resource such as a trigger
@@ -124,7 +115,20 @@ fn main() -> Result<(), std::io::Error> {
     // load all environment variables from .env before doing anything
     load_dotenv();
 
-    let config: Config = clap::Parser::parse();
+    // Handle printing help messages for each command so that we can have a custom
+    // output with both a help and help-all message. We have to disable the help
+    // flag and manually parse the os args here to check for both if the help flags
+    // are present and for the subcommand itself. This is all because the
+    // templating language for the help messages in clap is incredibly sparse and
+    // impractical to use. Therefore we have to sacrifice ease of maintainability
+    // for a more practical user experience.
+    //
+    // We must check for the help flags first else clap will complain if we do not
+    // have certain args set when we call `Config::parse()` f.ex `influxdb3 serve -h` will fail with our current derive as `--node-id` is required. This would be confusing as many users will expect to just be able to pass `-h` and get some help spat out. The joys of manually implementing `-h/--help/--help-all`
+    maybe_print_help();
+
+    // Note the help code above *must* run before this function call
+    let config = Config::parse();
 
     let tokio_runtime = config.runtime_config.builder()?.build()?;
 
@@ -140,7 +144,7 @@ fn main() -> Result<(), std::io::Error> {
         }
 
         match config.command {
-            None => println!("command required, -h/--help for help"),
+            None => println!("command required, -h/--help/--help-all for help"),
             Some(Command::Enable(config)) => {
                 if let Err(e) = commands::enable::command(config).await {
                     eprintln!("Enable command failed: {e}");
@@ -207,6 +211,166 @@ fn main() -> Result<(), std::io::Error> {
     });
 
     Ok(())
+}
+
+/// Print the help for the cli if asked for and then exit the program
+fn maybe_print_help() {
+    #[allow(clippy::if_same_then_else)] // They are in fact dear reader not the same
+    let mut help = false;
+    let mut help_all = false;
+    let mut command = None;
+    enum SubCommand {
+        Enable,
+        Create,
+        Disable,
+        Delete,
+        Query,
+        Serve,
+        Install,
+        Show,
+        Test,
+        Write,
+    }
+
+    // Parse the args to see if we have any of the help flags available and which
+    // subcommand if it exists
+    for arg in std::env::args_os() {
+        let arg = arg.into_string().unwrap_or_default();
+        // Only check for the help flags if a command is set
+        if command.is_some() {
+            match arg.as_str() {
+                "-h" | "--help" => help = true,
+                "--help-all" => help_all = true,
+                _ => continue,
+            }
+        } else {
+            match arg.as_str() {
+                "-h" | "--help" => help = true,
+                "--help-all" => help_all = true,
+                "enable" => command = Some(SubCommand::Enable),
+                "create" => command = Some(SubCommand::Create),
+                "disable" => command = Some(SubCommand::Disable),
+                "delete" => command = Some(SubCommand::Delete),
+                "query" => command = Some(SubCommand::Query),
+                "serve" => command = Some(SubCommand::Serve),
+                "install" => command = Some(SubCommand::Install),
+                "show" => command = Some(SubCommand::Show),
+                "test" => command = Some(SubCommand::Test),
+                "write" => command = Some(SubCommand::Write),
+                _ => continue,
+            }
+        }
+    }
+    if help {
+        match command {
+            None => {
+                println!(
+                    include_str!("help/influxdb3.txt"),
+                    "Usage:".bold().underline(),
+                    "influxdb3".bold(),
+                    "Common Commands:".bold().underline(),
+                    "serve".bold(),
+                    "query, q".bold(),
+                    "write, w".bold(),
+                    "Resource Management:".bold().underline(),
+                    "create".bold(),
+                    "show".bold(),
+                    "delete".bold(),
+                    "enable".bold(),
+                    "disable".bold(),
+                    "System Management:".bold().underline(),
+                    "install".bold(),
+                    "test".bold(),
+                    "Common Options:".bold().underline(),
+                    "Advanced Help Options:".bold().underline(),
+                );
+                std::process::exit(0);
+            }
+            // Some(SubCommand::Enable) => println!(include_str!("help/enable.txt")),
+            // Some(SubCommand::Create) => println!(include_str!("help/create.txt")),
+            // Some(SubCommand::Disable) => println!(include_str!("help/disable.txt")),
+            // Some(SubCommand::Delete) => println!(include_str!("help/delete.txt")),
+            Some(SubCommand::Serve) => {
+                println!(
+                    include_str!("help/serve.txt"),
+                    "Usage: influxdb3 serve".bold(),
+                    "Required:".bold().underline(),
+                    "Common Options:".bold().underline(),
+                    "Storage Options:".bold().underline(),
+                    "AWS S3 Storage:".bold().underline(),
+                    "Google Cloud Storage:".bold().underline(),
+                    "Azure Blob Storage:".bold().underline(),
+                    "Processing Engine Options:".bold().underline(),
+                    "Additional Options:".bold().underline(),
+                );
+                std::process::exit(0);
+            }
+            // Some(SubCommand::Install) => println!(include_str!("help/install.txt")),
+            // Some(SubCommand::Show) => println!(include_str!("help/show.txt")),
+            // Some(SubCommand::Test) => println!(include_str!("help/test.txt")),
+            // Some(SubCommand::Query) => println!(include_str!("help/query.txt")),
+            // Some(SubCommand::Write) => println!(include_str!("help/write.txt")),
+            _ => {}
+        }
+    } else if help_all {
+        match command {
+            None => {
+                println!(
+                    include_str!("help/influxdb3_all.txt"),
+                    "Usage:".bold().underline(),
+                    "influxdb3".bold(),
+                    "Common Commands:".bold().underline(),
+                    "serve".bold(),
+                    "query, q".bold(),
+                    "write, w".bold(),
+                    "Resource Management:".bold().underline(),
+                    "create".bold(),
+                    "show".bold(),
+                    "delete".bold(),
+                    "enable".bold(),
+                    "disable".bold(),
+                    "System Management:".bold().underline(),
+                    "install".bold(),
+                    "test".bold(),
+                    "Configuration Options:".bold().underline(),
+                    "Aditional Options:".bold().underline(),
+                );
+                std::process::exit(0);
+            }
+            // Some(SubCommand::Enable) => println!(include_str!("help/enable_all.txt")),
+            // Some(SubCommand::Create) => println!(include_str!("help/create_all.txt")),
+            // Some(SubCommand::Disable) => println!(include_str!("help/disable_all.txt")),
+            // Some(SubCommand::Delete) => println!(include_str!("help/delete_all.txt")),
+            Some(SubCommand::Serve) => {
+                println!(
+                    include_str!("help/serve_all.txt"),
+                    "Usage: influxdb3 serve".bold(),
+                    "Required:".bold().underline(),
+                    "Common Options:".bold().underline(),
+                    "Storage Options:".bold().underline(),
+                    "AWS S3 Storage:".bold().underline(),
+                    "Google Cloud Storage:".bold().underline(),
+                    "Azure Blob Storage:".bold().underline(),
+                    "Processing Engine Options:".bold().underline(),
+                    "Object Store Connection:".bold().underline(),
+                    "Network Options:".bold().underline(),
+                    "Memory Management:".bold().underline(),
+                    "WAL Configuration:".bold().underline(),
+                    "Cache Options:".bold().underline(),
+                    "Datafusion Configuration:".bold().underline(),
+                    "Logging and Tracing:".bold().underline(),
+                    "Additional Options:".bold().underline(),
+                );
+                std::process::exit(0);
+            }
+            // Some(SubCommand::Install) => println!(include_str!("help/install_all.txt")),
+            // Some(SubCommand::Show) => println!(include_str!("help/show_all.txt")),
+            // Some(SubCommand::Test) => println!(include_str!("help/test_all.txt")),
+            // Some(SubCommand::Query) => println!(include_str!("help/query_all.txt")),
+            // Some(SubCommand::Write) => println!(include_str!("help/write_all.txt")),
+            _ => {}
+        }
+    }
 }
 
 /// Source the .env file before initialising the Config struct - this sets
