@@ -2896,10 +2896,12 @@ func (m *mockPlanner) PlanLevel(level int) ([]tsm1.CompactionGroup, int64)      
 func (m *mockPlanner) PlanOptimize(lastWrite time.Time) ([]tsm1.CompactionGroup, int64, int64) {
 	return nil, 0, 0
 }
-func (m *mockPlanner) Release(groups []tsm1.CompactionGroup)           {}
-func (m *mockPlanner) CompactionOptimizationAvailable() (bool, string) { return false, "not compacted" }
-func (m *mockPlanner) ForceFull()                                      {}
-func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore)                 {}
+func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}
+func (m *mockPlanner) CompactionOptimizationNotAvailable() (bool, string) {
+	return false, "not compacted"
+}
+func (m *mockPlanner) ForceFull()                      {}
+func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore) {}
 
 // ParseTags returns an instance of Tags for a comma-delimited list of key/values.
 func ParseTags(s string) query.Tags {

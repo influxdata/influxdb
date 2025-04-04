@@ -2475,17 +2475,17 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			tsdb.SingleGenerationReasonText,
 			1,
 		},
 	}
 
 	expectedNotFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string, generationCountExp int64) {
-		compacted, reason := cp.CompactionOptimizationAvailable()
+		compacted, reason := cp.CompactionOptimizationNotAvailable()
 		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 		require.False(t, compacted, "is fully compacted")
 
@@ -2554,9 +2554,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2574,9 +2574,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0,
 		},
@@ -2598,15 +2598,15 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0,
 		},
 	}
 
 	expectedFullyCompacted := func(cp *tsm1.DefaultPlanner, reasonExp string) {
-		compacted, reason := cp.CompactionOptimizationAvailable()
+		compacted, reason := cp.CompactionOptimizationNotAvailable()
 		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 		require.True(t, compacted, "is fully compacted")
 
@@ -2695,9 +2695,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, "", 0, true,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, "", 0, true,
 		},
 		{
 			// This test is added to account for a single generation that has a group size
@@ -2715,9 +2715,9 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 691 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
-			},
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
+		},
 			"",
 			0, true,
 		},
@@ -2739,15 +2739,15 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 450 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-			}, tsdb.SingleGenerationReasonText, 1, false,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+		}, tsdb.SingleGenerationReasonText, 1, false,
 		},
 	}
 
 	mixedPlanOptimizeTestRunner := func(cp *tsm1.DefaultPlanner, reasonExp string, fullyCompacted bool) {
-		compacted, reason := cp.CompactionOptimizationAvailable()
+		compacted, reason := cp.CompactionOptimizationNotAvailable()
 		require.Equal(t, reason, reasonExp, "fullyCompacted reason")
 		require.Equal(t, compacted, fullyCompacted, "is fully compacted")
 
@@ -2913,23 +2913,23 @@ func TestDefaultPlanner_PlanOptimize_Test(t *testing.T) {
 					Size: 400 * 1024 * 1024,
 				},
 			}, []int{
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultAggressiveMaxPointsPerBlock,
-				tsdb.DefaultMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultAggressiveMaxPointsPerBlock,
+			tsdb.DefaultMaxPointsPerBlock,
 
-				tsdb.DefaultMaxPointsPerBlock,
-				// Use some magic numbers but these are just small values for block counts
-				100,
-				10,
-			},
+			tsdb.DefaultMaxPointsPerBlock,
+			// Use some magic numbers but these are just small values for block counts
+			100,
+			10,
+		},
 		},
 		{
 			"1.12.0 RC0 Planner issue mock data from cluster",
