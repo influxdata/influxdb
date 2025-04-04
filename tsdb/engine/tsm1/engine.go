@@ -938,7 +938,7 @@ func (e *Engine) IsIdle() (state bool, reason string) {
 
 	if cacheSize := e.Cache.Size(); cacheSize > 0 {
 		return false, "not idle because cache size is nonzero"
-	} else if c, r := e.CompactionPlan.FullyCompacted(); !c {
+	} else if c, r := e.CompactionPlan.CompactionOptimizationNotAvailable(); !c {
 		return false, r
 	} else {
 		return true, ""
@@ -2134,7 +2134,12 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			// If no full compactions are need, see if an optimize is needed
 			var genLen int64
 			if len(level4Groups) == 0 {
-				level4Groups, len4, genLen = e.CompactionPlan.PlanOptimize()
+				level4Groups, len4, genLen = e.CompactionPlan.PlanOptimize(e.LastModified())
+				if len(level4Groups) > 0 {
+					for _, group := range level4Groups {
+						e.logger.Info("TSM scheduled for optimized compaction", zap.Strings("files", group))
+					}
+				}
 				atomic.StoreInt64(&e.stats.TSMOptimizeCompactionsQueue, len4)
 			}
 

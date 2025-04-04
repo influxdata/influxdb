@@ -115,9 +115,9 @@ type CompactionPlanner interface {
 	// This value is mostly ignored in normal compaction code paths, but,
 	// for the edge case where there is a single generation with many
 	// files under 2 GB this value is an important indicator.
-	PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
+	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
-	FullyCompacted() (bool, string)
+	CompactionOptimizationNotAvailable() (bool, string)
 
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
@@ -253,9 +253,10 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 	return c.FileStore.ParseFileName(path)
 }
 
-// FullyCompacted returns true if the shard is fully compacted.
-func (c *DefaultPlanner) FullyCompacted() (bool, string) {
-	gens := c.findGenerations(false)
+// CompactionOptimizationNotAvailable returns true if the shard is fully compacted.
+// Used to check if an optimization can occur and shard hot-ness.
+func (c *DefaultPlanner) CompactionOptimizationNotAvailable() (bool, string) {
+	gens := c.findGenerations(true)
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
@@ -392,7 +393,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 // PlanOptimize returns all TSM files if they are in different generations in order
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
-func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
+func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
@@ -406,9 +407,10 @@ func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compact
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
-	fullyCompacted, _ := c.FullyCompacted()
 
-	if fullyCompacted {
+	fullyCompacted, _ := c.CompactionOptimizationNotAvailable()
+
+	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
 	}
 
