@@ -938,7 +938,7 @@ func (e *Engine) IsIdle() (state bool, reason string) {
 
 	if cacheSize := e.Cache.Size(); cacheSize > 0 {
 		return false, "not idle because cache size is nonzero"
-	} else if c, r := e.CompactionPlan.FullyCompacted(); !c {
+	} else if c, r := e.CompactionPlan.CompactionOptimizationAvailable(); !c {
 		return false, r
 	} else {
 		return true, ""

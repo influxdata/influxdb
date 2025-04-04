@@ -117,7 +117,7 @@ type CompactionPlanner interface {
 	// files under 2 GB this value is an important indicator.
 	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
-	FullyCompacted() (bool, string)
+	CompactionOptimizationAvailable() (bool, string)
 
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
@@ -253,8 +253,8 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 	return c.FileStore.ParseFileName(path)
 }
 
-// FullyCompacted returns true if the shard is fully compacted.
-func (c *DefaultPlanner) FullyCompacted() (bool, string) {
+// CompactionOptimizationAvailable returns true if the shard is fully compacted.
+func (c *DefaultPlanner) CompactionOptimizationAvailable() (bool, string) {
 	gens := c.findGenerations(true)
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
@@ -407,7 +407,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
 
-	fullyCompacted, _ := c.FullyCompacted()
+	fullyCompacted, _ := c.CompactionOptimizationAvailable()
 
 	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
