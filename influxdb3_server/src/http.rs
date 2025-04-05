@@ -340,6 +340,10 @@ impl IntoResponse for Error {
                     .body(body)
                     .unwrap()
             }
+            Self::WriteBuffer(err @ WriteBufferError::EmptyWrite) => Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from(err.to_string()))
+                .unwrap(),
             Self::WriteBuffer(err @ WriteBufferError::ColumnDoesNotExist(_)) => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: err.to_string(),
