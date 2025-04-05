@@ -2934,6 +2934,43 @@ mod tests {
         assert_eq!(table.series_key[1], ColumnId::from(3));
     }
 
+    #[test_log::test(tokio::test)]
+    async fn test_empty_write_does_not_corrupt_wal() {
+        let object_store = Arc::new(InMemory::new());
+
+        let init = async || -> Arc<WriteBufferImpl> {
+            let (buf, _, _) = setup(
+                Time::from_timestamp_nanos(0),
+                Arc::clone(&object_store) as _,
+                WalConfig {
+                    gen1_duration: Gen1Duration::new_1m(),
+                    max_write_buffer_size: 1,
+                    flush_interval: Duration::from_millis(10),
+                    snapshot_size: 1,
+                },
+            )
+            .await;
+            buf
+        };
+
+        let buf = init().await;
+
+        do_writes_partial(
+            "cats",
+            buf.as_ref(),
+            &[TestWrite {
+                lp: "",
+                time_seconds: 1_000,
+            }],
+        )
+        .await;
+
+        drop(buf);
+
+        // this should replay the wal and successfully initialize:
+        let _buf = init().await;
+    }
+
     struct TestWrite<LP> {
         lp: LP,
         time_seconds: i64,
