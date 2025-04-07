@@ -104,6 +104,10 @@ func (e errBlockRead) Error() string {
 // CompactionGroup represents a list of files eligible to be compacted together.
 type CompactionGroup []string
 
+// RetTsmGenerations represents the return type of generations found
+// while calling CompactionOptimizationNotAvailable(
+type RetTsmGenerations = tsmGenerations
+
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
@@ -117,7 +121,7 @@ type CompactionPlanner interface {
 	// files under 2 GB this value is an important indicator.
 	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
-	CompactionOptimizationNotAvailable() (bool, string)
+	CompactionOptimizationNotAvailable(skipInUse bool) (bool, string, RetTsmGenerations)
 
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
@@ -172,6 +176,8 @@ type fileStore interface {
 	LastModified() time.Time
 	BlockCount(path string, idx int) int
 	ParseFileName(path string) (int, int, error)
+	NextGeneration() int
+	TSMReader(path string) (*TSMReader, error)
 }
 
 func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPlanner {
@@ -255,12 +261,12 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 
 // CompactionOptimizationNotAvailable returns true if the shard is fully compacted.
 // Used to check if an optimization can occur and shard hot-ness.
-func (c *DefaultPlanner) CompactionOptimizationNotAvailable() (bool, string) {
-	gens := c.findGenerations(true)
+func (c *DefaultPlanner) CompactionOptimizationNotAvailable(skipInUse bool) (bool, string, RetTsmGenerations) {
+	gens := c.findGenerations(skipInUse)
 	if len(gens) > 1 {
-		return false, "not fully compacted and not idle because of more than one generation"
+		return false, "not fully compacted and not idle because of more than one generation", gens
 	} else if gens.hasTombstones() {
-		return false, "not fully compacted and not idle because of tombstones"
+		return false, "not fully compacted and not idle because of tombstones", gens
 	} else {
 		// For planning we want to ensure that if there is a single generation
 		// shard, but it has many files that are under 2 GB and many files that are
@@ -280,10 +286,10 @@ func (c *DefaultPlanner) CompactionOptimizationNotAvailable() (bool, string) {
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
-				return false, tsdb.SingleGenerationReasonText
+				return false, tsdb.SingleGenerationReasonText, gens
 			}
 		}
-		return true, ""
+		return true, "", gens
 	}
 }
 
@@ -403,12 +409,7 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	}
 	c.mu.RUnlock()
 
-	// Determine the generations from all files on disk.  We need to treat
-	// a generation conceptually as a single file even though it may be
-	// split across several files in sequence.
-	generations := c.findGenerations(true)
-
-	fullyCompacted, _ := c.CompactionOptimizationNotAvailable()
+	fullyCompacted, _, generations := c.CompactionOptimizationNotAvailable(true)
 
 	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
@@ -760,13 +761,9 @@ func (c *DefaultPlanner) Release(groups []CompactionGroup) {
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files.
 type Compactor struct {
-	Dir  string
-	Size int
+	Dir string
 
-	FileStore interface {
-		NextGeneration() int
-		TSMReader(path string) (*TSMReader, error)
-	}
+	FileStore fileStore
 
 	// RateLimit is the limit for disk writes for all concurrent compactions.
 	RateLimit limiter.Rate
@@ -957,15 +954,12 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	// Sets the points per block size. The larger this value is set
 	// the more points there will be in a single index. Under normal
 	// conditions this should always be 1000 but there is an edge case
 	// where this is increased.
-	size := c.Size
-	if size <= 0 {
-		size = tsdb.DefaultMaxPointsPerBlock
-	}
+	size := pointsPerBlock
 
 	c.mu.RLock()
 	intC := c.compactionsInterrupt
@@ -1028,7 +1022,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 }
 
 // CompactFull writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
@@ -1042,7 +1036,7 @@ func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string
 	}
 	defer c.remove(tsmFiles)
 
-	files, err := c.compact(false, tsmFiles, logger)
+	files, err := c.compact(false, tsmFiles, logger, pointsPerBlock)
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
@@ -1060,7 +1054,7 @@ func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string
 }
 
 // CompactFast writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
@@ -1074,7 +1068,7 @@ func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger) ([]string
 	}
 	defer c.remove(tsmFiles)
 
-	files, err := c.compact(true, tsmFiles, logger)
+	files, err := c.compact(true, tsmFiles, logger, pointsPerBlock)
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()

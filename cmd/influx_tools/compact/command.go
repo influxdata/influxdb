@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/influxdata/influxdb/tsdb"
 	"io"
 	"os"
 	"path/filepath"
@@ -133,6 +134,22 @@ type shardCompactor struct {
 	newTSM    []string
 }
 
+// These methods are not used in production, need to implement in
+// order to satisfy the FileStore interface, see: https://github.com/influxdata/influxdb/pull/26211
+func (sc *shardCompactor) Stats() []tsm1.FileStat {
+	return nil
+}
+
+func (sc *shardCompactor) LastModified() time.Time {
+	return time.Now()
+}
+
+func (sc *shardCompactor) BlockCount(path string, idx int) int { return 0 }
+
+func (sc *shardCompactor) ParseFileName(path string) (int, int, error) {
+	return 0, 0, errors.New("not implemented")
+}
+
 func newShardCompactor(path string, logger *zap.Logger) (sc *shardCompactor, err error) {
 	sc = &shardCompactor{
 		logger: logger,
@@ -227,11 +244,10 @@ func (sc *shardCompactor) openFiles() error {
 func (sc *shardCompactor) CompactShard() (err error) {
 	c := tsm1.NewCompactor()
 	c.Dir = sc.path
-	c.Size = tsm1.DefaultSegmentSize
 	c.FileStore = sc
 	c.Open()
 
-	tsmFiles, err := c.CompactFull(sc.tsm, sc.logger)
+	tsmFiles, err := c.CompactFull(sc.tsm, sc.logger, tsdb.DefaultAggressiveMaxPointsPerBlock)
 	if err == nil {
 		sc.newTSM, err = sc.replace(tsmFiles)
 	}

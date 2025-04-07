@@ -2897,8 +2897,8 @@ func (m *mockPlanner) PlanOptimize(lastWrite time.Time) ([]tsm1.CompactionGroup,
 	return nil, 0, 0
 }
 func (m *mockPlanner) Release(groups []tsm1.CompactionGroup) {}
-func (m *mockPlanner) CompactionOptimizationNotAvailable() (bool, string) {
-	return false, "not compacted"
+func (m *mockPlanner) CompactionOptimizationNotAvailable(skipInUse bool) (bool, string, tsm1.RetTsmGenerations) {
+	return false, "not compacted", nil
 }
 func (m *mockPlanner) ForceFull()                      {}
 func (m *mockPlanner) SetFileStore(fs *tsm1.FileStore) {}
