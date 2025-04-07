@@ -105,7 +105,7 @@ func (e errBlockRead) Error() string {
 type CompactionGroup []string
 
 // RetTsmGenerations represents the return type of generations found
-// while calling CompactionOptimizationNotAvailable(
+// while calling FullyCompacted(
 type RetTsmGenerations = tsmGenerations
 
 // CompactionPlanner determines what TSM files and WAL segments to include in a
@@ -121,7 +121,7 @@ type CompactionPlanner interface {
 	// files under 2 GB this value is an important indicator.
 	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
-	CompactionOptimizationNotAvailable(skipInUse bool) (bool, string, RetTsmGenerations)
+	FullyCompacted() (bool, string)
 
 	// ForceFull causes the planner to return a full compaction plan the next
 	// time Plan() is called if there are files that could be compacted.
@@ -259,14 +259,11 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 	return c.FileStore.ParseFileName(path)
 }
 
-// CompactionOptimizationNotAvailable returns true if the shard is fully compacted.
-// Used to check if an optimization can occur and shard hot-ness.
-func (c *DefaultPlanner) CompactionOptimizationNotAvailable(skipInUse bool) (bool, string, RetTsmGenerations) {
-	gens := c.findGenerations(skipInUse)
+func (c *DefaultPlanner) generationsFullyCompacted(gens tsmGenerations) (bool, string) {
 	if len(gens) > 1 {
-		return false, "not fully compacted and not idle because of more than one generation", gens
+		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
-		return false, "not fully compacted and not idle because of tombstones", gens
+		return false, "not fully compacted and not idle because of tombstones"
 	} else {
 		// For planning we want to ensure that if there is a single generation
 		// shard, but it has many files that are under 2 GB and many files that are
@@ -286,11 +283,17 @@ func (c *DefaultPlanner) CompactionOptimizationNotAvailable(skipInUse bool) (boo
 			}
 
 			if filesUnderMaxTsmSizeCount > 1 && aggressivePointsPerBlockCount < len(gens[0].files) {
-				return false, tsdb.SingleGenerationReasonText, gens
+				return false, tsdb.SingleGenerationReasonText
 			}
 		}
-		return true, "", gens
+		return true, ""
 	}
+}
+
+// FullyCompacted returns true if the shard is fully compacted.
+// Used to check if an optimization can occur and shard hot-ness.
+func (c *DefaultPlanner) FullyCompacted() (bool, string) {
+	return c.generationsFullyCompacted(c.findGenerations(false))
 }
 
 // ForceFull causes the planner to return a full compaction plan the next time
@@ -409,7 +412,11 @@ func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []Compa
 	}
 	c.mu.RUnlock()
 
-	fullyCompacted, _, generations := c.CompactionOptimizationNotAvailable(true)
+	// Determine the generations from all files on disk.  We need to treat
+	// a generation conceptually as a single file even though it may be
+	// split across several files in sequence.
+	generations := c.findGenerations(true)
+	fullyCompacted, _ := c.generationsFullyCompacted(generations)
 
 	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
