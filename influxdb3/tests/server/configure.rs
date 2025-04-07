@@ -1143,6 +1143,32 @@ async fn api_v3_configure_table_create_no_fields() {
 }
 
 #[test_log::test(tokio::test)]
+async fn api_v3_configure_table_create_invalid_field_types() {
+    let server = TestServer::spawn().await;
+    let client = reqwest::Client::new();
+    let table_url = format!("{base}/api/v3/configure/table", base = server.client_addr());
+
+    let resp = client
+        .post(&table_url)
+        .json(&json!({
+            "db": "foo",
+            "table": "bar",
+            "tags": ["tag1"],
+            "fields": [
+                {
+                    "name": "invalid",
+                    "type": "foobar"
+                }
+            ]
+        }))
+        .send()
+        .await
+        .expect("create table call failed");
+
+    assert!(resp.status().is_client_error());
+}
+
+#[test_log::test(tokio::test)]
 async fn api_v3_configure_table_delete() {
     let db_name = "foo";
     let tbl_name = "tbl";
