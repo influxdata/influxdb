@@ -122,7 +122,7 @@ sysinfo = "0.30.8"
 tempfile = "3.14.0"
 test-log = { version = "0.2.16", features = ["trace"] }
 thiserror = "1.0"
-tokio = { version = "1.43", features = ["full"] }
+tokio = { version = "1.43.1", features = ["full"] }
 tokio-util = { version = "0.7.13", features = ["rt"] }
 tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
 tonic-build = "0.11.0"
