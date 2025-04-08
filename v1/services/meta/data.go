@@ -31,13 +31,13 @@ const (
 	// DefaultRetentionPolicyName is the default name for auto generated retention policies.
 	DefaultRetentionPolicyName = "autogen"
 
-	// MinRetentionPolicyDuration represents the minimum duration for a policy.
-	MinRetentionPolicyDuration = time.Hour
-
 	// MaxNameLen is the maximum length of a database or retention policy name.
 	// InfluxDB uses the name for the directory name on disk.
 	MaxNameLen = 255
 )
+
+// MinRetentionPolicyDuration represents the minimum duration for a policy.
+var MinRetentionPolicyDuration = time.Second
 
 // Data represents the top level collection of all metadata.
 type Data struct {
@@ -1355,12 +1355,13 @@ func (rpi *RetentionPolicyInfo) UnmarshalBinary(data []byte) error {
 
 // shardGroupDuration returns the default duration for a shard group based on a policy duration.
 func shardGroupDuration(d time.Duration) time.Duration {
-	if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
+	if d >= 180*24*time.Hour || d <= 0 { // 6 months or 0
 		return 7 * 24 * time.Hour
 	} else if d >= 2*24*time.Hour { // 2 days
 		return 1 * 24 * time.Hour
+	} else {
+		return d / 24
 	}
-	return 1 * time.Hour
 }
 
 // NormalisedShardDuration returns normalised shard duration based on a policy duration.
