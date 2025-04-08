@@ -104,10 +104,6 @@ func (e errBlockRead) Error() string {
 // CompactionGroup represents a list of files eligible to be compacted together.
 type CompactionGroup []string
 
-// RetTsmGenerations represents the return type of generations found
-// while calling FullyCompacted(
-type RetTsmGenerations = tsmGenerations
-
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
