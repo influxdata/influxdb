@@ -115,7 +115,7 @@ type CompactionPlanner interface {
 	// This value is mostly ignored in normal compaction code paths, but,
 	// for the edge case where there is a single generation with many
 	// files under 2 GB this value is an important indicator.
-	PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
+	PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64)
 	Release(group []CompactionGroup)
 	FullyCompacted() (bool, string)
 
@@ -172,6 +172,8 @@ type fileStore interface {
 	LastModified() time.Time
 	BlockCount(path string, idx int) int
 	ParseFileName(path string) (int, int, error)
+	NextGeneration() int
+	TSMReader(path string) (*TSMReader, error)
 }
 
 func NewDefaultPlanner(fs fileStore, writeColdDuration time.Duration) *DefaultPlanner {
@@ -253,9 +255,7 @@ func (c *DefaultPlanner) ParseFileName(path string) (int, int, error) {
 	return c.FileStore.ParseFileName(path)
 }
 
-// FullyCompacted returns true if the shard is fully compacted.
-func (c *DefaultPlanner) FullyCompacted() (bool, string) {
-	gens := c.findGenerations(false)
+func (c *DefaultPlanner) generationsFullyCompacted(gens tsmGenerations) (bool, string) {
 	if len(gens) > 1 {
 		return false, "not fully compacted and not idle because of more than one generation"
 	} else if gens.hasTombstones() {
@@ -284,6 +284,12 @@ func (c *DefaultPlanner) FullyCompacted() (bool, string) {
 		}
 		return true, ""
 	}
+}
+
+// FullyCompacted returns true if the shard is fully compacted.
+// Used to check if an optimization can occur and shard hot-ness.
+func (c *DefaultPlanner) FullyCompacted() (bool, string) {
+	return c.generationsFullyCompacted(c.findGenerations(false))
 }
 
 // ForceFull causes the planner to return a full compaction plan the next time
@@ -392,7 +398,7 @@ func (c *DefaultPlanner) PlanLevel(level int) ([]CompactionGroup, int64) {
 // PlanOptimize returns all TSM files if they are in different generations in order
 // to optimize the index across TSM files.  Each returned compaction group can be
 // compacted concurrently.
-func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
+func (c *DefaultPlanner) PlanOptimize(lastWrite time.Time) (compactGroup []CompactionGroup, compactionGroupLen int64, generationCount int64) {
 	// If a full plan has been requested, don't plan any levels which will prevent
 	// the full plan from acquiring them.
 	c.mu.RLock()
@@ -406,9 +412,9 @@ func (c *DefaultPlanner) PlanOptimize() (compactGroup []CompactionGroup, compact
 	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations(true)
-	fullyCompacted, _ := c.FullyCompacted()
+	fullyCompacted, _ := c.generationsFullyCompacted(generations)
 
-	if fullyCompacted {
+	if fullyCompacted || time.Since(lastWrite) < c.compactFullWriteColdDuration {
 		return nil, 0, 0
 	}
 
@@ -758,13 +764,9 @@ func (c *DefaultPlanner) Release(groups []CompactionGroup) {
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files.
 type Compactor struct {
-	Dir  string
-	Size int
+	Dir string
 
-	FileStore interface {
-		NextGeneration() int
-		TSMReader(path string) (*TSMReader, error)
-	}
+	FileStore fileStore
 
 	// RateLimit is the limit for disk writes for all concurrent compactions.
 	RateLimit limiter.Rate
@@ -955,15 +957,12 @@ func (c *Compactor) WriteSnapshot(cache *Cache, logger *zap.Logger) ([]string, e
 }
 
 // compact writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	// Sets the points per block size. The larger this value is set
 	// the more points there will be in a single index. Under normal
 	// conditions this should always be 1000 but there is an edge case
 	// where this is increased.
-	size := c.Size
-	if size <= 0 {
-		size = tsdb.DefaultMaxPointsPerBlock
-	}
+	size := pointsPerBlock
 
 	c.mu.RLock()
 	intC := c.compactionsInterrupt
@@ -1026,7 +1025,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string, logger *zap.Logger) ([
 }
 
 // CompactFull writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
@@ -1040,7 +1039,7 @@ func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string
 	}
 	defer c.remove(tsmFiles)
 
-	files, err := c.compact(false, tsmFiles, logger)
+	files, err := c.compact(false, tsmFiles, logger, pointsPerBlock)
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
@@ -1058,7 +1057,7 @@ func (c *Compactor) CompactFull(tsmFiles []string, logger *zap.Logger) ([]string
 }
 
 // CompactFast writes multiple smaller TSM files into 1 or more larger files.
-func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger) ([]string, error) {
+func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger, pointsPerBlock int) ([]string, error) {
 	c.mu.RLock()
 	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
@@ -1072,7 +1071,7 @@ func (c *Compactor) CompactFast(tsmFiles []string, logger *zap.Logger) ([]string
 	}
 	defer c.remove(tsmFiles)
 
-	files, err := c.compact(true, tsmFiles, logger)
+	files, err := c.compact(true, tsmFiles, logger, pointsPerBlock)
 
 	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
