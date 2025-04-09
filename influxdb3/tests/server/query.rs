@@ -356,6 +356,7 @@ async fn api_v3_query_influxql() {
                     +---------------+---------+\n\
                     | iox::database | deleted |\n\
                     +---------------+---------+\n\
+                    | _internal     | false   |\n\
                     | bar           | false   |\n\
                     | foo           | false   |\n\
                     +---------------+---------+",
@@ -366,6 +367,7 @@ async fn api_v3_query_influxql() {
             expected: "+---------------+---------+----------+\n\
                     | iox::database | name    | duration |\n\
                     +---------------+---------+----------+\n\
+                    | _internal     | autogen |          |\n\
                     | bar           | autogen |          |\n\
                     | foo           | autogen |          |\n\
                     +---------------+---------+----------+",
@@ -667,6 +669,10 @@ async fn api_v3_query_json_format() {
             expected: json!([
                 {
                   "deleted": false,
+                  "iox::database": "_internal",
+                },
+                {
+                  "deleted": false,
                   "iox::database": "foo",
                 },
             ]),
@@ -675,6 +681,10 @@ async fn api_v3_query_json_format() {
             database: None,
             query: "SHOW RETENTION POLICIES",
             expected: json!([
+                {
+                  "iox::database": "_internal",
+                  "name": "autogen",
+                },
                 {
                   "iox::database": "foo",
                   "name": "autogen",
@@ -771,12 +781,16 @@ async fn api_v3_query_jsonl_format() {
         TestCase {
             database: None,
             query: "SHOW DATABASES",
-            expected: "{\"iox::database\":\"foo\",\"deleted\":false}\n".into(),
+            expected:
+            "{\"iox::database\":\"_internal\",\"deleted\":false}\n\
+            {\"iox::database\":\"foo\",\"deleted\":false}\n".into(),
         },
         TestCase {
             database: None,
             query: "SHOW RETENTION POLICIES",
-            expected: "{\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
+            expected:
+            "{\"iox::database\":\"_internal\",\"name\":\"autogen\"}\n\
+            {\"iox::database\":\"foo\",\"name\":\"autogen\"}\n".into(),
         },
     ];
     for t in test_cases {

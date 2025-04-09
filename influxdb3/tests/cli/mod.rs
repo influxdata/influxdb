@@ -181,6 +181,7 @@ async fn test_show_databases() {
         +---------------+\n\
         | iox::database |\n\
         +---------------+\n\
+        | _internal     |\n\
         | bar           |\n\
         | foo           |\n\
         +---------------+\
@@ -191,7 +192,7 @@ async fn test_show_databases() {
     // Show databases with JSON format
     let output = server.show_databases().with_format("json").run().unwrap();
     assert_eq!(
-        r#"[{"iox::database":"bar"},{"iox::database":"foo"}]"#,
+        r#"[{"iox::database":"_internal"},{"iox::database":"bar"},{"iox::database":"foo"}]"#,
         output
     );
 
@@ -200,6 +201,7 @@ async fn test_show_databases() {
     assert_eq!(
         "\
         iox::database\n\
+        _internal\n\
         bar\n\
         foo\
         ",
@@ -210,6 +212,7 @@ async fn test_show_databases() {
     let output = server.show_databases().with_format("jsonl").run().unwrap();
     assert_eq!(
         "\
+        {\"iox::database\":\"_internal\"}\n\
         {\"iox::database\":\"bar\"}\n\
         {\"iox::database\":\"foo\"}\
         ",
@@ -226,6 +229,7 @@ async fn test_show_databases() {
         +---------------+\n\
         | iox::database |\n\
         +---------------+\n\
+        | _internal     |\n\
         | bar           |\n\
         +---------------+",
         output
@@ -235,30 +239,6 @@ async fn test_show_databases() {
     let output = server.show_databases().show_deleted(true).run().unwrap();
     // don't assert on actual output since it contains a time stamp which would be flaky
     assert_contains!(output, "foo-");
-}
-
-#[test_log::test(tokio::test)]
-async fn test_show_empty_database() {
-    let server = TestServer::spawn().await;
-
-    // Show empty database list with default format (pretty)
-    let output = server.show_databases().run().unwrap();
-    assert_eq!(
-        "\
-        +---------------+\n\
-        | iox::database |\n\
-        +---------------+\n\
-        +---------------+",
-        output
-    );
-
-    // Show empty database list with JSON format
-    let output = server.show_databases().with_format("json").run().unwrap();
-    assert_eq!(output, "[]");
-
-    // Show empty database list with JSONL format
-    let output = server.show_databases().with_format("jsonl").run().unwrap();
-    assert_eq!(output, "");
 }
 
 #[test_log::test(tokio::test)]
@@ -735,6 +715,7 @@ async fn test_database_create_persists() {
         r#"+---------------+
 | iox::database |
 +---------------+
+| _internal     |
 | foo           |
 +---------------+"#,
         result

@@ -59,6 +59,8 @@ const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 pub const TIME_COLUMN_NAME: &str = "time";
 
+pub const INTERNAL_DB_NAME: &str = "_internal";
+
 const DEFAULT_ADMIN_TOKEN_NAME: &str = "_admin";
 
 /// The sequence number of a batch of WAL operations.
@@ -133,7 +135,7 @@ impl Catalog {
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
-        store
+        let mut catalog = store
             .load_or_create_catalog()
             .await
             .map_err(Into::into)
@@ -143,7 +145,10 @@ impl Catalog {
                 time_provider,
                 store,
                 inner,
-            })
+            });
+
+        create_internal_db(&mut catalog).await;
+        catalog
     }
 
     pub async fn new_with_shutdown(
@@ -367,6 +372,16 @@ impl Catalog {
         result
     }
 
+    pub fn get_tokens(&self) -> Vec<Arc<TokenInfo>> {
+        self.inner
+            .read()
+            .tokens
+            .repo()
+            .iter()
+            .map(|(_, token_info)| Arc::clone(token_info))
+            .collect()
+    }
+
     pub async fn create_admin_token(&self, regenerate: bool) -> Result<(Arc<TokenInfo>, String)> {
         // if regen, if token is present already create a new token and hash and update the
         // existing token otherwise we should insert to catalog (essentially an upsert)
@@ -444,6 +459,30 @@ impl Catalog {
         // we need to pass these details back, especially this token as this is what user should
         // send in subsequent requests
         Ok((token_info, token))
+    }
+}
+
+async fn create_internal_db(catalog: &mut std::result::Result<Catalog, CatalogError>) {
+    // if catalog is initialised, create internal db
+    if let Ok(catalog) = catalog.as_mut() {
+        let result = catalog.create_database(INTERNAL_DB_NAME).await;
+        // what is the best outcome if "_internal" cannot be created?
+        match result {
+            Ok(_) => info!("created internal database"),
+            Err(err) => {
+                match err {
+                    CatalogError::AlreadyExists => {
+                        // this is probably ok
+                        debug!("not creating internal db as it exists already");
+                    }
+                    _ => {
+                        // all other errors are unexpected state
+                        error!(?err, "unexpected error when creating internal db");
+                        panic!("cannot create internal db");
+                    }
+                }
+            }
+        };
     }
 }
 
@@ -667,7 +706,11 @@ impl InnerCatalog {
     }
 
     pub fn database_count(&self) -> usize {
-        self.databases.iter().filter(|db| !db.1.deleted).count()
+        self.databases
+            .iter()
+            // count if not db deleted _and_ not internal
+            .filter(|db| !db.1.deleted && db.1.name().as_ref() != INTERNAL_DB_NAME)
+            .count()
     }
 
     pub fn table_count(&self) -> usize {
@@ -1854,7 +1897,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1942,7 +1985,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1989,7 +2032,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -2035,7 +2078,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }

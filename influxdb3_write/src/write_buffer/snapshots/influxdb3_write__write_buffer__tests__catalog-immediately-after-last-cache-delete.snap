@@ -13,6 +13,22 @@ expression: catalog_json
         0,
         {
           "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
           "name": "db",
           "tables": {
             "repo": [
@@ -101,9 +117,9 @@ expression: catalog_json
         }
       ]
     ],
-    "next_id": 1
+    "next_id": 2
   },
-  "sequence": 4,
+  "sequence": 5,
   "tokens": {
     "repo": [],
     "next_id": 0

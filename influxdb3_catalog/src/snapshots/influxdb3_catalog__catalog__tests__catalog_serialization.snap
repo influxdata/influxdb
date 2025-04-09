@@ -14,6 +14,22 @@ expression: snapshot
         0,
         {
           "id": 0,
+          "name": "_internal",
+          "tables": {
+            "repo": [],
+            "next_id": 0
+          },
+          "processing_engine_triggers": {
+            "repo": [],
+            "next_id": 0
+          },
+          "deleted": false
+        }
+      ],
+      [
+        1,
+        {
+          "id": 1,
           "name": "test_db",
           "tables": {
             "repo": [
@@ -300,9 +316,9 @@ expression: snapshot
         }
       ]
     ],
-    "next_id": 1
+    "next_id": 2
   },
-  "sequence": 3,
+  "sequence": 4,
   "tokens": {
     "repo": [],
     "next_id": 0
