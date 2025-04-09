@@ -6,6 +6,9 @@ readonly BOLDGREEN='\033[1;32m'
 readonly DIM='\033[2m'
 readonly NC='\033[0m' # No Color
 
+# No diagnostics for: 'printf "...${FOO}"'
+# shellcheck disable=SC2059
+
 ARCHITECTURE=$(uname -m)
 ARTIFACT=""
 OS=""
@@ -34,8 +37,6 @@ if [ "${OS}" = "Linux" ]; then
     # prevents it from running when invoked directly. Since we only want to
     # use '--verbose', find the path to ldd, then invoke under sh to bypass ldd
     # hardening.
-    # XXX: use 'uname -o | grep GNU' instead?
-    ldd_exec=$(command -v ldd)
     if [ "${ARCHITECTURE}" = "x86_64" ] || [ "${ARCHITECTURE}" = "amd64" ]; then
         ARTIFACT="linux_amd64"
     elif [ "${ARCHITECTURE}" = "aarch64" ] || [ "${ARCHITECTURE}" = "arm64" ]; then
