@@ -1,19 +1,14 @@
 mod api;
 
-use crate::server::{ConfigProvider, TestServer};
+use crate::server::{ConfigProvider, TestServer, parse_token};
 use assert_cmd::Command as AssertCmd;
-use assert_cmd::cargo::CommandCargoExt;
 use observability_deps::tracing::debug;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::fs::File;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{
-    fs,
-    io::Write,
-    process::{Command, Stdio},
-};
+use std::{fs, io::Write};
 use test_helpers::tempfile::NamedTempFile;
 use test_helpers::tempfile::TempDir;
 use test_helpers::{assert_contains, assert_not_contains};
@@ -875,20 +870,6 @@ def process_writes(influxdb3_local, table_batches, args=None):
     assert_contains!(&result, "Trigger test_trigger created successfully");
 }
 
-#[test]
-fn test_create_token() {
-    let process = Command::cargo_bin("influxdb3")
-        .unwrap()
-        .args(["create", "token"])
-        .stdout(Stdio::piped())
-        .output()
-        .unwrap();
-    let result: String = String::from_utf8_lossy(&process.stdout).trim().into();
-    assert_contains!(
-        &result,
-        "This will grant you access to every HTTP endpoint or deny it otherwise"
-    );
-}
 #[test_log::test(tokio::test)]
 async fn test_show_system() {
     let server = TestServer::configure().spawn().await;
@@ -1971,7 +1952,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         yield "Line 1\n"
         yield "Line 2\n"
         yield "Line 3\n"
-    
+
     return generate_content()
 "#;
     let (temp_dir, plugin_path) = create_plugin_in_temp_dir(plugin_code);
@@ -2020,17 +2001,17 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
             self.response = response
             self.status_code = status
             self.headers = headers or {}
-            
+
         def get_data(self):
             return self.response
-            
+
         def __flask_response__(self):
             return True
-    
+
     # Return a Flask Response object
     response = FlaskResponse(
-        "Custom Flask Response", 
-        status=202, 
+        "Custom Flask Response",
+        status=202,
         headers={"Content-Type": "text/custom", "X-Generated-By": "FlaskResponse"}
     )
     return response
@@ -2901,4 +2882,80 @@ async fn test_wal_overwritten() {
         "p1 should have stopped due to internal shutdown"
     );
     assert!(!p2.is_stopped(), "p2 should not be stopped");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token() {
+    let server = TestServer::spawn().await;
+    let args = &[];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    println!("{:?}", result);
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_admin_token_allowed_once() {
+    let server = TestServer::spawn().await;
+    let args = &[];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(
+        &result,
+        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+    );
+}
+
+#[test_log::test(tokio::test)]
+async fn test_regenerate_admin_token() {
+    // when created with_auth, TestServer spins up server and generates admin token.
+    let mut server = TestServer::configure().with_auth().spawn().await;
+    let args = &[];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    // already has admin token, so it cannot be created again
+    assert_contains!(
+        &result,
+        "Failed to create token, error: ApiError { code: 500, message: \"token name already exists, _admin\" }"
+    );
+
+    // regenerating token is allowed
+    let result = server
+        .run(vec!["create", "token", "--admin"], &["--regenerate"])
+        .unwrap();
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+    let old_token = server.token().expect("admin token to be present");
+    let new_token = parse_token(result);
+    assert!(old_token != &new_token);
+
+    // old token cannot access
+    let res = server
+        .create_database("sample_db")
+        .run()
+        .err()
+        .unwrap()
+        .to_string();
+    assert_contains!(&res, "401 Unauthorized");
+
+    // new token should allow
+    server.set_token(Some(new_token));
+    let res = server.create_database("sample_db").run().unwrap();
+    assert_contains!(&res, "Database \"sample_db\" created successfully");
 }

@@ -66,6 +66,7 @@ catalog_identifier_type!(TriggerId, u32);
 catalog_identifier_type!(ColumnId, u16);
 catalog_identifier_type!(LastCacheId, u16);
 catalog_identifier_type!(DistinctCacheId, u16);
+catalog_identifier_type!(TokenId, u64);
 
 /// The next file id to be used when persisting `ParquetFile`s
 pub static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(0);

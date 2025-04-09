@@ -143,6 +143,10 @@ expression: snapshot
     "next_id": 1
   },
   "sequence": 3,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
   "catalog_id": "sample-host-id",
   "catalog_uuid": "[uuid]"
 }

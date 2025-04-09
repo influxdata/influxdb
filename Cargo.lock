@@ -2759,6 +2759,7 @@ dependencies = [
  "hex",
  "humantime",
  "hyper 0.14.32",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_clap_blocks",
@@ -2810,6 +2811,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb3_authz"
+version = "3.0.0-beta.4"
+dependencies = [
+ "async-trait",
+ "authz",
+ "hashbrown 0.15.2",
+ "influxdb3_id",
+ "iox_time",
+ "observability_deps",
+ "serde",
+ "sha2",
+ "test-log",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "influxdb3_cache"
 version = "3.0.0-beta.4"
 dependencies = [
@@ -2850,6 +2868,7 @@ version = "3.0.0-beta.4"
 dependencies = [
  "anyhow",
  "arrow",
+ "base64 0.21.7",
  "bimap",
  "bitcode",
  "byteorder",
@@ -2860,9 +2879,11 @@ dependencies = [
  "cron",
  "futures",
  "hashbrown 0.15.2",
+ "hex",
  "humantime",
  "indexmap 2.7.0",
  "influxdb-line-protocol",
+ "influxdb3_authz",
  "influxdb3_id",
  "influxdb3_shutdown",
  "influxdb3_test_helpers",
@@ -2873,10 +2894,12 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "pretty_assertions",
+ "rand",
  "schema",
  "serde",
  "serde_json",
  "serde_with",
+ "sha2",
  "test-log",
  "test_helpers",
  "thiserror 1.0.69",
@@ -3099,6 +3122,7 @@ dependencies = [
  "humantime",
  "hyper 0.14.32",
  "influxdb-line-protocol",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "influxdb3_client",
@@ -3228,8 +3252,11 @@ name = "influxdb3_types"
 version = "3.0.0-beta.4"
 dependencies = [
  "anyhow",
+ "chrono",
  "hashbrown 0.15.2",
+ "hex",
  "hyper 0.14.32",
+ "influxdb3_authz",
  "influxdb3_cache",
  "influxdb3_catalog",
  "iox_http",

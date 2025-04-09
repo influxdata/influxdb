@@ -6,14 +6,12 @@ use reqwest::StatusCode;
 use crate::server::{ConfigProvider, TestServer, collect_stream};
 
 #[tokio::test]
-async fn auth() {
-    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
-    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
-
-    let server = TestServer::configure()
-        .with_auth_token(HASHED_TOKEN, TOKEN)
-        .spawn()
-        .await;
+async fn auth_http() {
+    let server = TestServer::configure().with_auth().spawn().await;
+    let token = server
+        .auth_token
+        .clone()
+        .expect("admin token to have been present");
 
     let client = reqwest::Client::new();
     let base = server.client_addr();
@@ -48,7 +46,7 @@ async fn auth() {
             .post(&write_lp_url)
             .query(&write_lp_params)
             .body("cpu,host=a val=1i 2998574937")
-            .bearer_auth(TOKEN)
+            .bearer_auth(token.clone())
             .send()
             .await
             .unwrap()
@@ -61,7 +59,7 @@ async fn auth() {
             .query(&write_lp_params)
             .body("cpu,host=a val=1i 2998574937")
             // support both Bearer and Token auth schemes
-            .header("Authorization", format!("Token {TOKEN}"))
+            .header("Authorization", format!("Token {token}"))
             .send()
             .await
             .unwrap()
@@ -72,7 +70,7 @@ async fn auth() {
         client
             .get(&query_sql_url)
             .query(&query_sql_params)
-            .bearer_auth(TOKEN)
+            .bearer_auth(&token)
             .send()
             .await
             .unwrap()
@@ -85,7 +83,7 @@ async fn auth() {
         client
             .get(&query_sql_url)
             .query(&query_sql_params)
-            .header("Authorization", format!("Bearer {TOKEN} whee"))
+            .header("Authorization", format!("Bearer {token} whee"))
             .send()
             .await
             .unwrap()
@@ -96,7 +94,7 @@ async fn auth() {
         client
             .get(&query_sql_url)
             .query(&query_sql_params)
-            .header("Authorization", format!("bearer {TOKEN}"))
+            .header("Authorization", format!("bearer {token}"))
             .send()
             .await
             .unwrap()
@@ -118,7 +116,7 @@ async fn auth() {
         client
             .get(&query_sql_url)
             .query(&query_sql_params)
-            .header("auth", format!("Bearer {TOKEN}"))
+            .header("auth", format!("Bearer {token}"))
             .send()
             .await
             .unwrap()
@@ -129,14 +127,11 @@ async fn auth() {
 
 #[test_log::test(tokio::test)]
 async fn auth_grpc() {
-    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
-    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
-
-    let server = TestServer::configure()
-        .with_auth_token(HASHED_TOKEN, TOKEN)
-        .spawn()
-        .await;
-
+    let server = TestServer::configure().with_auth().spawn().await;
+    let token = server
+        .auth_token
+        .clone()
+        .expect("admin token to have been present");
     // Write some data to the server, this will be authorized through the HTTP API
     server
         .write_lp_to_db(
@@ -156,7 +151,7 @@ async fn auth_grpc() {
 
         // Set the authorization header on the client:
         client
-            .add_header(header, &format!("Bearer {TOKEN}"))
+            .add_header(header, &format!("Bearer {token}"))
             .unwrap();
 
         // Make the query again, this time it should work:
@@ -194,7 +189,7 @@ async fn auth_grpc() {
     {
         let mut client = server.flight_sql_client("foo").await;
         client
-            .add_header("authorization", &format!("bearer {TOKEN}"))
+            .add_header("authorization", &format!("bearer {token}"))
             .unwrap();
         let error = client.query("SELECT * FROM cpu").await.unwrap_err();
         assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
@@ -207,16 +202,14 @@ async fn auth_grpc() {
             .add_header("authorization", "Bearer invalid-token")
             .unwrap();
         let error = client.query("SELECT * FROM cpu").await.unwrap_err();
-        assert!(
-            matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::PermissionDenied)
-        );
+        assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
     }
 
     // Misspelled header key
     {
         let mut client = server.flight_sql_client("foo").await;
         client
-            .add_header("auth", &format!("Bearer {TOKEN}"))
+            .add_header("auth", &format!("Bearer {token}"))
             .unwrap();
         let error = client.query("SELECT * FROM cpu").await.unwrap_err();
         assert!(matches!(error, FlightError::Tonic(s) if s.code() == tonic::Code::Unauthenticated));
@@ -225,13 +218,11 @@ async fn auth_grpc() {
 
 #[tokio::test]
 async fn v1_password_parameter() {
-    const HASHED_TOKEN: &str = "5315f0c4714537843face80cca8c18e27ce88e31e9be7a5232dc4dc8444f27c0227a9bd64831d3ab58f652bd0262dd8558dd08870ac9e5c650972ce9e4259439";
-    const TOKEN: &str = "apiv3_mp75KQAhbqv0GeQXk8MPuZ3ztaLEaR5JzS8iifk1FwuroSVyXXyrJK1c4gEr1kHkmbgzDV-j3MvQpaIMVJBAiA";
-
-    let server = TestServer::configure()
-        .with_auth_token(HASHED_TOKEN, TOKEN)
-        .spawn()
-        .await;
+    let server = TestServer::configure().with_auth().spawn().await;
+    let token = server
+        .auth_token
+        .clone()
+        .expect("admin token to have been present");
 
     let client = reqwest::Client::new();
     let query_url = format!("{base}/query", base = server.client_addr());
@@ -288,7 +279,11 @@ async fn v1_password_parameter() {
     assert_eq!(
         client
             .get(&query_url)
-            .query(&[("p", TOKEN), ("q", "SELECT * FROM cpu"), ("db", "foo")])
+            .query(&[
+                ("p", token.as_str()),
+                ("q", "SELECT * FROM cpu"),
+                ("db", "foo")
+            ])
             .send()
             .await
             .expect("send request")
@@ -300,7 +295,7 @@ async fn v1_password_parameter() {
         client
             .get(&query_url)
             .query(&[("q", "SELECT * FROM cpu"), ("db", "foo")])
-            .bearer_auth(TOKEN)
+            .bearer_auth(&token)
             .send()
             .await
             .expect("send request")
@@ -314,7 +309,7 @@ async fn v1_password_parameter() {
     assert_eq!(
         client
             .post(&write_url)
-            .query(&[("p", TOKEN), ("db", "foo")])
+            .query(&[("p", token.as_str()), ("db", "foo")])
             .body(valid_write_body)
             .send()
             .await
@@ -326,7 +321,7 @@ async fn v1_password_parameter() {
     assert_eq!(
         client
             .post(&write_url)
-            .bearer_auth(TOKEN)
+            .bearer_auth(&token)
             .query(&[("db", "foo")])
             .body(valid_write_body)
             .send()

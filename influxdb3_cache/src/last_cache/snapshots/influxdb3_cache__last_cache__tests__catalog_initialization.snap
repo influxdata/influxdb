@@ -261,6 +261,10 @@ expression: catalog.snapshot()
     "next_id": 1
   },
   "sequence": 6,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
   "catalog_id": "sample-host-id",
   "catalog_uuid": "[uuid]"
 }

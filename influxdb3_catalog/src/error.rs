@@ -163,6 +163,15 @@ pub enum CatalogError {
 
     #[error("invalid error behavior {0}")]
     InvalidErrorBehavior(String),
+
+    #[error("token name already exists, {0}")]
+    TokenNameAlreadyExists(String),
+
+    #[error("missing admin token, cannot update")]
+    MissingAdminTokenToUpdate,
+
+    #[error("cannot delete internal db")]
+    CannotDeleteInternalDatabase,
 }
 
 impl CatalogError {

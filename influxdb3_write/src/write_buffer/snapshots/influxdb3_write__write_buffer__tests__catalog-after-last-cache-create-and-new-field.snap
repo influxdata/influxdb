@@ -120,6 +120,10 @@ expression: catalog_json
     "next_id": 1
   },
   "sequence": 3,
+  "tokens": {
+    "repo": [],
+    "next_id": 0
+  },
   "catalog_id": "test_host",
   "catalog_uuid": "[uuid]"
 }

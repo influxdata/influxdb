@@ -639,6 +639,36 @@ impl Client {
         }
     }
 
+    /// Create an admin token
+    pub async fn api_v3_configure_create_admin_token(
+        &self,
+    ) -> Result<Option<CreateTokenWithPermissionsResponse>> {
+        let response_json: Result<Option<CreateTokenWithPermissionsResponse>> = self
+            .send_create(
+                Method::POST,
+                "/api/v3/configure/token/admin",
+                None::<()>,
+                None::<()>,
+            )
+            .await;
+        response_json
+    }
+
+    /// regenerate admin token
+    pub async fn api_v3_configure_regenerate_admin_token(
+        &self,
+    ) -> Result<Option<CreateTokenWithPermissionsResponse>> {
+        let response_json: Result<Option<CreateTokenWithPermissionsResponse>> = self
+            .send_create(
+                Method::POST,
+                "/api/v3/configure/token/admin/regenerate",
+                None::<()>,
+                None::<()>,
+            )
+            .await;
+        response_json
+    }
+
     /// Serialize the given `B` to json then send the request and return the resulting bytes.
     async fn send_json_get_bytes<B, Q>(
         &self,

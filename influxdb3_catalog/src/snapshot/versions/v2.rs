@@ -1,6 +1,6 @@
 use crate::catalog::{
     CatalogSequenceNumber, ColumnDefinition, DatabaseSchema, InnerCatalog, NodeDefinition,
-    NodeState, Repository, TableDefinition,
+    NodeState, Repository, TableDefinition, TokenRepository,
 };
 use crate::log::{
     DistinctCacheDefinition, LastCacheDefinition, LastCacheTtl, LastCacheValueColumnsDef, MaxAge,
@@ -8,9 +8,13 @@ use crate::log::{
 };
 use crate::resource::CatalogResource;
 use arrow::datatypes::DataType as ArrowDataType;
+use bimap::BiHashMap;
 use hashbrown::HashMap;
+use influxdb3_authz::{
+    Actions, CrudActions, DatabaseActions, Permission, ResourceIdentifier, ResourceType, TokenInfo,
+};
 use influxdb3_id::{
-    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId,
+    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
 };
 use schema::{InfluxColumnType, InfluxFieldType, TIME_DATA_TIMEZONE};
@@ -30,6 +34,8 @@ pub struct CatalogSnapshot {
     pub(crate) nodes: RepositorySnapshot<NodeId, NodeSnapshot>,
     pub(crate) databases: RepositorySnapshot<DbId, DatabaseSnapshot>,
     pub(crate) sequence: CatalogSequenceNumber,
+    #[serde(default)]
+    pub(crate) tokens: RepositorySnapshot<TokenId, TokenInfoSnapshot>,
     pub(crate) catalog_id: Arc<str>,
     pub(crate) catalog_uuid: Uuid,
 }
@@ -49,18 +55,232 @@ impl Snapshot for InnerCatalog {
             databases: self.databases.snapshot(),
             sequence: self.sequence,
             catalog_id: Arc::clone(&self.catalog_id),
+            tokens: self.tokens.repo().snapshot(),
             catalog_uuid: self.catalog_uuid,
         }
     }
 
     fn from_snapshot(snap: Self::Serialized) -> Self {
+        let repository: Repository<TokenId, TokenInfo> = Repository::from_snapshot(snap.tokens);
+        let mut hash_lookup_map = BiHashMap::new();
+        repository.repo.iter().for_each(|(id, info)| {
+            // this clone should maybe be switched to arc?
+            hash_lookup_map.insert(*id, info.hash.clone());
+        });
+
+        let token_info_repo = TokenRepository::new(repository, hash_lookup_map);
         Self {
             sequence: snap.sequence,
             catalog_id: snap.catalog_id,
             catalog_uuid: snap.catalog_uuid,
             nodes: Repository::from_snapshot(snap.nodes),
             databases: Repository::from_snapshot(snap.databases),
+            tokens: token_info_repo,
         }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub(crate) struct TokenInfoSnapshot {
+    id: TokenId,
+    name: Arc<str>,
+    hash: Vec<u8>,
+    created_at: i64,
+    description: Option<String>,
+    created_by: Option<TokenId>,
+    expiry: i64,
+    updated_by: Option<TokenId>,
+    updated_at: Option<i64>,
+    permissions: Vec<PermissionSnapshot>,
+}
+
+impl Snapshot for TokenInfo {
+    type Serialized = TokenInfoSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        Self::Serialized {
+            id: self.id,
+            name: Arc::clone(&self.name),
+            hash: self.hash.clone(),
+            created_at: self.created_at,
+            expiry: self.expiry_millis,
+            created_by: self.created_by,
+            updated_at: self.updated_at,
+            updated_by: self.updated_by,
+            description: self.description.clone(),
+            permissions: self
+                .permissions
+                .iter()
+                .map(|perm| perm.snapshot())
+                .collect(),
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        Self {
+            id: snap.id,
+            name: snap.name,
+            hash: snap.hash,
+            created_at: snap.created_at,
+            expiry_millis: snap.expiry,
+            created_by: snap.created_by,
+            updated_by: snap.updated_by,
+            updated_at: snap.updated_at,
+            permissions: snap
+                .permissions
+                .into_iter()
+                .map(Permission::from_snapshot)
+                .collect(),
+            description: snap.description,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct PermissionSnapshot {
+    resource_type: ResourceTypeSnapshot,
+    resource_identifier: ResourceIdentifierSnapshot,
+    actions: ActionsSnapshot,
+}
+
+impl Snapshot for Permission {
+    type Serialized = PermissionSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        PermissionSnapshot {
+            resource_type: self.resource_type.snapshot(),
+            resource_identifier: self.resource_identifier.snapshot(),
+            actions: self.actions.snapshot(),
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        Self {
+            resource_type: ResourceType::from_snapshot(snap.resource_type),
+            resource_identifier: ResourceIdentifier::from_snapshot(snap.resource_identifier),
+            actions: Actions::from_snapshot(snap.actions),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub(crate) enum ResourceTypeSnapshot {
+    Database,
+    Token,
+    Wildcard,
+}
+
+impl Snapshot for ResourceType {
+    type Serialized = ResourceTypeSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        match self {
+            ResourceType::Database => ResourceTypeSnapshot::Database,
+            ResourceType::Token => ResourceTypeSnapshot::Token,
+            ResourceType::Wildcard => ResourceTypeSnapshot::Wildcard,
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        match snap {
+            ResourceTypeSnapshot::Database => ResourceType::Database,
+            ResourceTypeSnapshot::Token => ResourceType::Token,
+            ResourceTypeSnapshot::Wildcard => ResourceType::Wildcard,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) enum ResourceIdentifierSnapshot {
+    Database(Vec<DbId>),
+    Token(Vec<TokenId>),
+    Wildcard,
+}
+
+impl Snapshot for ResourceIdentifier {
+    type Serialized = ResourceIdentifierSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        match self {
+            ResourceIdentifier::Database(db_id) => {
+                ResourceIdentifierSnapshot::Database(db_id.clone())
+            }
+            ResourceIdentifier::Token(token_id) => {
+                ResourceIdentifierSnapshot::Token(token_id.clone())
+            }
+            ResourceIdentifier::Wildcard => ResourceIdentifierSnapshot::Wildcard,
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        match snap {
+            ResourceIdentifierSnapshot::Database(db_id) => ResourceIdentifier::Database(db_id),
+            ResourceIdentifierSnapshot::Token(token_id) => ResourceIdentifier::Token(token_id),
+            ResourceIdentifierSnapshot::Wildcard => ResourceIdentifier::Wildcard,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) enum ActionsSnapshot {
+    Database(DatabaseActionsSnapshot),
+    Token(CrudActionsSnapshot),
+    Wildcard,
+}
+
+impl Snapshot for Actions {
+    type Serialized = ActionsSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        match self {
+            Actions::Database(database_actions) => {
+                ActionsSnapshot::Database(database_actions.snapshot())
+            }
+            Actions::Token(crud_actions) => ActionsSnapshot::Token(crud_actions.snapshot()),
+            Actions::Wildcard => ActionsSnapshot::Wildcard,
+        }
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        match snap {
+            ActionsSnapshot::Database(db_actions) => {
+                Actions::Database(DatabaseActions::from_snapshot(db_actions))
+            }
+            ActionsSnapshot::Token(crud_actions) => {
+                Actions::Token(CrudActions::from_snapshot(crud_actions))
+            }
+            ActionsSnapshot::Wildcard => Actions::Wildcard,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct DatabaseActionsSnapshot(u16);
+
+impl Snapshot for DatabaseActions {
+    type Serialized = DatabaseActionsSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        DatabaseActionsSnapshot(u16::MAX)
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        snap.0.into()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub(crate) struct CrudActionsSnapshot(u16);
+
+impl Snapshot for CrudActions {
+    type Serialized = CrudActionsSnapshot;
+
+    fn snapshot(&self) -> Self::Serialized {
+        CrudActionsSnapshot(u16::MAX)
+    }
+
+    fn from_snapshot(snap: Self::Serialized) -> Self {
+        snap.0.into()
     }
 }
 
@@ -385,7 +605,7 @@ impl Snapshot for DistinctCacheDefinition {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub(crate) struct RepositorySnapshot<I, R>
 where
     I: CatalogId,

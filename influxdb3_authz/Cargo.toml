@@ -1,0 +1,26 @@
+[package]
+name = "influxdb3_authz"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# core crates
+authz.workspace = true
+observability_deps.workspace = true
+iox_time.workspace = true
+
+# local deps
+influxdb3_id = { path = "../influxdb3_id" }
+
+# crates.io deps
+async-trait.workspace = true
+hashbrown.workspace = true
+serde.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+test-log.workspace = true
