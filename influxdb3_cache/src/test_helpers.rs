@@ -22,6 +22,7 @@ impl TestWriter {
                     "test-host",
                     Arc::new(InMemory::new()),
                     Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                    Default::default(),
                 )
                 .await
                 .unwrap(),

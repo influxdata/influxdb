@@ -1075,9 +1075,14 @@ mod tests {
             Arc::clone(&time_provider),
             Duration::from_secs(10),
         )));
-        let catalog = Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
-            .await
-            .unwrap();
+        let catalog = Catalog::new(
+            "foo",
+            Arc::new(InMemory::new()),
+            time_provider,
+            Default::default(),
+        )
+        .await
+        .unwrap();
         let code = r#"
 def process_writes(influxdb3_local, table_batches, args=None):
     influxdb3_local.info("arg1: " + args["arg1"])
@@ -1174,9 +1179,14 @@ def process_writes(influxdb3_local, table_batches, args=None):
             Duration::from_secs(10),
         )));
         let catalog = Arc::new(
-            Catalog::new("foo", Arc::new(InMemory::new()), time_provider)
-                .await
-                .unwrap(),
+            Catalog::new(
+                "foo",
+                Arc::new(InMemory::new()),
+                time_provider,
+                Default::default(),
+            )
+            .await
+            .unwrap(),
         );
         let namespace = NamespaceName::new("foodb").unwrap();
         let validator =

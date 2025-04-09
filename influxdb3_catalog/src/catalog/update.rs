@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{
     CATALOG_WRITE_PERMIT, Catalog, CatalogSequenceNumber, CatalogWritePermit, ColumnDefinition,
-    DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition,
+    DatabaseSchema, NodeState, TIME_COLUMN_NAME, TableDefinition, metrics::OperationStatus,
 };
 use crate::{
     CatalogError, Result,
@@ -70,6 +70,7 @@ impl Catalog {
             return Ok(Prompt::Success(txn.sequence_number()));
         }
 
+        let metric_recorder = self.metrics.recorder("commit_database_transaction");
         match self
             .get_permit_and_verify_catalog_batch(txn.catalog_batch(), txn.sequence_number())
             .await
@@ -77,13 +78,18 @@ impl Catalog {
             Prompt::Success((ordered_batch, permit)) => {
                 match self
                     .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                    .await?
+                    .await
+                    .inspect_err(|_| metric_recorder.set_status(OperationStatus::PersistFailure))?
                 {
                     UpdatePrompt::Retry => Ok(Prompt::Retry(())),
                     UpdatePrompt::Applied => {
                         self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                         self.background_checkpoint(&ordered_batch);
-                        self.broadcast_update(ordered_batch.into_batch()).await?;
+                        self.broadcast_update(ordered_batch.into_batch())
+                            .await
+                            .inspect_err(|_| {
+                                metric_recorder.set_status(OperationStatus::BroadcastFailure)
+                            })?;
                         Ok(Prompt::Success(self.sequence_number()))
                     }
                 }
@@ -99,7 +105,7 @@ impl Catalog {
         mode: Vec<NodeMode>,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(node_id, core_count, mode = ?mode, "register node");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("register_node", || {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let node_def = if let Some(node) = self.node(node_id) {
                 if let NodeState::Running { .. } = node.state {
@@ -160,7 +166,7 @@ impl Catalog {
         node_id: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(node_id, "updating node state to Stopped in catalog");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("update_node_state_stopped", || {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let Some(node) = self.node(node_id) else {
                 return Err(crate::CatalogError::NotFound);
@@ -180,7 +186,7 @@ impl Catalog {
 
     pub async fn create_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
         info!(name, "create database");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("create_database", || {
             let (_, Some(batch)) =
                 self.db_or_create(name, self.time_provider.now().timestamp_nanos())?
             else {
@@ -193,7 +199,7 @@ impl Catalog {
 
     pub async fn soft_delete_database(&self, name: &str) -> Result<Option<OrderedCatalogBatch>> {
         info!(name, "soft delete database");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("soft_delete_database", || {
             let Some(db) = self.db_schema(name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -226,7 +232,7 @@ impl Catalog {
         fields: &[(impl AsRef<str> + Send + Sync, FieldDataType)],
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, "create table");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("create_table", || {
             let mut txn = self.begin(db_name)?;
             txn.create_table(table_name, tags, fields)?;
             Ok(txn.into())
@@ -240,7 +246,7 @@ impl Catalog {
         table_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, "soft delete database");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("soft_delete_table", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -274,7 +280,7 @@ impl Catalog {
         max_age_seconds: MaxAge,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name = ?cache_name, "create distinct cache");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("create_distinct_cache", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -354,7 +360,7 @@ impl Catalog {
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name, "delete distinct cache");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("delete_distinct_cache", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -393,7 +399,7 @@ impl Catalog {
         ttl: LastCacheTtl,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name = ?cache_name, "create last cache");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("create_last_cache", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -507,7 +513,7 @@ impl Catalog {
         cache_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, table_name, cache_name, "delete last cache");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("delete_last_cache", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -546,7 +552,7 @@ impl Catalog {
         disabled: bool,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, trigger_name, "create processing engine trigger");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("create_processing_engine_trigger", || {
             let Some(mut db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -584,7 +590,7 @@ impl Catalog {
         force: bool,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, trigger_name, "delete processing engine trigger");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("delete_processing_engine_trigger", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -616,7 +622,7 @@ impl Catalog {
         trigger_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, trigger_name, "enable processing engine trigger");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("enable_processing_engine_trigger", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -647,7 +653,7 @@ impl Catalog {
         trigger_name: &str,
     ) -> Result<Option<OrderedCatalogBatch>> {
         info!(db_name, trigger_name, "disable processing engine trigger");
-        self.catalog_update_with_retry(|| {
+        self.catalog_update_with_retry("disable_processing_engine_trigger", || {
             let Some(db) = self.db_schema(db_name) else {
                 return Err(CatalogError::NotFound);
             };
@@ -672,18 +678,27 @@ impl Catalog {
         .await
     }
 
+    /// Perform a catalog update and retry if the catalog has been updated elsewhere until the
+    /// operation succeeds or fails
+    ///
+    /// Accepts a `operation` name, which is used to record metrics for the operation, and a
+    /// `batch_creator_fn`, a closure that composes a `CatalogBatch` using the current state of the
+    /// catalog, failing if the provided arguments to the call site are invalid.
     pub(crate) async fn catalog_update_with_retry<F>(
         &self,
+        operation: &'static str,
         batch_creator_fn: F,
     ) -> Result<Option<OrderedCatalogBatch>>
     where
         F: Fn() -> Result<CatalogBatch>,
     {
+        let metric_recorder = self.metrics.recorder(operation);
         // NOTE(trevor/catalog-refactor): should there be a limit number of retries, or use a
         // timeout somewhere?
         loop {
             let sequence = self.sequence_number();
-            let batch = batch_creator_fn()?;
+            let batch = batch_creator_fn()
+                .inspect_err(|_| metric_recorder.set_status(OperationStatus::BadRequest))?;
             match self
                 .get_permit_and_verify_catalog_batch(batch, sequence)
                 .await
@@ -691,8 +706,10 @@ impl Catalog {
                 Prompt::Success((ordered_batch, permit)) => {
                     match self
                         .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
-                        .await?
-                    {
+                        .await
+                        .inspect_err(|_| {
+                            metric_recorder.set_status(OperationStatus::PersistFailure)
+                        })? {
                         UpdatePrompt::Retry => {
                             continue;
                         }
@@ -700,7 +717,10 @@ impl Catalog {
                             self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                             self.background_checkpoint(&ordered_batch);
                             self.broadcast_update(ordered_batch.clone().into_batch())
-                                .await?;
+                                .await
+                                .inspect_err(|_| {
+                                    metric_recorder.set_status(OperationStatus::BroadcastFailure)
+                                })?;
                             return Ok(Some(ordered_batch));
                         }
                     }
