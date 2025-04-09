@@ -714,7 +714,7 @@ mod tests {
             .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
 
         assert_eq!(db.tables.len(), 2);
         // cpu table
@@ -1487,7 +1487,7 @@ mod tests {
         let persisted_snapshot =
             serde_json::from_slice::<PersistedSnapshot>(&persisted_snapshot_bytes).unwrap();
         assert_eq!(
-            CatalogSequenceNumber::new(1),
+            CatalogSequenceNumber::new(2),
             persisted_snapshot.catalog_sequence_number
         );
     }
@@ -1910,7 +1910,7 @@ mod tests {
 
         // this persists the catalog immediately, so we don't wait for anything, just assert that
         // the next db id is 1, since the above would have used 0
-        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(2));
 
         // drop the write buffer, and create a new one that replays and re-loads the catalog:
         drop(wbuf);
@@ -1930,7 +1930,7 @@ mod tests {
         .await;
 
         // check that the next db id is still 1
-        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(1));
+        assert_eq!(wbuf.catalog().next_db_id(), DbId::new(2));
     }
 
     #[test_log::test(tokio::test)]
@@ -1952,7 +1952,7 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
-        let db_id = DbId::from(0);
+        let db_id = DbId::from(1);
         let tbl_name = "temp";
         let tbl_id = TableId::from(0);
 
@@ -2060,7 +2060,7 @@ mod tests {
         )
         .await;
         let db_name = "my_corp";
-        let db_id = DbId::from(0);
+        let db_id = DbId::from(1);
         let tbl_name = "temp";
         let tbl_id = TableId::from(0);
 
@@ -2779,7 +2779,7 @@ mod tests {
         // get the path for the created parquet file
         let persisted_files = write_buffer
             .persisted_files()
-            .get_files(DbId::from(0), TableId::from(0));
+            .get_files(DbId::from(1), TableId::from(0));
         assert_eq!(1, persisted_files.len());
         let path = ObjPath::from(persisted_files[0].path.as_str());
 
@@ -2808,7 +2808,7 @@ mod tests {
         // at this point everything should've been snapshotted
         drop(write_buffer);
 
-        debug!(">>> test: stopped");
+        debug!("test: stopped");
         // nothing in the cache at this point and not in buffer
         let (write_buffer, ctx, _) = setup_cache_optional(
             // move the time
@@ -2909,7 +2909,7 @@ mod tests {
             .unwrap_success()
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
 
         assert_eq!(db.tables.len(), 1);
         assert_eq!(
@@ -2937,7 +2937,7 @@ mod tests {
             .convert_lines_to_buffer(Gen1Duration::new_5m());
 
         assert_eq!(db.tables.len(), 1);
-        let db = catalog.db_schema_by_id(&DbId::from(0)).unwrap();
+        let db = catalog.db_schema_by_id(&DbId::from(1)).unwrap();
         let table = db.tables.get_by_id(&TableId::from(0)).unwrap();
         assert_eq!(table.num_columns(), 4);
         assert_eq!(table.series_key.len(), 2);

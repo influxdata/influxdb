@@ -441,6 +441,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.query_log),
                 Arc::clone(&self.write_buffer),
                 Arc::clone(&self.sys_events_store),
+                Arc::clone(&self.write_buffer.catalog()),
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -1222,5 +1223,69 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_token_permissions_sys_table_query_wrong_db_name() {
+        let (write_buffer, query_exec, _, _) = setup(None).await;
+        write_buffer
+            .write_lp(
+                NamespaceName::new("foo").unwrap(),
+                "\
+            cpu,host=a,region=us-east usage=250\n\
+            mem,host=a,region=us-east usage=150000\n\
+            ",
+                Time::from_timestamp_nanos(100),
+                false,
+                influxdb3_write::Precision::Nanosecond,
+                false,
+            )
+            .await
+            .unwrap();
+
+        // create an admin token
+        write_buffer
+            .catalog()
+            .create_admin_token(false)
+            .await
+            .unwrap();
+
+        let query = "select token_id, name, created_at, expiry, permissions, description, created_by_token_id, updated_at, updated_by_token_id FROM system.tokens";
+
+        let stream = query_exec
+            // `foo` is present but `system.tokens` is only available in `_internal` db
+            .query_sql("foo", query, None, None, None)
+            .await;
+        assert!(stream.is_err());
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_token_permissions_sys_table_query_with_admin_token() {
+        let (write_buffer, query_exec, _, _) = setup(None).await;
+
+        // create an admin token
+        write_buffer
+            .catalog()
+            .create_admin_token(false)
+            .await
+            .unwrap();
+
+        let query = "select token_id, name, created_at, expiry, permissions, description, created_by_token_id, updated_at, updated_by_token_id FROM system.tokens";
+
+        let stream = query_exec
+            .query_sql("_internal", query, None, None, None)
+            .await
+            .unwrap();
+        let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
+        assert_batches_sorted_eq!(
+            [
+                "+----------+--------+---------------------+--------+-------------+-------------+---------------------+------------+---------------------+",
+                "| token_id | name   | created_at          | expiry | permissions | description | created_by_token_id | updated_at | updated_by_token_id |",
+                "+----------+--------+---------------------+--------+-------------+-------------+---------------------+------------+---------------------+",
+                "| 0        | _admin | 1970-01-01T00:00:00 |        | *:*:*       |             |                     |            |                     |",
+                "+----------+--------+---------------------+--------+-------------+-------------+---------------------+------------+---------------------+",
+            ],
+            &batches
+        );
     }
 }

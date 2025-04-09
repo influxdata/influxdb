@@ -782,9 +782,8 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     assert_eq!(
-        json!([{ "deleted": false, "iox::database": "foo" } ]),
+        json!([{ "deleted": false, "iox::database": "_internal" }, { "deleted": false, "iox::database": "foo" } ]),
         result
     );
 
@@ -802,12 +801,22 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     let array_result = result.as_array().unwrap();
-    assert_eq!(1, array_result.len());
+    assert_eq!(2, array_result.len());
     let first_db = array_result.first().unwrap();
     assert_contains!(
         first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "_internal"
+    );
+    let second_db = array_result.get(1).unwrap();
+    assert_contains!(
+        second_db
             .as_object()
             .unwrap()
             .get("iox::database")
@@ -832,15 +841,25 @@ async fn api_v3_configure_db_delete() {
         .json::<Value>()
         .await
         .unwrap();
-    debug!(result = ?result, ">> RESULT");
     let array_result = result.as_array().unwrap();
     // check there are 2 dbs now, foo and foo-*
-    assert_eq!(2, array_result.len());
+    assert_eq!(3, array_result.len());
     let first_db = array_result.first().unwrap();
     let second_db = array_result.get(1).unwrap();
+    let third_db = array_result.get(2).unwrap();
+    assert_contains!(
+        first_db
+            .as_object()
+            .unwrap()
+            .get("iox::database")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "_internal"
+    );
     assert_eq!(
         "foo",
-        first_db
+        second_db
             .as_object()
             .unwrap()
             .get("iox::database")
@@ -849,7 +868,7 @@ async fn api_v3_configure_db_delete() {
             .unwrap(),
     );
     assert_contains!(
-        second_db
+        third_db
             .as_object()
             .unwrap()
             .get("iox::database")

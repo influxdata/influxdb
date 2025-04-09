@@ -1,8 +1,16 @@
 //! Implementation of the Catalog that sits entirely in memory.
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use bimap::BiHashMap;
+use influxdb3_authz::Actions;
+use influxdb3_authz::Permission;
+use influxdb3_authz::ResourceIdentifier;
+use influxdb3_authz::ResourceType;
+use influxdb3_authz::TokenInfo;
+use influxdb3_authz::TokenProvider;
 use influxdb3_id::{
-    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId,
+    CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId, TokenId,
     TriggerId,
 };
 use influxdb3_shutdown::ShutdownToken;
@@ -10,8 +18,12 @@ use iox_time::{Time, TimeProvider};
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
+use rand::RngCore;
+use rand::rngs::OsRng;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
+use sha2::Sha512;
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -25,9 +37,10 @@ pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
+use crate::log::CreateAdminTokenDetails;
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegisterNodeLog, StopNodeLog,
+    RegenerateAdminTokenDetails, RegisterNodeLog, StopNodeLog, TokenBatch, TokenCatalogOp,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -45,6 +58,10 @@ use crate::{
 const SOFT_DELETION_TIME_FORMAT: &str = "%Y%m%dT%H%M%S";
 
 pub const TIME_COLUMN_NAME: &str = "time";
+
+pub const INTERNAL_DB_NAME: &str = "_internal";
+
+const DEFAULT_ADMIN_TOKEN_NAME: &str = "_admin";
 
 /// The sequence number of a batch of WAL operations.
 #[derive(
@@ -118,7 +135,7 @@ impl Catalog {
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
-        store
+        let mut catalog = store
             .load_or_create_catalog()
             .await
             .map_err(Into::into)
@@ -128,7 +145,10 @@ impl Catalog {
                 time_provider,
                 store,
                 inner,
-            })
+            });
+
+        create_internal_db(&mut catalog).await;
+        catalog
     }
 
     pub async fn new_with_shutdown(
@@ -351,6 +371,119 @@ impl Catalog {
             .collect();
         result
     }
+
+    pub fn get_tokens(&self) -> Vec<Arc<TokenInfo>> {
+        self.inner
+            .read()
+            .tokens
+            .repo()
+            .iter()
+            .map(|(_, token_info)| Arc::clone(token_info))
+            .collect()
+    }
+
+    pub async fn create_admin_token(&self, regenerate: bool) -> Result<(Arc<TokenInfo>, String)> {
+        // if regen, if token is present already create a new token and hash and update the
+        // existing token otherwise we should insert to catalog (essentially an upsert)
+        let (token, hash) = create_token_and_hash();
+        self.catalog_update_with_retry(|| {
+            if regenerate {
+                let default_admin_token = self
+                    .inner
+                    .read()
+                    .tokens
+                    .repo()
+                    .get_by_name(DEFAULT_ADMIN_TOKEN_NAME);
+
+                if default_admin_token.is_none() {
+                    return Err(CatalogError::MissingAdminTokenToUpdate);
+                }
+
+                // now just update the hash and updated at
+                Ok(CatalogBatch::Token(TokenBatch {
+                    time_ns: self.time_provider.now().timestamp_nanos(),
+                    ops: vec![TokenCatalogOp::RegenerateAdminToken(
+                        RegenerateAdminTokenDetails {
+                            token_id: default_admin_token.unwrap().as_ref().id,
+                            hash: hash.clone(),
+                            updated_at: self.time_provider.now().timestamp_millis(),
+                        },
+                    )],
+                }))
+            } else {
+                // validate name
+                if self
+                    .inner
+                    .read()
+                    .tokens
+                    .repo()
+                    .contains_name(DEFAULT_ADMIN_TOKEN_NAME)
+                {
+                    return Err(CatalogError::TokenNameAlreadyExists(
+                        DEFAULT_ADMIN_TOKEN_NAME.to_owned(),
+                    ));
+                }
+
+                let (token_id, created_at, expiry) = {
+                    let mut inner = self.inner.write();
+                    let token_id = inner.tokens.get_and_increment_next_id();
+                    let created_at = self.time_provider.now();
+                    let expiry = None;
+                    (token_id, created_at.timestamp_millis(), expiry)
+                };
+
+                Ok(CatalogBatch::Token(TokenBatch {
+                    time_ns: created_at,
+                    ops: vec![TokenCatalogOp::CreateAdminToken(CreateAdminTokenDetails {
+                        token_id,
+                        name: Arc::from(DEFAULT_ADMIN_TOKEN_NAME),
+                        hash: hash.clone(),
+                        created_at,
+                        updated_at: None,
+                        expiry,
+                    })],
+                }))
+            }
+        })
+        .await?;
+
+        let token_info = {
+            self.inner
+                .read()
+                .tokens
+                .repo()
+                .get_by_name(DEFAULT_ADMIN_TOKEN_NAME)
+                .expect("token info must be present after token creation by name")
+        };
+
+        // we need to pass these details back, especially this token as this is what user should
+        // send in subsequent requests
+        Ok((token_info, token))
+    }
+}
+
+async fn create_internal_db(catalog: &mut std::result::Result<Catalog, CatalogError>) {
+    // if catalog is initialised, create internal db
+    if let Ok(catalog) = catalog.as_mut() {
+        let result = catalog.create_database(INTERNAL_DB_NAME).await;
+        // what is the best outcome if "_internal" cannot be created?
+        match result {
+            Ok(_) => info!("created internal database"),
+            Err(err) => {
+                match err {
+                    CatalogError::AlreadyExists => {
+                        // this is probably ok
+                        debug!("not creating internal db as it exists already");
+                    }
+                    _ => {
+                        // all other errors are unexpected state
+                        error!(?err, "unexpected error when creating internal db");
+                        panic!("cannot create internal db");
+                    }
+                }
+            }
+        };
+    }
 }
 
 impl Catalog {
@@ -389,6 +522,12 @@ impl Catalog {
             store,
             inner: RwLock::new(inner),
         })
+    }
+}
+
+impl TokenProvider for Catalog {
+    fn get_token(&self, token_hash: Vec<u8>) -> Option<Arc<TokenInfo>> {
+        self.inner.read().tokens.hash_to_info(token_hash)
     }
 }
 
@@ -545,6 +684,9 @@ pub struct InnerCatalog {
     pub(crate) nodes: Repository<NodeId, NodeDefinition>,
     /// The catalog is a map of databases with their table schemas
     pub(crate) databases: Repository<DbId, DatabaseSchema>,
+    /// This holds all the tokens created and saved in catalog
+    /// saved in catalog snapshot
+    pub(crate) tokens: TokenRepository,
 }
 
 impl InnerCatalog {
@@ -555,6 +697,7 @@ impl InnerCatalog {
             catalog_uuid,
             nodes: Repository::default(),
             databases: Repository::default(),
+            tokens: TokenRepository::default(),
         }
     }
 
@@ -563,7 +706,11 @@ impl InnerCatalog {
     }
 
     pub fn database_count(&self) -> usize {
-        self.databases.iter().filter(|db| !db.1.deleted).count()
+        self.databases
+            .iter()
+            // count if not db deleted _and_ not internal
+            .filter(|db| !db.1.deleted && db.1.name().as_ref() != INTERNAL_DB_NAME)
+            .count()
     }
 
     pub fn table_count(&self) -> usize {
@@ -588,6 +735,7 @@ impl InnerCatalog {
         let updated = match catalog_batch {
             CatalogBatch::Node(root_batch) => self.apply_node_batch(root_batch)?,
             CatalogBatch::Database(database_batch) => self.apply_database_batch(database_batch)?,
+            CatalogBatch::Token(token_batch) => self.apply_token_batch(token_batch)?,
         };
 
         Ok(updated.then(|| {
@@ -652,6 +800,43 @@ impl InnerCatalog {
             };
         }
         Ok(updated)
+    }
+
+    fn apply_token_batch(&mut self, token_batch: &TokenBatch) -> Result<bool> {
+        let mut is_updated = false;
+        for op in &token_batch.ops {
+            is_updated |= match op {
+                TokenCatalogOp::CreateAdminToken(create_admin_token_details) => {
+                    let mut token_info = TokenInfo::new(
+                        create_admin_token_details.token_id,
+                        Arc::clone(&create_admin_token_details.name),
+                        create_admin_token_details.hash.clone(),
+                        create_admin_token_details.created_at,
+                        create_admin_token_details.expiry,
+                    );
+
+                    token_info.set_permissions(vec![Permission {
+                        resource_type: ResourceType::Wildcard,
+                        resource_identifier: ResourceIdentifier::Wildcard,
+                        actions: Actions::Wildcard,
+                    }]);
+                    // add the admin token itself
+                    self.tokens
+                        .add_token(create_admin_token_details.token_id, token_info)?;
+                    true
+                }
+                TokenCatalogOp::RegenerateAdminToken(regenerate_admin_token_details) => {
+                    self.tokens.update_admin_token_hash(
+                        regenerate_admin_token_details.token_id,
+                        regenerate_admin_token_details.hash.clone(),
+                        regenerate_admin_token_details.updated_at,
+                    )?;
+                    true
+                }
+            };
+        }
+
+        Ok(is_updated)
     }
 
     fn apply_database_batch(&mut self, database_batch: &DatabaseBatch) -> Result<bool> {
@@ -1562,6 +1747,89 @@ impl ColumnDefinition {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TokenRepository {
+    repo: Repository<TokenId, TokenInfo>,
+    hash_lookup_map: BiHashMap<TokenId, Vec<u8>>,
+}
+
+impl TokenRepository {
+    pub(crate) fn new(
+        repo: Repository<TokenId, TokenInfo>,
+        hash_lookup_map: BiHashMap<TokenId, Vec<u8>>,
+    ) -> Self {
+        Self {
+            repo,
+            hash_lookup_map,
+        }
+    }
+
+    pub(crate) fn repo(&self) -> &Repository<TokenId, TokenInfo> {
+        &self.repo
+    }
+
+    pub(crate) fn get_and_increment_next_id(&mut self) -> TokenId {
+        self.repo.get_and_increment_next_id()
+    }
+
+    pub(crate) fn hash_to_info(&self, hash: Vec<u8>) -> Option<Arc<TokenInfo>> {
+        let id = self
+            .hash_lookup_map
+            .get_by_right(&hash)
+            .map(|id| id.to_owned())?;
+        self.repo.get_by_id(&id)
+    }
+
+    pub(crate) fn add_token(&mut self, token_id: TokenId, token_info: TokenInfo) -> Result<()> {
+        self.hash_lookup_map
+            .insert(token_id, token_info.hash.clone());
+        self.repo.insert(token_id, token_info)?;
+        Ok(())
+    }
+
+    pub(crate) fn update_admin_token_hash(
+        &mut self,
+        token_id: TokenId,
+        hash: Vec<u8>,
+        updated_at: i64,
+    ) -> Result<()> {
+        let mut token_info = self
+            .repo
+            .get_by_id(&token_id)
+            .ok_or_else(|| CatalogError::MissingAdminTokenToUpdate)?;
+        let updatable = Arc::make_mut(&mut token_info);
+        updatable.hash = hash.clone();
+        updatable.updated_at = Some(updated_at);
+        updatable.updated_by = Some(token_id);
+        self.repo.update(token_id, token_info)?;
+        self.hash_lookup_map.insert(token_id, hash);
+        Ok(())
+    }
+}
+
+impl CatalogResource for TokenInfo {
+    type Identifier = TokenId;
+
+    fn id(&self) -> Self::Identifier {
+        self.id
+    }
+
+    fn name(&self) -> Arc<str> {
+        Arc::clone(&self.name)
+    }
+}
+
+fn create_token_and_hash() -> (String, Vec<u8>) {
+    let token = {
+        let mut token = String::from("apiv3_");
+        let mut key = [0u8; 64];
+        OsRng.fill_bytes(&mut key);
+        token.push_str(&B64.encode(key));
+        token
+    };
+    (token.clone(), Sha512::digest(&token).to_vec())
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1629,7 +1897,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1717,7 +1985,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1764,7 +2032,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }
@@ -1810,7 +2078,7 @@ mod tests {
                     ".catalog_uuid" => "[uuid]"
                 });
                 catalog.update_from_snapshot(snapshot);
-                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(0)));
+                assert_eq!(catalog.db_name_to_id("test_db"), Some(DbId::from(1)));
             });
         }
     }

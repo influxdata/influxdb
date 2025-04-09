@@ -139,6 +139,7 @@ mod tests {
                     match b {
                         CatalogBatch::Node(_) => (),
                         CatalogBatch::Database(_) => (),
+                        CatalogBatch::Token(_) => (),
                     }
                 }
                 n_updates += 1;

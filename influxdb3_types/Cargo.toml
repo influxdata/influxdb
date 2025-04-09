@@ -11,13 +11,16 @@ iox_http.workspace = true
 iox_query_params.workspace = true
 
 # Local deps
+influxdb3_authz = { path = "../influxdb3_authz" }
 influxdb3_cache = { path = "../influxdb3_cache" }
 influxdb3_catalog = { path = "../influxdb3_catalog" }
 
 # crates.io dependencies
 anyhow.workspace = true
+chrono.workspace = true
 serde.workspace = true
 hashbrown.workspace = true
+hex.workspace = true
 hyper.workspace = true
 thiserror.workspace = true
 

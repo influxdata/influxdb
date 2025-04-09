@@ -11,7 +11,7 @@ clippy::clone_on_ref_ptr,
 clippy::future_not_send
 )]
 
-pub mod auth;
+pub mod all_paths;
 pub mod builder;
 mod grpc;
 mod http;
@@ -27,6 +27,7 @@ use authz::Authorizer;
 use hyper::server::conn::AddrIncoming;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
+use influxdb3_authz::AuthProvider;
 use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use observability_deps::tracing::error;
@@ -119,13 +120,13 @@ pub struct Server {
     common_state: CommonServerState,
     http: Arc<HttpApi>,
     persister: Arc<Persister>,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn AuthProvider>,
     listener: TcpListener,
 }
 
 impl Server {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
-        Arc::clone(&self.authorizer)
+        Arc::clone(&self.authorizer.upcast())
     }
 }
 
@@ -180,12 +181,12 @@ pub async fn serve(
 
 #[cfg(test)]
 mod tests {
-    use crate::auth::DefaultAuthorizer;
     use crate::builder::ServerBuilder;
     use crate::query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl};
     use crate::serve;
     use datafusion::parquet::data_type::AsBytes;
     use hyper::{Body, Client, Request, Response, StatusCode, body};
+    use influxdb3_authz::NoAuthAuthenticator;
     use influxdb3_cache::distinct_cache::DistinctCacheProvider;
     use influxdb3_cache::last_cache::LastCacheProvider;
     use influxdb3_cache::parquet_cache::test_cached_obj_store_and_oracle;
@@ -835,7 +836,7 @@ mod tests {
             .write_buffer(Arc::clone(&write_buffer))
             .query_executor(query_executor)
             .persister(persister)
-            .authorizer(Arc::new(DefaultAuthorizer))
+            .authorizer(Arc::new(NoAuthAuthenticator))
             .time_provider(Arc::clone(&time_provider) as _)
             .tcp_listener(listener)
             .processing_engine(processing_engine)

@@ -3,6 +3,7 @@
 use anyhow::{Context, bail};
 use datafusion_util::config::register_iox_object_store;
 use futures::{FutureExt, future::FusedFuture, pin_mut};
+use influxdb3_authz::TokenAuthenticator;
 use influxdb3_cache::{
     distinct_cache::DistinctCacheProvider,
     last_cache::{self, LastCacheProvider},
@@ -28,7 +29,6 @@ use influxdb3_processing_engine::plugins::ProcessingEngineEnvironmentManager;
 use influxdb3_processing_engine::virtualenv::find_python;
 use influxdb3_server::{
     CommonServerState,
-    auth::AllOrNothingAuthorizer,
     builder::ServerBuilder,
     query_executor::{CreateQueryExecutorArgs, QueryExecutorImpl},
     serve,
@@ -655,14 +655,19 @@ pub async fn command(config: Config) -> Result<()> {
         .max_request_size(config.max_http_request_size)
         .write_buffer(write_buffer)
         .query_executor(query_executor)
-        .time_provider(time_provider)
+        .time_provider(Arc::clone(&time_provider) as _)
         .persister(persister)
         .tcp_listener(listener)
         .processing_engine(processing_engine);
 
-    let server = if let Some(token) = config.bearer_token.map(hex::decode).transpose()? {
+    // We can ignore the token passed in for now, as the token is supposed to be in catalog
+    let server = if let Some(_token) = config.bearer_token {
+        let authentication_provider = Arc::new(TokenAuthenticator::new(
+            Arc::clone(&catalog) as _,
+            Arc::clone(&time_provider) as _,
+        ));
         builder
-            .authorizer(Arc::new(AllOrNothingAuthorizer::new(token)))
+            .authorizer(authentication_provider as _)
             .build()
             .await
     } else {

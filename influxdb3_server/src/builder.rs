@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::{CommonServerState, Server, auth::DefaultAuthorizer, http::HttpApi};
-use authz::Authorizer;
+use crate::{CommonServerState, Server, http::HttpApi};
+use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
 use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_write::{WriteBuffer, persister::Persister};
@@ -18,7 +18,7 @@ pub struct ServerBuilder<W, Q, P, T, L, E> {
     persister: P,
     listener: L,
     processing_engine: E,
-    authorizer: Arc<dyn Authorizer>,
+    authorizer: Arc<dyn AuthProvider>,
 }
 
 impl
@@ -40,7 +40,7 @@ impl
             query_executor: NoQueryExec,
             persister: NoPersister,
             listener: NoListener,
-            authorizer: Arc::new(DefaultAuthorizer),
+            authorizer: Arc::new(NoAuthAuthenticator),
             processing_engine: NoProcessingEngine,
         }
     }
@@ -52,7 +52,7 @@ impl<W, Q, P, T, L, E> ServerBuilder<W, Q, P, T, L, E> {
         self
     }
 
-    pub fn authorizer(mut self, a: Arc<dyn Authorizer>) -> Self {
+    pub fn authorizer(mut self, a: Arc<dyn AuthProvider>) -> Self {
         self.authorizer = a;
         self
     }

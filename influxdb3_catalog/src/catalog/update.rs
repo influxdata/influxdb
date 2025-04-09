@@ -672,7 +672,7 @@ impl Catalog {
         .await
     }
 
-    async fn catalog_update_with_retry<F>(
+    pub(crate) async fn catalog_update_with_retry<F>(
         &self,
         batch_creator_fn: F,
     ) -> Result<Option<OrderedCatalogBatch>>

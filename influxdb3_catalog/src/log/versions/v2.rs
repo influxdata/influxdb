@@ -12,7 +12,9 @@ use cron::Schedule;
 use hashbrown::HashMap;
 use humantime::{format_duration, parse_duration};
 use influxdb_line_protocol::FieldValue;
-use influxdb3_id::{ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TriggerId};
+use influxdb3_id::{
+    ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, TableId, TokenId, TriggerId,
+};
 use schema::{InfluxColumnType, InfluxFieldType};
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +24,7 @@ use crate::{CatalogError, Result, catalog::CatalogSequenceNumber};
 pub enum CatalogBatch {
     Node(NodeBatch),
     Database(DatabaseBatch),
+    Token(TokenBatch),
 }
 
 impl CatalogBatch {
@@ -57,6 +60,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(node_batch) => node_batch.ops.len(),
             CatalogBatch::Database(database_batch) => database_batch.ops.len(),
+            CatalogBatch::Token(token_batch) => token_batch.ops.len(),
         }
     }
 
@@ -64,6 +68,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Token(_) => None,
         }
     }
 
@@ -71,6 +76,7 @@ impl CatalogBatch {
         match self {
             CatalogBatch::Node(_) => None,
             CatalogBatch::Database(database_batch) => Some(database_batch),
+            CatalogBatch::Token(_) => None,
         }
     }
 }
@@ -791,4 +797,37 @@ impl TriggerSpecificationDefinition {
             TriggerSpecificationDefinition::RequestPath { .. } => PluginType::Request,
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
+pub struct TokenBatch {
+    pub time_ns: i64,
+    pub ops: Vec<TokenCatalogOp>,
+}
+
+// PK: I cannot come up with better names for variants, I _think_
+//     it is ok to ignore. Maybe I can break them into separate
+//     enum for each type
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TokenCatalogOp {
+    CreateAdminToken(CreateAdminTokenDetails),
+    RegenerateAdminToken(RegenerateAdminTokenDetails),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CreateAdminTokenDetails {
+    pub token_id: TokenId,
+    pub name: Arc<str>,
+    pub hash: Vec<u8>,
+    pub created_at: i64,
+    pub updated_at: Option<i64>,
+    pub expiry: Option<i64>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RegenerateAdminTokenDetails {
+    pub token_id: TokenId,
+    pub hash: Vec<u8>,
+    pub updated_at: i64,
 }

@@ -1,6 +1,6 @@
+pub mod token;
+
 use crate::commands::common::{DataType, InfluxDb3Config, SeparatedKeyValue, parse_key_val};
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use hashbrown::HashMap;
 use humantime::Duration;
 use influxdb3_catalog::log::ErrorBehavior;
@@ -9,15 +9,14 @@ use influxdb3_catalog::log::TriggerSpecificationDefinition;
 use influxdb3_client::Client;
 use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
-use rand::RngCore;
-use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
-use sha2::Digest;
-use sha2::Sha512;
 use std::error::Error;
 use std::num::NonZeroUsize;
 use std::str;
+use token::AdminTokenConfig;
+use token::TokenCommands;
+use token::handle_token_creation;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -28,7 +27,7 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        match &self.cmd {
+        let (host_url, auth_token) = match &self.cmd {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
@@ -69,17 +68,24 @@ impl Config {
                         ..
                     },
                 ..
-            }) => {
-                let mut client = Client::new(host_url.clone())?;
-                if let Some(token) = &auth_token {
-                    client = client.with_auth_token(token.expose_secret());
-                }
-                Ok(client)
+            }) => (host_url, auth_token),
+            SubCommand::Token(token_commands) => {
+                let (host_url, auth_token) = match &token_commands.commands {
+                    token::TokenSubCommand::Admin(AdminTokenConfig {
+                        host_url,
+                        auth_token,
+                        ..
+                    }) => (host_url, auth_token),
+                };
+                (host_url, auth_token)
             }
-            // We don't need a client for this, so we're just creating a
-            // placeholder client with an unusable URL
-            SubCommand::Token => Ok(Client::new("http://recall.invalid")?),
+        };
+
+        let mut client = Client::new(host_url.clone())?;
+        if let Some(token) = &auth_token {
+            client = client.with_auth_token(token.expose_secret());
         }
+        Ok(client)
     }
 }
 
@@ -96,7 +102,7 @@ pub enum SubCommand {
     /// Create a new table in a database
     Table(TableConfig),
     /// Create a new auth token
-    Token,
+    Token(TokenCommands),
     /// Create a new trigger for the processing engine that executes a plugin on either WAL rows, scheduled tasks, or requests to the serve at `/api/v3/engine/<path>`
     Trigger(TriggerConfig),
 }
@@ -334,25 +340,27 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 &database_name, &table_name
             );
         }
-        SubCommand::Token => {
-            let token = {
-                let mut token = String::from("apiv3_");
-                let mut key = [0u8; 64];
-                OsRng.fill_bytes(&mut key);
-                token.push_str(&B64.encode(key));
-                token
-            };
-            println!(
-                "\
-                Token: {token}\n\
-                Hashed Token: {hashed}\n\n\
-                Start the server with the Hashed Token provided as the `--bearer-token` argument:\n\n
-                `influxdb3 serve --bearer-token {hashed} --node-id <NODE_ID> [OPTIONS]`\n\n\
-                HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
-                This will grant you access to every HTTP endpoint or deny it otherwise.
-            ",
-                hashed = hex::encode(&Sha512::digest(&token)[..])
-            );
+        SubCommand::Token(token_commands) => {
+            match handle_token_creation(client, token_commands).await {
+                Ok(response) => {
+                    println!(
+                        "\
+                        Token: {token}\n\
+                        Hashed Token: {hashed}\n\n\
+                        Start the server with the Hashed Token provided as the `--bearer-token` argument:\n\n
+                        `influxdb3 serve --bearer-token {hashed} --node-id <NODE_ID> [OPTIONS]`\n\n\
+                        HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
+                        This will grant you access to every HTTP endpoint or deny it otherwise.
+                    ",
+                        token = response.token,
+                        hashed = response.hash,
+
+                    );
+                }
+                Err(err) => {
+                    println!("Failed to create token, error: {:?}", err);
+                }
+            }
         }
         SubCommand::Trigger(TriggerConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },

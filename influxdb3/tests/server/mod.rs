@@ -33,6 +33,9 @@ pub trait ConfigProvider {
     /// Get the auth token from this config if it was set
     fn auth_token(&self) -> Option<&str>;
 
+    /// Get if auth is enabled
+    fn auth_enabled(&self) -> bool;
+
     /// Spawn a new [`TestServer`] with this configuration
     ///
     /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
@@ -49,6 +52,7 @@ pub trait ConfigProvider {
 #[derive(Debug, Default)]
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
+    auth: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
@@ -65,6 +69,12 @@ impl TestConfig {
         raw_token: R,
     ) -> Self {
         self.auth_token = Some((hashed_token.into(), raw_token.into()));
+        self
+    }
+
+    /// Set the auth token for this [`TestServer`]
+    pub fn with_auth(mut self) -> Self {
+        self.auth = true;
         self
     }
 
@@ -102,7 +112,12 @@ impl ConfigProvider for TestConfig {
     fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
         if let Some((token, _)) = &self.auth_token {
+            // TODO: --bearer-token will be deprecated soon
             args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        }
+        if self.auth {
+            // TODO: --bearer-token will be deprecated soon
+            args.append(&mut vec!["--bearer-token".to_string(), "foo".to_string()]);
         }
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
@@ -143,6 +158,10 @@ impl ConfigProvider for TestConfig {
 
     fn auth_token(&self) -> Option<&str> {
         self.auth_token.as_ref().map(|(_, t)| t.as_str())
+    }
+
+    fn auth_enabled(&self) -> bool {
+        self.auth
     }
 }
 
@@ -239,6 +258,17 @@ impl TestServer {
         };
 
         server.wait_until_ready().await;
+
+        let (mut server, token) = if config.auth_enabled() {
+            let result = server.run(vec!["create", "token", "--admin"], &[]).unwrap();
+            let token = parse_token(result);
+            (server, Some(token))
+        } else {
+            (server, None)
+        };
+
+        server.auth_token = token;
+
         server
     }
 
@@ -250,6 +280,11 @@ impl TestServer {
     /// Get the token for the server
     pub fn token(&self) -> Option<&String> {
         self.auth_token.as_ref()
+    }
+
+    /// Set the token for the server
+    pub fn set_token(&mut self, token: Option<String>) {
+        self.auth_token = token;
     }
 
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
@@ -484,6 +519,15 @@ pub async fn write_lp_to_db(
         .precision(precision)
         .send()
         .await
+}
+
+pub fn parse_token(result: String) -> String {
+    let all_lines: Vec<&str> = result.split('\n').collect();
+    let token = all_lines
+        .first()
+        .expect("token line to be present")
+        .replace("Token: ", "");
+    token
 }
 
 #[allow(dead_code)]
