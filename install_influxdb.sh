@@ -13,6 +13,7 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
+INFLUXDB_VERSION="3.0.0-0.beta.4"
 EDITION="Core"
 EDITION_TAG="core"
 if [ "$1" = "enterprise" ]; then
@@ -36,9 +37,9 @@ if [ "${OS}" = "Linux" ]; then
     # XXX: use 'uname -o | grep GNU' instead?
     ldd_exec=$(command -v ldd)
     if [ "${ARCHITECTURE}" = "x86_64" ] || [ "${ARCHITECTURE}" = "amd64" ]; then
-        ARTIFACT="x86_64-unknown-linux-gnu"
+        ARTIFACT="linux_amd64"
     elif [ "${ARCHITECTURE}" = "aarch64" ] || [ "${ARCHITECTURE}" = "arm64" ]; then
-        ARTIFACT="aarch64-unknown-linux-gnu"
+        ARTIFACT="linux_arm64"
     fi
 elif [ "${OS}" = "Darwin" ]; then
     if [ "${ARCHITECTURE}" = "x86_64" ]; then
@@ -47,7 +48,7 @@ elif [ "${OS}" = "Darwin" ]; then
         printf "View alternative binaries on our Getting Started guide at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}.\n"
         exit 1
     else
-        ARTIFACT="aarch64-apple-darwin"
+        ARTIFACT="darwin_arm64"
     fi
 fi
 
@@ -59,7 +60,7 @@ fi
     exit 1
 }
 
-URL="https://dl.influxdata.com/influxdb/snapshots/influxdb3-${EDITION_TAG}_${ARTIFACT}.tar.gz"
+URL="https://dl.influxdata.com/influxdb/releases/influxdb3-${EDITION_TAG}-${INFLUXDB_VERSION}_${ARTIFACT}.tar.gz"
 
 START_TIME=$(date +%s)
 
@@ -135,42 +136,42 @@ fi
 printf "${BOLD}Downloading InfluxDB 3 %s to %s${NC}\n" "$EDITION" "$INSTALL_LOC"
 printf "├─${DIM} mkdir -p '%s'${NC}\n" "$INSTALL_LOC"
 mkdir -p "$INSTALL_LOC"
-printf "└─${DIM} curl -sSL '%s' -o '%s/influxdb3.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sSL "${URL}" -o "$INSTALL_LOC/influxdb3.tar.gz"
+printf "└─${DIM} curl -sSL '%s' -o '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}" -o "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz"
 
 echo
-printf "${BOLD}Verifying '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
-printf "└─${DIM} curl -sSL '%s.sha256' -o '%s/influxdb3.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
-curl -sSL "${URL}.sha256" -o "$INSTALL_LOC/influxdb3.tar.gz.sha256"
-dl_sha=$(cut -d ' ' -f 1 "$INSTALL_LOC/influxdb3.tar.gz.sha256" | grep -E '^[0-9a-f]{64}$')
+printf "${BOLD}Verifying '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "$INSTALL_LOC"
+printf "└─${DIM} curl -sSL '%s.sha256' -o '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'${NC}\n" "${URL}" "$INSTALL_LOC"
+curl -sSL "${URL}.sha256" -o "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256"
+dl_sha=$(cut -d ' ' -f 1 "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256" | grep -E '^[0-9a-f]{64}$')
 if [ -z "$dl_sha" ]; then
-    printf "Could not find properly formatted SHA256 in '%s/influxdb3.tar.gz.sha256'. Aborting.\n" "$INSTALL_LOC"
+    printf "Could not find properly formatted SHA256 in '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'. Aborting.\n" "$INSTALL_LOC"
     exit 1
 fi
-printf "└─${DIM} sha256sum '%s/influxdb3.tar.gz'" "$INSTALL_LOC"
-ch_sha=$(sha256sum "$INSTALL_LOC/influxdb3.tar.gz" | cut -d ' ' -f 1)
+printf "└─${DIM} sha256sum '%s/influxdb3-${EDITION_TAG}.tar.gz'" "$INSTALL_LOC"
+ch_sha=$(sha256sum "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" | cut -d ' ' -f 1)
 if [ "$ch_sha" = "$dl_sha" ]; then
     printf " (OK: %s = %s)${NC}\n" "$ch_sha" "$dl_sha"
 else
     printf " (ERROR: %s != %s). Aborting.${NC}\n" "$ch_sha" "$dl_sha"
     exit 1
 fi
-printf "└─${DIM} rm '%s/influxdb3.tar.gz.sha256'${NC}\n" "$INSTALL_LOC"
-rm "$INSTALL_LOC/influxdb3.tar.gz.sha256"
+printf "└─${DIM} rm '%s/influxdb3-${EDITION_TAG}.tar.gz.sha256'${NC}\n" "$INSTALL_LOC"
+rm "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz.sha256"
 
 echo
 printf "${BOLD}Extracting and Processing${NC}\n"
 
 # some tarballs have a leading component, check for that
 TAR_LEVEL=0
-if tar -tf "$INSTALL_LOC/influxdb3.tar.gz" | grep -q '[a-zA-Z0-9]/influxdb3$' ; then
+if tar -tf "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" | grep -q '[a-zA-Z0-9]/influxdb3$' ; then
     TAR_LEVEL=1
 fi
-printf "├─${DIM} tar -xf '%s/influxdb3.tar.gz' --strip-components=${TAR_LEVEL} -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
-tar -xf "$INSTALL_LOC/influxdb3.tar.gz" --strip-components="${TAR_LEVEL}" -C "$INSTALL_LOC"
+printf "├─${DIM} tar -xf '%s/influxdb3-${EDITION_TAG}.tar.gz' --strip-components=${TAR_LEVEL} -C '%s'${NC}\n" "$INSTALL_LOC" "$INSTALL_LOC"
+tar -xf "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz" --strip-components="${TAR_LEVEL}" -C "$INSTALL_LOC"
 
-printf "└─${DIM} rm '%s/influxdb3.tar.gz'${NC}\n" "$INSTALL_LOC"
-rm "$INSTALL_LOC/influxdb3.tar.gz"
+printf "└─${DIM} rm '%s/influxdb3-${EDITION_TAG}.tar.gz'${NC}\n" "$INSTALL_LOC"
+rm "$INSTALL_LOC/influxdb3-${EDITION_TAG}.tar.gz"
 
 if [ -n "$shellrc" ] && ! grep -q "export PATH=.*$INSTALL_LOC" "$shellrc"; then
     echo

@@ -22,5 +22,6 @@
 
   See `.circleci/packages/config.yaml` for more info on how git tags map to filenames.
 
+- When satisfied, update `install_influxdb.sh` to use the new version for `INFLUXDB_VERSION`
 
 _At some point this should be scripted so that versions etc are in sync between the steps_
