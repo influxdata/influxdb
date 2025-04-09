@@ -13,6 +13,7 @@ use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::str;
 use token::AdminTokenConfig;
 use token::TokenCommands;
@@ -27,13 +28,15 @@ pub struct Config {
 
 impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
-        let (host_url, auth_token) = match &self.cmd {
+        let (host_url, auth_token, ca_cert) = match &self.cmd {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
+                ca_cert,
                 ..
             })
             | SubCommand::LastCache(LastCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -43,6 +46,7 @@ impl Config {
                 ..
             })
             | SubCommand::DistinctCache(DistinctCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -52,6 +56,7 @@ impl Config {
                 ..
             })
             | SubCommand::Table(TableConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -61,6 +66,7 @@ impl Config {
                 ..
             })
             | SubCommand::Trigger(TriggerConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -68,20 +74,21 @@ impl Config {
                         ..
                     },
                 ..
-            }) => (host_url, auth_token),
+            }) => (host_url, auth_token, ca_cert),
             SubCommand::Token(token_commands) => {
-                let (host_url, auth_token) = match &token_commands.commands {
+                let (host_url, auth_token, ca_cert) = match &token_commands.commands {
                     token::TokenSubCommand::Admin(AdminTokenConfig {
                         host_url,
                         auth_token,
+                        ca_cert,
                         ..
-                    }) => (host_url, auth_token),
+                    }) => (host_url, auth_token, ca_cert),
                 };
-                (host_url, auth_token)
+                (host_url, auth_token, ca_cert)
             }
         };
 
-        let mut client = Client::new(host_url.clone())?;
+        let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
         if let Some(token) = &auth_token {
             client = client.with_auth_token(token.expose_secret());
         }
@@ -126,6 +133,10 @@ pub struct DatabaseConfig {
     /// alphanumeric with - and _ allowed and starts with a letter or number
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -164,6 +175,10 @@ pub struct LastCacheConfig {
     /// Give a name for the cache.
     #[clap(required = false)]
     cache_name: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -197,6 +212,10 @@ pub struct DistinctCacheConfig {
     /// This will be automatically generated if not provided
     #[clap(required = false)]
     cache_name: Option<String>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -216,6 +235,10 @@ pub struct TableConfig {
     #[clap(required = true)]
     /// The name of the table to be created
     table_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -246,6 +269,10 @@ pub struct TriggerConfig {
     error_behavior: ErrorBehavior,
     /// Name for the new trigger
     trigger_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -264,6 +291,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             value_columns,
             count,
             ttl,
+            ..
         }) => {
             let mut b = client.api_v3_configure_last_cache_create(database_name, table);
 
@@ -301,6 +329,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             columns,
             max_cardinality,
             max_age,
+            ..
         }) => {
             let mut b =
                 client.api_v3_configure_distinct_cache_create(database_name, table, columns);
@@ -330,6 +359,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             table_name,
             tags,
             fields,
+            ..
         }) => {
             client
                 .api_v3_configure_table_create(&database_name, &table_name, tags, fields)
@@ -371,6 +401,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             disabled,
             run_asynchronous,
             error_behavior,
+            ..
         }) => {
             let trigger_arguments: Option<HashMap<String, String>> = trigger_arguments.map(|a| {
                 a.into_iter()
@@ -441,6 +472,7 @@ mod tests {
             count,
             ttl,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
         }) = args.cmd
         else {
             panic!("Did not parse args correctly: {args:#?}")
@@ -478,6 +510,7 @@ mod tests {
             run_asynchronous,
             error_behavior,
             influxdb3_config: crate::commands::common::InfluxDb3Config { database_name, .. },
+            ..
         }) = args.cmd
         else {
             panic!("Did not parse args correctly: {args:#?}")

@@ -3,12 +3,13 @@ use hashbrown::HashMap;
 use influxdb3_catalog::log::{OrderedCatalogBatch, TriggerSettings};
 use iox_query_params::StatementParam;
 use reqwest::{
-    Body, IntoUrl, Method, StatusCode,
+    Body, Certificate, IntoUrl, Method, StatusCode,
     header::{CONTENT_TYPE, HeaderMap, HeaderValue},
+    tls::Version,
 };
 use secrecy::{ExposeSecret, Secret};
 use serde::{Serialize, de::DeserializeOwned};
-use std::{fmt::Display, num::NonZeroUsize, string::FromUtf8Error, time::Duration};
+use std::{fmt::Display, num::NonZeroUsize, path::PathBuf, string::FromUtf8Error, time::Duration};
 use url::Url;
 
 use influxdb3_types::http::*;
@@ -58,6 +59,12 @@ pub enum Error {
         #[source]
         source: reqwest::Error,
     },
+
+    #[error("failed to build an http client: {0}")]
+    Builder(#[source] reqwest::Error),
+
+    #[error("io error: {0}")]
+    IO(#[from] std::io::Error),
 }
 
 impl Error {
@@ -87,11 +94,30 @@ pub struct Client {
 
 impl Client {
     /// Create a new [`Client`]
-    pub fn new<U: IntoUrl>(base_url: U) -> Result<Self> {
+    pub fn new<U: IntoUrl>(base_url: U, ca_cert: Option<PathBuf>) -> Result<Self> {
+        let client = reqwest::Client::builder()
+            .min_tls_version(Version::TLS_1_3)
+            .use_rustls_tls();
+
+        let http_client = if let Some(ca_cert) = ca_cert {
+            let cert = std::fs::read(&ca_cert)?;
+            let cert = match ca_cert.extension().and_then(|s| s.to_str()) {
+                Some("der") => Certificate::from_der(&cert),
+                Some("pem") | Some(_) | None => Certificate::from_pem(&cert),
+            }
+            .map_err(Error::Builder)?;
+            client
+                .add_root_certificate(cert)
+                .build()
+                .map_err(Error::Builder)?
+        } else {
+            client.build().map_err(Error::Builder)?
+        };
+
         Ok(Self {
             base_url: base_url.into_url().map_err(Error::BaseUrl)?,
             auth_token: None,
-            http_client: reqwest::Client::new(),
+            http_client,
         })
     }
 
@@ -1226,7 +1252,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url())
+        let client = Client::new(mock_server.url(), None)
             .expect("create client")
             .with_auth_token(token);
 
@@ -1267,7 +1293,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url())
+        let client = Client::new(mock_server.url(), None)
             .expect("create client")
             .with_auth_token(token);
 
@@ -1306,7 +1332,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url()).expect("create client");
+        let client = Client::new(mock_server.url(), None).expect("create client");
 
         let r = client
             .api_v3_query_sql(db, query)
@@ -1340,7 +1366,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url()).expect("create client");
+        let client = Client::new(mock_server.url(), None).expect("create client");
 
         let r = client
             .api_v3_query_influxql(db, query)
@@ -1378,7 +1404,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url()).expect("create client");
+        let client = Client::new(mock_server.url(), None).expect("create client");
 
         let mut builder = client.api_v3_query_influxql(db, query);
 
@@ -1421,7 +1447,7 @@ mod tests {
             .create_async()
             .await;
 
-        let client = Client::new(mock_server.url()).expect("create client");
+        let client = Client::new(mock_server.url(), None).expect("create client");
 
         let r = client
             .api_v3_query_influxql(db, query)
@@ -1481,7 +1507,7 @@ mod tests {
             )
             .create_async()
             .await;
-        let client = Client::new(mock_server.url()).unwrap();
+        let client = Client::new(mock_server.url(), None).unwrap();
         client
             .api_v3_configure_last_cache_create(db, table)
             .name(name)
@@ -1511,7 +1537,7 @@ mod tests {
             .with_status(204)
             .create_async()
             .await;
-        let client = Client::new(mock_server.url()).unwrap();
+        let client = Client::new(mock_server.url(), None).unwrap();
         let resp = client
             .api_v3_configure_last_cache_create(db, table)
             .send()
@@ -1537,7 +1563,7 @@ mod tests {
             .with_status(200)
             .create_async()
             .await;
-        let client = Client::new(mock_server.url()).unwrap();
+        let client = Client::new(mock_server.url(), None).unwrap();
         client
             .api_v3_configure_last_cache_delete(db, table, name)
             .await

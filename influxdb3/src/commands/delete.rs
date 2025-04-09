@@ -4,6 +4,7 @@ use secrecy::ExposeSecret;
 use secrecy::Secret;
 use std::error::Error;
 use std::io;
+use std::path::PathBuf;
 use url::Url;
 
 #[derive(Debug, clap::Parser)]
@@ -18,9 +19,11 @@ impl Config {
             SubCommand::Database(DatabaseConfig {
                 host_url,
                 auth_token,
+                ca_cert,
                 ..
             })
             | SubCommand::LastCache(LastCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -30,6 +33,7 @@ impl Config {
                 ..
             })
             | SubCommand::DistinctCache(DistinctCacheConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -39,6 +43,7 @@ impl Config {
                 ..
             })
             | SubCommand::Table(TableConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -48,6 +53,7 @@ impl Config {
                 ..
             })
             | SubCommand::Trigger(TriggerConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -56,7 +62,7 @@ impl Config {
                     },
                 ..
             }) => {
-                let mut client = Client::new(host_url.clone())?;
+                let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
                 if let Some(token) = &auth_token {
                     client = client.with_auth_token(token.expose_secret());
                 }
@@ -100,6 +106,10 @@ pub struct DatabaseConfig {
     /// The name of the database to be deleted
     #[clap(env = "INFLUXDB3_DATABASE_NAME", required = true)]
     pub database_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -114,6 +124,10 @@ pub struct LastCacheConfig {
     /// The name of the cache being deleted
     #[clap(required = true)]
     cache_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -128,6 +142,10 @@ pub struct DistinctCacheConfig {
     /// The name of the cache being deleted
     #[clap(required = true)]
     cache_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Args)]
@@ -137,6 +155,10 @@ pub struct TableConfig {
     #[clap(required = true)]
     /// The name of the table to be deleted
     table_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -151,6 +173,10 @@ pub struct TriggerConfig {
     /// Name of trigger to delete
     #[clap(required = true)]
     trigger_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -175,6 +201,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
+            ..
         }) => {
             client
                 .api_v3_configure_last_cache_delete(database_name, table, cache_name)
@@ -186,6 +213,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table,
             cache_name,
+            ..
         }) => {
             client
                 .api_v3_configure_distinct_cache_delete(database_name, table, cache_name)
@@ -196,6 +224,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         SubCommand::Table(TableConfig {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             table_name,
+            ..
         }) => {
             println!(
                 "Are you sure you want to delete {:?}.{:?}? Enter 'yes' to confirm",
@@ -220,6 +249,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             influxdb3_config: InfluxDb3Config { database_name, .. },
             trigger_name,
             force,
+            ..
         }) => {
             client
                 .api_v3_configure_processing_engine_trigger_delete(

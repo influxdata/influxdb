@@ -12,7 +12,11 @@ async fn write_and_query() {
     let server = TestServer::spawn().await;
     let db_name = "foo";
     let tbl_name = "bar";
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
+    let client = influxdb3_client::Client::new(
+        server.client_addr(),
+        Some("../testing-certs/rootCA.pem".into()),
+    )
+    .unwrap();
     client
         .api_v3_write_lp(db_name)
         .precision(Precision::Nanosecond)
@@ -40,7 +44,11 @@ async fn configure_last_caches() {
     let server = TestServer::spawn().await;
     let db_name = "foo";
     let tbl_name = "bar";
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
+    let client = influxdb3_client::Client::new(
+        server.client_addr(),
+        Some("../testing-certs/rootCA.pem".into()),
+    )
+    .unwrap();
     client
         .api_v3_write_lp(db_name)
         .precision(Precision::Nanosecond)

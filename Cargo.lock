@@ -2481,6 +2481,23 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "399c78f9338483cb7e630c8474b07268983c6bd5acee012e4211f9f7bb21b070"
+dependencies = [
+ "futures-util",
+ "http 0.2.12",
+ "hyper 0.14.32",
+ "log",
+ "rustls 0.22.4",
+ "rustls-native-certs 0.7.3",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.25.0",
+]
+
+[[package]]
+name = "hyper-rustls"
 version = "0.27.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
@@ -3122,6 +3139,7 @@ dependencies = [
  "http 0.2.12",
  "humantime",
  "hyper 0.14.32",
+ "hyper-rustls 0.25.0",
  "influxdb-line-protocol",
  "influxdb3_authz",
  "influxdb3_cache",
@@ -3159,6 +3177,7 @@ dependencies = [
  "pretty_assertions",
  "pyo3",
  "regex",
+ "rustls-pemfile 2.2.0",
  "schema",
  "secrecy",
  "serde",

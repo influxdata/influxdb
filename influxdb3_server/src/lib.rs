@@ -35,6 +35,9 @@ use observability_deps::tracing::info;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -122,6 +125,8 @@ pub struct Server {
     persister: Arc<Persister>,
     authorizer: Arc<dyn AuthProvider>,
     listener: TcpListener,
+    key_file: Option<PathBuf>,
+    cert_file: Option<PathBuf>,
 }
 
 impl Server {
@@ -146,35 +151,88 @@ pub async fn serve(
         TRACE_SERVER_NAME,
     );
 
-    let grpc_service = trace_layer.clone().layer(make_flight_server(
-        Arc::clone(&server.http.query_executor),
-        Some(server.authorizer()),
-    ));
+    if let (Some(key_file), Some(cert_file)) = (&server.key_file, &server.cert_file) {
+        let grpc_service = trace_layer.clone().layer(make_flight_server(
+            Arc::clone(&server.http.query_executor),
+            Some(server.authorizer()),
+        ));
 
-    let rest_service = hyper::service::make_service_fn(|_| {
-        let http_server = Arc::clone(&server.http);
-        let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-            route_request(Arc::clone(&http_server), req)
+        let rest_service = hyper::service::make_service_fn(|_| {
+            let http_server = Arc::clone(&server.http);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_request(Arc::clone(&http_server), req)
+            });
+            let service = trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
         });
-        let service = trace_layer.layer(service);
-        futures::future::ready(Ok::<_, Infallible>(service))
-    });
 
-    let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let mut addr = AddrIncoming::from_listener(server.listener)?;
+        addr.set_nodelay(true);
+        let certs = {
+            let cert_file = File::open(cert_file).unwrap();
+            let mut buf_reader = BufReader::new(cert_file);
+            rustls_pemfile::certs(&mut buf_reader)
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        let key = {
+            let key_file = File::open(key_file).unwrap();
+            let mut buf_reader = BufReader::new(key_file);
+            rustls_pemfile::private_key(&mut buf_reader)
+                .unwrap()
+                .unwrap()
+        };
 
-    let addr = AddrIncoming::from_listener(server.listener)?;
-    let timer_end = Instant::now();
-    let startup_time = timer_end.duration_since(startup_timer);
-    info!(
-        address = %addr.local_addr(),
-        "startup time: {}ms",
-        startup_time.as_millis()
-    );
-    hyper::server::Builder::new(addr, Http::new())
-        .tcp_nodelay(true)
-        .serve(hybrid_make_service)
-        .with_graceful_shutdown(shutdown.cancelled())
-        .await?;
+        let timer_end = Instant::now();
+        let startup_time = timer_end.duration_since(startup_timer);
+        info!(
+            address = %addr.local_addr(),
+            "startup time: {}ms",
+            startup_time.as_millis()
+        );
+
+        let acceptor = hyper_rustls::TlsAcceptor::builder()
+            .with_single_cert(certs, key)
+            .unwrap()
+            .with_all_versions_alpn()
+            .with_incoming(addr);
+        hyper::server::Server::builder(acceptor)
+            .serve(hybrid_make_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    } else {
+        let grpc_service = trace_layer.clone().layer(make_flight_server(
+            Arc::clone(&server.http.query_executor),
+            Some(server.authorizer()),
+        ));
+
+        let rest_service = hyper::service::make_service_fn(|_| {
+            let http_server = Arc::clone(&server.http);
+            let service = service_fn(move |req: hyper::Request<hyper::Body>| {
+                route_request(Arc::clone(&http_server), req)
+            });
+            let service = trace_layer.layer(service);
+            futures::future::ready(Ok::<_, Infallible>(service))
+        });
+
+        let hybrid_make_service = hybrid(rest_service, grpc_service);
+        let addr = AddrIncoming::from_listener(server.listener)?;
+
+        let timer_end = Instant::now();
+        let startup_time = timer_end.duration_since(startup_timer);
+        info!(
+            address = %addr.local_addr(),
+            "startup time: {}ms",
+            startup_time.as_millis()
+        );
+
+        hyper::server::Builder::new(addr, Http::new())
+            .tcp_nodelay(true)
+            .serve(hybrid_make_service)
+            .with_graceful_shutdown(shutdown.cancelled())
+            .await?;
+    }
 
     Ok(())
 }
@@ -840,7 +898,7 @@ mod tests {
             .time_provider(Arc::clone(&time_provider) as _)
             .tcp_listener(listener)
             .processing_engine(processing_engine)
-            .build()
+            .build(None, None)
             .await;
         let shutdown = frontend_shutdown.clone();
 

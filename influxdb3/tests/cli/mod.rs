@@ -890,7 +890,10 @@ async fn test_show_system() {
     // Test failure cases
     // 1. Missing database (this can't be tested with the fluent API since we always require a db name)
     let output = server
-        .run(vec!["show", "system"], &["table-list"])
+        .run(
+            vec!["show", "system"],
+            &["table-list", "--tls-ca", "../testing-certs/rootCA.pem"],
+        )
         .unwrap_err()
         .to_string();
     insta::assert_snapshot!("fail_without_database_name", output);
@@ -1582,7 +1585,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
     assert_contains!(&result, "Trigger foo created successfully");
 
     // send an HTTP request to the server
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .post(format!("{}/api/v3/engine/bar", server.client_addr()))
         .header("Content-Type", "application/json")
@@ -1671,7 +1674,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test string response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1715,7 +1718,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test dict/JSON response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1765,7 +1768,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with status response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1809,7 +1812,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with headers response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1860,7 +1863,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test tuple with status and headers response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1908,7 +1911,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test list/JSON response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -1960,7 +1963,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .expect("Failed to create trigger");
 
     // Send request to test iterator/generator response
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2018,7 +2021,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .unwrap();
 
     // Send request to test Flask Response object
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2066,7 +2069,7 @@ def process_request(influxdb3_local, query_parameters, request_headers, request_
         .unwrap();
 
     // Send request to test JSON dict with status
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let response = client
         .get(format!("{}/api/v3/engine/test_route", server.client_addr()))
         .send()
@@ -2868,7 +2871,7 @@ async fn test_wal_overwritten() {
 #[test_log::test(tokio::test)]
 async fn test_create_admin_token() {
     let server = TestServer::spawn().await;
-    let args = &[];
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
     let result = server
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
@@ -2882,7 +2885,7 @@ async fn test_create_admin_token() {
 #[test_log::test(tokio::test)]
 async fn test_create_admin_token_allowed_once() {
     let server = TestServer::spawn().await;
-    let args = &[];
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
     let result = server
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
@@ -2904,7 +2907,7 @@ async fn test_create_admin_token_allowed_once() {
 async fn test_regenerate_admin_token() {
     // when created with_auth, TestServer spins up server and generates admin token.
     let mut server = TestServer::configure().with_auth().spawn().await;
-    let args = &[];
+    let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
     let result = server
         .run(vec!["create", "token", "--admin"], args)
         .unwrap();
@@ -2916,7 +2919,10 @@ async fn test_regenerate_admin_token() {
 
     // regenerating token is allowed
     let result = server
-        .run(vec!["create", "token", "--admin"], &["--regenerate"])
+        .run(
+            vec!["create", "token", "--admin"],
+            &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
+        )
         .unwrap();
     assert_contains!(
         &result,

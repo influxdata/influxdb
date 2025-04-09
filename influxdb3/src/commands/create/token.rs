@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
 use clap::Parser;
 use influxdb3_client::Client;
@@ -36,6 +36,10 @@ pub struct AdminTokenConfig {
     /// The token for authentication with the InfluxDB 3 Enterprise server
     #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
     pub auth_token: Option<Secret<String>>,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    pub ca_cert: Option<PathBuf>,
 }
 
 pub(crate) async fn handle_token_creation(

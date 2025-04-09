@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{CommonServerState, Server, http::HttpApi};
 use influxdb3_authz::{AuthProvider, NoAuthAuthenticator};
@@ -202,7 +202,7 @@ impl
         WithProcessingEngine,
     >
 {
-    pub async fn build(self) -> Server {
+    pub async fn build(self, cert_file: Option<PathBuf>, key_file: Option<PathBuf>) -> Server {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::clone(&self.processing_engine.0);
@@ -228,6 +228,8 @@ impl
         Server {
             common_state: self.common_state,
             http,
+            cert_file,
+            key_file,
             persister,
             authorizer,
             listener: self.listener.0,

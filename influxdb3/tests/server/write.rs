@@ -7,7 +7,7 @@ use crate::server::TestServer;
 #[tokio::test]
 async fn api_v1_write_request_parsing() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let write_url = format!("{base}/write", base = server.client_addr());
     let write_body = "cpu,host=a usage=0.5";
 
@@ -123,7 +123,7 @@ async fn api_v1_write_request_parsing() {
 #[tokio::test]
 async fn api_v1_write_round_trip() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let write_url = format!("{base}/write", base = server.client_addr());
 
     client
@@ -163,7 +163,7 @@ async fn api_v1_write_round_trip() {
 #[tokio::test]
 async fn api_v2_write_request_parsing() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let write_url = format!("{base}/api/v2/write", base = server.client_addr());
     let write_body = "cpu,host=a usage=0.5";
 
@@ -261,7 +261,7 @@ async fn api_v2_write_request_parsing() {
 #[tokio::test]
 async fn api_v2_write_round_trip() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let write_url = format!("{base}/api/v2/write", base = server.client_addr());
 
     client
@@ -348,7 +348,7 @@ async fn writes_with_different_schema_should_fail() {
 /// default to requiring the WAL to synce before returning.
 async fn api_no_sync_param() {
     let server = TestServer::spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let v1_write_url = format!("{base}/write", base = server.client_addr());
     let v2_write_url = format!("{base}/api/v2/write", base = server.client_addr());
     let v3_write_url = format!("{base}/api/v3/write_lp", base = server.client_addr());

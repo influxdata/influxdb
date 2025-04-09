@@ -13,7 +13,7 @@ async fn auth_http() {
         .clone()
         .expect("admin token to have been present");
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let base = server.client_addr();
     let write_lp_url = format!("{base}/api/v3/write_lp");
     let write_lp_params = [("db", "foo")];
@@ -224,7 +224,7 @@ async fn v1_password_parameter() {
         .clone()
         .expect("admin token to have been present");
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let query_url = format!("{base}/query", base = server.client_addr());
     let write_url = format!("{base}/write", base = server.client_addr());
     // Send requests without any authentication:
