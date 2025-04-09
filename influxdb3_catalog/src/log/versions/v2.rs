@@ -134,6 +134,7 @@ impl Ord for OrderedCatalogBatch {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum NodeCatalogOp {
     RegisterNode(RegisterNodeLog),
+    StopNode(StopNodeLog),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -176,6 +177,12 @@ pub struct RegisterNodeLog {
     pub registered_time_ns: i64,
     pub core_count: u64,
     pub mode: Vec<NodeMode>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StopNodeLog {
+    pub node_id: Arc<str>,
+    pub stopped_time_ns: i64,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]

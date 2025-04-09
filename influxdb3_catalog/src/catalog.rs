@@ -5,9 +5,10 @@ use influxdb3_id::{
     CatalogId, ColumnId, DbId, DistinctCacheId, LastCacheId, NodeId, SerdeVecMap, TableId,
     TriggerId,
 };
+use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
 use object_store::ObjectStore;
-use observability_deps::tracing::{debug, info, trace, warn};
+use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
 use schema::{Schema, SchemaBuilder};
 use serde::{Deserialize, Serialize};
@@ -26,7 +27,7 @@ pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
 use crate::channel::{CatalogSubscriptions, CatalogUpdateReceiver};
 use crate::log::{
     CreateDatabaseLog, DatabaseBatch, DatabaseCatalogOp, NodeBatch, NodeCatalogOp, NodeMode,
-    RegisterNodeLog,
+    RegisterNodeLog, StopNodeLog,
 };
 use crate::object_store::ObjectStoreCatalog;
 use crate::resource::CatalogResource;
@@ -109,11 +110,11 @@ impl Catalog {
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
 
     pub async fn new(
-        catalog_id: impl Into<Arc<str>>,
+        node_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Result<Self> {
-        let node_id = catalog_id.into();
+        let node_id = node_id.into();
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
@@ -128,6 +129,35 @@ impl Catalog {
                 store,
                 inner,
             })
+    }
+
+    pub async fn new_with_shutdown(
+        node_id: impl Into<Arc<str>>,
+        store: Arc<dyn ObjectStore>,
+        time_provider: Arc<dyn TimeProvider>,
+        shutdown_token: ShutdownToken,
+    ) -> Result<Arc<Self>> {
+        let node_id = node_id.into();
+        let catalog = Arc::new(Self::new(Arc::clone(&node_id), store, time_provider).await?);
+        let catalog_cloned = Arc::clone(&catalog);
+        tokio::spawn(async move {
+            shutdown_token.wait_for_shutdown().await;
+            info!(
+                node_id = node_id.as_ref(),
+                "updating node state to stopped in catalog"
+            );
+            if let Err(error) = catalog_cloned
+                .update_node_state_stopped(node_id.as_ref())
+                .await
+            {
+                error!(
+                    ?error,
+                    node_id = node_id.as_ref(),
+                    "encountered error while updating node to stopped state in catalog"
+                );
+            }
+        });
+        Ok(catalog)
     }
 
     pub fn object_store_prefix(&self) -> Arc<str> {
@@ -602,6 +632,21 @@ impl InnerCatalog {
                             .insert(node_batch.node_catalog_id, new_node)
                             .expect("there should not already be a node");
                     }
+                    true
+                }
+                NodeCatalogOp::StopNode(StopNodeLog {
+                    stopped_time_ns, ..
+                }) => {
+                    let mut new_node = self
+                        .nodes
+                        .get_by_id(&node_batch.node_catalog_id)
+                        .expect("node should exist");
+                    Arc::make_mut(&mut new_node).state = NodeState::Stopped {
+                        stopped_time_ns: *stopped_time_ns,
+                    };
+                    self.nodes
+                        .update(node_batch.node_catalog_id, new_node)
+                        .expect("there should be a node to update");
                     true
                 }
             };
