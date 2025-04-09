@@ -1,0 +1,57 @@
+Run the InfluxDB 3 Core server
+
+Examples
+  # Run with local file storage:
+  influxdb3 serve --node-id node1 --object-store file --data-dir ~/.influxdb_data
+
+  # Run with AWS S3:
+  influxdb3 serve --node-id node1 --object-store s3 --bucket influxdb-data \
+    --aws-access-key-id KEY --aws-secret-access-key SECRET
+
+
+{} [OPTIONS] --node-id <node-idENTIFIER_PREFIX>
+
+{}
+  --node-id <node-id>              Node identifier used as prefix in object store file paths
+                                  [env: INFLUXDB3_node-idENTIFIER_PREFIX=]
+  --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory. 
+                                  [env: INFLUXDB3_OBJECT_STORE=] 
+                                  [possible values: memory, memory-throttled, file, s3, google, azure]
+
+{}
+  --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
+                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
+
+{}
+  --object-store <STORE>           Object storage to use [default: memory]
+                                  [possible values: memory, memory-throttled, file, s3, google, azure]
+  --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]
+  --bucket <BUCKET>                Bucket name for cloud object storage [env: INFLUXDB3_BUCKET=]
+
+{}
+  --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=]
+  --aws-secret-access-key <KEY>    S3 secret access key [env: AWS_SECRET_ACCESS_KEY=]
+  --aws-default-region <REGION>    S3 region [default: us-east-1] [env: AWS_DEFAULT_REGION=]
+
+{}
+  --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]
+
+{}
+  --azure-storage-account <ACCT>   Azure storage account name [env: AZURE_STORAGE_ACCOUNT=]
+  --azure-storage-access-key <KEY> Azure storage access key [env: AZURE_STORAGE_ACCESS_KEY=]
+
+{}
+  --plugin-dir <DIR>               Location of plugins [env: INFLUXDB3_PLUGIN_DIR=]
+  --virtual-env-location <PATH>    [env: VIRTUAL_ENV=/Users/peterbarnett/Development/testing]
+  --package-manager <MANAGER>      [default: discover] [possible values: discover, pip, uv]
+
+{}
+  -h, --help                       Print help information
+  -v, --verbose                    Increase logging verbosity
+  --help-all                       Show all available options
+
+For performance tuning, advanced storage options and other settings,
+use --help-all flag.
+
+For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/core/

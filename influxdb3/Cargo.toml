@@ -43,6 +43,7 @@ anyhow.workspace = true
 backtrace.workspace = true
 base64.workspace = true
 clap.workspace = true
+owo-colors.workspace = true
 dotenvy.workspace = true
 futures.workspace = true
 hashbrown.workspace = true

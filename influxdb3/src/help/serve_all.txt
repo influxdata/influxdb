@@ -1,0 +1,182 @@
+Run the InfluxDB 3 Core server
+
+Examples:
+  # Run with local memory storage:
+  influxdb3 serve --node-id node1
+
+  # Run with AWS S3:
+  influxdb3 serve --node-id node1 --object-store s3 --bucket influxdb-data \
+    --aws-access-key-id KEY --aws-secret-access-key SECRET
+
+{} [OPTIONS] --node-id <node-idENTIFIER_PREFIX>
+
+{}
+  --node-id <node-id>              Node identifier used as prefix in object store file paths
+                                  [env: INFLUXDB3_node-idENTIFIER_PREFIX=]
+
+{}
+  --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
+                                  [env: INFLUXDB3_HTTP_BIND_ADDR=]
+  --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
+
+{}
+  --object-store <STORE>           Object storage to use [default: memory]
+                                  [possible values: memory, memory-throttled, file, s3, google, azure]
+  --data-dir <DIR>                 Location to store files locally [env: INFLUXDB3_DB_DIR=]
+  --bucket <BUCKET>                Bucket name for cloud object storage [env: INFLUXDB3_BUCKET=]
+  --gen1-duration <DURATION>       Duration for Parquet file arrangement [default: 10m]
+                                  [env: INFLUXDB3_GEN1_DURATION=]
+
+{}
+  --aws-access-key-id <KEY>        S3 access key ID [env: AWS_ACCESS_KEY_ID=] [default: ]
+  --aws-secret-access-key <KEY>    S3 secret access key [env: AWS_SECRET_ACCESS_KEY=] [default: ]
+  --aws-default-region <REGION>    S3 region [default: us-east-1] [env: AWS_DEFAULT_REGION=]
+  --aws-endpoint <ENDPOINT>        S3 compatibility endpoint [env: AWS_ENDPOINT=]
+  --aws-session-token <TOKEN>      S3 session token for federated login/SSO [env: AWS_SESSION_TOKEN=]
+  --aws-allow-http                 Allow unencrypted HTTP to AWS [env: AWS_ALLOW_HTTP=]
+  --aws-skip-signature             Skip request signing [env: AWS_SKIP_SIGNATURE=]
+
+{}
+  --google-service-account <PATH>  Path to Google credentials JSON [env: GOOGLE_SERVICE_ACCOUNT=]
+
+{}
+  --azure-storage-account <ACCT>   Azure storage account name [env: AZURE_STORAGE_ACCOUNT=]
+  --azure-storage-access-key <KEY> Azure storage access key [env: AZURE_STORAGE_ACCESS_KEY=]
+
+{}
+  --plugin-dir <DIR>               Location of plugins [env: INFLUXDB3_PLUGIN_DIR=]
+  --virtual-env-location <PATH>    [env: VIRTUAL_ENV=/Users/peterbarnett/Development/testing]
+  --package-manager <MANAGER>      [default: discover] [possible values: discover, pip, uv]
+
+{}
+  --object-store-connection-limit <LIMIT>  
+                                  Connection limit for network object stores [default: 16]
+                                  [env: OBJECT_STORE_CONNECTION_LIMIT=]
+  --object-store-http2-only        Force HTTP/2 for object stores [env: OBJECT_STORE_HTTP2_ONLY=]
+  --object-store-http2-max-frame-size <SIZE>  
+                                  HTTP/2 max frame size [env: OBJECT_STORE_HTTP2_MAX_FRAME_SIZE=]
+  --object-store-max-retries <N>   Max request retry attempts [env: OBJECT_STORE_MAX_RETRIES=]
+  --object-store-retry-timeout <TIMEOUT>  
+                                  Max retry timeout [env: OBJECT_STORE_RETRY_TIMEOUT=]
+  --object-store-cache-endpoint <ENDPOINT>  
+                                  S3 compatible cache endpoint [env: OBJECT_STORE_CACHE_ENDPOINT=]
+
+{}
+  --max-http-request-size <SIZE>   Maximum size of HTTP requests [default: 10485760]
+                                  [env: INFLUXDB3_MAX_HTTP_REQUEST_SIZE=]
+  --bearer-token <TOKEN>           Bearer token for requests [env: INFLUXDB3_BEARER_TOKEN=]
+
+{}
+  --exec-mem-pool-bytes <SIZE>     Memory pool size for query execution [default: 20%]
+                                  [env: INFLUXDB3_EXEC_MEM_POOL_BYTES=]
+  --parquet-mem-cache-size <SIZE>  In-memory Parquet cache size [default: 20%]
+                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_SIZE=]
+  --disable-parquet-mem-cache      Disable in-memory Parquet cache [env: INFLUXDB3_DISABLE_PARQUET_MEM_CACHE=]
+  --force-snapshot-mem-threshold <THRESH>  
+                                  Internal buffer threshold [default: 50%]
+                                  [env: INFLUXDB3_FORCE_SNAPSHOT_MEM_THRESHOLD=]
+  --parquet-mem-cache-prune-percentage <PCT>  
+                                  Percentage to prune from cache [default: 0.1]
+                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_PERCENTAGE=]
+  --parquet-mem-cache-prune-interval <INTERVAL>  
+                                  Cache prune check interval [default: 1s]
+                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_PRUNE_INTERVAL=]
+  --parquet-mem-cache-query-path-duration <DURATION>  
+                                  Duration to check for query path caching [default: 5h]
+                                  [env: INFLUXDB3_PARQUET_MEM_CACHE_QUERY_PATH_DURATION=]
+
+{}
+  --wal-flush-interval <INTERVAL>  Interval to flush data to WAL file [default: 1s]
+                                  [env: INFLUXDB3_WAL_FLUSH_INTERVAL=]
+  --wal-snapshot-size <SIZE>       Number of WAL files per snapshot [default: 600]
+                                  [env: INFLUXDB3_WAL_SNAPSHOT_SIZE=]
+  --wal-max-write-buffer-size <SIZE>  
+                                  Max write requests in buffer [default: 100000]
+                                  [env: INFLUXDB3_WAL_MAX_WRITE_BUFFER_SIZE=]
+  --snapshotted-wal-files-to-keep <N>  
+                                  Number of snapshotted WAL files to retain [default: 300]
+                                  [env: INFLUXDB3_NUM_WAL_FILES_TO_KEEP=]
+
+{}
+  --last-cache-eviction-interval <INTERVAL>  
+                                  Last-N-Value cache eviction interval [default: 10s]
+                                  [env: INFLUXDB3_LAST_CACHE_EVICTION_INTERVAL=]
+  --distinct-cache-eviction-interval <INTERVAL>  
+                                  Distinct Value cache eviction interval [default: 10s]
+                                  [env: INFLUXDB3_DISTINCT_CACHE_EVICTION_INTERVAL=]
+  --query-log-size <SIZE>          Size of the query log [default: 1000]
+                                  [env: INFLUXDB3_QUERY_LOG_SIZE=]
+  --query-file-limit <LIMIT>       Max parquet files allowed in a query
+                                  [env: INFLUXDB3_QUERY_FILE_LIMIT=]
+
+{}
+  --datafusion-num-threads <N>     Max DataFusion runtime threads
+                                  [env: INFLUXDB3_DATAFUSION_NUM_THREADS=]
+  --datafusion-runtime-type <TYPE> DataFusion runtime type [default: multi-thread]
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_TYPE=]
+                                  [possible values: current-thread, multi-thread, multi-thread-alt]
+  --datafusion-max-parquet-fanout <N>  
+                                  Parquet file fanout limit [default: 1000]
+                                  [env: INFLUXDB3_DATAFUSION_MAX_PARQUET_FANOUT=]
+  --datafusion-use-cached-parquet-loader  
+                                  Use cached parquet loader
+                                  [env: INFLUXDB3_DATAFUSION_USE_CACHED_PARQUET_LOADER=]
+  --datafusion-config <CONFIG>     Custom DataFusion configuration [default: ]
+                                  [env: INFLUXDB3_DATAFUSION_CONFIG=]
+  --datafusion-runtime-disable-lifo-slot <BOOL>  
+                                  Disable LIFO slot [possible values: true, false]
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_DISABLE_LIFO_SLOT=]
+  --datafusion-runtime-event-interval <N>  
+                                  Scheduler ticks for polling external events
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_EVENT_INTERVAL=]
+  --datafusion-runtime-global-queue-interval <N>  
+                                  Scheduler ticks for polling global task queue
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
+  --datafusion-runtime-max-blocking-threads <N>  
+                                  Thread limit for DataFusion runtime
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_BLOCKING_THREADS=]
+  --datafusion-runtime-max-io-events-per-tick <N>  
+                                  Max events per tick
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
+  --datafusion-runtime-thread-keep-alive <DURATION>  
+                                  Blocking pool thread timeout
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_KEEP_ALIVE=]
+  --datafusion-runtime-thread-priority <PRIORITY>  
+                                  Thread priority [default: 10]
+                                  [env: INFLUXDB3_DATAFUSION_RUNTIME_THREAD_PRIORITY=]
+
+{}
+  --log-destination <DEST>         Logs: destination [default: stdout]
+                                  [env: LOG_DESTINATION=]
+  --log-format <FORMAT>            Logs: message format [default: full]
+                                  [env: LOG_FORMAT=]
+  --traces-exporter <TYPE>         Tracing: exporter type [default: none]
+                                  [env: TRACES_EXPORTER=]
+  --traces-exporter-jaeger-agent-host <HOST>  
+                                  Jaeger agent hostname [default: 0.0.0.0]
+                                  [env: TRACES_EXPORTER_JAEGER_AGENT_HOST=]
+  --traces-exporter-jaeger-agent-port <PORT>  
+                                  Jaeger agent port [default: 6831]
+                                  [env: TRACES_EXPORTER_JAEGER_AGENT_PORT=]
+  --traces-exporter-jaeger-service-name <NAME>  
+                                  Jaeger service name [default: iox-conductor]
+                                  [env: TRACES_EXPORTER_JAEGER_SERVICE_NAME=]
+  --traces-exporter-jaeger-trace-context-header-name <NAME>  
+                                  Header for trace context [default: uber-trace-id]
+                                  [env: TRACES_EXPORTER_JAEGER_TRACE_CONTEXT_HEADER_NAME=]
+  --traces-jaeger-debug-name <NAME>  
+                                  Header for force sampling [default: jaeger-debug-id]
+                                  [env: TRACES_EXPORTER_JAEGER_DEBUG_NAME=]
+  --traces-jaeger-tags <TAGS>      Key-value pairs for tracing spans
+                                  [env: TRACES_EXPORTER_JAEGER_TAGS=]
+  --traces-jaeger-max-msgs-per-second <N>  
+                                  Max messages per second [default: 1000]
+                                  [env: TRACES_JAEGER_MAX_MSGS_PER_SECOND=]
+
+
+{}
+  -v, --verbose                    Increase logging verbosity
+  -h, --help                       Print help information
+  --help-all                       Show all available options
+
+For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/core/
