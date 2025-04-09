@@ -179,9 +179,9 @@ pub struct Config {
     )]
     pub exec_mem_pool_bytes: MemorySizeMb,
 
-    /// bearer token to be set for requests
-    #[clap(long = "bearer-token", env = "INFLUXDB3_BEARER_TOKEN", action)]
-    pub bearer_token: Option<String>,
+    /// Flag to indicate that server should start without auth
+    #[clap(long = "without-auth", env = "INFLUXDB3_START_WITHOUT_AUTH", action)]
+    pub without_auth: bool,
 
     /// Duration that the Parquet files get arranged into. The data timestamps will land each
     /// row into a file of this duration. 1m, 5m, and 10m are supported. These are known as
@@ -677,10 +677,11 @@ pub async fn command(config: Config) -> Result<()> {
         .tcp_listener(listener)
         .processing_engine(processing_engine);
 
-    // We can ignore the token passed in for now, as the token is supposed to be in catalog
     let cert_file = config.cert_file;
     let key_file = config.key_file;
-    let server = if let Some(_token) = config.bearer_token {
+    let server = if config.without_auth {
+        builder.build(cert_file, key_file).await
+    } else {
         let authentication_provider = Arc::new(TokenAuthenticator::new(
             Arc::clone(&catalog) as _,
             Arc::clone(&time_provider) as _,
@@ -689,8 +690,6 @@ pub async fn command(config: Config) -> Result<()> {
             .authorizer(authentication_provider as _)
             .build(cert_file, key_file)
             .await
-    } else {
-        builder.build(cert_file, key_file).await
     };
 
     // There are two different select! macros - tokio::select and futures::select

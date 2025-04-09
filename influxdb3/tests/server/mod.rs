@@ -112,14 +112,10 @@ impl TestConfig {
 impl ConfigProvider for TestConfig {
     fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
-        if let Some((token, _)) = &self.auth_token {
-            // TODO: --bearer-token will be deprecated soon
-            args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        if !self.auth {
+            args.append(&mut vec!["--without-auth".to_string()]);
         }
-        if self.auth {
-            // TODO: --bearer-token will be deprecated soon
-            args.append(&mut vec!["--bearer-token".to_string(), "foo".to_string()]);
-        }
+
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }

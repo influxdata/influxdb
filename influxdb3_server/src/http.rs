@@ -1676,7 +1676,13 @@ pub(crate) async fn route_request(
     let method = req.method().clone();
     let uri = req.uri().clone();
 
-    if uri.path() != all_paths::API_V3_CONFIGURE_ADMIN_TOKEN {
+    // admin token creation, health, ping and metrics endpoints aren't guarded
+    if uri.path() != all_paths::API_V3_CONFIGURE_ADMIN_TOKEN
+        && uri.path() != all_paths::API_V3_HEALTH
+        && uri.path() != all_paths::API_V1_HEALTH
+        && uri.path() != all_paths::API_METRICS
+        && uri.path() != all_paths::API_PING
+    {
         trace!(?uri, "authenticating request");
         if let Some(authentication_error) = authenticate(&http_server, &mut req).await {
             return authentication_error;
