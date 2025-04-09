@@ -19,8 +19,8 @@ use crate::{
         FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
         LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
         OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        TriggerDefinition, TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition,
-        ValidPluginFilename,
+        StopNodeLog, TriggerDefinition, TriggerIdentifier, TriggerSettings,
+        TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -149,6 +149,29 @@ impl Catalog {
                     registered_time_ns: time_ns,
                     core_count,
                     mode: mode.clone(),
+                })],
+            ))
+        })
+        .await
+    }
+
+    pub async fn update_node_state_stopped(
+        &self,
+        node_id: &str,
+    ) -> Result<Option<OrderedCatalogBatch>> {
+        info!(node_id, "updating node state to Stopped in catalog");
+        self.catalog_update_with_retry(|| {
+            let time_ns = self.time_provider.now().timestamp_nanos();
+            let Some(node) = self.node(node_id) else {
+                return Err(crate::CatalogError::NotFound);
+            };
+            Ok(CatalogBatch::node(
+                time_ns,
+                node.node_catalog_id,
+                Arc::clone(&node.node_id),
+                vec![NodeCatalogOp::StopNode(StopNodeLog {
+                    node_id: Arc::clone(&node.node_id),
+                    stopped_time_ns: time_ns,
                 })],
             ))
         })

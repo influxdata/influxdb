@@ -2864,6 +2864,7 @@ dependencies = [
  "indexmap 2.7.0",
  "influxdb-line-protocol",
  "influxdb3_id",
+ "influxdb3_shutdown",
  "influxdb3_test_helpers",
  "influxdb3_wal",
  "insta",

@@ -545,14 +545,13 @@ pub async fn command(config: Config) -> Result<()> {
         snapshot_size: config.wal_snapshot_size,
     };
 
-    let catalog = Arc::new(
-        Catalog::new(
-            config.node_identifier_prefix.as_str(),
-            Arc::clone(&object_store),
-            Arc::<SystemProvider>::clone(&time_provider),
-        )
-        .await?,
-    );
+    let catalog = Catalog::new_with_shutdown(
+        config.node_identifier_prefix.as_str(),
+        Arc::clone(&object_store),
+        Arc::<SystemProvider>::clone(&time_provider),
+        shutdown_manager.register(),
+    )
+    .await?;
     info!(catalog_uuid = ?catalog.catalog_uuid(), "catalog initialized");
 
     let _ = catalog
