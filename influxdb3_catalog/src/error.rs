@@ -51,6 +51,12 @@ pub enum CatalogError {
     TooManyColumns,
 
     #[error(
+        "Update to schema would exceed number of tag columns per table limit of {} columns",
+        Catalog::NUM_TAG_COLUMNS_LIMIT
+    )]
+    TooManyTagColumns,
+
+    #[error(
         "Update to schema would exceed number of tables limit of {} tables",
         Catalog::NUM_TABLES_LIMIT
     )]

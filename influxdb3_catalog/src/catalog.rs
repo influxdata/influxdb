@@ -125,6 +125,8 @@ impl Catalog {
     pub(crate) const NUM_COLUMNS_PER_TABLE_LIMIT: usize = 500;
     /// Limit for the number of tables across all DBs that InfluxDB 3 Core can have
     pub(crate) const NUM_TABLES_LIMIT: usize = 2000;
+    /// Limit for the number of tag columns on a table
+    pub(crate) const NUM_TAG_COLUMNS_LIMIT: usize = 250;
 
     pub async fn new(
         node_id: impl Into<Arc<str>>,
@@ -1528,6 +1530,11 @@ impl TableDefinition {
             return Err(CatalogError::TooManyColumns);
         }
 
+        // ensure we don't go over the tag column limit
+        if self.series_key.len() > Catalog::NUM_TAG_COLUMNS_LIMIT {
+            return Err(CatalogError::TooManyTagColumns);
+        }
+
         let mut schema_builder = SchemaBuilder::with_capacity(cols.len());
         // TODO: may need to capture some schema-level metadata, currently, this causes trouble in
         // tests, so I am omitting this for now:
@@ -2562,5 +2569,68 @@ mod tests {
         // this file should have been read on re-init, as it would not be covered by a
         // checkpoint:
         assert_eq!(1, last_log_read_count);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn apply_catalog_batch_fails_for_add_fields_past_tag_limit() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        let tags = (0..Catalog::NUM_TAG_COLUMNS_LIMIT)
+            .map(|i| format!("tag_{i}"))
+            .collect::<Vec<_>>();
+        catalog
+            .create_table("foo", "bar", &tags, &[("f1", FieldDataType::String)])
+            .await
+            .unwrap();
+        let db_id = catalog.db_name_to_id("foo").unwrap();
+        let table_id = catalog
+            .db_schema_by_id(&db_id)
+            .unwrap()
+            .table_definition("bar")
+            .unwrap()
+            .table_id;
+
+        let catalog_batch = create::catalog_batch(
+            db_id,
+            "foo",
+            0,
+            [create::add_fields_op(
+                db_id,
+                "foo",
+                table_id,
+                "bar",
+                [create::field_def(
+                    ColumnId::new(500),
+                    "tag_too_much",
+                    FieldDataType::Tag,
+                )],
+            )],
+        );
+        debug!("getting write lock");
+        let mut inner = catalog.inner.write();
+        let sequence = inner.sequence_number();
+        let err = inner
+            .apply_catalog_batch(&catalog_batch, sequence.next())
+            .expect_err("should fail to apply AddFields operation for tags past the limit");
+        assert_contains!(
+            err.to_string(),
+            "Update to schema would exceed number of tag columns per table limit of 250 columns"
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn apply_catalog_batch_fails_to_create_table_with_too_many_tags() {
+        let catalog = Catalog::new_in_memory("host").await.unwrap();
+        catalog.create_database("foo").await.unwrap();
+        let tags = (0..Catalog::NUM_TAG_COLUMNS_LIMIT + 1)
+            .map(|i| format!("tag_{i}"))
+            .collect::<Vec<_>>();
+        let err = catalog
+            .create_table("foo", "bar", &tags, &[("f1", FieldDataType::String)])
+            .await;
+        assert_contains!(
+            err.unwrap_err().to_string(),
+            "Update to schema would exceed number of tag columns per table limit of 250 columns"
+        );
     }
 }
