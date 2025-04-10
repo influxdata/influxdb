@@ -357,7 +357,7 @@ impl From<iox_http::write::WriteParams> for WriteParams {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateTokenWithPermissionsResponse {
-    id: u64,
+    pub id: u64,
     name: Arc<str>,
     pub token: Arc<str>,
     pub hash: Arc<str>,
@@ -379,4 +379,9 @@ impl CreateTokenWithPermissionsResponse {
             expiry,
         })
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TokenDeleteRequest {
+    pub token_name: String,
 }

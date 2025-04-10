@@ -2,7 +2,7 @@ mod api;
 
 use crate::server::{ConfigProvider, TestServer, parse_token};
 use assert_cmd::Command as AssertCmd;
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, info};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use std::fs::File;
@@ -2939,4 +2939,35 @@ async fn test_regenerate_admin_token() {
     server.set_token(Some(new_token));
     let res = server.create_database("sample_db").run().unwrap();
     assert_contains!(&res, "Database \"sample_db\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_delete_token() {
+    let server = TestServer::spawn().await;
+    let args = &[];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
+    let token = parse_token(result);
+
+    let result = server
+        .run_with_confirmation(
+            vec!["delete", "token"],
+            &["--token-name", "_admin", "--token", &token],
+        )
+        .unwrap();
+    info!(result, "test: deleted token using token name");
+
+    // you should be able to create the token again
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+    assert_contains!(
+        &result,
+        "This will grant you access to every HTTP endpoint or deny it otherwise"
+    );
 }

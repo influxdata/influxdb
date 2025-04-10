@@ -833,6 +833,11 @@ impl InnerCatalog {
                     )?;
                     true
                 }
+                TokenCatalogOp::DeleteToken(delete_token_details) => {
+                    self.tokens
+                        .delete_token(delete_token_details.token_name.to_owned())?;
+                    true
+                }
             };
         }
 
@@ -1803,6 +1808,16 @@ impl TokenRepository {
         updatable.updated_by = Some(token_id);
         self.repo.update(token_id, token_info)?;
         self.hash_lookup_map.insert(token_id, hash);
+        Ok(())
+    }
+
+    pub(crate) fn delete_token(&mut self, token_name: String) -> Result<()> {
+        let token_id = self
+            .repo
+            .name_to_id(&token_name)
+            .ok_or_else(|| CatalogError::NotFound)?;
+        self.repo.remove(&token_id);
+        self.hash_lookup_map.remove_by_left(&token_id);
         Ok(())
     }
 }

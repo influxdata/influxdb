@@ -55,6 +55,11 @@ impl Config {
                         ..
                     },
                 ..
+            })
+            | SubCommand::Token(TokenConfig {
+                host_url,
+                auth_token,
+                ..
             }) => {
                 let mut client = Client::new(host_url.clone())?;
                 if let Some(token) = &auth_token {
@@ -80,6 +85,8 @@ pub enum SubCommand {
     Table(TableConfig),
     /// Delete a trigger
     Trigger(TriggerConfig),
+    /// Delete a token
+    Token(TokenConfig),
 }
 
 #[derive(Debug, clap::Args)]
@@ -151,6 +158,26 @@ pub struct TriggerConfig {
     /// Name of trigger to delete
     #[clap(required = true)]
     trigger_name: String,
+}
+
+#[derive(Debug, clap::Args)]
+pub struct TokenConfig {
+    /// The host URL of the running InfluxDB 3 Core server
+    #[clap(
+        short = 'H',
+        long = "host",
+        env = "INFLUXDB3_HOST_URL",
+        default_value = "http://127.0.0.1:8181"
+    )]
+    pub host_url: Url,
+
+    /// The token for authentication with the InfluxDB 3 Core server
+    #[clap(long = "token", env = "INFLUXDB3_AUTH_TOKEN")]
+    pub auth_token: Option<Secret<String>>,
+
+    /// The name of the token to be deleted
+    #[clap(long = "token-name")]
+    pub token_name: String,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -229,6 +256,21 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                 )
                 .await?;
             println!("Trigger {} deleted successfully", trigger_name);
+        }
+        SubCommand::Token(TokenConfig { token_name, .. }) => {
+            println!(
+                "Are you sure you want to delete {:?}? Enter 'yes' to confirm",
+                token_name
+            );
+            let mut confirmation = String::new();
+            let _ = io::stdin().read_line(&mut confirmation);
+            if confirmation.trim() != "yes" {
+                println!("Cannot delete token without confirmation");
+            } else {
+                client.api_v3_configure_token_delete(&token_name).await?;
+
+                println!("Token {:?} deleted successfully", &token_name);
+            }
         }
     }
     Ok(())

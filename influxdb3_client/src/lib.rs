@@ -669,6 +669,25 @@ impl Client {
         response_json
     }
 
+    /// Delete token `DELETE /api/v3/configure/token?token_name=foo` API
+    pub async fn api_v3_configure_token_delete(
+        &self,
+        token_name: impl AsRef<str> + Send,
+    ) -> Result<()> {
+        let _bytes = self
+            .send_json_get_bytes(
+                Method::DELETE,
+                "/api/v3/configure/token",
+                None::<()>,
+                Some(TokenDeleteRequest {
+                    token_name: token_name.as_ref().to_owned(),
+                }),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Serialize the given `B` to json then send the request and return the resulting bytes.
     async fn send_json_get_bytes<B, Q>(
         &self,
