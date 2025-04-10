@@ -453,7 +453,7 @@ pub(crate) fn create_client(
     host_url: Url,
     auth_token: Option<Secret<String>>,
 ) -> Result<Client, influxdb3_client::Error> {
-    let mut client = Client::new(host_url)?;
+    let mut client = Client::new(host_url, None)?;
     if let Some(t) = auth_token {
         client = client.with_auth_token(t.expose_secret());
     }

@@ -11,8 +11,9 @@ use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
-use reqwest::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{Certificate, Response, tls::Version};
+use tonic::transport::ClientTlsConfig;
 
 mod auth;
 mod client;
@@ -206,6 +207,8 @@ impl TestServer {
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
+            .args(["--tls-cert", "../testing-certs/localhost.pem"])
+            .args(["--tls-key", "../testing-certs/localhost.key"])
             .args(config.as_args())
             .stdout(Stdio::piped());
 
@@ -250,17 +253,32 @@ impl TestServer {
             }
         });
 
+        let http_client = reqwest::ClientBuilder::new()
+            .min_tls_version(Version::TLS_1_3)
+            .use_rustls_tls()
+            .add_root_certificate(
+                Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap())
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+
         let server = Self {
             auth_token: config.auth_token().map(|s| s.to_owned()),
             bind_addr,
             server_process,
-            http_client: reqwest::Client::new(),
+            http_client,
         };
 
         server.wait_until_ready().await;
 
         let (mut server, token) = if config.auth_enabled() {
-            let result = server.run(vec!["create", "token", "--admin"], &[]).unwrap();
+            let result = server
+                .run(
+                    vec!["create", "token", "--admin"],
+                    &["--tls-ca", "../testing-certs/rootCA.pem"],
+                )
+                .unwrap();
             let token = parse_token(result);
             (server, Some(token))
         } else {
@@ -274,7 +292,10 @@ impl TestServer {
 
     /// Get the URL of the running service for use with an HTTP client
     pub fn client_addr(&self) -> String {
-        format!("http://{addr}", addr = self.bind_addr)
+        format!(
+            "https://localhost:{}",
+            self.bind_addr.split(':').nth(1).unwrap()
+        )
     }
 
     /// Get the token for the server
@@ -289,8 +310,13 @@ impl TestServer {
 
     /// Get a [`FlightSqlClient`] for making requests to the running service over gRPC
     pub async fn flight_sql_client(&self, database: &str) -> FlightSqlClient {
+        let cert = tonic::transport::Certificate::from_pem(
+            std::fs::read("../testing-certs/rootCA.pem").unwrap(),
+        );
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
+            .tls_config(ClientTlsConfig::new().ca_certificate(cert))
+            .unwrap()
             .connect()
             .await
             .expect("connect to gRPC client");
@@ -301,12 +327,21 @@ impl TestServer {
 
     /// Get a raw [`FlightClient`] for performing Flight actions directly
     pub async fn flight_client(&self) -> FlightClient {
+        let cert = tonic::transport::Certificate::from_pem(
+            std::fs::read("../testing-certs/rootCA.pem").unwrap(),
+        );
         let channel = tonic::transport::Channel::from_shared(self.client_addr())
             .expect("create tonic channel")
+            .tls_config(ClientTlsConfig::new().ca_certificate(cert))
+            .unwrap()
             .connect()
             .await
             .expect("connect to gRPC client");
         FlightClient::new(channel)
+    }
+
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
     }
 
     pub fn kill(&mut self) {
@@ -354,7 +389,11 @@ impl TestServer {
         lp: impl ToString,
         precision: Precision,
     ) -> Result<(), influxdb3_client::Error> {
-        let mut client = influxdb3_client::Client::new(self.client_addr()).unwrap();
+        let mut client = influxdb3_client::Client::new(
+            self.client_addr(),
+            Some("../testing-certs/rootCA.pem".into()),
+        )
+        .unwrap();
         if let Some(token) = &self.auth_token {
             client = client.with_auth_token(token);
         }
@@ -424,7 +463,7 @@ impl TestServer {
         }
 
         self.http_client
-            .get(format!("{base}/query", base = self.client_addr(),))
+            .get(format!("{base}/query", base = self.client_addr()))
             .headers(header_map)
             .query(params)
             .send()
@@ -512,7 +551,11 @@ pub async fn write_lp_to_db(
     lp: &str,
     precision: Precision,
 ) -> Result<(), influxdb3_client::Error> {
-    let client = influxdb3_client::Client::new(server.client_addr()).unwrap();
+    let client = influxdb3_client::Client::new(
+        server.client_addr(),
+        Some("../testing-certs/rootCA.pem".into()),
+    )
+    .unwrap();
     client
         .api_v3_write_lp(database)
         .body(lp.to_string())

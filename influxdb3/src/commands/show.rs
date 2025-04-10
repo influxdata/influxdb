@@ -1,6 +1,6 @@
 use clap::Parser;
 use secrecy::{ExposeSecret, Secret};
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 use url::Url;
 
 use crate::commands::common::Format;
@@ -44,6 +44,10 @@ pub struct ShowTokensConfig {
     /// The format in which to output the list of databases
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -68,6 +72,10 @@ pub struct DatabaseConfig {
     /// The format in which to output the list of databases
     #[clap(value_enum, long = "format", default_value = "pretty")]
     output_format: Format,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
@@ -77,8 +85,9 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             auth_token,
             show_deleted,
             output_format,
+            ca_cert,
         }) => {
-            let mut client = influxdb3_client::Client::new(host_url)?;
+            let mut client = influxdb3_client::Client::new(host_url, ca_cert)?;
 
             if let Some(t) = auth_token {
                 client = client.with_auth_token(t.expose_secret());
@@ -95,7 +104,10 @@ pub(crate) async fn command(config: Config) -> Result<(), Box<dyn Error>> {
         }
         SubCommand::System(cfg) => system::command(cfg).await?,
         SubCommand::Tokens(show_tokens_config) => {
-            let mut client = influxdb3_client::Client::new(show_tokens_config.host_url.clone())?;
+            let mut client = influxdb3_client::Client::new(
+                show_tokens_config.host_url.clone(),
+                show_tokens_config.ca_cert,
+            )?;
 
             if let Some(t) = show_tokens_config.auth_token {
                 client = client.with_auth_token(t.expose_secret());

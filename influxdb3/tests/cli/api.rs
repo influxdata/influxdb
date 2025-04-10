@@ -73,8 +73,15 @@ impl TestServer {
 }
 impl CreateDatabaseQuery<'_> {
     pub fn run(self) -> Result<String> {
-        self.server
-            .run(vec!["create", "database"], &[self.name.as_str()])
+        self.server.run(
+            vec![
+                "create",
+                "database",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            &[self.name.as_str()],
+        )
     }
 }
 // Builder for the 'create table' command
@@ -147,6 +154,8 @@ impl CreateTableQuery<'_> {
             &self.table_name,
             "--tags",
             &tags_arg,
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         if !self.fields.is_empty() {
@@ -198,6 +207,9 @@ impl ShowDatabasesQuery<'_> {
             args.push("--show-deleted");
         }
 
+        args.push("--tls-ca");
+        args.push("../testing-certs/rootCA.pem");
+
         self.server.run(vec!["show", "databases"], &args)
     }
 }
@@ -219,8 +231,15 @@ impl TestServer {
 
 impl DeleteDatabaseQuery<'_> {
     pub fn run(self) -> Result<String> {
-        self.server
-            .run_with_confirmation(vec!["delete", "database"], &[self.name.as_str()])
+        self.server.run_with_confirmation(
+            vec![
+                "delete",
+                "database",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            &[self.name.as_str()],
+        )
     }
 }
 
@@ -264,7 +283,14 @@ impl QuerySqlQuery<'_> {
     }
 
     pub fn run(self) -> Result<Value> {
-        let mut args = vec!["--database", &self.database, "--format", "json"];
+        let mut args = vec![
+            "--database",
+            &self.database,
+            "--format",
+            "json",
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
         if let Some(file_path) = self.output_file.as_ref() {
             args.push("--output");
             args.push(file_path);
@@ -321,6 +347,8 @@ impl DeleteTableQuery<'_> {
             self.table_name.as_str(),
             "--database",
             self.db_name.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         self.server
@@ -393,6 +421,8 @@ impl CreateDistinctCacheQuery<'_> {
             self.table_name.as_str(),
             "--columns",
             &columns_arg,
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
         let max_cardinality = self.max_cardinality.unwrap_or_default();
         let max_cardinality_str = max_cardinality.to_string();
@@ -445,6 +475,8 @@ impl DeleteDistinctCacheQuery<'_> {
             "--table",
             self.table_name.as_str(),
             self.cache_name.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         self.server
@@ -524,6 +556,8 @@ impl CreateTriggerQuery<'_> {
             self.plugin_filename.as_str(),
             "--trigger-spec",
             self.trigger_spec.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         let trigger_args = self.trigger_arguments.join(",");
@@ -576,6 +610,8 @@ impl EnableTriggerQuery<'_> {
             self.trigger_name.as_str(),
             "--database",
             self.db_name.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         self.server.run(vec!["enable", "trigger"], args.as_slice())
@@ -609,6 +645,8 @@ impl DisableTriggerQuery<'_> {
             self.trigger_name.as_str(),
             "--database",
             self.db_name.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         self.server.run(vec!["disable", "trigger"], args.as_slice())
@@ -648,6 +686,8 @@ impl DeleteTriggerQuery<'_> {
             self.trigger_name.as_str(),
             "--database",
             self.db_name.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         if self.force {
@@ -730,7 +770,8 @@ impl TestWalPluginQuery<'_> {
         }
 
         args.push(&self.plugin_filename);
-
+        args.push("--tls-ca");
+        args.push("../testing-certs/rootCA.pem");
         let output = self.server.run(
             vec!["test", "wal_plugin"],
             &args.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
@@ -796,6 +837,8 @@ impl TestSchedulePluginQuery<'_> {
             self.db_name.as_str(),
             "--schedule",
             self.schedule.as_str(),
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
         ];
 
         if let Some(cache_name) = &self.cache_name {
@@ -884,6 +927,8 @@ impl InstallPackageQuery<'_> {
             args.push("--package-manager");
             args.push(pkg_mgr);
         }
+        args.push("--tls-ca");
+        args.push("../testing-certs/rootCA.pem");
 
         // Run the command
         self.server.run(vec!["package", "install"], &args)
@@ -927,7 +972,12 @@ impl WriteQuery<'_> {
     }
 
     pub fn run(self) -> Result<String> {
-        let mut args = vec!["--database", &self.db_name];
+        let mut args = vec![
+            "--database",
+            &self.db_name,
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
 
         if let Some(precision) = &self.precision {
             args.push("--precision");
@@ -951,7 +1001,12 @@ impl WriteQuery<'_> {
     }
 
     pub fn run_with_stdin(self, stdin_input: impl Into<String>) -> Result<String> {
-        let mut args = vec!["--database", &self.db_name];
+        let mut args = vec![
+            "--database",
+            &self.db_name,
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
 
         if let Some(precision) = &self.precision {
             args.push("--precision");
@@ -1037,7 +1092,13 @@ impl<'a> ShowSystemQuery<'a> {
 impl ShowSystemTableListQuery<'_> {
     // Run the table-list command
     pub fn run(self) -> Result<String> {
-        let mut args = vec!["--database", &self.base.db_name, "table-list"];
+        let mut args = vec![
+            "--database",
+            &self.base.db_name,
+            "table-list",
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
 
         if let Some(format) = &self.base.format {
             args.push("--format");
@@ -1069,7 +1130,13 @@ impl ShowSystemTableQuery<'_> {
 
     // Run the table command
     pub fn run(self) -> Result<String> {
-        let mut args = vec!["--database", &self.base.db_name, "table"];
+        let mut args = vec![
+            "--database",
+            &self.base.db_name,
+            "table",
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
 
         if let Some(format) = &self.base.format {
             args.push("--format");
@@ -1109,7 +1176,13 @@ impl ShowSystemSummaryQuery<'_> {
 
     // Run the summary command
     pub fn run(self) -> Result<String> {
-        let mut args = vec!["--database", &self.base.db_name, "summary"];
+        let mut args = vec![
+            "--database",
+            &self.base.db_name,
+            "summary",
+            "--tls-ca",
+            "../testing-certs/rootCA.pem",
+        ];
 
         if let Some(format) = &self.base.format {
             args.push("--format");

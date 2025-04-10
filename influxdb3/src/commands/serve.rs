@@ -51,9 +51,9 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::process::Command;
 use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
+use std::{path::PathBuf, process::Command};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
@@ -113,6 +113,9 @@ pub enum Error {
 
     #[error("lost HTTP/gRPC service")]
     LostHttpGrpc,
+
+    #[error("tls requires both a cert and a key file to be passed in to work")]
+    NoCertOrKeyFile,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -369,6 +372,12 @@ pub struct Config {
     /// smaller time ranges if possible in a query.
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
+
+    #[clap(long = "tls-key")]
+    pub key_file: Option<PathBuf>,
+
+    #[clap(long = "tls-cert")]
+    pub cert_file: Option<PathBuf>,
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -436,6 +445,14 @@ fn ensure_directory_exists(p: &Path) {
 }
 
 pub async fn command(config: Config) -> Result<()> {
+    // Check that both a cert file and key file are present if TLS is being set up
+    match (&config.cert_file, &config.key_file) {
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(Error::NoCertOrKeyFile);
+        }
+        (Some(_), Some(_)) | (None, None) => {}
+    }
+
     let startup_timer = Instant::now();
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
@@ -661,6 +678,8 @@ pub async fn command(config: Config) -> Result<()> {
         .processing_engine(processing_engine);
 
     // We can ignore the token passed in for now, as the token is supposed to be in catalog
+    let cert_file = config.cert_file;
+    let key_file = config.key_file;
     let server = if let Some(_token) = config.bearer_token {
         let authentication_provider = Arc::new(TokenAuthenticator::new(
             Arc::clone(&catalog) as _,
@@ -668,10 +687,10 @@ pub async fn command(config: Config) -> Result<()> {
         ));
         builder
             .authorizer(authentication_provider as _)
-            .build()
+            .build(cert_file, key_file)
             .await
     } else {
-        builder.build().await
+        builder.build(cert_file, key_file).await
     };
 
     // There are two different select! macros - tokio::select and futures::select

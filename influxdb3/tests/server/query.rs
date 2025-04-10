@@ -94,7 +94,7 @@ async fn api_v3_query_sql_params() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
 
     // Use a POST request
@@ -436,7 +436,7 @@ async fn api_v3_query_influxql_params() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_influxql", base = server.client_addr());
 
     // Use a POST request
@@ -1301,9 +1301,14 @@ async fn api_v1_query_chunked() {
         }
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| {
-                println!("{chunk:?}");
-                serde_json::from_slice(chunk.unwrap().as_ref()).unwrap()
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
             })
             .collect::<Vec<Value>>()
             .await;
@@ -1642,7 +1647,15 @@ async fn api_v1_query_group_by() {
         ];
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
+            })
             .collect::<Vec<Value>>()
             .await;
         // Use a snapshot to assert on the output structure. This deserializes each emitted line as
@@ -1684,7 +1697,15 @@ async fn api_v1_query_group_by_with_nulls() {
         ];
         let stream = server.api_v1_query(&params, None).await.bytes_stream();
         let values = stream
-            .map(|chunk| serde_json::from_slice(&chunk.unwrap()).unwrap())
+            .filter_map(|chunk| async move {
+                let chunk = chunk.unwrap();
+                if chunk.is_empty() {
+                    None
+                } else {
+                    println!("{chunk:?}");
+                    Some(serde_json::from_slice(&chunk).unwrap())
+                }
+            })
             .collect::<Vec<Value>>()
             .await;
         // Use a snapshot to assert on the output structure. This deserializes each emitted line as
@@ -1790,7 +1811,7 @@ async fn api_v3_query_null_tag_values_null_fields() {
         .await
         .unwrap();
 
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let url = format!("{base}/api/v3/query_sql", base = server.client_addr());
 
     let resp = client

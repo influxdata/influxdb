@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use influxdb3_client::Client;
 use influxdb3_types::http::{SchedulePluginTestRequest, WalPluginTestRequest};
 use secrecy::ExposeSecret;
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
 #[derive(Debug, clap::Parser)]
 pub struct Config {
@@ -16,6 +16,7 @@ impl Config {
     fn get_client(&self) -> Result<Client, Box<dyn Error>> {
         match &self.cmd {
             SubCommand::WalPlugin(WalPluginConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -25,6 +26,7 @@ impl Config {
                 ..
             })
             | SubCommand::SchedulePlugin(SchedulePluginConfig {
+                ca_cert,
                 influxdb3_config:
                     InfluxDb3Config {
                         host_url,
@@ -33,7 +35,7 @@ impl Config {
                     },
                 ..
             }) => {
-                let mut client = Client::new(host_url.clone())?;
+                let mut client = Client::new(host_url.clone(), ca_cert.clone())?;
                 if let Some(token) = &auth_token {
                     client = client.with_auth_token(token.expose_secret());
                 }
@@ -72,6 +74,9 @@ pub struct WalPluginConfig {
     pub filename: String,
     #[clap(long = "cache-name")]
     pub cache_name: Option<String>,
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    pub ca_cert: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -90,6 +95,9 @@ pub struct SchedulePluginConfig {
     pub schedule: Option<String>,
     #[clap(long = "cache-name")]
     pub cache_name: Option<String>,
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    pub ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
