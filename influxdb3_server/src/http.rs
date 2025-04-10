@@ -1292,6 +1292,19 @@ impl HttpApi {
             .unwrap())
     }
 
+    async fn delete_token(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let query = req.uri().query().unwrap_or("");
+        let delete_req = serde_urlencoded::from_str::<TokenDeleteRequest>(query)?;
+        self.write_buffer
+            .catalog()
+            .delete_token(&delete_req.token_name)
+            .await?;
+        Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap())
+    }
+
     async fn read_body_json<ReqBody: DeserializeOwned>(
         &self,
         req: hyper::Request<Body>,
@@ -1674,7 +1687,9 @@ pub(crate) async fn route_request(
     let content_length = req.headers().get("content-length").cloned();
 
     let path = uri.path();
+
     let response = match (method.clone(), path) {
+        (Method::DELETE, all_paths::API_V3_CONFIGURE_TOKEN) => http_server.delete_token(req).await,
         (Method::POST, all_paths::API_V3_CONFIGURE_ADMIN_TOKEN) => {
             http_server.create_admin_token(req).await
         }

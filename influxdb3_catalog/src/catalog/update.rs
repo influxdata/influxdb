@@ -15,12 +15,12 @@ use crate::{
     catalog::NodeDefinition,
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
-        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTriggerLog, DistinctCacheDefinition,
-        FieldDataType, FieldDefinition, LastCacheDefinition, LastCacheSize, LastCacheTtl,
-        LastCacheValueColumnsDef, MaxAge, MaxCardinality, NodeCatalogOp, NodeMode,
-        OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog, SoftDeleteTableLog,
-        StopNodeLog, TriggerDefinition, TriggerIdentifier, TriggerSettings,
-        TriggerSpecificationDefinition, ValidPluginFilename,
+        DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
+        DistinctCacheDefinition, FieldDataType, FieldDefinition, LastCacheDefinition,
+        LastCacheSize, LastCacheTtl, LastCacheValueColumnsDef, MaxAge, MaxCardinality,
+        NodeCatalogOp, NodeMode, OrderedCatalogBatch, RegisterNodeLog, SoftDeleteDatabaseLog,
+        SoftDeleteTableLog, StopNodeLog, TokenBatch, TokenCatalogOp, TriggerDefinition,
+        TriggerIdentifier, TriggerSettings, TriggerSpecificationDefinition, ValidPluginFilename,
     },
     object_store::PersistCatalogResult,
 };
@@ -668,6 +668,24 @@ impl Catalog {
                     trigger_name: Arc::clone(&trigger.trigger_name),
                 })],
             ))
+        })
+        .await
+    }
+
+    pub async fn delete_token(&self, token_name: &str) -> Result<Option<OrderedCatalogBatch>> {
+        info!(token_name, "delete token");
+        self.catalog_update_with_retry(|| {
+            if !self.inner.read().tokens.repo().contains_name(token_name) {
+                // maybe deleted by another node or genuinely not present
+                return Err(CatalogError::NotFound);
+            }
+
+            Ok(CatalogBatch::Token(TokenBatch {
+                time_ns: self.time_provider.now().timestamp_nanos(),
+                ops: vec![TokenCatalogOp::DeleteToken(DeleteTokenDetails {
+                    token_name: token_name.to_owned(),
+                })],
+            }))
         })
         .await
     }

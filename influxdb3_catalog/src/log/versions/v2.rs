@@ -813,6 +813,7 @@ pub struct TokenBatch {
 pub enum TokenCatalogOp {
     CreateAdminToken(CreateAdminTokenDetails),
     RegenerateAdminToken(RegenerateAdminTokenDetails),
+    DeleteToken(DeleteTokenDetails),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -830,4 +831,9 @@ pub struct RegenerateAdminTokenDetails {
     pub token_id: TokenId,
     pub hash: Vec<u8>,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DeleteTokenDetails {
+    pub token_name: String,
 }

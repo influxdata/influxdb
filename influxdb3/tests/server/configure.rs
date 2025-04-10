@@ -1,10 +1,11 @@
 use hyper::StatusCode;
-use observability_deps::tracing::debug;
+use influxdb3_types::http::CreateTokenWithPermissionsResponse;
+use observability_deps::tracing::{debug, info};
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
 use test_helpers::assert_contains;
 
-use crate::server::TestServer;
+use crate::server::{ConfigProvider, TestServer};
 
 #[tokio::test]
 async fn api_v3_configure_distinct_cache_create() {
@@ -1350,4 +1351,53 @@ async fn try_deleting_table_after_db_is_deleted() {
         .await
         .expect("delete table call succeed");
     assert_eq!(StatusCode::NOT_FOUND, resp.status());
+}
+
+#[test_log::test(tokio::test)]
+async fn api_v3_configure_token_delete() {
+    let token_name = "_admin";
+    let server = TestServer::configure().with_auth().spawn().await;
+    let client = reqwest::Client::new();
+    let create_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+    let delete_url = format!("{base}/api/v3/configure/token", base = server.client_addr());
+
+    let admin_token = server.token().expect("admin token to be present");
+
+    let delete_result = client
+        .delete(&delete_url)
+        .bearer_auth(admin_token)
+        .query(&[("token_name", token_name)])
+        .send()
+        .await
+        .unwrap();
+    info!(?delete_result, "test: result running the token delete");
+
+    // create admin token again
+    let result = client.post(&create_url).send().await.unwrap();
+    info!(?result, "test: result running the create token");
+    assert_eq!(result.status(), StatusCode::CREATED);
+    let json: CreateTokenWithPermissionsResponse = result.json().await.unwrap();
+    info!(?json, "test: result running the token delete");
+    assert_eq!(json.id, 1);
+
+    // delete again
+    let delete_result = client
+        .delete(&delete_url)
+        .bearer_auth(&json.token)
+        .query(&[("token_name", token_name)])
+        .send()
+        .await
+        .unwrap();
+    info!(?delete_result, "test: result running the token delete");
+
+    // create admin token once again
+    let result = client.post(&create_url).send().await.unwrap();
+    info!(?result, "test: result running the create token");
+    assert_eq!(result.status(), StatusCode::CREATED);
+    let json: CreateTokenWithPermissionsResponse = result.json().await.unwrap();
+    info!(?json, "test: result running the token delete");
+    assert_eq!(json.id, 2);
 }

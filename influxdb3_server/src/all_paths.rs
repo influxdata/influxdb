@@ -23,6 +23,7 @@ pub(crate) const API_V3_CONFIGURE_DATABASE: &str = "/api/v3/configure/database";
 pub(crate) const API_V3_CONFIGURE_TABLE: &str = "/api/v3/configure/table";
 pub(crate) const API_METRICS: &str = "/metrics";
 pub(crate) const API_PING: &str = "/ping";
+pub(crate) const API_V3_CONFIGURE_TOKEN: &str = "/api/v3/configure/token";
 pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN: &str = "/api/v3/configure/token/admin";
 pub(crate) const API_V3_CONFIGURE_ADMIN_TOKEN_REGENERATE: &str =
     "/api/v3/configure/token/admin/regenerate";
