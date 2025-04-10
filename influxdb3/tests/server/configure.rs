@@ -1357,7 +1357,7 @@ async fn try_deleting_table_after_db_is_deleted() {
 async fn api_v3_configure_token_delete() {
     let token_name = "_admin";
     let server = TestServer::configure().with_auth().spawn().await;
-    let client = reqwest::Client::new();
+    let client = server.http_client();
     let create_url = format!(
         "{base}/api/v3/configure/token/admin",
         base = server.client_addr()

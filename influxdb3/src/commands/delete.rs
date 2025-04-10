@@ -63,6 +63,7 @@ impl Config {
                 ..
             })
             | SubCommand::Token(TokenConfig {
+                ca_cert,
                 host_url,
                 auth_token,
                 ..
@@ -204,6 +205,10 @@ pub struct TokenConfig {
     /// The name of the token to be deleted
     #[clap(long = "token-name")]
     pub token_name: String,
+
+    /// An optional arg to use a custom ca for useful for testing with self signed certs
+    #[clap(long = "tls-ca")]
+    ca_cert: Option<PathBuf>,
 }
 
 pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {

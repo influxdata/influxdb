@@ -2952,7 +2952,16 @@ async fn test_delete_token() {
     let server = TestServer::spawn().await;
     let args = &[];
     let result = server
-        .run(vec!["create", "token", "--admin"], args)
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            args,
+        )
         .unwrap();
     assert_contains!(
         &result,
@@ -2963,14 +2972,30 @@ async fn test_delete_token() {
     let result = server
         .run_with_confirmation(
             vec!["delete", "token"],
-            &["--token-name", "_admin", "--token", &token],
+            &[
+                "--token-name",
+                "_admin",
+                "--token",
+                &token,
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
         )
         .unwrap();
     info!(result, "test: deleted token using token name");
 
     // you should be able to create the token again
     let result = server
-        .run(vec!["create", "token", "--admin"], args)
+        .run(
+            vec![
+                "create",
+                "token",
+                "--admin",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+            ],
+            args,
+        )
         .unwrap();
     assert_contains!(
         &result,
