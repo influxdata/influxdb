@@ -566,6 +566,7 @@ pub async fn command(config: Config) -> Result<()> {
         config.node_identifier_prefix.as_str(),
         Arc::clone(&object_store),
         Arc::<SystemProvider>::clone(&time_provider),
+        Arc::clone(&metrics),
         shutdown_manager.register(),
     )
     .await?;

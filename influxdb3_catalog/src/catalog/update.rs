@@ -690,6 +690,8 @@ impl Catalog {
         .await
     }
 
+    /// Perform a catalog update and retry if the catalog has been updated elsewhere until the
+    /// operation succeeds or fails
     pub(crate) async fn catalog_update_with_retry<F>(
         &self,
         batch_creator_fn: F,
@@ -711,9 +713,7 @@ impl Catalog {
                         .persist_ordered_batch_to_object_store(&ordered_batch, &permit)
                         .await?
                     {
-                        UpdatePrompt::Retry => {
-                            continue;
-                        }
+                        UpdatePrompt::Retry => continue,
                         UpdatePrompt::Applied => {
                             self.apply_ordered_catalog_batch(&ordered_batch, &permit);
                             self.background_checkpoint(&ordered_batch);
@@ -768,6 +768,7 @@ impl Catalog {
                     permit,
                 )
                 .await?;
+                self.metrics.catalog_operation_retries.inc(1);
                 Ok(UpdatePrompt::Retry)
             }
         }

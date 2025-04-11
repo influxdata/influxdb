@@ -8,9 +8,10 @@ license.workspace = true
 [dependencies]
 # Core Crates
 influxdb-line-protocol.workspace = true
-observability_deps.workspace = true
-schema = { workspace = true }
 iox_time.workspace = true
+metric.workspace = true
+observability_deps.workspace = true
+schema.workspace = true
 
 # Local deps
 influxdb3_authz = { path = "../influxdb3_authz/" }

@@ -410,7 +410,7 @@ mod tests {
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let namespace = NamespaceName::new("test").unwrap();
         let catalog = Arc::new(
-            Catalog::new(node_id, obj_store, time_provider)
+            Catalog::new(node_id, obj_store, time_provider, Default::default())
                 .await
                 .unwrap(),
         );

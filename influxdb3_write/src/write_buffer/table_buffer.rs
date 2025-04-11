@@ -611,7 +611,7 @@ mod tests {
             let obj_store = Arc::new(InMemory::new());
             let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
             let catalog = Arc::new(
-                Catalog::new("test-node", obj_store, time_provider)
+                Catalog::new("test-node", obj_store, time_provider, Default::default())
                     .await
                     .expect("should initialize catalog"),
             );
