@@ -93,6 +93,7 @@ impl AllSystemSchemaTablesProvider {
         buffer: Arc<dyn WriteBuffer>,
         sys_events_store: Arc<SysEventStore>,
         catalog: Arc<Catalog>,
+        started_with_auth: bool,
     ) -> Self {
         let mut tables = HashMap::<&'static str, Arc<dyn TableProvider>>::new();
         let queries = Arc::new(SystemTableProvider::new(Arc::new(QueriesTable::new(
@@ -133,6 +134,7 @@ impl AllSystemSchemaTablesProvider {
                 TOKENS_TABLE_NAME,
                 Arc::new(SystemTableProvider::new(Arc::new(TokenSystemTable::new(
                     Arc::clone(&catalog),
+                    started_with_auth,
                 )))),
             );
         }

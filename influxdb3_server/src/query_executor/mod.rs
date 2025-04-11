@@ -60,6 +60,7 @@ pub struct QueryExecutorImpl {
     query_log: Arc<QueryLog>,
     telemetry_store: Arc<TelemetryStore>,
     sys_events_store: Arc<SysEventStore>,
+    started_with_auth: bool,
 }
 
 /// Arguments for [`QueryExecutorImpl::new`]
@@ -73,6 +74,7 @@ pub struct CreateQueryExecutorArgs {
     pub query_log_size: usize,
     pub telemetry_store: Arc<TelemetryStore>,
     pub sys_events_store: Arc<SysEventStore>,
+    pub started_with_auth: bool,
 }
 
 impl QueryExecutorImpl {
@@ -86,6 +88,7 @@ impl QueryExecutorImpl {
             query_log_size,
             telemetry_store,
             sys_events_store,
+            started_with_auth,
         }: CreateQueryExecutorArgs,
     ) -> Self {
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -107,6 +110,7 @@ impl QueryExecutorImpl {
             query_log,
             telemetry_store,
             sys_events_store,
+            started_with_auth,
         }
     }
 }
@@ -429,7 +433,6 @@ impl QueryDatabase for QueryExecutorImpl {
         _include_debug_info_tables: bool,
     ) -> Result<Option<Arc<dyn QueryNamespace>>, DataFusionError> {
         let _span_recorder = SpanRecorder::new(span);
-
         let db_schema = self.catalog.db_schema(name).ok_or_else(|| {
             DataFusionError::External(Box::new(QueryExecutorError::DatabaseNotFound {
                 db_name: name.into(),
@@ -442,6 +445,7 @@ impl QueryDatabase for QueryExecutorImpl {
                 Arc::clone(&self.write_buffer),
                 Arc::clone(&self.sys_events_store),
                 Arc::clone(&self.write_buffer.catalog()),
+                self.started_with_auth,
             ),
         ));
         Ok(Some(Arc::new(Database::new(CreateDatabaseArgs {
@@ -793,6 +797,7 @@ mod tests {
 
     pub(crate) async fn setup(
         query_file_limit: Option<usize>,
+        started_with_auth: bool,
     ) -> (
         Arc<dyn WriteBuffer>,
         QueryExecutorImpl,
@@ -871,6 +876,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store,
             sys_events_store: Arc::clone(&sys_events_store),
+            started_with_auth,
         });
 
         (
@@ -883,7 +889,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn system_parquet_files_success() {
-        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
+        let (write_buffer, query_executor, time_provider, _) = setup(None, true).await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -995,7 +1001,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn query_file_limits_default() {
-        let (write_buffer, query_executor, time_provider, _) = setup(None).await;
+        let (write_buffer, query_executor, time_provider, _) = setup(None, true).await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -1111,7 +1117,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn query_file_limits_configured() {
-        let (write_buffer, query_executor, time_provider, _) = setup(Some(3)).await;
+        let (write_buffer, query_executor, time_provider, _) = setup(Some(3), true).await;
         // Perform some writes to multiple tables
         let db_name = "test_db";
         // perform writes over time to generate WAL files and some snapshots
@@ -1227,7 +1233,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_token_permissions_sys_table_query_wrong_db_name() {
-        let (write_buffer, query_exec, _, _) = setup(None).await;
+        let (write_buffer, query_exec, _, _) = setup(None, true).await;
         write_buffer
             .write_lp(
                 NamespaceName::new("foo").unwrap(),
@@ -1261,7 +1267,7 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn test_token_permissions_sys_table_query_with_admin_token() {
-        let (write_buffer, query_exec, _, _) = setup(None).await;
+        let (write_buffer, query_exec, _, _) = setup(None, true).await;
 
         // create an admin token
         write_buffer
@@ -1287,5 +1293,65 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_token_permissions_sys_table_query_with_auth() {
+        let (write_buffer, query_exec, _, _) = setup(None, true).await;
+
+        // create an admin token
+        write_buffer
+            .catalog()
+            .create_admin_token(false)
+            .await
+            .unwrap();
+
+        let query = "select * FROM system.tokens";
+
+        let stream = query_exec
+            .query_sql("_internal", query, None, None, None)
+            .await
+            .unwrap();
+        let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
+        // schema should contain hash when started with auth
+        for batch in batches {
+            assert!(
+                batch
+                    .schema()
+                    .fields
+                    .iter()
+                    .any(|field| field.name() == "hash")
+            );
+        }
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test_token_permissions_sys_table_query_without_auth() {
+        let (write_buffer, query_exec, _, _) = setup(None, false).await;
+
+        // create an admin token
+        write_buffer
+            .catalog()
+            .create_admin_token(false)
+            .await
+            .unwrap();
+
+        let query = "select * FROM system.tokens";
+
+        let stream = query_exec
+            .query_sql("_internal", query, None, None, None)
+            .await
+            .unwrap();
+        let batches: Vec<RecordBatch> = stream.try_collect().await.unwrap();
+        // schema should _not_ contain hash when started without auth
+        for batch in batches {
+            assert!(
+                !batch
+                    .schema()
+                    .fields
+                    .iter()
+                    .any(|field| field.name() == "hash")
+            );
+        }
     }
 }

@@ -13,13 +13,15 @@ use tonic::async_trait;
 pub(crate) struct TokenSystemTable {
     catalog: Arc<Catalog>,
     schema: SchemaRef,
+    started_with_auth: bool,
 }
 
 impl TokenSystemTable {
-    pub(crate) fn new(catalog: Arc<Catalog>) -> Self {
+    pub(crate) fn new(catalog: Arc<Catalog>, started_with_auth: bool) -> Self {
         Self {
             catalog,
-            schema: table_schema(),
+            schema: table_schema(started_with_auth),
+            started_with_auth,
         }
     }
 }
@@ -36,12 +38,12 @@ impl IoxSystemTable for TokenSystemTable {
         _limit: Option<usize>,
     ) -> Result<RecordBatch, DataFusionError> {
         let results = self.catalog.get_tokens();
-        to_record_batch(&self.schema, results)
+        to_record_batch(&self.schema, results, self.started_with_auth)
     }
 }
 
-fn table_schema() -> SchemaRef {
-    let columns = vec![
+fn table_schema(started_with_auth: bool) -> SchemaRef {
+    let fields = &[
         Field::new("token_id", DataType::UInt64, false),
         Field::new("name", DataType::Utf8View, false),
         Field::new("hash", DataType::Utf8View, false),
@@ -65,12 +67,22 @@ fn table_schema() -> SchemaRef {
         ),
         Field::new("permissions", DataType::Utf8View, false),
     ];
-    Arc::new(Schema::new(columns))
+
+    let mut all_fields = vec![];
+    for field in fields {
+        if field.name() == "hash" && !started_with_auth {
+            continue;
+        }
+        all_fields.push(field.clone());
+    }
+
+    Arc::new(Schema::new(all_fields))
 }
 
 fn to_record_batch(
     schema: &SchemaRef,
     tokens: Vec<Arc<TokenInfo>>,
+    started_with_auth: bool,
 ) -> Result<RecordBatch, DataFusionError> {
     let mut id_arr = UInt64Builder::with_capacity(tokens.len());
     let mut name_arr = StringViewBuilder::with_capacity(tokens.len());
@@ -86,7 +98,10 @@ fn to_record_batch(
     for token in &tokens {
         id_arr.append_value(token.id.get());
         name_arr.append_value(&token.name);
-        hash_arr.append_value(hex::encode(&token.hash));
+
+        if started_with_auth {
+            hash_arr.append_value(hex::encode(&token.hash));
+        }
         created_at_arr.append_value(token.created_at);
         if token.description.is_some() {
             description_arr.append_value(token.description.clone().unwrap());
@@ -125,17 +140,56 @@ fn to_record_batch(
         permissions_arr.append_value(permissions_str);
     }
 
-    let columns: Vec<ArrayRef> = vec![
-        Arc::new(id_arr.finish()),
-        Arc::new(name_arr.finish()),
-        Arc::new(hash_arr.finish()),
-        Arc::new(created_at_arr.finish()),
-        Arc::new(description_arr.finish()),
-        Arc::new(created_by_arr.finish()),
-        Arc::new(updated_at_arr.finish()),
-        Arc::new(updated_by_arr.finish()),
-        Arc::new(expiry_arr.finish()),
-        Arc::new(permissions_arr.finish()),
-    ];
-    Ok(RecordBatch::try_new(Arc::clone(schema), columns)?)
+    if started_with_auth {
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(id_arr.finish()),
+            Arc::new(name_arr.finish()),
+            Arc::new(hash_arr.finish()),
+            Arc::new(created_at_arr.finish()),
+            Arc::new(description_arr.finish()),
+            Arc::new(created_by_arr.finish()),
+            Arc::new(updated_at_arr.finish()),
+            Arc::new(updated_by_arr.finish()),
+            Arc::new(expiry_arr.finish()),
+            Arc::new(permissions_arr.finish()),
+        ];
+        Ok(RecordBatch::try_new(Arc::clone(schema), columns)?)
+    } else {
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(id_arr.finish()),
+            Arc::new(name_arr.finish()),
+            Arc::new(created_at_arr.finish()),
+            Arc::new(description_arr.finish()),
+            Arc::new(created_by_arr.finish()),
+            Arc::new(updated_at_arr.finish()),
+            Arc::new(updated_by_arr.finish()),
+            Arc::new(expiry_arr.finish()),
+            Arc::new(permissions_arr.finish()),
+        ];
+        Ok(RecordBatch::try_new(Arc::clone(schema), columns)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::table_schema;
+
+    #[test]
+    fn test_schema_with_auth() {
+        let schema = table_schema(true);
+        // should have at least one field with name "hash"
+        assert_eq!(schema.fields().iter().len(), 10);
+        assert!(schema.fields.iter().any(|field| field.name() == "hash"));
+    }
+
+    #[test]
+    fn test_schema_without_auth() {
+        let schema = table_schema(false);
+        // no field should have name "hash"
+        assert_eq!(schema.fields().iter().len(), 9);
+        schema
+            .fields
+            .iter()
+            .for_each(|field| assert!(field.name() != "hash"));
+    }
 }

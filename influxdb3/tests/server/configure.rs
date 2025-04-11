@@ -1401,3 +1401,27 @@ async fn api_v3_configure_token_delete() {
     info!(?json, "test: result running the token delete");
     assert_eq!(json.id, 2);
 }
+
+#[test_log::test(tokio::test)]
+async fn test_token_paths_are_not_allowed_when_starting_without_auth() {
+    let server = TestServer::spawn().await;
+    let client = server.http_client();
+    let create_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+
+    let regenerate_url = format!(
+        "{base}/api/v3/configure/token/admin",
+        base = server.client_addr()
+    );
+
+    let delete_url = format!("{base}/api/v3/configure/token", base = server.client_addr());
+
+    for url in &[create_url, regenerate_url] {
+        let result = client.post(url).send().await.unwrap();
+        assert_eq!(result.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+    let result = client.delete(delete_url).send().await.unwrap();
+    assert_eq!(result.status(), StatusCode::METHOD_NOT_ALLOWED);
+}

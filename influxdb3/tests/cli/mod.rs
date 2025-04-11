@@ -2870,7 +2870,11 @@ async fn test_wal_overwritten() {
 
 #[test_log::test(tokio::test)]
 async fn test_create_admin_token() {
-    let server = TestServer::spawn().await;
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
     let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
     let result = server
         .run(vec!["create", "token", "--admin"], args)
@@ -2881,7 +2885,11 @@ async fn test_create_admin_token() {
 
 #[test_log::test(tokio::test)]
 async fn test_create_admin_token_allowed_once() {
-    let server = TestServer::spawn().await;
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
     let args = &["--tls-ca", "../testing-certs/rootCA.pem"];
     let result = server
         .run(vec!["create", "token", "--admin"], args)
@@ -2940,7 +2948,11 @@ async fn test_regenerate_admin_token() {
 
 #[test_log::test(tokio::test)]
 async fn test_delete_token() {
-    let server = TestServer::spawn().await;
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
     let args = &[];
     let result = server
         .run(

@@ -651,6 +651,8 @@ pub async fn command(config: Config) -> Result<()> {
         query_log_size: config.query_log_size,
         telemetry_store: Arc::clone(&telemetry_store),
         sys_events_store: Arc::clone(&sys_events_store),
+        // convert to positive here so that we can avoid double negatives downstream
+        started_with_auth: !config.without_auth,
     }));
 
     let listener = TcpListener::bind(*config.http_bind_address)
@@ -715,7 +717,13 @@ pub async fn command(config: Config) -> Result<()> {
 
     // Create the FusedFutures that will be waited on before exiting the process
     let signal = wait_for_signal().fuse();
-    let frontend = serve(server, frontend_shutdown.clone(), startup_timer).fuse();
+    let frontend = serve(
+        server,
+        frontend_shutdown.clone(),
+        startup_timer,
+        config.without_auth,
+    )
+    .fuse();
     let backend = shutdown_manager.join().fuse();
 
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
