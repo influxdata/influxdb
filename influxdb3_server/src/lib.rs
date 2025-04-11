@@ -139,6 +139,7 @@ pub async fn serve(
     server: Server,
     shutdown: CancellationToken,
     startup_timer: Instant,
+    without_auth: bool,
 ) -> Result<()> {
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
@@ -160,7 +161,7 @@ pub async fn serve(
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req)
+                route_request(Arc::clone(&http_server), req, without_auth)
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -210,7 +211,7 @@ pub async fn serve(
         let rest_service = hyper::service::make_service_fn(|_| {
             let http_server = Arc::clone(&server.http);
             let service = service_fn(move |req: hyper::Request<hyper::Body>| {
-                route_request(Arc::clone(&http_server), req)
+                route_request(Arc::clone(&http_server), req, without_auth)
             });
             let service = trace_layer.layer(service);
             futures::future::ready(Ok::<_, Infallible>(service))
@@ -866,6 +867,7 @@ mod tests {
             query_log_size: 10,
             telemetry_store: Arc::clone(&sample_telem_store),
             sys_events_store: Arc::clone(&sys_events_store),
+            started_with_auth: false,
         }));
 
         // bind to port 0 will assign a random available port:
@@ -902,7 +904,9 @@ mod tests {
             .await;
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(async move { serve(server, frontend_shutdown, server_start_time).await });
+        tokio::spawn(
+            async move { serve(server, frontend_shutdown, server_start_time, false).await },
+        );
 
         (format!("http://{addr}"), shutdown, write_buffer)
     }

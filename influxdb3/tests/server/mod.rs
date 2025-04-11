@@ -37,6 +37,9 @@ pub trait ConfigProvider {
     /// Get if auth is enabled
     fn auth_enabled(&self) -> bool;
 
+    /// Get if admin token needs to be generated
+    fn should_generate_admin_token(&self) -> bool;
+
     /// Spawn a new [`TestServer`] with this configuration
     ///
     /// This will run the `influxdb3 serve` command and bind its HTTP address to a random port
@@ -54,6 +57,7 @@ pub trait ConfigProvider {
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
     auth: bool,
+    without_admin_token: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
     virtual_env_dir: Option<String>,
@@ -73,9 +77,15 @@ impl TestConfig {
         self
     }
 
-    /// Set the auth token for this [`TestServer`]
+    /// Set the auth (setting this will auto generate admin token)
     pub fn with_auth(mut self) -> Self {
         self.auth = true;
+        self
+    }
+
+    /// Set the auth token for this [`TestServer`]
+    pub fn with_no_admin_token(mut self) -> Self {
+        self.without_admin_token = true;
         self
     }
 
@@ -112,14 +122,10 @@ impl TestConfig {
 impl ConfigProvider for TestConfig {
     fn as_args(&self) -> Vec<String> {
         let mut args = vec![];
-        if let Some((token, _)) = &self.auth_token {
-            // TODO: --bearer-token will be deprecated soon
-            args.append(&mut vec!["--bearer-token".to_string(), token.to_owned()]);
+        if !self.auth {
+            args.append(&mut vec!["--without-auth".to_string()]);
         }
-        if self.auth {
-            // TODO: --bearer-token will be deprecated soon
-            args.append(&mut vec!["--bearer-token".to_string(), "foo".to_string()]);
-        }
+
         if let Some(plugin_dir) = &self.plugin_dir {
             args.append(&mut vec!["--plugin-dir".to_string(), plugin_dir.to_owned()]);
         }
@@ -163,6 +169,10 @@ impl ConfigProvider for TestConfig {
 
     fn auth_enabled(&self) -> bool {
         self.auth
+    }
+
+    fn should_generate_admin_token(&self) -> bool {
+        self.without_admin_token
     }
 }
 
@@ -272,7 +282,8 @@ impl TestServer {
 
         server.wait_until_ready().await;
 
-        let (mut server, token) = if config.auth_enabled() {
+        let (mut server, token) = if config.auth_enabled() && !config.should_generate_admin_token()
+        {
             let result = server
                 .run(
                     vec!["create", "token", "--admin"],

@@ -651,7 +651,6 @@ impl HttpApi {
         } = self.extract_query_request::<Option<String>>(req).await?;
 
         info!(?database, %query_str, ?format, "handling query_influxql");
-
         let (stream, _) = self
             .query_influxql_inner(database, &query_str, params)
             .await?;
@@ -1672,10 +1671,18 @@ async fn record_batch_stream_to_body(
 pub(crate) async fn route_request(
     http_server: Arc<HttpApi>,
     mut req: Request<Body>,
+    started_without_auth: bool,
 ) -> Result<Response<Body>, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
+    if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
+        return Ok(Response::builder()
+            .status(StatusCode::METHOD_NOT_ALLOWED)
+            .body("".into())
+            .unwrap());
+    }
 
+    // admin token creation
     if uri.path() != all_paths::API_V3_CONFIGURE_ADMIN_TOKEN {
         trace!(?uri, "authenticating request");
         if let Some(authentication_error) = authenticate(&http_server, &mut req).await {

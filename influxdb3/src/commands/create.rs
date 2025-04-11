@@ -374,17 +374,13 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             match handle_token_creation(client, token_commands).await {
                 Ok(response) => {
                     println!(
-                        "\
+                        "\n\
                         Token: {token}\n\
-                        Hashed Token: {hashed}\n\n\
-                        Start the server with the Hashed Token provided as the `--bearer-token` argument:\n\n
-                        `influxdb3 serve --bearer-token {hashed} --node-id <NODE_ID> [OPTIONS]`\n\n\
+                            \n\
                         HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
-                        This will grant you access to every HTTP endpoint or deny it otherwise.
+                        This will grant you access to HTTP/GRPC API.
                     ",
                         token = response.token,
-                        hashed = response.hash,
-
                     );
                 }
                 Err(err) => {
