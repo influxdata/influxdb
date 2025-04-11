@@ -903,13 +903,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(Some(batch)) => Response::builder()
+            Ok(batch) => Response::builder()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
@@ -961,13 +957,9 @@ impl HttpApi {
             )
             .await
         {
-            Ok(Some(batch)) => Response::builder()
+            Ok(batch) => Response::builder()
                 .status(StatusCode::CREATED)
                 .body(Body::from(serde_json::to_vec(&batch)?))
-                .map_err(Into::into),
-            Ok(None) => Response::builder()
-                .status(StatusCode::NO_CONTENT)
-                .body(Body::empty())
                 .map_err(Into::into),
             Err(error) => Err(error.into()),
         }
