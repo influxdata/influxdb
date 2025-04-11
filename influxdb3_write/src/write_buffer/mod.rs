@@ -693,7 +693,7 @@ mod tests {
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let catalog = Arc::new(
-            Catalog::new(node_id, obj_store, time_provider)
+            Catalog::new(node_id, obj_store, time_provider, Default::default())
                 .await
                 .unwrap(),
         );
@@ -740,7 +740,7 @@ mod tests {
         let obj_store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
         let catalog = Arc::new(
-            Catalog::new("test_host", obj_store, time_provider)
+            Catalog::new("test_host", obj_store, time_provider, Default::default())
                 .await
                 .unwrap(),
         );
@@ -854,6 +854,7 @@ mod tests {
                 "test_host",
                 catalog.object_store(),
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),
@@ -945,6 +946,7 @@ mod tests {
                     "test_host",
                     Arc::clone(&obj_store),
                     Arc::clone(&time_provider),
+                    Default::default(),
                 )
                 .await
                 .unwrap(),
@@ -1203,6 +1205,7 @@ mod tests {
                 "test_host",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),
@@ -3144,6 +3147,7 @@ mod tests {
                 "test_host",
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),

@@ -981,6 +981,7 @@ mod tests {
                 "test_host",
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider),
+                Default::default(),
             )
             .await
             .unwrap(),

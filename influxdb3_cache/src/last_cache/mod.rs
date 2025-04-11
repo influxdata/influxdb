@@ -1180,6 +1180,7 @@ mod tests {
                 node_id,
                 Arc::clone(&obj_store) as _,
                 Arc::new(MockProvider::new(Time::from_timestamp_nanos(0))),
+                Default::default(),
             )
             .await
             .unwrap(),

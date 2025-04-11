@@ -15,6 +15,8 @@ use influxdb3_id::{
 };
 use influxdb3_shutdown::ShutdownToken;
 use iox_time::{Time, TimeProvider};
+use metric::Registry;
+use metrics::CatalogMetrics;
 use object_store::ObjectStore;
 use observability_deps::tracing::{debug, error, info, trace, warn};
 use parking_lot::RwLock;
@@ -32,6 +34,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
+mod metrics;
 mod update;
 pub use schema::{InfluxColumnType, InfluxFieldType};
 pub use update::{CatalogUpdate, DatabaseCatalogTransaction, Prompt};
@@ -103,6 +106,7 @@ pub struct Catalog {
     time_provider: Arc<dyn TimeProvider>,
     /// Connection to the object store for managing persistence and updates to the catalog
     store: ObjectStoreCatalog,
+    metrics: Arc<CatalogMetrics>,
     /// In-memory representation of the catalog
     pub(crate) inner: RwLock<InnerCatalog>,
 }
@@ -132,11 +136,13 @@ impl Catalog {
         node_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
     ) -> Result<Self> {
         let node_id = node_id.into();
         let store =
             ObjectStoreCatalog::new(Arc::clone(&node_id), CATALOG_CHECKPOINT_INTERVAL, store);
         let subscriptions = Default::default();
+        let metrics = Arc::new(CatalogMetrics::new(&metric_registry));
         let mut catalog = store
             .load_or_create_catalog()
             .await
@@ -146,6 +152,7 @@ impl Catalog {
                 subscriptions,
                 time_provider,
                 store,
+                metrics,
                 inner,
             });
 
@@ -157,10 +164,12 @@ impl Catalog {
         node_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
         shutdown_token: ShutdownToken,
     ) -> Result<Arc<Self>> {
         let node_id = node_id.into();
-        let catalog = Arc::new(Self::new(Arc::clone(&node_id), store, time_provider).await?);
+        let catalog =
+            Arc::new(Self::new(Arc::clone(&node_id), store, time_provider, metric_registry).await?);
         let catalog_cloned = Arc::clone(&catalog);
         tokio::spawn(async move {
             shutdown_token.wait_for_shutdown().await;
@@ -223,6 +232,7 @@ impl Catalog {
         // will be the sequence number that the catalog is updated to.
         let mut permit = CATALOG_WRITE_PERMIT.lock().await;
         if sequence != self.sequence_number() {
+            self.metrics.catalog_operation_retries.inc(1);
             return Prompt::Retry(());
         }
         *permit = self.sequence_number().next();
@@ -500,7 +510,8 @@ impl Catalog {
 
         let store = Arc::new(InMemory::new());
         let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
-        Self::new(catalog_id.into(), store, time_provider).await
+        let metric_registry = Default::default();
+        Self::new(catalog_id.into(), store, time_provider, metric_registry).await
     }
 
     /// Create a new `Catalog` with the specified checkpoint interval
@@ -512,6 +523,7 @@ impl Catalog {
         catalog_id: impl Into<Arc<str>>,
         store: Arc<dyn ObjectStore>,
         time_provider: Arc<dyn TimeProvider>,
+        metric_registry: Arc<Registry>,
         checkpoint_interval: u64,
     ) -> Result<Self> {
         let store = ObjectStoreCatalog::new(catalog_id, checkpoint_interval, store);
@@ -522,6 +534,7 @@ impl Catalog {
             subscriptions,
             time_provider,
             store,
+            metrics: Arc::new(CatalogMetrics::new(&metric_registry)),
             inner: RwLock::new(inner),
         })
     }
@@ -2385,6 +2398,7 @@ mod tests {
                 "test",
                 Arc::clone(&local_disk) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap()
@@ -2431,6 +2445,7 @@ mod tests {
                 "test",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
                 10,
             )
             .await
@@ -2488,6 +2503,7 @@ mod tests {
                 "test",
                 Arc::clone(&obj_store) as _,
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap()

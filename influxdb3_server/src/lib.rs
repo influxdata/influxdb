@@ -813,6 +813,7 @@ mod tests {
                 sample_node_id,
                 Arc::clone(&object_store),
                 Arc::clone(&time_provider) as _,
+                Default::default(),
             )
             .await
             .unwrap(),
