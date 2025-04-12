@@ -2921,7 +2921,7 @@ async fn test_regenerate_admin_token() {
 
     // regenerating token is allowed
     let result = server
-        .run(
+        .run_with_confirmation(
             vec!["create", "token", "--admin"],
             &["--regenerate", "--tls-ca", "../testing-certs/rootCA.pem"],
         )
