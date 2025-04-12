@@ -89,9 +89,10 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 	pr.AddPoint("cpu", -2.0, time.Now().Add(-time.Minute*20), nil)
 
 	values := []float64{0.0, 1.0, -1.0}
-	dropped := []float64{2.0, -2.0}
 
-	MapPoints(t, c, pr, values, dropped)
+	MapPoints(t, c, pr, values, 2,
+		&coordinator.DroppedPoint{Point: pr.Points[4], Reason: coordinator.WriteWindowLowerBound},
+		&coordinator.DroppedPoint{Point: pr.Points[2], Reason: coordinator.WriteWindowUpperBound})
 
 	// Clear the write limits by setting them to zero
 	// No points should be dropped
@@ -106,11 +107,10 @@ func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
 	}
 	require.NoError(t, meta.ApplyRetentionUpdate(rpu, rp), "ApplyRetentionUpdate failed")
 	values = []float64{0.0, 1.0, 2.0, -1.0, -2.0}
-	dropped = []float64{}
-	MapPoints(t, c, pr, values, dropped)
+	MapPoints(t, c, pr, values, 0, nil, nil)
 }
 
-func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WritePointsRequest, values []float64, dropped []float64) {
+func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WritePointsRequest, values []float64, droppedCount int, minDropped *coordinator.DroppedPoint, maxDropped *coordinator.DroppedPoint) {
 	var (
 		shardMappings *coordinator.ShardMapping
 		err           error
@@ -141,7 +141,13 @@ func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WriteP
 			}
 		}
 	verify(p, values)
-	verify(shardMappings.Dropped, dropped)
+	require.Equal(t, shardMappings.CountDropped, droppedCount, "wrong number of points dropped")
+	if shardMappings.CountDropped > 0 {
+		require.Equal(t, minDropped.Point, shardMappings.MinDropped.Point, "minimum dropped point mismatch")
+		require.Equal(t, minDropped.Reason, shardMappings.MinDropped.Reason, "minimum dropped reason mismatch")
+		require.Equal(t, maxDropped.Point, shardMappings.MaxDropped.Point, "maximum dropped point mismatch")
+		require.Equal(t, maxDropped.Reason, shardMappings.MaxDropped.Reason, "maximum dropped reason mismatch")
+	}
 }
 
 // Ensures the points writer maps to a new shard group when the shard duration
@@ -332,7 +338,7 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(shardMappings.Dropped), 1; got != exp {
+	if got, exp := shardMappings.CountDropped, 1; got != exp {
 		t.Fatalf("MapShard() dropped mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -475,7 +481,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	sm := coordinator.NewShardMapping(16)
 
 	// ShardMapper dropped this point
-	sm.Dropped = append(sm.Dropped, pr.Points[0])
+	sm.AddDropped(pr.Points[0], time.Time{}, coordinator.RetentionPolicyBound)
 
 	// Local coordinator.Node ShardWriter
 	// lock on the write increment since these functions get called in parallel
