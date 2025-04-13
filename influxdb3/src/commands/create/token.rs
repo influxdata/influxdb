@@ -1,4 +1,4 @@
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, io, path::PathBuf};
 
 use clap::Parser;
 use influxdb3_client::Client;
@@ -58,10 +58,17 @@ pub(crate) async fn handle_admin_token_creation(
     config: AdminTokenConfig,
 ) -> Result<CreateTokenWithPermissionsResponse, Box<dyn Error>> {
     let json_body = if config.regenerate {
-        client
-            .api_v3_configure_regenerate_admin_token()
-            .await?
-            .expect("token creation to return full token info")
+        println!("Are you sure you want to regenerate admin token? Enter 'yes' to confirm",);
+        let mut confirmation = String::new();
+        let _ = io::stdin().read_line(&mut confirmation);
+        if confirmation.trim() == "yes" {
+            client
+                .api_v3_configure_regenerate_admin_token()
+                .await?
+                .expect("token creation to return full token info")
+        } else {
+            return Err("Cannot regenerate token without confirmation".into());
+        }
     } else {
         client
             .api_v3_configure_create_admin_token()

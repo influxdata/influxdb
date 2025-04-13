@@ -578,7 +578,8 @@ pub async fn write_lp_to_db(
 pub fn parse_token(result: String) -> String {
     let all_lines: Vec<&str> = result.split('\n').collect();
     let token = all_lines
-        .first()
+        .iter()
+        .find(|line| line.starts_with("Token:"))
         .expect("token line to be present")
         .replace("Token: ", "");
     token
