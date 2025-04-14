@@ -13,11 +13,11 @@ Examples
   3. Write and query with unhashed token
 
 
-{} [OPTIONS] --node-id <node-idENTIFIER_PREFIX>
+{} [OPTIONS] --node-id <NODE_IDENTIFIER_PREFIX>
 
 {}
   --node-id <node-id>              Node identifier used as prefix in object store file paths
-                                  [env: INFLUXDB3_node-idENTIFIER_PREFIX=]
+                                  [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
   --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory.
                                   [env: INFLUXDB3_OBJECT_STORE=]
                                   [possible values: memory, memory-throttled, file, s3, google, azure]
