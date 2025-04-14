@@ -1,7 +1,7 @@
 Run the InfluxDB 3 Core server
 
 Examples:
-  # Run with local memory storage:
+  # Run with local file storage:
   1. influxdb3 serve --node-id node1 --object-store file --data-dir ~/.influxdb_data
   2. influxdb3 create token --admin
   3. Write and query with unhashed token
@@ -15,7 +15,7 @@ Examples:
 {} [OPTIONS] --node-id <NODE_IDENTIFIER_PREFIX>
 
 {}
-  --node-id <node-id>              Node identifier used as prefix in object store file paths
+  --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
                                   [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
 
 {}
@@ -184,4 +184,4 @@ Examples:
   -h, --help                       Print help information
   --help-all                       Show all available options
 
-For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/core/
+For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/influxdb3/core/

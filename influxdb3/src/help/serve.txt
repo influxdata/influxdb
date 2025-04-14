@@ -16,7 +16,7 @@ Examples
 {} [OPTIONS] --node-id <NODE_IDENTIFIER_PREFIX>
 
 {}
-  --node-id <node-id>              Node identifier used as prefix in object store file paths
+  --node-id <NODE_ID>              Node identifier used as prefix in object store file paths
                                   [env: INFLUXDB3_NODE_IDENTIFIER_PREFIX=]
   --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory.
                                   [env: INFLUXDB3_OBJECT_STORE=]
@@ -59,4 +59,4 @@ Examples
 For performance tuning, advanced storage options and other settings,
 use --help-all flag.
 
-For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/core/
+For more help on how to use InfluxDB 3 Core, go to https://docs.influxdata.com/influxdb3/core/
