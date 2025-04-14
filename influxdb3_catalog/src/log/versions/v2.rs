@@ -196,6 +196,14 @@ pub enum NodeMode {
     Core,
 }
 
+impl std::fmt::Display for NodeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeMode::Core => write!(f, "core"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CreateDatabaseLog {
     pub database_id: DbId,

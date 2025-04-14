@@ -256,12 +256,12 @@ impl ProcessingEngineManagerImpl {
     pub async fn validate_plugin_filename<'a>(
         &self,
         name: &'a str,
-    ) -> Result<ValidPluginFilename<'a>, plugins::PluginError> {
+    ) -> Result<ValidPluginFilename<'a>, PluginError> {
         let _ = self.read_plugin_code(name).await?;
         Ok(ValidPluginFilename::from_validated_name(name))
     }
 
-    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, plugins::PluginError> {
+    pub async fn read_plugin_code(&self, name: &str) -> Result<PluginCode, PluginError> {
         // if the name starts with gh: then we need to get it from the public github repo at https://github.com/influxdata/influxdb3_plugins/tree/main
         if name.starts_with("gh:") {
             let plugin_path = name.strip_prefix("gh:").unwrap();
@@ -290,7 +290,7 @@ impl ProcessingEngineManagerImpl {
             .environment_manager
             .plugin_dir
             .clone()
-            .context("plugin dir not set")?;
+            .ok_or(PluginError::NoPluginDir)?;
         let plugin_path = plugin_dir.join(name);
 
         // read it at least once to make sure it's there
