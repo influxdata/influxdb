@@ -1,6 +1,7 @@
 package coordinator_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
@@ -341,6 +342,8 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 	if got, exp := shardMappings.CountDropped, 1; got != exp {
 		t.Fatalf("MapShard() dropped mismatch: got %v, exp %v", got, exp)
 	}
+
+	require.Equal(t, coordinator.RetentionPolicyBound, shardMappings.MinDropped.Reason, "unexpected reason for dropped point")
 }
 
 func TestPointsWriter_WritePoints(t *testing.T) {
@@ -473,15 +476,8 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	// are created.
 	ms := NewPointsWriterMetaClient()
 
-	// Three points that range over the shardGroup duration (1h) and should map to two
-	// distinct shards
+	// Add a point earlier than the retention period
 	pr.AddPoint("cpu", 1.0, time.Now().Add(-24*time.Hour), nil)
-
-	// copy to prevent data race
-	sm := coordinator.NewShardMapping(16)
-
-	// ShardMapper dropped this point
-	sm.AddDropped(pr.Points[0], time.Time{}, coordinator.RetentionPolicyBound)
 
 	// Local coordinator.Node ShardWriter
 	// lock on the write increment since these functions get called in parallel
@@ -512,13 +508,20 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.Subscriber = sub
 	c.Node = &influxdb.Node{ID: 1}
 
-	c.Open()
-	defer c.Close()
+	require.NoError(t, c.Open(), "failure opening PointsWriter")
+	defer func(pw *coordinator.PointsWriter) {
+		require.NoError(t, pw.Close(), "failure closing PointsWriter")
+	}(c)
 
 	err := c.WritePointsPrivileged(tsdb.WriteContext{}, pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
-	if _, ok := err.(tsdb.PartialWriteError); !ok {
+	require.Error(t, err, "unexpected success writing points")
+	var pwErr tsdb.PartialWriteError
+	if !errors.As(err, &pwErr) {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
+	require.Equal(t, 1, pwErr.Dropped, "wrong number of points dropped")
+	require.ErrorContains(t, pwErr, "dropped 1 points outside retention policy or write window")
+	require.ErrorContains(t, pwErr, "Retention Policy Lower Bound")
 }
 
 type fakePointsWriter struct {

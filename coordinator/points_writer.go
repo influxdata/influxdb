@@ -126,7 +126,7 @@ type DroppedPoint struct {
 }
 
 func (d *DroppedPoint) String() string {
-	return fmt.Sprintf("point %s at %s dropped because it violates a %s at %s", d.Point.Key(), d.Point.Time(), d.Reason.String(), d.ViolatedBound)
+	return fmt.Sprintf("point %s at %s dropped because it violates a %s at %s", d.Point.Key(), d.Point.Time().UTC().Format(time.RFC3339Nano), d.Reason.String(), d.ViolatedBound.UTC().Format(time.RFC3339Nano))
 }
 
 // ShardMapping contains a mapping of shards to points.
