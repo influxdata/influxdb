@@ -2,11 +2,15 @@ Run the InfluxDB 3 Core server
 
 Examples
   # Run with local file storage:
-  influxdb3 serve --node-id node1 --object-store file --data-dir ~/.influxdb_data
+  1. influxdb3 serve --node-id node1 --object-store file --data-dir ~/.influxdb_data
+  2. influxdb3 create token --admin
+  3. Write and query with unhashed token
 
   # Run with AWS S3:
-  influxdb3 serve --node-id node1 --object-store s3 --bucket influxdb-data \
+  1. influxdb3 serve --node-id node1 --object-store s3 --bucket influxdb-data \
     --aws-access-key-id KEY --aws-secret-access-key SECRET
+  2. influxdb3 create token --admin
+  3. Write and query with unhashed token
 
 
 {} [OPTIONS] --node-id <node-idENTIFIER_PREFIX>
@@ -14,14 +18,15 @@ Examples
 {}
   --node-id <node-id>              Node identifier used as prefix in object store file paths
                                   [env: INFLUXDB3_node-idENTIFIER_PREFIX=]
-  --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory. 
-                                  [env: INFLUXDB3_OBJECT_STORE=] 
+  --object-store <OBJECT_STORE>    Which object storage to use. If not specified, defaults to memory.
+                                  [env: INFLUXDB3_OBJECT_STORE=]
                                   [possible values: memory, memory-throttled, file, s3, google, azure]
 
 {}
   --http-bind <ADDR>               Address for HTTP API requests [default: 0.0.0.0:8181]
                                   [env: INFLUXDB3_HTTP_BIND_ADDR=]
   --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
+  --without-auth                   Run InfluxDB 3 server without authorization
 
 {}
   --object-store <STORE>           Object storage to use [default: memory]
