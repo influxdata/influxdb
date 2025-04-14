@@ -84,6 +84,9 @@ pub enum PluginError {
 
     #[error("Join error, please report: {0}")]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Node not configured with plugin directory")]
+    NoPluginDir,
 }
 
 pub(crate) fn run_wal_contents_plugin(
