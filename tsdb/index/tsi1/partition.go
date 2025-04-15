@@ -360,7 +360,7 @@ func (p *Partition) Wait() {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		if p.CurrentCompactionN() == 0 {
+		if p.CurrentCompactionN() <= 0 {
 			return
 		}
 		<-ticker.C
@@ -1043,11 +1043,13 @@ func (p *Partition) compact() {
 			p.currentCompactionN++
 			go func() {
 				p.compactLogFile(logFile)
-				p.mu.Lock()
-				p.currentCompactionN--
-				p.levelCompacting[0] = false
-				p.mu.Unlock()
-				p.Compact()
+				defer func() {
+					p.mu.Lock()
+					p.currentCompactionN--
+					p.levelCompacting[0] = false
+					p.mu.Unlock()
+					p.Compact()
+				}()
 			}()
 		}
 	}
@@ -1085,14 +1087,13 @@ func (p *Partition) compact() {
 				// Compact to a new level.
 				p.compactToLevel(files, level+1, interrupt)
 
-				// Ensure compaction lock for the level is released.
-				p.mu.Lock()
-				p.levelCompacting[level] = false
-				p.currentCompactionN--
-				p.mu.Unlock()
-
-				// Check for new compactions
-				p.Compact()
+				defer func() {
+					p.mu.Lock()
+					p.levelCompacting[level] = false
+					p.currentCompactionN--
+					p.mu.Unlock()
+					p.Compact()
+				}()
 			}()
 		}(files, level)
 	}
