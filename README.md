@@ -33,22 +33,12 @@ InfluxDB 3 Core’s feature highlights include:
 
 ## Project Status
 
-InfluxDB 3 Core is in public beta and available for testing and feedback, but is not meant for 
-production use. During the beta period we will be adding a couple of security and operational 
-features to Enterprise. Otherwise, we will be focused on testing, robustness, performance, and 
-operational tooling. Both the product and this documentation are works in progress. New builds get created on 
-every merge into main, however we will have weekly beta builds along with a changelog for uses 
-that want to move at a slower pace.
-
-All of the APIs outside of the processing engine can be considered stable. They are what we will GA the 3.0 
-version with. We will also not be making any changes to file formats that don't also come with an in-place 
-upgrade path. This means that you will be able to keep the data in the database when upgrading beta versions 
-and into the GA. We anticpate the general availability of InfluxDB 3 Core in April 2025.
+InfluxDB 3 Core is GA as of April 15, 2025! We plan to have monthly point releases for the following six months, with patch releases as needed. We will move to a quarterly cadence after that for 3-4 releases, after which we'll reevaluate our release schedule.
 
 We welcome and encourage your input about your experience with the beta. Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) 
 or the public channels below.
 
-See the [InfluxDB 3 beta release announcement here](https://www.influxdata.com/blog/influxdb3-open-source-public-beta/) 
+See the [InfluxDB 3 Core & Enterprise GA release announcement here](https://www.influxdata.com/blog/influxdb-3-oss-ga/) 
 or dig into the [InfluxDB 3 getting started guide here](https://docs.influxdata.com/influxdb3/core/get-started/).
 
 ## Learn InfluxDB
@@ -62,7 +52,8 @@ We have nightly and versioned Docker images, Debian packages, RPM packages, and 
 
 - For v1 installation, use the [main 1.x branch](https://github.com/influxdata/influxdb/tree/master-1.x) or [install InfluxDB OSS directly](https://docs.influxdata.com/influxdb/v1/introduction/install/#installing-influxdb-oss).
 - For v2 installation, use the [main 2.x branch](https://github.com/influxdata/influxdb/tree/main-2.x).
-- For InfluxDB 3 Core beta see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
+- For InfluxDB 3 Core see the [InfluxDB 3 Core getting started guide](https://docs.influxdata.com/influxdb3/core/get-started/).
+- For InfluxDB 3 Enterprise see the [InfluxDB 3 Enterprise getting started guide](https://docs.influxdata.com/influxdb3/enterprise/get-started/).
 
 If you are interested in building from source, see the [building from source](https://github.com/influxdata/influxdb/blob/main-2.x/CONTRIBUTING.md#building-from-source) guide for contributors.
 
