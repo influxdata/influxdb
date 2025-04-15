@@ -1042,7 +1042,6 @@ func (p *Partition) compact() {
 			p.levelCompacting[0] = true
 			p.currentCompactionN++
 			go func() {
-				p.compactLogFile(logFile)
 				defer func() {
 					p.mu.Lock()
 					p.currentCompactionN--
@@ -1050,6 +1049,7 @@ func (p *Partition) compact() {
 					p.mu.Unlock()
 					p.Compact()
 				}()
+				p.compactLogFile(logFile)
 			}()
 		}
 	}
@@ -1083,10 +1083,6 @@ func (p *Partition) compact() {
 			// Start compacting in a separate goroutine.
 			p.currentCompactionN++
 			go func() {
-
-				// Compact to a new level.
-				p.compactToLevel(files, level+1, interrupt)
-
 				defer func() {
 					p.mu.Lock()
 					p.levelCompacting[level] = false
@@ -1094,6 +1090,9 @@ func (p *Partition) compact() {
 					p.mu.Unlock()
 					p.Compact()
 				}()
+
+				// Compact to a new level.
+				p.compactToLevel(files, level+1, interrupt)
 			}()
 		}(files, level)
 	}
