@@ -35,8 +35,8 @@ InfluxDB 3 Core’s feature highlights include:
 
 InfluxDB 3 Core is GA as of April 15, 2025! We plan to have monthly point releases for the following six months, with patch releases as needed. We will move to a quarterly cadence after that for 3-4 releases, after which we'll reevaluate our release schedule.
 
-We welcome and encourage your input about your experience with the beta. Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) 
-or the public channels below.
+Join the [InfluxDB3 Discord](https://discord.gg/vZe2w2Ds8B) 
+or the public channels below to share your feedback, feature requests, and bug reports.
 
 See the [InfluxDB 3 Core & Enterprise GA release announcement here](https://www.influxdata.com/blog/influxdb-3-oss-ga/) 
 or dig into the [InfluxDB 3 getting started guide here](https://docs.influxdata.com/influxdb3/core/get-started/).
