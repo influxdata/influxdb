@@ -16,7 +16,7 @@ INSTALL_LOC=~/.influxdb
 BINARY_NAME="influxdb3"
 PORT=8181
 
-INFLUXDB_VERSION="3.0.0-0.beta.4"
+INFLUXDB_VERSION="3.0.0"
 EDITION="Core"
 EDITION_TAG="core"
 if [ "$1" = "enterprise" ]; then
