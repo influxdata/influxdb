@@ -220,9 +220,9 @@ pub struct DistinctCacheConfig {
 
 #[derive(Debug, clap::Args)]
 pub struct TableConfig {
-    #[clap(long = "tags", required = true, value_delimiter = ',')]
+    #[clap(long = "tags", value_delimiter = ',', num_args = 1..)]
     /// The list of tag names to be created for the table. Tags are alphanumeric, can contain - and _, and start with a letter or number
-    tags: Vec<String>,
+    tags: Option<Vec<String>>,
 
     #[clap(short = 'f', long = "fields", value_parser = parse_key_val::<String, DataType>, value_delimiter = ',')]
     /// The list of field names and their data type to be created for the table. Fields are alphanumeric, can contain - and _, and start with a letter or number
@@ -362,7 +362,12 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             ..
         }) => {
             client
-                .api_v3_configure_table_create(&database_name, &table_name, tags, fields)
+                .api_v3_configure_table_create(
+                    &database_name,
+                    &table_name,
+                    tags.unwrap_or_default(),
+                    fields,
+                )
                 .await?;
 
             println!(
