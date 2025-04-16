@@ -200,11 +200,11 @@ pub struct DistinctCacheConfig {
     columns: Vec<String>,
 
     /// The maximum number of distinct value combinations to hold in the cache
-    #[clap(long = "max-cardinality")]
+    #[clap(long = "max-cardinality", default_value = "100000")]
     max_cardinality: Option<NonZeroUsize>,
 
     /// The maximum age of an entry in the cache entered as a human-readable duration, e.g., "30d", "24h"
-    #[clap(long = "max-age")]
+    #[clap(long = "max-age", default_value = "1d")]
     max_age: Option<humantime::Duration>,
 
     /// Give the name of the cache.
