@@ -418,6 +418,48 @@ async fn test_create_table_fail_existing() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_create_table_tags_not_required() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let table_name = "bar";
+
+    // Create database
+    let result = server.create_database(db_name).run().unwrap();
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+
+    // Create table successfully
+    let result = server.create_table(db_name, table_name).run().unwrap();
+
+    assert_contains!(&result, "Table \"foo\".\"bar\" created successfully");
+}
+
+#[test_log::test(tokio::test)]
+async fn test_create_table_fail_empty_tags() {
+    let server = TestServer::spawn().await;
+    let db_name = "foo";
+    let table_name = "bar";
+
+    // Create database
+    let result = server.create_database(db_name).run().unwrap();
+    debug!(result = ?result, "create database");
+    assert_contains!(&result, "Database \"foo\" created successfully");
+
+    // Create table successfully
+    let result = server
+        .run(
+            vec!["create", "table"],
+            &["--database", db_name, table_name, "--tags"],
+        )
+        .unwrap_err();
+
+    assert_contains!(
+        result.to_string(),
+        "error: a value is required for '--tags <TAGS>...' but none was supplied"
+    );
+}
+
+#[test_log::test(tokio::test)]
 async fn test_delete_table() {
     let server = TestServer::spawn().await;
     let db_name = "foo";

@@ -152,11 +152,14 @@ impl CreateTableQuery<'_> {
             "--database",
             &self.db_name,
             &self.table_name,
-            "--tags",
-            &tags_arg,
             "--tls-ca",
             "../testing-certs/rootCA.pem",
         ];
+
+        if !self.tags.is_empty() {
+            args.push("--tags");
+            args.push(&tags_arg);
+        }
 
         if !self.fields.is_empty() {
             args.push("--fields");
