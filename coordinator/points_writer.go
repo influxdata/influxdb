@@ -160,9 +160,7 @@ func (s *ShardMapping) AddDropped(p models.Point, t time.Time, b BoundType) {
 	switch b {
 	case RetentionPolicyBound:
 		s.RetentionDropped++
-	case WriteWindowLowerBound:
-		s.WriteWindowDropped++
-	case WriteWindowUpperBound:
+	case WriteWindowLowerBound, WriteWindowUpperBound:
 		s.WriteWindowDropped++
 	}
 }
