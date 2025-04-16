@@ -351,7 +351,6 @@ jobs:
             SLACK_ARTIFACT_ROOT:        /tmp/workspace/packages
             SLACK_ARTIFACT_EXCLUDE_DIR: race
             SLACK_RELEASE_MESSAGE:      New InfluxDB Release
-e
 
 release_filter: &release_filter
   filters:
