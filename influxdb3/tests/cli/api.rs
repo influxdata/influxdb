@@ -122,11 +122,11 @@ impl CreateTableQuery<'_> {
 
     pub fn with_fields(
         mut self,
-        fields: impl IntoIterator<Item = (impl Into<String>, String)>,
+        fields: impl IntoIterator<Item = (impl Into<String>, impl Into<String>)>,
     ) -> Self {
         self.fields = fields
             .into_iter()
-            .map(|(name, dt)| (name.into(), dt))
+            .map(|(name, dt)| (name.into(), dt.into()))
             .collect();
         self
     }
