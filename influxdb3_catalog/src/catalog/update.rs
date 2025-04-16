@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::NodeDefinition,
+    catalog::{NUM_TAG_COLUMNS_LIMIT, NodeDefinition},
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
         DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
@@ -33,14 +33,16 @@ impl Catalog {
             Some(database_schema) => Ok(DatabaseCatalogTransaction {
                 catalog_sequence: inner.sequence_number(),
                 current_table_count: inner.table_count(),
+                table_limit: self.num_tables_limit(),
                 time_ns: self.time_provider.now().timestamp_nanos(),
                 database_schema: Arc::clone(&database_schema),
                 ops: vec![],
+                columns_per_table_limit: self.num_columns_per_table_limit(),
             }),
             None => {
                 let inner = self.inner.read();
-                if inner.database_count() >= Self::NUM_DBS_LIMIT {
-                    return Err(CatalogError::TooManyDbs);
+                if inner.database_count() >= self.num_dbs_limit() {
+                    return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
                 }
                 let database_id = inner.databases.next_id();
                 let database_name = Arc::from(db_name);
@@ -54,9 +56,11 @@ impl Catalog {
                 Ok(DatabaseCatalogTransaction {
                     catalog_sequence: inner.sequence_number(),
                     current_table_count: inner.table_count(),
+                    table_limit: self.num_tables_limit(),
                     time_ns,
                     database_schema,
                     ops,
+                    columns_per_table_limit: self.num_columns_per_table_limit(),
                 })
             }
         }
@@ -858,6 +862,8 @@ impl CatalogUpdate {
 pub struct DatabaseCatalogTransaction {
     catalog_sequence: CatalogSequenceNumber,
     current_table_count: usize,
+    table_limit: usize,
+    columns_per_table_limit: usize,
     time_ns: i64,
     database_schema: Arc<DatabaseSchema>,
     ops: Vec<DatabaseCatalogOp>,
@@ -889,6 +895,9 @@ impl DatabaseCatalogTransaction {
         match self.database_schema.table_definition(table_name) {
             Some(def) => Ok(def),
             None => {
+                if self.current_table_count >= self.table_limit {
+                    return Err(CatalogError::TooManyTables(self.table_limit));
+                }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
                 let db_schema = Arc::make_mut(&mut self.database_schema);
@@ -929,6 +938,14 @@ impl DatabaseCatalogTransaction {
                 got: column_type.into(),
             }),
             None => {
+                if table_def.num_columns() >= self.columns_per_table_limit {
+                    return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
+                }
+                if matches!(column_type, FieldDataType::Tag)
+                    && table_def.num_tag_columns() >= NUM_TAG_COLUMNS_LIMIT
+                {
+                    return Err(CatalogError::TooManyTagColumns);
+                }
                 let database_id = self.database_schema.id;
                 let database_name = Arc::clone(&self.database_schema.name);
                 let db_schema = Arc::make_mut(&mut self.database_schema);
@@ -969,8 +986,14 @@ impl DatabaseCatalogTransaction {
         if self.database_schema.table_definition(table_name).is_some() {
             return Err(CatalogError::AlreadyExists);
         }
-        if self.current_table_count >= Catalog::NUM_TABLES_LIMIT {
-            return Err(CatalogError::TooManyTables);
+        if self.current_table_count >= self.table_limit {
+            return Err(CatalogError::TooManyTables(self.table_limit));
+        }
+        if tags.len() > NUM_TAG_COLUMNS_LIMIT {
+            return Err(CatalogError::TooManyTagColumns);
+        }
+        if tags.len() + fields.len() > self.columns_per_table_limit - 1 {
+            return Err(CatalogError::TooManyColumns(self.columns_per_table_limit));
         }
         let db_schema = Arc::make_mut(&mut self.database_schema);
         let mut table_def_arc = db_schema.create_new_empty_table(table_name)?;

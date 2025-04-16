@@ -274,7 +274,10 @@ impl IntoResponse for CatalogError {
                 .status(StatusCode::BAD_REQUEST)
                 .body(Body::from(self.to_string()))
                 .unwrap(),
-            Self::TooManyColumns | Self::TooManyTables | Self::TooManyDbs => {
+            Self::TooManyColumns(_)
+            | Self::TooManyTables(_)
+            | Self::TooManyDbs(_)
+            | Self::TooManyTagColumns => {
                 let err: ErrorMessage<()> = ErrorMessage {
                     error: self.to_string(),
                     data: None,
