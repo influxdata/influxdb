@@ -142,8 +142,8 @@ func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WriteP
 			}
 		}
 	verify(p, values)
-	require.Equal(t, shardMappings.CountDropped, droppedCount, "wrong number of points dropped")
-	if shardMappings.CountDropped > 0 {
+	require.Equal(t, shardMappings.Dropped(), droppedCount, "wrong number of points dropped")
+	if shardMappings.Dropped() > 0 {
 		require.Equal(t, minDropped.Point, shardMappings.MinDropped.Point, "minimum dropped point mismatch")
 		require.Equal(t, minDropped.Reason, shardMappings.MinDropped.Reason, "minimum dropped reason mismatch")
 		require.Equal(t, maxDropped.Point, shardMappings.MaxDropped.Point, "maximum dropped point mismatch")
@@ -339,7 +339,7 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", got, exp)
 	}
 
-	if got, exp := shardMappings.CountDropped, 1; got != exp {
+	if got, exp := shardMappings.RetentionDropped, 1; got != exp {
 		t.Fatalf("MapShard() dropped mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -520,7 +520,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
 	require.Equal(t, 1, pwErr.Dropped, "wrong number of points dropped")
-	require.ErrorContains(t, pwErr, "dropped 1 points outside retention policy or write window")
+	require.ErrorContains(t, pwErr, "dropped 1 points outside retention policy and 0 points outside write window")
 	require.ErrorContains(t, pwErr, "Retention Policy Lower Bound")
 }
 

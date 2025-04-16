@@ -102,6 +102,7 @@ const (
 	RetentionPolicyBound
 	WriteWindowUpperBound
 	WriteWindowLowerBound
+	MaxBoundType // always the largest bound type, not for actual use
 )
 
 func (b BoundType) String() string {
@@ -131,12 +132,13 @@ func (d *DroppedPoint) String() string {
 
 // ShardMapping contains a mapping of shards to points.
 type ShardMapping struct {
-	n            int
-	Points       map[uint64][]models.Point  // The points associated with a shard ID
-	Shards       map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
-	MaxDropped   DroppedPoint
-	MinDropped   DroppedPoint
-	CountDropped int
+	n                  int
+	Points             map[uint64][]models.Point  // The points associated with a shard ID
+	Shards             map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
+	MaxDropped         DroppedPoint
+	MinDropped         DroppedPoint
+	RetentionDropped   int
+	WriteWindowDropped int
 }
 
 // NewShardMapping creates an empty ShardMapping.
@@ -155,15 +157,27 @@ func (s *ShardMapping) AddDropped(p models.Point, t time.Time, b BoundType) {
 	if s.MinDropped.Point == nil || p.Time().Before(s.MinDropped.Point.Time()) {
 		s.MinDropped = DroppedPoint{Point: p, ViolatedBound: t, Reason: b}
 	}
-	s.CountDropped++
+	switch b {
+	case RetentionPolicyBound:
+		s.RetentionDropped++
+	case WriteWindowLowerBound:
+		s.WriteWindowDropped++
+	case WriteWindowUpperBound:
+		s.WriteWindowDropped++
+	}
+}
+
+func (s *ShardMapping) Dropped() int {
+	return s.RetentionDropped + s.WriteWindowDropped
 }
 
 func (s *ShardMapping) SummariseDropped() string {
-	if s.CountDropped == 0 {
+	if s.Dropped() <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("dropped %d points outside retention policy or write window: %s to %s",
-		s.CountDropped,
+	return fmt.Sprintf("dropped %d points outside retention policy and %d points outside write window: %s to %s",
+		s.RetentionDropped,
+		s.WriteWindowDropped,
 		s.MinDropped.String(),
 		s.MaxDropped.String())
 }
@@ -482,9 +496,9 @@ func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, databas
 	w.Subscriber.Send(pts)
 	atomic.AddInt64(&w.stats.SubWriteOK, 1)
 
-	if err == nil && shardMappings.CountDropped > 0 {
+	if err == nil && shardMappings.Dropped() > 0 {
 		err = tsdb.PartialWriteError{Reason: shardMappings.SummariseDropped(),
-			Dropped:         shardMappings.CountDropped,
+			Dropped:         shardMappings.Dropped(),
 			Database:        database,
 			RetentionPolicy: retentionPolicy,
 		}
