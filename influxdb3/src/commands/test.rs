@@ -75,7 +75,7 @@ pub struct WalPluginConfig {
     #[clap(long = "cache-name")]
     pub cache_name: Option<String>,
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
 }
 
@@ -96,7 +96,7 @@ pub struct SchedulePluginConfig {
     #[clap(long = "cache-name")]
     pub cache_name: Option<String>,
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
 }
 
