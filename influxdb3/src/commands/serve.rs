@@ -373,10 +373,10 @@ pub struct Config {
     #[clap(long = "query-file-limit", env = "INFLUXDB3_QUERY_FILE_LIMIT", action)]
     pub query_file_limit: Option<usize>,
 
-    #[clap(long = "tls-key")]
+    #[clap(long = "tls-key", env = "INFLUXDB3_TLS_KEY")]
     pub key_file: Option<PathBuf>,
 
-    #[clap(long = "tls-cert")]
+    #[clap(long = "tls-cert", env = "INFLUXDB3_TLS_CERT")]
     pub cert_file: Option<PathBuf>,
 }
 

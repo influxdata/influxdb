@@ -47,7 +47,7 @@ struct TriggerConfig {
     trigger_name: String,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
 }
 

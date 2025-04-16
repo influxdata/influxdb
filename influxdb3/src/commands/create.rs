@@ -135,7 +135,7 @@ pub struct DatabaseConfig {
     pub database_name: String,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 }
 
@@ -177,7 +177,7 @@ pub struct LastCacheConfig {
     cache_name: Option<String>,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 }
 
@@ -214,7 +214,7 @@ pub struct DistinctCacheConfig {
     cache_name: Option<String>,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 }
 
@@ -237,7 +237,7 @@ pub struct TableConfig {
     table_name: String,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 }
 
@@ -271,7 +271,7 @@ pub struct TriggerConfig {
     trigger_name: String,
 
     /// An optional arg to use a custom ca for useful for testing with self signed certs
-    #[clap(long = "tls-ca")]
+    #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     ca_cert: Option<PathBuf>,
 }
 

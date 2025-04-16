@@ -23,6 +23,10 @@ Examples:
                                   [env: INFLUXDB3_HTTP_BIND_ADDR=]
   --log-filter <FILTER>            Logs: filter directive [env: LOG_FILTER=]
   --without-auth                   Run InfluxDB 3 server without authorization
+  --tls-key <KEY_FILE>             The path to the key file for TLS to be enabled
+                                  [env: INFLUXDB3_TLS_KEY=]
+  --tls-cert <CERT_FILE>           The path to the cert file for TLS to be enabled
+                                  [env: INFLUXDB3_TLS_CERT=]
 
 {}
   --object-store <STORE>           Object storage to use [default: memory]
