@@ -1,6 +1,6 @@
 use std::{error::Error, io, path::PathBuf};
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use influxdb3_client::Client;
 use influxdb3_types::http::CreateTokenWithPermissionsResponse;
 use secrecy::Secret;
@@ -40,6 +40,16 @@ pub struct AdminTokenConfig {
     /// An optional arg to use a custom ca for useful for testing with self signed certs
     #[clap(long = "tls-ca", env = "INFLUXDB3_TLS_CA")]
     pub ca_cert: Option<PathBuf>,
+
+    /// Output format for token, supports just json or text
+    #[clap(long)]
+    pub format: Option<TokenOutputFormat>,
+}
+
+#[derive(Debug, ValueEnum, Clone)]
+pub enum TokenOutputFormat {
+    Json,
+    Text,
 }
 
 pub(crate) async fn handle_token_creation(

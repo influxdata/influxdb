@@ -2926,6 +2926,28 @@ async fn test_create_admin_token() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_create_admin_token_json_format() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &[
+        "--tls-ca",
+        "../testing-certs/rootCA.pem",
+        "--format",
+        "json",
+    ];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+
+    let value: Value =
+        serde_json::from_str(&result).expect("token creation response should be in json format");
+    assert!(value.get("token").is_some());
+}
+
+#[test_log::test(tokio::test)]
 async fn test_create_admin_token_allowed_once() {
     let server = TestServer::configure()
         .with_auth()
