@@ -391,7 +391,7 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
                                 "HTTP requests require the following header: \"Authorization: Bearer {}\"",
                                 response.token
                             );
-                            let json = json!({"token": response.token, "hashed_token": response.hash, "help_msg": help_msg});
+                            let json = json!({"token": response.token, "help_msg": help_msg});
                             let stringified = serde_json::to_string_pretty(&json)
                                 .expect("token details to be parseable");
                             println!("{}", stringified);
