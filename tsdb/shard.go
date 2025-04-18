@@ -1813,16 +1813,9 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 }
 
 func (fscm *measurementFieldSetChangeMgr) Close() {
-	breakout := make(chan struct{})
 	if fscm != nil {
 		close(fscm.writeRequests)
-
-		go func() {
-			defer close(breakout)
-			fscm.wg.Wait()
-		}()
-
-		wg_timeout.WaitGroupTimeout(breakout, 24*time.Hour, func() {
+		wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour, func() {
 			fscm.logger.Warn("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
 		})
 	}
