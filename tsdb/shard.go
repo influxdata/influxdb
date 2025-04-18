@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/wg_timeout"
 	"io"
 	"os"
 	"path/filepath"
@@ -1814,7 +1815,16 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 func (fscm *measurementFieldSetChangeMgr) Close() {
 	if fscm != nil {
 		close(fscm.writeRequests)
-		fscm.wg.Wait()
+		// If the wait group never timed out previously we would have just been in an infinite
+		// waiting period anyway. This loop will spin and show a warning log every 24 hours if
+		// we are stuck.
+		for {
+			if timedOut := wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour); timedOut {
+				fscm.logger.Warn("timed out while waiting on wait group", zap.String("path", fscm.changeFilePath))
+			} else {
+				break
+			}
+		}
 	}
 }
 
