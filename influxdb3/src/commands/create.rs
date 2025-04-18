@@ -11,12 +11,14 @@ use influxdb3_types::http::LastCacheSize;
 use influxdb3_types::http::LastCacheTtl;
 use secrecy::ExposeSecret;
 use secrecy::Secret;
+use serde_json::json;
 use std::error::Error;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str;
 use token::AdminTokenConfig;
 use token::TokenCommands;
+use token::TokenSubCommand;
 use token::handle_token_creation;
 use url::Url;
 
@@ -376,17 +378,36 @@ pub async fn command(config: Config) -> Result<(), Box<dyn Error>> {
             );
         }
         SubCommand::Token(token_commands) => {
+            let output_format = match token_commands.commands {
+                TokenSubCommand::Admin(AdminTokenConfig { ref format, .. }) => format.clone(),
+            }
+            .unwrap_or(token::TokenOutputFormat::Text);
+
             match handle_token_creation(client, token_commands).await {
                 Ok(response) => {
-                    println!(
-                        "\n\
-                        Token: {token}\n\
-                            \n\
-                        HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
-                        This will grant you access to HTTP/GRPC API.
-                    ",
-                        token = response.token,
-                    );
+                    match output_format {
+                        token::TokenOutputFormat::Json => {
+                            let help_msg = format!(
+                                "HTTP requests require the following header: \"Authorization: Bearer {}\"",
+                                response.token
+                            );
+                            let json = json!({"token": response.token, "help_msg": help_msg});
+                            let stringified = serde_json::to_string_pretty(&json)
+                                .expect("token details to be parseable");
+                            println!("{}", stringified);
+                        }
+                        token::TokenOutputFormat::Text => {
+                            println!(
+                                "\n\
+                                Token: {token}\n\
+                                    \n\
+                                HTTP requests require the following header: \"Authorization: Bearer {token}\"\n\
+                                This will grant you access to HTTP/GRPC API.
+                            ",
+                                token = response.token,
+                            );
+                        }
+                    };
                 }
                 Err(err) => {
                     println!("Failed to create token, error: {:?}", err);
