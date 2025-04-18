@@ -360,7 +360,7 @@ func (p *Partition) CurrentCompactionN() int {
 func (p *Partition) WaitWithTimeout(duration time.Duration) bool {
 	timeout := time.NewTimer(duration)
 	defer timeout.Stop()
-	ticker := time.NewTicker(duration)
+	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
