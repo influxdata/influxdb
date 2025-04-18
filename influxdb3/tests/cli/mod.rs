@@ -2926,6 +2926,46 @@ async fn test_create_admin_token() {
 }
 
 #[test_log::test(tokio::test)]
+async fn test_create_admin_token_json_format() {
+    let server = TestServer::configure()
+        .with_auth()
+        .with_no_admin_token()
+        .spawn()
+        .await;
+    let args = &[
+        "--tls-ca",
+        "../testing-certs/rootCA.pem",
+        "--format",
+        "json",
+    ];
+    let result = server
+        .run(vec!["create", "token", "--admin"], args)
+        .unwrap();
+
+    let value: Value =
+        serde_json::from_str(&result).expect("token creation response should be in json format");
+    let token = value
+        .get("token")
+        .expect("token to be present")
+        .as_str()
+        .expect("token to be a str");
+    // check if the token generated works by using it to regenerate
+    let result = server
+        .run_with_confirmation(
+            vec!["create", "token", "--admin"],
+            &[
+                "--regenerate",
+                "--tls-ca",
+                "../testing-certs/rootCA.pem",
+                "--token",
+                token,
+            ],
+        )
+        .unwrap();
+    assert_contains!(&result, "This will grant you access to HTTP/GRPC API");
+}
+
+#[test_log::test(tokio::test)]
 async fn test_create_admin_token_allowed_once() {
     let server = TestServer::configure()
         .with_auth()
