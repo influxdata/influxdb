@@ -85,22 +85,22 @@ read -r INSTALL_TYPE
 case "$INSTALL_TYPE" in
     1)
         printf "\n\n${BOLD}Download and Tag Docker Image${NC}\n"
-        printf "├─ ${DIM}docker pull quay.io/influxdb/influxdb3-${EDITION_TAG}:latest${NC}\n"
-        printf "└─ ${DIM}docker tag quay.io/influxdb/influxdb3-${EDITION_TAG}:latest influxdb3-${EDITION_TAG}${NC}\n\n"
-        if ! docker pull "quay.io/influxdb/influxdb3-${EDITION_TAG}:latest"; then
+        printf "├─ ${DIM}docker pull influxdb:3-${EDITION_TAG}${NC}\n"
+        printf "└─ ${DIM}docker tag influxdb:3-${EDITION_TAG} influxdb3-${EDITION_TAG}${NC}\n\n"
+        if ! docker pull "influxdb:3-${EDITION_TAG}"; then
             printf "└─ Error: Failed to download Docker image.\n"
             exit 1
         fi
-        docker tag quay.io/influxdb/influxdb3-${EDITION_TAG}:latest influxdb3-${EDITION_TAG}
+        docker tag influxdb:3-${EDITION_TAG} influxdb3-${EDITION_TAG}
         # Exit script after Docker installation
         echo
         printf "${BOLD}NEXT STEPS${NC}\n"
         printf "1) Run the Docker image:\n"
         printf "   ├─ ${BOLD}mkdir plugins${NC} ${DIM}(To store and access plugins)${NC}\n"
         if [ "${EDITION}" = "Core" ]; then
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         else
-            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
+            printf "   └─ ${BOLD}docker run -it -p ${PORT}:${PORT} -v ./plugins:/plugins influxdb3-${EDITION_TAG} influxdb3 serve --object-store memory --node-id node0 --cluster-id cluster0 --plugin-dir /plugins${NC} ${DIM}(To start)${NC}\n"
         fi
         printf "2) View documentation at \033[4;94mhttps://docs.influxdata.com/influxdb3/${EDITION_TAG}/${NC}\n\n"
 
