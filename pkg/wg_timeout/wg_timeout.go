@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func WaitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+func WaitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration, emitter func()) {
 	c := make(chan struct{})
 
 	go func() {
@@ -18,8 +18,8 @@ func WaitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 
 	select {
 	case <-c:
-		return false
+		break
 	case <-timer.C:
-		return true
+		emitter()
 	}
 }

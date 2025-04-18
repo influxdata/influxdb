@@ -1818,13 +1818,9 @@ func (fscm *measurementFieldSetChangeMgr) Close() {
 		// If the wait group never timed out previously we would have just been in an infinite
 		// waiting period anyway. This loop will spin and show a warning log every 24 hours if
 		// we are stuck.
-		for {
-			if timedOut := wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour); timedOut {
-				fscm.logger.Warn("timed out while waiting on wait group", zap.String("path", fscm.changeFilePath))
-			} else {
-				break
-			}
-		}
+		wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour, func() {
+			fscm.logger.Warn("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
+		})
 	}
 }
 
