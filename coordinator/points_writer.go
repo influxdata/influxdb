@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -139,14 +140,16 @@ type ShardMapping struct {
 	MinDropped         DroppedPoint
 	RetentionDropped   int
 	WriteWindowDropped int
+	rpi                *meta.RetentionPolicyInfo
 }
 
 // NewShardMapping creates an empty ShardMapping.
-func NewShardMapping(n int) *ShardMapping {
+func NewShardMapping(rpi *meta.RetentionPolicyInfo, n int) *ShardMapping {
 	return &ShardMapping{
 		n:      n,
 		Points: map[uint64][]models.Point{},
 		Shards: map[uint64]*meta.ShardInfo{},
+		rpi:    rpi,
 	}
 }
 
@@ -173,9 +176,25 @@ func (s *ShardMapping) SummariseDropped() string {
 	if s.Dropped() <= 0 {
 		return ""
 	}
-	return fmt.Sprintf("dropped %d points outside retention policy and %d points outside write window: %s to %s",
+	summary := strings.Builder{}
+	if s.rpi.PastWriteLimit > 0 || s.rpi.FutureWriteLimit > 0 {
+		summary.WriteString(fmt.Sprintf(" and %d points outside write window (", s.WriteWindowDropped))
+		if s.rpi.PastWriteLimit > 0 {
+			summary.WriteString("-")
+			summary.WriteString(s.rpi.PastWriteLimit.String())
+		}
+		if s.rpi.FutureWriteLimit > 0 {
+			if s.rpi.PastWriteLimit > 0 {
+				summary.WriteString(" to ")
+			}
+			summary.WriteString(s.rpi.FutureWriteLimit.String())
+		}
+		summary.WriteString(")")
+	}
+	return fmt.Sprintf("dropped %d points outside retention policy of duration %s%s - oldest %s, newest %s",
 		s.RetentionDropped,
-		s.WriteWindowDropped,
+		s.rpi.Duration.String(),
+		summary.String(),
 		s.MinDropped.String(),
 		s.MaxDropped.String())
 }
@@ -315,7 +334,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 		list.Add(*sg)
 	}
 
-	mapping := NewShardMapping(len(wp.Points))
+	mapping := NewShardMapping(rp, len(wp.Points))
 	for _, p := range wp.Points {
 		sg := list.ShardGroupAt(p.Time())
 		if sg == nil {
