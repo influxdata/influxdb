@@ -12,7 +12,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/go-chi/chi v4.1.0+incompatible
-	github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/mock v1.5.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.6.0
