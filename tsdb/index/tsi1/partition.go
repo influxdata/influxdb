@@ -354,6 +354,26 @@ func (p *Partition) CurrentCompactionN() int {
 	return p.currentCompactionN
 }
 
+// WaitWithTimeout will busy loop while checking CurrentCompactionN
+// If the loop goes for > duration it will return true (timedOut)
+// if it does not time out it returns false (!timedOut)
+func (p *Partition) WaitWithTimeout(duration time.Duration) bool {
+	timeout := time.NewTimer(duration)
+	defer timeout.Stop()
+	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if p.CurrentCompactionN() == 0 {
+				return false
+			}
+		case <-timeout.C:
+			return true
+		}
+	}
+}
+
 // Wait will block until all compactions are finished.
 // Must only be called while they are disabled.
 func (p *Partition) Wait() {
@@ -374,7 +394,9 @@ func (p *Partition) Close() error {
 		close(p.closing)
 		close(p.compactionInterrupt)
 	})
-	p.Wait()
+	if timedOut := p.WaitWithTimeout(24 * time.Hour); timedOut {
+		return fmt.Errorf("timed out waiting for compaction to finish")
+	}
 
 	// Lock index and close remaining
 	p.mu.Lock()
