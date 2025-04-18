@@ -1,24 +1,16 @@
 package wg_timeout
 
 import (
-	"sync"
 	"time"
 )
 
-func WaitGroupTimeout(wg *sync.WaitGroup, timeout time.Duration, emitter func()) {
-	c := make(chan struct{})
-
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-
+func WaitGroupTimeout(breakout <-chan struct{}, timeout time.Duration, emitter func()) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	select {
-	case <-c:
-		break
+	case <-breakout:
+		return
 	case <-timer.C:
 		emitter()
 	}

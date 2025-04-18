@@ -1813,12 +1813,16 @@ func (fs *MeasurementFieldSet) SetMeasurementFieldSetWriter(queueLength int, log
 }
 
 func (fscm *measurementFieldSetChangeMgr) Close() {
+	breakout := make(chan struct{})
 	if fscm != nil {
 		close(fscm.writeRequests)
-		// If the wait group never timed out previously we would have just been in an infinite
-		// waiting period anyway. This loop will spin and show a warning log every 24 hours if
-		// we are stuck.
-		wg_timeout.WaitGroupTimeout(&fscm.wg, 24*time.Hour, func() {
+
+		go func() {
+			defer close(breakout)
+			fscm.wg.Wait()
+		}()
+
+		wg_timeout.WaitGroupTimeout(breakout, 24*time.Hour, func() {
 			fscm.logger.Warn("timed out waiting for measurementFieldSetChangeMgr to close", zap.String("changeFilePath", fscm.changeFilePath))
 		})
 	}
