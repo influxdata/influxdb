@@ -22,7 +22,7 @@ require (
 	github.com/elazarl/go-bindata-assetfs v1.0.1
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/go-stack/stack v1.8.0
-	github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
 	github.com/golang/mock v1.6.0
 	github.com/golang/snappy v0.0.4
