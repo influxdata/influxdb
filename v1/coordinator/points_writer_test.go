@@ -1,7 +1,11 @@
 package coordinator_test
 
 import (
+<<<<<<< HEAD:v1/coordinator/points_writer_test.go
 	"context"
+=======
+	"errors"
+>>>>>>> 62e803e673 (feat: improve dropped point logging (#26257)):coordinator/points_writer_test.go
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -51,6 +55,127 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD:v1/coordinator/points_writer_test.go
+=======
+func TestPointsWriter_MapShards_WriteLimits(t *testing.T) {
+	ms := PointsWriterMetaClient{}
+	c := coordinator.NewPointsWriter()
+
+	MustParseDuration := func(s string) time.Duration {
+		d, err := time.ParseDuration(s)
+		require.NoError(t, err, "failed to parse duration: %q", s)
+		return d
+	}
+
+	pastWriteLimit := MustParseDuration("10m")
+	futureWriteLimit := MustParseDuration("15m")
+	rp := NewRetentionPolicy("myp", time.Now().Add(-time.Minute*45), 3*time.Hour, 3, futureWriteLimit, pastWriteLimit)
+
+	ms.NodeIDFn = func() uint64 { return 1 }
+	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
+		return rp, nil
+	}
+
+	ms.CreateShardGroupIfNotExistsFn = func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+		return &rp.ShardGroups[0], nil
+	}
+
+	c.MetaClient = ms
+
+	pr := &coordinator.WritePointsRequest{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}
+
+	pr.AddPoint("cpu", 0.0, time.Now(), nil)
+	pr.AddPoint("cpu", 1.0, time.Now().Add(time.Second), nil)
+	pr.AddPoint("cpu", 2.0, time.Now().Add(time.Minute*30), nil)
+	pr.AddPoint("cpu", -1.0, time.Now().Add(-time.Minute*5), nil)
+	pr.AddPoint("cpu", -2.0, time.Now().Add(-time.Minute*20), nil)
+
+	values := []float64{0.0, 1.0, -1.0}
+
+	MapPoints(t, c, pr, values, 2,
+		&coordinator.DroppedPoint{Point: pr.Points[4], Reason: coordinator.WriteWindowLowerBound},
+		&coordinator.DroppedPoint{Point: pr.Points[2], Reason: coordinator.WriteWindowUpperBound},
+		"dropped 0 points outside retention policy of duration 3h0m0s and 2 points outside write window (-10m0s to 15m0s) -")
+
+	// Clear the write limits by setting them to zero
+	// No points should be dropped
+	zeroDuration := time.Duration(0)
+	rpu := &meta.RetentionPolicyUpdate{
+		Name:               nil,
+		Duration:           nil,
+		ReplicaN:           nil,
+		ShardGroupDuration: nil,
+		FutureWriteLimit:   &zeroDuration,
+		PastWriteLimit:     &zeroDuration,
+	}
+	require.NoError(t, meta.ApplyRetentionUpdate(rpu, rp), "ApplyRetentionUpdate failed")
+	values = []float64{0.0, 1.0, 2.0, -1.0, -2.0}
+	MapPoints(t, c, pr, values, 0, nil, nil, "dropped 0 points outside retention policy of duration 3h0m0s -")
+
+	rpu.SetFutureWriteLimit(futureWriteLimit)
+	require.NoError(t, meta.ApplyRetentionUpdate(rpu, rp), "ApplyRetentionUpdate failed")
+	values = []float64{0.0, 1.0, -1.0, -2.0}
+	MapPoints(t, c, pr, values, 1,
+		&coordinator.DroppedPoint{Point: pr.Points[2], Reason: coordinator.WriteWindowUpperBound},
+		&coordinator.DroppedPoint{Point: pr.Points[2], Reason: coordinator.WriteWindowUpperBound},
+		"dropped 0 points outside retention policy of duration 3h0m0s and 1 points outside write window (15m0s) -")
+
+	rpu.SetFutureWriteLimit(zeroDuration)
+	rpu.SetPastWriteLimit(pastWriteLimit)
+	require.NoError(t, meta.ApplyRetentionUpdate(rpu, rp), "ApplyRetentionUpdate failed")
+	values = []float64{0.0, 1.0, 2.0, -1.0}
+	MapPoints(t, c, pr, values, 1,
+		&coordinator.DroppedPoint{Point: pr.Points[4], Reason: coordinator.WriteWindowLowerBound},
+		&coordinator.DroppedPoint{Point: pr.Points[4], Reason: coordinator.WriteWindowLowerBound},
+		"dropped 0 points outside retention policy of duration 3h0m0s and 1 points outside write window (-10m0s) -")
+
+}
+
+func MapPoints(t *testing.T, c *coordinator.PointsWriter, pr *coordinator.WritePointsRequest, values []float64, droppedCount int, minDropped *coordinator.DroppedPoint, maxDropped *coordinator.DroppedPoint, summary string) {
+	var (
+		shardMappings *coordinator.ShardMapping
+		err           error
+	)
+	if shardMappings, err = c.MapShards(pr); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if exp := 1; len(shardMappings.Points) != exp {
+		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
+	}
+
+	p := func() []models.Point {
+		for _, v := range shardMappings.Points {
+			return v
+		}
+		return nil
+	}()
+	verify :=
+		func(p []models.Point, values []float64) {
+			require.Equal(t, len(values), len(p), "unexpected number of points")
+			for i, expV := range values {
+				f, err := p[i].Fields()
+				require.NoError(t, err, "error retrieving fields")
+				v, ok := f["value"]
+				require.True(t, ok, "\"value\" field not found")
+				require.Equal(t, expV, v, "unexpected value")
+			}
+		}
+	verify(p, values)
+	require.Equal(t, shardMappings.Dropped(), droppedCount, "wrong number of points dropped")
+	if shardMappings.Dropped() > 0 {
+		require.Equal(t, minDropped.Point, shardMappings.MinDropped.Point, "minimum dropped point mismatch")
+		require.Equal(t, minDropped.Reason, shardMappings.MinDropped.Reason, "minimum dropped reason mismatch")
+		require.Equal(t, maxDropped.Point, shardMappings.MaxDropped.Point, "maximum dropped point mismatch")
+		require.Equal(t, maxDropped.Reason, shardMappings.MaxDropped.Reason, "maximum dropped reason mismatch")
+		require.Contains(t, shardMappings.SummariseDropped(), summary, "summary mismatch")
+	}
+}
+
+>>>>>>> 62e803e673 (feat: improve dropped point logging (#26257)):coordinator/points_writer_test.go
 // Ensures the points writer maps to a new shard group when the shard duration
 // is changed.
 func TestPointsWriter_MapShards_AlterShardDuration(t *testing.T) {
@@ -239,9 +364,11 @@ func TestPointsWriter_MapShards_Invalid(t *testing.T) {
 		t.Errorf("MapShards() len mismatch. got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(shardMappings.Dropped), 1; got != exp {
+	if got, exp := shardMappings.RetentionDropped, 1; got != exp {
 		t.Fatalf("MapShard() dropped mismatch: got %v, exp %v", got, exp)
 	}
+
+	require.Equal(t, coordinator.RetentionPolicyBound, shardMappings.MinDropped.Reason, "unexpected reason for dropped point")
 }
 
 func TestPointsWriter_WritePoints(t *testing.T) {
@@ -288,6 +415,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		pr.AddPoint("cpu", 3.0, time.Now().Add(time.Hour+time.Second), nil)
 
 		// copy to prevent data race
+<<<<<<< HEAD:v1/coordinator/points_writer_test.go
 		sm := coordinator.NewShardMapping(16)
 		sm.MapPoint(
 			&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
@@ -310,6 +438,25 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 				{NodeID: 3},
 			}},
 			pr.Points[2])
+=======
+		theTest := test
+		sm := coordinator.NewShardMapping(nil, 16)
+		sm.MapPoint(&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[0])
+		sm.MapPoint(&meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[1])
+		sm.MapPoint(&meta.ShardInfo{ID: uint64(2), Owners: []meta.ShardOwner{
+			{NodeID: 1},
+			{NodeID: 2},
+			{NodeID: 3},
+		}}, pr.Points[2])
+>>>>>>> 62e803e673 (feat: improve dropped point logging (#26257)):coordinator/points_writer_test.go
 
 		// Local coordinator.Node ShardWriter
 		// lock on the write increment since these functions get called in parallel
@@ -360,15 +507,8 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	// are created.
 	ms := NewPointsWriterMetaClient()
 
-	// Three points that range over the shardGroup duration (1h) and should map to two
-	// distinct shards
+	// Add a point earlier than the retention period
 	pr.AddPoint("cpu", 1.0, time.Now().Add(-24*time.Hour), nil)
-
-	// copy to prevent data race
-	sm := coordinator.NewShardMapping(16)
-
-	// ShardMapper dropped this point
-	sm.Dropped = append(sm.Dropped, pr.Points[0])
 
 	// Local coordinator.Node ShardWriter
 	// lock on the write increment since these functions get called in parallel
@@ -392,13 +532,25 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.TSDBStore = store
 	c.Node = &influxdb.Node{ID: 1}
 
-	c.Open()
-	defer c.Close()
+	require.NoError(t, c.Open(), "failure opening PointsWriter")
+	defer func(pw *coordinator.PointsWriter) {
+		require.NoError(t, pw.Close(), "failure closing PointsWriter")
+	}(c)
 
+<<<<<<< HEAD:v1/coordinator/points_writer_test.go
 	err := c.WritePointsPrivileged(context.Background(), pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 	if _, ok := err.(tsdb.PartialWriteError); !ok {
+=======
+	err := c.WritePointsPrivileged(tsdb.WriteContext{}, pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
+	require.Error(t, err, "unexpected success writing points")
+	var pwErr tsdb.PartialWriteError
+	if !errors.As(err, &pwErr) {
+>>>>>>> 62e803e673 (feat: improve dropped point logging (#26257)):coordinator/points_writer_test.go
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
+	require.Equal(t, 1, pwErr.Dropped, "wrong number of points dropped")
+	require.ErrorContains(t, pwErr, "partial write: dropped 1 points outside retention policy of duration 1h0m0s")
+	require.ErrorContains(t, pwErr, "Retention Policy Lower Bound")
 }
 
 var shardID uint64
