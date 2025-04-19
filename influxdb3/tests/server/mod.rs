@@ -209,6 +209,7 @@ impl TestServer {
     }
 
     async fn spawn_inner(config: &impl ConfigProvider) -> Self {
+        create_certs().await;
         let mut command = Command::cargo_bin("influxdb3").expect("create the influxdb3 command");
         let command = command
             .arg("serve")
@@ -552,6 +553,60 @@ impl TestServer {
             .send()
             .await
             .expect("failed to send request to delete distinct cache")
+    }
+}
+
+/// Generate certs for tests if they do not already exist. For the most part this
+/// is needed only in CI for fresh builds. Locally it'll generate them the first
+/// time and then should be valid for longer than anyone is alive or this software
+/// is used.
+pub async fn create_certs() {
+    use rcgen::CertificateParams;
+    use rcgen::IsCa;
+    use rcgen::KeyPair;
+    use std::fs;
+    use std::fs::OpenOptions;
+    use std::io::ErrorKind;
+
+    const LOCK_FILE: &str = "../testing-certs/certs.lock";
+    const ROOT_FILE: &str = "../testing-certs/rootCA.pem";
+    const LOCAL_FILE: &str = "../testing-certs/localhost.pem";
+    const LOCAL_KEY_FILE: &str = "../testing-certs/localhost.key";
+
+    if fs::exists(ROOT_FILE).unwrap()
+        && fs::exists(LOCAL_FILE).unwrap()
+        && fs::exists(LOCAL_KEY_FILE).unwrap()
+    {
+        return;
+    }
+
+    fs::create_dir_all("../testing-certs").unwrap();
+    let lock_file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(LOCK_FILE);
+    match lock_file.map_err(|e| e.kind()) {
+        Ok(_) => {
+            let mut ca = CertificateParams::new(Vec::new()).unwrap();
+            let ca_key = KeyPair::generate().unwrap();
+            let local_key = KeyPair::generate().unwrap();
+            ca.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+            let ca = ca.self_signed(&ca_key).unwrap();
+            let localhost = CertificateParams::new(vec!["localhost".into()]).unwrap();
+            let localhost = localhost.signed_by(&local_key, &ca, &ca_key).unwrap();
+
+            fs::write(ROOT_FILE, ca.pem()).unwrap();
+            fs::write(LOCAL_FILE, localhost.pem()).unwrap();
+            fs::write(LOCAL_KEY_FILE, local_key.serialize_pem()).unwrap();
+
+            fs::remove_file(LOCK_FILE).unwrap();
+        }
+        Err(ErrorKind::AlreadyExists) => {
+            while fs::exists(LOCK_FILE).unwrap() {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+        Err(_) => panic!("Failed to acquire cert lock"),
     }
 }
 
