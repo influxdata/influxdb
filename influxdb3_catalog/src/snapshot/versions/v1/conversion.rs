@@ -37,6 +37,8 @@ impl From<super::NodeSnapshot> for v2::NodeSnapshot {
             mode: value.mode.into_iter().map(Into::into).collect(),
             state: value.state.into(),
             core_count: value.core_count,
+            // Use default for field that did not exist in v1
+            process_uuids: Default::default(),
         }
     }
 }

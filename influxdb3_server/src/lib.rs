@@ -89,13 +89,13 @@ impl CommonServerState {
         trace_exporter: Option<Arc<trace_exporters::export::AsyncExporter>>,
         trace_header_parser: TraceHeaderParser,
         telemetry_store: Arc<TelemetryStore>,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             metrics,
             trace_exporter,
             trace_header_parser,
             telemetry_store,
-        })
+        }
     }
 
     pub fn trace_exporter(&self) -> Option<Arc<trace_exporters::export::AsyncExporter>> {
@@ -857,8 +857,7 @@ mod tests {
             None,
             trace_header_parser,
             Arc::clone(&sample_telem_store),
-        )
-        .unwrap();
+        );
         let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
             catalog: write_buffer.catalog(),
             write_buffer: Arc::clone(&write_buffer),

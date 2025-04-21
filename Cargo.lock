@@ -2904,6 +2904,7 @@ dependencies = [
  "influxdb-line-protocol",
  "influxdb3_authz",
  "influxdb3_id",
+ "influxdb3_process",
  "influxdb3_shutdown",
  "influxdb3_test_helpers",
  "influxdb3_wal",
@@ -3285,6 +3286,7 @@ dependencies = [
  "iox_query_params",
  "serde",
  "thiserror 1.0.69",
+ "uuid",
 ]
 
 [[package]]

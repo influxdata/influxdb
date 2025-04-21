@@ -172,6 +172,9 @@ pub enum CatalogError {
 
     #[error("cannot delete internal db")]
     CannotDeleteInternalDatabase,
+
+    #[error("tried to stop a node ({node_id}) that is already stopped")]
+    NodeAlreadyStopped { node_id: Arc<str> },
 }
 
 impl CatalogError {

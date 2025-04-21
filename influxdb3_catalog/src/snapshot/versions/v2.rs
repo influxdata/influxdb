@@ -292,6 +292,14 @@ pub(crate) struct NodeSnapshot {
     pub(crate) mode: Vec<NodeMode>,
     pub(crate) state: NodeState,
     pub(crate) core_count: u64,
+    /// Track process UUIDs that have registered as this node
+    ///
+    /// # Implementation note
+    ///
+    /// This field is defaulted as it was added after the type was originally defined, and therefore
+    /// there may be snapshots without a `process_uuids` field.
+    #[serde(default)]
+    pub(crate) process_uuids: Vec<Uuid>,
 }
 
 impl Snapshot for NodeDefinition {
@@ -305,6 +313,7 @@ impl Snapshot for NodeDefinition {
             mode: self.mode.clone(),
             state: self.state,
             core_count: self.core_count,
+            process_uuids: self.process_uuids.clone(),
         }
     }
 
@@ -316,6 +325,7 @@ impl Snapshot for NodeDefinition {
             mode: snap.mode,
             core_count: snap.core_count,
             state: snap.state,
+            process_uuids: snap.process_uuids,
         }
     }
 }
