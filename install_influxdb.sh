@@ -85,8 +85,8 @@ read -r INSTALL_TYPE
 case "$INSTALL_TYPE" in
     1)
         printf "\n\n${BOLD}Download and Tag Docker Image${NC}\n"
-        printf "├─ ${DIM}docker pull influxdb:3-${EDITION_TAG}${NC}\n"
-        printf "└─ ${DIM}docker tag influxdb:3-${EDITION_TAG} influxdb3-${EDITION_TAG}${NC}\n\n"
+        printf "├─ ${DIM}docker pull influxdb:${EDITION_TAG}${NC}\n"
+        printf "└─ ${DIM}docker tag influxdb:${EDITION_TAG} influxdb3-${EDITION_TAG}${NC}\n\n"
         if ! docker pull "influxdb:3-${EDITION_TAG}"; then
             printf "└─ Error: Failed to download Docker image.\n"
             exit 1
