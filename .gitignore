@@ -5,6 +5,7 @@ results/
 # rust compiled binary target directory:
 **/target
 # other:
+testing-certs
 **/*.rs.bk
 .idea/
 .env
