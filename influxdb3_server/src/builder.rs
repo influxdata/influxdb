@@ -6,6 +6,7 @@ use influxdb3_internal_api::query_executor::QueryExecutor;
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_write::{WriteBuffer, persister::Persister};
 use iox_time::TimeProvider;
+use rustls::SupportedProtocolVersion;
 use tokio::net::TcpListener;
 
 #[derive(Debug)]
@@ -202,7 +203,12 @@ impl
         WithProcessingEngine,
     >
 {
-    pub async fn build(self, cert_file: Option<PathBuf>, key_file: Option<PathBuf>) -> Server {
+    pub async fn build<'a>(
+        self,
+        cert_file: Option<PathBuf>,
+        key_file: Option<PathBuf>,
+        tls_minimum_version: &'a [&'static SupportedProtocolVersion],
+    ) -> Server<'a> {
         let persister = Arc::clone(&self.persister.0);
         let authorizer = Arc::clone(&self.authorizer);
         let processing_engine = Arc::clone(&self.processing_engine.0);
@@ -230,6 +236,7 @@ impl
             http,
             cert_file,
             key_file,
+            tls_minimum_version,
             persister,
             authorizer,
             listener: self.listener.0,
