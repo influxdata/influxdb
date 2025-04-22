@@ -32,6 +32,8 @@ use influxdb3_telemetry::store::TelemetryStore;
 use influxdb3_write::persister::Persister;
 use observability_deps::tracing::error;
 use observability_deps::tracing::info;
+use rustls::ServerConfig;
+use rustls::SupportedProtocolVersion;
 use service::hybrid;
 use std::convert::Infallible;
 use std::fmt::Debug;
@@ -119,7 +121,7 @@ impl CommonServerState {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Server {
+pub struct Server<'a> {
     common_state: CommonServerState,
     http: Arc<HttpApi>,
     persister: Arc<Persister>,
@@ -127,16 +129,17 @@ pub struct Server {
     listener: TcpListener,
     key_file: Option<PathBuf>,
     cert_file: Option<PathBuf>,
+    tls_minimum_version: &'a [&'static SupportedProtocolVersion],
 }
 
-impl Server {
+impl Server<'_> {
     pub fn authorizer(&self) -> Arc<dyn Authorizer> {
         Arc::clone(&self.authorizer.upcast())
     }
 }
 
 pub async fn serve(
-    server: Server,
+    server: Server<'_>,
     shutdown: CancellationToken,
     startup_timer: Instant,
     without_auth: bool,
@@ -194,8 +197,12 @@ pub async fn serve(
         );
 
         let acceptor = hyper_rustls::TlsAcceptor::builder()
-            .with_single_cert(certs, key)
-            .unwrap()
+            .with_tls_config(
+                ServerConfig::builder_with_protocol_versions(server.tls_minimum_version)
+                    .with_no_client_auth()
+                    .with_single_cert(certs, key)
+                    .unwrap(),
+            )
             .with_all_versions_alpn()
             .with_incoming(addr);
         hyper::server::Server::builder(acceptor)
@@ -893,6 +900,11 @@ mod tests {
         )
         .await;
 
+        // We declare this as a static so that the lifetimes workout here and that
+        // it lives long enough.
+        static TLS_MIN_VERSION: &[&rustls::SupportedProtocolVersion] =
+            &[&rustls::version::TLS12, &rustls::version::TLS13];
+
         let server = ServerBuilder::new(common_state)
             .write_buffer(Arc::clone(&write_buffer))
             .query_executor(query_executor)
@@ -901,7 +913,7 @@ mod tests {
             .time_provider(Arc::clone(&time_provider) as _)
             .tcp_listener(listener)
             .processing_engine(processing_engine)
-            .build(None, None)
+            .build(None, None, TLS_MIN_VERSION)
             .await;
         let shutdown = frontend_shutdown.clone();
 
