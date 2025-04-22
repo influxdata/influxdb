@@ -1916,3 +1916,31 @@ async fn api_query_with_default_browser_header() {
         resp
     );
 }
+
+#[tokio::test]
+async fn api_v3_query_show_tables_ordering() {
+    let server = TestServer::spawn().await;
+
+    let tables = [
+        "xxx",
+        "table_002",
+        "table_009",
+        "table_001",
+        "table_003",
+        "table_006",
+        "aaa",
+    ];
+
+    for table in tables {
+        server.create_table("foo", table).run_api().await.unwrap();
+    }
+
+    let output = server
+        .api_v3_query_sql(&[("db", "foo"), ("format", "pretty"), ("q", "SHOW TABLES")])
+        .await
+        .text()
+        .await
+        .unwrap();
+
+    insta::assert_snapshot!(output);
+}
