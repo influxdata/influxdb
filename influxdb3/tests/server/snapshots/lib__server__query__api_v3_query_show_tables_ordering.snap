@@ -1,0 +1,26 @@
+---
+source: influxdb3/tests/server/query.rs
+expression: output
+---
++---------------+--------------------+----------------------------+------------+
+| table_catalog | table_schema       | table_name                 | table_type |
++---------------+--------------------+----------------------------+------------+
+| public        | iox                | aaa                        | BASE TABLE |
+| public        | iox                | table_001                  | BASE TABLE |
+| public        | iox                | table_002                  | BASE TABLE |
+| public        | iox                | table_003                  | BASE TABLE |
+| public        | iox                | table_006                  | BASE TABLE |
+| public        | iox                | table_009                  | BASE TABLE |
+| public        | iox                | xxx                        | BASE TABLE |
+| public        | system             | distinct_caches            | BASE TABLE |
+| public        | system             | last_caches                | BASE TABLE |
+| public        | system             | parquet_files              | BASE TABLE |
+| public        | system             | processing_engine_logs     | BASE TABLE |
+| public        | system             | processing_engine_triggers | BASE TABLE |
+| public        | system             | queries                    | BASE TABLE |
+| public        | information_schema | tables                     | VIEW       |
+| public        | information_schema | views                      | VIEW       |
+| public        | information_schema | columns                    | VIEW       |
+| public        | information_schema | df_settings                | VIEW       |
+| public        | information_schema | schemata                   | VIEW       |
++---------------+--------------------+----------------------------+------------+
