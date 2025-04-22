@@ -13,7 +13,7 @@ mod tests {
     use arrow::array::AsArray;
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq, prelude::SessionContext};
     use indexmap::IndexMap;
-    use influxdb3_catalog::log::{MaxAge, MaxCardinality};
+    use influxdb3_catalog::log::{FieldDataType, MaxAge, MaxCardinality};
     use influxdb3_id::ColumnId;
     use iox_time::{MockProvider, Time, TimeProvider};
     use observability_deps::tracing::debug;
@@ -931,6 +931,86 @@ mod tests {
                 "| Spain   | Barcelona |",
                 "| Spain   | Madrid    |",
                 "+---------+-----------+",
+            ],
+            &results
+        );
+    }
+
+    // NB: This test was added as part of https://github.com/influxdata/influxdb/issues/25564
+    // If we choose to support nulls in the distinct cache then this test will fail
+    #[test_log::test(tokio::test)]
+    async fn test_row_with_nulls_ignored() {
+        let writer = TestWriter::new().await;
+        let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+        let cat = writer.catalog();
+        cat.create_table(
+            TestWriter::DB_NAME,
+            "bar",
+            &["t1", "t2", "t3"],
+            &[("f1", FieldDataType::Float)],
+        )
+        .await
+        .unwrap();
+
+        cat.create_distinct_cache(
+            TestWriter::DB_NAME,
+            "bar",
+            Some("cache_money"),
+            &["t1", "t2", "t3"],
+            Default::default(),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+
+        let distinct_cache_provider = DistinctCacheProvider::new_from_catalog(
+            Arc::clone(&time_provider) as _,
+            Arc::clone(&cat),
+        )
+        .await
+        .unwrap();
+
+        let write_batch = writer
+            .write_lp_to_write_batch(
+                "\
+            bar,t1=A,t2=A,t3=A f1=1\n\
+            bar,t1=A,t2=A,t3=B f1=2\n\
+            bar,t1=A,t2=B,t3=B f1=3\n\
+            bar,t1=B,t2=A f1=3\n\
+            bar,t1=B,t3=B f1=3\n\
+            bar,t2=B,t3=B f1=3\n\
+            ",
+                100,
+            )
+            .await;
+        let wal_contents = influxdb3_wal::create::wal_contents(
+            (0, 100, 1),
+            [influxdb3_wal::create::write_batch_op(write_batch)],
+        );
+        distinct_cache_provider.write_wal_contents_to_cache(&wal_contents);
+
+        let ctx = SessionContext::new();
+        let distinct_func =
+            DistinctCacheFunction::new(writer.db_schema().id, Arc::clone(&distinct_cache_provider));
+        ctx.register_udtf(DISTINCT_CACHE_UDTF_NAME, Arc::new(distinct_func));
+
+        let results = ctx
+            .sql("select * from distinct_cache('bar')")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+
+        assert_batches_eq!(
+            [
+                "+----+----+----+",
+                "| t1 | t2 | t3 |",
+                "+----+----+----+",
+                "| A  | A  | A  |",
+                "| A  | A  | B  |",
+                "| A  | B  | B  |",
+                "+----+----+----+",
             ],
             &results
         );
