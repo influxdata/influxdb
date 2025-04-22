@@ -1,7 +1,7 @@
 InfluxDB 3 Core Server and Command Line Tools
 
 # Example to run the InfluxDB 3 Core server:
-  influxdb3 serve --node-id my_node_name --object-store file --data-dir ~/.influxdb3_data 
+  influxdb3 serve --node-id my_node_name --object-store file --data-dir ~/.influxdb3_data
 
 {} {} [OPTIONS] [COMMAND]
 
@@ -9,44 +9,44 @@ InfluxDB 3 Core Server and Command Line Tools
   {}     Run the InfluxDB 3 Core server
   {}  Perform a query against a running InfluxDB 3 Core server
   {}  Perform a set of writes to a running InfluxDB 3 Core server
-  
+
 {}
   {}    Create a resource such as a database or auth token
   {}      List resources on the InfluxDB 3 Core server
   {}    Delete a resource such as a database or table
   {}    Enable a resource such as a trigger
   {}   Disable a resource such as a trigger
-  
+
 {}
   {}   Install Python packages for the Processing Engine
   {}      Test that Processing Engine plugins work the way you expect
 
 {}
-  --io-runtime-type <TYPE>          IO tokio runtime type [env: INFLUXDB3_IO_RUNTIME_TYPE=] 
-                                    [default: multi-thread] 
+  --io-runtime-type <TYPE>          IO tokio runtime type [env: INFLUXDB3_IO_RUNTIME_TYPE=]
+                                    [default: multi-thread]
                                     [possible values: current-thread, multi-thread, multi-thread-alt]
-  --io-runtime-disable-lifo-slot <BOOL>  
-                                     Disable LIFO slot of IO runtime 
+  --io-runtime-disable-lifo-slot <BOOL>
+                                     Disable LIFO slot of IO runtime
                                      [env: INFLUXDB3_IO_RUNTIME_DISABLE_LIFO_SLOT=]
                                      [possible values: true, false]
-  --io-runtime-event-interval <N>   Scheduler ticks before polling for external events 
+  --io-runtime-event-interval <N>   Scheduler ticks before polling for external events
                                      [env: INFLUXDB3_IO_RUNTIME_EVENT_INTERVAL=]
-  --io-runtime-global-queue-interval <N>  
-                                     Scheduler ticks before polling global task queue 
+  --io-runtime-global-queue-interval <N>
+                                     Scheduler ticks before polling global task queue
                                      [env: INFLUXDB3_IO_RUNTIME_GLOBAL_QUEUE_INTERVAL=]
-  --io-runtime-max-blocking-threads <N>  
-                                     Thread limit for IO runtime 
+  --io-runtime-max-blocking-threads <N>
+                                     Thread limit for IO runtime
                                      [env: INFLUXDB3_IO_RUNTIME_MAX_BLOCKING_THREADS=]
-  --io-runtime-max-io-events-per-tick <N>  
-                                     Max events processed per tick 
+  --io-runtime-max-io-events-per-tick <N>
+                                     Max events processed per tick
                                      [env: INFLUXDB3_IO_RUNTIME_MAX_IO_EVENTS_PER_TICK=]
-  --io-runtime-thread-keep-alive <DURATION>  
-                                     Blocking pool thread timeout 
+  --io-runtime-thread-keep-alive <DURATION>
+                                     Blocking pool thread timeout
                                      [env: INFLUXDB3_IO_RUNTIME_THREAD_KEEP_ALIVE=]
-  --io-runtime-thread-priority <PRIORITY>  
-                                     Thread priority for runtime workers 
+  --io-runtime-thread-priority <PRIORITY>
+                                     Thread priority for runtime workers
                                      [env: INFLUXDB3_IO_RUNTIME_THREAD_PRIORITY=]
-  --num-threads <N>                  Set maximum IO runtime threads [env: INFLUXDB3_NUM_THREADS=]
+  --num-io-threads <N>               Set maximum IO runtime threads [env: INFLUXDB3_NUM_THREADS=]
 
 {}
   -h, --help        Print help information
