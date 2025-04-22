@@ -143,7 +143,7 @@ impl CreateTableQuery<'_> {
             .into_iter()
             .map(|(name, dt)| {
                 (
-                    name.into(),
+                    name,
                     match dt.as_ref() {
                         "utf8" => FieldType::Utf8,
                         "bool" => FieldType::Bool,
