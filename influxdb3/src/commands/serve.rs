@@ -51,6 +51,10 @@ use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use panic_logging::SendPanicsToTracing;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use rustls::{
+    SupportedProtocolVersion,
+    version::{TLS12, TLS13},
+};
 use std::{env, num::NonZeroUsize, sync::Arc, time::Duration};
 use std::{path::Path, str::FromStr};
 use std::{path::PathBuf, process::Command};
@@ -378,6 +382,44 @@ pub struct Config {
 
     #[clap(long = "tls-cert", env = "INFLUXDB3_TLS_CERT")]
     pub cert_file: Option<PathBuf>,
+
+    #[clap(
+        long = "tls-minimum-version",
+        env = "INFLUXDB3_TLS_MINIMUM_VERSION",
+        default_value = "tls-1.2"
+    )]
+    pub tls_minimum_version: TlsMinimumVersion,
+}
+
+/// The minimum version of TLS to use for InfluxDB
+#[derive(Debug, Clone, Copy, Default)]
+pub enum TlsMinimumVersion {
+    #[default]
+    Tls1_2,
+    Tls1_3,
+}
+
+impl FromStr for TlsMinimumVersion {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::prelude::v1::Result<Self, Self::Err> {
+        match s {
+            "tls-1.2" => Ok(Self::Tls1_2),
+            "tls-1.3" => Ok(Self::Tls1_3),
+            _ => Err("Valid minimum version strings are tls-1.2 and tls-1.3".into()),
+        }
+    }
+}
+
+impl From<TlsMinimumVersion> for &'static [&'static SupportedProtocolVersion] {
+    fn from(val: TlsMinimumVersion) -> Self {
+        static TLS1_2: &[&SupportedProtocolVersion] = &[&TLS12, &TLS13];
+        static TLS1_3: &[&SupportedProtocolVersion] = &[&TLS13];
+        match val {
+            TlsMinimumVersion::Tls1_2 => TLS1_2,
+            TlsMinimumVersion::Tls1_3 => TLS1_3,
+        }
+    }
 }
 
 /// Specified size of the Parquet cache in megabytes (MB)
@@ -683,7 +725,9 @@ pub async fn command(config: Config) -> Result<()> {
     let cert_file = config.cert_file;
     let key_file = config.key_file;
     let server = if config.without_auth {
-        builder.build(cert_file, key_file).await
+        builder
+            .build(cert_file, key_file, config.tls_minimum_version.into())
+            .await
     } else {
         let authentication_provider = Arc::new(TokenAuthenticator::new(
             Arc::clone(&catalog) as _,
@@ -691,7 +735,7 @@ pub async fn command(config: Config) -> Result<()> {
         ));
         builder
             .authorizer(authentication_provider as _)
-            .build(cert_file, key_file)
+            .build(cert_file, key_file, config.tls_minimum_version.into())
             .await
     };
 

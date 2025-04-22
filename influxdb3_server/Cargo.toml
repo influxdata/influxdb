@@ -78,6 +78,7 @@ parking_lot.workspace = true
 pin-project-lite.workspace = true
 pyo3.workspace = true
 regex.workspace = true
+rustls.workspace = true
 rustls-pemfile.workspace = true
 secrecy.workspace = true
 serde.workspace = true
