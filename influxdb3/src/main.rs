@@ -12,7 +12,7 @@ clippy::future_not_send
 
 use clap::Parser;
 use dotenvy::dotenv;
-use influxdb3_clap_blocks::tokio::TokioIoConfig;
+use influxdb3_clap_blocks::tokio::{TokioDatafusionConfig, TokioIoConfig};
 use influxdb3_process::VERSION_STRING;
 use observability_deps::tracing::warn;
 use owo_colors::OwoColorize;
@@ -126,6 +126,10 @@ fn main() -> Result<(), std::io::Error> {
     // We must check for the help flags first else clap will complain if we do not
     // have certain args set when we call `Config::parse()` f.ex `influxdb3 serve -h` will fail with our current derive as `--node-id` is required. This would be confusing as many users will expect to just be able to pass `-h` and get some help spat out. The joys of manually implementing `-h/--help/--help-all`
     maybe_print_help();
+
+    // Copy deprecated environment variables
+    TokioIoConfig::copy_deprecated_env_aliases();
+    TokioDatafusionConfig::copy_deprecated_env_aliases();
 
     // Note the help code above *must* run before this function call
     let config = Config::parse();

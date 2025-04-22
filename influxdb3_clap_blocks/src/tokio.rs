@@ -39,6 +39,8 @@ macro_rules! tokio_rt_config {
         name = $name:ident ,
         num_threads_arg = $num_threads_arg:expr ,
         num_threads_env = $num_threads_env:expr ,
+        num_threads_arg_alias = $num_threads_arg_alias:expr ,
+        num_threads_env_alias = $num_threads_env_alias:expr ,
         default_thread_priority = $default_thread_priority:expr,
     ) => {
         paste! {
@@ -52,6 +54,7 @@ macro_rules! tokio_rt_config {
                 #[clap(
                     id = concat!(stringify!([<$name:lower>]), "_runtime_num_threads"),
                     long = $num_threads_arg,
+                    alias = $num_threads_arg_alias,
                     env = $num_threads_env,
                     action
                 )]
@@ -138,6 +141,16 @@ macro_rules! tokio_rt_config {
             }
 
             impl [<Tokio $name:camel Config>] {
+                pub fn copy_deprecated_env_aliases() {
+                    if std::env::var($num_threads_env_alias).is_ok()
+                            && std::env::var($num_threads_env).is_err()
+                        {
+                            eprintln!("WARN: Use of deprecated environment variable {}: replace with {}",  $num_threads_env_alias, $num_threads_env);
+                            let v = std::env::var($num_threads_env_alias).unwrap();
+                            unsafe { std::env::set_var($num_threads_env, v); }
+                        }
+                }
+
                 /// Creates the tokio runtime builder.
                 pub fn builder(&self) -> Result<::tokio::runtime::Builder, std::io::Error> {
                     self.builder_with_name(stringify!($name))
@@ -246,15 +259,19 @@ macro_rules! tokio_rt_config {
 
 tokio_rt_config!(
     name = IO,
-    num_threads_arg = "num-threads",
-    num_threads_env = "INFLUXDB3_NUM_THREADS",
+    num_threads_arg = "num-io-threads",
+    num_threads_env = "INFLUXDB3_NUM_IO_THREADS",
+    num_threads_arg_alias = "num-threads",
+    num_threads_env_alias = "INFLUXDB3_NUM_THREADS",
     default_thread_priority = None,
 );
 
 tokio_rt_config!(
     name = Datafusion,
-    num_threads_arg = "datafusion-num-threads",
-    num_threads_env = "INFLUXDB3_DATAFUSION_NUM_THREADS",
+    num_threads_arg = "num-datafusion-threads",
+    num_threads_env = "INFLUXDB3_NUM_DATAFUSION_THREADS",
+    num_threads_arg_alias = "datafusion-num-threads",
+    num_threads_env_alias = "INFLUXDB3_DATAFUSION_NUM_THREADS",
     default_thread_priority = "10",
 );
 
