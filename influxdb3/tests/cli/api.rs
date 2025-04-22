@@ -1,6 +1,7 @@
 use crate::server::TestServer;
 use anyhow::{Result, bail};
 use assert_cmd::cargo::CommandCargoExt;
+use influxdb3_types::http::FieldType;
 use serde_json::Value;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -134,6 +135,35 @@ impl CreateTableQuery<'_> {
     pub fn add_field(mut self, name: impl Into<String>, data_type: impl Into<String>) -> Self {
         self.fields.push((name.into(), data_type.into()));
         self
+    }
+
+    pub async fn run_api(self) -> Result<(), influxdb3_client::Error> {
+        let fields = self
+            .fields
+            .into_iter()
+            .map(|(name, dt)| {
+                (
+                    name,
+                    match dt.as_ref() {
+                        "utf8" => FieldType::Utf8,
+                        "bool" => FieldType::Bool,
+                        "int64" => FieldType::Int64,
+                        "float64" => FieldType::Float64,
+                        "uint64" => FieldType::UInt64,
+                        _ => panic!("invalid field type"),
+                    },
+                )
+            })
+            .collect();
+
+        self.server
+            .api_v3_create_table(
+                self.db_name.as_str(),
+                self.table_name.as_str(),
+                self.tags,
+                fields,
+            )
+            .await
     }
 
     pub fn run(self) -> Result<String> {

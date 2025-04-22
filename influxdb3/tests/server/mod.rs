@@ -11,6 +11,7 @@ use assert_cmd::cargo::CommandCargoExt;
 use futures::TryStreamExt;
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use influxdb3_client::Precision;
+use influxdb3_types::http::FieldType;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Certificate, Response, tls::Version};
 use tonic::transport::ClientTlsConfig;
@@ -414,6 +415,27 @@ impl TestServer {
             .body(lp.to_string())
             .precision(precision)
             .send()
+            .await
+    }
+
+    pub async fn api_v3_create_table(
+        &self,
+        database: &str,
+        table: &str,
+        tags: Vec<String>,
+        fields: Vec<(String, FieldType)>,
+    ) -> Result<(), influxdb3_client::Error> {
+        let mut client = influxdb3_client::Client::new(
+            self.client_addr(),
+            Some("../testing-certs/rootCA.pem".into()),
+        )
+        .unwrap();
+        if let Some(token) = &self.auth_token {
+            client = client.with_auth_token(token);
+        }
+
+        client
+            .api_v3_configure_table_create(database, table, tags, fields)
             .await
     }
 

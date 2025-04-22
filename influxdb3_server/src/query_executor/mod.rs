@@ -639,11 +639,14 @@ impl SchemaProvider for Database {
     }
 
     fn table_names(&self) -> Vec<String> {
-        self.db_schema
+        let mut names = self
+            .db_schema
             .table_names()
             .iter()
             .map(|t| t.to_string())
-            .collect()
+            .collect::<Vec<_>>();
+        names.sort();
+        names
     }
 
     async fn table(
