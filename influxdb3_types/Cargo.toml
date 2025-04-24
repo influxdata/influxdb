@@ -23,6 +23,7 @@ hashbrown.workspace = true
 hex.workspace = true
 hyper.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

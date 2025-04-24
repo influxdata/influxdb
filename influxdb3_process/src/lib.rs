@@ -58,11 +58,14 @@ pub static VERSION_STRING: LazyLock<&'static str> = LazyLock::new(|| {
 });
 
 /// A UUID that is unique for the process lifetime.
-pub static PROCESS_UUID: LazyLock<&'static str> = LazyLock::new(|| {
-    let s = uuid::Uuid::new_v4().to_string();
+pub static PROCESS_UUID_STR: LazyLock<&'static str> = LazyLock::new(|| {
+    let s = PROCESS_UUID.to_string();
     let s: Box<str> = Box::from(s);
     Box::leak(s)
 });
+
+/// A UUID that is unique for the process lifetime.
+pub static PROCESS_UUID: LazyLock<uuid::Uuid> = LazyLock::new(uuid::Uuid::new_v4);
 
 /// Process start time.
 pub static PROCESS_START_TIME: LazyLock<Time> = LazyLock::new(|| SystemProvider::new().now());
@@ -79,7 +82,7 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
         .recorder(&[
             ("version", INFLUXDB3_VERSION.as_ref()),
             ("git_hash", INFLUXDB3_GIT_HASH),
-            ("uuid", PROCESS_UUID.as_ref()),
+            ("uuid", PROCESS_UUID_STR.as_ref()),
         ])
         .set(PROCESS_START_TIME.timestamp() as u64);
 

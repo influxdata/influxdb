@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 use influxdb3_id::ColumnId;
+use influxdb3_process::PROCESS_UUID;
 use observability_deps::tracing::{debug, error, info, trace};
 use schema::{InfluxColumnType, InfluxFieldType};
 use uuid::Uuid;
@@ -12,7 +13,7 @@ use super::{
 };
 use crate::{
     CatalogError, Result,
-    catalog::{NUM_TAG_COLUMNS_LIMIT, NodeDefinition},
+    catalog::NUM_TAG_COLUMNS_LIMIT,
     log::{
         AddFieldsLog, CatalogBatch, CreateDatabaseLog, CreateTableLog, DatabaseCatalogOp,
         DeleteDistinctCacheLog, DeleteLastCacheLog, DeleteTokenDetails, DeleteTriggerLog,
@@ -40,11 +41,12 @@ impl Catalog {
                 columns_per_table_limit: self.num_columns_per_table_limit(),
             }),
             None => {
-                let inner = self.inner.read();
                 if inner.database_count() >= self.num_dbs_limit() {
                     return Err(CatalogError::TooManyDbs(self.num_dbs_limit()));
                 }
-                let database_id = inner.databases.next_id();
+                drop(inner);
+                let mut inner = self.inner.write();
+                let database_id = inner.databases.get_and_increment_next_id();
                 let database_name = Arc::from(db_name);
                 let database_schema =
                     Arc::new(DatabaseSchema::new(database_id, Arc::clone(&database_name)));
@@ -103,26 +105,27 @@ impl Catalog {
         mode: Vec<NodeMode>,
     ) -> Result<OrderedCatalogBatch> {
         info!(node_id, core_count, mode = ?mode, "register node");
+        let process_uuid = *PROCESS_UUID;
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
-            let node_def = if let Some(node) = self.node(node_id) {
+            let (node_catalog_id, node_id, instance_id) = if let Some(node) = self.node(node_id) {
                 if let NodeState::Running { .. } = node.state {
-                    // NOTE(trevor/catalog-refactor): if it is still in running state, but that is
-                    // invalid, i.e., if the node stopped unexpectedly without being able to update
-                    // the catalog, we would not want to error here. Could probably have a special
-                    // error case for that, or do:
-                    //
-                    // return Err(CatalogError::AlreadyExists);
-                    //
-                    // For now, just warn, as that is at least more than what the current system
-                    // would have done in the event that the same node id was used twice.
+                    // If the node is in the catalog as `Running`, that could mean that a previous
+                    // process that started the node did not stop gracefully. We just log this here
+                    // and do not fail the operation. It is assumed that this catalog update will be
+                    // handled via catalog broadcast to shut any existing processes down that are
+                    // operating as this `node_id`.
                     info!(
                         node_id,
                         instance_id = node.instance_id.as_ref(),
                         "registering node to catalog that was not previously de-registered"
                     );
                 }
-                Arc::clone(&node)
+                (
+                    node.node_catalog_id,
+                    Arc::clone(&node.node_id),
+                    Arc::clone(&node.instance_id),
+                )
             } else {
                 let instance_id = Arc::<str>::from(Uuid::new_v4().to_string().as_str());
                 info!(
@@ -130,29 +133,21 @@ impl Catalog {
                     instance_id = instance_id.as_ref(),
                     "registering new node to the catalog"
                 );
-                let inner = self.inner.read();
-                let node_catalog_id = inner.nodes.next_id();
-                Arc::new(NodeDefinition {
-                    node_id: node_id.into(),
-                    node_catalog_id,
-                    instance_id,
-                    mode: mode.clone(),
-                    core_count,
-                    state: NodeState::Running {
-                        registered_time_ns: time_ns,
-                    },
-                })
+                let mut inner = self.inner.write();
+                let node_catalog_id = inner.nodes.get_and_increment_next_id();
+                (node_catalog_id, node_id.into(), instance_id)
             };
             Ok(CatalogBatch::node(
                 time_ns,
-                node_def.node_catalog_id,
-                Arc::clone(&node_def.node_id),
+                node_catalog_id,
+                Arc::clone(&node_id),
                 vec![NodeCatalogOp::RegisterNode(RegisterNodeLog {
-                    node_id: Arc::clone(&node_def.node_id),
-                    instance_id: Arc::clone(&node_def.instance_id),
+                    node_id,
+                    instance_id,
                     registered_time_ns: time_ns,
                     core_count,
                     mode: mode.clone(),
+                    process_uuid,
                 })],
             ))
         })
@@ -160,12 +155,22 @@ impl Catalog {
     }
 
     pub async fn update_node_state_stopped(&self, node_id: &str) -> Result<OrderedCatalogBatch> {
-        info!(node_id, "updating node state to Stopped in catalog");
+        let process_uuid = *PROCESS_UUID;
+        info!(
+            node_id,
+            %process_uuid,
+            "updating node state to Stopped in catalog"
+        );
         self.catalog_update_with_retry(|| {
             let time_ns = self.time_provider.now().timestamp_nanos();
             let Some(node) = self.node(node_id) else {
                 return Err(crate::CatalogError::NotFound);
             };
+            if !node.is_running() {
+                return Err(crate::CatalogError::NodeAlreadyStopped {
+                    node_id: Arc::clone(&node.node_id),
+                });
+            }
             Ok(CatalogBatch::node(
                 time_ns,
                 node.node_catalog_id,
@@ -173,6 +178,7 @@ impl Catalog {
                 vec![NodeCatalogOp::StopNode(StopNodeLog {
                     node_id: Arc::clone(&node.node_id),
                     stopped_time_ns: time_ns,
+                    process_uuid,
                 })],
             ))
         })
@@ -794,6 +800,9 @@ impl Catalog {
             self.broadcast_update(batch).await?;
             sequence_number = sequence_number.next();
             if update_until.is_some_and(|max_sequence| sequence_number > max_sequence) {
+                break;
+            }
+            if self.state.lock().is_shutdown() {
                 break;
             }
         }

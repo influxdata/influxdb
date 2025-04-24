@@ -52,14 +52,16 @@ fn write_plugin_to_temp_dir(temp_dir: &TempDir, name: &str, code: &str) -> PathB
     file_path
 }
 
-#[test_log::test(tokio::test)]
-async fn test_telemetry_disabled_with_debug_msg() {
+#[test_log::test]
+fn test_telemetry_disabled_with_debug_msg() {
     let serve_args = &[
         "serve",
         "--node-id",
         "the-best-node",
         "--object-store",
         "memory",
+        "--http-bind",
+        "0.0.0.0:0",
     ];
 
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
@@ -70,7 +72,7 @@ async fn test_telemetry_disabled_with_debug_msg() {
         .args(serve_args)
         .arg("-vv")
         .arg("--disable-telemetry-upload")
-        .timeout(std::time::Duration::from_millis(500))
+        .timeout(std::time::Duration::from_millis(5000))
         .assert()
         .failure()
         .get_output()
@@ -80,14 +82,16 @@ async fn test_telemetry_disabled_with_debug_msg() {
     assert_contains!(output, expected_disabled);
 }
 
-#[test_log::test(tokio::test)]
-async fn test_telemetry_disabled() {
+#[test_log::test]
+fn test_telemetry_disabled() {
     let serve_args = &[
         "serve",
         "--node-id",
         "the-best-node",
         "--object-store",
         "memory",
+        "--http-bind",
+        "0.0.0.0:0",
     ];
 
     let expected_disabled: &str = "Initializing TelemetryStore with upload disabled.";
@@ -97,7 +101,7 @@ async fn test_telemetry_disabled() {
         .args(serve_args)
         .arg("-v")
         .arg("--disable-telemetry-upload")
-        .timeout(std::time::Duration::from_millis(500))
+        .timeout(std::time::Duration::from_millis(5000))
         .assert()
         .failure()
         .get_output()
@@ -107,14 +111,16 @@ async fn test_telemetry_disabled() {
     assert_not_contains!(output, expected_disabled);
 }
 
-#[test_log::test(tokio::test)]
-async fn test_telemetry_enabled_with_debug_msg() {
+#[test_log::test]
+fn test_telemetry_enabled_with_debug_msg() {
     let serve_args = &[
         "serve",
         "--node-id",
         "the-best-node",
         "--object-store",
         "memory",
+        "--http-bind",
+        "0.0.0.0:0",
     ];
 
     let expected_enabled: &str =
@@ -127,7 +133,7 @@ async fn test_telemetry_enabled_with_debug_msg() {
         .arg("-vv")
         .arg("--telemetry-endpoint")
         .arg("http://localhost:9999")
-        .timeout(std::time::Duration::from_millis(500))
+        .timeout(std::time::Duration::from_millis(5000))
         .assert()
         .failure()
         .get_output()
@@ -137,14 +143,16 @@ async fn test_telemetry_enabled_with_debug_msg() {
     assert_contains!(output, expected_enabled);
 }
 
-#[test_log::test(tokio::test)]
-async fn test_telementry_enabled() {
+#[test_log::test]
+fn test_telementry_enabled() {
     let serve_args = &[
         "serve",
         "--node-id",
         "the-best-node",
         "--object-store",
         "memory",
+        "--http-bind",
+        "0.0.0.0:0",
     ];
 
     let expected_enabled: &str =

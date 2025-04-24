@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use influxdb3_authz::TokenInfo;
 use influxdb3_catalog::log::TriggerSettings;
+use uuid::Uuid;
 
 use crate::write::Precision;
 use hashbrown::HashMap;
@@ -31,6 +32,7 @@ pub enum Error {
 pub struct PingResponse {
     pub version: String,
     pub revision: String,
+    pub process_id: Uuid,
 }
 
 impl PingResponse {
@@ -42,6 +44,11 @@ impl PingResponse {
     /// Get the `revision` from the response
     pub fn revision(&self) -> &str {
         &self.revision
+    }
+
+    /// Get the `process_id` from the response
+    pub fn process_id(&self) -> Uuid {
+        self.process_id
     }
 }
 

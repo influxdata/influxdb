@@ -19,7 +19,8 @@ use influxdb3_clap_blocks::{
     tokio::TokioDatafusionConfig,
 };
 use influxdb3_process::{
-    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID, build_malloc_conf, setup_metric_registry,
+    INFLUXDB3_GIT_HASH, INFLUXDB3_VERSION, PROCESS_UUID_STR, build_malloc_conf,
+    setup_metric_registry,
 };
 use influxdb3_processing_engine::ProcessingEngineManagerImpl;
 use influxdb3_processing_engine::environment::{
@@ -502,7 +503,7 @@ pub async fn command(config: Config) -> Result<()> {
         node_id = %config.node_identifier_prefix,
         git_hash = %INFLUXDB3_GIT_HASH as &str,
         version = %INFLUXDB3_VERSION.as_ref() as &str,
-        uuid = %PROCESS_UUID.as_ref() as &str,
+        uuid = %PROCESS_UUID_STR.as_ref() as &str,
         num_cpus,
         "InfluxDB 3 Core server starting",
     );
@@ -683,7 +684,7 @@ pub async fn command(config: Config) -> Result<()> {
         trace_exporter,
         trace_header_parser,
         Arc::clone(&telemetry_store),
-    )?;
+    );
 
     let query_executor = Arc::new(QueryExecutorImpl::new(CreateQueryExecutorArgs {
         catalog: write_buffer.catalog(),
