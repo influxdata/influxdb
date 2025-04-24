@@ -2,7 +2,7 @@ use std::{
     future::Future,
     io::{BufRead, BufReader},
     process::{Child, Command, Stdio},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use arrow::record_batch::RecordBatch;
@@ -38,6 +38,9 @@ pub trait ConfigProvider {
     /// Get if auth is enabled
     fn auth_enabled(&self) -> bool;
 
+    /// Get if bad tls is enabled
+    fn bad_tls(&self) -> bool;
+
     /// Get if admin token needs to be generated
     fn should_generate_admin_token(&self) -> bool;
 
@@ -58,6 +61,7 @@ pub trait ConfigProvider {
 pub struct TestConfig {
     auth_token: Option<(String, String)>,
     auth: bool,
+    bad_tls: bool,
     without_admin_token: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
@@ -118,6 +122,12 @@ impl TestConfig {
         self.object_store_dir = Some(object_store_dir.into());
         self
     }
+
+    /// Set whether to use bad tls certs or not for the [`TestServer`]
+    pub fn with_bad_tls(mut self, bad_tls: bool) -> Self {
+        self.bad_tls = bad_tls;
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -172,6 +182,10 @@ impl ConfigProvider for TestConfig {
         self.auth
     }
 
+    fn bad_tls(&self) -> bool {
+        self.bad_tls
+    }
+
     fn should_generate_admin_token(&self) -> bool {
         self.without_admin_token
     }
@@ -204,6 +218,11 @@ impl TestServer {
         Self::spawn_inner(&TestConfig::default()).await
     }
 
+    /// Spawn a new [`TestServer`] with an expired cert
+    pub async fn spawn_bad_tls() -> Self {
+        Self::spawn_inner(&TestConfig::default().with_bad_tls(true)).await
+    }
+
     /// Configure a [`TestServer`] before spawning
     pub fn configure() -> TestConfig {
         TestConfig::default()
@@ -219,8 +238,22 @@ impl TestServer {
             .args(["--http-bind", "0.0.0.0:0"])
             .args(["--wal-flush-interval", "10ms"])
             .args(["--wal-snapshot-size", "1"])
-            .args(["--tls-cert", "../testing-certs/localhost.pem"])
-            .args(["--tls-key", "../testing-certs/localhost.key"])
+            .args([
+                "--tls-cert",
+                if config.bad_tls() {
+                    "../testing-certs/localhost_bad.pem"
+                } else {
+                    "../testing-certs/localhost.pem"
+                },
+            ])
+            .args([
+                "--tls-key",
+                if config.bad_tls() {
+                    "../testing-certs/localhost_bad.key"
+                } else {
+                    "../testing-certs/localhost.key"
+                },
+            ])
             .args(config.as_args())
             .stdout(Stdio::piped());
 
@@ -594,10 +627,14 @@ pub async fn create_certs() {
     const ROOT_FILE: &str = "../testing-certs/rootCA.pem";
     const LOCAL_FILE: &str = "../testing-certs/localhost.pem";
     const LOCAL_KEY_FILE: &str = "../testing-certs/localhost.key";
+    const LOCAL_BAD_FILE: &str = "../testing-certs/localhost_bad.pem";
+    const LOCAL_BAD_KEY_FILE: &str = "../testing-certs/localhost_bad.key";
 
     if fs::exists(ROOT_FILE).unwrap()
         && fs::exists(LOCAL_FILE).unwrap()
         && fs::exists(LOCAL_KEY_FILE).unwrap()
+        && fs::exists(LOCAL_BAD_FILE).unwrap()
+        && fs::exists(LOCAL_BAD_KEY_FILE).unwrap()
     {
         return;
     }
@@ -612,14 +649,28 @@ pub async fn create_certs() {
             let mut ca = CertificateParams::new(Vec::new()).unwrap();
             let ca_key = KeyPair::generate().unwrap();
             let local_key = KeyPair::generate().unwrap();
+            let local_bad_key = KeyPair::generate().unwrap();
             ca.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
             let ca = ca.self_signed(&ca_key).unwrap();
             let localhost = CertificateParams::new(vec!["localhost".into()]).unwrap();
             let localhost = localhost.signed_by(&local_key, &ca, &ca_key).unwrap();
+            // We make a truly expired certificate that should fail when people
+            // try to connect
+            let localhost_bad = {
+                let mut cert = CertificateParams::new(vec!["localhost".into()]).unwrap();
+                cert.not_before = SystemTime::UNIX_EPOCH.into();
+                cert.not_after = SystemTime::UNIX_EPOCH.into();
+                cert
+            };
+            let localhost_bad = localhost_bad
+                .signed_by(&local_bad_key, &ca, &ca_key)
+                .unwrap();
 
             fs::write(ROOT_FILE, ca.pem()).unwrap();
             fs::write(LOCAL_FILE, localhost.pem()).unwrap();
             fs::write(LOCAL_KEY_FILE, local_key.serialize_pem()).unwrap();
+            fs::write(LOCAL_BAD_FILE, localhost_bad.pem()).unwrap();
+            fs::write(LOCAL_BAD_KEY_FILE, local_bad_key.serialize_pem()).unwrap();
 
             fs::remove_file(LOCK_FILE).unwrap();
         }
@@ -668,4 +719,13 @@ pub async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch>
         .try_collect()
         .await
         .expect("gather record batch stream")
+}
+
+#[tokio::test]
+#[should_panic]
+async fn fail_with_invalid_certs() {
+    // This will fail in the startup of TestServer as the connection should
+    // fail when testing that the server is up. Note that this only holds true
+    // if other tests pass.
+    let _ = TestServer::spawn_bad_tls().await;
 }
