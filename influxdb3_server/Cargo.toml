@@ -69,6 +69,7 @@ flate2.workspace = true
 futures.workspace = true
 hashbrown.workspace = true
 hex.workspace = true
+http.workspace = true
 hyper.workspace = true
 hyper-rustls.workspace = true
 humantime.workspace = true
