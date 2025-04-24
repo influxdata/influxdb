@@ -42,6 +42,7 @@ use std::io::BufReader;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
@@ -73,6 +74,9 @@ pub enum Error {
 
     #[error("from hex error: {0}")]
     FromHex(#[from] hex::FromHexError),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -143,6 +147,7 @@ pub async fn serve(
     shutdown: CancellationToken,
     startup_timer: Instant,
     without_auth: bool,
+    tcp_listener_file_path: Option<PathBuf>,
 ) -> Result<()> {
     let req_metrics = RequestMetrics::new(
         Arc::clone(&server.common_state.metrics),
@@ -195,6 +200,12 @@ pub async fn serve(
             "startup time: {}ms",
             startup_time.as_millis()
         );
+
+        if let Some(path) = tcp_listener_file_path {
+            let mut f = tokio::fs::File::create_new(path).await?;
+            let _ = f.write(addr.local_addr().to_string().as_bytes()).await?;
+            f.flush().await?;
+        }
 
         let acceptor = hyper_rustls::TlsAcceptor::builder()
             .with_tls_config(
@@ -917,9 +928,9 @@ mod tests {
             .await;
         let shutdown = frontend_shutdown.clone();
 
-        tokio::spawn(
-            async move { serve(server, frontend_shutdown, server_start_time, false).await },
-        );
+        tokio::spawn(async move {
+            serve(server, frontend_shutdown, server_start_time, false, None).await
+        });
 
         (format!("http://{addr}"), shutdown, write_buffer)
     }
