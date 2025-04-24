@@ -1,0 +1,19 @@
+# If you modify this, please also make sure to edit init.sh
+
+[Unit]
+Description=InfluxDB Core is a database built to collect, process, transform, and store event and time series data.
+Documentation=https://docs.influxdata.com/influxdb/
+After=network-online.target
+
+[Service]
+User=influxdb3
+Group=influxdb3
+LimitNOFILE=65536
+ExecStart=/usr/bin/influxdb3 serve --node '%I' --object-store file --data-dir /var/lib/influxdb3
+KillMode=control-group
+Restart=on-failure
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
+Alias=influxd.service

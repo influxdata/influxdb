@@ -748,7 +748,6 @@ workflows:
       - doc:
           <<: *any_filter
       - build-release:
-          <<: *release_filter
           name: build-release-<< matrix.target >>
           matrix:
             parameters:
@@ -760,7 +759,6 @@ workflows:
           requires:
             - fetch-python
       - build-packages:
-          <<: *release_filter
           requires:
             - build-release
       - check_package_deb_arm64:
