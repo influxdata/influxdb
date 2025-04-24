@@ -41,6 +41,9 @@ pub trait ConfigProvider {
     /// Get if bad tls is enabled
     fn bad_tls(&self) -> bool;
 
+    /// Get if tls 1.3 only is enabled
+    fn tls_1_3(&self) -> bool;
+
     /// Get if admin token needs to be generated
     fn should_generate_admin_token(&self) -> bool;
 
@@ -62,6 +65,7 @@ pub struct TestConfig {
     auth_token: Option<(String, String)>,
     auth: bool,
     bad_tls: bool,
+    tls_1_3: bool,
     without_admin_token: bool,
     node_id: Option<String>,
     plugin_dir: Option<String>,
@@ -128,6 +132,12 @@ impl TestConfig {
         self.bad_tls = bad_tls;
         self
     }
+
+    /// Set whether to use tls 1.3 as the minimum or not for the [`TestServer`]
+    pub fn with_tls_1_3(mut self, tls_1_3: bool) -> Self {
+        self.tls_1_3 = tls_1_3;
+        self
+    }
 }
 
 impl ConfigProvider for TestConfig {
@@ -186,6 +196,10 @@ impl ConfigProvider for TestConfig {
         self.bad_tls
     }
 
+    fn tls_1_3(&self) -> bool {
+        self.tls_1_3
+    }
+
     fn should_generate_admin_token(&self) -> bool {
         self.without_admin_token
     }
@@ -223,6 +237,11 @@ impl TestServer {
         Self::spawn_inner(&TestConfig::default().with_bad_tls(true)).await
     }
 
+    /// Spawn a new [`TestServer`] using tls 1.3 as the minimum
+    pub async fn spawn_tls_1_3() -> Self {
+        Self::spawn_inner(&TestConfig::default().with_tls_1_3(true)).await
+    }
+
     /// Configure a [`TestServer`] before spawning
     pub fn configure() -> TestConfig {
         TestConfig::default()
@@ -252,6 +271,14 @@ impl TestServer {
                     "../testing-certs/localhost_bad.key"
                 } else {
                     "../testing-certs/localhost.key"
+                },
+            ])
+            .args([
+                "--tls-minimum-version",
+                if config.tls_1_3() {
+                    "tls-1.3"
+                } else {
+                    "tls-1.2"
                 },
             ])
             .args(config.as_args())
@@ -728,4 +755,51 @@ async fn fail_with_invalid_certs() {
     // fail when testing that the server is up. Note that this only holds true
     // if other tests pass.
     let _ = TestServer::spawn_bad_tls().await;
+}
+
+#[tokio::test]
+async fn tls_1_3_minimum_test() {
+    let server = TestServer::spawn_tls_1_3().await;
+
+    let http_client = reqwest::ClientBuilder::new()
+        .min_tls_version(Version::TLS_1_2)
+        .max_tls_version(Version::TLS_1_2)
+        .use_rustls_tls()
+        .add_root_certificate(
+            Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap()).unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    // This should fail since we are using TLS 1.2
+    http_client
+        .execute(
+            http_client
+                .get(format!("{}/health", server.client_addr()))
+                .build()
+                .unwrap(),
+        )
+        .await
+        .unwrap_err();
+
+    let http_client = reqwest::ClientBuilder::new()
+        .min_tls_version(Version::TLS_1_3)
+        .max_tls_version(Version::TLS_1_3)
+        .use_rustls_tls()
+        .add_root_certificate(
+            Certificate::from_pem(&std::fs::read("../testing-certs/rootCA.pem").unwrap()).unwrap(),
+        )
+        .build()
+        .unwrap();
+
+    // This should NOT fail since we are using TLS 1.3
+    http_client
+        .execute(
+            http_client
+                .get(format!("{}/health", server.client_addr()))
+                .build()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
 }
