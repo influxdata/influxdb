@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
