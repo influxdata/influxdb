@@ -2159,8 +2159,14 @@ func (e *Engine) isGroupOptimized(group CompactionGroup) (optimized bool, file s
 	return false, "", ""
 }
 
+const waitForOptimization = time.Hour
+const tickPeriod = time.Second
+
+var ticksBeforeOptimize = int(waitForOptimization.Seconds())
+var waitMessage = fmt.Sprintf("waiting %s before optimizing compaction", waitForOptimization.String())
+
 func (e *Engine) compact(wg *sync.WaitGroup) {
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(tickPeriod)
 	defer t.Stop()
 
 	var nextDisabledMsg time.Time
@@ -2189,16 +2195,12 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			}
 
 			cycleCount += 1
-			var compactionLimitReached, optimizeLimitReached bool
 			skipOptimize := func() (bool, string) {
-				if cycleCount == 1 {
-					return true, "first compaction schedule cycle"
-				} else if optimizeLimitReached {
-					return true, "concurrent optimized compaction limit reached for this schedule cycle"
-				} else if compactionLimitReached {
-					return true, "concurrent compaction limit reached when attempting optimized compaction"
+				if cycleCount <= ticksBeforeOptimize {
+					return true, waitMessage
+				} else {
+					return false, ""
 				}
-				return false, ""
 			}
 
 			// Find our compaction plans
@@ -2304,7 +2306,6 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						aggressive = true
 					}
 					log = log.With(zap.Bool("aggressive", aggressive))
-					popGroup := true // Default is to pop group, explicitly set to false when we don't want to pop group.
 					if skip, reason := skipOptimize(); skip {
 						log.Info("Skipping optimized level 5 compaction group", zap.String("reason", reason))
 					} else {
@@ -2314,21 +2315,16 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 								// We've reached the limit of optimized compactions. Let's not schedule anything else this schedule cycle
 								// in an effort to avoid starving level compactions.
 								log.Info("Reached limit for optimized compactions. Ending optimized compaction scheduling for this scheduling cycle")
-								optimizeLimitReached = true
 							} else if errors.Is(err, ErrCompactionLimited) {
 								// We've reached the maximum amount of total concurrent compactions. Again, don't schedule any more optimized
 								// compactions this cycle to prevent starving level compactions.
 								log.Info("Reached limit for concurrent compactions while attempting optimized compaction. Ending optimized compaction scheduling for this scheudling cycle")
-								compactionLimitReached = true
 							} else {
 								log.Error("Error during compactOptimize", zap.Error(err))
-								// Let's assume this is a retryable error, which is how other levels behave.
-								popGroup = false
 							}
+						} else {
+							level5Groups = level5Groups[1:]
 						}
-					}
-					if popGroup {
-						level5Groups = level5Groups[1:]
 					}
 				}
 			}
