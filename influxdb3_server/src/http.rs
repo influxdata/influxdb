@@ -12,6 +12,7 @@ use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::physical_plan::SendableRecordBatchStream;
 use futures::FutureExt;
 use futures::{StreamExt, TryStreamExt};
+use http::header::ACCESS_CONTROL_ALLOW_ORIGIN;
 use hyper::HeaderMap;
 use hyper::header::AUTHORIZATION;
 use hyper::header::CONTENT_ENCODING;
@@ -1670,6 +1671,26 @@ pub(crate) async fn route_request(
 ) -> Result<Response<Body>, Infallible> {
     let method = req.method().clone();
     let uri = req.uri().clone();
+
+    // Handle CORS Preflight Checks by allowing everything by default
+    // and allowing the check to be cached by the browser. This is useful
+    // for people wanting to query the DB directly from a browser rather
+    // than from a server. We're permissive about what works with CORS
+    // so we don't need to check the incoming request, just respond with
+    // the following headers. We do this before the API token checks as
+    // the browser will not send a request with an auth header for CORS.
+    if let Method::OPTIONS = method {
+        info!(?uri, "preflight request");
+        return Ok(Response::builder()
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Methods", "*")
+            .header("Access-Control-Allow-Headers", "*")
+            .header("Access-Control-Max-Age", "86400")
+            .status(204)
+            .body(Body::empty())
+            .expect("Able to always create a valid response type for CORS"));
+    }
+
     if started_without_auth && uri.path().starts_with(all_paths::API_V3_CONFIGURE_TOKEN) {
         return Ok(Response::builder()
             .status(StatusCode::METHOD_NOT_ALLOWED)
@@ -1792,7 +1813,10 @@ pub(crate) async fn route_request(
 
     // TODO: Move logging to TraceLayer
     match response {
-        Ok(response) => {
+        Ok(mut response) => {
+            response
+                .headers_mut()
+                .insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
             debug!(?response, "Successfully processed request");
             Ok(response)
         }
